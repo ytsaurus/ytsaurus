@@ -37,13 +37,13 @@ public:
         , Logger(NLogging::TLogger(ControllerLogger)
             .AddTag("OperationId: %v", OperationId_))
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
     }
 
     virtual EJobSplitterVerdict ExamineJob(TJobId jobId) override
     {
         auto it = RunningJobs_.find(jobId);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         auto& job = it->second;
 
         auto minJobTime = std::max(
@@ -112,7 +112,7 @@ public:
     void OnJobRunning(const TJobSummary& summary) override
     {
         auto it = RunningJobs_.find(summary.Id);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         auto& job = it->second;
         job.UpdateCompletionTime(&JobTimeTracker_, summary);
     }
@@ -141,7 +141,7 @@ public:
         i64 unreadRowCount) const override
     {
         double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
-        YCHECK(summary.Statistics);
+        YT_VERIFY(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
@@ -346,7 +346,7 @@ private:
             }
 
             ExecDuration_ = summary.ExecDuration.value_or(TDuration());
-            YCHECK(summary.Statistics);
+            YT_VERIFY(summary.Statistics);
 
             RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);
             if (RowCount_ == 0) {
@@ -428,7 +428,7 @@ private:
     void OnJobFinished(const TJobSummary& summary)
     {
         auto it = RunningJobs_.find(summary.Id);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         JobTimeTracker_.RemoveSample(summary.Id);
         RunningJobs_.erase(it);
         JobTimeTracker_.Update();

@@ -19,7 +19,7 @@ TCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
     static_assert(
         NMpl::TIsVoid<R>::Value,
         "Via() can only be used with void return type.");
-    Y_ASSERT(invoker);
+    YT_ASSERT(invoker);
 
     auto this_ = *this;
     return BIND([=] (TArgs... args) {

@@ -85,7 +85,7 @@ void TAsyncYsonConsumerAdapter::OnRaw(TStringBuf yson, EYsonType type)
 
 void TAsyncYsonConsumerAdapter::OnRaw(TFuture<TYsonString> /*asyncStr*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

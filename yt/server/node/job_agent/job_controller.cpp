@@ -227,8 +227,8 @@ TJobController::TImpl::TImpl(
     , ResourceLimitsProfiler_(Profiler_.AppendPath("/resource_limits"))
     , ResourceUsageProfiler_(Profiler_.AppendPath("/resource_usage"))
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
 
     if (Config_->PortSet) {
         FreePorts_ = *Config_->PortSet;
@@ -269,13 +269,13 @@ void TJobController::TImpl::Initialize()
 
 void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
 {
-    YCHECK(Factories_.insert(std::make_pair(type, factory)).second);
+    YT_VERIFY(Factories_.insert(std::make_pair(type, factory)).second);
 }
 
 TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
 {
     auto it = Factories_.find(type);
-    YCHECK(it != Factories_.end());
+    YT_VERIFY(it != Factories_.end());
     return it->second;
 }
 
@@ -623,7 +623,7 @@ IJobPtr TJobController::TImpl::CreateJob(
         operationId,
         type);
 
-    YCHECK(Jobs_.insert(std::make_pair(jobId, job)).second);
+    YT_VERIFY(Jobs_.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
@@ -696,8 +696,8 @@ void TJobController::TImpl::RemoveJob(
     bool archiveFailContext,
     bool archiveProfile)
 {
-    YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
-    YCHECK(job->GetResourceUsage() == ZeroNodeResources());
+    YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
+    YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
     if (archiveJobSpec) {
         YT_LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
@@ -723,7 +723,7 @@ void TJobController::TImpl::RemoveJob(
         job->ReportProfile();
     }
 
-    YCHECK(Jobs_.erase(job->GetId()) == 1);
+    YT_VERIFY(Jobs_.erase(job->GetId()) == 1);
 
     YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
 }
@@ -754,7 +754,7 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
         const auto& ports = job_->GetPorts();
         YT_LOG_INFO("Releasing ports (JobId: %v, PortCount: %v, Ports: %v)", job_->GetId(), ports.size(), ports);
         for (auto port : ports) {
-            YCHECK(FreePorts_.insert(port).second);
+            YT_VERIFY(FreePorts_.insert(port).second);
         }
     }
 }
@@ -1045,7 +1045,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     addressWithNetwork.Address);
                 groupedStartInfos[addressWithNetwork].push_back(startInfo);
             } catch (const std::exception& ex) {
-                YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+                YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                 YT_LOG_DEBUG(ex, "Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
                     operationId,
                     jobId,
@@ -1093,7 +1093,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     for (const auto& startInfo : startInfos) {
                         auto jobId = FromProto<TJobId>(startInfo.job_id());
                         auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-                        YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+                        YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                     }
                     return;
                 }
@@ -1102,7 +1102,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     addressWithNetwork);
 
                 const auto& rsp = rspOrError.Value();
-                YCHECK(rsp->responses_size() == startInfos.size());
+                YT_VERIFY(rsp->responses_size() == startInfos.size());
                 for (size_t  index = 0; index < startInfos.size(); ++index) {
                     const auto& startInfo = startInfos[index];
                     auto operationId = FromProto<TJobId>(startInfo.operation_id());
@@ -1111,7 +1111,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     const auto& subresponse = rsp->mutable_responses(index);
                     auto error = FromProto<TError>(subresponse->error());
                     if (!error.IsOK()) {
-                        YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+                        YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
                         YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
@@ -1141,7 +1141,7 @@ TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> TJobController::TImpl::GetJ
                 jobs[EJobOrigin::Scheduler].push_back(pair.second);
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
     return jobs;

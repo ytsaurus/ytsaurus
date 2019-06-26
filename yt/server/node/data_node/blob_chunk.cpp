@@ -333,13 +333,13 @@ void TBlobChunkBase::DoReadBlockSet(
                 << TError(blocksOrError);
             if (IsFatalError(blocksOrError)) {
                 Location_->Disable(error);
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
             THROW_ERROR error;
         }
 
         const auto& blocks = blocksOrError.Value();
-        YCHECK(blocks.size() == blocksToRead);
+        YT_VERIFY(blocks.size() == blocksToRead);
 
         i64 bytesRead = 0;
         TWallTimer populateCacheTimer;
@@ -490,8 +490,8 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YCHECK(firstBlockIndex >= 0);
-    YCHECK(blockCount >= 0);
+    YT_VERIFY(firstBlockIndex >= 0);
+    YT_VERIFY(blockCount >= 0);
 
     std::vector<int> blockIndexes;
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {

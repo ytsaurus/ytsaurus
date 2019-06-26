@@ -111,7 +111,7 @@ static ATTRIBUTE_NO_SANITIZE_ADDRESS inline const char* FindNextSymbol(
         }
     } while (true);
 
-    YCHECK(current == end);
+    YT_VERIFY(current == end);
     return current;
 }
 
@@ -133,7 +133,7 @@ static inline const char* FindNextSymbol(
 #undef DO_1
 #undef DO_4
 #undef DO_16
-    Y_ASSERT(current == end);
+    YT_ASSERT(current == end);
     return current;
 }
 
@@ -146,7 +146,7 @@ TEscapeTable::TEscapeTable()
 
 void TEscapeTable::FillStops(const std::vector<char>& stopSymbols)
 {
-    YCHECK(stopSymbols.size() <= 16);
+    YT_VERIFY(stopSymbols.size() <= 16);
 
 #ifdef YT_USE_SSE42
     if (CpuId.Sse42()) {

@@ -310,7 +310,7 @@ template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> elements)
     : Items_{}
 {
-    Y_ASSERT(std::distance(elements.begin(), elements.end()) <= N);
+    YT_ASSERT(std::distance(elements.begin(), elements.end()) <= N);
     size_t index = 0;
     for (const auto& element : elements) {
         Items_[index++] = element;
@@ -334,7 +334,7 @@ TEnumIndexedVector<T, E, Min, Max>& TEnumIndexedVector<T, E, Min, Max>::operator
 template <class T, class E, E Min, E Max>
 T& TEnumIndexedVector<T, E, Min, Max>::operator[] (E index)
 {
-    Y_ASSERT(index >= Min && index <= Max);
+    YT_ASSERT(index >= Min && index <= Max);
     return Items_[static_cast<TUnderlying>(index) - static_cast<TUnderlying>(Min)];
 }
 

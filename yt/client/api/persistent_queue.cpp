@@ -86,7 +86,7 @@ public:
             .AddTag("PollerId: %v", PollerId_))
         , Invoker_(Client_->GetConnection()->GetInvoker())
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
 
         RecreateState(false);
 
@@ -263,13 +263,13 @@ private:
         for (auto row : rowset->GetRows()) {
             TStateTableRow stateRow;
 
-            Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+            YT_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
             stateRow.TabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
 
-            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             stateRow.RowIndex = row[rowIndexColumnId].Data.Int64;
 
-            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             stateRow.State = ERowState(row[stateColumnId].Data.Int64);
 
             rows.push_back(stateRow);
@@ -295,7 +295,7 @@ private:
 
         for (const auto& row : stateRows) {
             auto tabletIt = state->TabletMap.find(row.TabletIndex);
-            YCHECK(tabletIt != state->TabletMap.end());
+            YT_VERIFY(tabletIt != state->TabletMap.end());
             auto& tablet = tabletIt->second;
 
             tablet.ConsumedRowIndexes.insert(row.RowIndex);
@@ -310,7 +310,7 @@ private:
         for (auto& pair : state->TabletMap) {
             auto& tablet = pair.second;
             while (tablet.ConsumedRowIndexes.find(tablet.FetchRowIndex) != tablet.ConsumedRowIndexes.end()) {
-                YCHECK(tablet.ConsumedRowIndexes.erase(tablet.FetchRowIndex) == 1);
+                YT_VERIFY(tablet.ConsumedRowIndexes.erase(tablet.FetchRowIndex) == 1);
                 ++tablet.FetchRowIndex;
             }
         }
@@ -341,7 +341,7 @@ private:
     {
         auto state = New<TState>();
         for (int tabletIndex : TabletIndexes_) {
-            YCHECK(state->TabletMap.insert(std::make_pair(tabletIndex, TTablet())).second);
+            YT_VERIFY(state->TabletMap.insert(std::make_pair(tabletIndex, TTablet())).second);
         }
 
         {
@@ -366,7 +366,7 @@ private:
         }
 
         auto tabletIt = state->TabletMap.find(tabletIndex);
-        YCHECK(tabletIt != state->TabletMap.end());
+        YT_VERIFY(tabletIt != state->TabletMap.end());
         auto& tablet = tabletIt->second;
 
         auto rowLimit = Config_->MaxRowsPerFetch;
@@ -427,7 +427,7 @@ private:
 
 
         auto beginBatch = [&] () {
-            YCHECK(batchBeginRowIndex < 0);
+            YT_VERIFY(batchBeginRowIndex < 0);
             batchBeginRowIndex = currentRowIndex;
         };
 
@@ -437,7 +437,7 @@ private:
             }
 
             i64 batchEndRowIndex = currentRowIndex;
-            YCHECK(batchBeginRowIndex < batchEndRowIndex);
+            YT_VERIFY(batchBeginRowIndex < batchEndRowIndex);
 
             TBatch batch;
             batch.TabletIndex = tabletIndex;
@@ -462,7 +462,7 @@ private:
         };
 
         for (auto row : rows) {
-            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             auto queryRowIndex = row[rowIndexColumnId].Data.Int64;
             if (queryRowIndex != currentRowIndex) {
                 OnStateFailed(state);
@@ -633,12 +633,12 @@ private:
                 const auto& schema = rowset->Schema();
                 auto rows = rowset->GetRows();
                 if (!rows.Empty()) {
-                    YCHECK(rows.Size() == 1);
+                    YT_VERIFY(rows.Size() == 1);
                     auto row = rows[0];
 
                     auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
 
-                    Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                    YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                     auto rowIndex = row[rowIndexColumnId].Data.Int64;
 
                     if (rowIndex >= batch.BeginRowIndex) {
@@ -719,9 +719,9 @@ private:
             .ValueOrThrow();
 
         THashMap<int, const TTabletInfo*> tabletIndexToInfo;
-        YCHECK(TabletIndexes_.size() == tabletInfos.size());
+        YT_VERIFY(TabletIndexes_.size() == tabletInfos.size());
         for (size_t index = 0; index < TabletIndexes_.size(); ++index) {
-            YCHECK(tabletIndexToInfo.emplace(TabletIndexes_[index], &tabletInfos[index]).second);
+            YT_VERIFY(tabletIndexToInfo.emplace(TabletIndexes_[index], &tabletInfos[index]).second);
         }
 
         YT_LOG_DEBUG("Tablet infos received");
@@ -754,7 +754,7 @@ private:
             if (row.State == ERowState::ConsumedAndTrimmed) {
                 tablet.LastTrimmedRowIndex = std::max(tablet.LastTrimmedRowIndex, row.RowIndex);
             }
-            YCHECK(tablet.ConsumedRowIndexes.insert(row.RowIndex).second);
+            YT_VERIFY(tablet.ConsumedRowIndexes.insert(row.RowIndex).second);
         }
 
         {
@@ -763,7 +763,7 @@ private:
                 int tabletIndex = pair.first;
                 const auto& statistics = pair.second;
                 auto tabletIt = state->TabletMap.find(tabletIndex);
-                YCHECK(tabletIt != state->TabletMap.end());
+                YT_VERIFY(tabletIt != state->TabletMap.end());
                 tabletIt->second.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;
             }
         }
@@ -817,7 +817,7 @@ private:
                 }
 
                 auto tabletInfoIt = tabletIndexToInfo.find(tabletIndex);
-                YCHECK(tabletInfoIt != tabletIndexToInfo.end());
+                YT_VERIFY(tabletInfoIt != tabletIndexToInfo.end());
                 const auto& tabletInfo = tabletInfoIt->second;
                 if (stateTrimRowIndex - tabletInfo->TrimmedRowCount >= Config_->UntrimmedDataRowsHigh) {
                     statistics.TrimmedRowCountRequest = stateTrimRowIndex - Config_->UntrimmedDataRowsLow;
@@ -945,13 +945,13 @@ TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsSt
             THashMap<int, TPersistentQueueTabletState> tabletMap;
 
             for (auto row : rowset->GetRows()) {
-                Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
                 int tabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
 
-                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                 i64 rowIndex = row[rowIndexColumnId].Data.Int64;
 
-                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                 auto state = ERowState(row[stateColumnId].Data.Int64);
 
                 auto& tabletState = tabletMap[tabletIndex];
@@ -966,10 +966,10 @@ TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsSt
             }
 
             for (auto row : rowset->GetRows()) {
-                Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
                 int tabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
 
-                Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                 i64 rowIndex = row[rowIndexColumnId].Data.Int64;
 
                 auto& tabletState = tabletMap[tabletIndex];
@@ -1019,10 +1019,10 @@ TFuture<void> UpdatePersistentQueueTabletsState(
             std::vector<TRowModification> modifications;
 
             for (auto rowsetRow : rowset->GetRows()) {
-                Y_ASSERT(rowsetRow[rowsetTabletIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(rowsetRow[rowsetTabletIndexColumnId].Type == EValueType::Int64);
                 int tabletIndex = static_cast<int>(rowsetRow[rowsetTabletIndexColumnId].Data.Int64);
 
-                Y_ASSERT(rowsetRow[rowsetRowIndexColumnId].Type == EValueType::Int64);
+                YT_ASSERT(rowsetRow[rowsetRowIndexColumnId].Type == EValueType::Int64);
                 i64 rowIndex = rowsetRow[rowsetRowIndexColumnId].Data.Int64;
 
                 auto rowToDelete = rowBuffer->AllocateUnversioned(2);
@@ -1038,7 +1038,7 @@ TFuture<void> UpdatePersistentQueueTabletsState(
             for (const auto& pair : tabletMap) {
                 int tabletIndex = pair.first;
                 const auto& tabletUpdate = pair.second;
-                Y_ASSERT(tabletUpdate.FirstUnconsumedRowIndex >= 0);
+                YT_ASSERT(tabletUpdate.FirstUnconsumedRowIndex >= 0);
                 if (tabletUpdate.FirstUnconsumedRowIndex > 0) {
                     auto rowToWrite = rowBuffer->AllocateUnversioned(3);
                     rowToWrite[0] = MakeUnversionedInt64Value(tabletIndex, nameTableTabletIndexColumnId);

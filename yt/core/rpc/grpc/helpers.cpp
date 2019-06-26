@@ -163,7 +163,7 @@ TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
     : CurrentSlice_(grpc_empty_slice())
     , RemainingBytes_(grpc_byte_buffer_length(buffer))
 {
-    YCHECK(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
+    YT_VERIFY(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
 }
 
 TGrpcByteBufferStream::~TGrpcByteBufferStream()
@@ -251,7 +251,7 @@ TMessageWithAttachments ByteBufferToMessageWithAttachments(
     char* targetMessage = targetHeader + fixedHeader.EnvelopeSize;
 
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
-    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
+    YT_VERIFY(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
 
     TGrpcByteBufferStream stream(buffer);
 
@@ -342,13 +342,13 @@ TGrpcByteBufferPtr MessageWithAttachmentsToByteBuffer(const TMessageWithAttachme
 
 TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data)
 {
-    YCHECK(data.Size() >= sizeof(TEnvelopeFixedHeader));
+    YT_VERIFY(data.Size() >= sizeof(TEnvelopeFixedHeader));
     const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
     const char* sourceHeader = data.Begin() + sizeof(TEnvelopeFixedHeader);
     const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
     NYT::NProto::TSerializedMessageEnvelope envelope;
-    YCHECK(envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize));
+    YT_VERIFY(envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize));
 
     auto compressedMessage = data.Slice(sourceMessage, sourceMessage + fixedHeader->MessageSize);
 
@@ -363,7 +363,7 @@ TString SerializeError(const TError& error)
     google::protobuf::io::StringOutputStream output(&serializedError);
     NYT::NProto::TError protoError;
     ToProto(&protoError, error);
-    YCHECK(protoError.SerializeToZeroCopyStream(&output));
+    YT_VERIFY(protoError.SerializeToZeroCopyStream(&output));
     return serializedError;
 }
 

@@ -87,7 +87,7 @@ bool TOrderedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    YCHECK(context->Phase == EWritePhase::Commit);
+    YT_VERIFY(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto command = reader->ReadCommand();
         switch (command) {
@@ -124,7 +124,7 @@ i64 TOrderedStoreManager::ComputeStartingRowIndex() const
     }
 
     const auto& lastStore = storeRowIndexMap.rbegin()->second;
-    YCHECK(lastStore->GetRowCount() > 0);
+    YT_VERIFY(lastStore->GetRowCount() > 0);
     return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
 }
 
@@ -175,7 +175,7 @@ bool TOrderedStoreManager::IsStoreFlushable(IStorePtr store) const
     i64 startingRowIndex = orderedStore->GetStartingRowIndex();
     const auto& rowIndexMap = store->GetTablet()->StoreRowIndexMap();
     auto it = rowIndexMap.find(startingRowIndex);
-    YCHECK(it != rowIndexMap.end());
+    YT_VERIFY(it != rowIndexMap.end());
     if (it != rowIndexMap.begin() && (--it)->second->GetStoreState() != EStoreState::Persistent) {
         return false;
     }

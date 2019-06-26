@@ -114,7 +114,7 @@ public:
         , Type_(type)
         , YajlHandle_(nullptr, yajl_free)
     {
-        YCHECK(Type_ != EYsonType::MapFragment);
+        YT_VERIFY(Type_ != EYsonType::MapFragment);
 
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
             THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");

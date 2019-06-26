@@ -96,7 +96,7 @@ TString ToString(const TLogicalType& logicalType)
             return out.Str();
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +217,7 @@ TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::ListElement() const
 TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::StructField(size_t i) const
 {
     const auto& fields = Type_->AsStructTypeRef().GetFields();
-    YCHECK(i < fields.size());
+    YT_VERIFY(i < fields.size());
     const auto& field = fields[i];
     return TComplexTypeFieldDescriptor(Descriptor_ + "." + field.Name, field.Type);
 }
@@ -225,7 +225,7 @@ TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::StructField(size_t i) c
 TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::TupleElement(size_t i) const
 {
     const auto& elements = Type_->AsTupleTypeRef().GetElements();
-    YCHECK(i < elements.size());
+    YT_VERIFY(i < elements.size());
     return TComplexTypeFieldDescriptor(Descriptor_ + Format(".<tuple-element-%v>", i), elements[i]);
 }
 
@@ -262,7 +262,7 @@ void TComplexTypeFieldDescriptor::Walk(std::function<void(const TComplexTypeFiel
             }
             return;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,7 +371,7 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
         case ELogicalMetatype::Tuple:
             return std::make_pair(std::nullopt, true);
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool operator != (const TLogicalType& lhs, const TLogicalType& rhs)
@@ -412,7 +412,7 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
             return true;
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
@@ -474,8 +474,8 @@ static bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs
 
         auto lit = std::find(order.begin(), order.end(), lhs);
         auto rit = std::find(order.begin(), order.end(), rhs);
-        Y_ASSERT(lit != order.end());
-        Y_ASSERT(rit != order.end());
+        YT_ASSERT(lit != order.end());
+        YT_ASSERT(rit != order.end());
 
         return lit <= rit;
     }
@@ -487,8 +487,8 @@ static bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs
         };
         auto lit = std::find(order.begin(), order.end(), lhs);
         auto rit = std::find(order.begin(), order.end(), rhs);
-        Y_ASSERT(lit != order.end());
-        Y_ASSERT(rit != order.end());
+        YT_ASSERT(lit != order.end());
+        YT_ASSERT(rit != order.end());
         return lit <= rit;
     }
 
@@ -543,7 +543,7 @@ void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logi
             return;
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLogicalType)
@@ -586,7 +586,7 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
             break;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void Serialize(const TStructLogicalType::TField& structElement, NYson::IYsonConsumer* consumer)
@@ -641,7 +641,7 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
                 .EndMap();
             return;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
@@ -694,7 +694,7 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
             return;
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,14 +718,14 @@ public:
     const TLogicalTypePtr& GetSimpleType(ESimpleLogicalValueType type)
     {
         auto it = SimpleTypeMap.find(type);
-        YCHECK(it != SimpleTypeMap.end());
+        YT_VERIFY(it != SimpleTypeMap.end());
         return it->second;
     }
 
     const TLogicalTypePtr& GetOptionalType(ESimpleLogicalValueType type)
     {
         auto it = OptionalTypeMap.find(type);
-        YCHECK(it != OptionalTypeMap.end());
+        YT_VERIFY(it != OptionalTypeMap.end());
         return it->second;
     }
 
@@ -810,5 +810,5 @@ size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClien
             return result;
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }

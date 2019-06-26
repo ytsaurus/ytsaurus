@@ -224,7 +224,7 @@ public:
         } else {
             it->second += delta;
         }
-        YCHECK(it->second >= 0);
+        YT_VERIFY(it->second >= 0);
         if (it->second == 0) {
             queryCountMap.erase(it);
         }

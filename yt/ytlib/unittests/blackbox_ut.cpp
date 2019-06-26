@@ -111,7 +111,7 @@ protected:
             case 200: result += "Found"; break;
             case 404: result += "Not Found"; break;
             case 500: result += "Internal Server Error"; break;
-            default: Y_UNREACHABLE();
+            default: YT_ABORT();
         }
         result += "\r\n";
         result += "Connection: close\r\n";

@@ -191,10 +191,10 @@ public:
 
             Heap_.emplace_back(bucket);
             AdjustHeapBack(Heap_.begin(), Heap_.end());
-            YCHECK(bucket->HeapIterator);
+            YT_VERIFY(bucket->HeapIterator);
         }
 
-        Y_ASSERT(callback);
+        YT_ASSERT(callback);
 
         TEnqueuedAction action;
         action.Finished = false;
@@ -236,9 +236,9 @@ public:
     {
         auto& execution = CurrentlyExecutingActionsByThread_[index];
 
-        Y_ASSERT(!execution.Bucket);
+        YT_ASSERT(!execution.Bucket);
 
-        Y_ASSERT(action && action->Finished);
+        YT_ASSERT(action && action->Finished);
 
         TBucketPtr bucket;
         {
@@ -258,7 +258,7 @@ public:
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
-        Y_ASSERT(action && !action->Finished);
+        YT_ASSERT(action && !action->Finished);
 
         CallbackEventCount_->CancelWait();
 
@@ -285,7 +285,7 @@ public:
             return;
         }
 
-        Y_ASSERT(action);
+        YT_ASSERT(action);
 
         if (action->Finished) {
             return;
@@ -327,7 +327,7 @@ public:
 
             UpdateExcessTime(bucket.Get(), GetCpuInstant() - execution.AccountedAt);
 
-            YCHECK(bucket->CurrentExecutions-- > 0);
+            YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }
     }
 
@@ -381,7 +381,7 @@ private:
         }
 
         size_t indexInHeap = positionInHeap - Heap_.data();
-        YCHECK(indexInHeap < Heap_.size());
+        YT_VERIFY(indexInHeap < Heap_.size());
         SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin() + indexInHeap, std::less<>());
     }
 
@@ -407,7 +407,7 @@ private:
         }
 
         auto bucket = Heap_.front().Bucket;
-        YCHECK(!bucket->Queue.empty());
+        YT_VERIFY(!bucket->Queue.empty());
         *action = std::move(bucket->Queue.front());
         bucket->Queue.pop();
 
@@ -498,7 +498,7 @@ public:
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableProfiling))
     {
-        YCHECK(threadCount > 0);
+        YT_VERIFY(threadCount > 0);
 
         for (int index = 0; index < threadCount; ++index) {
             auto thread = New<TFairShareThread>(

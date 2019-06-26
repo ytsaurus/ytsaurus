@@ -548,13 +548,13 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     CompetitiveJobManager_.OnJobCompleted(joblet);
 
-    YCHECK(jobSummary.Statistics);
+    YT_VERIFY(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
 
     if (!jobSummary.Abandoned) {
         auto outputStatisticsMap = GetOutputDataStatistics(statistics);
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-            YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
+            YT_VERIFY(outputStatisticsMap.find(index) != outputStatisticsMap.end());
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
@@ -577,10 +577,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
                 GetTitle());
-            YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
+            YT_VERIFY(inputStatistics.row_count() == outputStatistics.row_count());
         }
 
-        YCHECK(InputVertex_ != "");
+        YT_VERIFY(InputVertex_ != "");
 
         auto vertex = GetVertexDescriptor();
         TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(InputVertex_, vertex, inputStatistics);
@@ -636,7 +636,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     TaskHost_->RegisterStderr(joblet, jobSummary);
     TaskHost_->RegisterCores(joblet, jobSummary);
 
-    YCHECK(jobSummary.Statistics);
+    YT_VERIFY(jobSummary.Statistics);
     UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
     ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
@@ -676,7 +676,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
-    YCHECK(LostJobCookieMap.insert(std::make_pair(
+    YT_VERIFY(LostJobCookieMap.insert(std::make_pair(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie)).second);
 }
@@ -693,7 +693,7 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
-    YCHECK(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
+    YT_VERIFY(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
     YT_LOG_DEBUG("Task completed");
 }
 
@@ -750,7 +750,7 @@ IDigest* TTask::GetUserJobMemoryDigest() const
 {
     if (!UserJobMemoryDigest_) {
         const auto& userJobSpec = GetUserJobSpec();
-        YCHECK(userJobSpec);
+        YT_VERIFY(userJobSpec);
 
         auto config = New<TLogDigestConfig>();
         config->LowerBound = userJobSpec->UserJobMemoryDigestLowerBound;
@@ -857,7 +857,7 @@ void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    YCHECK(joblet->ChunkListIds.size() == EdgeDescriptors_.size());
+    YT_VERIFY(joblet->ChunkListIds.size() == EdgeDescriptors_.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
         const auto& edgeDescriptor = EdgeDescriptors_[index];
@@ -897,7 +897,7 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
         memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
             ->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     } else {
-        YCHECK(jobResources.GetUserJobMemory() == 0);
+        YT_VERIFY(jobResources.GetUserJobMemory() == 0);
     }
     result.SetMemory(memory);
     result.SetNetwork(jobResources.GetNetwork());
@@ -1019,7 +1019,7 @@ void TTask::RegisterOutput(
 TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
-        YCHECK(GetPendingJobCount() > 0);
+        YT_VERIFY(GetPendingJobCount() > 0);
         CachedMinNeededResources_ = GetMinNeededResourcesHeavy();
     }
     auto result = ApplyMemoryReserve(*CachedMinNeededResources_);
@@ -1047,10 +1047,10 @@ void TTask::RegisterStripe(
 
     auto* destinationPool = edgeDescriptor.DestinationPool;
     if (edgeDescriptor.RequiresRecoveryInfo) {
-        YCHECK(joblet);
+        YT_VERIFY(joblet);
 
         const auto& chunkMapping = edgeDescriptor.ChunkMapping;
-        YCHECK(chunkMapping);
+        YT_VERIFY(chunkMapping);
 
         YT_LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
             joblet->JobId,
@@ -1070,7 +1070,7 @@ void TTask::RegisterStripe(
             }
         } else {
             inputCookie = lostIt->second;
-            YCHECK(inputCookie != IChunkPoolInput::NullCookie);
+            YT_VERIFY(inputCookie != IChunkPoolInput::NullCookie);
             try {
                 chunkMapping->OnStripeRegenerated(inputCookie, stripe);
                 YT_LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
@@ -1140,8 +1140,8 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
         int tableIndex = inputChunk->GetTableIndex();
-        YCHECK(tableIndex >= 0);
-        YCHECK(tableIndex < tableCount);
+        YT_VERIFY(tableIndex >= 0);
+        YT_VERIFY(tableIndex < tableCount);
         stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripes;

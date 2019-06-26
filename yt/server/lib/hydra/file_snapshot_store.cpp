@@ -156,7 +156,7 @@ private:
                             CodecInput_.reset(new TLz4Decompress(FileInput_.get()));
                             break;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
                 }
@@ -257,7 +257,7 @@ public:
 
     virtual TSnapshotParams GetParams() const override
     {
-        YCHECK(IsClosed_);
+        YT_VERIFY(IsClosed_);
         return Params_;
     }
 
@@ -289,13 +289,13 @@ private:
 
     void DoWrite(const TSharedRef& buffer)
     {
-        YCHECK(IsOpened_ && !IsClosed_);
+        YT_VERIFY(IsOpened_ && !IsClosed_);
         FacadeOutput_->Write(buffer.Begin(), buffer.Size());
     }
 
     void DoOpen()
     {
-        YCHECK(!IsOpened_);
+        YT_VERIFY(!IsOpened_);
 
         YT_LOG_DEBUG("Opening local snapshot writer (Codec: %v, Raw: %v)",
             Codec_,
@@ -324,7 +324,7 @@ private:
                         CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
                 LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_
                     ? CodecOutput_.get()
@@ -364,7 +364,7 @@ private:
 
     void DoClose()
     {
-        YCHECK(IsOpened_ && !IsClosed_);
+        YT_VERIFY(IsOpened_ && !IsClosed_);
 
         YT_LOG_DEBUG("Closing local snapshot writer");
 
@@ -489,7 +489,7 @@ public:
         }
 
         int snapshotId = *(--it);
-        YCHECK(snapshotId <= maxSnapshotId);
+        YT_VERIFY(snapshotId <= maxSnapshotId);
         return snapshotId;
     }
 
@@ -565,7 +565,7 @@ private:
     void RegisterSnapshot(int snapshotId)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(SnapshotIds_.insert(snapshotId).second);
+        YT_VERIFY(SnapshotIds_.insert(snapshotId).second);
         YT_LOG_DEBUG("Registered snapshot %v", snapshotId);
     }
 

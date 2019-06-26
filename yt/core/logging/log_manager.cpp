@@ -84,14 +84,14 @@ public:
     {
 #ifdef _linux_
         FD_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        YCHECK(FD_ >= 0);
+        YT_VERIFY(FD_ >= 0);
 #endif
     }
 
     ~TNotificationHandle()
     {
 #ifdef _linux_
-        YCHECK(FD_ >= 0);
+        YT_VERIFY(FD_ >= 0);
         ::close(FD_);
 #endif
     }
@@ -99,7 +99,7 @@ public:
     int Poll()
     {
 #ifdef _linux_
-        YCHECK(FD_ >= 0);
+        YT_VERIFY(FD_ >= 0);
 
         char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
         ssize_t rv = HandleEintr(::read, FD_, buffer, sizeof(buffer));
@@ -112,7 +112,7 @@ public:
                     FD_);
             }
         } else if (rv > 0) {
-            Y_ASSERT(rv >= sizeof(struct inotify_event));
+            YT_ASSERT(rv >= sizeof(struct inotify_event));
             struct inotify_event* event = (struct inotify_event*)buffer;
 
             if (event->mask & IN_ATTRIB) {
@@ -159,7 +159,7 @@ public:
 
     {
         FD_ = handle->GetFD();
-        YCHECK(FD_ >= 0);
+        YT_VERIFY(FD_ >= 0);
 
         CreateWatch();
     }
@@ -183,7 +183,7 @@ public:
 private:
     void CreateWatch()
     {
-        YCHECK(WD_ <= 0);
+        YT_VERIFY(WD_ <= 0);
 #ifdef _linux_
         WD_ = inotify_add_watch(
             FD_,
@@ -199,7 +199,7 @@ private:
                 WD_,
                 Path_);
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 #else
         WD_ = -1;
@@ -651,7 +651,7 @@ private:
             sigemptyset(&sa.sa_mask);
             sa.sa_handler = &ReloadSignalHandler;
 
-            YCHECK(sigaction(SIGHUP, &sa, nullptr) == 0);
+            YT_VERIFY(sigaction(SIGHUP, &sa, nullptr) == 0);
 #endif
         }
 
@@ -729,12 +729,12 @@ private:
         std::vector<ILogWriterPtr> writers;
         for (const auto& writerId : writerIds) {
             auto writerIt = Writers_.find(writerId);
-            YCHECK(writerIt != Writers_.end());
+            YT_VERIFY(writerIt != Writers_.end());
             writers.push_back(writerIt->second);
         }
 
         auto pair = CachedWriters_.insert(std::make_pair(cacheKey, writers));
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
 
         return pair.first->second;
     }
@@ -857,7 +857,7 @@ private:
                     formatter = std::make_unique<TJsonLogFormatter>();
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             switch (config->Type) {
@@ -872,19 +872,19 @@ private:
                     watch = CreateNotificationWatch(writer, config->FileName);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             writer->SetRateLimit(config->RateLimit);
             writer->SetCategoryRateLimits(Config_->CategoryRateLimits);
 
-            YCHECK(Writers_.insert(std::make_pair(name, std::move(writer))).second);
+            YT_VERIFY(Writers_.insert(std::make_pair(name, std::move(writer))).second);
 
             if (watch) {
                 if (watch->GetWD() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex_.insert(
+                    YT_VERIFY(NotificationWatchesIndex_.insert(
                         std::make_pair(watch->GetWD(), watch.get())).second);
                 }
                 NotificationWatches_.emplace_back(std::move(watch));
@@ -954,7 +954,7 @@ private:
                 if (watch->GetWD() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex_.insert(
+                    YT_VERIFY(NotificationWatchesIndex_.insert(
                         std::make_pair(watch->GetWD(), watch)).second);
                 }
             }
@@ -1003,7 +1003,7 @@ private:
         auto instant = NProfiling::GetCpuInstant();
 
         RegisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
-            YCHECK(LocalQueues_.insert(item).second);
+            YT_VERIFY(LocalQueues_.insert(item).second);
         });
 
         struct THeapItem
@@ -1065,7 +1065,7 @@ private:
 
         UnregisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
             if (item->IsEmpty()) {
-                YCHECK(LocalQueues_.erase(item));
+                YT_VERIFY(LocalQueues_.erase(item));
                 delete item;
             } else {
                 UnregisteredLocalQueues_.Enqueue(item);

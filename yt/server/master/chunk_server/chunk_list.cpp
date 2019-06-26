@@ -134,7 +134,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
     if (!IsOrdered()) {
         for (int index = 0; index < Children_.size(); ++index) {
-            YCHECK(ChildToIndex_.emplace(Children_[index], index).second);
+            YT_VERIFY(ChildToIndex_.emplace(Children_[index], index).second);
         }
     }
 }

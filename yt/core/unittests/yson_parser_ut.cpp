@@ -641,7 +641,7 @@ public:
     void Skip(size_t size)
     {
         Pointer_ += size;
-        YCHECK(Pointer_ < Data_[Index_].Size());
+        YT_VERIFY(Pointer_ < Data_[Index_].Size());
     }
 
     const char* End() const

@@ -24,7 +24,7 @@ static const auto& Logger = GrpcLogger;
 
 void* TCompletionQueueTag::GetTag(int cookie)
 {
-    Y_ASSERT(cookie >= 0 && cookie < 8);
+    YT_ASSERT(cookie >= 0 && cookie < 8);
     return reinterpret_cast<void*>(reinterpret_cast<intptr_t>(this) | cookie);
 }
 
@@ -37,7 +37,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
 {
     if (GrpcLibraryRefCounter.fetch_add(1) == 0) {
         // Failure here indicates an attempt to re-initialize GRPC after shutdown.
-        YCHECK(GrpcLibraryInitCounter.fetch_add(1) == 0);
+        YT_VERIFY(GrpcLibraryInitCounter.fetch_add(1) == 0);
         YT_LOG_INFO("Initializing GRPC library");
         grpc_init_openssl();
         grpc_init();
@@ -156,7 +156,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
 

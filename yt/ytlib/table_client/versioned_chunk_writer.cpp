@@ -117,7 +117,7 @@ public:
     virtual TFuture<void> Close() override
     {
         // psushin@ forbids empty chunks :)
-        YCHECK(RowCount_ > 0);
+        YT_VERIFY(RowCount_ > 0);
 
         return BIND(&TVersionedChunkWriterBase::DoClose, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
@@ -260,7 +260,7 @@ protected:
         const TUnversionedValue* beginPrevKey,
         const TUnversionedValue* endPrevKey)
     {
-        YCHECK(
+        YT_VERIFY(
             !beginPrevKey && !endPrevKey ||
             CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
     }
@@ -389,7 +389,7 @@ private:
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
-        YCHECK(block.Meta.uncompressed_size() > 0);
+        YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
         BlockMetaExtSize_ += block.Meta.ByteSize();
 
@@ -486,7 +486,7 @@ public:
         TimestampWriter_ = CreateTimestampWriter(blockWriter.get());
         BlockWriters_.emplace_back(std::move(blockWriter));
 
-        YCHECK(BlockWriters_.size() > 1);
+        YT_VERIFY(BlockWriters_.size() > 1);
     }
 
     virtual i64 GetCompressedDataSize() const override
@@ -593,7 +593,7 @@ private:
                 }
             }
 
-            YCHECK(maxWriterIndex >= 0);
+            YT_VERIFY(maxWriterIndex >= 0);
 
             if (totalSize > Config_->MaxBufferSize || maxWriterSize > Config_->BlockSize) {
                 FinishBlock(maxWriterIndex, lastRow.BeginKeys(), lastRow.EndKeys());
@@ -609,7 +609,7 @@ private:
     void FinishBlock(int blockWriterIndex, const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
     {
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
-        YCHECK(block.Meta.uncompressed_size() > 0);
+        YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);

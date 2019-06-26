@@ -48,12 +48,12 @@ TRecoveryBase::TRecoveryBase(
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
-    YCHECK(Config_);
-    YCHECK(CellManager_);
-    YCHECK(DecoratedAutomaton_);
-    YCHECK(ChangelogStore_);
-    YCHECK(SnapshotStore_);
-    YCHECK(EpochContext_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(DecoratedAutomaton_);
+    YT_VERIFY(ChangelogStore_);
+    YT_VERIFY(SnapshotStore_);
+    YT_VERIFY(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
@@ -61,13 +61,13 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(EpochContext_->ReachableVersion <= targetVersion);
+    YT_VERIFY(EpochContext_->ReachableVersion <= targetVersion);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    YCHECK(currentVersion <= targetVersion);
+    YT_VERIFY(currentVersion <= targetVersion);
 
     auto reachableVersion = EpochContext_->ReachableVersion;
-    YCHECK(reachableVersion <= targetVersion);
+    YT_VERIFY(reachableVersion <= targetVersion);
 
     int snapshotId = InvalidSegmentId;
     if (targetVersion.SegmentId > currentVersion.SegmentId) {
@@ -75,7 +75,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
 
         snapshotId = snapshotIdOrError.Value();
-        YCHECK(snapshotId <= targetVersion.SegmentId);
+        YT_VERIFY(snapshotId <= targetVersion.SegmentId);
     }
 
     YT_LOG_INFO("Recovering from version %v to version %v",
@@ -157,10 +157,10 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         }
     }
 
-    YCHECK(targetChangelog);
+    YT_VERIFY(targetChangelog);
 
     if (IsLeader() || Options_.WriteChangelogsAtFollowers) {
-        YCHECK(targetChangelog->GetRecordCount() == targetVersion.RecordId);
+        YT_VERIFY(targetChangelog->GetRecordCount() == targetVersion.RecordId);
         DecoratedAutomaton_->SetChangelog(targetChangelog);
     }
 
@@ -172,7 +172,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
-    YCHECK(channel);
+    YT_VERIFY(channel);
 
     THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
@@ -199,7 +199,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
         syncRecordCount);
 
     if (localRecordCount > remoteRecordCount) {
-        YCHECK(syncRecordCount == remoteRecordCount);
+        YT_VERIFY(syncRecordCount == remoteRecordCount);
         auto result = WaitFor(changelog->Truncate(remoteRecordCount));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
     } else if (localRecordCount < syncRecordCount) {
@@ -225,10 +225,10 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         TVersion(changelogId, targetRecordId));
 
     if (currentVersion.SegmentId != changelogId) {
-        YCHECK(currentVersion.SegmentId == changelogId - 1);
+        YT_VERIFY(currentVersion.SegmentId == changelogId - 1);
 
         const auto& meta = changelog->GetMeta();
-        YCHECK(meta.prev_record_count() == currentVersion.RecordId);
+        YT_VERIFY(meta.prev_record_count() == currentVersion.RecordId);
 
         // Prepare to apply mutations at the rotated version.
         DecoratedAutomaton_->RotateAutomatonVersion(changelogId);
@@ -266,7 +266,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     while (true) {
         int startRecordId = DecoratedAutomaton_->GetAutomatonVersion().RecordId;
         int recordsNeeded = targetRecordId - startRecordId;
-        YCHECK(recordsNeeded >= 0);
+        YT_VERIFY(recordsNeeded >= 0);
         if (recordsNeeded == 0)
             break;
 

@@ -25,7 +25,7 @@ static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
 
 TForkExecutor::~TForkExecutor()
 {
-    YCHECK(ChildPid_ < 0);
+    YT_VERIFY(ChildPid_ < 0);
 }
 
 TFuture<void> TForkExecutor::Fork()
@@ -34,7 +34,7 @@ TFuture<void> TForkExecutor::Fork()
     THROW_ERROR_EXCEPTION("Forks are not supported on this platform");
 #else
 
-    YCHECK(ChildPid_ < 0);
+    YT_VERIFY(ChildPid_ < 0);
 
     try {
         YT_LOG_INFO("Going to fork");
@@ -47,7 +47,7 @@ TFuture<void> TForkExecutor::Fork()
 
         if (ChildPid_ == 0) {
             DoRunChild(); // never returns
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         DoRunParent();

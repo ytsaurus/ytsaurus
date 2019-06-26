@@ -334,7 +334,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     int writeTimestampCount)
 {
     auto& columnSeen = *columnPresenceBuffer;
-    YCHECK(columnSeen.size() >= schema.GetColumnCount());
+    YT_VERIFY(columnSeen.size() >= schema.GetColumnCount());
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
 
     for (const auto *valueGroupBeginIt = row.BeginValues(), *valueGroupEndIt = valueGroupBeginIt;

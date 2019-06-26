@@ -147,7 +147,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
             }
             consumer->OnInt64Scalar(value);
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     };
 

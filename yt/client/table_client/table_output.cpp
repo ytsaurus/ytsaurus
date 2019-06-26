@@ -14,7 +14,7 @@ TTableOutput::~TTableOutput() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-    YCHECK(ParserValid_);
+    YT_VERIFY(ParserValid_);
     try {
         Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
     } catch (const std::exception& ex) {

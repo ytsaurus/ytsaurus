@@ -89,8 +89,8 @@ public:
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
-        YCHECK(Config_);
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Bootstrap_);
 
         // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
@@ -947,7 +947,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
         } catch (const std::exception& ex) {
@@ -973,7 +973,7 @@ private:
                 value = MakeUnversionedSentinelValue(EValueType::Null);
             } else if (size + valueSize > maxSampleSize && IsStringLikeType(value.Type)) {
                 value.Length = maxSampleSize - size;
-                YCHECK(value.Length > 0);
+                YT_VERIFY(value.Length > 0);
                 size += value.Length;
                 incomplete = true;
             } else {
@@ -1040,7 +1040,7 @@ private:
 
         std::vector<TOwningKey> samples;
         for (const auto& block : blocksExt.blocks()) {
-            YCHECK(block.has_last_key());
+            YT_VERIFY(block.has_last_key());
             auto key = FromProto<TOwningKey>(block.last_key());
             if (key >= lowerKey && key < upperKey) {
                 samples.push_back(WidenKey(key, keyColumns.size()));

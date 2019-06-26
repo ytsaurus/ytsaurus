@@ -56,7 +56,7 @@ void TDriverBase::Initialize(const IDriverPtr& driver, const INodePtr& configNod
     UnderlyingDriver_ = driver;
     ConfigNode_ = configNode;
 
-    YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
+    YT_VERIFY(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
 
     Initialized_ = true;
 

@@ -153,7 +153,7 @@ protected:
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(value);
-                YCHECK(it != Dictionary_.end());
+                YT_VERIFY(it != Dictionary_.end());
                 ids.push_back(it->second);
 
                 if (it->second > dictionarySize) {
@@ -169,7 +169,7 @@ protected:
             }
         }
 
-        YCHECK(dictionaryOffset == DictionarySize_);
+        YT_VERIFY(dictionaryOffset == DictionarySize_);
 
         // 1. Value ids.
         segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(ids), dictionarySize + 1));
@@ -425,7 +425,7 @@ private:
             offsets.push_back(stringOffset);
         }
 
-        YCHECK(stringOffset == DirectRleSize_);
+        YT_VERIFY(stringOffset == DirectRleSize_);
 
         // 1. Row indexes.
         segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
@@ -463,7 +463,7 @@ private:
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(Values_[rowIndex]);
-                YCHECK(it != Dictionary_.end());
+                YT_VERIFY(it != Dictionary_.end());
                 ids.push_back(it->second);
 
                 if (it->second > dictionarySize) {
@@ -528,7 +528,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         TColumnWriterBase::DumpSegment(&segmentInfo);
@@ -568,7 +568,7 @@ private:
                 return this->GetDirectSize();
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

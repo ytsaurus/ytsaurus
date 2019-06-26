@@ -153,7 +153,7 @@ void PipeReaderToWriter(
     WaitFor(writer->Close())
         .ThrowOnError();
 
-    YCHECK(rows.empty());
+    YT_VERIFY(rows.empty());
 }
 
 void PipeInputToOutput(

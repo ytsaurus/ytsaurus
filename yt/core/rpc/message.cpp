@@ -311,7 +311,7 @@ TSharedRefArray SetRequestHeader(
     const TSharedRefArray& message,
     const NProto::TRequestHeader& header)
 {
-    Y_ASSERT(GetMessageType(message) == EMessageType::Request);
+    YT_ASSERT(GetMessageType(message) == EMessageType::Request);
     TSharedRefArrayBuilder builder(
         message.Size(),
         GetAllocationSpaceForProtoWithHeader(header),
@@ -341,7 +341,7 @@ TSharedRefArray SetResponseHeader(
     const TSharedRefArray& message,
     const NProto::TResponseHeader& header)
 {
-    Y_ASSERT(GetMessageType(message) == EMessageType::Response);
+    YT_ASSERT(GetMessageType(message) == EMessageType::Response);
     TSharedRefArrayBuilder builder(
         message.Size(),
         GetAllocationSpaceForProtoWithHeader(header),

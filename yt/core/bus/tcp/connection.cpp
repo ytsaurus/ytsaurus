@@ -127,14 +127,14 @@ void TTcpConnection::Start()
 {
     switch (ConnectionType_) {
         case EConnectionType::Client:
-            YCHECK(Socket_ == INVALID_SOCKET);
+            YT_VERIFY(Socket_ == INVALID_SOCKET);
             State_ = EState::Resolving;
             ResolveAddress();
             break;
 
         case EConnectionType::Server: {
             TWriterGuard guard(ControlSpinLock_);
-            YCHECK(Socket_ != INVALID_SOCKET);
+            YT_VERIFY(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
             SetupNetwork(NetworkName_);
             Open();
@@ -144,7 +144,7 @@ void TTcpConnection::Start()
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -183,7 +183,7 @@ const TString& TTcpConnection::GetLoggingId() const
 void TTcpConnection::UpdateConnectionCount(bool increment)
 {
     if (increment) {
-        YCHECK(!ConnectionCounterIncremented_);
+        YT_VERIFY(!ConnectionCounterIncremented_);
         ConnectionCounterIncremented_ = true;
     } else {
         if (!ConnectionCounterIncremented_) {
@@ -202,7 +202,7 @@ void TTcpConnection::UpdateConnectionCount(bool increment)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -280,7 +280,7 @@ void TTcpConnection::OnAddressResolved(
 
 void TTcpConnection::SetupNetwork(const TString& networkName)
 {
-    YCHECK(!Counters_);
+    YT_VERIFY(!Counters_);
 
     YT_LOG_DEBUG("Using %Qv network", networkName);
 
@@ -299,7 +299,7 @@ void TTcpConnection::Abort(const TError& error)
     }
 
     State_ = EState::Aborted;
-    YCHECK(!error.IsOK());
+    YT_VERIFY(!error.IsOK());
 
     CloseError_ = error << *EndpointAttributes_;
 
@@ -437,8 +437,8 @@ void TTcpConnection::Terminate(const TError& error)
 
     YT_LOG_DEBUG("Sending termination request");
 
-    YCHECK(!error.IsOK());
-    YCHECK(TerminateError_.IsOK());
+    YT_VERIFY(!error.IsOK());
+    YT_VERIFY(TerminateError_.IsOK());
     TerminateError_ = error;
     TerminateRequested_ = true;
 
@@ -524,7 +524,7 @@ void TTcpConnection::OnShutdown()
 
 void TTcpConnection::OnSocketConnected(SOCKET socket)
 {
-    Y_ASSERT(State_ == EState::Opening);
+    YT_ASSERT(State_ == EState::Opening);
 
     Socket_ = socket;
 
@@ -701,7 +701,7 @@ bool TTcpConnection::OnPacketReceived() noexcept
         case EPacketType::Message:
             return OnMessagePacketReceived();
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -852,7 +852,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
     YT_LOG_TRACE("Flushing fragments (BytesWritten: %v)", bytesWritten);
 
     while (bytesToFlush != 0) {
-        Y_ASSERT(!EncodedFragments_.empty());
+        YT_ASSERT(!EncodedFragments_.empty());
         auto& fragment = EncodedFragments_.front();
 
         if (fragment.Size() > bytesToFlush) {
@@ -877,7 +877,7 @@ void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
     YT_LOG_TRACE("Flushing packets (BytesWritten: %v)", bytesWritten);
 
     while (bytesToFlush != 0) {
-        Y_ASSERT(!EncodedPacketSizes_.empty());
+        YT_ASSERT(!EncodedPacketSizes_.empty());
         auto& packetSize = EncodedPacketSizes_.front();
 
         if (packetSize > bytesToFlush) {
@@ -1006,7 +1006,7 @@ void TTcpConnection::OnPacketSent()
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
 

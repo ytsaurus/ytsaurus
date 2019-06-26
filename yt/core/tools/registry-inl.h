@@ -61,7 +61,7 @@ struct TToolRegistrator
         auto tool = MakeGeneric(TTool());
         TToolRegistryEntry entry{toolName, tool};
         auto* registry = GetToolRegistry();
-        YCHECK(registry->emplace(typeName, entry).second);
+        YT_VERIFY(registry->emplace(typeName, entry).second);
     }
 };
 

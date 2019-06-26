@@ -110,7 +110,7 @@ TSimulatorControlThread::TSimulatorControlThread(
 
 void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
-    YCHECK(!Initialized_.load());
+    YT_VERIFY(!Initialized_.load());
     WaitFor(
         BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -136,7 +136,7 @@ bool TSimulatorControlThread::IsInitialized() const
 
 TFuture<void> TSimulatorControlThread::AsyncRun()
 {
-    YCHECK(Initialized_.load());
+    YT_VERIFY(Initialized_.load());
     return BIND(&TSimulatorControlThread::Run, MakeStrong(this))
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run();
@@ -289,7 +289,7 @@ void TSimulatorControlThread::InsertControlThreadEvent(TControlThreadEvent event
 
 TControlThreadEvent TSimulatorControlThread::PopControlThreadEvent()
 {
-    YCHECK(!ControlThreadEvents_.empty());
+    YT_VERIFY(!ControlThreadEvents_.empty());
     auto beginIt = ControlThreadEvents_.begin();
     auto event = *beginIt;
     ControlThreadEvents_.erase(beginIt);

@@ -162,7 +162,7 @@ private:
         int subrequestCount,
         EAllowedSubrequestCategory subrequestCategory)
     {
-        YCHECK(subrequestCount >= 0);
+        YT_VERIFY(subrequestCount >= 0);
 
         std::vector<TSubrequestType> result;
 
@@ -205,7 +205,7 @@ private:
                 spread = 1;
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         switch (shift + RandomNumber<ui32>(spread)) {
@@ -216,7 +216,7 @@ private:
             case 2:
                 return "write";
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -234,12 +234,12 @@ private:
             return &TBatchRequestTest::AddWriteSubrequest;
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     TString GetRecentTablePath() const
     {
-        YCHECK(!RecentTableGuid_.IsEmpty());
+        YT_VERIFY(!RecentTableGuid_.IsEmpty());
         return Format("//tmp/%v", RecentTableGuid_);
     }
 

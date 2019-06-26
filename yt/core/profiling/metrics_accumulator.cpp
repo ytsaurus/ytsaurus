@@ -22,7 +22,7 @@ void TMetricsAccumulator::BuildAndPublish(const TProfiler* profiler)
             aggregatedMetrics.emplace(key, value);
         } else {
             auto storedType = it->second.second;
-            YCHECK(storedType == value.second);
+            YT_VERIFY(storedType == value.second);
             it->second.first += value.first;
         }
     }

@@ -162,7 +162,7 @@ void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId quer
 TQueryContext* GetQueryContext(const DB::Context& context)
 {
     auto* hostContext = context.getHostContext().get();
-    Y_ASSERT(dynamic_cast<TQueryContext*>(hostContext) != nullptr);
+    YT_ASSERT(dynamic_cast<TQueryContext*>(hostContext) != nullptr);
     return static_cast<TQueryContext*>(hostContext);
 }
 

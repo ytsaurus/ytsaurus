@@ -68,7 +68,7 @@ TEST(TNetworkAddressTest, ParseBadIpv6Address)
 TEST(TNetworkAddressTest, UnixSocketName)
 {
     int fds[2];
-    YCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
+    YT_VERIFY(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
 
     EXPECT_EQ("unix://[*unnamed*]", ToString(GetSocketName(fds[0])));
 

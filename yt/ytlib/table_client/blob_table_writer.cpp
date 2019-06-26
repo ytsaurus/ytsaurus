@@ -57,7 +57,7 @@ TBlobTableWriter::TBlobTableWriter(
     TStatelessLexer lexer;
     TUnversionedOwningRowBuilder builder;
 
-    YCHECK(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
+    YT_VERIFY(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
     for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
         builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].GetData(), BlobIdColumnIds_[i], lexer));
     }

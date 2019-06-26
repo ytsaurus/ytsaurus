@@ -47,7 +47,7 @@ public:
 
     void Configure(int threadCount)
     {
-        YCHECK(threadCount > 0);
+        YT_VERIFY(threadCount > 0);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);

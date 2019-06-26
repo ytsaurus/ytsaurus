@@ -167,7 +167,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
 
         {
             TWriterGuard guard(SlotsLock_);
-            YCHECK(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);
+            YT_VERIFY(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);
         }
 
         std::vector<TString> result;
@@ -204,7 +204,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
-                YCHECK(TmpfsPaths_.insert(tmpfsPath).second);
+                YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
 
                 result.push_back(tmpfsPath);
             } catch (const std::exception& ex) {
@@ -541,7 +541,7 @@ TString TSlotLocation::GetSlotPath(int slotIndex) const
 TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-    Y_ASSERT(sandboxName);
+    YT_ASSERT(sandboxName);
     return NFS::CombinePaths(GetSlotPath(slotIndex), sandboxName);
 }
 

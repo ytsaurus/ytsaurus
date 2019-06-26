@@ -130,13 +130,13 @@ inline bool HasSchema(EObjectType type)
 
 inline EObjectType SchemaTypeFromType(EObjectType type)
 {
-    Y_ASSERT(HasSchema(type));
+    YT_ASSERT(HasSchema(type));
     return EObjectType(static_cast<int>(type) | SchemaObjectTypeMask);
 }
 
 inline EObjectType TypeFromSchemaType(EObjectType type)
 {
-    Y_ASSERT(static_cast<int>(type) & SchemaObjectTypeMask);
+    YT_ASSERT(static_cast<int>(type) & SchemaObjectTypeMask);
     return EObjectType(static_cast<int>(type) & ~SchemaObjectTypeMask);
 }
 
@@ -187,7 +187,7 @@ inline TObjectId MakeWellKnownId(
     TCellTag cellTag,
     ui64 counter /*= 0xffffffffffffffff*/)
 {
-    YCHECK(counter & WellKnownCounterMask);
+    YT_VERIFY(counter & WellKnownCounterMask);
     return MakeId(
         type,
         cellTag,

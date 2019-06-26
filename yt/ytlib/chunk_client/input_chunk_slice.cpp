@@ -23,8 +23,8 @@ using namespace NYson;
 
 TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
 {
-    YCHECK(!other.HasChunkIndex());
-    YCHECK(!other.HasOffset());
+    YT_VERIFY(!other.HasChunkIndex());
+    YT_VERIFY(!other.HasOffset());
     if (other.HasRowIndex()) {
         RowIndex = other.GetRowIndex();
     }
@@ -38,8 +38,8 @@ TInputSliceLimit::TInputSliceLimit(
     const TRowBufferPtr& rowBuffer,
     TRange<TKey> keySet)
 {
-    YCHECK(!other.has_chunk_index());
-    YCHECK(!other.has_offset());
+    YT_VERIFY(!other.has_chunk_index());
+    YT_VERIFY(!other.has_offset());
     if (other.has_row_index()) {
         RowIndex = other.row_index();
     }
@@ -232,7 +232,7 @@ TInputChunkSlice::TInputChunkSlice(
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
-        YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
+        YT_VERIFY((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
         OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * inputChunk->GetColumnSelectivityFactor()));
     }
 }
@@ -249,15 +249,15 @@ TInputChunkSlice::TInputChunkSlice(
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
-        YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+        YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
         OverrideSize(protoChunkSpec.row_count_override(), std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetColumnSelectivityFactor()));
     }
 }
 
 std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount, TRowBufferPtr rowBuffer) const
 {
-    YCHECK(sliceDataWeight > 0);
-    YCHECK(sliceRowCount > 0);
+    YT_VERIFY(sliceDataWeight > 0);
+    YT_VERIFY(sliceRowCount > 0);
 
     i64 lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
     i64 upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
@@ -293,7 +293,7 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
-    YCHECK(splitRow > 0 && splitRow < rowCount);
+    YT_VERIFY(splitRow > 0 && splitRow < rowCount);
 
     return std::make_pair(
         New<TInputChunkSlice>(

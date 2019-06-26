@@ -664,7 +664,7 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
 {
     // Permission for IntermediateData can be only Read.
-    YCHECK(permission == EPermission::Read);
+    YT_VERIFY(permission == EPermission::Read);
     Host->ValidateOperationAccess(user, EPermissionSet(permission));
 }
 
@@ -759,7 +759,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (Config->EnableControllerFailureSpecOption &&
         Spec_->TestingOperationOptions)
     {
-        YCHECK(Spec_->TestingOperationOptions->ControllerFailure !=
+        YT_VERIFY(Spec_->TestingOperationOptions->ControllerFailure !=
             EControllerFailureType::AssertionFailureInPrepare);
     }
 
@@ -876,7 +876,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             OnOperationCompleted(false /* interrupted */);
             return result;
         } else {
-            YCHECK(UnavailableInputChunkCount == 0);
+            YT_VERIFY(UnavailableInputChunkCount == 0);
             for (const auto& pair : InputChunkMap) {
                 const auto& chunkDescriptor = pair.second;
                 if (chunkDescriptor.State == EInputChunkState::Waiting) {
@@ -1076,7 +1076,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
             // TODO(max42): Re-think about this transaction when YT-8270 is done.
             return true;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1277,7 +1277,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         chunkIds.insert(pair.first);
     }
 
-    YCHECK(!InputChunkScraper);
+    YT_VERIFY(!InputChunkScraper);
     InputChunkScraper = New<TChunkScraper>(
         Config->ChunkScraper,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
@@ -1347,7 +1347,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             chunkCountPerMergeJob = *autoMergeSpec->ChunkCountPerMergeJob;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
     i64 desiredChunkDataWeight = std::max<i64>(1, desiredChunkSize / InputCompressionRatio);
@@ -1415,8 +1415,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
 std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
 {
     auto edgeDescriptors = GetStandardEdgeDescriptors();
-    YCHECK(GetAutoMergeDirector());
-    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+    YT_VERIFY(GetAutoMergeDirector());
+    YT_VERIFY(AutoMergeTasks.size() == edgeDescriptors.size());
     for (int index = 0; index < edgeDescriptors.size(); ++index) {
         if (AutoMergeTasks[index]) {
             edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
@@ -1613,7 +1613,7 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
         return GetCoreTableWriterConfig()->MaxPartSize;
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TOperationControllerBase::SafeCommit()
@@ -1934,7 +1934,7 @@ void TOperationControllerBase::UpdateMemoryDigests(const TJobletPtr& joblet, con
     auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
     if (userJobMaxMemoryUsage) {
         auto* digest = joblet->Task->GetUserJobMemoryDigest();
-        YCHECK(digest);
+        YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
         if (resourceOverdraft) {
             // During resource overdraft actual max memory values may be outdated,
@@ -1953,7 +1953,7 @@ void TOperationControllerBase::UpdateMemoryDigests(const TJobletPtr& joblet, con
     auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
     if (jobProxyMaxMemoryUsage) {
         auto* digest = joblet->Task->GetJobProxyMemoryDigest();
-        YCHECK(digest);
+        YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         if (resourceOverdraft) {
@@ -2422,8 +2422,8 @@ void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
-    YCHECK(jobSummary->Statistics);
-    YCHECK(jobSummary->FinishTime);
+    YT_VERIFY(jobSummary->Statistics);
+    YT_VERIFY(jobSummary->FinishTime);
 
     auto& statistics = *jobSummary->Statistics;
     joblet->FinishTime = *jobSummary->FinishTime;
@@ -2560,10 +2560,10 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
     }
 
     auto it = InputChunkMap.find(chunkId);
-    YCHECK(it != InputChunkMap.end());
+    YT_VERIFY(it != InputChunkMap.end());
 
     auto& descriptor = it->second;
-    YCHECK(!descriptor.InputChunks.empty());
+    YT_VERIFY(!descriptor.InputChunks.empty());
     auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
@@ -2588,7 +2588,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
     YT_LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
 
     --UnavailableInputChunkCount;
-    YCHECK(UnavailableInputChunkCount >= 0);
+    YT_VERIFY(UnavailableInputChunkCount >= 0);
 
     if (UnavailableInputChunkCount == 0) {
         InputChunkScraper->Stop();
@@ -2674,14 +2674,14 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto it = ChunkOriginMap.find(chunkId);
-    YCHECK(it != ChunkOriginMap.end());
+    YT_VERIFY(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
     // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
@@ -2728,7 +2728,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, const TChunkReplicaList& replicas)
 {
     auto it = ChunkOriginMap.find(chunkId);
-    YCHECK(it != ChunkOriginMap.end());
+    YT_VERIFY(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
     if (completedJob->Restartable || !completedJob->Suspended) {
@@ -2746,7 +2746,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, co
         }
         --UnavailableIntermediateChunkCount;
 
-        YCHECK(UnavailableIntermediateChunkCount > 0 ||
+        YT_VERIFY(UnavailableIntermediateChunkCount > 0 ||
             (UnavailableIntermediateChunkCount == 0 && completedJob->UnavailableChunks.empty()));
         if (completedJob->UnavailableChunks.empty()) {
             YT_LOG_DEBUG("Job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
@@ -3025,7 +3025,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
         auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
 
-        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+        YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
         auto it = maximumUsedTmpfsSizesPerJobType.find(jobType);
         if (it == maximumUsedTmpfsSizesPerJobType.end()) {
@@ -3052,7 +3052,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSizes = pair.second;
 
-        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+        YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
         const auto& tmpfsVolumes = userJobSpecPtr->TmpfsVolumes;
         for (int index = 0; index < tmpfsVolumes.size(); ++index) {
@@ -3229,7 +3229,7 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
                 << TErrorAttribute("cpu_time", cpuUsage)
                 << TErrorAttribute("exec_time", totalExecutionDuration)
                 << TErrorAttribute("cpu_limit", cpuLimit);
-            YCHECK(jobTypeToError.emplace(jobType, error).second);
+            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
         }
     }
 
@@ -3600,7 +3600,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
             } else {
                 YT_LOG_DEBUG("Task pending hint removed (Task: %v)",
                     task->GetTitle());
-                YCHECK(group->NonLocalTasks.erase(task) == 1);
+                YT_VERIFY(group->NonLocalTasks.erase(task) == 1);
             }
         }
         group->DelayedTasks.clear();
@@ -3789,7 +3789,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
             if (task->GetPendingJobCount() == 0) {
                 YT_LOG_DEBUG("Task pending hint removed (Task: %v)",
                     task->GetTitle());
-                YCHECK(nonLocalTasks.erase(task) == 1);
+                YT_VERIFY(nonLocalTasks.erase(task) == 1);
                 UpdateTask(task);
             } else {
                 YT_LOG_DEBUG("Task delay deadline reached (Task: %v)", task->GetTitle());
@@ -3811,7 +3811,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 if (task->GetPendingJobCount() == 0) {
                     YT_LOG_DEBUG("Task pending hint removed (Task: %v)", task->GetTitle());
                     candidateTasks.erase(it++);
-                    YCHECK(nonLocalTasks.erase(task) == 1);
+                    YT_VERIFY(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
                     ++noPendingJobsTaskCount;
                     continue;
@@ -4182,7 +4182,7 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
     std::vector<TChunkId> chunkIds;
     for (const auto& chunk : chunks) {
         auto it = LivePreviewChunks_.find(chunk);
-        YCHECK(it != LivePreviewChunks_.end());
+        YT_VERIFY(it != LivePreviewChunks_.end());
         auto livePreviewDescriptor = it->second;
         DataFlowGraph_->UnregisterLivePreviewChunk(
             livePreviewDescriptor.VertexDescriptor,
@@ -4434,7 +4434,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        YCHECK(rspsOrError.size() == OutputTables_.size());
+        YT_VERIFY(rspsOrError.size() == OutputTables_.size());
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
             handleResponse(*OutputTables_[index], rspsOrError[index].Value());
@@ -4766,7 +4766,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     THashMap<TString, TString> columnMapping;
                     for (const auto& descriptor : table->ColumnRenameDescriptors) {
                         auto it = columnMapping.insert({descriptor.OriginalName, descriptor.NewName});
-                        YCHECK(it.second);
+                        YT_VERIFY(it.second);
                     }
                     auto newColumns = table->Schema.Columns();
                     for (auto& column : newColumns) {
@@ -5190,7 +5190,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         YT_LOG_INFO("User file fetched (Path: %v, FileName: %v)",
@@ -5398,7 +5398,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
@@ -5498,7 +5498,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
 
                     i64 chunkCount = attributes.Get<i64>("chunk_count");
@@ -5668,7 +5668,7 @@ void TOperationControllerBase::CollectTotals()
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
 
@@ -5726,7 +5726,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 }
                 result.push_back(chunk);
@@ -5871,7 +5871,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                                 break;
 
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
                     result.back().push_back(dataSlice);
@@ -5888,7 +5888,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                                 break;
 
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
                     result.back().push_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
@@ -5980,7 +5980,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
             auto chunkId = FromProto<TChunkId>(protoChunkSpec.chunk_id());
             auto it = InputChunkMap.find(chunkId);
-            YCHECK(it != InputChunkMap.end());
+            YT_VERIFY(it != InputChunkMap.end());
             const auto& inputChunks = it->second.InputChunks;
             auto chunkIt = std::find_if(
                 inputChunks.begin(),
@@ -5988,7 +5988,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
                 [&] (const TInputChunkPtr& inputChunk) -> bool {
                     return inputChunk->GetChunkIndex() == protoChunkSpec.chunk_index();
                 });
-            YCHECK(chunkIt != inputChunks.end());
+            YT_VERIFY(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
@@ -5996,7 +5996,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         if (InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->IsDynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
         } else {
-            YCHECK(chunkSliceList.size() == 1);
+            YT_VERIFY(chunkSliceList.size() == 1);
             dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
         dataSlice->Tag = dataSliceDescriptor.GetTag();
@@ -6037,7 +6037,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     const TKeyColumns& keyColumns,
     std::function<bool(const TInputTablePtr& table)> inputTableFilter)
 {
-    YCHECK(!InputTables_.empty());
+    YT_VERIFY(!InputTables_.empty());
 
     for (const auto& table : InputTables_) {
         if (inputTableFilter(table) && !table->Schema.IsSorted()) {
@@ -6100,7 +6100,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             }
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TOperationControllerBase::CheckKeyColumnsCompatible(
@@ -6163,7 +6163,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
         return;
     }
 
-    YCHECK(StderrTable_);
+    YT_VERIFY(StderrTable_);
 
     const auto& chunkListId = joblet->StderrTableChunkListId;
     const auto& result = jobSummary.Result;
@@ -6173,7 +6173,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     }
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-    YCHECK(schedulerResultExt.has_stderr_table_boundary_keys());
+    YT_VERIFY(schedulerResultExt.has_stderr_table_boundary_keys());
 
     const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
     if (boundaryKeys.empty()) {
@@ -6192,7 +6192,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         return;
     }
 
-    YCHECK(CoreTable_);
+    YT_VERIFY(CoreTable_);
 
     const auto& chunkListId = joblet->CoreTableChunkListId;
     const auto& result = jobSummary.Result;
@@ -6228,7 +6228,7 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
             return OutputTransaction;
         }
     } else {
-        YCHECK(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
+        YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
         if (DebugCompletionTransaction) {
             return DebugCompletionTransaction;
         } else {
@@ -6245,9 +6245,9 @@ void TOperationControllerBase::RegisterTeleportChunk(
     auto& table = OutputTables_[tableIndex];
 
     if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
-        YCHECK(chunkSpec->BoundaryKeys());
-        YCHECK(chunkSpec->GetRowCount() > 0);
-        YCHECK(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
+        YT_VERIFY(chunkSpec->BoundaryKeys());
+        YT_VERIFY(chunkSpec->GetRowCount() > 0);
+        YT_VERIFY(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
         NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
@@ -6292,7 +6292,7 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
             }
 
             auto chunkDescriptorIt = InputChunkMap.find(chunkId);
-            YCHECK(chunkDescriptorIt != InputChunkMap.end());
+            YT_VERIFY(chunkDescriptorIt != InputChunkMap.end());
 
             auto& chunkDescriptor = chunkDescriptorIt->second;
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
@@ -6315,7 +6315,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
         const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
-        YCHECK(ChunkOriginMap.emplace(chunkId, completedJob).second);
+        YT_VERIFY(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
 
     IntermediateChunkScraper->Restart();
@@ -6356,8 +6356,8 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
     // OnSnapshotCompleted should match the most recent OnSnapshotStarted.
-    YCHECK(RecentSnapshotIndex_);
-    YCHECK(cookie.SnapshotIndex == *RecentSnapshotIndex_);
+    YT_VERIFY(RecentSnapshotIndex_);
+    YT_VERIFY(cookie.SnapshotIndex == *RecentSnapshotIndex_);
 
     // Completed job ids.
     {
@@ -6534,7 +6534,7 @@ void TOperationControllerBase::ReleaseChunkTrees(
     bool waitForSnapshot)
 {
     if (waitForSnapshot) {
-        YCHECK(unstageRecursively);
+        YT_VERIFY(unstageRecursively);
         for (const auto& chunkTreeId : chunkTreeIds) {
             ChunkTreeReleaseQueue_.Push(chunkTreeId);
         }
@@ -6545,7 +6545,7 @@ void TOperationControllerBase::ReleaseChunkTrees(
 
 void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
 {
-    YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
+    YT_VERIFY(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
 TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
@@ -6557,7 +6557,7 @@ TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
 TJobletPtr TOperationControllerBase::GetJoblet(TJobId jobId) const
 {
     auto joblet = FindJoblet(jobId);
-    YCHECK(joblet);
+    YT_VERIFY(joblet);
     return joblet;
 }
 
@@ -6575,7 +6575,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
-    YCHECK(JobletMap.erase(joblet->JobId) == 1);
+    YT_VERIFY(JobletMap.erase(joblet->JobId) == 1);
 }
 
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
@@ -6796,7 +6796,7 @@ TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatist
         }
     }
 
-    YCHECK(attributesBuilder);
+    YT_VERIFY(attributesBuilder);
 
     return BuildYsonStringFluently()
         .BeginMap()
@@ -7005,7 +7005,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    YCHECK(jobSummary.Statistics);
+    YT_VERIFY(jobSummary.Statistics);
 
     // NB: There is a copy happening here that can be eliminated.
     auto statistics = *jobSummary.Statistics;
@@ -7030,7 +7030,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 
         auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
         if (it == JobMetricsDeltaPerTree_.end()) {
-            YCHECK(JobMetricsDeltaPerTree_.insert(std::make_pair(joblet->TreeId, delta)).second);
+            YT_VERIFY(JobMetricsDeltaPerTree_.insert(std::make_pair(joblet->TreeId, delta)).second);
         } else {
             it->second += delta;
         }
@@ -7254,7 +7254,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
 {
     auto it = UserJobFiles_.find(userJobSpec);
-    YCHECK(it != UserJobFiles_.end());
+    YT_VERIFY(it != UserJobFiles_.end());
     return it->second;
 }
 
@@ -7334,7 +7334,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
     auto writerConfig = GetStderrTableWriterConfig();
-    YCHECK(writerConfig);
+    YT_VERIFY(writerConfig);
     stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
@@ -7349,7 +7349,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
     auto writerConfig = GetCoreTableWriterConfig();
-    YCHECK(writerConfig);
+    YT_VERIFY(writerConfig);
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
@@ -7460,8 +7460,8 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
 void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
 {
     // We infer schema only for operations with one output table.
-    YCHECK(OutputTables_.size() == 1);
-    YCHECK(InputTables_.size() >= 1);
+    YT_VERIFY(OutputTables_.size() == 1);
+    YT_VERIFY(InputTables_.size() >= 1);
 
     OutputTables_[0]->TableUploadOptions.SchemaMode = InputTables_[0]->SchemaMode;
     for (const auto& table : InputTables_) {
@@ -7499,8 +7499,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
 void TOperationControllerBase::InferSchemaFromInputOrdered()
 {
     // We infer schema only for operations with one output table.
-    YCHECK(OutputTables_.size() == 1);
-    YCHECK(InputTables_.size() >= 1);
+    YT_VERIFY(OutputTables_.size() == 1);
+    YT_VERIFY(InputTables_.size() >= 1);
 
     auto& outputUploadOptions = OutputTables_[0]->TableUploadOptions;
 
@@ -7534,8 +7534,8 @@ void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const
 {
-    YCHECK(OutputTables_.size() == 1);
-    YCHECK(InputTables_.size() >= 1);
+    YT_VERIFY(OutputTables_.size() == 1);
+    YT_VERIFY(InputTables_.size() >= 1);
 
     if (InputTables_.size() > 1 && OutputTables_[0]->TableUploadOptions.TableSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot generate sorted output for ordered operation with multiple input tables")
@@ -7545,7 +7545,7 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
 
 void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns) const
 {
-    YCHECK(OutputTables_.size() == 1);
+    YT_VERIFY(OutputTables_.size() == 1);
 
     auto hasComputedColumn = OutputTables_[0]->TableUploadOptions.TableSchema.HasComputedColumns();
 
@@ -7769,7 +7769,7 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -7791,7 +7791,7 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
     int index,
     const TInputChunkPtr& chunk)
 {
-    YCHECK(LivePreviewChunks_.insert(std::make_pair(
+    YT_VERIFY(LivePreviewChunks_.insert(std::make_pair(
         chunk,
         TLivePreviewChunkDescriptor{vertexDescriptor, index})).second);
 
@@ -7921,13 +7921,13 @@ TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int
 
 IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    YCHECK(stripe->ChunkListId);
+    YT_VERIFY(stripe->ChunkListId);
     auto& table = Controller_->OutputTables_[OutputTableIndex_];
     auto chunkListId = stripe->ChunkListId;
 
     if (table->TableUploadOptions.TableSchema.IsSorted() && Controller_->ShouldVerifySortedOutput()) {
         // We override the key suggested by the task with the one formed by the stripe boundary keys.
-        YCHECK(stripe->BoundaryKeys);
+        YT_VERIFY(stripe->BoundaryKeys);
         key = stripe->BoundaryKeys;
     }
 
@@ -7952,12 +7952,12 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr st
 
 void TOperationControllerBase::TSink::Suspend(TCookie /* cookie */)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TOperationControllerBase::TSink::Resume(TCookie /* cookie */)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TOperationControllerBase::TSink::Reset(
@@ -7965,7 +7965,7 @@ void TOperationControllerBase::TSink::Reset(
     TChunkStripePtr /* stripe */,
     TInputChunkMappingPtr /* mapping */)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TOperationControllerBase::TSink::Finish()

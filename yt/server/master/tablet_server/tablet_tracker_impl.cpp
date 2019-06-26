@@ -142,8 +142,8 @@ TTabletTrackerImpl::TTabletTrackerImpl(
     , TTabletCellBalancerProvider_(New<TTabletCellBalancerProvider>(Bootstrap_))
     , Profiler("/tablet_server/tablet_tracker")
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 

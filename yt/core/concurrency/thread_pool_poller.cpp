@@ -123,7 +123,7 @@ public:
 
         {
             auto guard = Guard(SpinLock_);
-            YCHECK(Pollables_.empty());
+            YT_VERIFY(Pollables_.empty());
             ShutdownFinished_.store(true);
         }
 
@@ -138,7 +138,7 @@ public:
             if (ShutdownStarted_.load()) {
                 return;
             }
-            YCHECK(Pollables_.emplace(pollable, std::move(entry)).second);
+            YT_VERIFY(Pollables_.emplace(pollable, std::move(entry)).second);
         }
         YT_LOG_DEBUG("Pollable registered (%v)",
             pollable->GetLoggingId());
@@ -162,7 +162,7 @@ public:
             const auto& entry = it->second;
             future = entry->UnregisterPromise.ToFuture();
 
-            YCHECK(!ShutdownFinished_.load());
+            YT_VERIFY(!ShutdownFinished_.load());
 
             if (entry->TryLockUnregister()) {
                 for (const auto& thread : Threads_) {
@@ -341,7 +341,7 @@ private:
             {
                 auto guard = Guard(Poller_->SpinLock_);
                 for (const auto& entry : deadEntries) {
-                    YCHECK(Poller_->Pollables_.erase(entry->Pollable) == 1);
+                    YT_VERIFY(Poller_->Pollables_.erase(entry->Pollable) == 1);
                 }
             }
 
@@ -391,7 +391,7 @@ private:
 
         virtual TDuration GetAverageWaitTime() const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         EBeginExecuteResult ExecuteCallbacks()
@@ -421,7 +421,7 @@ private:
             while (Callbacks_.Dequeue(&callback)) {
                 callback.Reset();
             }
-            YCHECK(Callbacks_.IsEmpty()); // As a side effect, this releases free lists.
+            YT_VERIFY(Callbacks_.IsEmpty()); // As a side effect, this releases free lists.
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

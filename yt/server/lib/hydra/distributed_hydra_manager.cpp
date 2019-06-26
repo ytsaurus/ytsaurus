@@ -355,7 +355,7 @@ public:
     virtual TFuture<void> SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!HasMutationContext());
+        YT_VERIFY(!HasMutationContext());
 
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !IsActive()) {
@@ -513,8 +513,8 @@ private:
             startRecordId,
             recordCount);
 
-        YCHECK(startRecordId >= 0);
-        YCHECK(recordCount >= 0);
+        YT_VERIFY(startRecordId >= 0);
+        YT_VERIFY(recordCount >= 0);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
 
@@ -617,7 +617,7 @@ private:
                 }
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         } while (again);
 
@@ -662,7 +662,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         if (alivePeers != AlivePeers_) {
@@ -837,7 +837,7 @@ private:
                 }
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         } while (again);
 
@@ -1151,7 +1151,7 @@ private:
 
         YT_LOG_INFO("Starting leader recovery");
 
-        YCHECK(ControlState_ == EPeerState::Elections);
+        YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
 
         auto epochContext = StartEpoch(electionEpochContext);
@@ -1192,7 +1192,7 @@ private:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(!AutomatonEpochContext_);
+        YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
 
         DecoratedAutomaton_->OnStartLeading(epochContext);
@@ -1248,7 +1248,7 @@ private:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            YCHECK(ControlState_ == EPeerState::LeaderRecovery);
+            YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
             YT_LOG_INFO("Leader recovery completed");
@@ -1307,7 +1307,7 @@ private:
 
         StopEpoch();
 
-        YCHECK(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
+        YT_VERIFY(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
         ControlState_ = EPeerState::Elections;
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
@@ -1331,7 +1331,7 @@ private:
 
         YT_LOG_INFO("Starting follower recovery");
 
-        YCHECK(ControlState_ == EPeerState::Elections);
+        YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
 
         auto epochContext = StartEpoch(electionEpochContext);
@@ -1348,7 +1348,7 @@ private:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(!AutomatonEpochContext_);
+        YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
 
         DecoratedAutomaton_->OnStartFollowing(epochContext);
@@ -1373,7 +1373,7 @@ private:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            YCHECK(ControlState_ == EPeerState::FollowerRecovery);
+            YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1411,7 +1411,7 @@ private:
 
         StopEpoch();
 
-        YCHECK(ControlState_ == EPeerState::Following || ControlState_ == EPeerState::FollowerRecovery);
+        YT_VERIFY(ControlState_ == EPeerState::Following || ControlState_ == EPeerState::FollowerRecovery);
         ControlState_ = EPeerState::Elections;
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
@@ -1433,7 +1433,7 @@ private:
     void CheckForInitialPing(TVersion pingVersion)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(ControlState_ == EPeerState::FollowerRecovery);
+        YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
 
         auto epochContext = ControlEpochContext_;
 
@@ -1494,7 +1494,7 @@ private:
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
 
-        YCHECK(!ControlEpochContext_);
+        YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
 
         SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
@@ -1595,7 +1595,7 @@ private:
         epochContext->UpstreamSyncDeadlineReached = false;
         epochContext->UpstreamSyncStartTime = NProfiling::GetCpuInstant();
 
-        YCHECK(!epochContext->ActiveUpstreamSyncPromise);
+        YT_VERIFY(!epochContext->ActiveUpstreamSyncPromise);
         swap(epochContext->ActiveUpstreamSyncPromise, epochContext->PendingUpstreamSyncPromise);
 
         std::vector<TFuture<void>> asyncResults;
@@ -1657,11 +1657,11 @@ private:
 
         auto epochContext = AutomatonEpochContext_;
 
-        YCHECK(!epochContext->LeaderSyncPromise);
+        YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
 
         auto channel = CellManager_->GetPeerChannel(epochContext->LeaderId);
-        YCHECK(channel);
+        YT_VERIFY(channel);
 
         THydraServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
@@ -1697,7 +1697,7 @@ private:
         YT_LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
             committedVersion);
 
-        YCHECK(!epochContext->LeaderSyncVersion);
+        YT_VERIFY(!epochContext->LeaderSyncVersion);
         epochContext->LeaderSyncVersion = committedVersion;
         DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync();
@@ -1807,15 +1807,15 @@ IHydraManagerPtr CreateDistributedHydraManager(
     ISnapshotStorePtr snapshotStore,
     const TDistributedHydraManagerOptions& options)
 {
-    YCHECK(config);
-    YCHECK(controlInvoker);
-    YCHECK(automatonInvoker);
-    YCHECK(automaton);
-    YCHECK(rpcServer);
-    YCHECK(electionManager);
-    YCHECK(cellManager);
-    YCHECK(changelogStoreFactory);
-    YCHECK(snapshotStore);
+    YT_VERIFY(config);
+    YT_VERIFY(controlInvoker);
+    YT_VERIFY(automatonInvoker);
+    YT_VERIFY(automaton);
+    YT_VERIFY(rpcServer);
+    YT_VERIFY(electionManager);
+    YT_VERIFY(cellManager);
+    YT_VERIFY(changelogStoreFactory);
+    YT_VERIFY(snapshotStore);
 
     return New<TDistributedHydraManager>(
         config,

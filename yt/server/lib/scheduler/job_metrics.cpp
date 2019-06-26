@@ -135,7 +135,7 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
                     value = summary->GetMin();
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
         metrics.CustomValues()[jobMetricDescription] = value;

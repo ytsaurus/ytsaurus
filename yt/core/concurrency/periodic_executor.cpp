@@ -24,8 +24,8 @@ TPeriodicExecutor::TPeriodicExecutor(
     , Mode_(mode)
     , Splay_(splay)
 {
-    YCHECK(Invoker_);
-    YCHECK(Callback_);
+    YT_VERIFY(Invoker_);
+    YT_VERIFY(Callback_);
 }
 
 void TPeriodicExecutor::Start()
@@ -134,7 +134,7 @@ void TPeriodicExecutor::ScheduleNext()
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an executor in automatic mode
-    YCHECK(Busy_);
+    YT_VERIFY(Busy_);
     Busy_ = false;
 
     if (!Started_) {

@@ -49,7 +49,7 @@ TFuture<TSharedRef> TAttachmentsInputStream::Read()
     }
 
     // Failure here indicates that another Read request is already in progress.
-    YCHECK(!Promise_);
+    YT_VERIFY(!Promise_);
 
     if (Queue_.empty()) {
         Promise_ = NewPromise<TSharedRef>();
@@ -64,7 +64,7 @@ TFuture<TSharedRef> TAttachmentsInputStream::Read()
         Queue_.pop();
         ReadPosition_ += entry.CompressedSize;
         if (!entry.Attachment) {
-            YCHECK(!Closed_);
+            YT_VERIFY(!Closed_);
             Closed_ = true;
         }
         guard.Release();
@@ -127,7 +127,7 @@ void TAttachmentsInputStream::DoEnqueuePayload(
         Promise_.Reset();
         ReadPosition_ += entry.CompressedSize;
         if (!entry.Attachment) {
-            YCHECK(!Closed_);
+            YT_VERIFY(!Closed_);
             Closed_ = true;
         }
 
@@ -213,7 +213,7 @@ TAttachmentsOutputStream::TAttachmentsOutputStream(
 
 TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
 {
-    YCHECK(data);
+    YT_VERIFY(data);
     auto promise = NewPromise<void>();
     TDelayedExecutorCookie timeoutCookie;
     if (Timeout_) {
@@ -502,9 +502,9 @@ TRpcClientInputStream::TRpcClientInputStream(
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
 {
-    YCHECK(Request_);
+    YT_VERIFY(Request_);
     Underlying_ = Request_->GetResponseAttachmentsStream();
-    YCHECK(Underlying_);
+    YT_VERIFY(Underlying_);
 }
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
@@ -558,7 +558,7 @@ TFuture<void> ExpectWriterFeedback(
     const IAsyncZeroCopyInputStreamPtr& input,
     EWriterFeedback expectedFeedback)
 {
-    YCHECK(input);
+    YT_VERIFY(input);
     return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
         return MakeFuture(CheckWriterFeedback(ref, expectedFeedback));
     }));
@@ -584,11 +584,11 @@ TRpcClientOutputStream::TRpcClientOutputStream(
     , CloseResult_(NewPromise<void>())
     , FeedbackEnabled_(feedbackEnabled)
 {
-    YCHECK(Request_);
+    YT_VERIFY(Request_);
     Underlying_ = Request_->GetRequestAttachmentsStream();
-    YCHECK(Underlying_);
+    YT_VERIFY(Underlying_);
     FeedbackStream_ = Request_->GetResponseAttachmentsStream();
-    YCHECK(FeedbackStream_);
+    YT_VERIFY(FeedbackStream_);
 
     if (FeedbackEnabled_) {
         FeedbackStream_->Read().Subscribe(
@@ -665,7 +665,7 @@ void TRpcClientOutputStream::AbortOnError(const TError& error)
 
 void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
 {
-    YCHECK(FeedbackEnabled_);
+    YT_VERIFY(FeedbackEnabled_);
 
     auto error = TError(refOrError);
     if (error.IsOK()) {
@@ -699,7 +699,7 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
             return;
         }
 
-        YCHECK(!ConfirmationQueue_.empty());
+        YT_VERIFY(!ConfirmationQueue_.empty());
         promise = std::move(ConfirmationQueue_.front());
         ConfirmationQueue_.pop();
     }
@@ -750,12 +750,12 @@ void HandleInputStreamingRequest(
     const TCallback<TFuture<TSharedRef>()>& blockGenerator)
 {
     auto inputStream = context->GetRequestAttachmentsStream();
-    YCHECK(inputStream);
+    YT_VERIFY(inputStream);
     WaitFor(ExpectEndOfStream(inputStream))
         .ThrowOnError();
 
     auto outputStream = context->GetResponseAttachmentsStream();
-    YCHECK(outputStream);
+    YT_VERIFY(outputStream);
     auto getNextBlock = [&] () {
         return WaitFor(blockGenerator())
             .ValueOrThrow();
@@ -786,9 +786,9 @@ void HandleOutputStreamingRequest(
     bool feedbackEnabled)
 {
     auto inputStream = context->GetRequestAttachmentsStream();
-    YCHECK(inputStream);
+    YT_VERIFY(inputStream);
     auto outputStream = context->GetResponseAttachmentsStream();
-    YCHECK(outputStream);
+    YT_VERIFY(outputStream);
 
     auto getNextBlock = [&] () {
         return WaitFor(inputStream->Read())

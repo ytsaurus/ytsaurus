@@ -401,7 +401,7 @@ void TSkynetService::WriteShareReply(
         WaitFor(rsp->Close())
             .ThrowOnError();
     } else if (state.State == ERequestState::Active) {
-        YCHECK(state.Resources);
+        YT_VERIFY(state.Resources);
 
         // COMPAT(prime)
         if (request.KeyColumns.size() == 0) {

@@ -68,7 +68,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    Y_ASSERT(context->Phase == EWritePhase::Commit);
+    YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto command = reader->ReadCommand();
         switch (command) {
@@ -272,21 +272,21 @@ bool TReplicatedStoreManager::SplitPartition(
     int /*partitionIndex*/,
     const std::vector<TOwningKey>& /*pivotKeys*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TReplicatedStoreManager::MergePartitions(
     int /*firstPartitionIndex*/,
     int /*lastPartitionIndex*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     TPartition* /*partition*/,
     const TSharedRange<TKey>& /*keys*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TUnversionedRow TReplicatedStoreManager::BuildLogRow(
@@ -307,7 +307,7 @@ TUnversionedRow TReplicatedStoreManager::BuildOrderedLogRow(
     TUnversionedRow row,
     ERowModificationType changeType)
 {
-    YCHECK(changeType == ERowModificationType::Write);
+    YT_VERIFY(changeType == ERowModificationType::Write);
 
     for (int index = 0; index < row.GetCount(); ++index) {
         auto value = row[index];
@@ -326,7 +326,7 @@ TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
     int keyColumnCount = Tablet_->TableSchema().GetKeyColumnCount();
     int valueColumnCount = Tablet_->TableSchema().GetValueColumnCount();
 
-    YCHECK(row.GetCount() >= keyColumnCount);
+    YT_VERIFY(row.GetCount() >= keyColumnCount);
     for (int index = 0; index < keyColumnCount; ++index) {
         auto value = row[index];
         value.Id += 2;

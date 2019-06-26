@@ -165,7 +165,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
 
 void TStoreManagerBase::RemoveStore(IStorePtr store)
 {
-    Y_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
+    YT_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
 
     store->SetStoreState(EStoreState::Removed);
     Tablet_->RemoveStore(store);
@@ -220,39 +220,39 @@ TStoreFlushCallback TStoreManagerBase::BeginStoreFlush(
     TTabletSnapshotPtr tabletSnapshot,
     bool isUnmountWorkflow)
 {
-    YCHECK(store->GetFlushState() == EStoreFlushState::None);
+    YT_VERIFY(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
     return MakeStoreFlushCallback(store, tabletSnapshot, isUnmountWorkflow);
 }
 
 void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)
 {
-    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
+    YT_VERIFY(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::Complete);
 }
 
 void TStoreManagerBase::BackoffStoreFlush(IDynamicStorePtr store)
 {
-    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
+    YT_VERIFY(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::None);
     store->UpdateFlushAttemptTimestamp();
 }
 
 void TStoreManagerBase::BeginStoreCompaction(IChunkStorePtr store)
 {
-    YCHECK(store->GetCompactionState() == EStoreCompactionState::None);
+    YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::None);
     store->SetCompactionState(EStoreCompactionState::Running);
 }
 
 void TStoreManagerBase::EndStoreCompaction(IChunkStorePtr store)
 {
-    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::Complete);
 }
 
 void TStoreManagerBase::BackoffStoreCompaction(IChunkStorePtr store)
 {
-    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::None);
     store->UpdateCompactionAttempt();
 }
@@ -328,17 +328,17 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 
 void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
 {
-    YCHECK(store->GetId() == Tablet_->PreloadStoreIds().front());
+    YT_VERIFY(store->GetId() == Tablet_->PreloadStoreIds().front());
     Tablet_->PreloadStoreIds().pop_front();
 
-    YCHECK(store->GetPreloadState() == EStorePreloadState::Scheduled);
+    YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Scheduled);
     store->SetPreloadState(EStorePreloadState::Running);
     store->SetPreloadFuture(callbackFuture.Run());
 }
 
 void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 {
-    YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+    YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::Complete);
     store->SetPreloadFuture(TFuture<void>());
 }
@@ -350,7 +350,7 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
         Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
     VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
-    YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+    YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
     store->SetPreloadFuture(TFuture<void>());
     store->SetPreloadState(EStorePreloadState::Scheduled);
@@ -367,8 +367,8 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
     for (const auto& descriptor : storeDescriptors) {
         auto type = EStoreType(descriptor.store_type());
         auto storeId = FromProto<TChunkId>(descriptor.store_id());
-        YCHECK(descriptor.has_chunk_meta());
-        YCHECK(!descriptor.has_backing_store_id());
+        YT_VERIFY(descriptor.has_chunk_meta());
+        YT_VERIFY(!descriptor.has_backing_store_id());
         auto store = TabletContext_->CreateStore(
             Tablet_,
             type,
@@ -412,7 +412,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
 
     auto* activeStore = GetActiveStore();
-    YCHECK(activeStore);
+    YT_VERIFY(activeStore);
     activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
     YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
@@ -423,7 +423,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
         YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
             activeStore->GetId(),
             activeStore->GetLockCount());
-        YCHECK(LockedStores_.insert(IStorePtr(activeStore)).second);
+        YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
     } else {
         YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
             activeStore->GetId(),
@@ -567,12 +567,12 @@ bool TStoreManagerBase::IsForcedRotationPossible() const
 
 ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
@@ -583,7 +583,7 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 
     YT_LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
         store->GetId());
-    YCHECK(LockedStores_.erase(store) == 1);
+    YT_VERIFY(LockedStores_.erase(store) == 1);
 }
 
 void TStoreManagerBase::UpdateInMemoryMode()

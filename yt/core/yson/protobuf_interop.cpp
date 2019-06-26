@@ -277,11 +277,11 @@ public:
             if (field->IsRequired()) {
                 RequiredFieldNumbers_.push_back(field->GetNumber());
             }
-            YCHECK(NameToField_.emplace(field->GetYsonName(), field).second);
+            YT_VERIFY(NameToField_.emplace(field->GetYsonName(), field).second);
             for (auto name : field->GetYsonNameAliases()) {
-                YCHECK(NameToField_.emplace(name, field).second);
+                YT_VERIFY(NameToField_.emplace(name, field).second);
             }
-            YCHECK(NumberToField_.emplace(field->GetNumber(), field).second);
+            YT_VERIFY(NumberToField_.emplace(field->GetNumber(), field).second);
             Fields_.push_back(std::move(fieldHolder));
         }
 
@@ -344,7 +344,7 @@ public:
     const TProtobufField* GetFieldByNumber(int number) const
     {
         const auto* field = FindFieldByNumber(number);
-        YCHECK(field);
+        YT_VERIFY(field);
         return field;
     }
 
@@ -414,8 +414,8 @@ public:
         for (int index = 0; index < Underlying_->value_count(); ++index) {
             const auto* valueDescriptor = Underlying_->value(index);
             auto literal = Registry_->GetYsonLiteral(valueDescriptor);
-            YCHECK(LiteralToValue_.emplace(literal, valueDescriptor->number()).second);
-            YCHECK(ValueToLiteral_.emplace(valueDescriptor->number(), literal).second);
+            YT_VERIFY(LiteralToValue_.emplace(literal, valueDescriptor->number()).second);
+            YT_VERIFY(ValueToLiteral_.emplace(valueDescriptor->number(), literal).second);
         }
     }
 
@@ -580,7 +580,7 @@ protected:
         for (auto number : type->GetRequiredFieldNumbers()) {
             if (!std::binary_search(numbers.begin(), numbers.end(), number)) {
                 const auto* field = type->FindFieldByNumber(number);
-                YCHECK(field);
+                YT_VERIFY(field);
                 YPathStack_.Push(field);
                 THROW_ERROR_EXCEPTION("Missing required field %v",
                     YPathStack_.GetPath())
@@ -590,7 +590,7 @@ protected:
             }
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void ValidateNoFieldDuplicates(const TProtobufMessageType* type, const TFieldNumberList& numbers)
@@ -813,7 +813,7 @@ private:
 
     virtual void OnMyListItem() override
     {
-        Y_ASSERT(!TypeStack_.empty());
+        YT_ASSERT(!TypeStack_.empty());
         const auto* field = FieldStack_.back().Field;
         int index = FieldStack_.back().CurrentListIndex++;
         FieldStack_.emplace_back(field, index, true);
@@ -822,7 +822,7 @@ private:
 
     virtual void OnMyEndList() override
     {
-        Y_ASSERT(!TypeStack_.empty());
+        YT_ASSERT(!TypeStack_.empty());
         FieldStack_.pop_back();
         YPathStack_.Pop();
     }
@@ -858,7 +858,7 @@ private:
         if (field && field->IsYsonMap()) {
             OnMyKeyedItemYsonMap(key);
         } else {
-            Y_ASSERT(!TypeStack_.empty());
+            YT_ASSERT(!TypeStack_.empty());
             const auto* type = TypeStack_.back().Type;
             if (type->IsAttributeDictionary()) {
                 OnMyKeyedItemAttributeDictionary(key);
@@ -1020,14 +1020,14 @@ private:
     {
         int index = NestedIndexStack_.back();
         NestedIndexStack_.pop_back();
-        Y_ASSERT(NestedMessages_[index].Hi == -1);
+        YT_ASSERT(NestedMessages_[index].Hi == -1);
         NestedMessages_[index].Hi = BodyCodedStream_.ByteCount();
     }
 
     void Finish()
     {
-        YCHECK(YPathStack_.IsEmpty());
-        YCHECK(!FieldStack_.back().Field);
+        YT_VERIFY(YPathStack_.IsEmpty());
+        YT_VERIFY(!FieldStack_.back().Field);
 
         BodyCodedStream_.Trim();
 
@@ -1163,7 +1163,7 @@ private:
 
     void WriteTag()
     {
-        Y_ASSERT(!FieldStack_.empty());
+        YT_ASSERT(!FieldStack_.empty());
         const auto* field = FieldStack_.back().Field;
         BodyCodedStream_.WriteTag(field->GetTag());
     }
@@ -1380,9 +1380,9 @@ public:
         Consumer_->OnEndMap();
         TypeStack_.pop_back();
 
-        YCHECK(TypeStack_.empty());
-        YCHECK(YPathStack_.IsEmpty());
-        YCHECK(LimitStack_.empty());
+        YT_VERIFY(TypeStack_.empty());
+        YT_VERIFY(YPathStack_.IsEmpty());
+        YT_VERIFY(LimitStack_.empty());
     }
 
 private:
@@ -1407,8 +1407,8 @@ private:
 
         void BeginRepeated(const TProtobufField* field)
         {
-            Y_ASSERT(!RepeatedField);
-            Y_ASSERT(RepeatedIndex == -1);
+            YT_ASSERT(!RepeatedField);
+            YT_ASSERT(RepeatedIndex == -1);
             RepeatedField = field;
             RepeatedIndex = 0;
         }
@@ -1421,7 +1421,7 @@ private:
 
         int GenerateNextListIndex()
         {
-            Y_ASSERT(RepeatedField);
+            YT_ASSERT(RepeatedField);
             return ++RepeatedIndex;
         }
     };
@@ -1663,7 +1663,7 @@ private:
 
         if (typeEntry.RepeatedField == field) {
             if (!field->IsYsonMap()) {
-                Y_ASSERT(field->IsRepeated());
+                YT_ASSERT(field->IsRepeated());
                 OnListItem(typeEntry.GenerateNextListIndex());
             }
         } else {
@@ -2112,7 +2112,7 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
     const auto* currentType = rootType;
     while (true) {
-        YCHECK(currentType);
+        YT_VERIFY(currentType);
 
         tokenizer.Advance();
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {

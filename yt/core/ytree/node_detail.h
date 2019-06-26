@@ -31,13 +31,13 @@ public:
     virtual TIntrusivePtr<I##key##Node> As##key() override \
     { \
         ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
-        Y_UNREACHABLE(); \
+        YT_ABORT(); \
     } \
     \
     virtual TIntrusivePtr<const I##key##Node> As##key() const override \
     { \
         ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
-        Y_UNREACHABLE(); \
+        YT_ABORT(); \
     }
 
     IMPLEMENT_AS_METHODS(Entity)

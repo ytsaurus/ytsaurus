@@ -334,9 +334,9 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     WaitFor(keepAliveExecutor->Stop())
         .ThrowOnError();
 
-    YCHECK(allStatistics.size() == Paths.size());
+    YT_VERIFY(allStatistics.size() == Paths.size());
     for (int index = 0; index < allStatistics.size(); ++index) {
-        YCHECK(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
+        YT_VERIFY(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
     }
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {

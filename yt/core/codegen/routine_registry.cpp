@@ -45,7 +45,7 @@ TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& s
 {
     auto mangledSymbol = MangleSymbol(symbol);
     auto it = SymbolToTypeBuilder_.find(mangledSymbol);
-    YCHECK(it != SymbolToTypeBuilder_.end());
+    YT_VERIFY(it != SymbolToTypeBuilder_.end());
     return it->second;
 }
 
@@ -55,8 +55,8 @@ void TRoutineRegistry::RegisterRoutineImpl(
     TTypeBuilder typeBuilder)
 {
     auto mangledSymbol = MangleSymbol(symbol);
-    YCHECK(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);
-    YCHECK(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
+    YT_VERIFY(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);
+    YT_VERIFY(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -42,7 +42,7 @@ namespace NYT {
 // #Passed() is for transferring movable-but-not-copyable types through
 // a #TCallback<>. Logically, this signifies a destructive transfer of the state
 // of the argument into the target function. Invoking #TCallback<>::Run() twice
-// on a TCallback that was created with a #Passed() argument will Y_ASSERT()
+// on a TCallback that was created with a #Passed() argument will YT_ASSERT()
 // because the first invocation would have already transferred ownership
 // to the target function.
 //
@@ -110,7 +110,7 @@ namespace NYT {
 //   // |arg| in TakesOwnership() is given ownership of |TFoo|.
 //   // |cb| no longer owns |TFoo| and, if reset, would not delete anything.
 //   cb.Run(); // |TFoo| is now transferred to |arg| and deleted.
-//   cb.Run(); // This Y_ASSERT()s since |TFoo| already been used once.
+//   cb.Run(); // This YT_ASSERT()s since |TFoo| already been used once.
 //
 //
 // EXAMPLE OF ConstRef()
@@ -206,7 +206,7 @@ public:
     }
     T&& Get() const
     {
-        Y_ASSERT(IsValid_);
+        YT_ASSERT(IsValid_);
         IsValid_ = false;
         return std::move(T_);
     }

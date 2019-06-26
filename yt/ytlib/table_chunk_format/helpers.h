@@ -28,25 +28,25 @@ GetValue(const NTableClient::TUnversionedValue& value)
 
 inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TUnversionedRow row, int valueIndex)
 {
-    Y_ASSERT(valueIndex < row.GetCount());
+    YT_ASSERT(valueIndex < row.GetCount());
     return row[valueIndex];
 }
 
 inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TVersionedRow row, int valueIndex)
 {
-    Y_ASSERT(valueIndex < row.GetKeyCount());
+    YT_ASSERT(valueIndex < row.GetKeyCount());
     return row.BeginKeys()[valueIndex];
 }
 
 inline NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TMutableUnversionedRow row, int valueIndex)
 {
-    Y_ASSERT(valueIndex < row.GetCount());
+    YT_ASSERT(valueIndex < row.GetCount());
     return row[valueIndex];
 }
 
 inline NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TMutableVersionedRow row, int valueIndex)
 {
-    Y_ASSERT(valueIndex < row.GetKeyCount());
+    YT_ASSERT(valueIndex < row.GetKeyCount());
     return row.BeginKeys()[valueIndex];
 }
 
@@ -158,8 +158,8 @@ inline ui32 GetTimestampIndex(
             return t1 > t2;
         });
 
-    YCHECK(beginIt != endIt);
-    YCHECK(std::distance(beginIt, endIt) == 1);
+    YT_VERIFY(beginIt != endIt);
+    YT_VERIFY(std::distance(beginIt, endIt) == 1);
 
     return std::distance(row.BeginWriteTimestamps(), beginIt);
 }

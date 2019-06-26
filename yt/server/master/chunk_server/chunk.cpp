@@ -107,7 +107,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
-        YCHECK(ExportDataList_);
+        YT_VERIFY(ExportDataList_);
         TRangeSerializer::Save(context, TRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
     }
 }
@@ -147,7 +147,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 break;
             }
         }
-        YCHECK(isActuallyExported);
+        YT_VERIFY(isActuallyExported);
     }
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
@@ -162,7 +162,7 @@ void TChunk::AddParent(TChunkList* parent)
 void TChunk::RemoveParent(TChunkList* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
-    YCHECK(it != Parents_.end());
+    YT_VERIFY(it != Parents_.end());
     Parents_.erase(it);
 }
 
@@ -170,12 +170,12 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
-        Y_ASSERT(!IsJournal());
+        YT_ASSERT(!IsJournal());
         auto& cachedReplicas = data->CachedReplicas;
         if (!cachedReplicas) {
             cachedReplicas = std::make_unique<TCachedReplicas>();
         }
-        YCHECK(cachedReplicas->insert(replica).second);
+        YT_VERIFY(cachedReplicas->insert(replica).second);
     } else {
         if (IsJournal()) {
             for (auto& existingReplica : data->StoredReplicas) {
@@ -204,8 +204,8 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
         auto& cachedReplicas = data->CachedReplicas;
-        Y_ASSERT(cachedReplicas);
-        YCHECK(cachedReplicas->erase(replica) == 1);
+        YT_ASSERT(cachedReplicas);
+        YT_VERIFY(cachedReplicas->erase(replica) == 1);
         if (cachedReplicas->empty()) {
             cachedReplicas.reset();
         }
@@ -223,7 +223,7 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
                 return;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -250,7 +250,7 @@ void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
                 return;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -267,7 +267,7 @@ void TChunk::Confirm(
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
-    YCHECK(IsConfirmed());
+    YT_VERIFY(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const
@@ -309,7 +309,7 @@ bool TChunk::IsAvailable() const
             return false;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -328,20 +328,20 @@ bool TChunk::IsSealed() const
 
 i64 TChunk::GetSealedRowCount() const
 {
-    YCHECK(MiscExt_.sealed());
+    YT_VERIFY(MiscExt_.sealed());
     return MiscExt_.row_count();
 }
 
 void TChunk::Seal(const TMiscExt& info)
 {
-    YCHECK(IsConfirmed() && !IsSealed());
+    YT_VERIFY(IsConfirmed() && !IsSealed());
 
     // NB: Just a sanity check.
-    YCHECK(!MiscExt_.sealed());
-    YCHECK(MiscExt_.row_count() == 0);
-    YCHECK(MiscExt_.uncompressed_data_size() == 0);
-    YCHECK(MiscExt_.compressed_data_size() == 0);
-    YCHECK(ChunkInfo_.disk_space() == 0);
+    YT_VERIFY(!MiscExt_.sealed());
+    YT_VERIFY(MiscExt_.row_count() == 0);
+    YT_VERIFY(MiscExt_.uncompressed_data_size() == 0);
+    YT_VERIFY(MiscExt_.compressed_data_size() == 0);
+    YT_VERIFY(ChunkInfo_.disk_space() == 0);
 
     MiscExt_.set_sealed(true);
     MiscExt_.set_row_count(info.row_count());
@@ -374,7 +374,7 @@ int TChunk::GetMaxReplicasPerRack(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -384,7 +384,7 @@ TChunkExportData TChunk::GetExportData(int cellIndex) const
         return {};
     }
 
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
     return ExportDataList_[cellIndex];
 }
 
@@ -394,7 +394,7 @@ bool TChunk::IsExportedToCell(int cellIndex) const
         return false;
     }
 
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
     return ExportDataList_[cellIndex].RefCounter != 0;
 }
 
@@ -408,7 +408,7 @@ void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
     if (++data.RefCounter == 1) {
         ++ExportCounter_;
 
-        YCHECK(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+        YT_VERIFY(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
         registry->Ref(data.ChunkRequisitionIndex);
         // NB: an empty requisition doesn't affect the aggregated requisition
         // and thus doesn't call for updating the latter.
@@ -421,7 +421,7 @@ void TChunk::Unexport(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
         registry->Unref(data.ChunkRequisitionIndex, objectManager);

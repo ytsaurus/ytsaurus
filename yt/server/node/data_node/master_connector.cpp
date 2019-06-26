@@ -110,20 +110,20 @@ TMasterConnector::TMasterConnector(
     , LocalDescriptor_(RpcAddresses_)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
 }
 
 void TMasterConnector::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(!Started_);
+    YT_VERIFY(!Started_);
 
     Started_ = true;
 
     auto initializeCell = [&] (TCellTag cellTag) {
         MasterCellTags_.push_back(cellTag);
-        YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
+        YT_VERIFY(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
@@ -178,7 +178,7 @@ TNodeId TMasterConnector::GetNodeId() const
 void TMasterConnector::RegisterAlert(const TError& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(!alert.IsOK());
+    YT_VERIFY(!alert.IsOK());
 
     YT_LOG_WARNING(alert, "Static alert registered");
 
@@ -583,7 +583,7 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -616,7 +616,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->FullHeartbeatTimeout);
 
-    YCHECK(IsConnected());
+    YT_VERIFY(IsConnected());
     request->set_node_id(GetNodeId());
 
     *request->mutable_statistics() = ComputeStatistics();
@@ -692,8 +692,8 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     auto* delta = GetChunksDelta(cellTag);
     delta->State = EState::Online;
-    YCHECK(delta->AddedSinceLastSuccess.empty());
-    YCHECK(delta->RemovedSinceLastSuccess.empty());
+    YT_VERIFY(delta->AddedSinceLastSuccess.empty());
+    YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
 
     ScheduleNodeHeartbeat(cellTag);
 }
@@ -717,7 +717,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->IncrementalHeartbeatTimeout);
 
-    YCHECK(IsConnected());
+    YT_VERIFY(IsConnected());
     request->set_node_id(GetNodeId());
 
     *request->mutable_statistics() = ComputeStatistics();
@@ -731,13 +731,13 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     delta->ReportedAdded.clear();
     for (const auto& chunk : delta->AddedSinceLastSuccess) {
-        YCHECK(delta->ReportedAdded.insert(std::make_pair(chunk, chunk->GetVersion())).second);
+        YT_VERIFY(delta->ReportedAdded.insert(std::make_pair(chunk, chunk->GetVersion())).second);
         *request->add_added_chunks() = BuildAddChunkInfo(chunk);
     }
 
     delta->ReportedRemoved.clear();
     for (const auto& chunk : delta->RemovedSinceLastSuccess) {
-        YCHECK(delta->ReportedRemoved.insert(chunk).second);
+        YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
@@ -884,7 +884,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         for (const auto& info : rsp->tablet_slots_to_remove()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
-            YCHECK(cellId);
+            YT_VERIFY(cellId);
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
                 YT_LOG_WARNING("Requested to remove a non-existing slot, ignored (CellId: %v)",
@@ -896,7 +896,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         for (const auto& info : rsp->tablet_slots_to_create()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
-            YCHECK(cellId);
+            YT_VERIFY(cellId);
             if (slotManager->GetAvailableTabletSlotCount() == 0) {
                 YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
                     cellId);
@@ -969,7 +969,7 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 void TMasterConnector::ReportJobHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(IsConnected());
+    YT_VERIFY(IsConnected());
 
     auto cellTag = MasterCellTags_[JobHeartbeatCellIndex_];
     auto Logger = DataNodeLogger;
@@ -1128,7 +1128,7 @@ void TMasterConnector::UpdateTags(std::vector<TString> tags)
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
 {
     auto it = ChunksDeltaMap_.find(cellTag);
-    Y_ASSERT(it != ChunksDeltaMap_.end());
+    YT_ASSERT(it != ChunksDeltaMap_.end());
     return &it->second;
 }
 

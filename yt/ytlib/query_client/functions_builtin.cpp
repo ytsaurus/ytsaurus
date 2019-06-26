@@ -26,7 +26,7 @@ public:
     {
         auto nameTwine = Twine(name.c_str());
 
-        YCHECK(argIds.size() == 3);
+        YT_VERIFY(argIds.size() == 3);
         auto condition = CodegenFragment(builder, argIds[0]);
 
         // TODO(lukyan): Remove this
@@ -34,7 +34,7 @@ public:
             return TCGValue::CreateNull(builder, type);
         }
 
-        YCHECK(condition.GetStaticType() == EValueType::Boolean);
+        YT_VERIFY(condition.GetStaticType() == EValueType::Boolean);
 
         auto codegenIf = [&] (TCGExprContext& builder) {
             return CodegenIf<TCGExprContext, TCGValue>(
@@ -87,7 +87,7 @@ public:
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
-        YCHECK(nullableArgs.size() == 3);
+        YT_VERIFY(nullableArgs.size() == 3);
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
 
@@ -110,7 +110,7 @@ TKeyTriePtr IsPrefixRangeExtractor(
         if (keyPartIndex >= 0) {
             auto value = TValue(constantExpr->Value);
 
-            YCHECK(value.Type == EValueType::String);
+            YT_VERIFY(value.Type == EValueType::String);
 
             result = New<TKeyTrie>(keyPartIndex);
             result->Bounds.emplace_back(value, true);
@@ -150,7 +150,7 @@ public:
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(argIds.size() == 1);
+        YT_VERIFY(argIds.size() == 1);
 
         return [
             MOVE(argIds),
@@ -196,7 +196,7 @@ public:
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(argIds.size() == 2);
+        YT_VERIFY(argIds.size() == 2);
 
         return [
             MOVE(argIds),
@@ -235,7 +235,7 @@ public:
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
-        YCHECK(nullableArgs.size() == 2);
+        YT_VERIFY(nullableArgs.size() == 2);
         return nullableArgs[1];
     }
 
@@ -254,7 +254,7 @@ public:
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(argIds.size() == 1);
+        YT_VERIFY(argIds.size() == 1);
 
         return [
             MOVE(argIds),
@@ -307,7 +307,7 @@ public:
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(argIds.size() == 1);
+        YT_VERIFY(argIds.size() == 1);
 
         if (argumentTypes[0] == EValueType::Any) {
             return [
@@ -342,7 +342,7 @@ public:
                         routineName = "AnyToString";
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
 
                 builder->CreateCall(
@@ -359,7 +359,7 @@ public:
                     type);
             };
         } else {
-            YCHECK(
+            YT_VERIFY(
                 type == EValueType::Int64 ||
                 type == EValueType::Uint64 ||
                 type == EValueType::Double);
@@ -376,7 +376,7 @@ public:
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
-        YCHECK(nullableArgs.size() == 1);
+        YT_VERIFY(nullableArgs.size() == 1);
         return nullableArgs[0];
     }
 
@@ -466,7 +466,7 @@ public:
                                             newData);
                                         break;
                                     default:
-                                        Y_UNIMPLEMENTED();
+                                        YT_UNIMPLEMENTED();
                                 }
                             } else if (this_->Function == "min") {
                                 Value* compareResult = nullptr;
@@ -511,7 +511,7 @@ public:
                                         break;
                                     }
                                     default:
-                                        Y_UNIMPLEMENTED();
+                                        YT_UNIMPLEMENTED();
                                 }
 
                                 if (argumentType == EValueType::String) {
@@ -568,7 +568,7 @@ public:
                                         break;
                                     }
                                     default:
-                                        Y_UNIMPLEMENTED();
+                                        YT_UNIMPLEMENTED();
                                 }
 
                                 if (argumentType == EValueType::String) {
@@ -583,7 +583,7 @@ public:
                                     newData,
                                     aggregateData);
                             } else {
-                                Y_UNIMPLEMENTED();
+                                YT_UNIMPLEMENTED();
                             }
 
                             return TCGValue::CreateFromValue(

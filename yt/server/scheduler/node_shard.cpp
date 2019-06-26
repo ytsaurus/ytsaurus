@@ -186,10 +186,10 @@ IInvokerPtr TNodeShard::OnMasterConnected()
 
     DoCleanup();
 
-    YCHECK(!Connected_);
+    YT_VERIFY(!Connected_);
     Connected_ = true;
 
-    YCHECK(!CancelableContext_);
+    YT_VERIFY(!CancelableContext_);
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
@@ -266,9 +266,9 @@ void TNodeShard::RegisterOperation(
     bool jobsReady)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
-    YCHECK(IdToOpertionState_.emplace(
+    YT_VERIFY(IdToOpertionState_.emplace(
         operationId,
         TOperationState(controller, jobsReady, CurrentEpoch_++)
     ).second);
@@ -281,7 +281,7 @@ void TNodeShard::RegisterOperation(
 void TNodeShard::StartOperationRevival(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
@@ -312,17 +312,17 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
         OperationIdToJobIterators_.erase(operationId);
     }
 
-    YCHECK(operationState.Jobs.empty());
+    YT_VERIFY(operationState.Jobs.empty());
 }
 
 void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
 
-    YCHECK(!operationState.JobsReady);
+    YT_VERIFY(!operationState.JobsReady);
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
     operationState.Terminated = false;
@@ -353,7 +353,7 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
 void TNodeShard::ResetOperationRevival(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
 
@@ -369,14 +369,14 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
 void TNodeShard::UnregisterOperation(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto it = IdToOpertionState_.find(operationId);
-    YCHECK(it != IdToOpertionState_.end());
+    YT_VERIFY(it != IdToOpertionState_.end());
     auto& operationState = it->second;
 
     for (const auto& job : operationState.Jobs) {
-        YCHECK(job.second->GetUnregistered());
+        YT_VERIFY(job.second->GetUnregistered());
     }
 
     SetOperationJobsReleaseDeadline(&operationState);
@@ -430,7 +430,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         request->confirmed_job_count(),
         request->unconfirmed_jobs().size());
 
-    YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
+    YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
     auto node = GetOrRegisterNode(nodeId, descriptor, ENodeState::Online);
 
@@ -602,7 +602,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
         auto nodeId = pair.first;
         const auto& node = pair.second;
         if (node->GetLastSeenTime() + Config_->MaxOfflineNodeAge > now) {
-            YCHECK(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
+            YT_VERIFY(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
         } else {
             if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
                 TLeaseManager::CloseLease(node->GetRegistrationLease());
@@ -613,7 +613,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (auto nodeId : nodeIdsToRemove) {
-        YCHECK(IdToNode_.erase(nodeId));
+        YT_VERIFY(IdToNode_.erase(nodeId));
     }
 
     {
@@ -679,7 +679,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             objectId,
             newState);
 
-        YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
+        YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
         auto nodeIt = IdToNode_.find(nodeId);
         if (nodeIt == IdToNode_.end()) {
@@ -781,7 +781,7 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     }
 
     for (const auto& job : operationState->Jobs) {
-        YCHECK(job.second->GetUnregistered());
+        YT_VERIFY(job.second->GetUnregistered());
     }
 }
 
@@ -897,7 +897,7 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
 
     const auto& rsp = rspOrError.Value();
     auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
-    YCHECK(chunkIds.size() == 1);
+    YT_VERIFY(chunkIds.size() == 1);
 
     auto asyncResult = Host_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId, user);
     WaitFor(asyncResult)
@@ -1049,7 +1049,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
 void TNodeShard::AbortJob(TJobId jobId, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto job = FindJob(jobId);
     if (!job) {
@@ -1068,7 +1068,7 @@ void TNodeShard::AbortJob(TJobId jobId, const TError& error)
 void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     for (const auto& jobId : jobIds) {
         AbortJob(jobId, error);
@@ -1078,7 +1078,7 @@ void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& erro
 void TNodeShard::FailJob(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto job = FindJob(jobId);
     if (!job) {
@@ -1096,7 +1096,7 @@ void TNodeShard::FailJob(TJobId jobId)
 void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     // NB: While we kept job id in operation controller, its execution node
     // could have been unregistered.
@@ -1246,7 +1246,7 @@ TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     ValidateConnected();
 
     auto pair = JobIdToScheduleEntry_.emplace(jobId, TScheduleJobEntry());
-    YCHECK(pair.second);
+    YT_VERIFY(pair.second);
 
     auto& entry = pair.first->second;
     entry.Promise = NewPromise<TControllerScheduleJobResultPtr>();
@@ -1260,15 +1260,15 @@ TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
 void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-    YCHECK(Connected_);
+    YT_VERIFY(Connected_);
 
     auto jobId = FromProto<TJobId>(response.job_id());
     auto operationId = FromProto<TOperationId>(response.operation_id());
 
     auto it = JobIdToScheduleEntry_.find(jobId);
-    YCHECK(it != JobIdToScheduleEntry_.end());
+    YT_VERIFY(it != JobIdToScheduleEntry_.end());
     auto& entry = it->second;
-    YCHECK(operationId == entry.OperationId);
+    YT_VERIFY(operationId == entry.OperationId);
 
     YT_LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v, Duration: %v)",
         operationId,
@@ -1331,7 +1331,7 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YCHECK(it != IdToNode_.end());
+    YT_VERIFY(it != IdToNode_.end());
 
     // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
     auto node = it->second;
@@ -1345,7 +1345,7 @@ void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YCHECK(it != IdToNode_.end());
+    YT_VERIFY(it != IdToNode_.end());
 
     const auto& node = it->second;
 
@@ -1380,7 +1380,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
         node->SetHeartbeatLease(lease);
     }
 
-    YCHECK(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
+    YT_VERIFY(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
 
     node->SetLastSeenTime(TInstant::Now());
 
@@ -1530,7 +1530,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     for (const auto& job : node->Jobs()) {
         // Verify that all flags are in the initial state.
-        YCHECK(!checkMissingJobs || !job->GetFoundOnNode());
+        YT_VERIFY(!checkMissingJobs || !job->GetFoundOnNode());
     }
 
     {
@@ -1571,7 +1571,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     for (auto& jobStatus : *request->mutable_jobs()) {
-        YCHECK(jobStatus.has_job_type());
+        YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
         if (jobType < FirstSchedulerJobType || jobType > LastSchedulerJobType) {
@@ -1603,7 +1603,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     if (checkMissingJobs) {
         std::vector<TJobPtr> missingJobs;
         for (const auto& job : node->Jobs()) {
-            YCHECK(!job->GetWaitingForConfirmation());
+            YT_VERIFY(!job->GetWaitingForConfirmation());
             // Jobs that are waiting for confirmation may never be considered missing.
             // They are removed in two ways: by explicit unconfirmation of the node
             // or after revival confirmation timeout.
@@ -1718,7 +1718,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         return nullptr;
     }
@@ -1821,7 +1821,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
             break;
@@ -1831,7 +1831,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return job;
@@ -1857,7 +1857,7 @@ void TNodeShard::AddNodeResources(const TExecNodePtr& node)
         ExecNodeCount_ += 1;
     } else {
         // Check that we succesfully reset all resource limits to zero for node with zero user slots.
-        YCHECK(node->GetResourceLimits() == TJobResources());
+        YT_VERIFY(node->GetResourceLimits() == TJobResources());
     }
 }
 
@@ -1869,7 +1869,7 @@ void TNodeShard::UpdateNodeResources(
 {
     auto oldResourceLimits = node->GetResourceLimits();
 
-    YCHECK(node->GetSchedulerState() == ENodeState::Online);
+    YT_VERIFY(node->GetSchedulerState() == ENodeState::Online);
 
     if (limits.GetUserSlots() > 0) {
         if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
@@ -1898,7 +1898,7 @@ void TNodeShard::UpdateNodeResources(
 
 void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
-    YCHECK(!node->GetHasOngoingHeartbeat());
+    YT_VERIFY(!node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(true);
 
     ConcurrentHeartbeatCount_ += 1;
@@ -1906,7 +1906,7 @@ void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 
 void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
-    YCHECK(node->GetHasOngoingHeartbeat());
+    YT_VERIFY(node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(false);
 
     ConcurrentHeartbeatCount_ -= 1;
@@ -2005,7 +2005,7 @@ void TNodeShard::ProcessScheduledJobs(
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob)
 {
-    YCHECK(status);
+    YT_VERIFY(status);
 
     if (!status->has_statistics()) {
         return;
@@ -2038,7 +2038,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 
 void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned)
 {
-    YCHECK(abandoned == !status);
+    YT_VERIFY(abandoned == !status);
 
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
@@ -2075,7 +2075,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
 
 void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 {
-    YCHECK(status);
+    YT_VERIFY(status);
 
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting ||
@@ -2097,7 +2097,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 
 void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler, bool operationTerminated)
 {
-    YCHECK(status);
+    YT_VERIFY(status);
 
     // Only update the status for the first time.
     // Typically the scheduler decides to abort the job on its own.
@@ -2143,7 +2143,7 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
                 JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 }
@@ -2175,7 +2175,7 @@ void TNodeShard::SubmitJobsToStrategy()
                     operationState->JobsToSubmitToStrategy.erase(jobId);
                 }
 
-                YCHECK(JobsToSubmitToStrategy_.erase(jobId) == 1);
+                YT_VERIFY(JobsToSubmitToStrategy_.erase(jobId) == 1);
             }
 
             for (auto& pair : JobsToSubmitToStrategy_) {
@@ -2210,9 +2210,9 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
 
     auto node = job->GetNode();
 
-    YCHECK(operationState.Jobs.emplace(job->GetId(), job).second);
-    YCHECK(node->Jobs().insert(job).second);
-    YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
+    YT_VERIFY(operationState.Jobs.emplace(job->GetId(), job).second);
+    YT_VERIFY(node->Jobs().insert(job).second);
+    YT_VERIFY(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
     ++ActiveJobCount_;
 
     YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
@@ -2233,8 +2233,8 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
     auto* operationState = FindOperationState(job->GetOperationId());
     const auto& node = job->GetNode();
 
-    YCHECK(node->Jobs().erase(job) == 1);
-    YCHECK(node->IdToJob().erase(job->GetId()) == 1);
+    YT_VERIFY(node->Jobs().erase(job) == 1);
+    YT_VERIFY(node->IdToJob().erase(job->GetId()) == 1);
     --ActiveJobCount_;
 
     ResetJobWaitingForConfirmation(job);
@@ -2278,22 +2278,22 @@ void TNodeShard::AddRecentlyFinishedJob(const TJobPtr& job)
 {
     auto jobId = job->GetId();
     auto node = FindNodeByJob(jobId);
-    YCHECK(node);
+    YT_VERIFY(node);
 
     auto *operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         auto finishedStoringEvictionDeadline =
             GetCpuInstant() + DurationToCpuDuration(Config_->FinishedJobStoringTimeout);
-        YCHECK(node->RecentlyFinishedJobs().insert(
+        YT_VERIFY(node->RecentlyFinishedJobs().insert(
             {jobId, TRecentlyFinishedJobInfo{job->GetOperationId(), finishedStoringEvictionDeadline}}).second);
-        YCHECK(operationState->RecentlyFinishedJobIds.insert(jobId).second);
+        YT_VERIFY(operationState->RecentlyFinishedJobIds.insert(jobId).second);
     }
 }
 
 void TNodeShard::RemoveRecentlyFinishedJob(TJobId jobId)
 {
     auto node = FindNodeByJob(jobId);
-    YCHECK(node);
+    YT_VERIFY(node);
 
     auto it = node->RecentlyFinishedJobs().find(jobId);
     if (it != node->RecentlyFinishedJobs().end()) {
@@ -2312,10 +2312,10 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
 
     for (const auto& jobId : operationState->RecentlyFinishedJobIds) {
         auto node = FindNodeByJob(jobId);
-        YCHECK(node);
+        YT_VERIFY(node);
 
         auto it = node->RecentlyFinishedJobs().find(jobId);
-        YCHECK(it != node->RecentlyFinishedJobs().end());
+        YT_VERIFY(it != node->RecentlyFinishedJobs().end());
         it->second.EvictionDeadline = storingEvictionDeadline;
     }
 
@@ -2422,7 +2422,7 @@ TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operati
 TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId)
 {
     auto it = IdToOpertionState_.find(operationId);
-    YCHECK(it != IdToOpertionState_.end());
+    YT_VERIFY(it != IdToOpertionState_.end());
     return it->second;
 }
 

@@ -406,7 +406,7 @@ IOperationControllerPtr CreateControllerForOperation(
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return New<TOperationControllerWrapper>(

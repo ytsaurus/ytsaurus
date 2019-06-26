@@ -57,8 +57,8 @@ TFileChunkOutput::TFileChunkOutput(
     , TransactionId_(transactionId)
     , SizeLimit_(sizeLimit)
 {
-    YCHECK(Config_);
-    YCHECK(Client_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Client_);
 
     auto connection = Client_->GetNativeConnection();
     const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();

@@ -48,7 +48,7 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        YCHECK(jobSummary.InterruptReason == EInterruptReason::None);
+        YT_VERIFY(jobSummary.InterruptReason == EInterruptReason::None);
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }
 

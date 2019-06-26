@@ -133,11 +133,11 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        YCHECK (column.SortOrder());
+        YT_VERIFY (column.SortOrder());
 
         if (readerIndex < ChunkSchema_.GetKeyColumnCount()) {
             const auto& chunkColumn = ChunkSchema_.Columns()[readerIndex];
-            YCHECK(chunkColumn.SortOrder());
+            YT_VERIFY(chunkColumn.SortOrder());
 
             if (chunkColumn.Name() != column.Name() ||
                 chunkColumn.GetPhysicalType() != column.GetPhysicalType() ||

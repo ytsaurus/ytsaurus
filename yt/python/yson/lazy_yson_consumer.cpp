@@ -66,7 +66,7 @@ void TLazyYsonConsumer::OnEndAttributes()
 
 void TLazyYsonConsumer::OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TLazyYsonConsumer::OnStringScalar(TStringBuf value)
@@ -197,10 +197,10 @@ void TLazyYsonConsumer::OnItemConsumed()
                 break;
             }
         }
-        YCHECK(separatorPos != -1);
+        YT_VERIFY(separatorPos != -1);
 
         value = value.Slice(separatorPos + 1, value.Size());
-        YCHECK(ItemKey_);
+        YT_VERIFY(ItemKey_);
         LazyDictConsumer_->OnKeyValue(Py::Object(ItemKey_->get()), value);
     } else if (Balance_ == 0) {
         if (!IsLazyDictObject_) {

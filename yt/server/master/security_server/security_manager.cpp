@@ -344,7 +344,7 @@ public:
 
     void DestroyAccount(TAccount* account)
     {
-        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
+        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
     TAccount* FindAccountByName(const TString& name)
@@ -388,7 +388,7 @@ public:
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
-        YCHECK(!chunk->IsForeign());
+        YT_VERIFY(!chunk->IsForeign());
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
@@ -414,8 +414,8 @@ public:
         const TChunkRequisition& requisition,
         i64 delta)
     {
-        Y_ASSERT(chunk->IsStaged());
-        Y_ASSERT(chunk->IsDiskSizeFinal());
+        YT_ASSERT(chunk->IsStaged());
+        YT_ASSERT(chunk->IsDiskSizeFinal());
 
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
@@ -442,10 +442,10 @@ public:
         TAccount* newAccount,
         TTransaction* transaction)
     {
-        YCHECK(node);
-        YCHECK(newAccount);
-        YCHECK(node->IsTrunk() == !transaction);
-        YCHECK(!oldAccount || !transaction);
+        YT_VERIFY(node);
+        YT_VERIFY(newAccount);
+        YT_VERIFY(node->IsTrunk() == !transaction);
+        YT_VERIFY(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
             return;
@@ -527,10 +527,10 @@ public:
             return;
         }
 
-        Y_ASSERT(resourceUsageDelta.NodeCount == 0);
-        Y_ASSERT(resourceUsageDelta.ChunkCount == 0);
+        YT_ASSERT(resourceUsageDelta.NodeCount == 0);
+        YT_ASSERT(resourceUsageDelta.ChunkCount == 0);
         for (const auto& item : resourceUsageDelta.DiskSpace) {
-            Y_ASSERT(item.second == 0);
+            YT_ASSERT(item.second == 0);
         }
 
         account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
@@ -556,15 +556,15 @@ public:
                 newName);
         }
 
-        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
-        YCHECK(AccountNameMap_.insert(std::make_pair(newName, account)).second);
+        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
+        YT_VERIFY(AccountNameMap_.insert(std::make_pair(newName, account)).second);
         account->SetName(newName);
     }
 
     void DestroySubject(TSubject* subject)
     {
         for (auto* group : subject->MemberOf()) {
-            YCHECK(group->Members().erase(subject) == 1);
+            YT_VERIFY(group->Members().erase(subject) == 1);
         }
         subject->MemberOf().clear();
         subject->RecursiveMemberOf().clear();
@@ -608,7 +608,7 @@ public:
 
     void DestroyUser(TUser* user)
     {
-        YCHECK(UserNameMap_.erase(user->GetName()) == 1);
+        YT_VERIFY(UserNameMap_.erase(user->GetName()) == 1);
         DestroySubject(user);
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -695,10 +695,10 @@ public:
 
     void DestroyGroup(TGroup* group)
     {
-        YCHECK(GroupNameMap_.erase(group->GetName()) == 1);
+        YT_VERIFY(GroupNameMap_.erase(group->GetName()) == 1);
 
         for (auto* subject : group->Members()) {
-            YCHECK(subject->MemberOf().erase(group) == 1);
+            YT_VERIFY(subject->MemberOf().erase(group) == 1);
         }
         group->Members().clear();
 
@@ -835,17 +835,17 @@ public:
 
         switch (subject->GetType()) {
             case EObjectType::User:
-                YCHECK(UserNameMap_.erase(subject->GetName()) == 1);
-                YCHECK(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
+                YT_VERIFY(UserNameMap_.erase(subject->GetName()) == 1);
+                YT_VERIFY(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
                 break;
 
             case EObjectType::Group:
-                YCHECK(GroupNameMap_.erase(subject->GetName()) == 1);
-                YCHECK(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
+                YT_VERIFY(GroupNameMap_.erase(subject->GetName()) == 1);
+                YT_VERIFY(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -868,7 +868,7 @@ public:
     TAccessControlDescriptor* GetAcd(TObjectBase* object)
     {
         auto* acd = FindAcd(object);
-        YCHECK(acd);
+        YT_VERIFY(acd);
         return acd;
     }
 
@@ -1047,7 +1047,7 @@ public:
             return;
         }
 
-        YCHECK(!options.Columns);
+        YT_VERIFY(!options.Columns);
 
         auto response = CheckPermission(object, user, permission, options);
         if (response.Action == ESecurityAction::Allow) {
@@ -1406,7 +1406,7 @@ private:
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
             auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
-            YCHECK(pair.second);
+            YT_VERIFY(pair.second);
             return &pair.first->second;
         } else {
             return &it->second;
@@ -1430,7 +1430,7 @@ private:
             }
 
             auto mediumIndex = entry.MediumIndex;
-            Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
+            YT_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
 
             auto policy = entry.ReplicationPolicy;
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
@@ -1440,7 +1440,7 @@ private:
                 // TChunkRequisition keeps entries sorted, which means an
                 // uncommitted entry for account A and medium M, if any,
                 // immediately follows a committed entry for A and M (if any).
-                YCHECK(!entry.Committed);
+                YT_VERIFY(!entry.Committed);
 
                 // Avoid overcharging: if, for example, a chunk has 3 'committed' and
                 // 5 'uncommitted' replicas (for the same account and medium), the account
@@ -1472,12 +1472,12 @@ private:
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
-        YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+        YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
         InitializeAccountStatistics(account);
 
         // Make the fake reference.
-        YCHECK(account->RefObject() == 1);
+        YT_VERIFY(account->RefObject() == 1);
 
         return account;
     }
@@ -1510,11 +1510,11 @@ private:
         userHolder->SetName(name);
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
-        YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+        YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
         InitializeUserStatistics(user);
 
-        YCHECK(user->RefObject() == 1);
+        YT_VERIFY(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
         MaybeRecomputeMembershipClosure();
 
@@ -1533,7 +1533,7 @@ private:
         }
 
         auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
-        YCHECK(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
+        YT_VERIFY(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
         return tagId;
     }
 
@@ -1543,10 +1543,10 @@ private:
         groupHolder->SetName(name);
 
         auto* group = GroupMap_.Insert(id, std::move(groupHolder));
-        YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+        YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
 
         // Make the fake reference.
-        YCHECK(group->RefObject() == 1);
+        YT_VERIFY(group->RefObject() == 1);
 
         return group;
     }
@@ -1610,14 +1610,14 @@ private:
 
     void DoAddMember(TGroup* group, TSubject* member)
     {
-        YCHECK(group->Members().insert(member).second);
-        YCHECK(member->MemberOf().insert(group).second);
+        YT_VERIFY(group->Members().insert(member).second);
+        YT_VERIFY(member->MemberOf().insert(group).second);
     }
 
     void DoRemoveMember(TGroup* group, TSubject* member)
     {
-        YCHECK(group->Members().erase(member) == 1);
-        YCHECK(member->MemberOf().erase(group) == 1);
+        YT_VERIFY(group->Members().erase(member) == 1);
+        YT_VERIFY(member->MemberOf().erase(group) == 1);
     }
 
 
@@ -1692,7 +1692,7 @@ private:
 
             // Reconstruct account name map.
             if (IsObjectAlive(account)) {
-                YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+                YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
             }
 
 
@@ -1707,7 +1707,7 @@ private:
 
             // Reconstruct user name map.
             if (IsObjectAlive(user)) {
-                YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+                YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
             }
 
             // Initialize statistics for this cell.
@@ -1737,7 +1737,7 @@ private:
 
             // Reconstruct group name map.
             if (IsObjectAlive(group)) {
-                YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+                YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
             }
         }
 
@@ -1970,7 +1970,7 @@ private:
         if (!builtin) {
             InitBuiltins();
         }
-        YCHECK(builtin);
+        YT_VERIFY(builtin);
         return builtin;
     }
 
@@ -2254,7 +2254,7 @@ private:
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -2367,7 +2367,7 @@ private:
     void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -2670,7 +2670,7 @@ private:
                 }
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -2744,7 +2744,7 @@ private:
             case EAceInheritanceMode::ImmediateDescendantsOnly:
                 return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

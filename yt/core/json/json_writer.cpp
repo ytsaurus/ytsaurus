@@ -307,7 +307,7 @@ void TJsonConsumer::EnterNode()
 
 void TJsonConsumer::LeaveNode()
 {
-    YCHECK(!HasUnfoldedStructureStack.empty());
+    YT_VERIFY(!HasUnfoldedStructureStack.empty());
     if (HasUnfoldedStructureStack.back()) {
         // Close map of the {$attributes, $value}
         JsonWriter->EndMap();

@@ -27,7 +27,7 @@ public:
     {
         auto guard = NConcurrency::TReaderGuard(Lock_);
         auto it = Map_.find(key);
-        YCHECK(it != Map_.end());
+        YT_VERIFY(it != Map_.end());
         return it->second;
     }
 
@@ -36,7 +36,7 @@ public:
     {
         auto guard = NConcurrency::TReaderGuard(Lock_);
         auto it = Map_.find(key);
-        YCHECK(it != Map_.end());
+        YT_VERIFY(it != Map_.end());
         return it->second;
     }
 
@@ -52,7 +52,7 @@ public:
     void Insert(const K& key, V value)
     {
         auto guard = NConcurrency::TWriterGuard(Lock_);
-        YCHECK(Map_.find(key) == Map_.end());
+        YT_VERIFY(Map_.find(key) == Map_.end());
         Map_.emplace(key, std::move(value));
     }
 
@@ -60,7 +60,7 @@ public:
     {
         auto guard = NConcurrency::TWriterGuard(Lock_);
         auto it = Map_.find(key);
-        YCHECK(it != Map_.end());
+        YT_VERIFY(it != Map_.end());
         Map_.erase(it);
     }
 

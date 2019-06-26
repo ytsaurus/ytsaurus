@@ -73,7 +73,7 @@ private:
                 ValidateTupleType(type->AsTupleTypeRef(), fieldId);
                 return;
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     template <ESimpleLogicalValueType type, bool required>
@@ -108,7 +108,7 @@ private:
                     return;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         } else {
             static_assert(type != ESimpleLogicalValueType::Any);
@@ -121,7 +121,7 @@ private:
                         expectedYsonEventType,
                         Cursor_.GetCurrent().GetType());
                 } else if (Cursor_.GetCurrent().GetType() == EYsonItemType::EntityValue) {
-                    Y_ASSERT(!required);
+                    YT_ASSERT(!required);
                     Cursor_.Next();
                     return;
                 } else {
@@ -180,7 +180,7 @@ private:
             CASE(ESimpleLogicalValueType::Utf8)
 #undef CASE
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void ValidateOptionalType(const TOptionalLogicalType& type, const TFieldId& fieldId)
@@ -367,7 +367,7 @@ private:
                         descriptor = descriptor.TupleElement(childIndex);
                         continue;
                 }
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
             return descriptor;
         }

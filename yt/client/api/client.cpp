@@ -18,7 +18,7 @@ EWorkloadCategory FromUserWorkloadCategory(EUserWorkloadCategory category)
         case EUserWorkloadCategory::Batch:
             return EWorkloadCategory::UserBatch;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -106,7 +106,7 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

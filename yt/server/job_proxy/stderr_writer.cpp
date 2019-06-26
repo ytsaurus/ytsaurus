@@ -97,7 +97,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     if (Head_.Size() < PartLimit_) {
         const size_t toWrite = std::min(PartLimit_ - Head_.Size(), len);
         Head_.Write(buf, toWrite);
-        Y_ASSERT(Head_.Size() <= PartLimit_);
+        YT_ASSERT(Head_.Size() <= PartLimit_);
         if (toWrite == len) {
             return;
         } else {

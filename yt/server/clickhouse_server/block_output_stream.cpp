@@ -59,7 +59,7 @@ public:
             } else {
                 auto clickHouseColumn = TClickHouseColumn::FromColumnSchema(column);
                 const auto& dataType = DB::DataTypeFactory::instance().get(GetTypeName(*clickHouseColumn));
-                YCHECK(clickHouseColumn);
+                YT_VERIFY(clickHouseColumn);
                 Header_.insert({ dataType->createColumn(), dataType, column.Name() });
                 PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
             }

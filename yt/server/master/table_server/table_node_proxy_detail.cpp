@@ -707,7 +707,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                         case ETableChunkFormat::UnversionedColumnar:
                             return NTableClient::EOptimizeFor::Scan;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 };
 

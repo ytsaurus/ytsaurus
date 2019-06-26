@@ -71,7 +71,7 @@
 #endif
 
 #ifdef PARANOID
-#define PARANOID_CHECK(condition) YCHECK(condition)
+#define PARANOID_CHECK(condition) YT_VERIFY(condition)
 #else
 #define PARANOID_CHECK(condition) (void)(0)
 #endif
@@ -957,7 +957,7 @@ public:
             if (error == ENOMEM) {
                 OnOOM();
             }
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
         return result;
     }
@@ -966,14 +966,14 @@ public:
     {
         TTimingGuard timingGuard(ETimingEventType::Munmap, size);
         auto result = ::munmap(ptr, size);
-        YCHECK(result == 0);
+        YT_VERIFY(result == 0);
     }
 
     void DontDump(void* ptr, size_t size)
     {
         auto result = ::madvise(ptr, size, MADV_DONTDUMP);
         // Must not fail.
-        YCHECK(result == 0);
+        YT_VERIFY(result == 0);
     }
 
     void Populate(void* ptr, size_t size)
@@ -1061,7 +1061,7 @@ private:
             if (error == ENOMEM) {
                 OnOOM();
             }
-            YCHECK(error == EINVAL);
+            YT_VERIFY(error == EINVAL);
             return false;
         }
         return true;
@@ -1085,7 +1085,7 @@ private:
         auto result = ::madvise(ptr, size, MADV_FREE);
         if (result != 0) {
             auto error = errno;
-            YCHECK(error == EINVAL);
+            YT_VERIFY(error == EINVAL);
             return false;
         }
         return true;
@@ -1096,7 +1096,7 @@ private:
         TTimingGuard timingGuard(ETimingEventType::MadviseDontNeed, size);
         auto result = ::madvise(ptr, size, MADV_DONTNEED);
         // Must not fail.
-        YCHECK(result == 0);
+        YT_VERIFY(result == 0);
     }
 
     bool TryMadviseStockpile(size_t size)
@@ -1108,7 +1108,7 @@ private:
                 // The call is advisory, ignore ENOMEM, EAGAIN, and EINTR.
                 return true;
             }
-            YCHECK(error == EINVAL);
+            YT_VERIFY(error == EINVAL);
             return false;
         }
         return true;
@@ -1126,7 +1126,7 @@ private:
 #ifdef _linux_
         static const bool result = [] () {
             struct utsname buf;
-            YCHECK(uname(&buf) == 0);
+            YT_VERIFY(uname(&buf) == 0);
             if (strverscmp(buf.release, "4.4.1-1") >= 0 &&
                 strverscmp(buf.release, "4.4.96-44") < 0)
             {
@@ -1306,17 +1306,17 @@ public:
         , ZoneEnd_(zoneEnd)
         , Current_(zoneStart)
     {
-        YCHECK(ZoneStart_ % PageSize == 0);
+        YT_VERIFY(ZoneStart_ % PageSize == 0);
     }
 
     void* Allocate(size_t size, int flags)
     {
-        YCHECK(size % PageSize == 0);
+        YT_VERIFY(size % PageSize == 0);
         bool restarted = false;
         while (true) {
             auto hint = (Current_ += size) - size;
             if (reinterpret_cast<uintptr_t>(hint) + size > ZoneEnd_) {
-                YCHECK(!restarted);
+                YT_VERIFY(!restarted);
                 restarted = true;
                 Current_ = ZoneStart_;
             } else {
@@ -1538,7 +1538,7 @@ public:
     static TThreadState* GetThreadStateChecked()
     {
         auto* state = FindThreadState();
-        YCHECK(state);
+        YT_VERIFY(state);
         return state;
     }
 
@@ -1609,7 +1609,7 @@ public:
 
     static void SetCurrentMemoryTag(TMemoryTag tag)
     {
-        YCHECK(tag <= MaxMemoryTag);
+        YT_VERIFY(tag <= MaxMemoryTag);
         (&ThreadControlWord_)->Parts.MemoryTag = tag;
     }
 
@@ -1648,13 +1648,13 @@ private:
     void RefThreadState(TThreadState* state)
     {
         auto result = ++state->RefCounter;
-        YCHECK(result > 1);
+        YT_VERIFY(result > 1);
     }
 
     void UnrefThreadState(TThreadState* state)
     {
         auto result = --state->RefCounter;
-        YCHECK(result >= 0);
+        YT_VERIFY(result >= 0);
         if (result == 0) {
             DestroyThreadState(state);
         }
@@ -2304,7 +2304,7 @@ void* TSystemAllocator::Allocate(size_t size)
     void* mmappedPtr;
     while (true) {
         auto currentPtr = CurrentPtr_.fetch_add(rawSize);
-        YCHECK(currentPtr + rawSize <= SystemZoneEnd);
+        YT_VERIFY(currentPtr + rawSize <= SystemZoneEnd);
         mmappedPtr = MappedMemoryManager->Map(currentPtr, rawSize, MAP_POPULATE);
         if (mmappedPtr == reinterpret_cast<void*>(currentPtr)) {
             break;
@@ -3488,7 +3488,7 @@ public:
             UnalignPtr<THugeBlobHeader>(ptr);
             HugeBlobAllocator->Free(ptr);
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 };
@@ -3654,7 +3654,7 @@ Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
     InitializeGlobals();
 
     // InitializeGlobals must not allocate.
-    YCHECK(!ThreadState_);
+    YT_VERIFY(!ThreadState_);
     ThreadState_ = ThreadManager->AllocateThreadState();
     (&ThreadControlWord_)->Parts.ThreadStateValid = 1;
 
@@ -3795,7 +3795,7 @@ Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
 
 Y_FORCE_INLINE void FreeNonNullInline(void* ptr)
 {
-    Y_ASSERT(ptr);
+    YT_ASSERT(ptr);
     if (Y_LIKELY(reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd)) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
         TSmallAllocator::Free<EAllocationKind::Untagged>(NullMemoryTag, ptr);
@@ -3840,7 +3840,7 @@ Y_FORCE_INLINE size_t GetAllocationSizeInline(void* ptr)
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
         return THugeBlobAllocator::GetAllocationSize(ptr);
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 

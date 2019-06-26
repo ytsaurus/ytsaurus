@@ -57,7 +57,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         BlockReadOptions_);
 
     InitFirstBlockNeeded_ = true;
-    YCHECK(SequentialBlockFetcher_->HasMoreBlocks());
+    YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     return CurrentBlock_.As<void>();
 }
@@ -109,7 +109,7 @@ int TChunkReaderBase::GetBlockIndexByKey(
     const TSharedRange<TKey>& blockIndexKeys,
     std::optional<int> keyColumnCount) const
 {
-    YCHECK(!blockIndexKeys.Empty());
+    YT_VERIFY(!blockIndexKeys.Empty());
     TChunkedMemoryPool pool;
     auto maxKey = blockIndexKeys.Back();
     auto wideMaxKey = WidenKey(maxKey, keyColumnCount, &pool);
@@ -231,7 +231,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
 
 int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
 {
-    YCHECK(!blockIndexKeys.Empty());
+    YT_VERIFY(!blockIndexKeys.Empty());
     if (!upperLimit.HasKey()) {
         return blockIndexKeys.Size();
     }
@@ -296,7 +296,7 @@ TKey TChunkReaderBase::WidenKey(
     TChunkedMemoryPool* pool) const
 {
     auto keyColumnCount = nullableKeyColumnCount.value_or(key.GetCount());
-    YCHECK(keyColumnCount >= key.GetCount());
+    YT_VERIFY(keyColumnCount >= key.GetCount());
 
     if (keyColumnCount == key.GetCount()) {
         return key;

@@ -547,7 +547,7 @@ void LocateChunks(
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating chunks at cell %v",
                 cellTag);
             const auto& rsp = rspOrError.Value();
-            YCHECK(req->subrequests_size() == rsp->subresponses_size());
+            YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
 
             if (nodeDirectory) {
                 nodeDirectory->MergeFrom(rsp->node_directory());

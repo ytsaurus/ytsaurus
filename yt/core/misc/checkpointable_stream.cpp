@@ -206,7 +206,7 @@ public:
         , BufferCurrent_(Buffer_.data())
         , BufferRemaining_(BufferSize_)
     {
-        YCHECK(BufferSize_ > 0);
+        YT_VERIFY(BufferSize_ > 0);
     }
 
     virtual void MakeCheckpoint() override

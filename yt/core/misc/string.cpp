@@ -97,8 +97,8 @@ TString Trim(const TString& str, const TString& whitespaces)
     }
 
     size_t begin = str.find_first_not_of(whitespaces);
-    YCHECK(begin != TString::npos);
-    YCHECK(begin < end);
+    YT_VERIFY(begin != TString::npos);
+    YT_VERIFY(begin < end);
     return str.substr(begin, end - begin);
 }
 

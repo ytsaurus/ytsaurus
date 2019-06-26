@@ -206,13 +206,13 @@ void TJobManager::TJob::SetState(EJobState state)
 void TJobManager::TJob::ChangeSuspendedStripeCountBy(int delta)
 {
     SuspendedStripeCount_ += delta;
-    YCHECK(SuspendedStripeCount_ >= 0);
+    YT_VERIFY(SuspendedStripeCount_ >= 0);
     UpdateSelf();
 }
 
 void TJobManager::TJob::Invalidate()
 {
-    YCHECK(!Invalidated_);
+    YT_VERIFY(!Invalidated_);
     Invalidated_ = true;
     StripeList_.Reset();
     UpdateSelf();
@@ -266,7 +266,7 @@ void TJobManager::TJob::UpdateSelf()
 
 void TJobManager::TJob::RemoveSelf()
 {
-    YCHECK(CookiePoolIterator_ != Owner_->CookiePool_->end());
+    YT_VERIFY(CookiePoolIterator_ != Owner_->CookiePool_->end());
     Owner_->CookiePool_->erase(CookiePoolIterator_);
     CookiePoolIterator_ = Owner_->CookiePool_->end();
     InPool_ = false;
@@ -274,22 +274,22 @@ void TJobManager::TJob::RemoveSelf()
 
 void TJobManager::TJob::AddSelf()
 {
-    YCHECK(CookiePoolIterator_ == Owner_->CookiePool_->end());
+    YT_VERIFY(CookiePoolIterator_ == Owner_->CookiePool_->end());
     CookiePoolIterator_ = Owner_->CookiePool_->insert(Owner_->CookiePool_->end(), Cookie_);
     InPool_ = true;
 }
 
 void TJobManager::TJob::SuspendSelf()
 {
-    YCHECK(!Suspended_);
+    YT_VERIFY(!Suspended_);
     Suspended_ = true;
-    YCHECK(++Owner_->SuspendedJobCount_ > 0);
+    YT_VERIFY(++Owner_->SuspendedJobCount_ > 0);
 }
 
 void TJobManager::TJob::ResumeSelf()
 {
-    YCHECK(Suspended_);
-    YCHECK(--Owner_->SuspendedJobCount_ >= 0);
+    YT_VERIFY(Suspended_);
+    YT_VERIFY(--Owner_->SuspendedJobCount_ >= 0);
     Suspended_ = false;
 }
 
@@ -342,7 +342,7 @@ void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
 //! Add a job that is built from the given stub.
 IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
 {
-    YCHECK(jobStub);
+    YT_VERIFY(jobStub);
     IChunkPoolOutput::TCookie outputCookie = Jobs_.size();
 
     if (jobStub->GetIsBarrier()) {
@@ -403,7 +403,7 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
     Jobs_[cookie].UpdateCounters(&TProgressCounter::Start);
     Jobs_[cookie].SetState(EJobState::Running);
 
-    YCHECK(!Jobs_[cookie].GetIsBarrier());
+    YT_VERIFY(!Jobs_[cookie].GetIsBarrier());
 
     return cookie;
 }
@@ -428,7 +428,7 @@ void TJobManager::Lost(IChunkPoolOutput::TCookie cookie)
 
 void TJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)
 {
-    YCHECK(SuspendedInputCookies_.insert(inputCookie).second);
+    YT_VERIFY(SuspendedInputCookies_.insert(inputCookie).second);
 
     if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
         // This may happen if jobs that use this input were not added yet
@@ -443,7 +443,7 @@ void TJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)
 
 void TJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
 {
-    YCHECK(SuspendedInputCookies_.erase(inputCookie) == 1);
+    YT_VERIFY(SuspendedInputCookies_.erase(inputCookie) == 1);
 
     if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
         // This may happen if jobs that use this input were not added yet
@@ -458,13 +458,13 @@ void TJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
 
 void TJobManager::Invalidate(IChunkPoolInput::TCookie inputCookie)
 {
-    YCHECK(0 <= inputCookie && inputCookie < Jobs_.size());
+    YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
     Jobs_[inputCookie].Invalidate();
 }
 
 std::vector<TInputDataSlicePtr> TJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
 {
-    YCHECK(0 <= inputCookie && inputCookie < Jobs_.size());
+    YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
     std::vector<TInputDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
         if (stripe->Foreign) {
@@ -508,8 +508,8 @@ int TJobManager::GetPendingJobCount() const
 
 const TChunkStripeListPtr& TJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
-    YCHECK(cookie < Jobs_.size());
-    YCHECK(Jobs_[cookie].GetState() == EJobState::Running);
+    YT_VERIFY(cookie < Jobs_.size());
+    YT_VERIFY(Jobs_[cookie].GetState() == EJobState::Running);
     return Jobs_[cookie].StripeList();
 }
 
@@ -593,7 +593,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 
             // TODO(max42): we can not meet invalidated job as we enlarge jobs only when we build them from scratch.
             // In future we will iterate over a list of non-invalidated jobs, so it won't happen too.
-            YCHECK(!Jobs_[finishIndex].IsInvalidated());
+            YT_VERIFY(!Jobs_[finishIndex].IsInvalidated());
 
             if (Jobs_[finishIndex].GetIsBarrier()) {
                 YT_LOG_DEBUG("Stopping enlargement due to barrier (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);

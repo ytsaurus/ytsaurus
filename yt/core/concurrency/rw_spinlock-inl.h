@@ -33,7 +33,7 @@ inline void TReaderWriterSpinLock::AcquireReaderForkFriendly() noexcept
 inline void TReaderWriterSpinLock::ReleaseReader() noexcept
 {
     ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
-    Y_ASSERT((prevValue & ~WriterMask) != 0);
+    YT_ASSERT((prevValue & ~WriterMask) != 0);
 }
 
 inline void TReaderWriterSpinLock::AcquireWriter() noexcept
@@ -48,7 +48,7 @@ inline void TReaderWriterSpinLock::AcquireWriter() noexcept
 inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
 {
     ui32 prevValue = Value_.fetch_and(~WriterMask, std::memory_order_release);
-    Y_ASSERT(prevValue & WriterMask);
+    YT_ASSERT(prevValue & WriterMask);
 }
 
 inline bool TReaderWriterSpinLock::IsLocked() noexcept

@@ -175,7 +175,7 @@ inline size_t GetDataWeight(const EValueType type)
             return 1;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -312,7 +312,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
-        Y_ASSERT(index >= 0 && static_cast<ui32>(index) < GetCount());
+        YT_ASSERT(index >= 0 && static_cast<ui32>(index) < GetCount());
         return Begin()[index];
     }
 
@@ -599,13 +599,13 @@ public:
 
     void SetCount(ui32 count)
     {
-        Y_ASSERT(count <= GetHeader()->Capacity);
+        YT_ASSERT(count <= GetHeader()->Capacity);
         GetHeader()->Count = count;
     }
 
     TUnversionedValue& operator[] (ui32 index)
     {
-        Y_ASSERT(index < GetHeader()->Count);
+        YT_ASSERT(index < GetHeader()->Count);
         return Begin()[index];
     }
 
@@ -696,7 +696,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
-        Y_ASSERT(index >= 0 && index < GetCount());
+        YT_ASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 

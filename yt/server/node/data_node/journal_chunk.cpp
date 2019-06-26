@@ -130,8 +130,8 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     const TBlockReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(firstBlockIndex >= 0);
-    YCHECK(blockCount >= 0);
+    YT_VERIFY(firstBlockIndex >= 0);
+    YT_VERIFY(blockCount >= 0);
 
     if (!options.FetchFromDisk) {
         return MakeFuture(std::vector<TBlock>());
@@ -175,7 +175,7 @@ void TJournalChunk::DoReadBlockRange(
                 Id_)
                 << blocksOrError;
             Location_->Disable(error);
-            Y_UNREACHABLE(); // Disable() exits the process.
+            YT_ABORT(); // Disable() exits the process.
         }
 
         auto readTime = timer.GetElapsedTime();
@@ -228,7 +228,7 @@ void TJournalChunk::SyncRemove(bool force)
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             Location_->Disable(error);
-            Y_UNREACHABLE(); // Disable() exits the process.
+            YT_ABORT(); // Disable() exits the process.
         }
     }
 
@@ -243,8 +243,8 @@ TFuture<void> TJournalChunk::AsyncRemove()
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 {
-    YCHECK(!Removing_);
-    YCHECK(!Changelog_);
+    YT_VERIFY(!Removing_);
+    YT_VERIFY(!Changelog_);
     Changelog_ = changelog;
 
     UpdateCachedParams();
@@ -252,7 +252,7 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 
 void TJournalChunk::DetachChangelog()
 {
-    YCHECK(!Removing_);
+    YT_VERIFY(!Removing_);
 
     UpdateCachedParams();
     Changelog_.Reset();
@@ -260,14 +260,14 @@ void TJournalChunk::DetachChangelog()
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
-    YCHECK(!Removing_);
+    YT_VERIFY(!Removing_);
 
     return Changelog_.operator bool();
 }
 
 IChangelogPtr TJournalChunk::GetAttachedChangelog() const
 {
-    YCHECK(!IsRemoveScheduled());
+    YT_VERIFY(!IsRemoveScheduled());
 
     return Changelog_;
 }

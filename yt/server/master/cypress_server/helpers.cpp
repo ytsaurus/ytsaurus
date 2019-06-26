@@ -23,7 +23,7 @@ const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
     TTransaction* transaction,
     THashMap<TString, TCypressNodeBase*>* storage)
 {
-    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
     if (!transaction) {
         // Fast path.
@@ -40,10 +40,10 @@ const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
         if (mapNode->GetLockMode() == ELockMode::None ||
             mapNode->GetLockMode() == ELockMode::Snapshot)
         {
-            YCHECK(mapNode == trunkNode || mapNode->GetLockMode() == ELockMode::Snapshot);
+            YT_VERIFY(mapNode == trunkNode || mapNode->GetLockMode() == ELockMode::Snapshot);
             *storage = keyToChild;
         } else {
-            Y_ASSERT(mapNode != trunkNode);
+            YT_ASSERT(mapNode != trunkNode);
 
             for (const auto& [childId, childNode] : keyToChild) {
                 if (!childNode) {
@@ -64,7 +64,7 @@ std::vector<TCypressNodeBase*> GetMapNodeChildList(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
     THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -80,7 +80,7 @@ const std::vector<TCypressNodeBase*>& GetListNodeChildList(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction)
 {
-    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
+    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
 
     auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
     auto* listNode = node->As<TListNode>();
@@ -129,7 +129,7 @@ TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
     TCypressNodeBase* trunkChildNode)
 {
-    Y_ASSERT(trunkChildNode->IsTrunk());
+    YT_ASSERT(trunkChildNode->IsTrunk());
 
     TStringBuf key;
 
@@ -179,7 +179,7 @@ int FindListNodeChildIndex(
     TListNode* parentNode,
     TCypressNodeBase* trunkChildNode)
 {
-    Y_ASSERT(trunkChildNode->IsTrunk());
+    YT_ASSERT(trunkChildNode->IsTrunk());
 
     while (true) {
         auto it = parentNode->ChildToIndex().find(trunkChildNode);
@@ -251,7 +251,7 @@ void AttachChild(
     TCypressNodeBase* trunkParent,
     TCypressNodeBase* child)
 {
-    YCHECK(trunkParent->IsTrunk());
+    YT_VERIFY(trunkParent->IsTrunk());
 
     child->SetParent(trunkParent);
 
@@ -296,8 +296,8 @@ bool IsAncestorOf(
     const TCypressNodeBase* trunkAncestor,
     const TCypressNodeBase* trunkDescendant)
 {
-    Y_ASSERT(trunkAncestor->IsTrunk());
-    Y_ASSERT(trunkDescendant->IsTrunk());
+    YT_ASSERT(trunkAncestor->IsTrunk());
+    YT_ASSERT(trunkDescendant->IsTrunk());
     auto* current = trunkDescendant;
     while (current) {
         if (current == trunkAncestor) {

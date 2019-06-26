@@ -54,7 +54,7 @@ Y_FORCE_INLINE void TRefCounter<false>::Ref() noexcept
 {
     // It is safe to use relaxed here, since new reference is always created from another live reference.
     auto oldStrongCount = StrongCount_.fetch_add(1, std::memory_order_relaxed);
-    Y_ASSERT(oldStrongCount > 0);
+    YT_ASSERT(oldStrongCount > 0);
 }
 
 Y_FORCE_INLINE void TRefCounter<false>::Unref(const TRefCountedBase* object)
@@ -65,7 +65,7 @@ Y_FORCE_INLINE void TRefCounter<false>::Unref(const TRefCountedBase* object)
     // See http://www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html#boost_atomic.usage_examples.example_reference_counters
     //
     auto oldStrongCount = StrongCount_.fetch_sub(1, std::memory_order_release);
-    Y_ASSERT(oldStrongCount > 0);
+    YT_ASSERT(oldStrongCount > 0);
 
     if (oldStrongCount == 1) {
         StrongCount_.load(std::memory_order_acquire);
@@ -98,26 +98,26 @@ static_assert(
 
 Y_FORCE_INLINE void TRefCounter<true>::SetPtr(void* ptr) noexcept
 {
-    Y_ASSERT(!Ptr_);
+    YT_ASSERT(!Ptr_);
     Ptr_ = ptr;
 }
 
 Y_FORCE_INLINE void TRefCounter<true>::Ref() noexcept
 {
     auto oldStrongCount = StrongCount_++;
-    Y_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
+    YT_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
 }
 
 Y_FORCE_INLINE void TRefCounter<true>::Unref(const TRefCountedBase* object)
 {
     auto oldStrongCount = StrongCount_--;
-    Y_ASSERT(oldStrongCount > 0);
+    YT_ASSERT(oldStrongCount > 0);
 
     if (oldStrongCount == 1) {
         Destroy(object);
 
         auto oldWeakCount = WeakCount_--;
-        Y_ASSERT(oldWeakCount > 0);
+        YT_ASSERT(oldWeakCount > 0);
 
         if (oldWeakCount == 1) {
             Dispose();
@@ -127,20 +127,20 @@ Y_FORCE_INLINE void TRefCounter<true>::Unref(const TRefCountedBase* object)
 
 Y_FORCE_INLINE bool TRefCounter<true>::TryRef() noexcept
 {
-    Y_ASSERT(WeakCount_.load(std::memory_order_relaxed) > 0);
+    YT_ASSERT(WeakCount_.load(std::memory_order_relaxed) > 0);
     return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
 }
 
 Y_FORCE_INLINE void TRefCounter<true>::WeakRef() noexcept
 {
     auto oldWeakCount = WeakCount_.fetch_add(1, std::memory_order_relaxed);
-    Y_ASSERT(oldWeakCount > 0);
+    YT_ASSERT(oldWeakCount > 0);
 }
 
 Y_FORCE_INLINE void TRefCounter<true>::WeakUnref()
 {
     auto oldWeakCount = WeakCount_--;
-    Y_ASSERT(oldWeakCount > 0);
+    YT_ASSERT(oldWeakCount > 0);
     if (oldWeakCount == 1) {
         Dispose();
     }
@@ -177,14 +177,14 @@ Y_FORCE_INLINE void TRefCounter<true>::Dispose()
 
 Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie)
 {
-    Y_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
+    YT_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
     TypeCookie_ = typeCookie;
     TRefCountedTrackerFacade::AllocateInstance(typeCookie);
 }
 
 Y_FORCE_INLINE void TRefCountedBase::FinalizeTracking()
 {
-    Y_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
+    YT_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
     TRefCountedTrackerFacade::FreeInstance(TypeCookie_);
 }
 
@@ -201,12 +201,12 @@ Y_FORCE_INLINE TRefCountedImpl<EnableWeak>::~TRefCountedImpl() noexcept
     // 1 since the first strong pointer is not created (and hence
     // destructed) yet.
     if (Y_UNLIKELY(TypeCookie_ == NullRefCountedTypeCookie)) {
-        YCHECK(GetRefCount() == 1);
+        YT_VERIFY(GetRefCount() == 1);
     } else {
         FinalizeTracking();
     }
 #else
-    YCHECK(GetRefCount() == 0);
+    YT_VERIFY(GetRefCount() == 0);
 #endif
 }
 

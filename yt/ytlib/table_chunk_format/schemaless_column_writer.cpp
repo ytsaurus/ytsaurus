@@ -29,7 +29,7 @@ public:
 
     virtual void WriteValues(TRange<TVersionedRow> rows) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override

@@ -65,7 +65,7 @@ EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
         case EValueType::TheBottom:
             break;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 std::vector<TErrorAttribute> SkiffYsonErrorAttributes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
@@ -158,7 +158,7 @@ struct TOptionalTypesMatch
             expectationString << Format("%Qlv", itemType);
         }
     } else {
-        YCHECK(expected.size() == 1);
+        YT_VERIFY(expected.size() == 1);
         expectationString << Format("%Qlv", expected[0]);
     }
 
@@ -190,7 +190,7 @@ TOptionalTypesMatch MatchOptionalTypes(
             ++logicalNesting;
             innerDescriptor = innerDescriptor.OptionalElement();
         }
-        YCHECK(logicalNesting);
+        YT_VERIFY(logicalNesting);
 
         int skiffNesting = 0;
         TSkiffSchemaPtr innerSkiffSchema = skiffSchema;
@@ -388,7 +388,7 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
         CASE(EWireType::Yson32)
 #undef CASE
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -685,7 +685,7 @@ TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
         case ELogicalMetatype::Tuple:
             return CreateTupleYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -749,7 +749,7 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
         CASE(EWireType::Yson32)
 #undef CASE
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -767,11 +767,11 @@ public:
         , OuterTranslate_(ysonNesting - OuterFill_ - 1)
         , InnerTranslate_(skiffNesting > 0)
     {
-        YCHECK(skiffNesting >= 0);
-        YCHECK(ysonNesting > 0);
+        YT_VERIFY(skiffNesting >= 0);
+        YT_VERIFY(ysonNesting > 0);
 
-        YCHECK(skiffNesting <= ysonNesting);
-        YCHECK(ysonNesting <= skiffNesting + 1);
+        YT_VERIFY(skiffNesting <= ysonNesting);
+        YT_VERIFY(ysonNesting <= skiffNesting + 1);
     }
 
     void operator () (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer)
@@ -962,7 +962,7 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
         case ELogicalMetatype::Tuple:
             return CreateTupleSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

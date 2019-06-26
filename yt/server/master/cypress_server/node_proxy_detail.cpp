@@ -126,7 +126,7 @@ TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYs
 
 void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
-    Y_ASSERT(value);
+    YT_ASSERT(value);
 
     auto oldValue = FindYson(key);
     Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
@@ -162,7 +162,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (node->GetTransaction()) {
         userAttributes->Attributes()[key] = TYsonString();
     } else {
-        YCHECK(userAttributes->Attributes().erase(key) == 1);
+        YT_VERIFY(userAttributes->Attributes().erase(key) == 1);
     }
 
     Proxy_->SetModified(EModificationType::Attributes);
@@ -237,8 +237,8 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Transaction(transaction)
     , TrunkNode(trunkNode)
 {
-    Y_ASSERT(TrunkNode);
-    Y_ASSERT(TrunkNode->IsTrunk());
+    YT_ASSERT(TrunkNode);
+    YT_ASSERT(TrunkNode->IsTrunk());
 
     CustomAttributes_ = &CustomAttributesImpl_;
 }
@@ -882,10 +882,10 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
 {
     auto* node = GetThisImpl();
     if (node->IsForeign()) {
-        YCHECK(node->IsTrunk());
-        YCHECK(node->LockingState().AcquiredLocks.empty());
+        YT_VERIFY(node->IsTrunk());
+        YT_VERIFY(node->LockingState().AcquiredLocks.empty());
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        YCHECK(objectManager->GetObjectRefCounter(node) == 1);
+        YT_VERIFY(objectManager->GetObjectRefCounter(node) == 1);
         objectManager->UnrefObject(node);
     } else {
         TNodeBase::RemoveSelf(request, response, context);
@@ -1144,7 +1144,7 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     const INodePtr& /*child*/,
     bool /*recursive*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
@@ -2086,7 +2086,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
 
 bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
 {
-    Y_ASSERT(!key.empty());
+    YT_ASSERT(!key.empty());
 
     if (FindChild(key)) {
         return false;
@@ -2102,7 +2102,7 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
     auto& childToKey = impl->MutableChildToKey(objectManager);
 
     keyToChild[key] = trunkChildImpl;
-    YCHECK(childToKey.insert(std::make_pair(trunkChildImpl, key)).second);
+    YT_VERIFY(childToKey.insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl);
@@ -2179,7 +2179,7 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
 
     keyToChild[key] = newTrunkChildImpl;
     childToKey.erase(oldTrunkChildImpl);
-    YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
+    YT_VERIFY(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
     AttachChild(objectManager, TrunkNode, newChildImpl);
 
     SetModified();
@@ -2251,16 +2251,16 @@ void TMapNodeProxy::DoRemoveChild(
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
-            YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
+            YT_VERIFY(keyToChild.insert(std::make_pair(key, nullptr)).second);
             DetachChild(objectManager, TrunkNode, childImpl, false);
         } else {
             it->second = nullptr;
-            YCHECK(childToKey.erase(trunkChildImpl) == 1);
+            YT_VERIFY(childToKey.erase(trunkChildImpl) == 1);
             DetachChild(objectManager, TrunkNode, childImpl, true);
         }
     } else {
-        YCHECK(keyToChild.erase(key) == 1);
-        YCHECK(childToKey.erase(trunkChildImpl) == 1);
+        YT_VERIFY(keyToChild.erase(key) == 1);
+        YT_VERIFY(childToKey.erase(trunkChildImpl) == 1);
         DetachChild(objectManager, TrunkNode, childImpl, true);
     }
     --impl->ChildCountDelta();
@@ -2414,7 +2414,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
     auto* childImpl = LockImpl(trunkChildImpl);
 
     if (beforeIndex < 0) {
-        YCHECK(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, static_cast<int>(list.size()))).second);
+        YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, static_cast<int>(list.size()))).second);
         list.push_back(trunkChildImpl);
     } else {
         // Update indices.
@@ -2423,7 +2423,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
         }
 
         // Insert the new child.
-        YCHECK(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, beforeIndex)).second);
+        YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, beforeIndex)).second);
         list.insert(list.begin() + beforeIndex, trunkChildImpl);
     }
 
@@ -2451,7 +2451,7 @@ bool TListNodeProxy::RemoveChild(int index)
 
     // Remove the child.
     list.erase(list.begin() + index);
-    YCHECK(impl->ChildToIndex().erase(trunkChildImpl));
+    YT_VERIFY(impl->ChildToIndex().erase(trunkChildImpl));
     DetachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl, true);
 
     SetModified();
@@ -2461,7 +2461,7 @@ bool TListNodeProxy::RemoveChild(int index)
 void TListNodeProxy::RemoveChild(const INodePtr& child)
 {
     int index = GetChildIndexOrThrow(child);
-    YCHECK(RemoveChild(index));
+    YT_VERIFY(RemoveChild(index));
 }
 
 void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
@@ -2478,7 +2478,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
     auto it = impl->ChildToIndex().find(oldTrunkChildImpl);
-    Y_ASSERT(it != impl->ChildToIndex().end());
+    YT_ASSERT(it != impl->ChildToIndex().end());
 
     int index = it->second;
 
@@ -2487,7 +2487,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
     impl->ChildToIndex().erase(it);
-    YCHECK(impl->ChildToIndex().insert(std::make_pair(newTrunkChildImpl, index)).second);
+    YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(newTrunkChildImpl, index)).second);
     AttachChild(objectManager, TrunkNode, newChildImpl);
 
     SetModified();

@@ -53,7 +53,7 @@ public:
         bool alwaysCreateAttributes,
         const std::optional<TString>& encoding)
     {
-        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+        YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
         InputStream_ = inputStream;
         InputStreamHolder_ = std::move(inputStreamHolder);
@@ -157,7 +157,7 @@ public:
         const std::optional<TString>& encoding,
         bool alwaysCreateAttributes)
     {
-        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+        YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
         InputStreamHolder_ = std::move(inputStreamHolder);
         KeyCache_ = TPythonStringCache(/* enable */ true, encoding);
@@ -606,7 +606,7 @@ private:
         fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size());
 
         auto result = GetDescriptorPool()->BuildFile(fileDescriptorProto);
-        YCHECK(result);
+        YT_VERIFY(result);
     }
 
     Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat, std::optional<i64> outputLimit)

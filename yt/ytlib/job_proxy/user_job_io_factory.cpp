@@ -285,7 +285,7 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        YCHECK(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
+        YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
@@ -495,11 +495,11 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        YCHECK(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
+        YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
 
-        YCHECK(schedulerJobSpecExt.input_table_specs_size() == 1);
+        YT_VERIFY(schedulerJobSpecExt.input_table_specs_size() == 1);
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -509,7 +509,7 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        YCHECK(reduceJobSpecExt.has_partition_tag());
+        YT_VERIFY(reduceJobSpecExt.has_partition_tag());
 
         return CreateSchemalessPartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,

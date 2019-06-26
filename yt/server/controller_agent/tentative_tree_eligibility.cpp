@@ -153,7 +153,7 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
             // COMPAT(ignat): for revived operations.
             tentativeCount += 1;
         } else {
-            YCHECK(it != LastStartJobTimePerPoolTree_.end());
+            YT_VERIFY(it != LastStartJobTimePerPoolTree_.end());
 
             tentativeCount += 1;
             tentativeDurationSum += TInstant::Now() - it->second;
@@ -165,7 +165,7 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
             return tentativeDurationSum / tentativeCount;
         } else { // Consider last job separately.
             auto it = LastStartJobTimePerPoolTree_.find(treeId);
-            YCHECK(it != LastStartJobTimePerPoolTree_.end());
+            YT_VERIFY(it != LastStartJobTimePerPoolTree_.end());
             auto lastJobDuration = TInstant::Now() - it->second;
 
             // Weight average duration with last job duration as if we run only sample jobs.
@@ -198,7 +198,7 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
 
     auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
-    YCHECK(nonTentativeDurationAvg);
+    YT_VERIFY(nonTentativeDurationAvg);
 
     YT_LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
         "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",

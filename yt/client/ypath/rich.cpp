@@ -189,7 +189,7 @@ void ParseColumns(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 break;
             default:
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         columns.push_back(begin);
@@ -202,7 +202,7 @@ void ParseColumns(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 break;
             default:
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
     tokenizer.ParseNext();
@@ -289,7 +289,7 @@ void ParseRowLimit(
                         break;
                     default:
                         ThrowUnexpectedToken(tokenizer.CurrentToken());
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
             tokenizer.ParseNext();

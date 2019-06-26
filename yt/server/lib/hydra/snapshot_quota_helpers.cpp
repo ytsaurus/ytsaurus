@@ -38,7 +38,7 @@ int GetSnapshotThresholdId(
     int thresholdId = std::max(thresholdByCountId, thresholdBySizeId);
 
     // Make sure we never delete the latest snapshot.
-    YCHECK(snapshots.empty() ? thresholdId == 0 : snapshots.back().Id >= thresholdId);
+    YT_VERIFY(snapshots.empty() ? thresholdId == 0 : snapshots.back().Id >= thresholdId);
     return thresholdId;
 }
 

@@ -140,10 +140,10 @@ private:
         }
 
         auto it = ChunkMap_.find(chunkId);
-        YCHECK(it != ChunkMap_.end());
+        YT_VERIFY(it != ChunkMap_.end());
 
         auto& description = it->second;
-        YCHECK(!description.ChunkSpecs.empty());
+        YT_VERIFY(!description.ChunkSpecs.empty());
 
         if (!description.IsWaiting)
             return;
@@ -160,7 +160,7 @@ private:
         }
 
         --UnavailableFetcherChunkCount_;
-        YCHECK(UnavailableFetcherChunkCount_ >= 0);
+        YT_VERIFY(UnavailableFetcherChunkCount_ >= 0);
 
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
@@ -210,7 +210,7 @@ TFetcherBase::TFetcherBase(
 
 void TFetcherBase::AddChunk(TInputChunkPtr chunk)
 {
-    YCHECK(UnfetchedChunkIndexes_.insert(static_cast<int>(Chunks_.size())).second);
+    YT_VERIFY(UnfetchedChunkIndexes_.insert(static_cast<int>(Chunks_.size())).second);
     Chunks_.push_back(chunk);
 }
 
@@ -267,7 +267,7 @@ void TFetcherBase::StartFetchingRound()
     }
 
     if (!unavailableChunks.empty()) {
-        YCHECK(ChunkScraper_);
+        YT_VERIFY(ChunkScraper_);
         YT_LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
             unavailableChunks.size());
         auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));
@@ -301,7 +301,7 @@ void TFetcherBase::StartFetchingRound()
         std::vector<int> chunkIndexes;
         for (int chunkIndex : it->second) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
-                YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
+                YT_VERIFY(requestedChunkIndexes.insert(chunkIndex).second);
                 chunkIndexes.push_back(chunkIndex);
             }
         }
@@ -333,7 +333,7 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
         NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
 
     DeadChunks_.insert(std::make_pair(nodeId, chunkId));
-    YCHECK(UnfetchedChunkIndexes_.insert(chunkIndex).second);
+    YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
 }
 
 void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkIndexes)

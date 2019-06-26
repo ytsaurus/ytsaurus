@@ -388,7 +388,7 @@ TString TAnnouncer::FindResourceCluster(const TResourceId& resourceId)
             return it->second.LastOutOfOrderUpdate->first;
         }
 
-        YCHECK(!it->second.Clusters.empty());
+        YT_VERIFY(!it->second.Clusters.empty());
         return it->second.Clusters.front();
     })
         .AsyncVia(Invoker_)

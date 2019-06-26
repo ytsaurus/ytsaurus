@@ -292,7 +292,7 @@ void FromProto(
         result->PoolCounts.emplace();
         for (const auto& poolCount: proto.pool_counts().entries()) {
             auto pool = poolCount.pool();
-            YCHECK((*result->PoolCounts)[pool] == 0);
+            YT_VERIFY((*result->PoolCounts)[pool] == 0);
             (*result->PoolCounts)[pool] = poolCount.count();
         }
     } else {
@@ -302,7 +302,7 @@ void FromProto(
         result->UserCounts.emplace();
         for (const auto& userCount: proto.user_counts().entries()) {
             auto user = userCount.user();
-            YCHECK((*result->UserCounts)[user] == 0);
+            YT_VERIFY((*result->UserCounts)[user] == 0);
             (*result->UserCounts)[user] = userCount.count();
         }
     } else {
@@ -314,8 +314,8 @@ void FromProto(
         std::fill(result->StateCounts->begin(), result->StateCounts->end(), 0);
         for (const auto &stateCount: proto.state_counts().entries()) {
             auto state = ConvertOperationStateFromProto(stateCount.state());
-            YCHECK(result->StateCounts->IsDomainValue(state));
-            YCHECK((*result->StateCounts)[state] == 0);
+            YT_VERIFY(result->StateCounts->IsDomainValue(state));
+            YT_VERIFY((*result->StateCounts)[state] == 0);
             (*result->StateCounts)[state] = stateCount.count();
         }
     } else {
@@ -326,8 +326,8 @@ void FromProto(
         std::fill(result->TypeCounts->begin(), result->TypeCounts->end(), 0);
         for (const auto &typeCount: proto.type_counts().entries()) {
             auto type = ConvertOperationTypeFromProto(typeCount.type());
-            YCHECK(result->TypeCounts->IsDomainValue(type));
-            YCHECK((*result->TypeCounts)[type] == 0);
+            YT_VERIFY(result->TypeCounts->IsDomainValue(type));
+            YT_VERIFY((*result->TypeCounts)[type] == 0);
             (*result->TypeCounts)[type] = typeCount.count();
         }
     } else {
@@ -430,7 +430,7 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
             CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(protoSchema.logical_type()),
             protoSchema.required());
         schema->SetLogicalType(std::move(logicalType));
-        YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
+        YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
     } else {
         auto physicalType = CheckedEnumCast<NTableClient::EValueType>(protoSchema.type());
         schema->SetLogicalType(SimpleLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
@@ -833,16 +833,16 @@ void FromProto(
     std::fill(statistics->StateCounts.begin(), statistics->StateCounts.end(), 0);
     for (const auto& stateCount: protoStatistics.state_counts().entries()) {
         auto state = ConvertJobStateFromProto(stateCount.state());
-        YCHECK(statistics->StateCounts.IsDomainValue(state));
-        YCHECK(statistics->StateCounts[state] == 0);
+        YT_VERIFY(statistics->StateCounts.IsDomainValue(state));
+        YT_VERIFY(statistics->StateCounts[state] == 0);
         statistics->StateCounts[state] = stateCount.count();
     }
 
     std::fill(statistics->TypeCounts.begin(), statistics->TypeCounts.end(), 0);
     for (const auto& typeCount: protoStatistics.type_counts().entries()) {
         auto type = ConvertJobTypeFromProto(typeCount.type());
-        YCHECK(statistics->TypeCounts.IsDomainValue(type));
-        YCHECK(statistics->TypeCounts[type] == 0);
+        YT_VERIFY(statistics->TypeCounts.IsDomainValue(type));
+        YT_VERIFY(statistics->TypeCounts[type] == 0);
         statistics->TypeCounts[type] = typeCount.count();
     }
 }
@@ -921,7 +921,7 @@ NProto::EOperationType ConvertOperationTypeToProto(
         case NScheduler::EOperationType::Vanilla:
             return NProto::EOperationType::OT_VANILLA;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -948,7 +948,7 @@ NScheduler::EOperationType ConvertOperationTypeFromProto(
         case NProto::EOperationType::OT_VANILLA:
             return NScheduler::EOperationType::Vanilla;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -991,7 +991,7 @@ NProto::EOperationState ConvertOperationStateToProto(
         case NScheduler::EOperationState::Failed:
             return NProto::EOperationState::OS_FAILED;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1034,7 +1034,7 @@ NScheduler::EOperationState ConvertOperationStateFromProto(
         case NProto::EOperationState::OS_FAILED:
             return NScheduler::EOperationState::Failed;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1085,7 +1085,7 @@ NProto::EJobType ConvertJobTypeToProto(
         case NJobTrackerClient::EJobType::SealChunk:
             return NProto::EJobType::JT_SEAL_CHUNK;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1136,7 +1136,7 @@ NJobTrackerClient::EJobType ConvertJobTypeFromProto(
         case NProto::EJobType::JT_SEAL_CHUNK:
             return NJobTrackerClient::EJobType::SealChunk;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1161,7 +1161,7 @@ NProto::EJobState ConvertJobStateToProto(
         case NJobTrackerClient::EJobState::None:
             return NProto::EJobState::JS_NONE;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1186,7 +1186,7 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
         case NProto::EJobState::JS_NONE:
             return NJobTrackerClient::EJobState::None;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

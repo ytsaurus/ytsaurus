@@ -194,7 +194,7 @@ TSerializableClusterResources::TSerializableClusterResources(
         if (!medium || medium->GetCache()) {
             continue;
         }
-        YCHECK(DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        YT_VERIFY(DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
         DiskSpace_ += mediumDiskSpace;
     }
 }

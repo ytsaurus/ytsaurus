@@ -149,7 +149,7 @@ TEST(TErasureCodingTest, RandomText)
         auto codec = GetCodec(codecId);
 
         int blocksCount = codec->GetTotalPartCount();
-        YCHECK(blocksCount <= 16);
+        YT_VERIFY(blocksCount <= 16);
 
         std::vector<TSharedRef> dataBlocks;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
@@ -337,7 +337,7 @@ public:
         if (dataRefs.size() <= 30) {
             bool useRandom = true;
             if (!maskCount) {
-                YCHECK(dataRefs.size() <= 15);
+                YT_VERIFY(dataRefs.size() <= 15);
                 useRandom = false;
                 maskCount = (1 << dataRefs.size());
             }
@@ -355,7 +355,7 @@ public:
                 check(indexes);
             }
         } else {
-            YCHECK(maskCount);
+            YT_VERIFY(maskCount);
             for (int iter = 0; iter < *maskCount; ++iter) {
                 std::vector<int> indexes;
                 for (int i = 0; i < dataRefs.size(); ++i) {
@@ -402,7 +402,7 @@ public:
         const std::vector<int>& failingTimes)
     {
         int partCount = codec->GetTotalPartCount();
-        YCHECK(failingTimes.size() == partCount);
+        YT_VERIFY(failingTimes.size() == partCount);
 
         WriteErasureChunk(codecId, codec, dataRefs);
 

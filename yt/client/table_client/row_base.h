@@ -82,7 +82,7 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
             return EValueType::String;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -99,7 +99,7 @@ inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
             return static_cast<ESimpleLogicalValueType>(type);
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -20,7 +20,7 @@ void ISystemAttributeProvider::ListSystemAttributes(std::map<TInternedAttributeK
     ReserveAndListSystemAttributes(&attributes);
 
     for (const auto& descriptor : attributes) {
-        YCHECK(descriptors->insert(std::make_pair(descriptor.InternedKey, descriptor)).second);
+        YT_VERIFY(descriptors->insert(std::make_pair(descriptor.InternedKey, descriptor)).second);
     }
 }
 

@@ -41,14 +41,14 @@ public:
 
     virtual TFuture<void> Terminate(const TError& /*error*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void OnRequestCompleted()
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(RequestInProgress_);
+            YT_VERIFY(RequestInProgress_);
             RequestInProgress_ = false;
         }
 
@@ -150,7 +150,7 @@ private:
 
 IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
 
     return New<TSerializedChannel>(std::move(underlyingChannel));
 }

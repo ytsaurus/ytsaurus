@@ -101,7 +101,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
 
 ui32 TTimestampSegmentReader::GetWriteTimestampCount(i64 rowIndex) const
 {
-    YCHECK(rowIndex < Meta_.chunk_row_count());
+    YT_VERIFY(rowIndex < Meta_.chunk_row_count());
     ui32 lowerWriteIndex = GetLowerWriteIndex(rowIndex);
     ui32 upperWriteIndex = GetLowerWriteIndex(rowIndex + 1);
     return upperWriteIndex - lowerWriteIndex;

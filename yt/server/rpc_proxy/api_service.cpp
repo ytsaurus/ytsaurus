@@ -372,7 +372,7 @@ private:
 
     TString ExtractIP(TString address)
     {
-        YCHECK(address.StartsWith("tcp://"));
+        YT_VERIFY(address.StartsWith("tcp://"));
 
         address = address.substr(6);
         {
@@ -2641,7 +2641,7 @@ private:
         const auto attachmentsStart = request->Attachments().begin();
         for (const auto& partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
-            // TODO(kiselyovp) if this fails, YCHECK happens
+            // TODO(kiselyovp) if this fails, YT_VERIFY happens
             DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
             ++blobIndex;
             std::vector<TSharedRef> attachments(

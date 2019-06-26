@@ -336,7 +336,7 @@ public:
         , FunctionProfilers_(functionProfilers)
         , ComparerManager_(MakeComparerManager())
     {
-        YCHECK(Variables_);
+        YT_VERIFY(Variables_);
     }
 
     size_t Profile(
@@ -603,7 +603,7 @@ size_t TExpressionProfiler::Profile(
         return emplaced.first->second;
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -985,7 +985,7 @@ std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinCl
         }
 
         if (extraColumnsChecker.HasExtraColumns) {
-            YCHECK(counter > 0);
+            YT_VERIFY(counter > 0);
             joinGroups.push_back(counter);
             counter = 0;
             names.clear();
@@ -1326,7 +1326,7 @@ void TQueryProfiler::Profile(
 
             Fold(index);
 
-            YCHECK(joinClause->CommonKeyPrefix < 1000);
+            YT_VERIFY(joinClause->CommonKeyPrefix < 1000);
 
             Fold(joinClause->CommonKeyPrefix);
 
@@ -1463,7 +1463,7 @@ TCGQueryCallbackGenerator Profile(
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     return [

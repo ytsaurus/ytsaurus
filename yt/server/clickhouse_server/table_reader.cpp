@@ -315,7 +315,7 @@ bool TTableReader::TryReadBunchOfRows(TRows* rows)
             .ThrowOnError();
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TTableReader::ForwardRows(
@@ -324,7 +324,7 @@ void TTableReader::ForwardRows(
 {
     for (const auto& row: rows) {
         // row schema already validated by SchemafulReader
-        YCHECK(row.GetCount() == columns.size());
+        YT_VERIFY(row.GetCount() == columns.size());
 
         for (size_t i = 0; i < row.GetCount(); ++i) {
             ColumnHandlers[i](*columns[i], row[i]);

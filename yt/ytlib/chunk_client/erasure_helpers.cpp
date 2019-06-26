@@ -103,8 +103,8 @@ TParityPartSplitInfo::TParityPartSplitInfo(int parityBlockCount, i64 parityBlock
     , BlockSize(parityBlockSize)
     , LastBlockSize(lastBlockSize)
 {
-    YCHECK(BlockCount > 0);
-    YCHECK(BlockSize > 0);
+    YT_VERIFY(BlockCount > 0);
+    YT_VERIFY(BlockSize > 0);
 }
 
 TParityPartSplitInfo TParityPartSplitInfo::Build(i64 parityBlockSize, i64 parityPartSize)
@@ -151,7 +151,7 @@ public:
     TFuture<void> Consume(const TPartRange& range, const TSharedRef& block)
     {
         // Validate range monotonicity.
-        YCHECK(range.Begin == Cursor_);
+        YT_VERIFY(range.Begin == Cursor_);
         Cursor_ = range.End;
 
         i64 blockPosition = 0;
@@ -257,7 +257,7 @@ public:
 
         if (PreviousRange_) {
             // Requested ranges must be monotonic.
-            YCHECK(*PreviousRange_ == range || PreviousRange_->End <= range.Begin);
+            YT_VERIFY(*PreviousRange_ == range || PreviousRange_->End <= range.Begin);
         }
         PreviousRange_ = range;
 
@@ -309,7 +309,7 @@ private:
 
     void OnBlocksRead(const std::vector<int>& indicesToRequest, const std::vector<TSharedRef>& blocks)
     {
-        YCHECK(indicesToRequest.size() == blocks.size());
+        YT_VERIFY(indicesToRequest.size() == blocks.size());
         for (int index = 0; index < indicesToRequest.size(); ++index) {
             RequestedBlocks_[indicesToRequest[index]] = blocks[index];
         }
@@ -438,7 +438,7 @@ public:
 
     TFuture<void> ConsumeBlocks(const TPartRange& range, const std::vector<TSharedRef>& blocks)
     {
-        YCHECK(blocks.size() == Consumers_.size());
+        YT_VERIFY(blocks.size() == Consumers_.size());
 
         std::vector<TFuture<void>> asyncResults;
         for (int index = 0; index < blocks.size(); ++index) {
@@ -457,7 +457,7 @@ public:
 
                 std::vector<TSharedRef> decodedBlocks;
                 if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
-                    YCHECK(blocks.size() == Codec_->GetDataPartCount());
+                    YT_VERIFY(blocks.size() == Codec_->GetDataPartCount());
                     decodedBlocks = Codec_->Encode(blocks);
                 } else {
                     decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
@@ -551,9 +551,9 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     };
 
     auto partInfos = NYT::FromProto<std::vector<TPartInfo>>(placementExt.part_infos());
-    YCHECK(partInfos.front().first_block_index() == 0);
+    YT_VERIFY(partInfos.front().first_block_index() == 0);
     for (int i = 0; i + 1 < partInfos.size(); ++i) {
-        YCHECK(partInfos[i].first_block_index() + partInfos[i].block_sizes().size() ==
+        YT_VERIFY(partInfos[i].first_block_index() + partInfos[i].block_sizes().size() ==
             partInfos[i + 1].first_block_index());
     }
 
@@ -561,23 +561,23 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
 
     int indexInRequest = 0;
     for (int blockIndex : blockIndexes) {
-        YCHECK(blockIndex >= 0);
+        YT_VERIFY(blockIndex >= 0);
 
         // Binary search of part containing given block.
         auto it = std::upper_bound(partInfos.begin(), partInfos.end(), blockIndex, TPartComparer());
-        YCHECK(it != partInfos.begin());
+        YT_VERIFY(it != partInfos.begin());
         do {
             --it;
         } while (it != partInfos.begin() && (it->first_block_index() > blockIndex || it->block_sizes().size() == 0));
-        YCHECK(blockIndex >= it->first_block_index());
-        YCHECK(it != partInfos.end());
+        YT_VERIFY(blockIndex >= it->first_block_index());
+        YT_VERIFY(it != partInfos.end());
 
         int partIndex = it - partInfos.begin();
         result[partIndex].IndexesInRequest.push_back(indexInRequest);
 
         // Calculate index in the part.
         int indexInPart = blockIndex - it->first_block_index();
-        YCHECK(indexInPart < it->block_sizes().size());
+        YT_VERIFY(indexInPart < it->block_sizes().size());
         result[partIndex].IndexesInPart.push_back(indexInPart);
 
         // Calculate range of block inside part.
@@ -609,11 +609,11 @@ TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    YCHECK(!partitionTag);
+    YT_VERIFY(!partitionTag);
     if (extensionTags) {
         for (const auto& forbiddenTag : {TProtoExtensionTag<TBlocksExt>::Value}) {
             auto it = std::find(extensionTags->begin(), extensionTags->end(), forbiddenTag);
-            YCHECK(it == extensionTags->end());
+            YT_VERIFY(it == extensionTags->end());
         }
     }
 

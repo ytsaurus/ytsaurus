@@ -357,8 +357,8 @@ private:
 
     BoolMask GetRangeMask(TKey lowerKey, TKey upperKey)
     {
-        YCHECK(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
-        YCHECK(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
 
         Field minKey[KeyColumnCount_];
         Field maxKey[KeyColumnCount_];
@@ -555,9 +555,9 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
         }
     }
 
-    YCHECK(currentDataSliceIndex == static_cast<int>(dataSlices.size()));
-    YCHECK(static_cast<int>(result->Stripes.size()) <= jobCount);
-    YCHECK(result->GetAggregateStatistics().RowCount == totalRowCount);
+    YT_VERIFY(currentDataSliceIndex == static_cast<int>(dataSlices.size()));
+    YT_VERIFY(static_cast<int>(result->Stripes.size()) <= jobCount);
+    YT_VERIFY(result->GetAggregateStatistics().RowCount == totalRowCount);
 
     if (originalJobCount != jobCount) {
         TChunkStripeListPtr sampledList = New<TChunkStripeList>();

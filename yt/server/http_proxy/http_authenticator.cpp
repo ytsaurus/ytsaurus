@@ -30,8 +30,8 @@ THttpAuthenticator::THttpAuthenticator(
     , TokenAuthenticator_(tokenAuthenticator)
     , CookieAuthenticator_(cookieAuthenticator)
 {
-    YCHECK(TokenAuthenticator_);
-    YCHECK(CookieAuthenticator_);
+    YT_VERIFY(TokenAuthenticator_);
+    YT_VERIFY(CookieAuthenticator_);
 }
 
 void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)

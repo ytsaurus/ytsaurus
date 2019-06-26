@@ -39,8 +39,8 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
     , KeyComparer_(keyComparer)
 {
-    YCHECK(Meta_.row_count() > 0);
-    YCHECK(KeyColumnCount_ >= ChunkKeyColumnCount_);
+    YT_VERIFY(Meta_.row_count() > 0);
+    YT_VERIFY(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
@@ -96,20 +96,20 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
 bool TSimpleVersionedBlockReader::NextRow()
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
 bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
 {
-    YCHECK(!Closed_);
-    YCHECK(rowIndex >= RowIndex_);
+    YT_VERIFY(!Closed_);
+    YT_VERIFY(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
 
 bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
 
     if (KeyComparer_(GetKey(), key) >= 0) {
         // We are already further than pivot key.
@@ -120,7 +120,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
         RowIndex_,
         Meta_.row_count(),
         [&] (int index) -> bool {
-            YCHECK(JumpToRowIndex(index));
+            YT_VERIFY(JumpToRowIndex(index));
             return KeyComparer_(GetKey(), key) < 0;
         });
 
@@ -129,7 +129,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
 
 bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
 
     if (index >= Meta_.row_count()) {
         Closed_ = true;
@@ -162,7 +162,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 
 TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
     if (ProduceAllVersions_) {
         return ReadAllVersions(memoryPool);
     } else {
@@ -172,7 +172,7 @@ TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool
 
 ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
 {
-    Y_ASSERT(schemaColumnId >= ChunkKeyColumnCount_);
+    YT_ASSERT(schemaColumnId >= ChunkKeyColumnCount_);
     return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - ChunkKeyColumnCount_);
 }
 
@@ -209,7 +209,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
         *currentWriteTimestamp = ReadTimestamp(TimestampOffset_ + i);
         ++currentWriteTimestamp;
     }
-    Y_ASSERT(row.GetWriteTimestampCount() == currentWriteTimestamp - beginWriteTimestamps);
+    YT_ASSERT(row.GetWriteTimestampCount() == currentWriteTimestamp - beginWriteTimestamps);
 
     // Delete timestamps.
     auto* beginDeleteTimestamps = row.BeginDeleteTimestamps();
@@ -218,7 +218,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
         *currentDeleteTimestamp = ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + i);
         ++currentDeleteTimestamp;
     }
-    Y_ASSERT(row.GetDeleteTimestampCount() == currentDeleteTimestamp - beginDeleteTimestamps);
+    YT_ASSERT(row.GetDeleteTimestampCount() == currentDeleteTimestamp - beginDeleteTimestamps);
 
     // Keys.
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
@@ -296,7 +296,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
         return row;
     }
 
-    YCHECK(hasWriteTimestamp);
+    YT_VERIFY(hasWriteTimestamp);
 
     // Produce output row.
     auto row = TMutableVersionedRow::Allocate(
@@ -387,13 +387,13 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
 {
-    Y_ASSERT(id >= ChunkKeyColumnCount_);
+    YT_ASSERT(id >= ChunkKeyColumnCount_);
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
@@ -424,7 +424,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -35,7 +35,7 @@ TTransactionLeaseTracker::TTransactionLeaseTracker(
         BIND(&TTransactionLeaseTracker::OnTick, MakeWeak(this)),
         TickPeriod))
 {
-    YCHECK(TrackerInvoker_);
+    YT_VERIFY(TrackerInvoker_);
     VERIFY_INVOKER_THREAD_AFFINITY(TrackerInvoker_, TrackerThread);
 
     PeriodicExecutor_->Start();
@@ -197,7 +197,7 @@ void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*
 void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& request)
 {
     auto idPair = IdMap_.insert(std::make_pair(request.TransactionId, TTransactionDescriptor()));
-    YCHECK(idPair.second);
+    YT_VERIFY(idPair.second);
     auto& descriptor = idPair.first->second;
     descriptor.TransactionId = request.TransactionId;
     descriptor.ParentId = request.ParentId;
@@ -215,7 +215,7 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
 void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest& request)
 {
     auto it = IdMap_.find(request.TransactionId);
-    YCHECK(it != IdMap_.end());
+    YT_VERIFY(it != IdMap_.end());
     auto* descriptor = &it->second;
     if (!descriptor->TimedOut) {
         UnregisterDeadline(descriptor);
@@ -293,12 +293,12 @@ void TTransactionLeaseTracker::RegisterDeadline(TTransactionDescriptor* descript
     if (descriptor->UserDeadline) {
         descriptor->Deadline = std::min(descriptor->Deadline, *descriptor->UserDeadline);
     }
-    YCHECK(DeadlineMap_.insert(descriptor).second);
+    YT_VERIFY(DeadlineMap_.insert(descriptor).second);
 }
 
 void TTransactionLeaseTracker::UnregisterDeadline(TTransactionDescriptor* descriptor)
 {
-    YCHECK(DeadlineMap_.erase(descriptor) == 1);
+    YT_VERIFY(DeadlineMap_.erase(descriptor) == 1);
 }
 
 void TTransactionLeaseTracker::ValidateActive()

@@ -85,7 +85,7 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         return next;
     }
 
-    YCHECK(*next == Config_->FieldSeparator ||
+    YT_VERIFY(*next == Config_->FieldSeparator ||
            *next == Config_->RecordSeparator);
 
     if (!NewRecordStarted_) {

@@ -201,7 +201,7 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
             if (builtinAttributeKeys.contains(internedKey)) {
                 fluent
                     .Item(key);
-                YCHECK(GetBuiltinAttribute(internedKey, fluent.GetConsumer()));
+                YT_VERIFY(GetBuiltinAttribute(internedKey, fluent.GetConsumer()));
             }
         });
 }

@@ -231,7 +231,7 @@ public:
 
     virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
-        YCHECK(State_.load() == EReplicationWriterState::Open);
+        YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
         if (StateError_.IsSet()) {
             return false;
@@ -246,7 +246,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YCHECK(State_.load() == EReplicationWriterState::Open);
+        YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
         auto promise = NewPromise<void>();
         promise.TrySetFrom(StateError_.ToFuture());
@@ -257,7 +257,7 @@ public:
 
     virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
-        YCHECK(State_.load() == EReplicationWriterState::Open);
+        YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
         State_.store(EReplicationWriterState::Closing);
         ChunkMeta_ = chunkMeta;
@@ -281,7 +281,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
@@ -398,7 +398,7 @@ private:
     void DoClose()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!CloseRequested_);
+        YT_VERIFY(!CloseRequested_);
 
         YT_LOG_DEBUG("Writer close requested");
 
@@ -488,7 +488,7 @@ private:
     void FlushCurrentGroup()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!CloseRequested_);
+        YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
             return;
@@ -547,7 +547,7 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         if (StateError_.IsSet()) {
-            YCHECK(Window_.empty());
+            YT_VERIFY(Window_.empty());
             return;
         }
 
@@ -718,7 +718,7 @@ private:
     void CloseSessions()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(CloseRequested_);
+        YT_VERIFY(CloseRequested_);
 
         YT_LOG_INFO("Closing writer");
 
@@ -819,7 +819,7 @@ private:
     void AddBlocks(const std::vector<TBlock>& blocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!CloseRequested_);
+        YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
             return;
@@ -917,7 +917,7 @@ i64 TGroup::GetSize() const
 bool TGroup::IsWritten() const
 {
     auto writer = Writer_.Lock();
-    YCHECK(writer);
+    YT_VERIFY(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -952,7 +952,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         }
     }
 
-    YCHECK(selectedIndex);
+    YT_VERIFY(selectedIndex);
     auto node = writer->Nodes_[*selectedIndex];
 
     TDataNodeServiceProxy proxy(node->Channel);
@@ -1066,7 +1066,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
 bool TGroup::IsFlushing() const
 {
     auto writer = Writer_.Lock();
-    YCHECK(writer);
+    YT_VERIFY(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -1076,7 +1076,7 @@ bool TGroup::IsFlushing() const
 void TGroup::SetFlushing()
 {
     auto writer = Writer_.Lock();
-    YCHECK(writer);
+    YT_VERIFY(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -1097,7 +1097,7 @@ void TGroup::Process()
     }
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
-    YCHECK(writer->State_.load() == EReplicationWriterState::Open ||
+    YT_VERIFY(writer->State_.load() == EReplicationWriterState::Open ||
         writer->State_.load() == EReplicationWriterState::Closing);
 
     YT_LOG_DEBUG("Processing blocks (Blocks: %v-%v)",

@@ -203,14 +203,14 @@ public:
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
-        YCHECK(transaction->RefObject() == 1);
+        YT_VERIFY(transaction->RefObject() == 1);
 
         if (parent) {
             transaction->SetParent(parent);
-            YCHECK(parent->NestedTransactions().insert(transaction).second);
+            YT_VERIFY(parent->NestedTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
         } else {
-            YCHECK(TopmostTransactions_.insert(transaction).second);
+            YT_VERIFY(TopmostTransactions_.insert(transaction).second);
         }
 
         transaction->SetState(ETransactionState::Active);
@@ -325,7 +325,7 @@ public:
                 transactionId);
             AbortTransaction(nestedTransaction, true);
         }
-        YCHECK(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedTransactions().empty());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -406,7 +406,7 @@ public:
         for (auto* nestedTransaction : nestedTransactions) {
             AbortTransaction(nestedTransaction, force, false);
         }
-        YCHECK(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedTransactions().empty());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -477,7 +477,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(transaction->StagedObjects().insert(object).second);
+        YT_VERIFY(transaction->StagedObjects().insert(object).second);
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
     }
@@ -491,7 +491,7 @@ public:
         handler->UnstageObject(object, recursive);
 
         if (transaction) {
-            YCHECK(transaction->StagedObjects().erase(object) == 1);
+            YT_VERIFY(transaction->StagedObjects().erase(object) == 1);
             objectManager->UnrefObject(object);
         }
     }
@@ -499,7 +499,7 @@ public:
     void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         transaction->StagedNodes().push_back(trunkNode);
@@ -817,11 +817,11 @@ public:
 
         auto* parent = transaction->GetParent();
         if (parent) {
-            YCHECK(parent->NestedTransactions().erase(transaction) == 1);
+            YT_VERIFY(parent->NestedTransactions().erase(transaction) == 1);
             objectManager->UnrefObject(transaction);
             transaction->SetParent(nullptr);
         } else {
-            YCHECK(TopmostTransactions_.erase(transaction) == 1);
+            YT_VERIFY(TopmostTransactions_.erase(transaction) == 1);
         }
 
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -889,7 +889,7 @@ private:
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             if (IsObjectAlive(transaction) && !transaction->GetParent()) {
-                YCHECK(TopmostTransactions_.insert(transaction).second);
+                YT_VERIFY(TopmostTransactions_.insert(transaction).second);
             }
         }
     }

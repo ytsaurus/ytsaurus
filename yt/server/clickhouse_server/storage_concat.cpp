@@ -146,7 +146,7 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
     for (const auto& [name, occurrenceCount] : nameToOccurrenceCount) {
         if (occurrenceCount != static_cast<int>(tables.size())) {
             auto it = nameToColumn.find(name);
-            YCHECK(it != nameToColumn.end());
+            YT_VERIFY(it != nameToColumn.end());
             validateColumnDrop(nameToColumn[name]);
             nameToColumn.erase(it);
         }

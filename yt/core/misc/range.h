@@ -161,28 +161,28 @@ public:
 
     const T& operator[](size_t index) const
     {
-        Y_ASSERT(index < Size());
+        YT_ASSERT(index < Size());
         return Data_[index];
     }
 
 
     const T& Front() const
     {
-        Y_ASSERT(Length_ > 0);
+        YT_ASSERT(Length_ > 0);
         return Data_[0];
     }
 
     const T& Back() const
     {
-        Y_ASSERT(Length_ > 0);
+        YT_ASSERT(Length_ > 0);
         return Data_[Length_ - 1];
     }
 
 
     TRange<T> Slice(size_t startOffset, size_t endOffset) const
     {
-        Y_ASSERT(startOffset <= Size());
-        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
+        YT_ASSERT(startOffset <= Size());
+        YT_ASSERT(endOffset >= startOffset && endOffset <= Size());
         return TRange<T>(Begin() + startOffset, endOffset - startOffset);
     }
 
@@ -374,26 +374,26 @@ public:
 
     T& operator[](size_t index)
     {
-        Y_ASSERT(index <= this->Size());
+        YT_ASSERT(index <= this->Size());
         return Begin()[index];
     }
 
     T& Front()
     {
-        Y_ASSERT(this->Length_ > 0);
+        YT_ASSERT(this->Length_ > 0);
         return Begin()[0];
     }
 
     T& Back()
     {
-        Y_ASSERT(this->Length_ > 0);
+        YT_ASSERT(this->Length_ > 0);
         return Begin()[this->Length_ - 1];
     }
 
     TMutableRange<T> Slice(T* begin, T* end) const
     {
-        Y_ASSERT(begin >= Begin());
-        Y_ASSERT(end <= End());
+        YT_ASSERT(begin >= Begin());
+        YT_ASSERT(end <= End());
         return TMutableRange<T>(begin, end);
     }
 };

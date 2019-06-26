@@ -26,7 +26,7 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
     stream.opaque = Z_NULL;
 
     int returnCode = deflateInit(&stream, level);
-    YCHECK(returnCode == Z_OK);
+    YT_VERIFY(returnCode == Z_OK);
     auto cleanupGuard = Finally([&] () { deflateEnd(&stream); });
 
     size_t totalUncompressedSize = source->Available();
@@ -68,17 +68,17 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
 
             returnCode = deflate(&stream, flush);
             // We should not throw exception here since caller does not expect such behavior.
-            YCHECK(returnCode == Z_OK || returnCode == Z_STREAM_END);
+            YT_VERIFY(returnCode == Z_OK || returnCode == Z_STREAM_END);
 
             output->Resize(output->Size() + outputAvailable - stream.avail_out, false);
         } while (stream.avail_out == 0);
 
         // Entire input was consumed.
-        YCHECK(stream.avail_in == 0);
+        YT_VERIFY(stream.avail_in == 0);
         source->Skip(inputAvailable - stream.avail_in);
     } while (source->Available() > 0);
 
-    YCHECK(returnCode == Z_STREAM_END);
+    YT_VERIFY(returnCode == Z_STREAM_END);
 }
 
 void ZlibDecompress(StreamSource* source, TBlob* output)
@@ -100,7 +100,7 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
     stream.opaque = Z_NULL;
 
     int returnCode = inflateInit(&stream);
-    YCHECK(returnCode == Z_OK);
+    YT_VERIFY(returnCode == Z_OK);
     auto cleanupGuard = Finally([&] () { inflateEnd(&stream); });
 
     // Read body.
@@ -123,15 +123,15 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
 
         returnCode = inflate(&stream, flush);
         // We should not throw exception here since caller does not expect such behavior.
-        YCHECK(returnCode == Z_OK || returnCode == Z_STREAM_END);
+        YT_VERIFY(returnCode == Z_OK || returnCode == Z_STREAM_END);
 
         source->Skip(inputAvailable - stream.avail_in);
 
         output->Resize(output->Size() + outputAvailable - stream.avail_out, false);
     } while (returnCode != Z_STREAM_END);
 
-    YCHECK(source->Available() == 0);
-    YCHECK(output->Size() == totalUncompressedSize);
+    YT_VERIFY(source->Available() == 0);
+    YT_VERIFY(output->Size() == totalUncompressedSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

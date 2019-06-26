@@ -275,7 +275,7 @@ public:
         cellBundleHolder->SetName(name);
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
-        YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+        YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
         cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -296,7 +296,7 @@ public:
         }
 
         // Remove tablet cell bundle from maps.
-        YCHECK(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
+        YT_VERIFY(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
 
         TabletCellBundleDestroyed_.Fire(cellBundle);
     }
@@ -314,7 +314,7 @@ public:
 
         cellHolder->Peers().resize(cellBundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(cellBundle);
-        YCHECK(cellBundle->TabletCells().insert(cellHolder.get()).second);
+        YT_VERIFY(cellBundle->TabletCells().insert(cellHolder.get()).second);
         objectManager->RefObject(cellBundle);
 
         ReconfigureCell(cellHolder.get());
@@ -322,7 +322,7 @@ public:
         auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
 
         // Make the fake reference.
-        YCHECK(cell->RefObject() == 1);
+        YT_VERIFY(cell->RefObject() == 1);
 
         InitializeTabletCellStatistics(cell);
 
@@ -398,7 +398,7 @@ public:
             UnbindTabletActionFromCells(action);
             OnTabletActionDisturbed(action, TError("Tablet cell %v has been removed", cell->GetId()));
         }
-        YCHECK(cell->Actions().empty());
+        YT_VERIFY(cell->Actions().empty());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto cellId = cell->GetId();
@@ -418,7 +418,7 @@ public:
         cell->Peers().clear();
 
         auto* cellBundle = cell->GetCellBundle();
-        YCHECK(cellBundle->TabletCells().erase(cell) == 1);
+        YT_VERIFY(cellBundle->TabletCells().erase(cell) == 1);
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
@@ -450,7 +450,7 @@ public:
     TTablet* CreateTablet(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
@@ -471,8 +471,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(!tablet->GetCell());
-        YCHECK(!tablet->GetTable());
+        YT_VERIFY(!tablet->GetCell());
+        YT_VERIFY(!tablet->GetTable());
 
         if (auto* action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
@@ -515,7 +515,7 @@ public:
                 preserveTimestamps);
         }
 
-        YCHECK(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
+        YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -532,7 +532,7 @@ public:
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
         objectManager->RefObject(replica);
 
-        YCHECK(table->Replicas().insert(replica).second);
+        YT_VERIFY(table->Replicas().insert(replica).second);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
@@ -544,7 +544,7 @@ public:
         for (int tabletIndex = 0; tabletIndex < table->Tablets().size(); ++tabletIndex) {
             auto* tablet = table->Tablets()[tabletIndex];
             auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
-            YCHECK(pair.second);
+            YT_VERIFY(pair.second);
             auto& replicaInfo = pair.first->second;
 
             if (startReplicationRowIndexes) {
@@ -576,11 +576,11 @@ public:
 
         auto* table = replica->GetTable();
         if (table) {
-            YCHECK(table->Replicas().erase(replica) == 1);
+            YT_VERIFY(table->Replicas().erase(replica) == 1);
 
             const auto& hiveManager = Bootstrap_->GetHiveManager();
             for (auto* tablet : table->Tablets()) {
-                YCHECK(tablet->Replicas().erase(replica) == 1);
+                YT_VERIFY(tablet->Replicas().erase(replica) == 1);
 
                 if (!tablet->IsActive()) {
                     continue;
@@ -850,7 +850,7 @@ public:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         auto* action = DoCreateTabletAction(
@@ -885,7 +885,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
+        YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletAction, hintId);
@@ -899,7 +899,7 @@ public:
             if (state == ETabletActionState::Orphaned) {
                 // Orphaned action can be created during mount if tablet cells are not available.
                 // User can't create orphaned action directly because primary master need to know about mount.
-                YCHECK(tablet->GetState() == ETabletState::Unmounted);
+                YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
                 tablet->SetExpectedState(freeze
                     ? ETabletState::Frozen
                     : ETabletState::Mounted);
@@ -946,7 +946,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         for (auto* tablet : action->Tablets()) {
-            YCHECK(tablet->GetAction() == action);
+            YT_VERIFY(tablet->GetAction() == action);
             tablet->SetAction(nullptr);
         }
 
@@ -1092,7 +1092,7 @@ public:
         bool touched = false;
         for (auto* tablet : action->Tablets()) {
             if (touchedTablets.find(tablet) != touchedTablets.end()) {
-                YCHECK(tablet->GetAction() == action);
+                YT_VERIFY(tablet->GetAction() == action);
                 tablet->SetAction(nullptr);
                 touched = true;
             }
@@ -1122,7 +1122,7 @@ public:
         int lastTabletIndex,
         const TString& request)
     {
-        YCHECK(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
+        YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
 
         auto error = TError("User request %Qv interfered with the action", request);
         THashSet<TTablet*> touchedTablets;
@@ -1185,10 +1185,10 @@ public:
             case ETabletActionState::Preparing:
             case ETabletActionState::Failing:
                 // Transient states inside mutation. Nothing wrong should happen here.
-                Y_UNREACHABLE();
+                YT_ABORT();
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1206,7 +1206,7 @@ public:
             try {
                 DoTabletActionStateChanged(action);
             } catch (const std::exception& ex) {
-                YCHECK(action->GetState() != ETabletActionState::Failing);
+                YT_VERIFY(action->GetState() != ETabletActionState::Failing);
                 action->Error() = TError(ex).Sanitize();
                 if (action->GetState() != ETabletActionState::Unmounting) {
                     ChangeTabletActionState(action, ETabletActionState::Failing, false);
@@ -1236,7 +1236,7 @@ public:
             case ETabletActionState::Freezing: {
                 int freezingCount = 0;
                 for (const auto* tablet : action->Tablets()) {
-                    YCHECK(IsObjectAlive(tablet));
+                    YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Freezing) {
                         ++freezingCount;
                     }
@@ -1252,7 +1252,7 @@ public:
 
             case ETabletActionState::Frozen: {
                 for (auto* tablet : action->Tablets()) {
-                    YCHECK(IsObjectAlive(tablet));
+                    YT_VERIFY(IsObjectAlive(tablet));
                     DoUnmountTablet(tablet, false);
                 }
 
@@ -1263,7 +1263,7 @@ public:
             case ETabletActionState::Unmounting: {
                 int unmountingCount = 0;
                 for (const auto* tablet : action->Tablets()) {
-                    YCHECK(IsObjectAlive(tablet));
+                    YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Unmounting) {
                         ++unmountingCount;
                     }
@@ -1278,7 +1278,7 @@ public:
             }
 
             case ETabletActionState::Unmounted: {
-                YCHECK(!action->Tablets().empty());
+                YT_VERIFY(!action->Tablets().empty());
                 auto* table = action->Tablets().front()->GetTable();
                 if (!IsObjectAlive(table)) {
                     THROW_ERROR_EXCEPTION("Table is not alive");
@@ -1297,7 +1297,7 @@ public:
                         std::vector<TTablet*> oldTablets;
                         oldTablets.swap(action->Tablets());
                         for (auto* tablet : oldTablets) {
-                            YCHECK(tablet->GetExpectedState() == expectedState);
+                            YT_VERIFY(tablet->GetExpectedState() == expectedState);
                             tablet->SetAction(nullptr);
                         }
 
@@ -1320,7 +1320,7 @@ public:
                                 action->PivotKeys());
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
-                                YCHECK(IsObjectAlive(tablet));
+                                YT_VERIFY(IsObjectAlive(tablet));
                                 tablet->SetAction(action);
                             }
                             action->Tablets() = std::move(oldTablets);
@@ -1339,7 +1339,7 @@ public:
                     }
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
 
                 TTableMountConfigPtr mountConfig;
@@ -1389,7 +1389,7 @@ public:
             case ETabletActionState::Mounting: {
                 int mountedCount = 0;
                 for (const auto* tablet : action->Tablets()) {
-                    YCHECK(IsObjectAlive(tablet));
+                    YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Mounted ||
                         tablet->GetState() == ETabletState::Frozen)
                     {
@@ -1437,7 +1437,7 @@ public:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1501,7 +1501,7 @@ public:
                 tabletStatistics.MemorySize = 0;
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         for (const auto& entry : table->Replication()) {
             tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
@@ -1525,7 +1525,7 @@ public:
         TTimestamp mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot mount a static table");
@@ -1658,7 +1658,7 @@ public:
         TTimestamp mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -1782,7 +1782,7 @@ public:
             auto* tablet = pair.first;
             auto* cell = pair.second;
 
-            YCHECK(tablet->GetState() == ETabletState::Unmounted);
+            YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
             if (!IsCellActive(cell)) {
                 MountViaTabletAction(tablet, freeze);
@@ -1791,10 +1791,10 @@ public:
 
             int tabletIndex = tablet->GetIndex();
             const auto& chunkLists = table->GetChunkList()->Children();
-            YCHECK(allTablets.size() == chunkLists.size());
+            YT_VERIFY(allTablets.size() == chunkLists.size());
 
             tablet->SetCell(cell);
-            YCHECK(cell->Tablets().insert(tablet).second);
+            YT_VERIFY(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
@@ -1906,7 +1906,7 @@ public:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
         }
@@ -1939,7 +1939,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot unmount a static table");
@@ -1995,7 +1995,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -2014,7 +2014,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot remount a static table");
@@ -2057,7 +2057,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -2116,7 +2116,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot freeze a static table");
@@ -2157,7 +2157,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -2179,7 +2179,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto* cell = tablet->GetCell();
         auto state = tablet->GetState();
-        YCHECK(state == ETabletState::Mounted ||
+        YT_VERIFY(state == ETabletState::Mounted ||
             state == ETabletState::FrozenMounting ||
             state == ETabletState::Frozen ||
             state == ETabletState::Freezing);
@@ -2206,7 +2206,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot unfreeze a static table");
@@ -2246,7 +2246,7 @@ public:
         int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -2268,7 +2268,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto* cell = tablet->GetCell();
         auto state = tablet->GetState();
-        YCHECK(state == ETabletState::Mounted ||
+        YT_VERIFY(state == ETabletState::Mounted ||
             state == ETabletState::Frozen ||
             state == ETabletState::Unfreezing);
 
@@ -2301,7 +2301,7 @@ public:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : table->Tablets()) {
                 tablet->SetTable(nullptr);
-                YCHECK(tablet->GetState() == ETabletState::Unmounted);
+                YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
                 objectManager->UnrefObject(tablet);
             }
 
@@ -2337,7 +2337,7 @@ public:
         bool create = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         // First, check parameters with little knowledge of the table.
         // Primary master must ensure that the table could be created.
@@ -2417,7 +2417,7 @@ public:
         // Should not throw when table is created.
 
         auto& tablets = table->MutableTablets();
-        YCHECK(tablets.size() == table->GetChunkList()->Children().size());
+        YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
 
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
@@ -2561,7 +2561,7 @@ public:
                 NChunkClient::TReadRange readRange;
                 const auto& adjustedLower = std::max(lowerLimit, lowerPivot);
                 const auto& adjustedUpper = std::min(upperLimit, upperPivot);
-                YCHECK(adjustedLower < adjustedUpper);
+                YT_VERIFY(adjustedLower < adjustedUpper);
                 if (adjustedLower != EmptyKey()) {
                     readRange.LowerLimit().SetKey(adjustedLower);
                 }
@@ -2583,8 +2583,8 @@ public:
         const std::vector<TOwningKey>& pivotKeys)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+        YT_VERIFY(table->IsTrunk());
+        YT_VERIFY(!table->IsExternal());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2594,7 +2594,7 @@ public:
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         auto& tablets = table->MutableTablets();
-        YCHECK(tablets.size() == table->GetChunkList()->Children().size());
+        YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
 
@@ -2628,7 +2628,7 @@ public:
             if (table->IsReplicated()) {
                 const auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto* replica : replicatedTable->Replicas()) {
-                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
+                    YT_VERIFY(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
                 }
             }
         }
@@ -2882,7 +2882,7 @@ public:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         } catch (const std::exception& ex) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -2899,7 +2899,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(sourceTable->IsExternal() == clonedTable->IsExternal());
+        YT_VERIFY(sourceTable->IsExternal() == clonedTable->IsExternal());
 
         if (sourceTable->IsExternal()) {
             return;
@@ -2908,8 +2908,8 @@ public:
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
         auto* trunkClonedTable = clonedTable; // sic!
 
-        YCHECK(!trunkSourceTable->Tablets().empty());
-        YCHECK(trunkClonedTable->Tablets().empty());
+        YT_VERIFY(!trunkSourceTable->Tablets().empty());
+        YT_VERIFY(trunkClonedTable->Tablets().empty());
 
         try {
             switch (mode) {
@@ -2922,7 +2922,7 @@ public:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         } catch (const std::exception& ex) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -2938,9 +2938,9 @@ public:
         objectManager->UnrefObject(fakeClonedRootChunkList);
 
         const auto& sourceTablets = trunkSourceTable->Tablets();
-        YCHECK(!sourceTablets.empty());
+        YT_VERIFY(!sourceTablets.empty());
         auto& clonedTablets = trunkClonedTable->MutableTablets();
-        YCHECK(clonedTablets.empty());
+        YT_VERIFY(clonedTablets.empty());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* clonedRootChunkList = chunkManager->CreateChunkList(fakeClonedRootChunkList->GetKind());
@@ -2950,7 +2950,7 @@ public:
 
         clonedTablets.reserve(sourceTablets.size());
         auto* sourceRootChunkList = trunkSourceTable->GetChunkList();
-        YCHECK(sourceRootChunkList->Children().size() == sourceTablets.size());
+        YT_VERIFY(sourceRootChunkList->Children().size() == sourceTablets.size());
         for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
             const auto* sourceTablet = sourceTablets[index];
 
@@ -2973,7 +2973,7 @@ public:
     void ValidateMakeTableDynamic(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsDynamic()) {
             return;
@@ -2986,7 +2986,7 @@ public:
     void MakeTableDynamic(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->IsDynamic()) {
             return;
@@ -3058,7 +3058,7 @@ public:
     void ValidateMakeTableStatic(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             return;
@@ -3078,7 +3078,7 @@ public:
     void MakeTableStatic(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
             return;
@@ -3159,7 +3159,7 @@ public:
 
     void RemoveTabletCell(TTabletCell* cell, bool force)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing tablet cell (TabletCellId: %v, Force: %v)",
             cell->GetId(),
@@ -3193,7 +3193,7 @@ public:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -3304,8 +3304,8 @@ public:
                 newName);
         }
 
-        YCHECK(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
-        YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(newName, cellBundle)).second);
+        YT_VERIFY(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
+        YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(newName, cellBundle)).second);
         cellBundle->SetName(newName);
     }
 
@@ -3324,7 +3324,7 @@ public:
 
     void SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
     {
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
         if (table->GetTabletCellBundle() == cellBundle) {
             return;
@@ -3513,7 +3513,7 @@ private:
         NameToTabletCellBundleMap_.clear();
         for (const auto& pair : TabletCellBundleMap_) {
             auto* cellBundle = pair.second;
-            YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+            YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
         }
 
         AddressToCell_.clear();
@@ -3530,7 +3530,7 @@ private:
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
             if (transaction) {
-                YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+                YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
             }
 
             InitializeTabletCellStatistics(cell);
@@ -3623,7 +3623,7 @@ private:
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 }
             }
@@ -3643,7 +3643,7 @@ private:
                     continue;
                 }
 
-                YCHECK(table->TabletCountByState()[ETabletState::Unmounted] == table->Tablets().size());
+                YT_VERIFY(table->TabletCountByState()[ETabletState::Unmounted] == table->Tablets().size());
             }
         }
     }
@@ -3680,7 +3680,7 @@ private:
         if (!builtin) {
             InitBuiltins();
         }
-        YCHECK(builtin);
+        YT_VERIFY(builtin);
         return builtin;
     }
 
@@ -3772,7 +3772,7 @@ private:
 
     void SendTableStatisticsUpdates(TTableNode* table)
     {
-        YCHECK(!Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
             table->GetId());
@@ -3793,7 +3793,7 @@ private:
 
     void HydraSendTableStatisticsUpdates(NProto::TReqSendTableStatisticsUpdates* request)
     {
-        YCHECK(!Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
 
         auto remainingTableCount = request->table_count();
 
@@ -3828,7 +3828,7 @@ private:
 
     void HydraUpdateTableStatistics(NProto::TReqUpdateTableStatistics* request)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         std::vector<TTableId> tableIds;
         tableIds.reserve(request->entries_size());
@@ -3847,7 +3847,7 @@ private:
                 continue;
             }
 
-            YCHECK(IsTableType(node->GetType()));
+            YT_VERIFY(IsTableType(node->GetType()));
             auto* table = node->As<TTableNode>();
 
             if (entry.has_tablet_resource_usage()) {
@@ -3855,7 +3855,7 @@ private:
             }
 
             if (entry.has_data_statistics()) {
-                YCHECK(table->IsDynamic());
+                YT_VERIFY(table->IsDynamic());
                 table->SnapshotStatistics() = entry.data_statistics();
             }
 
@@ -3955,7 +3955,7 @@ private:
     void HydraSetTabletCellStatistics(NProto::TReqSetTabletCellStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -4113,7 +4113,7 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            YCHECK(expectedCells.insert(cell).second);
+            YT_VERIFY(expectedCells.insert(cell).second);
         }
 
         THashMap<TCellId, EPeerState> cellIdToPeerState;
@@ -4173,7 +4173,7 @@ private:
             cellIdToPeerState.emplace(cellId, state);
 
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-            YCHECK(actualCells.insert(cell).second);
+            YT_VERIFY(actualCells.insert(cell).second);
 
             // Populate slot.
             slot.Cell = cell;
@@ -4335,7 +4335,7 @@ private:
         auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
             return pair.first == cell;
         });
-        YCHECK(it == set.end());
+        YT_VERIFY(it == set.end());
         set.emplace_back(cell, peerId);
     }
 
@@ -4343,12 +4343,12 @@ private:
     {
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
-        YCHECK(cellsIt != AddressToCell_.end());
+        YT_VERIFY(cellsIt != AddressToCell_.end());
         auto& set = cellsIt->second;
         auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
             return pair.first == cell;
         });
-        YCHECK(it != set.end());
+        YT_VERIFY(it != set.end());
         set.erase(it);
         if (set.empty()) {
             AddressToCell_.erase(cellsIt);
@@ -4497,7 +4497,7 @@ private:
             return;
         }
 
-        YCHECK(IsTableType(node->GetType()));
+        YT_VERIFY(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
@@ -4522,7 +4522,7 @@ private:
 
     void HydraUpdateTabletState(TReqUpdateTabletState* request)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto tableId = FromProto<TTableId>(request->table_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -4531,7 +4531,7 @@ private:
             return;
         }
 
-        YCHECK(IsTableType(node->GetType()));
+        YT_VERIFY(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
@@ -4594,7 +4594,7 @@ private:
                 table->TabletCountByExpectedState()[ETabletState::Mounted] +
                 table->TabletCountByExpectedState()[ETabletState::Unmounted] +
                 table->TabletCountByExpectedState()[ETabletState::Frozen];
-            YCHECK(tabletCount == table->Tablets().size());
+            YT_VERIFY(tabletCount == table->Tablets().size());
         }
 
         auto actualState = table->ComputeActualTabletState();
@@ -4624,10 +4624,10 @@ private:
         }
 
         if (!table->IsForeign()) {
-            YCHECK(!table->GetPrimaryLastMountTransactionId());
+            YT_VERIFY(!table->GetPrimaryLastMountTransactionId());
             table->SetLastMountTransactionId(TTransactionId());
         } else {
-            YCHECK(Bootstrap_->IsSecondaryMaster());
+            YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
             // Check that primary master is waiting to clear LastMountTransactionId.
             bool clearLastMountTransactionId = table->GetLastMountTransactionId() &&
@@ -4872,7 +4872,7 @@ private:
             replicaInfo->GetState(),
             newState);
         replicaInfo->SetState(newState);
-        YCHECK(replica->TransitioningTablets().insert(tablet).second);
+        YT_VERIFY(replica->TransitioningTablets().insert(tablet).second);
     }
 
     void StopReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
@@ -4884,7 +4884,7 @@ private:
             replicaInfo->GetState(),
             newState);
         replicaInfo->SetState(newState);
-        YCHECK(replica->TransitioningTablets().erase(tablet) == 1);
+        YT_VERIFY(replica->TransitioningTablets().erase(tablet) == 1);
     }
 
     void CheckTransitioningReplicaTablets(TTableReplica* replica)
@@ -4916,7 +4916,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -4944,7 +4944,7 @@ private:
         UpdateTabletState(table);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        YCHECK(cell->Tablets().erase(tablet) == 1);
+        YT_VERIFY(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
 
         for (auto& pair : tablet->Replicas()) {
@@ -5049,7 +5049,7 @@ private:
 
     void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
     {
-        YCHECK(persistent);
+        YT_VERIFY(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -5085,7 +5085,7 @@ private:
 
                 const auto& descriptor = request->stores_to_add(0);
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                YCHECK(descriptor.has_starting_row_index());
+                YT_VERIFY(descriptor.has_starting_row_index());
                 if (tabletChunkList->Statistics().LogicalRowCount != descriptor.starting_row_index()) {
                     THROW_ERROR_EXCEPTION("Invalid starting row index of store %v in tablet %v: expected %v, got %v",
                         storeId,
@@ -5173,7 +5173,7 @@ private:
         auto lastCommitTimestamp = table->GetLastCommitTimestamp();
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            YCHECK(TypeFromId(storeId) != EObjectType::ChunkView);
+            YT_VERIFY(TypeFromId(storeId) != EObjectType::ChunkView);
             if (TypeFromId(storeId) == EObjectType::Chunk ||
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
@@ -5567,7 +5567,7 @@ private:
                     break;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             return result;
         };
@@ -5599,7 +5599,7 @@ private:
                     result += statistics.CompressedDataSize;
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             result += Config_->TabletDataSizeFootprint;
             return result;
@@ -5631,7 +5631,7 @@ private:
 
     void RestartPrerequisiteTransaction(TTabletCell* cell)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
@@ -5640,7 +5640,7 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
@@ -5656,9 +5656,9 @@ private:
             Format("Prerequisite for cell %v", cell->GetId()),
             EmptyAttributes());
 
-        YCHECK(!cell->GetPrerequisiteTransaction());
+        YT_VERIFY(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
-        YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
         TReqStartPrerequisiteTransactoin request;
         ToProto(request.mutable_cell_id(), cell->GetId());
@@ -5672,7 +5672,7 @@ private:
 
     void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransactoin* request)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -5692,7 +5692,7 @@ private:
             return;
         }
 
-        YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),
@@ -5710,7 +5710,7 @@ private:
 
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction) {
@@ -5718,7 +5718,7 @@ private:
         }
 
         // Suppress calling OnTransactionFinished.
-        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
+        YT_VERIFY(TransactionToCellMap_.erase(transaction) == 1);
         cell->SetPrerequisiteTransaction(nullptr);
 
         // Suppress calling OnTransactionFinished on secondary masters.
@@ -5741,7 +5741,7 @@ private:
 
     void HydraAbortPrerequisiteTransaction(TReqAbortPrerequisiteTransactoin* request)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -5826,7 +5826,7 @@ private:
             return;
         }
         if (!force) {
-            YCHECK(state == ETabletState::Mounted ||
+            YT_VERIFY(state == ETabletState::Mounted ||
                 state == ETabletState::Frozen ||
                 state == ETabletState::Freezing ||
                 state == ETabletState::Unmounting);
@@ -5835,7 +5835,7 @@ private:
         auto* table = tablet->GetTable();
 
         auto* cell = tablet->GetCell();
-        YCHECK(cell);
+        YT_VERIFY(cell);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
             table->GetId(),
@@ -6021,7 +6021,7 @@ private:
         int* last)
     {
         auto error = TryParseTabletRange(table, first, last);
-        YCHECK(error.IsOK());
+        YT_VERIFY(error.IsOK());
     }
 
     IMapNodePtr GetCellMapNode()
@@ -6185,8 +6185,8 @@ private:
         std::vector<TTablet*>& tablets,
         const NChunkClient::TReadRange readRange)
     {
-        YCHECK(readRange.LowerLimit().HasKey());
-        YCHECK(readRange.UpperLimit().HasKey());
+        YT_VERIFY(readRange.LowerLimit().HasKey());
+        YT_VERIFY(readRange.UpperLimit().HasKey());
         const auto& minKey = readRange.LowerLimit().GetKey();
         const auto& maxKey = readRange.UpperLimit().GetKey();
 

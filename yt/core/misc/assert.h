@@ -1,9 +1,5 @@
 #pragma once
 
-// Forcefully override the Y_ASSERT macro.
-#include <util/system/yassert.h>
-#undef Y_ASSERT
-
 #include <util/system/compiler.h>
 
 namespace NYT {
@@ -12,6 +8,7 @@ namespace NYT {
 
 namespace NDetail {
 
+[[noreturn]]
 void AssertTrapImpl(
     const char* trapType,
     const char* expr,
@@ -21,60 +18,53 @@ void AssertTrapImpl(
 } // namespace NDetail
 
 #ifdef __GNUC__
-    #define BUILTIN_UNREACHABLE() __builtin_unreachable()
-    #define BUILTIN_TRAP()        __builtin_trap()
+    #define YT_BUILTIN_TRAP()  __builtin_trap()
 #else
-    #define BUILTIN_UNREACHABLE() std::terminate()
-    #define BUILTIN_TRAP()        std::terminate()
+    #define YT_BUILTIN_TRAP()  std::terminate()
 #endif
 
-#define ASSERT_TRAP(trapType, expr) \
+#define YT_ASSERT_TRAP(trapType, expr) \
     ::NYT::NDetail::AssertTrapImpl(trapType, expr, __FILE__, __LINE__); \
-    BUILTIN_UNREACHABLE() \
-
-#undef Y_ASSERT
+    Y_UNREACHABLE() \
 
 #ifdef NDEBUG
-    #define Y_ASSERT(expr) \
+    #define YT_ASSERT(expr) \
         do { \
             if (false) { \
                 (void) (expr); \
             } \
         } while (false)
 #else
-    #define Y_ASSERT(expr) \
+    #define YT_ASSERT(expr) \
         do { \
             if (Y_UNLIKELY(!(expr))) { \
-                ASSERT_TRAP("Y_ASSERT", #expr); \
+                YT_ASSERT_TRAP("YT_ASSERT", #expr); \
             } \
         } while (false)
 #endif
 
-//! Same as |Y_ASSERT| but evaluates and checks the expression in both release and debug mode.
-#define YCHECK(expr) \
+//! Same as |YT_ASSERT| but evaluates and checks the expression in both release and debug mode.
+#define YT_VERIFY(expr) \
     do { \
         if (Y_UNLIKELY(!(expr))) { \
-            ASSERT_TRAP("YCHECK", #expr); \
+            YT_ASSERT_TRAP("YT_VERIFY", #expr); \
         } \
     } while (false)
 
-//! Unreachable code marker. Abnormally terminates the current process.
-#ifdef Y_UNREACHABLE
-#undef Y_UNREACHABLE
-#endif
+//! Fatal error code marker. Abnormally terminates the current process.
 #ifdef YT_COMPILING_UDF
-    #define Y_UNREACHABLE() __builtin_unreachable()
+    #define YT_ABORT() __YT_BUILTIN_ABORT()
 #else
-    #define Y_UNREACHABLE() \
+    #define YT_ABORT() \
         do { \
-            ASSERT_TRAP("Y_UNREACHABLE", ""); \
+            YT_ASSERT_TRAP("YT_ABORT", ""); \
         } while (false)
 #endif
 
 //! Unimplemented code marker. Abnormally terminates the current process.
-#define Y_UNIMPLEMENTED() \
+#define YT_UNIMPLEMENTED() \
     do { \
-        ASSERT_TRAP("Y_UNIMPLEMENTED", ""); \
+        YT_ASSERT_TRAP("YT_UNIMPLEMENTED", ""); \
     } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////

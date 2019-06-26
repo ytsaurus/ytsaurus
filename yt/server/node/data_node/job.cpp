@@ -165,17 +165,17 @@ public:
 
     std::vector<int> GetPorts() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void SetPorts(const std::vector<int>&) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SetResourceUsage(const TNodeResources& /*newUsage*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TJobResult GetResult() const override
@@ -185,7 +185,7 @@ public:
 
     virtual void SetResult(const TJobResult& /*result*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual double GetProgress() const override
@@ -210,17 +210,17 @@ public:
 
     virtual void SetStderr(const TString& value) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SetFailContext(const TString& value) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SetProfile(const TJobProfile& value) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TYsonString GetStatistics() const override
@@ -230,7 +230,7 @@ public:
 
     virtual void SetStatistics(const TYsonString& /*statistics*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TInstant GetStartTime() const override
@@ -260,12 +260,12 @@ public:
 
     virtual TInstant GetStatisticsLastSendTime() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ResetStatisticsLastSendTime() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
@@ -305,32 +305,32 @@ public:
 
     virtual void OnJobPrepared() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ReportStatistics(TJobStatistics&&) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ReportSpec() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ReportStderr() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ReportFailContext() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ReportProfile() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool GetStored() const override
@@ -340,7 +340,7 @@ public:
 
     virtual void SetStored(bool /* value */) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 protected:
@@ -514,7 +514,7 @@ private:
             MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
         // Compute target medium index.
-        YCHECK(!targetReplicas.empty());
+        YT_VERIFY(!targetReplicas.empty());
         int targetMediumIndex = targetReplicas[0].GetMediumIndex();
 
         // Find chunk on the highest priority medium.
@@ -609,7 +609,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -653,7 +653,7 @@ private:
         auto decommission = JobSpecExt_.decommission();
 
         // Compute target medium index.
-        YCHECK(!targetReplicas.empty());
+        YT_VERIFY(!targetReplicas.empty());
         int targetMediumIndex = targetReplicas[0].GetMediumIndex();
 
         /// Compute erasured parts.
@@ -687,7 +687,7 @@ private:
                     partReplicas.push_back(replica);
                 }
             }
-            YCHECK(!partReplicas.empty());
+            YT_VERIFY(!partReplicas.empty());
 
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, partIndex);
             auto reader = CreateReplicationReader(
@@ -942,7 +942,7 @@ IJobPtr CreateChunkJob(
                 bootstrap);
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

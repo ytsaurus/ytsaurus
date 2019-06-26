@@ -33,7 +33,7 @@ public:
         , TableSchema_(schema)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     {
-        YCHECK(Underlying_);
+        YT_VERIFY(Underlying_);
         RowsetDescriptor_.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
         RowsetDescriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
@@ -69,7 +69,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
         rows->clear();
         StoredRows_.clear();
 

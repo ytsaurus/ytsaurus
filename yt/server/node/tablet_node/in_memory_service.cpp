@@ -103,7 +103,7 @@ private:
 
         YT_LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
 
-        YCHECK(SessionMap_.emplace(sessionId, session).second);
+        YT_VERIFY(SessionMap_.emplace(sessionId, session).second);
 
         ToProto(response->mutable_session_id(), sessionId);
 
@@ -150,7 +150,7 @@ private:
 
         if (auto session = FindSession(sessionId)) {
             TLeaseManager::CloseLease(session->Lease);
-            YCHECK(SessionMap_.erase(sessionId));
+            YT_VERIFY(SessionMap_.erase(sessionId));
 
             YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
         } else {
@@ -227,7 +227,7 @@ private:
         YT_LOG_INFO("Session lease expired (SessionId: %v)",
             sessionId);
 
-        YCHECK(SessionMap_.erase(sessionId));
+        YT_VERIFY(SessionMap_.erase(sessionId));
     }
 
     TInMemorySessionPtr FindSession(TInMemorySessionId sessionId)

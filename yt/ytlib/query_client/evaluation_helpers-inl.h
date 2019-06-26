@@ -22,7 +22,7 @@ int TCGVariables::AddOpaque(TArgs&& ... args)
     };
 
     std::unique_ptr<void, void(*)(void*)> holder(pointer, deleter);
-    YCHECK(holder);
+    YT_VERIFY(holder);
 
     OpaqueValues_.push_back(std::move(holder));
     OpaquePointers_.push_back(pointer);

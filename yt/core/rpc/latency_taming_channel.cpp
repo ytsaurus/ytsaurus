@@ -154,12 +154,12 @@ public:
 
     virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -255,12 +255,12 @@ void TLatencyTamingResponseHandler::HandleResponse(TSharedRefArray message)
 
 void TLatencyTamingResponseHandler::HandleStreamingPayload(const TStreamingPayload& /*payload*/)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void TLatencyTamingResponseHandler::HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,8 +342,8 @@ IChannelPtr CreateLatencyTamingChannel(
     IChannelPtr backupChannel,
     TDuration delay)
 {
-    YCHECK(primaryChannel);
-    YCHECK(backupChannel);
+    YT_VERIFY(primaryChannel);
+    YT_VERIFY(backupChannel);
 
     return New<TLatencyTamingChannel>(
         std::move(primaryChannel),
