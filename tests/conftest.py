@@ -234,7 +234,7 @@ def prepare_yp_test_sandbox():
 
 def yatest_save_sandbox(sandbox_path):
     if yatest_common is not None:
-        arcadia_interop.save_sandbox(sandbox_path, os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
+        arcadia_interop.save_sandbox(sandbox_path, os.path.basename(sandbox_path))
 
 
 class YpOrchidClient(object):
