@@ -14,6 +14,8 @@
 
 #include <yt/core/rpc/authenticator.h>
 
+#include <yt/server/http_proxy/http_authenticator.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,13 +72,15 @@ private:
     TInstant StartTime_ = TInstant::Now();
     TDuration Duration_;
 
+    TString Parameters_;
+
     std::optional<TSemaphoreGuard> SemaphoreGuard_;
 
     NDriver::TDriverRequest DriverRequest_;
     std::optional<NDriver::TCommandDescriptor> Descriptor_;
 
     std::optional<int> ApiVersion_;
-    std::optional<NAuth::TAuthenticationResult> Auth_;
+    std::optional<TAuthenticationTokenResult> Auth_;
     std::optional<NFormats::TFormat> HeadersFormat_;
     std::optional<NFormats::TFormat> InputFormat_;
     std::optional<TContentEncoding> InputContentEncoding_;
