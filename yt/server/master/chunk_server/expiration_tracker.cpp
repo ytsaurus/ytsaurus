@@ -38,7 +38,7 @@ void TExpirationTracker::Start()
     ExpiredChunks_.clear();
     YT_LOG_INFO("Finished registering staged chunk expiration");
 
-    YCHECK(!CheckExecutor_);
+    YT_VERIFY(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ChunkExpirationTracker),
         BIND(&TExpirationTracker::OnCheck, MakeWeak(this)));
@@ -73,7 +73,7 @@ void TExpirationTracker::OnChunkStaged(TChunk* chunk)
     }
 
     auto expirationTime = chunk->GetExpirationTime();
-    YCHECK(expirationTime);
+    YT_VERIFY(expirationTime);
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk expiration time set (ChunkId: %v, ExpirationTime: %v)",
         chunk->GetId(),
         expirationTime);
@@ -123,7 +123,7 @@ void TExpirationTracker::OnCheck()
     auto now = TInstant::Now();
     while (!ExpirationMap_.empty() && request.chunk_ids_size() < GetDynamicConfig()->MaxExpiredChunksUnstagesPerCommit) {
         auto [expirationTime, chunk] = *ExpirationMap_.begin();
-        Y_ASSERT(chunk->GetExpirationIterator() == ExpirationMap_.begin());
+        YT_ASSERT(chunk->GetExpirationIterator() == ExpirationMap_.begin());
 
         if (expirationTime > now) {
             break;
@@ -131,7 +131,7 @@ void TExpirationTracker::OnCheck()
 
         ToProto(request.add_chunk_ids(), chunk->GetId());
         UnregisterChunkExpiration(chunk);
-        YCHECK(ExpiredChunks_.insert(chunk).second);
+        YT_VERIFY(ExpiredChunks_.insert(chunk).second);
     }
 
     if (request.chunk_ids_size() == 0) {
