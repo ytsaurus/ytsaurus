@@ -180,17 +180,17 @@ bool TContext::TryParseUser()
     Auth_ = authResult.Value();
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
-        DriverRequest_.AuthenticatedUser = Auth_->Login;
+        DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(Auth_->Login)) {
+    if (Api_->IsUserBannedInCache(Auth_->Result.Login)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyFakeError(Format("User %Qv is banned", Auth_->Login));
+        ReplyFakeError(Format("User %Qv is banned", Auth_->Result.Login));
         return false;
     }
 
-    DriverRequest_.AuthenticatedUser = Auth_->Login;
+    DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
     return true;
 }
 
@@ -536,13 +536,14 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     DriverRequest_.Id = Request_->GetRequestId();
+    Parameters_ = ConvertToYsonString(
+        HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+        EYsonFormat::Text).GetData();
     YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
-        ConvertToYsonString(
-            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
-            EYsonFormat::Text).GetData(),
+        Parameters_,
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
         InputContentEncoding_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
@@ -550,42 +551,19 @@ void TContext::LogRequest()
 }
 
 void TContext::LogStructuredRequest() {
-    /*
-    request_id - done
-    user - done
-    authenticated_from - what
-    token_hash -
-    command - done
-    parameters - не забыть удалить секреты - done
-    correlation_id - done
-    trace_id - done
-    user_agent - done
-    method - done
-    path - done
-    http_code - done
-    error_code - done
-    error - done
-    remote_address - done
-    l7_request_id - done
-    l7_real_ip - done
-    duration - done
-    start_time - done
-    in_bytes - done
-    out_bytes - done
-    */
-    //set print pretty on
-    //set print object
-    auto correlation_id = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
+    std::optional<TString> correlationId;
+    if (auto correlationHeader = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
+        correlationId = *correlationHeader;
+    }
     auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
         .Item("user").Value(DriverRequest_.AuthenticatedUser)
-        .Item("authenticated_from").Value(Auth_->Realm)
-        .Item("parameters").Value(ConvertToYsonString(
-            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
-            EYsonFormat::Text).GetData())
-        .Item("correlation_id").Value(correlation_id ? *correlation_id : "<null>")
+        .Item("authenticated_from").Value(Auth_->Result.Login)
+        .Item("token_hash").Value(Auth_->TokenHash)
+        .Item("parameters").Value(Parameters_)
+        .Item("correlation_id").Value(correlationId)
         .Item("trace_id").Value(NTracing::GetCurrentTraceId())
         .Item("user_agent").Value(GetUserAgent(Request_))
         .Item("path").Value(path)

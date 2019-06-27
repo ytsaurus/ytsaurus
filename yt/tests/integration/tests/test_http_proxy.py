@@ -123,15 +123,8 @@ class TestHttpProxy(YTEnvSetup):
         log_path = self.path_to_run + "/logs/http-proxy-0.json.log"
         wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
 
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/config".format(monitoring_port)
-
-        config = requests.get(config_url).json()
-        path = config["logging"]["writers"]["json"]["file_name"]
-        assert log_path == path
-        fd = open(path, "r")
-        lines = fd.readlines()
-        for line in lines:
-            line_json = json.loads(line)
-            if "path" in line_json and line_json["path"] == "//sys":
-                assert line_json["command"] == "list"
+        with open(log_path, "r") as fd:
+            for line in fd:
+                line_json = json.loads(line)
+                if line_json.get("path") == "//sys":
+                    assert line_json["command"] == "list"

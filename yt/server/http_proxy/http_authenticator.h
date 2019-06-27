@@ -12,6 +12,12 @@
 
 namespace NYT::NHttpProxy {
 
+struct TAuthenticationTokenResult
+{
+    NAuth::TAuthenticationResult Result;
+    TString TokenHash;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpAuthenticator
@@ -27,7 +33,7 @@ public:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
-    TErrorOr<NAuth::TAuthenticationResult> Authenticate(
+    TErrorOr<TAuthenticationTokenResult> Authenticate(
         const NHttp::IRequestPtr& request,
         bool disableCsrfTokenCheck = false);
 

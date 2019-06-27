@@ -11,6 +11,8 @@
 
 #include <util/string/strip.h>
 
+#include <yt/ytlib/auth/helpers.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NAuth;
@@ -46,13 +48,13 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         ProtectCsrfToken(rsp);
 
         auto csrfSecret = Config_->GetCsrfSecret();
-        auto csrfToken = SignCsrfToken(result.Value().Login, csrfSecret, TInstant::Now());
+        auto csrfToken = SignCsrfToken(result.Value().Result.Login, csrfSecret, TInstant::Now());
 
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("login").Value(result.Value().Login)
-                    .Item("realm").Value(result.Value().Realm)
+                    .Item("login").Value(result.Value().Result.Login)
+                    .Item("realm").Value(result.Value().Result.Realm)
                     .Item("csrf_token").Value(csrfToken)
                 .EndMap();
         });
@@ -65,12 +67,12 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
     }
 }
 
-TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
+TErrorOr<TAuthenticationTokenResult> THttpAuthenticator::Authenticate(
     const IRequestPtr& request,
     bool disableCsrfTokenCheck)
 {
     if (!Config_->RequireAuthentication) {
-        return TAuthenticationResult{"root", "YT"};
+        return TAuthenticationTokenResult{TAuthenticationResult{"root", "YT"}, TString()};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -83,6 +85,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
     }
 
     auto authorizationHeader = request->GetHeaders()->Find("Authorization");
+    auto tokenHash = TString();
     if (authorizationHeader) {
         TStringBuf prefix = "OAuth ";
         if (!authorizationHeader->StartsWith(prefix)) {
@@ -92,8 +95,14 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         TTokenCredentials credentials;
         credentials.UserIP = userIP;
         credentials.Token = authorizationHeader->substr(prefix.size());
+        tokenHash = GetCryptoHash(credentials.Token);
         if (!credentials.Token.empty()) {
-            return WaitFor(TokenAuthenticator_->Authenticate(credentials));
+            auto rsp = WaitFor(TokenAuthenticator_->Authenticate(credentials));
+            if (!rsp.IsOK()) {
+                return TError(rsp);
+            } else {
+                return TAuthenticationTokenResult{rsp.Value(), tokenHash};
+            }
         }
     }
 
@@ -114,7 +123,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
 
         auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
         if (!authResult.IsOK()) {
-            return authResult;
+            return TError(authResult);
         }
 
         if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
@@ -134,7 +143,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
             }
         }
 
-        return authResult;
+        return TAuthenticationTokenResult{authResult.Value(), tokenHash};
     }
 
     return TError(NRpc::EErrorCode::InvalidCredentials, "Client is missing credentials");
