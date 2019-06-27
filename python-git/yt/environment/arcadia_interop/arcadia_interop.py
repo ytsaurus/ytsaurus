@@ -27,15 +27,15 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None):
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        binary_path = get_binary_path("{0}yt/{1}/yt/server/{2}/ytserver-{3}"
+        binary_path = get_binary_path("yt/server/{2}/ytserver-{3}"
                                       .format(source_prefix, YT_ABI, server_dir, binary))
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
-    watcher_path = get_binary_path(source_prefix + "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    watcher_path = get_binary_path(source_prefix + "python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    logrotate_path = get_binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
-    os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
+#    logrotate_path = get_binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
+#    os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
 
 def prepare_yt_environment(destination, arcadia_root=None):
     bin_dir = os.path.join(destination, "bin")
