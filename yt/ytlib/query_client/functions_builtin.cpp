@@ -434,9 +434,10 @@ public:
                                     });
                                 builder->CreateMemCpy(
                                     permanentData,
+                                    1,
                                     newData,
-                                    valueLength,
-                                    1);
+                                    1,
+                                    valueLength);
                                 return TCGValue::CreateFromValue(
                                     builder,
                                     builder->getFalse(),
@@ -500,9 +501,10 @@ public:
                                                     });
                                                 builder->CreateMemCpy(
                                                     permanentData,
+                                                    1,
                                                     newData,
-                                                    valueLength,
-                                                    1);
+                                                    1,
+                                                    valueLength);
                                                 return permanentData;
                                             },
                                             [&] (TCGBaseContext& builder) {
@@ -557,9 +559,10 @@ public:
                                                     });
                                                 builder->CreateMemCpy(
                                                     permanentData,
+                                                    1,
                                                     newData,
-                                                    valueLength,
-                                                    1);
+                                                    1,
+                                                    valueLength);
                                                 return permanentData;
                                             },
                                             [&] (TCGBaseContext& builder) {
