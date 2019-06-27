@@ -49,7 +49,7 @@ def start_yp_local():
         try:
             cli.check_output(["stop", sandbox_name])
         finally:
-            yatest_save_sandbox(sandbox_name)
+            yatest_save_sandbox(sandbox_path)
 
 
 class TestLocalCli(object):
