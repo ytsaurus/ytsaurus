@@ -12,7 +12,6 @@ extern const NLogging::TLogger HttpProxyLogger;
 extern const NProfiling::TProfiler HttpProxyProfiler;
 
 extern const NLogging::TLogger HttpStructuredProxyLogger;
-extern const NProfiling::TProfiler HttpStructuredProxyProfiler;
 
 extern const TString ClickHouseUserName;
 

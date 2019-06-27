@@ -557,7 +557,7 @@ void TContext::LogStructuredRequest() {
     token_hash -
     command - done
     parameters - не забыть удалить секреты - done
-    correlation_id - ??
+    correlation_id - done
     trace_id - done
     user_agent - done
     method - done
@@ -581,17 +581,19 @@ void TContext::LogStructuredRequest() {
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
         .Item("user").Value(DriverRequest_.AuthenticatedUser)
+        .Item("authenticated_from").Value(Auth_->Realm)
         .Item("parameters").Value(ConvertToYsonString(
-                    HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
-                    EYsonFormat::Text).GetData())
+            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+            EYsonFormat::Text).GetData())
         .Item("correlation_id").Value(correlation_id ? *correlation_id : "<null>")
-        .Item("trace_id").Value(GetTraceId(Request_))
+        .Item("trace_id").Value(NTracing::GetCurrentTraceId())
         .Item("user_agent").Value(GetUserAgent(Request_))
         .Item("path").Value(path)
+        .Item("http_path").Value(Request_->GetUrl().Path)
         .Item("method").Value(Request_->GetMethod())
         .Item("http_code").Value(Response_->GetStatus())
         .Item("error_code").Value(static_cast<int>(Error_.GetCode()))
-        .Item("error").Value(Error_.GetMessage())
+        .Item("error").Value(Error_)
         .Item("remote_address").Value(ToString(Request_->GetRemoteAddress()))
         .Item("l7_request_id").Value(GetBalancerRequestId(Request_))
         .Item("l7_real_ip").Value(GetBalancerRealIP(Request_))
@@ -755,6 +757,19 @@ TSharedRef DumpError(const TError& error)
 
 void TContext::Finalize()
 {
+    Duration_ = TInstant::Now() - StartTime_;
+
+    LogStructuredRequest();
+
+    Api_->IncrementProfilingCounters(
+            DriverRequest_.AuthenticatedUser,
+            DriverRequest_.CommandName,
+            Response_->GetStatus(),
+            Error_.GetCode(),
+            Duration_,
+            Request_->GetReadByteCount(),
+            Response_->GetWriteByteCount());
+
     if (IsClientBuggy(Request_)) {
         try {
             while (true) {
@@ -806,19 +821,6 @@ void TContext::Finalize()
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
-
-    Duration_ = TInstant::Now() - StartTime_;
-
-    LogStructuredRequest();
-
-    Api_->IncrementProfilingCounters(
-        DriverRequest_.AuthenticatedUser,
-        DriverRequest_.CommandName,
-        Response_->GetStatus(),
-        Error_.GetCode(),
-        Duration_,
-        Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount());
 }
 
 template <class TJsonProducer>

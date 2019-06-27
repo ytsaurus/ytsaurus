@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 import yt.packages.requests as requests
+import json
 
 ##################################################################
 
@@ -116,12 +117,18 @@ class TestHttpProxy(YTEnvSetup):
                 assert proxy.get("state") == "offline"
 
     def test_structured_logs(self):
-        import json
-        rsp = requests.get(self.proxy_address() + "/api/v3/list?path=//sys").json()
+        client = self.Env.create_client()
+        client.list("//sys")
+
+        log_path = self.path_to_run + "/logs/http-proxy-0.json.log"
+        wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
+
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/config".format(monitoring_port)
+
         config = requests.get(config_url).json()
         path = config["logging"]["writers"]["json"]["file_name"]
+        assert log_path == path
         fd = open(path, "r")
         lines = fd.readlines()
         for line in lines:
