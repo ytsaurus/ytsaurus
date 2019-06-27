@@ -848,10 +848,10 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 17, "d": 2.71})
 
         with Clique(1) as clique:
-            assert clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"] == self._to_description(
-                [{"name": "a", "type": "Nullable(Int64)"}])
-            assert clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")["data"] == self._to_description(
-                [{"name": "a", "type": "Nullable(Int64)"}])
+            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"]) == \
+                [{"name": "a", "type": "Nullable(Int64)"}]
+            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")["data"]) == \
+                [{"name": "a", "type": "Nullable(Int64)"}]
             with pytest.raises(YtError):
                 clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
 
