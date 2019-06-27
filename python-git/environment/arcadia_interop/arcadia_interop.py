@@ -99,5 +99,4 @@ def save_sandbox(sandbox_path, output_subpath):
         return
     output_path = os.path.join(yatest_common.output_path(), output_subpath)
     if output_path != sandbox_path:
-        # TODO(ignat): Should we use shutil.move here?
-        shutil.copytree(sandbox_path, output_path)
+        shutil.move(sandbox_path, output_path)

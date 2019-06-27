@@ -159,7 +159,10 @@ class YtTestEnvironment(object):
                               allow_chunk_storage_in_tmpfs=True,
                               **env_options)
 
-        self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False, use_new_proxy=True)
+        try:
+            self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False, use_new_proxy=True)
+        except:
+            self.save_sandbox()
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
@@ -223,7 +226,9 @@ class YtTestEnvironment(object):
                 shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
             else:
                 shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
+        self.save_sandbox()
 
+    def save_sandbox(self):
         try:
             arcadia_interop.save_sandbox(self.sandbox_dir, self.uniq_dir_name)
         except:
