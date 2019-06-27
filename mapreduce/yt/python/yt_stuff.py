@@ -233,7 +233,7 @@ class YtStuff(object):
                 new_file_path = file_path
                 if gzipped:
                     new_file_path = new_file_path[:-3]
-                new_file_path = new_file_path + "." + str(index + 1)
+                new_file_path = new_file_path + ".split." + str(index + 1)
                 if os.path.exists(new_file_path):
                     random_suffix = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
                     new_file_path = new_file_path + "." + random_suffix
