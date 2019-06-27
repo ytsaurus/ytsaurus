@@ -67,9 +67,9 @@ public:
                 Bootstrap_->GetRootClient(),
                 Path_,
                 NApi::TTableReaderOptions {
-                    .EnableRangeIndex = false,
-                    .EnableRowIndex = false,
                     .EnableTableIndex = false,
+                    .EnableRowIndex = false,
+                    .EnableRangeIndex = false
                 },
                 NTableClient::TNameTable::FromSchema(table->TableSchema),
                 NTableClient::TColumnFilter(table->TableSchema.Columns().size())))
