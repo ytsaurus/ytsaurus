@@ -126,6 +126,10 @@ std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
 
 void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
 {
+    if (StartedJobsPerPoolTree_.empty() || Disabled_) {
+        return;
+    }
+
     THashMap<TString, TDuration> treeAverageJobDurations;
     for (const auto& pair : StartedJobsPerPoolTree_) {
         const auto& treeId = pair.first;
