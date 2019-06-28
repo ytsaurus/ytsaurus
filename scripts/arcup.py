@@ -290,7 +290,7 @@ class ReplaceSvnStuffStep(Step):
             #   - restore .git file
             #   - create orphan branch (so our commit will not have ancestors,
             #     check https://git-scm.com/docs/git-checkout#git-checkout---orphanltnewbranchgt)
-            #   - commit all the stuff svn checkouted into this orphan branch
+            #   - commit all the stuff svn checked out into this orphan branch
             #
             submodule_git_file_name = {}
             for submodule in arcadia_submodules:
@@ -711,7 +711,7 @@ def do_continue():
     ReplaceSvnStuffStep(PROJECT_PATH).run()
     RebaseAllArcadiaSubmodulesStep(PROJECT_PATH).run()
     print(
-        "All dependencies are checkouted.\n"
+        "All dependencies are checked out.\n"
         "Now you can use:\n"
         " $ {argv0} complete\n"
         "to push arcadia-dependency submodules and commit changes to main git repo.\n".format(argv0=ARGV0),
