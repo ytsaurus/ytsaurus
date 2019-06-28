@@ -92,7 +92,7 @@ private:
                     case EValueType::Double:
                     case EValueType::Boolean: {
                         auto field = ConvertToField(value);
-                        block.getByPosition(index).column->assumeMutable()->insert(field);
+                        block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
                         break;
                     }
                     default:

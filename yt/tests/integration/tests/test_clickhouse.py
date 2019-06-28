@@ -352,6 +352,16 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
 
+    def test_CHYT_143(self):
+        # Issues with chunk name table ids, read schema ids and unversioned value row indices.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "string"}, {"name": "a", "type": "int64"}]})
+        write_table("//tmp/t1", [{"a": 42, "b": "asd"}])
+        write_table("//tmp/t2", [{"b": "qwe", "a": 27}])
+        with Clique(1) as clique:
+            result = clique.make_query("select * from concatYtTables('//tmp/t1', '//tmp/t2')")["data"]
+            assert len(result) == 2
+            assert len(result[0]) == 2
 
 class TestMutations(ClickHouseTestBase):
     def setup(self):
