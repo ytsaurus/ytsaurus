@@ -67,11 +67,14 @@ private:
     const size_t PartSize_;
     int WrittenPartCount_ = 0;
     bool Finished_ = false;
+    std::atomic_bool Failed_ = { false };
 
     // Table column ids.
     std::vector<int> BlobIdColumnIds_;
     int PartIndexColumnId_ = -1;
     int DataColumnId_ = -1;
+
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
