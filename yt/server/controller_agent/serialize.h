@@ -29,6 +29,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // It is interntionally differ from version in stable/19.5.
     ((JobMetricsAggregationType) (300107))
     ((SaveJobPhase)           (300108))
+    ((JobSplitterPrepareDuration) (300109))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
