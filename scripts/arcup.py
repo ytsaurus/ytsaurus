@@ -273,7 +273,7 @@ class ReplaceSvnStuffStep(Step):
             svn.call("update", "--revision", str(revision), *arcadia_updatable_files)
 
             env = os.environ.copy()
-            env["YA_CACHE"] = tmp_ya_cache
+            env["YA_CACHE_DIR"] = tmp_ya_cache
 
             for additional_args in YALL_BUILD_MODES:
                 subprocess.check_call([
@@ -374,6 +374,7 @@ class ReplaceSvnStuffStep(Step):
                 )
 
             force_remove(".svn")
+            assert os.listdir(tmp_ya_cache)
             force_remove(tmp_ya_cache)
 
             return result
