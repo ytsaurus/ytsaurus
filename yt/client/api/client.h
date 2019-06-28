@@ -422,6 +422,7 @@ struct TVersionedLookupRowsOptions
 
 struct TSelectRowsOptions
     : public TTabletReadOptions
+    , public TSuppressableAccessTrackingOptions
 {
     //! If null then connection defaults are used.
     std::optional<i64> InputRowLimit;

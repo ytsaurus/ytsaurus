@@ -753,6 +753,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     if (original.ExecutionPool) {
         serialized->set_execution_pool(*original.ExecutionPool);
     }
+    serialized->set_suppress_access_tracking(original.SuppressAccessTracking);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -781,6 +782,10 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->Deadline = serialized.has_deadline()
         ? FromProto<TInstant>(serialized.deadline())
         : TInstant::Max();
+
+    if (serialized.has_suppress_access_tracking()) {
+        original->SuppressAccessTracking = serialized.suppress_access_tracking();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

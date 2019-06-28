@@ -222,7 +222,8 @@ public:
     void ValidateAndRegisterTabletSnapshot(
         TTabletId tabletId,
         const i64 mountRevision,
-        const TTimestamp timestamp)
+        const TTimestamp timestamp,
+        bool suppressAccessTracking)
     {
         auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId);
 
@@ -247,7 +248,9 @@ public:
             ProfilerTags_ = tabletSnapshot->ProfilerTags;
         }
 
-        tabletSnapshot->TabletRuntimeData->AccessTime = NProfiling::GetInstant();
+        if (!suppressAccessTracking) {
+            tabletSnapshot->TabletRuntimeData->AccessTime = NProfiling::GetInstant();
+        }
     }
 
     NProfiling::TTagIdList GetProfilerTags()
@@ -337,7 +340,8 @@ public:
                 TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
                     source.Id,
                     source.MountRevision,
-                    Options_.Timestamp);
+                    Options_.Timestamp,
+                    Options_.SuppressAccessTracking);
             } else {
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
                     TypeFromId(source.Id));
