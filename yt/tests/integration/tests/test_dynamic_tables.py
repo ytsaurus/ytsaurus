@@ -1189,6 +1189,23 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 assert len(chunk_view) == 1
                 assert chunk_view[0] == table_chunks[0]
 
+    def test_select_rows_access_tracking(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1")
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+
+        t1_access_time = get("//tmp/t1/@access_time")
+        t2_access_time = get("//tmp/t2/@access_time")
+
+        select_rows("* from [//tmp/t1]", suppress_access_tracking=True)
+        select_rows("* from [//tmp/t2]")
+
+        # Wait for node heartbeat to arrive.
+        wait(lambda: get("//tmp/t2/@access_time") != t2_access_time)
+        assert get("//tmp/t1/@access_time") == t1_access_time
+
 
 ##################################################################
 

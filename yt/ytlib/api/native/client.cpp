@@ -2065,6 +2065,7 @@ private:
         queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
         queryOptions.ExecutionPool = options.ExecutionPool;
         queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
+        queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
 
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
@@ -3914,6 +3915,7 @@ private:
         }
         SetTransactionId(req, options, true);
         SetCachingHeader(req, options);
+        NCypressClient::SetSuppressAccessTracking(req, true);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

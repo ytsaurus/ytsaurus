@@ -121,6 +121,7 @@ struct TQueryOptions
     TWorkloadDescriptor WorkloadDescriptor;
     bool AllowFullScan = true;
     TInstant Deadline = TInstant::Max();
+    bool SuppressAccessTracking = false;
 };
 
 struct TBaseColumn
