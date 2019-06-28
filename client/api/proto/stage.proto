@@ -168,10 +168,13 @@ message TDeployUnitStatus
 
 // TVM
 
+// https://wiki.yandex-team.ru/passport/tvm2/abc/
 message TTvmApp
 {
     uint32 app_id = 1;
     string alias = 2;
+    // ABC service to which this app is assigned.
+    string abc_service_id = 3;
 }
 
 message TTvmClient
