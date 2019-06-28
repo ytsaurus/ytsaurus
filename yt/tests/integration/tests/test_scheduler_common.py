@@ -3284,7 +3284,17 @@ class TestPoolMetrics(YTEnvSetup):
             "custom_job_metrics": [
                 {
                     "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric"
+                    "profiling_name": "my_metric",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_failed",
+                    "job_state_filter": "failed",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_completed",
+                    "job_state_filter": "completed",
                 },
                 {
                     "statistics_path": "/custom/value",
@@ -3295,7 +3305,7 @@ class TestPoolMetrics(YTEnvSetup):
                     "statistics_path": "/custom/value",
                     "profiling_name": "my_custom_metric_max",
                     "aggregate_type": "max",
-                }
+                },
             ]
         }
     }
@@ -3352,6 +3362,12 @@ class TestPoolMetrics(YTEnvSetup):
         custom_metric_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/my_metric",
             grouped_by_tags=["pool"])
+        custom_metric_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_completed",
+            grouped_by_tags=["pool"])
+        custom_metric_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_failed",
+            grouped_by_tags=["pool"])
         custom_metric_max_last = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_max",
             with_tags={"pool": "child2"},
@@ -3381,7 +3397,7 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for metric_delta in (usual_metric_delta, custom_metric_delta):
+        for metric_delta in (usual_metric_delta, custom_metric_delta, custom_metric_completed_delta):
             wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
@@ -3392,7 +3408,7 @@ class TestPoolMetrics(YTEnvSetup):
             wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
             wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
 
-        wait(lambda: custom_metric_delta.update().get("child2", verbose=True) == get_cypress_metrics(op2.id, statistics_name))
+        assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
 
         wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
         wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
