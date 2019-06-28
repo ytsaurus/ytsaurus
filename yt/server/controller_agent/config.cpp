@@ -89,7 +89,7 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("no_progress_job_exec_to_prepare_time_ratio", NoProgressJobExecToPrepareTimeRatio)
+    RegisterParameter("no_progress_job_total_to_prepare_time_ratio", NoProgressJobTotalToPrepareTimeRatio)
         .Default(20.0);
 
     RegisterParameter("min_total_data_weight", MinTotalDataWeight)

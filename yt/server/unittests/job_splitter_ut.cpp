@@ -32,11 +32,12 @@ TJobSummary CreateOneRowProgressJobSummary(TJobId jobId, bool isSlow = false)
     return jobSummary;
 }
 
-TJobSummary CreateNoProgressJobSummary(TJobId jobId, bool isSlow = false)
+TJobSummary CreateNoProgressJobSummary(TJobId jobId)
 {
     TJobSummary jobSummary;
     jobSummary.Id = jobId;
-    jobSummary.ExecDuration = TDuration::Seconds(isSlow ? 100 : 1);
+    jobSummary.PrepareDuration = TDuration::Seconds(100);
+    jobSummary.ExecDuration = TDuration::Seconds(0);
     jobSummary.Statistics.emplace();
     jobSummary.Statistics->AddSample("/data/input/row_count", 0);
     return jobSummary;
@@ -172,7 +173,7 @@ TEST(TJobSplitterTest, SpeculateLongJobWithNoProgressWhenHasCompletedJobs)
 
     TJobId noProgressJobId(0, 0);
     jobSplitter->OnJobStarted(noProgressJobId, CreateTwoRowStripeList(), true);
-    jobSplitter->OnJobRunning(CreateNoProgressJobSummary(noProgressJobId, true));
+    jobSplitter->OnJobRunning(CreateNoProgressJobSummary(noProgressJobId));
 
     TJobId completedJobId = TJobId(0, 1);
     jobSplitter->OnJobStarted(completedJobId, CreateTwoRowStripeList(), true);

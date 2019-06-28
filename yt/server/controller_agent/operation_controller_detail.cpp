@@ -920,6 +920,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         auto jobSplitterConfig = GetJobSplitterConfig();
         if (jobSplitterConfig) {
             JobSplitter_ = CreateJobSplitter(std::move(jobSplitterConfig), OperationId);
+            YT_LOG_DEBUG("Job splitter created");
         }
 
         if (State != EControllerState::Preparing) {

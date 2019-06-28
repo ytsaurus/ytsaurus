@@ -132,7 +132,7 @@ class TJobSplitterConfig
 public:
     TDuration MinJobTime;
     double ExecToPrepareTimeRatio;
-    double NoProgressJobExecToPrepareTimeRatio;
+    double NoProgressJobTotalToPrepareTimeRatio;
     i64 MinTotalDataWeight;
     TDuration UpdatePeriod;
     double ResidualJobFactor;
