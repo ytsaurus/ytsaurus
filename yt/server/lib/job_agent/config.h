@@ -87,7 +87,7 @@ public:
         RegisterParameter("health_check_timeout", HealthCheckTimeout)
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(10));
     }
 };
 

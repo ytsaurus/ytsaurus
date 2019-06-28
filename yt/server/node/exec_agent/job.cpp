@@ -68,7 +68,6 @@ using namespace NDataNode;
 using namespace NCellNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
@@ -137,7 +136,9 @@ public:
 
         GuardedAction([&] () {
             SetJobState(EJobState::Running);
-            PrepareTime_ = TInstant::Now();
+
+            auto now = TInstant::Now();
+            PrepareTime_ = now;
 
             YT_LOG_INFO("Starting job");
 
@@ -163,6 +164,10 @@ public:
             if (!Config_->JobController->TestGpu) {
                 for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
                     GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
+
+                    TGpuStatistics statistics;
+                    statistics.LastUpdateTime = now;
+                    GpuStatistics_.emplace_back(std::move(statistics));
                 }
             }
 
@@ -473,7 +478,12 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
-            Statistics_ = statistics;
+            if (!GpuSlots_.empty()) {
+                auto enrichedStatistics = EnrichStatisticsWithGpuInfo(statistics);
+                Statistics_ = enrichedStatistics;
+            } else {
+                Statistics_ = statistics;
+            }
             ReportStatistics(MakeDefaultJobStatistics()
                 .Statistics(Statistics_));
         }
@@ -710,6 +720,7 @@ private:
     std::optional<TInstant> FinishTime_;
 
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
+    std::vector<TGpuStatistics> GpuStatistics_;
 
     ISlotPtr Slot_;
     std::vector<TString> TmpfsPaths_;
@@ -1108,6 +1119,7 @@ private:
 
         // Release resources.
         GpuSlots_.clear();
+        GpuStatistics_.clear();
 
         auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
         ResourceUsage_ = ZeroNodeResources();
@@ -1570,6 +1582,49 @@ private:
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming);
+    }
+
+    TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
+    {
+        auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
+
+        i64 totalUtilizationGpu = 0.0;
+        i64 totalUtilizationMemory = 0.0;
+        i64 totalMaxMemoryUsed = 0;
+
+        auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
+        for (int index = 0; index < GpuSlots_.size(); ++index) {
+            const auto& slot = GpuSlots_[index];
+            auto& slotStatistics = GpuStatistics_[index];
+
+            TGpuInfo gpuInfo;
+            {
+                auto it = gpuInfoMap.find(slot->GetDeviceNumber());
+                if (it == gpuInfoMap.end()) {
+                    continue;
+                }
+                gpuInfo = it->second;
+            }
+
+            slotStatistics.CumulativeUtilizationGpu +=
+                (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+                gpuInfo.UtilizationGpuRate;
+            slotStatistics.CumulativeUtilizationMemory +=
+                (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+                gpuInfo.UtilizationMemoryRate;
+            slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
+            slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
+
+            totalUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
+            totalUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
+            totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
+        }
+
+        statistics.AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
+        statistics.AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
+        statistics.AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
+
+        return ConvertToYsonString(statistics);
     }
 };
 

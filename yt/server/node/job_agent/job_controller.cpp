@@ -131,6 +131,10 @@ private:
     TProfiler Profiler_;
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
+    TProfiler GpuUtilizationProfiler_;
+    TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
+    THashMap<int, TTagId> GpuDeviceNumberToProfilingTag_;
+    THashMap<TString, TTagId> GpuNameToProfilingTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -226,6 +230,7 @@ TJobController::TImpl::TImpl(
     , Profiler_("/job_controller")
     , ResourceLimitsProfiler_(Profiler_.AppendPath("/resource_limits"))
     , ResourceUsageProfiler_(Profiler_.AppendPath("/resource_usage"))
+    , GpuUtilizationProfiler_(Profiler_.AppendPath("/gpu_utilization"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
@@ -1183,6 +1188,20 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .EndMap();
                         });
                 })
+            .Item("gpu_utilization").DoMapFor(
+                Bootstrap_->GetGpuManager()->GetGpuInfoMap(),
+                [&] (TFluentMap fluent, const std::pair<int, TGpuInfo>& pair) {
+                    const auto& gpuInfo = pair.second;
+                    fluent.Item(ToString(gpuInfo.Index))
+                        .BeginMap()
+                            .Item("update_time").Value(gpuInfo.UpdateTime)
+                            .Item("utilization_gpu_rate").Value(gpuInfo.UtilizationGpuRate)
+                            .Item("utilization_memory_rate").Value(gpuInfo.UtilizationMemoryRate)
+                            .Item("memory_used").Value(gpuInfo.MemoryUsed)
+                        .EndMap();
+                }
+            )
+
         .EndMap();
 }
 
@@ -1205,6 +1224,26 @@ void TJobController::TImpl::OnProfiling()
     }
     ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
+
+    for (const auto& [index, gpuInfo] : Bootstrap_->GetGpuManager()->GetGpuInfoMap()) {
+        TTagId deviceNumberTag;
+        {
+            auto it = GpuDeviceNumberToProfilingTag_.find(index);
+            if (it == GpuDeviceNumberToProfilingTag_.end()) {
+                it = GpuDeviceNumberToProfilingTag_.emplace(index, TProfileManager::Get()->RegisterTag("device_number", ToString(index))).first;
+            }
+            deviceNumberTag = it->second;
+        }
+        TTagId nameTag;
+        {
+            auto it = GpuNameToProfilingTag_.find(gpuInfo.Name);
+            if (it == GpuNameToProfilingTag_.end()) {
+                it = GpuNameToProfilingTag_.emplace(gpuInfo.Name, TProfileManager::Get()->RegisterTag("gpu_name", gpuInfo.Name)).first;
+            }
+            nameTag = it->second;
+        }
+        ProfileGpuInfo(GpuUtilizationProfiler_, gpuInfo, {deviceNumberTag, nameTag});
+    }
 }
 
 const TNodeMemoryTrackerPtr& TJobController::TImpl::GetUserMemoryUsageTracker()
