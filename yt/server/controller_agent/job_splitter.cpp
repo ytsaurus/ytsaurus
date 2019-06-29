@@ -34,7 +34,7 @@ public:
         : Config_(config)
         , JobTimeTracker_(std::move(config))
         , OperationId_(operationId)
-        , Logger(NLogging::TLogger(ControllerLogger)
+        , Logger(NLogging::TLogger("JobSplitter")
             .AddTag("OperationId: %v", OperationId_))
     {
         YT_VERIFY(Config_);
@@ -97,6 +97,17 @@ public:
         {
             YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
             return EJobSplitterVerdict::LaunchSpeculative;
+        }
+
+        if (job.GetNextLoggingTime() < now) {
+            job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
+            YT_LOG_DEBUG(
+                "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutDownloadDuration: %v, "
+                "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
+                "IsResidual: %v, IsSplittable: %v, SplitDeadline: %v, MaxSuccessJobPrepareDuration: %v)",
+                jobId, job.GetPrepareDuration(), job.GetPrepareWithoutDownloadDuration(), job.GetExecDuration(),
+                job.GetRemainingDuration(), job.GetTotalDataWeight(), job.GetRowCount(), isLongAmongRunning, isResidual,
+                job.GetIsSplittable(), job.GetSplitDeadline(), MaxSuccessJobPrepareDuration_);
         }
 
         return EJobSplitterVerdict::DoNothing;
@@ -413,6 +424,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(bool, IsSplittable)
         DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
         DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration)
+        DEFINE_BYVAL_RW_PROPERTY(TInstant, NextLoggingTime)
 
     private:
         TJobSplitter* Owner_ = nullptr;

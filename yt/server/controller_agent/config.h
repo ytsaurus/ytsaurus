@@ -142,6 +142,7 @@ public:
     int MaxJobsPerSplit;
     int MaxInputTableCount;
     TDuration SplitTimeoutBeforeSpeculate;
+    TDuration JobLoggingPeriod;
 
     TJobSplitterConfig();
 };
