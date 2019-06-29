@@ -2418,6 +2418,10 @@ private:
             options.ExecutionPool = request->execution_pool();
         }
 
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
             options.Timestamp);
