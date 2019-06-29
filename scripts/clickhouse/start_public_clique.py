@@ -17,6 +17,7 @@ def start_clique(bin_path, clique_type, prev_operation_id=None):
     attrs = yt.get(bin_path + "/@", attributes=attr_keys)
     attrs["previous_operation_id"] = prev_operation_id
     attrs["previous_operation_url"] = yson.to_yson_type(operation_commands.get_operation_url(prev_operation_id), attributes={"_type_tag": "url"})
+    alias = "*ch_" + clique_type
     yt.start_clickhouse_clique(
         16,
         cpu_limit=8,
@@ -33,8 +34,11 @@ def start_clique(bin_path, clique_type, prev_operation_id=None):
             "title": clique_type.capitalize() + " clique",
             "max_failed_job_count": 10 * 1000,
             "pool": "chyt",
-            "alias": "*ch_" + clique_type,
+            "alias": alias,
             "description": attrs,
+        },
+        clickhouse_config={
+            "profiling_tags": {"operation_alias": alias}
         })
 
 def main():
