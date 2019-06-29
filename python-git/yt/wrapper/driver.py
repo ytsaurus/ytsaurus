@@ -167,4 +167,4 @@ def make_formatted_request(command_name, params, format, **kwargs):
         else:
             return json_to_yson(json.loads(result), encoding="latin-1")
     else:
-        return result
+        return format.postprocess(result)
