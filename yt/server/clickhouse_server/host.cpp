@@ -124,6 +124,8 @@ private:
 
     std::atomic<bool> Cancelled { false };
 
+    std::vector<TTagId> CommonProfilingTags_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -141,7 +143,11 @@ public:
         , ControlInvoker_(Bootstrap_->GetControlInvoker())
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
-    {}
+    {
+        for (const auto& [key, value] : Config_->ProfilingTags) {
+            CommonProfilingTags_.emplace_back(TProfileManager::Get()->RegisterTag(key, value));
+        }
+    }
 
     void Start()
     {
@@ -200,7 +206,9 @@ public:
                 "/running_initial_query_count",
                 runningQueryCount,
                 EMetricType::Gauge,
-                {TProfileManager::Get()->RegisterTag("user", user)});
+                ConcatVectors(
+                    CommonProfilingTags_,
+                    std::vector<TTagId>{TProfileManager::Get()->RegisterTag("user", user)}));
         }
 
         for (const auto& [user, runningQueryCount] : UserToRunningSecondaryQueryCount_) {
@@ -208,7 +216,9 @@ public:
                 "/running_secondary_query_count",
                 runningQueryCount,
                 EMetricType::Gauge,
-                {TProfileManager::Get()->RegisterTag("user", user)});
+                ConcatVectors(
+                    CommonProfilingTags_,
+                    std::vector<TTagId>{TProfileManager::Get()->RegisterTag("user", user)}));
         }
 
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
@@ -217,7 +227,8 @@ public:
             ServerProfiler.Enqueue(
                 "/ch_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
-                EMetricType::Gauge);
+                EMetricType::Gauge,
+                CommonProfilingTags_);
         }
 
         YT_LOG_DEBUG("Profiling flushed");
