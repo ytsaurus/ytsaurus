@@ -128,6 +128,9 @@ TJobSplitterConfig::TJobSplitterConfig()
 
     RegisterParameter("split_timeout_before_speculate", SplitTimeoutBeforeSpeculate)
         .Default(TDuration::Minutes(5));
+
+    RegisterParameter("job_logging_period", JobLoggingPeriod)
+        .Default(TDuration::Minutes(3));
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()
