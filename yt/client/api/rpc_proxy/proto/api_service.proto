@@ -397,6 +397,8 @@ message TReqSelectRows
     optional string udf_registry_path = 13;
     optional uint64 memory_limit_per_node = 14;
     optional string execution_pool = 15;
+
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
 message TRspSelectRows
