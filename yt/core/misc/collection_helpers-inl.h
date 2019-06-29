@@ -170,7 +170,8 @@ void AppendVector(TVector& destination, const TVector& source)
 
 // && version.
 template <class TVector>
-void AppendVector(TVector& destination, TVector&& source) {
+void AppendVector(TVector& destination, TVector&& source) 
+{
     destination.insert(
         destination.end(),
         std::make_move_iterator(source.begin()),
@@ -192,7 +193,7 @@ std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest)
     // Then, append all remaining arguments to first. Note that depending on rvalue-ness of the argument,
     // suitable overload of AppendVector will be used.
     NDetail::TDoInOrder { (NDetail::AppendVector(first, std::forward<TArgs>(rest)), 0)... };
-    // Not quite sure why, but in the original article.
+    // Not quite sure why, but in the original article result is explicitly moved.
     return std::move(first);
 }
 
