@@ -129,6 +129,26 @@ def test_yson_iterator_mode():
     with pytest.raises(StopIteration):
         next(iterator)
 
+def test_yson_dump_sort_keys():
+    keys = ["key_" + chr(ord("a") + i) for i in range(26)]
+    data = {key: "foo" for key in keys}
+
+    def _extract_keys_in_order(dumped):
+        dumped = str(dumped)
+        res = []
+        while "key_" in dumped:
+            idx = dumped.index("key_")
+            res.append(dumped[idx:idx+5])
+            dumped = dumped[idx+5:]
+        return res
+
+    sorted_keys = yson.dumps(data, yson_format="text", sort_keys=True)
+    non_sorted_keys = yson.dumps(data, yson_format="text", sort_keys=False)
+
+    assert _extract_keys_in_order(sorted_keys) == keys
+    # Non necessarily fails but very likely should.
+    assert _extract_keys_in_order(non_sorted_keys) != keys
+
 
 def test_dsv_format():
     format = yt.DsvFormat()
