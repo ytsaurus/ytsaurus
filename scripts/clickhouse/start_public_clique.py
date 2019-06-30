@@ -38,7 +38,11 @@ def start_clique(bin_path, clique_type, prev_operation_id=None):
             "description": attrs,
         },
         clickhouse_config={
-            "profiling_tags": {"operation_alias": alias}
+            "profile_manager": {
+                "global_tags": {
+                    "operation_alias": alias,
+                },
+            },
         })
 
 def main():

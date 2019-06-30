@@ -283,9 +283,6 @@ public:
 
     TEngineConfigPtr Engine;
 
-    //! Custom profiling tags for all exported metrics.
-    THashMap<TString, TString> ProfilingTags;
-
     //! User for communication with YT.
     TString User;
 
@@ -310,9 +307,6 @@ public:
 
         RegisterParameter("engine", Engine)
             .DefaultNew();
-
-        RegisterParameter("profiling_tags", ProfilingTags)
-            .Default();
 
         RegisterParameter("profiling_period", ProfilingPeriod)
             .Default(TDuration::Seconds(1));
