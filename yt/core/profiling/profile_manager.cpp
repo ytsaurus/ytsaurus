@@ -1,3 +1,4 @@
+#include "config.h"
 #include "profile_manager.h"
 #include "resource_tracker.h"
 #include "timing.h"
@@ -89,7 +90,6 @@ public:
         Thread->Shutdown();
     }
 
-
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
         if (!WasStarted || WasShutdown) {
@@ -103,6 +103,10 @@ public:
         SampleQueue.Enqueue(sample);
     }
 
+    void Configure(const TProfileManagerConfigPtr& config)
+    {
+        GlobalTags_ = config->GlobalTags;
+    }
 
     IInvokerPtr GetInvoker() const
     {
@@ -165,6 +169,10 @@ private:
         typedef TSamples::iterator TSamplesIterator;
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
+        TBucket(const THashMap<TString, TString>& globalTags)
+            : GlobalTags_(globalTags)
+        { }
+
         //! Adds a new sample to the bucket inserting in at an appropriate position.
         int AddSample(const TStoredSample& sample)
         {
@@ -222,6 +230,7 @@ private:
     private:
         std::deque<TStoredSample> Samples;
         std::map<TTagIdList, std::pair<TInstant, int>> RateLimits;
+        THashMap<TString, TString> GlobalTags_;
 
         virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
@@ -269,13 +278,19 @@ private:
                             .Item("id").Value(sample.Id)
                             .Item("time").Value(static_cast<i64>(sample.Time.MicroSeconds()))
                             .Item("value").Value(sample.Value)
-                            .Item("tags").DoMapFor(sample.TagIds, [&] (TFluentMap fluent, TTagId tagId) {
-                                auto it = tagIdToValue.find(tagId);
-                                YT_VERIFY(it != tagIdToValue.end());
-                                const auto& tag = it->second;
-                                fluent
-                                    .Item(tag.Key).Value(tag.Value);
-                            })
+                            .Item("tags").BeginMap()
+                                .DoFor(GlobalTags_, [&] (TFluentMap fluent, const std::pair<const TString, TString>& tag) {
+                                    fluent
+                                        .Item(tag.first).Value(tag.second);
+                                })
+                                .DoFor(sample.TagIds, [&] (TFluentMap fluent, TTagId tagId) {
+                                    auto it = tagIdToValue.find(tagId);
+                                    YT_VERIFY(it != tagIdToValue.end());
+                                    const auto& tag = it->second;
+                                    fluent
+                                        .Item(tag.Key).Value(tag.Value);
+                                })
+                            .EndMap()
                             .Item("metric_type").Value(sample.MetricType)
                         .EndMap();
                 }).GetData());
@@ -285,7 +300,6 @@ private:
     };
 
     typedef TIntrusivePtr<TBucket> TBucketPtr;
-
 
     class TThread
         : public TSchedulerThread
@@ -343,6 +357,8 @@ private:
     TIntrusivePtr<TResourceTracker> ResourceTracker;
 #endif
 
+    THashMap<TString, TString> GlobalTags_;
+
     EBeginExecuteResult BeginExecute()
     {
         return EventQueue->BeginExecute(&CurrentAction);
@@ -352,7 +368,6 @@ private:
     {
         EventQueue->EndExecute(&CurrentAction);
     }
-
 
     void OnDequeue()
     {
@@ -368,7 +383,6 @@ private:
         ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
     }
 
-
     TBucketPtr LookupBucket(const TYPath& path)
     {
         auto it = PathToBucket.find(path);
@@ -377,7 +391,7 @@ private:
         }
 
         YT_LOG_DEBUG("Creating bucket %v", path);
-        auto bucket = New<TBucket>();
+        auto bucket = New<TBucket>(GlobalTags_);
         YT_VERIFY(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
         auto node = CreateVirtualNode(bucket);
@@ -432,6 +446,11 @@ TProfileManager* TProfileManager::Get()
 void TProfileManager::StaticShutdown()
 {
     Get()->Shutdown();
+}
+
+void TProfileManager::Configure(const TProfileManagerConfigPtr& config)
+{
+    Impl_->Configure(config);
 }
 
 void TProfileManager::Start()
