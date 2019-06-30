@@ -10,6 +10,7 @@ ColumnOrName = Union[pyspark.sql.column.Column, str]
 DecimalLiteral = decimal.Decimal
 DateTimeLiteral = Union[datetime.datetime, datetime.date]
 LiteralType = Union[bool, int, float, str]
+DataTypeOrString = Union[pyspark.sql.types.DataType, str]
 
 class SupportsOpen(Protocol):
     def open(self, partition_id: int, epoch_id: int) -> bool:
