@@ -153,8 +153,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
         chunk_size = DEFAULT_WRITE_CHUNK_SIZE
-    if chunk_size > 2 * MB:
-        stream = _split_stream_into_pieces(stream)
 
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
@@ -199,9 +197,12 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                     assert isinstance(chunk, list)
                     logger.debug(
                         "Processing {0} chunk (length: {1}, transaction: {2})"
-                        .format(command_name, len(chunk), get_command_param("transaction_id", client)))
+                        .format(command_name, sum(len(part) for part in chunk), get_command_param("transaction_id", client)))
 
-                    runner.run_write_action(chunk, params)
+                    if chunk_size > 2 * MB:
+                        resplit_chunk = _split_stream_into_pieces(chunk)
+
+                    runner.run_write_action(resplit_chunk, params)
                     params["path"].append = True
                     # NOTE: If previous chunk was successfully written then
                     # no need in additional attributes here, it is already
@@ -210,6 +211,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if attr in params["path"].attributes:
                             del params["path"].attributes[attr]
             else:
+                if chunk_size > 2 * MB:
+                    stream = _split_stream_into_pieces(stream)
                 _make_transactional_request(
                     command_name,
                     params,
