@@ -702,9 +702,13 @@ public:
         }
         group->Members().clear();
 
+        for  (auto [userId, user] : UserMap_) {
+            user->RecursiveMemberOf().erase(group);
+        }
+
         DestroySubject(group);
 
-        DoRecomputeMembershipClosure();
+        MaybeRecomputeMembershipClosure();
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::GroupDestroyed)
