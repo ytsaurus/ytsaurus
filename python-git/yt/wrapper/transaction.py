@@ -201,9 +201,8 @@ class Transaction(object):
                 # NB: logger may be socket logger. In this case we should convert error to string to avoid
                 # bug with unpickling Exception that has non-trivial __init__.
                 logger.debug(
-                    "Error: (type=%s, value=%s), aborting transaction %s ...",
-                    type,
-                    str(value).replace("\n", "\\n"),
+                    "Error %s, aborting transaction %s ...",
+                    repr(value),
                     self.transaction_id)
 
             try:
