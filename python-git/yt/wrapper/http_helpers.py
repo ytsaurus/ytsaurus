@@ -297,9 +297,10 @@ class RequestRetrier(Retrier):
 
     def except_action(self, error, attempt):
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                       self.method, self.request_url, str(type(error)), str(error), str(hide_token(dict(self.headers))))
+                       self.method, self.request_url, repr(error), str(hide_token(dict(self.headers))))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if isinstance(error, YtError):
+            # TODO(ignat): str may fail of error contains unicode characters.
             logger.info("Full error message:\n%s", str(error))
         if self.proxy_provider is not None:
             self.proxy_provider.on_error_occured(error)

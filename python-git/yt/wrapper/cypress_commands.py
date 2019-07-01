@@ -178,7 +178,7 @@ class _ConcatenateRetrier(Retrier):
             _make_transactional_request("concatenate", params, client=self.client)
 
     def except_action(self, error, attempt):
-        logger.warning("%s: %s", type(error), str(error))
+        logger.warning("Concatenate failed with error %s", repr(error))
 
 
 def concatenate(source_paths, destination_path, client=None):
