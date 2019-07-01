@@ -152,4 +152,5 @@ public class InternalUnflattenObject2 {
                 ", doubleField5=" + doubleField5 +
                 '}';
     }
+
 }

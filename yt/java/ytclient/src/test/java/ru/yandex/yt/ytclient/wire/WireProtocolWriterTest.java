@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -13,6 +14,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -23,11 +25,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 public class WireProtocolWriterTest extends WireProtocolTest {
-    private static void output(TableSchema tableSchema, UnversionedRow row) {
-        WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeUnversionedRow(row, new UnversionedRowSerializer(tableSchema));
-        writer.finish();
-    }
 
     private static void process(List<byte[]> expect, TableSchema tableSchema, UnversionedRow sample) {
         final UnversionedRowSerializer serializer = new UnversionedRowSerializer(tableSchema);
@@ -45,8 +42,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
     }
 
     private static <T> void process(List<byte[]> expect, Class<T> clazz,
-            BiConsumer<WireProtocolWriter, WireRowSerializer<T>> writeFunction)
-    {
+                                    BiConsumer<WireProtocolWriter, WireRowSerializer<T>> writeFunction) {
         final YTreeObjectSerializer<T> serializer =
                 (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
 
@@ -61,25 +57,26 @@ public class WireProtocolWriterTest extends WireProtocolTest {
 
 
     private static void process(RowSampleAllObject sample) {
-        process(makeAttachmentsForMappedObject(sample, false), sample);
+        process(makeAttachmentsForMappedObject_For_RowSampleAllObject(sample, false), sample);
     }
 
     @Test
     public void writeUnversionedRow() {
-        process(Collections.singletonList(makeUnversionedRowCanonicalBlob()),
-                tableSchema(makeUnversionedRowCanonicalDescriptor()), makeUnversionedRowSample());
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample()),
+                tableSchema(makeDescriptor_For_RowSample()), makeUnversionedRow_For_RowSample());
     }
 
     @Test
     public void writeUnversionedRowNonAggr() {
-        process(Collections.singletonList(makeUnversionedRowCanonicalBlob(false)),
-                tableSchema(makeUnversionedRowCanonicalDescriptor()), makeUnversionedRowSample(false));
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample(false)),
+                tableSchema(makeDescriptor_For_RowSample()), makeUnversionedRow_For_RowSample(false));
     }
 
     @Test
     public void writeUnversionedRowMapped() {
         // Пока не поддерживаем простановку признака "aggregated"
-        process(Collections.singletonList(makeUnversionedRowCanonicalBlob(false)), makeRowSampleObject());
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample(false)),
+                makeSample_For_RowSampleObject());
     }
 
     @Test
@@ -91,39 +88,150 @@ public class WireProtocolWriterTest extends WireProtocolTest {
 
     @Test
     public void writeUnversionRowMappedForAllFieldsExceptClasses() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
         process(sample);
     }
 
     @Test
-    public void writenversionRowMappedForAllFieldsWithOneClass() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
-        sample.setSampleObject(makeRowSampleObject());
+    public void writeUnversionRowMappedForAllFieldsWithOneClass() {
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
+        sample.setSampleObject(makeSample_For_RowSampleObject());
         process(sample);
     }
 
     @Test
     public void writeUnversionRowMappedForAllFieldsWithPartialClass() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
         final RowSampleAllInternal1Object internal1Object = new RowSampleAllInternal1Object();
         sample.setInternalObject(internal1Object);
 
-        // В текущей реализации мы можем сериализовать класс частично, но получим ошибку при попытке десерализации такого класса
+        // В текущей реализации мы можем сериализовать класс частично, но получим ошибку при попытке десерализации
+        // такого класса
         process(sample);
     }
 
     @Test
     public void writeUnversionRowMappedForAllFieldsWithAllClasses() {
-        final RowSampleAllObject sample = makeMappedObjectComplete();
+        final RowSampleAllObject sample = makeMappedObjectComplete_For_RowSampleAllObject();
+        process(sample);
+    }
+
+
+    @Test
+    public void writeUnversionRowMappedForAllFieldsWithAllClassesAndStateSupportCheckNotTheSame() {
+        final RowSampleAllObject sample = makeMappedObjectComplete_For_RowSampleAllObject();
+        sample.saveYTreeObjectState();
+
+        final RowSampleAllObject copy = sample.getYTreeObjectState();
+        Assert.assertEquals(copy, sample);
+
+        Assert.assertNotSame(copy, sample);
+
+        Assert.assertSame(copy.getInt64_as_Integer(), sample.getInt64_as_Integer());
+        Assert.assertSame(copy.getInt64_as_Long(), sample.getInt64_as_Long());
+        Assert.assertSame(copy.getUint64_as_Integer(), sample.getUint64_as_Integer());
+        Assert.assertSame(copy.getUint64_as_Long(), sample.getUint64_as_Long());
+        Assert.assertSame(copy.getUint64_as_UnsignedLong(), sample.getUint64_as_UnsignedLong());
+        Assert.assertSame(copy.getDouble_as_Double(), sample.getDouble_as_Double());
+        Assert.assertSame(copy.getBoolean_as_Boolean(), sample.getBoolean_as_Boolean());
+        Assert.assertSame(copy.getString_as_string(), sample.getString_as_string());
+        Assert.assertNotSame(copy.getString_as_bytes(), sample.getString_as_bytes());
+        Assert.assertNull(copy.getAny_as_string());
+        Assert.assertNull(sample.getAny_as_string());
+        Assert.assertNull(copy.getAny_as_bytes());
+        Assert.assertNull(sample.getAny_as_bytes());
+        Assert.assertNotSame(copy.getSampleObject(), sample.getSampleObject());
+        Assert.assertNotSame(copy.getInternalObject(), sample.getInternalObject());
+        Assert.assertNotSame(copy.getFlatten(), sample.getFlatten());
+        Assert.assertNotSame(copy.getSimpleMapObject(), sample.getSimpleMapObject());
+        Assert.assertNotSame(copy.getComplexMapObject(), sample.getComplexMapObject());
+        Assert.assertNotSame(copy.getSimpleListObject(), sample.getSimpleListObject());
+        Assert.assertNotSame(copy.getComplexListObject(), sample.getComplexListObject());
+        Assert.assertNotSame(copy.getSimpleArrayObject(), sample.getSimpleArrayObject());
+        Assert.assertNotSame(copy.getComplexArrayObject(), sample.getComplexArrayObject());
+        Assert.assertNotSame(copy.getPrimitiveArrayObject(), sample.getPrimitiveArrayObject());
+        Assert.assertNotSame(copy.getSimpleSetObjects(), sample.getSimpleSetObjects());
+        Assert.assertNotSame(copy.getComplexSetObjects(), sample.getComplexSetObjects());
+
+    }
+
+    @Test
+    public void writeUnversionRowMappedForAllFieldsWithAllClassesAndStateSupportUnchanged() {
+        final RowSampleAllObject sample = makeMappedObjectComplete_For_RowSampleAllObject();
+        sample.saveYTreeObjectState();
+
+        // Ни одно поле не изменилось - будет сохранено только значение  int64_as_int (ключ)
+
+        final UnversionedRow row = new UnversionedRow(Collections.singletonList(
+                new UnversionedValue(0, ColumnValueType.INT64, false, (long) sample.getInt64_as_int())));
+
+        final WireProtocolWriter writer = new WireProtocolWriter();
+        writer.writeUnversionedRow(row,
+                new UnversionedRowSerializer(tableSchema(makeDescriptor_For_RowSampleAllObject())));
+        final List<byte[]> expect = writer.finish();
+
+        process(expect, sample);
+    }
+
+    @Test
+    public void writeUnversionRowMappedForAllFieldsWithAllClassesAndStateSupportChanged() {
+        final RowSampleAllObject sample = makeMappedObjectComplete_For_RowSampleAllObject();
+        sample.saveYTreeObjectState();
+        // Поправим все поля и убедимся, что они будут корректно сериализованы (т.е. изменения всех полей были
+        // задетекчены)
+
+        sample.setInt64_as_int(sample.getInt64_as_int() + 1);
+        sample.setInt64_as_Integer(sample.getInt64_as_Integer() + 1);
+
+        sample.setInt64_as_long(sample.getInt64_as_long() + 1);
+        sample.setInt64_as_Long(sample.getInt64_as_Long() + 1);
+
+        sample.setUint64_as_int(sample.getUint64_as_int() + 1);
+        sample.setUint64_as_Integer(sample.getUint64_as_Integer() + 1);
+
+        sample.setUint64_as_long(sample.getUint64_as_long() + 1);
+        sample.setUint64_as_Long(sample.getUint64_as_Long() + 1);
+
+        sample.setUint64_as_UnsignedLong(UnsignedLong.valueOf(sample.getUint64_as_UnsignedLong().longValue() + 1));
+
+        sample.setDouble_as_double(sample.getDouble_as_double() + 1);
+        sample.setDouble_as_Double(sample.getDouble_as_Double() + 1);
+
+        sample.setBoolean_as_boolean(!sample.isBoolean_as_boolean());
+        sample.setBoolean_as_Boolean(!sample.getBoolean_as_Boolean());
+
+        sample.setString_as_string(sample.getString_as_string() + "+1");
+        sample.getString_as_bytes()[0] = (byte) (sample.getString_as_bytes()[0] + 1);
+
+        sample.setAny_as_string(sample.getAny_as_string() + "+1");
+        sample.setAny_as_bytes(ArrayUtils.add(sample.getAny_as_bytes(), (byte) 1));
+
+        sample.getSampleObject().setvBoolean(!sample.getSampleObject().isvBoolean());
+        sample.getInternalObject().getRowInternalObject().getFlattenObject().setF2("new-f2");
+        sample.getFlatten().setF1("new-f1");
+
+        sample.getSimpleMapObject().put("new-key", "new-value");
+        sample.getComplexMapObject().values().iterator().next().setvString("new-complex-1");
+
+        sample.getSimpleListObject().add("new-value");
+        sample.getComplexListObject().iterator().next().setvString("new-complex-2");
+
+        sample.setSimpleArrayObject(ArrayUtils.add(sample.getSimpleArrayObject(), "new-array-1"));
+        sample.getComplexArrayObject()[0].setvString("fixed-array-2");
+        sample.getPrimitiveArrayObject()[0] = sample.getPrimitiveArrayObject()[0] + 1;
+
+        sample.getSimpleSetObjects().add("set-1");
+        sample.getComplexSetObjects().iterator().next().setvString("set-2");
+
         process(sample);
     }
 
     @Test
     public void writeSchemafulRow() {
         WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeSchemafulRow(makeSchemafulRowSample());
+        writer.writeSchemafulRow(makeSchemaful_For_RowSample());
         byte[] data = mergeChunks(writer.finish());
-        assertThat(data, dataEquals(makeSchemafulRowCanonicalBlob()));
+        assertThat(data, dataEquals(makeSchemafulRowCanonicalBlob_For_RowSample()));
     }
 
     @Test
@@ -133,7 +241,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
         WireProtocolWriter writer = new WireProtocolWriter();
         writer.writeUnversionedRow(new UnversionedRow(Collections.singletonList(
                 new UnversionedValue(0, ColumnValueType.STRING, false, data)
-        )), new UnversionedRowSerializer(tableSchema(makeUnversionedRowCanonicalDescriptor())));
+        )), new UnversionedRowSerializer(tableSchema(makeDescriptor_For_RowSample())));
         List<byte[]> chunks = writer.finish();
         // Проверяем, что на выходе получился 1 чанк
         assertThat(chunks.size(), is(1));
@@ -157,7 +265,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
         final byte[] mappedChunks;
         {
             final UnversionedRowSerializer serializer =
-                    new UnversionedRowSerializer(tableSchema(makeUnversionedRowCanonicalDescriptor()));
+                    new UnversionedRowSerializer(tableSchema(makeDescriptor_For_RowSample()));
 
             final WireProtocolWriter writer = new WireProtocolWriter(new ArrayList<>(), maxChunkSize);
             writer.writeUnversionedRow(new UnversionedRow(Collections.singletonList(
@@ -206,7 +314,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
         for (int i = 0; i < 32; ++i) {
             writer.writeUnversionedRow(new UnversionedRow(Collections.singletonList(
                     new UnversionedValue(0, ColumnValueType.STRING, false, data)
-            )), new UnversionedRowSerializer(tableSchema(makeUnversionedRowCanonicalDescriptor())));
+            )), new UnversionedRowSerializer(tableSchema(makeDescriptor_For_RowSample())));
         }
         List<byte[]> chunks = writer.finish();
         // Проверяем, что на выходе получился 1 чанк

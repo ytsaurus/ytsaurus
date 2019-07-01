@@ -23,14 +23,17 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.yt.ytclient.object.LargeFlattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeFlattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClass;
+import ru.yandex.yt.ytclient.object.LargeObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.LargePrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClass;
+import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.LargeUnflattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeWithAllSupportedSerializersClass;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.ObjectsMetadata;
 import ru.yandex.yt.ytclient.object.SmallObjectClass;
+import ru.yandex.yt.ytclient.object.SmallObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.SmallPrimitiveClass;
 
 @BenchmarkMode(Mode.Throughput)
@@ -323,12 +326,15 @@ ForClassInstantiationJMH.test04_serializationFactoryLargeWithAllSupportedSeriali
     public static class ObjectMetadata {
 
         final ObjectsMetadata<SmallObjectClass> smallObjects;
+        final ObjectsMetadata<SmallObjectClassWithStateSupport> smallObjectsWithStateSupport;
         final ObjectsMetadata<SmallPrimitiveClass> smallPrimitives;
         final ObjectsMetadata<LargeObjectClass> largeObjects;
+        final ObjectsMetadata<LargeObjectClassWithStateSupport> largeObjectsWithStateSupport;
         final ObjectsMetadata<LargePrimitiveClass> largePrimitives;
         final ObjectsMetadata<LargeFlattenObjectClass> largeFlattenObjects;
         final ObjectsMetadata<LargeFlattenPrimitiveClass> largeFlattenPrimitives;
         final ObjectsMetadata<LargeUnflattenObjectClass> largeUnflattenObjects;
+        final ObjectsMetadata<LargeUnflattenObjectClassWithStateSupport> largeUnflattenObjectsWithStateSupport;
         final ObjectsMetadata<LargeUnflattenPrimitiveClass> largeUnflattenPrimitives;
         final ObjectsMetadata<LargeWithAllSupportedSerializersClass> largeWithAllSupportedSerializers;
 
@@ -337,10 +343,14 @@ ForClassInstantiationJMH.test04_serializationFactoryLargeWithAllSupportedSeriali
         public ObjectMetadata() {
             this.smallObjects = ObjectsMetadata.getMetadata(SmallObjectClass.class,
                     value -> delegate.accept(value));
+            this.smallObjectsWithStateSupport = ObjectsMetadata.getMetadata(SmallObjectClassWithStateSupport.class,
+                    value -> delegate.accept(value));
             this.smallPrimitives = ObjectsMetadata.getMetadata(SmallPrimitiveClass.class,
                     value -> delegate.accept(value));
 
             this.largeObjects = ObjectsMetadata.getMetadata(LargeObjectClass.class,
+                    value -> delegate.accept(value));
+            this.largeObjectsWithStateSupport = ObjectsMetadata.getMetadata(LargeObjectClassWithStateSupport.class,
                     value -> delegate.accept(value));
             this.largePrimitives = ObjectsMetadata.getMetadata(LargePrimitiveClass.class,
                     value -> delegate.accept(value));
@@ -351,6 +361,8 @@ ForClassInstantiationJMH.test04_serializationFactoryLargeWithAllSupportedSeriali
                     value -> delegate.accept(value));
 
             this.largeUnflattenObjects = ObjectsMetadata.getMetadata(LargeUnflattenObjectClass.class,
+                    value -> delegate.accept(value));
+            this.largeUnflattenObjectsWithStateSupport = ObjectsMetadata.getMetadata(LargeUnflattenObjectClassWithStateSupport.class,
                     value -> delegate.accept(value));
             this.largeUnflattenPrimitives = ObjectsMetadata.getMetadata(LargeUnflattenPrimitiveClass.class,
                     value -> delegate.accept(value));

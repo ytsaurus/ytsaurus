@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.object;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,6 +29,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsi
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeCloseableConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
@@ -43,11 +45,13 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     private final YTreeObjectSerializer<T> objectSerializer;
     private final TableSchema tableSchema;
     private final YTreeConsumerProxy delegate;
+    private final boolean supportState;
 
     private MappedRowSerializer(YTreeObjectSerializer<T> objectSerializer) {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeConsumerProxy(tableSchema);
+        this.supportState = objectSerializer.getClazz().isAssignableTo(YTreeStateSupport.class);
     }
 
     @Override
@@ -55,9 +59,13 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         return tableSchema;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly) {
-        this.objectSerializer.serialize(row, delegate.wrap(writeable), false, keyFieldsOnly);
+        final T compareWith = !keyFieldsOnly && supportState
+                ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
+                : null;
+        this.objectSerializer.serialize(row, delegate.wrap(writeable), false, keyFieldsOnly, compareWith);
         delegate.complete();
     }
 
@@ -252,15 +260,20 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         // Сериализуем столбцы по одному, пока не наткнемся на любое поле, кроме примитивного
         // Т.е. это будет любой
-        private final TableSchema schema;
+        private final Map<String, ColumnWithIndex> schema;
         private WireProtocolWriteable writeable;
 
-        private int columnId;
-        private ColumnValueType columnType;
+        private ColumnWithIndex currentColumn;
         private int columnCount;
 
-        private YTreeConsumerDirect(TableSchema schema) {
-            this.schema = schema;
+        private YTreeConsumerDirect(TableSchema tableSchema) {
+            this.schema = new HashMap<>(tableSchema.getColumnsCount());
+            for (int i = 0; i < tableSchema.getColumnsCount(); i++) {
+                final ColumnSchema columnSchema = tableSchema.getColumnSchema(i);
+                if (columnSchema != null) {
+                    schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getType()));
+                }
+            }
         }
 
         void complete() {
@@ -276,14 +289,14 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         @Override
         public void onUnsignedInteger(UnsignedLong value) {
-            if (columnId != -1) {
+            if (currentColumn != null) {
                 this.onInteger(value.longValue());
             }
         }
 
         @Override
         public void onString(String value) {
-            if (columnId != -1) {
+            if (currentColumn != null) {
                 this.onBytesDirect(value.getBytes(StandardCharsets.UTF_8));
             }
         }
@@ -325,49 +338,47 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         @Override
         public void onKeyedItem(String key) {
-            this.columnId = this.schema.findColumn(key);
-            if (columnId == -1) {
-                return; // ---
+            this.currentColumn = this.schema.get(key);
+            if (this.currentColumn != null) {
+                this.columnCount++;
             }
-            this.columnType = this.schema.getColumnType(columnId);
-            this.columnCount++;
         }
 
         @Override
         public void onEntity() {
-            if (columnId != -1) {
+            if (currentColumn != null) {
                 // write empty value
-                writeable.writeValueHeader(columnId, ColumnValueType.NULL, false, 0);
+                writeable.writeValueHeader(currentColumn.columnId, ColumnValueType.NULL, false, 0);
             }
         }
 
         @Override
         public void onInteger(long value) {
-            if (columnId != -1) {
-                writeable.writeValueHeader(columnId, columnType, false, 0);
+            if (currentColumn != null) {
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
                 writeable.onInteger(value);
             }
         }
 
         @Override
         public void onBoolean(boolean value) {
-            if (columnId != -1) {
-                writeable.writeValueHeader(columnId, columnType, false, 0);
+            if (currentColumn != null) {
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
                 writeable.onBoolean(value);
             }
         }
 
         @Override
         public void onDouble(double value) {
-            if (columnId != -1) {
-                writeable.writeValueHeader(columnId, columnType, false, 0);
+            if (currentColumn != null) {
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
                 writeable.onDouble(value);
             }
         }
 
         @Override
         public void onBytes(byte[] bytes) {
-            if (columnId != -1) {
+            if (currentColumn != null) {
                 // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
                 final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
@@ -379,10 +390,20 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         void onBytesDirect(byte[] bytes) {
-            if (columnId != -1) {
-                writeable.writeValueHeader(columnId, columnType, false, bytes.length);
+            if (currentColumn != null) {
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, bytes.length);
                 writeable.onBytes(bytes);
             }
+        }
+    }
+
+    static class ColumnWithIndex {
+        private final int columnId;
+        private final ColumnValueType columnType;
+
+        ColumnWithIndex(int columnId, ColumnValueType columnType) {
+            this.columnId = columnId;
+            this.columnType = columnType;
         }
     }
 }

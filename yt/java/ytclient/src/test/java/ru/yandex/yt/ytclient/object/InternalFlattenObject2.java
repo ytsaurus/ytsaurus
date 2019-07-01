@@ -154,4 +154,5 @@ public class InternalFlattenObject2 {
                 ", doubleField5=" + doubleField5 +
                 '}';
     }
+
 }

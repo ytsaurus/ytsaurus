@@ -83,4 +83,5 @@ public class InternalObject1 {
                 ", longField5=" + longField5 +
                 '}';
     }
+
 }

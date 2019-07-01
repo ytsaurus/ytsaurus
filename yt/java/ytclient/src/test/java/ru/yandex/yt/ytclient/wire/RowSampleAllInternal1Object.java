@@ -8,7 +8,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 @YTreeObject(nullSerializationStrategy = NullSerializationStrategy.IGNORE_NULL_FIELDS)
 public class RowSampleAllInternal1Object {
     private int key;
-    private RowSampleOject rowSampleOject;
+    private RowSampleObject rowSampleObject;
     private RowSampleAllInternal2Object rowInternalObject;
 
     public int getKey() {
@@ -19,12 +19,12 @@ public class RowSampleAllInternal1Object {
         this.key = key;
     }
 
-    public RowSampleOject getRowSampleOject() {
-        return rowSampleOject;
+    public RowSampleObject getRowSampleObject() {
+        return rowSampleObject;
     }
 
-    public void setRowSampleOject(RowSampleOject rowSampleOject) {
-        this.rowSampleOject = rowSampleOject;
+    public void setRowSampleObject(RowSampleObject rowSampleObject) {
+        this.rowSampleObject = rowSampleObject;
     }
 
     public RowSampleAllInternal2Object getRowInternalObject() {
@@ -45,20 +45,20 @@ public class RowSampleAllInternal1Object {
         }
         RowSampleAllInternal1Object that = (RowSampleAllInternal1Object) o;
         return key == that.key &&
-                Objects.equals(rowSampleOject, that.rowSampleOject) &&
+                Objects.equals(rowSampleObject, that.rowSampleObject) &&
                 Objects.equals(rowInternalObject, that.rowInternalObject);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, rowSampleOject, rowInternalObject);
+        return Objects.hash(key, rowSampleObject, rowInternalObject);
     }
 
     @Override
     public String toString() {
         return "RowSampleAllInternal1Object{" +
                 "key=" + key +
-                ", rowSampleOject=" + rowSampleOject +
+                ", rowSampleObject=" + rowSampleObject +
                 ", rowInternalObject=" + rowInternalObject +
                 '}';
     }

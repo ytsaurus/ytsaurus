@@ -13,6 +13,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+import org.junit.Assert;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeStringNodeImpl;
@@ -96,11 +97,11 @@ public class WireProtocolTest {
         return new UnversionedValue(id, type, aggregate, value);
     }
 
-    public static UnversionedRow makeUnversionedRowSample() {
-        return makeUnversionedRowSample(true);
+    public static UnversionedRow makeUnversionedRow_For_RowSample() {
+        return makeUnversionedRow_For_RowSample(true);
     }
 
-    public static UnversionedRow makeUnversionedRowSample(boolean fillAggr) {
+    public static UnversionedRow makeUnversionedRow_For_RowSample(boolean fillAggr) {
         List<UnversionedValue> values = new ArrayList<>();
         int id = 0;
         for (ColumnValueType type : VALUE_TYPES) {
@@ -115,7 +116,7 @@ public class WireProtocolTest {
         return ApiServiceUtil.deserializeRowsetSchema(descriptor);
     }
 
-    public static TRowsetDescriptor makeDescriptorForMappedObject() {
+    public static TRowsetDescriptor makeDescriptor_For_RowSampleAllObject() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
         rowset.addColumnsBuilder().setName("int64_as_int").setType(ColumnValueType.INT64.getValue());
         rowset.addColumnsBuilder().setName("int64_as_Integer").setType(ColumnValueType.INT64.getValue());
@@ -158,11 +159,13 @@ public class WireProtocolTest {
         rowset.addColumnsBuilder().setName("simpleArrayObject").setType(ColumnValueType.ANY.getValue());
         rowset.addColumnsBuilder().setName("complexArrayObject").setType(ColumnValueType.ANY.getValue());
         rowset.addColumnsBuilder().setName("primitiveArrayObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addColumnsBuilder().setName("simpleSetObjects").setType(ColumnValueType.ANY.getValue());
+        rowset.addColumnsBuilder().setName("complexSetObjects").setType(ColumnValueType.ANY.getValue());
 
         return rowset.build();
     }
 
-    public static RowSampleAllObject makeMappedObjectWithoutClasses() {
+    public static RowSampleAllObject makeMappedObjectWithoutClasses_For_RowSampleAllObject() {
         final RowSampleAllObject sample = new RowSampleAllObject();
         sample.setInt64_as_int(3);
         sample.setInt64_as_Integer(4);
@@ -188,13 +191,13 @@ public class WireProtocolTest {
         return sample;
     }
 
-    public static RowSampleAllObject makeMappedObjectComplete() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
-        sample.setSampleObject(makeRowSampleObject());
+    public static RowSampleAllObject makeMappedObjectComplete_For_RowSampleAllObject() {
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
+        sample.setSampleObject(makeSample_For_RowSampleObject());
 
         final RowSampleAllInternal2Object internal2Object = new RowSampleAllInternal2Object();
         internal2Object.setKey(Integer.MAX_VALUE - 1);
-        internal2Object.setRowSampleOject(makeRowSampleObject());
+        internal2Object.setRowSampleObject(makeSample_For_RowSampleObject());
 
         final RowSampleAllFlattenObject flattenObject = new RowSampleAllFlattenObject();
         flattenObject.setF1("is1");
@@ -214,7 +217,7 @@ public class WireProtocolTest {
 
         final RowSampleAllInternal1Object internal1Object = new RowSampleAllInternal1Object();
         internal1Object.setKey(Integer.MAX_VALUE - 2);
-        internal1Object.setRowSampleOject(makeRowSampleObject());
+        internal1Object.setRowSampleObject(makeSample_For_RowSampleObject());
         internal1Object.setRowInternalObject(internal2Object);
 
         sample.setInternalObject(internal1Object);
@@ -222,17 +225,17 @@ public class WireProtocolTest {
         sample.getSimpleMapObject0().put("s1", "v1");
         sample.getSimpleMapObject0().put("s2", "v2");
 
-        sample.getComplexMapObject0().put("k1", makeRowSampleObject());
-        sample.getComplexMapObject0().put("k2", makeRowSampleObject());
+        sample.getComplexMapObject0().put("k1", makeSample_For_RowSampleObject());
+        sample.getComplexMapObject0().put("k2", makeSample_For_RowSampleObject());
 
         sample.getSimpleListObject0().add("s1");
         sample.getSimpleListObject0().add("s2");
 
-        sample.getComplexListObject0().add(makeRowSampleObject());
-        sample.getComplexListObject0().add(makeRowSampleObject());
+        sample.getComplexListObject0().add(makeSample_For_RowSampleObject());
+        sample.getComplexListObject0().add(makeSample_For_RowSampleObject());
 
         sample.setSimpleArrayObject("a1", "a2");
-        sample.setComplexArrayObject(makeRowSampleObject(), makeRowSampleObject());
+        sample.setComplexArrayObject(makeSample_For_RowSampleObject(), makeSample_For_RowSampleObject());
 
         sample.setPrimitiveArrayObject(1, 2, 3, 4, 5);
 
@@ -253,11 +256,20 @@ public class WireProtocolTest {
         flatten2Object.setInternalObject3(sample3);
         sample.setFlatten(flattenTop);
 
+        sample.getSimpleSetObjects0().add("ss1");
+        sample.getSimpleSetObjects0().add("ss2");
+        Assert.assertEquals(2, sample.getSimpleSetObjects().size());
+
+        sample.getComplexSetObjects0().add(makeSample_For_RowSampleObject());
+        sample.getComplexSetObjects0().add(makeSample_For_RowSampleObject());
+        // Будет только одна строка
+        Assert.assertEquals(1, sample.getComplexSetObjects().size());
+
         return sample;
     }
 
-    public static UnversionedRow makeUnversionedRowForMappedObject(RowSampleAllObject object,
-                                                                   boolean ignoreCompatibility) {
+    public static UnversionedRow makeUnversionedRowForMappedObject_For_RowSampleAllObject(RowSampleAllObject object,
+                                                                                          boolean ignoreCompatibility) {
         final List<UnversionedValue> values = new ArrayList<>();
         final AtomicInteger inc = new AtomicInteger();
 
@@ -307,13 +319,19 @@ public class WireProtocolTest {
                 add.accept(ColumnValueType.STRING, flatte2.getF21());
                 add.accept(ColumnValueType.STRING, flatte2.getF22());
                 add.accept(ColumnValueType.ANY, flatte2.getInternalObject3());
+            } else {
+                inc.addAndGet(3);
             }
             final RowSampleAllFlatten3Object flatten3 = flatten.getFlatten3();
             if (flatten3 != null) {
                 add.accept(ColumnValueType.STRING, flatten3.getF31());
                 add.accept(ColumnValueType.STRING, flatten3.getF32());
+            } else {
+                inc.addAndGet(2);
             }
             add.accept(ColumnValueType.STRING, flatten.getF2());
+        } else {
+            inc.addAndGet(7);
         }
 
         final YTreeObjectSerializer<RowSampleAllObject> serializer =
@@ -332,6 +350,10 @@ public class WireProtocolTest {
             add0.accept(ColumnValueType.ANY, object.getComplexArrayObject(),
                     serializer.getField("complexArrayObject").getOrThrow("complexArrayObject").serializer);
             add.accept(ColumnValueType.ANY, object.getPrimitiveArrayObject());
+            add0.accept(ColumnValueType.ANY, object.getSimpleSetObjects(),
+                    serializer.getField("simpleSetObjects").getOrThrow("simpleSetObjects").serializer);
+            add0.accept(ColumnValueType.ANY, object.getComplexSetObjects(),
+                    serializer.getField("complexSetObjects").getOrThrow("complexSetObjects").serializer);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -339,14 +361,16 @@ public class WireProtocolTest {
         return new UnversionedRow(values);
     }
 
-    public static List<byte[]> makeAttachmentsForMappedObject(RowSampleAllObject object) {
-        return makeAttachmentsForMappedObject(object, true);
+    public static List<byte[]> makeAttachmentsForMappedObject_For_RowSampleAllObject(RowSampleAllObject object) {
+        return makeAttachmentsForMappedObject_For_RowSampleAllObject(object, true);
     }
 
-    public static List<byte[]> makeAttachmentsForMappedObject(RowSampleAllObject object, boolean ignoreCompatibility) {
+    public static List<byte[]> makeAttachmentsForMappedObject_For_RowSampleAllObject(RowSampleAllObject object,
+                                                                                     boolean ignoreCompatibility) {
         final WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeUnversionedRow(makeUnversionedRowForMappedObject(object, ignoreCompatibility),
-                new UnversionedRowSerializer(tableSchema(makeDescriptorForMappedObject())));
+        writer.writeUnversionedRow(
+                makeUnversionedRowForMappedObject_For_RowSampleAllObject(object, ignoreCompatibility),
+                new UnversionedRowSerializer(tableSchema(makeDescriptor_For_RowSampleAllObject())));
         return writer.finish();
     }
 
@@ -369,13 +393,13 @@ public class WireProtocolTest {
         }
     }
 
-    public static RowSampleOject makeRowSampleObject() {
-        return makeRowSampleObject(true);
+    public static RowSampleObject makeSample_For_RowSampleObject() {
+        return makeSample_For_RowSampleObject(true);
     }
 
     @SuppressWarnings("ConstantConditions")
-    public static RowSampleOject makeRowSampleObject(boolean fillAggr) {
-        final RowSampleOject sample = new RowSampleOject();
+    public static RowSampleObject makeSample_For_RowSampleObject(boolean fillAggr) {
+        final RowSampleObject sample = new RowSampleObject();
         sample.setvInt64((Long) makeSampleValue(ColumnValueType.INT64));
         sample.setvUint64(UnsignedLong.valueOf((Long) makeSampleValue(ColumnValueType.UINT64)));
         sample.setvDouble((Double) makeSampleValue(ColumnValueType.DOUBLE));
@@ -393,7 +417,7 @@ public class WireProtocolTest {
         return sample;
     }
 
-    public static TRowsetDescriptor makeUnversionedRowCanonicalDescriptor() {
+    public static TRowsetDescriptor makeDescriptor_For_RowSample() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
         rowset.addColumnsBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
         rowset.addColumnsBuilder().setName("vNullAggr").setType(ColumnValueType.NULL.getValue());
@@ -412,18 +436,18 @@ public class WireProtocolTest {
         return rowset.build();
     }
 
-    public static byte[] makeUnversionedRowsetCanonicalBlob() {
+    public static byte[] makeUnversionedRowsetCanonicalBlob_For_RowSample() {
         return ArrayUtils.addAll(makeByteArray(
                 // row count
                 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        ), makeUnversionedRowCanonicalBlob());
+        ), makeUnversionedRowCanonicalBlob_For_RowSample());
     }
 
-    public static byte[] makeUnversionedRowCanonicalBlob() {
-        return makeUnversionedRowCanonicalBlob(true);
+    public static byte[] makeUnversionedRowCanonicalBlob_For_RowSample() {
+        return makeUnversionedRowCanonicalBlob_For_RowSample(true);
     }
 
-    public static byte[] makeUnversionedRowCanonicalBlob(boolean fillAggr) {
+    public static byte[] makeUnversionedRowCanonicalBlob_For_RowSample(boolean fillAggr) {
         final int AGGR = fillAggr ? 0x01 : 0x00;
         return makeByteArray(
                 // value count
@@ -445,7 +469,7 @@ public class WireProtocolTest {
                 0x0D, 0x00, 0x11, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x04, 0x7b, 0x7d, 0x00, 0x00, 0x00, 0x00);
     }
 
-    public static TRowsetDescriptor makeSchemafulRowCanonicalDescriptor() {
+    public static TRowsetDescriptor makeSchemafulRowCanonicalDescriptor_For_RowSample() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
         rowset.addColumnsBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
         rowset.addColumnsBuilder().setName("vInt64").setType(ColumnValueType.INT64.getValue());
@@ -458,7 +482,7 @@ public class WireProtocolTest {
     }
 
 
-    public static UnversionedRow makeSchemafulRowSample() {
+    public static UnversionedRow makeSchemaful_For_RowSample() {
         List<UnversionedValue> values = new ArrayList<>();
         int id = 0;
         for (ColumnValueType type : VALUE_TYPES) {
@@ -468,14 +492,14 @@ public class WireProtocolTest {
         return new UnversionedRow(values);
     }
 
-    public static byte[] makeSchemafulRowsetCanonicalBlob() {
+    public static byte[] makeSchemafulRowsetCanonicalBlob_For_RowSample() {
         return ArrayUtils.addAll(makeByteArray(
                 // row count
                 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        ), makeSchemafulRowCanonicalBlob());
+        ), makeSchemafulRowCanonicalBlob_For_RowSample());
     }
 
-    public static byte[] makeSchemafulRowCanonicalBlob() {
+    public static byte[] makeSchemafulRowCanonicalBlob_For_RowSample() {
 
         return makeByteArray(
                 // value count
@@ -491,7 +515,7 @@ public class WireProtocolTest {
                 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, 0x7b, 0x7d, 0x00, 0x00, 0x00, 0x00);
     }
 
-    public static VersionedRow makeVersionedRowSample() {
+    public static VersionedRow makeVersioned_For_RowSample() {
         final List<UnversionedValue> keys = new ArrayList<>();
         final List<VersionedValue> values = new ArrayList<>();
         int id = 0;
@@ -511,18 +535,18 @@ public class WireProtocolTest {
         return new VersionedRow(Arrays.asList(1L, 2L), Arrays.asList(3L, 4L), keys, values);
     }
 
-    public static TRowsetDescriptor makeVersionedRowCanonicalDescriptor() {
-        return makeUnversionedRowCanonicalDescriptor();
+    public static TRowsetDescriptor makeVersionedDescriptor_For_RowSample() {
+        return makeDescriptor_For_RowSample();
     }
 
-    public static byte[] makeVersionedRowsetCanonicalBlob() {
+    public static byte[] makeVersionedRowsetCanonicalBlob_For_RowSample() {
         return ArrayUtils.addAll(makeByteArray(
                 // row count
                 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        ), makeVersionedRowCanonicalBlob());
+        ), makeVersionedRowCanonicalBlob_For_RowSample());
     }
 
-    public static byte[] makeVersionedRowCanonicalBlob() {
+    public static byte[] makeVersionedRowCanonicalBlob_For_RowSample() {
         return makeByteArray(
                 0x0c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,

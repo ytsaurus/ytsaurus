@@ -83,4 +83,5 @@ public class InternalObject21 {
                 ", booleanField5=" + booleanField5 +
                 '}';
     }
+
 }

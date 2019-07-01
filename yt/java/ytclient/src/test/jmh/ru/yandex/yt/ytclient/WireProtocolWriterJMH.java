@@ -16,13 +16,17 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.yt.ytclient.object.LargeFlattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeFlattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClass;
+import ru.yandex.yt.ytclient.object.LargeObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.LargePrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClass;
+import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.LargeUnflattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.SmallObjectClass;
+import ru.yandex.yt.ytclient.object.SmallObjectClassWithStateSupport;
 import ru.yandex.yt.ytclient.object.SmallPrimitiveClass;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 
@@ -33,6 +37,24 @@ public class WireProtocolWriterJMH {
 
     /*
 Benchmark                                                                                                     Mode  Cnt         Score        Error   Units
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport                                        thrpt    6    3642.264 ±   491.516   ops/s
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.alloc.rate                         thrpt    6    1472.695 ±   199.354  MB/sec
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.alloc.rate.norm                    thrpt    6  466648.025 ±     0.008    B/op
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.churn.G1_Eden_Space                thrpt    6    1478.906 ±   202.242  MB/sec
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.churn.G1_Eden_Space.norm           thrpt    6  468615.815 ±  8821.998    B/op
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.churn.G1_Old_Gen                   thrpt    6       0.057 ±     0.154  MB/sec
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.churn.G1_Old_Gen.norm              thrpt    6      18.890 ±    51.651    B/op
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.count                              thrpt    6     240.000              counts
+WireProtocolWriterJMH.test0101_se..MappedSmallObjectsWithStateSupport:·gc.time                               thrpt    6     232.000                  ms
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState                               thrpt    6   68836.583 ±  5293.501   ops/s
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.alloc.rate                thrpt    6    2386.075 ±   184.361  MB/sec
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.alloc.rate.norm           thrpt    6   40000.001 ±     0.001    B/op
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space       thrpt    6    2393.557 ±   163.802  MB/sec
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space.norm  thrpt    6   40130.142 ±  1165.528    B/op
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen          thrpt    6       0.008 ±     0.003  MB/sec
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen.norm     thrpt    6       0.127 ±     0.048    B/op
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.count                     thrpt    6     270.000              counts
+WireProtocolWriterJMH.test0102_se..MappedSmallObjectsWithStateSupportSaveState:·gc.time                      thrpt    6     308.000                  ms
 WireProtocolWriterJMH.test01_serializeMappedSmallObjects                                                     thrpt    6      2940.888 ±    509.534   ops/s
 WireProtocolWriterJMH.test01_serializeMappedSmallObjects:·gc.alloc.rate                                      thrpt    6      1939.517 ±    335.768  MB/sec
 WireProtocolWriterJMH.test01_serializeMappedSmallObjects:·gc.alloc.rate.norm                                 thrpt    6    760864.029 ±      0.005    B/op
@@ -87,6 +109,24 @@ WireProtocolWriterJMH.test06_serializeUnversionedSmallPrimitives:·gc.churn.G1_O
 WireProtocolWriterJMH.test06_serializeUnversionedSmallPrimitives:·gc.churn.G1_Old_Gen.norm                   thrpt    6         6.272 ±     12.893    B/op
 WireProtocolWriterJMH.test06_serializeUnversionedSmallPrimitives:·gc.count                                   thrpt    6       329.000               counts
 WireProtocolWriterJMH.test06_serializeUnversionedSmallPrimitives:·gc.time                                    thrpt    6       365.000                   ms
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport                                        thrpt    6     2041.871 ±   272.532   ops/s
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.alloc.rate                         thrpt    6      825.737 ±   110.480  MB/sec
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.alloc.rate.norm                    thrpt    6   466648.041 ±     0.007    B/op
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.churn.G1_Eden_Space                thrpt    6      830.938 ±   102.429  MB/sec
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.churn.G1_Eden_Space.norm           thrpt    6   469662.888 ±  8405.471    B/op
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.churn.G1_Old_Gen                   thrpt    6        0.221 ±     0.040  MB/sec
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.churn.G1_Old_Gen.norm              thrpt    6      125.445 ±    34.980    B/op
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.count                              thrpt    6      150.000              counts
+WireProtocolWriterJMH.test0701_se..MappedLargeObjectsWithStateSupport:·gc.time                               thrpt    6      145.000                  ms
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState                               thrpt    6    43901.502 ±  4991.865   ops/s
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.alloc.rate                thrpt    6     5174.271 ±   586.958  MB/sec
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.alloc.rate.norm           thrpt    6   136000.002 ±     0.001    B/op
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space       thrpt    6     5177.064 ±   670.457  MB/sec
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space.norm  thrpt    6   136048.419 ±  3295.334    B/op
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen          thrpt    6        0.019 ±     0.007  MB/sec
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen.norm     thrpt    6        0.492 ±     0.201    B/op
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.count                     thrpt    6      413.000              counts
+WireProtocolWriterJMH.test0702_se..MappedLargeObjectsWithStateSupportSaveState:·gc.time                      thrpt    6      574.000                  ms
 WireProtocolWriterJMH.test07_serializeMappedLargeObjects                                                     thrpt    6       504.217 ±     62.095   ops/s
 WireProtocolWriterJMH.test07_serializeMappedLargeObjects:·gc.alloc.rate                                      thrpt    6      1271.521 ±    156.505  MB/sec
 WireProtocolWriterJMH.test07_serializeMappedLargeObjects:·gc.alloc.rate.norm                                 thrpt    6   2909856.170 ±      0.037    B/op
@@ -201,6 +241,24 @@ WireProtocolWriterJMH.test18_serializeUnversionedLargeFlattenPrimitives:·gc.chu
 WireProtocolWriterJMH.test18_serializeUnversionedLargeFlattenPrimitives:·gc.churn.G1_Old_Gen.norm            thrpt    6   4156315.570 ±  53480.931    B/op
 WireProtocolWriterJMH.test18_serializeUnversionedLargeFlattenPrimitives:·gc.count                            thrpt    6       402.000               counts
 WireProtocolWriterJMH.test18_serializeUnversionedLargeFlattenPrimitives:·gc.time                             thrpt    6       441.000                   ms
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport                                        thrpt    6      3289.743 ±     48.171   ops/s
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.alloc.rate                         thrpt    6      1284.722 ±     18.423  MB/sec
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.alloc.rate.norm                    thrpt    6    450648.026 ±      0.003    B/op
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.churn.G1_Eden_Space                thrpt    6      1291.256 ±     38.071  MB/sec
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.churn.G1_Eden_Space.norm           thrpt    6    452946.513 ±  13867.061    B/op
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.churn.G1_Old_Gen                   thrpt    6         0.087 ±      0.257  MB/sec
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.churn.G1_Old_Gen.norm              thrpt    6        30.407 ±     89.679    B/op
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.count                              thrpt    6       206.000               counts
+WireProtocolWriterJMH.test1901..LargeUnflattenObjectsWithStateSupport:·gc.time                               thrpt    6       213.000                   ms
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState                               thrpt    6     23196.406 ±   5014.896   ops/s
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.alloc.rate                thrpt    6      4180.456 ±    902.957  MB/sec
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.alloc.rate.norm           thrpt    6    208000.004 ±      0.001    B/op
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space       thrpt    6      4179.517 ±    912.531  MB/sec
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.churn.G1_Eden_Space.norm  thrpt    6    207946.721 ±   3879.688    B/op
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen          thrpt    6         0.026 ±      0.011  MB/sec
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.churn.G1_Old_Gen.norm     thrpt    6         1.322 ±      0.571    B/op
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.count                     thrpt    6       327.000               counts
+WireProtocolWriterJMH.test1902..LargeUnflattenObjectsWithStateSupportSaveState:·gc.time                      thrpt    6       527.000                   ms
 WireProtocolWriterJMH.test19_serializeMappedLargeUnflattenObjects                                            thrpt    6       326.262 ±     13.339   ops/s
 WireProtocolWriterJMH.test19_serializeMappedLargeUnflattenObjects:·gc.alloc.rate                             thrpt    6      3750.973 ±    155.532  MB/sec
 WireProtocolWriterJMH.test19_serializeMappedLargeUnflattenObjects:·gc.alloc.rate.norm                        thrpt    6  13269820.293 ±    110.576    B/op
@@ -267,6 +325,19 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
     }
 
     @Benchmark
+    public void test0101_serializeMappedSmallObjectsWithStateSupport(Serializers serializers, Blackhole blackhole) {
+        blackhole.consume(serializers.smallObjectsWithStateSupport.serializeMappedObjects(serializers.smallObjectsDataWithStateSupport));
+    }
+
+    @Benchmark
+    public void test0102_serializeMappedSmallObjectsWithStateSupportSaveState(Serializers serializers, Blackhole blackhole) {
+        for (SmallObjectClassWithStateSupport object : serializers.smallObjectsDataWithStateSupport) {
+            object.saveYTreeObjectState();
+            blackhole.consume(object);
+        }
+    }
+
+    @Benchmark
     public void test02_serializeLegacyMappedSmallObjects(Serializers serializers, Blackhole blackhole) {
         blackhole.consume(serializers.smallObjects.serializeLegacyMappedObjects(serializers.smallObjectsData));
     }
@@ -296,6 +367,19 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
     @Benchmark
     public void test07_serializeMappedLargeObjects(Serializers serializers, Blackhole blackhole) {
         blackhole.consume(serializers.largeObjects.serializeMappedObjects(serializers.largeObjectsData));
+    }
+
+    @Benchmark
+    public void test0701_serializeMappedLargeObjectsWithStateSupport(Serializers serializers, Blackhole blackhole) {
+        blackhole.consume(serializers.largeObjectsWithStateSupport.serializeMappedObjects(serializers.largeObjectsDataWithStateSupport));
+    }
+
+    @Benchmark
+    public void test0702_serializeMappedLargeObjectsWithStateSupportSaveState(Serializers serializers, Blackhole blackhole) {
+        for (LargeObjectClassWithStateSupport object : serializers.largeObjectsDataWithStateSupport) {
+            object.saveYTreeObjectState();
+            blackhole.consume(object);
+        }
     }
 
     @Benchmark
@@ -367,6 +451,19 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
     }
 
     @Benchmark
+    public void test1901_serializeMappedLargeUnflattenObjectsWithStateSupport(Serializers serializers, Blackhole blackhole) {
+        blackhole.consume(serializers.largeUnflattenObjectsWithStateSupport.serializeMappedObjects(serializers.largeUnflattenObjectsDataWithStateSupport));
+    }
+
+    @Benchmark
+    public void test1902_serializeMappedLargeUnflattenObjectsWithStateSupportSaveState(Serializers serializers, Blackhole blackhole) {
+        for (LargeUnflattenObjectClassWithStateSupport object : serializers.largeUnflattenObjectsDataWithStateSupport) {
+            object.saveYTreeObjectState();
+            blackhole.consume(object);
+        }
+    }
+
+    @Benchmark
     public void test20_serializeLegacyMappedLargeUnflattenObjects(Serializers serializers, Blackhole blackhole) {
         blackhole.consume(serializers.largeUnflattenObjects
                 .serializeLegacyMappedObjects(serializers.largeUnflattenObjectsData));
@@ -392,8 +489,7 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
 
     @Benchmark
     public void test24_serializeUnversionedLargeUnflattenPrimitives(Serializers serializers,
-            Blackhole blackhole)
-    {
+                                                                    Blackhole blackhole) {
         blackhole.consume(serializers.largeUnflattenPrimitives
                 .serializeUnversionedObjects(serializers.largeUnflattenPrimitivesDataUnversioned));
     }
@@ -401,10 +497,12 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
     @State(Scope.Thread)
     public static class Serializers extends ForClassInstantiationJMH.ObjectMetadata {
         private final List<SmallObjectClass> smallObjectsData;
+        private final List<SmallObjectClassWithStateSupport> smallObjectsDataWithStateSupport;
         private final List<UnversionedRow> smallObjectsDataUnversioned;
         private final List<SmallPrimitiveClass> smallPrimitiveData;
         private final List<UnversionedRow> smallPrimitiveDataUnversioned;
         private final List<LargeObjectClass> largeObjectsData;
+        private final List<LargeObjectClassWithStateSupport> largeObjectsDataWithStateSupport;
         private final List<UnversionedRow> largeObjectsDataUnversioned;
         private final List<LargePrimitiveClass> largePrimitiveData;
         private final List<UnversionedRow> largePrimitiveDataUnversioned;
@@ -413,16 +511,29 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
         private final List<LargeFlattenPrimitiveClass> largeFlattenPrimitivesData;
         private final List<UnversionedRow> largeFlattenPrimitivesDataUnversioned;
         private final List<LargeUnflattenObjectClass> largeUnflattenObjectsData;
+        private final List<LargeUnflattenObjectClassWithStateSupport> largeUnflattenObjectsDataWithStateSupport;
         private final List<UnversionedRow> largeUnflattenObjectsDataUnversioned;
         private final List<LargeUnflattenPrimitiveClass> largeUnflattenPrimitivesData;
         private final List<UnversionedRow> largeUnflattenPrimitivesDataUnversioned;
 
         public Serializers() {
             smallObjectsData = smallObjects.generateObjects(1000);
+            smallObjectsDataWithStateSupport = smallObjectsWithStateSupport.generateObjects(1000);
+            smallObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
+                // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
+                object.setLongField(object.getLongField() + 1);
+                object.setStringField(object.getStringField() + "+1");
+            }));
             smallObjectsDataUnversioned = smallObjects.convertObjectsToUnversioned(smallObjectsData);
             smallPrimitiveData = smallPrimitives.generateObjects(1000);
             smallPrimitiveDataUnversioned = smallPrimitives.convertObjectsToUnversioned(smallPrimitiveData);
             largeObjectsData = largeObjects.generateObjects(1000);
+            largeObjectsDataWithStateSupport = largeObjectsWithStateSupport.generateObjects(1000);
+            largeObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
+                // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
+                object.setLongField1(object.getLongField1() + 1);
+                object.setStringField1(object.getStringField1() + "+1");
+            }));
             largeObjectsDataUnversioned = largeObjects.convertObjectsToUnversioned(largeObjectsData);
             largePrimitiveData = largePrimitives.generateObjects(1000);
             largePrimitiveDataUnversioned = largePrimitives.convertObjectsToUnversioned(largePrimitiveData);
@@ -433,6 +544,13 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
             largeFlattenPrimitivesDataUnversioned =
                     largeFlattenPrimitives.convertObjectsToUnversioned(largeFlattenPrimitivesData);
             largeUnflattenObjectsData = largeUnflattenObjects.generateObjects(1000);
+            largeUnflattenObjectsDataWithStateSupport = largeUnflattenObjectsWithStateSupport.generateObjects(1000);
+            largeUnflattenObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
+                // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
+                object.setIntField2(object.getIntField2());
+                object.setStringField1(object.getStringField1() + "+1");
+            }));
+
             largeUnflattenObjectsDataUnversioned =
                     largeUnflattenObjects.convertObjectsToUnversioned(largeUnflattenObjectsData);
             largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateObjects(1000);

@@ -136,11 +136,26 @@ public class TableSchema implements YTreeConvertible {
     }
 
     /**
+     * Возвращает схему колонки по ее индексу или null
+     *
+     * @param index индекс колонки
+     * @return описание колонки или null, если такого индекса нет
+     */
+    public ColumnSchema getColumnSchema(int index) {
+        if (index >= 0 && index < columns.size()) {
+            return columns.get(index);
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Возаращает имя колонки с индексом index
      */
     public String getColumnName(int index) {
-        if (index >= 0 && index < columns.size()) {
-            return columns.get(index).getName();
+        final ColumnSchema column = getColumnSchema(index);
+        if (column != null) {
+            return column.getName();
         } else {
             // Пока есть проблемы, что id в rowset'ах не соответствуют схеме
             // На случай несоответствий возвращаем хоть какое-то имя
@@ -152,8 +167,9 @@ public class TableSchema implements YTreeConvertible {
      * Возвращает тип колонки с индексом index
      */
     public ColumnValueType getColumnType(int index) {
-        if (index >= 0 && index < columns.size()) {
-            return columns.get(index).getType();
+        final ColumnSchema column = getColumnSchema(index);
+        if (column != null) {
+            return column.getType();
         } else {
             // Пока есть проблемы, что id в rowset'ах не соответствуют схеме
             // На случай несоответствий возвращаем хоть какой-то тип
