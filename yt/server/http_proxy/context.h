@@ -80,7 +80,7 @@ private:
     std::optional<NDriver::TCommandDescriptor> Descriptor_;
 
     std::optional<int> ApiVersion_;
-    std::optional<TAuthenticationTokenResult> Auth_;
+    std::optional<TAuthenticationResultAndToken> Auth_;
     std::optional<NFormats::TFormat> HeadersFormat_;
     std::optional<NFormats::TFormat> InputFormat_;
     std::optional<TContentEncoding> InputContentEncoding_;

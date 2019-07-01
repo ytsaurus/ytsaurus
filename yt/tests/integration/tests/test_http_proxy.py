@@ -121,10 +121,15 @@ class TestHttpProxy(YTEnvSetup):
         client.list("//sys")
 
         log_path = self.path_to_run + "/logs/http-proxy-0.json.log"
-        wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
+        wait(lambda: os.path.exists(log_path), "Cannot find proxy's structured log")
 
-        with open(log_path, "r") as fd:
-            for line in fd:
-                line_json = json.loads(line)
-                if line_json.get("path") == "//sys":
-                    assert line_json["command"] == "list"
+        def logs_updated():
+            flag = False
+            with open(log_path, "r") as fd:
+                for line in fd:
+                    line_json = json.loads(line)
+                    if line_json.get("path") == "//sys":
+                        flag |= line_json["command"] == "list"
+            return flag
+
+        wait(logs_updated)
