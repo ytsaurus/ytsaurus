@@ -67,12 +67,12 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
     }
 }
 
-TErrorOr<TAuthenticationTokenResult> THttpAuthenticator::Authenticate(
+TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     const IRequestPtr& request,
     bool disableCsrfTokenCheck)
 {
     if (!Config_->RequireAuthentication) {
-        return TAuthenticationTokenResult{TAuthenticationResult{"root", "YT"}, TString()};
+        return TAuthenticationResultAndToken{TAuthenticationResult{"root", "YT"}, TString()};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -101,7 +101,7 @@ TErrorOr<TAuthenticationTokenResult> THttpAuthenticator::Authenticate(
             if (!rsp.IsOK()) {
                 return TError(rsp);
             } else {
-                return TAuthenticationTokenResult{rsp.Value(), tokenHash};
+                return TAuthenticationResultAndToken{rsp.Value(), tokenHash};
             }
         }
     }
@@ -143,7 +143,7 @@ TErrorOr<TAuthenticationTokenResult> THttpAuthenticator::Authenticate(
             }
         }
 
-        return TAuthenticationTokenResult{authResult.Value(), tokenHash};
+        return TAuthenticationResultAndToken{authResult.Value(), tokenHash};
     }
 
     return TError(NRpc::EErrorCode::InvalidCredentials, "Client is missing credentials");
