@@ -4128,8 +4128,9 @@ private:
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
                 THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
-                                      "Attribute %Qv is not allowed", attribute)
-                                << TErrorAttribute("attribute_name", attribute);
+                    "Attribute %Qv is not allowed",
+                    attribute)
+                    << TErrorAttribute("attribute_name", attribute);
             }
             if (attribute == "id") {
                 result.push_back("id_hi");
