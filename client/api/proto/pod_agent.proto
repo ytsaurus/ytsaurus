@@ -168,11 +168,9 @@ message TResource {
         string file_storage_ref = 6;
     }
 
-    // place, где будет расположен ресурс
-    // Ресурс будт скачан на porto volume, созданный с этим place
-    // NOTE: Валидация - должен совпадать с place у volume, которые используют этот ресурс
-    string place = 7;
-
+    // Virtual disk, где будет расположен ресурс
+    // Ресурс будт скачан на porto volume, созданный на этом диске
+    // NOTE: Валидация - должен совпадать с virtual_disk_id_ref у volume, box, которые используют этот ресурс
     string virtual_disk_id_ref = 8;
 }
 
@@ -203,11 +201,10 @@ message TLayer {
     // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
     string url = 5;
 
-    // place, где будет расположен layer
-    // Передается as is в porto
-    // NOTE: Валидация - должен совпадать с place у volume, которые используют этот слой
-    string place = 6;
-
+    // Virtual disk, где будет расположен layer
+    // Слой будт скачан на porto volume, созданный на этом диске и импортирован в porto
+    // Place, в который импортирован данный слой, лежит на этом же диске
+    // NOTE: Валидация - должен совпадать с virtual_disk_id_ref у volume, box, которые используют этот слой
     string virtual_disk_id_ref = 7;
 }
 
@@ -250,11 +247,6 @@ message TRootfsVolume {
     // NOTE: Не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 1;
 
-    // place, где будет расположен volume
-    // Передается as is в porto
-    // NOTE: Валидация - должен совпадать с place у слоев, из которых собирается volume
-    string place = 6;
-
     // Слои, из которых собирается volume
     // Как и в porto, слои идут в порядке top-layer;...;bottom-layer
     // NOTE: Валидация - ids в списке должны быть уникальные
@@ -274,12 +266,8 @@ message TGenericVolume {
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 5;
 
-    // place, где будет расположен volume
-    // Передается as is в porto
-    // NOTE: Валидация - должен совпадать с place у слоев, из которых собирается volume
-    string place = 6;
-
     // Слои, из которых собирается volume
+    // Как и в porto, слои идут в порядке top-layer;...;bottom-layer
     // NOTE: Валидация - ids в списке должны быть уникальные
     repeated string layer_refs = 4;
 }
@@ -295,7 +283,10 @@ message TVolume {
 
         TGenericVolume generic = 4;
     }
-    
+
+    // Virtual disk, где будет расположен volume
+    // Volume будет создан в place, находящемся на этом виртуальном диске
+    // NOTE: Валидация - должен совпадать с virtual_disk_id_ref у слоев, из которых собирается volume
     string virtual_disk_id_ref = 5;
 }
 
@@ -500,6 +491,9 @@ message TBox {
     // Переменные окружения - прокидываются во все init контейнеры бокса
     repeated TEnvVar env = 13;
 
+    // Virtual disk, где будет расположен box
+    // Rootfs volume будет создан в place, находящемся на этом виртуальном диске
+    // NOTE: Валидация - должен совпадать с virtual_disk_id_ref у слоев и ресурсов, из которых собирается box
     string virtual_disk_id_ref = 14;
 }
 
