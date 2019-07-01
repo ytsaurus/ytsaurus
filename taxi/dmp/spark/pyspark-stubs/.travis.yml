@@ -9,8 +9,10 @@ python:
   - "3.6"
   - "3.5"
 
+before_install:
+  - pip install -r requirements-tests-py3.txt
+
 install:
   - pip install .
-  - pip install -r requirements-tests-py3.txt
 
 script: ./tests/mypy_test.py

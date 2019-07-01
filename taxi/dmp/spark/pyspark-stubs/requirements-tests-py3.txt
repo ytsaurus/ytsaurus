@@ -2,4 +2,5 @@ git+https://github.com/python/mypy.git@master
 typed-ast>=1.0.4
 flake8==3.5.0
 flake8-bugbear==18.2.0
-pyspark>=2.4.0,<3.0.0
+# pyspark>=3.0.0dev0,<3.1.0
+https://bitbucket.org/zero323/spark-builds/downloads/pyspark-3.0.0.dev0.tar.gz
