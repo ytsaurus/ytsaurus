@@ -99,6 +99,10 @@ public:
             return EJobSplitterVerdict::LaunchSpeculative;
         }
 
+        if (!job.GetNextLoggingTime().has_value()) {
+            job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
+        }
+
         if (job.GetNextLoggingTime() < now) {
             job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
             YT_LOG_DEBUG(
@@ -427,7 +431,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(bool, IsSplittable)
         DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
         DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration)
-        DEFINE_BYVAL_RW_PROPERTY(TInstant, NextLoggingTime)
+        DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextLoggingTime)
 
     private:
         TJobSplitter* Owner_ = nullptr;
