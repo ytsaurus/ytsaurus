@@ -15,6 +15,7 @@
 #include <yt/server/node/tablet_node/tablet.h>
 #include <yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/server/node/tablet_node/lookup.h>
 #include <yt/server/node/tablet_node/transaction_manager.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -223,8 +224,7 @@ private:
                     TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
                     TWireProtocolWriter writer;
 
-                    const auto &tabletManager = tabletSnapshot->TabletManager;
-                    tabletManager->Read(
+                    LookupRead(
                         tabletSnapshot,
                         timestamp,
                         user,
@@ -313,8 +313,7 @@ private:
                         TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
                         TWireProtocolWriter writer;
 
-                        const auto &tabletManager = tabletSnapshot->TabletManager;
-                        tabletManager->Read(
+                        LookupRead(
                             tabletSnapshot,
                             timestamp,
                             user,

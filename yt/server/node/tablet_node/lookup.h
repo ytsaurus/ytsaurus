@@ -29,6 +29,15 @@ void VersionedLookupRows(
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);
 
+void LookupRead(
+    TTabletSnapshotPtr tabletSnapshot,
+    TTimestamp timestamp,
+    const TString& user,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NTableClient::TRetentionConfigPtr retentionConfig,
+    NTableClient::TWireProtocolReader* reader,
+    NTableClient::TWireProtocolWriter* writer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
