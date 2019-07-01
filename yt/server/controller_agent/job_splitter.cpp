@@ -354,7 +354,10 @@ private:
         void UpdateCompletionTime(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
             PrepareDuration_ = summary.PrepareDuration.value_or(TDuration());
-            PrepareWithoutDownloadDuration_ = PrepareDuration_ - summary.DownloadDuration.value_or(TDuration());
+            auto downloadDuration = summary.DownloadDuration.value_or(TDuration());
+            PrepareWithoutDownloadDuration_ = PrepareDuration_ >= downloadDuration
+                ? PrepareDuration_ - downloadDuration
+                : TDuration();
             if (!summary.ExecDuration) {
                 return;
             }
