@@ -4102,11 +4102,10 @@ private:
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                ::NYT::TError error(NApi::EErrorCode::NoSuchAttribute,
-                                    "Operation attribute %Qv is not supported", attribute);
-                TErrorAttribute error_attribute("attribute_name", attribute);
-                error = error << error_attribute;
-                THROW_ERROR error;
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
+                                    "Operation attribute %Qv is not supported", attribute)
+                                    << TErrorAttribute("attribute_name", attribute);
+
             }
             if (attribute == "id") {
                 result.push_back("key");
@@ -4127,11 +4126,9 @@ private:
         result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                ::NYT::TError error(NApi::EErrorCode::NoSuchAttribute,
-                                    "Attribute %Qv is not allowed", attribute);
-                TErrorAttribute error_attribute("attribute_name", attribute);
-                error = error << error_attribute;
-                THROW_ERROR error;
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
+                                      "Attribute %Qv is not allowed", attribute)
+                                << TErrorAttribute("attribute_name", attribute);
             }
             if (attribute == "id") {
                 result.push_back("id_hi");
