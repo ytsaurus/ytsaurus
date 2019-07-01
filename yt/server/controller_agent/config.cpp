@@ -339,7 +339,7 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("scheudler_failure_backoff", SchedulerHandshakeFailureBackoff)
+    RegisterParameter("scheduler_failure_backoff", SchedulerHandshakeFailureBackoff)
         .Default(TDuration::Seconds(1));
 
     RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
