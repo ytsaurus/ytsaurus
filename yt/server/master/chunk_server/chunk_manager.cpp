@@ -860,7 +860,7 @@ public:
         StageChunkTree(chunkList, transaction, account);
     }
 
-    void StageChunk(TChunk* chunk, TTransaction* transaction, TAccount* account)
+    void StageChunk(TChunk* chunk, TInstant now, TTransaction* transaction, TAccount* account)
     {
         StageChunkTree(chunk, transaction, account);
 
@@ -868,7 +868,7 @@ public:
             UpdateTransactionResourceUsage(chunk, +1);
         }
 
-        chunk->SetExpirationTime(TInstant::Now() + GetDynamicConfig()->StagedChunkExpirationTimeout);
+        chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
         ExpirationTracker_->OnChunkStaged(chunk);
     }
 
@@ -2258,7 +2258,8 @@ private:
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
-        StageChunk(chunk, transaction, account);
+        auto now = GetCurrentMutationContext()->GetTimestamp();
+        StageChunk(chunk, now, transaction, account);
 
         transactionManager->StageObject(transaction, chunk);
 
