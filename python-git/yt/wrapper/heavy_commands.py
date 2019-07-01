@@ -201,6 +201,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
                     if chunk_size > 2 * MB:
                         resplit_chunk = _split_stream_into_pieces(chunk)
+                    else:
+                        resplit_chunk = chunk
 
                     runner.run_write_action(resplit_chunk, params)
                     params["path"].append = True
