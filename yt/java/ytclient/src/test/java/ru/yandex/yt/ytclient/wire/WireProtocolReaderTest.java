@@ -67,16 +67,16 @@ public class WireProtocolReaderTest extends WireProtocolTest {
     }
 
     private static void process(RowSampleAllObject sample) {
-        process(makeAttachmentsForMappedObject(sample),
-                makeDescriptorForMappedObject(), RowSampleAllObject.class, value -> {
+        process(makeAttachmentsForMappedObject_For_RowSampleAllObject(sample),
+                makeDescriptor_For_RowSampleAllObject(), RowSampleAllObject.class, value -> {
                     assertThat(value, is(sample));
                 });
     }
 
     @Test
     public void readUnversionedRow() {
-        process(makeUnversionedRowCanonicalBlob(), reader -> {
-            UnversionedRow sample = makeUnversionedRowSample();
+        process(makeUnversionedRowCanonicalBlob_For_RowSample(), reader -> {
+            UnversionedRow sample = makeUnversionedRow_For_RowSample();
             UnversionedRow row = reader.readUnversionedRow(new UnversionedRowDeserializer());
             assertThat(row, is(sample));
         });
@@ -84,10 +84,10 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readUnversionedRowset() {
-        process(makeUnversionedRowsetCanonicalBlob(), reader -> {
-            UnversionedRow sample = makeUnversionedRowSample();
+        process(makeUnversionedRowsetCanonicalBlob_For_RowSample(), reader -> {
+            UnversionedRow sample = makeUnversionedRow_For_RowSample();
             final UnversionedRowsetDeserializer builder =
-                    new UnversionedRowsetDeserializer(tableSchema(makeUnversionedRowCanonicalDescriptor()));
+                    new UnversionedRowsetDeserializer(tableSchema(makeDescriptor_For_RowSample()));
             final UnversionedRowset rowset = reader.readUnversionedRowset(builder).getRowset();
             assertEquals(1, rowset.getRows().size());
 
@@ -99,18 +99,18 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readUnversionedRowMapped() {
-        process(Collections.singletonList(makeUnversionedRowCanonicalBlob()),
-                makeUnversionedRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject();
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample()),
+                makeDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject();
                     assertThat(value, is(sample));
                 });
     }
 
     @Test
     public void readUnversionedRowsetMapped() {
-        process(Collections.singletonList(makeUnversionedRowsetCanonicalBlob()),
-                makeUnversionedRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject();
+        process(Collections.singletonList(makeUnversionedRowsetCanonicalBlob_For_RowSample()),
+                makeDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject();
                     assertThat(value, is(sample));
                 }, WireProtocolReader::readUnversionedRowset);
     }
@@ -123,20 +123,20 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readUnversionRowMappedForAllFieldsExceptClasses() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
         process(sample);
     }
 
     @Test
     public void readUnversionRowMappedForAllFieldsWithOneClass() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
-        sample.setSampleObject(makeRowSampleObject());
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
+        sample.setSampleObject(makeSample_For_RowSampleObject());
         process(sample);
     }
 
     @Test(expected = RuntimeException.class)
     public void readUnversionRowMappedForAllFieldsWithPartialClass() {
-        final RowSampleAllObject sample = makeMappedObjectWithoutClasses();
+        final RowSampleAllObject sample = makeMappedObjectWithoutClasses_For_RowSampleAllObject();
         final RowSampleAllInternal1Object internal1Object = new RowSampleAllInternal1Object();
         sample.setInternalObject(internal1Object);
 
@@ -147,14 +147,14 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readUnversionRowMappedForAllFieldsWithAllClasses() {
-        final RowSampleAllObject sample = makeMappedObjectComplete();
+        final RowSampleAllObject sample = makeMappedObjectComplete_For_RowSampleAllObject();
         process(sample);
     }
 
     @Test
     public void readSchemafulRow() {
-        process(makeSchemafulRowCanonicalBlob(), reader -> {
-            final UnversionedRow sample = makeSchemafulRowSample();
+        process(makeSchemafulRowCanonicalBlob_For_RowSample(), reader -> {
+            final UnversionedRow sample = makeSchemaful_For_RowSample();
             final SchemafulRowDeserializer builder =
                     new SchemafulRowDeserializer(extractSchemaData(sample, ColumnValueType.INT64));
             final UnversionedRow row = reader.readSchemafulRow(builder);
@@ -164,10 +164,10 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readSchemafulRowset() {
-        process(makeSchemafulRowsetCanonicalBlob(), reader -> {
-            final UnversionedRow sample = makeSchemafulRowSample();
+        process(makeSchemafulRowsetCanonicalBlob_For_RowSample(), reader -> {
+            final UnversionedRow sample = makeSchemaful_For_RowSample();
             final SchemafulRowsetDeserializer builder =
-                    new SchemafulRowsetDeserializer(tableSchema(makeSchemafulRowCanonicalDescriptor()));
+                    new SchemafulRowsetDeserializer(tableSchema(makeSchemafulRowCanonicalDescriptor_For_RowSample()));
             final UnversionedRowset rowset = reader.readSchemafulRowset(builder).getRowset();
             assertEquals(1, rowset.getRows().size());
 
@@ -178,18 +178,18 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readSchemafulRowMapped() {
-        process(Collections.singletonList(makeSchemafulRowCanonicalBlob()),
-                makeSchemafulRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject(false);
+        process(Collections.singletonList(makeSchemafulRowCanonicalBlob_For_RowSample()),
+                makeSchemafulRowCanonicalDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject(false);
                     assertThat(value, is(sample));
                 }, WireProtocolReader::readSchemafulRow);
     }
 
     @Test
     public void readSchemafulRowsetMapped() {
-        process(Collections.singletonList(makeSchemafulRowsetCanonicalBlob()),
-                makeSchemafulRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject(false);
+        process(Collections.singletonList(makeSchemafulRowsetCanonicalBlob_For_RowSample()),
+                makeSchemafulRowCanonicalDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject(false);
                     assertThat(value, is(sample));
                 }, WireProtocolReader::readSchemafulRowset);
     }
@@ -199,7 +199,7 @@ public class WireProtocolReaderTest extends WireProtocolTest {
     public void writeVersionedRow() {
         final List<byte[]> data = new ArrayList<>();
         final WireProtocolWriter writer = new WireProtocolWriter(data);
-        writer.writeVersionedRow(makeVersionedRowSample());
+        writer.writeVersionedRow(makeVersioned_For_RowSample());
         writer.finish();
 
         Assert.assertEquals(1, data.size());
@@ -209,11 +209,11 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readVersionedRow() {
-        process(makeVersionedRowCanonicalBlob(), reader -> {
-            final VersionedRow sample = makeVersionedRowSample();
+        process(makeVersionedRowCanonicalBlob_For_RowSample(), reader -> {
+            final VersionedRow sample = makeVersioned_For_RowSample();
             final VersionedRowDeserializer builder =
                     new VersionedRowDeserializer(WireProtocolReader.makeSchemaData(
-                            tableSchema(makeVersionedRowCanonicalDescriptor())));
+                            tableSchema(makeVersionedDescriptor_For_RowSample())));
             final VersionedRow row = reader.readVersionedRow(builder);
             assertThat(row, is(sample));
         });
@@ -221,10 +221,10 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readVersionedRowset() {
-        process(makeVersionedRowsetCanonicalBlob(), reader -> {
-            final VersionedRow sample = makeVersionedRowSample();
+        process(makeVersionedRowsetCanonicalBlob_For_RowSample(), reader -> {
+            final VersionedRow sample = makeVersioned_For_RowSample();
             final VersionedRowsetDeserializer builder =
-                    new VersionedRowsetDeserializer(tableSchema(makeVersionedRowCanonicalDescriptor()));
+                    new VersionedRowsetDeserializer(tableSchema(makeVersionedDescriptor_For_RowSample()));
             final VersionedRowset rowset = reader.readVersionedRowset(builder).getRowset();
             Assert.assertEquals(1, rowset.getRows().size());
             final VersionedRow row = rowset.getRows().get(0);
@@ -234,18 +234,18 @@ public class WireProtocolReaderTest extends WireProtocolTest {
 
     @Test
     public void readVersionedRowMapped() {
-        process(Collections.singletonList(makeVersionedRowCanonicalBlob()),
-                makeVersionedRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject();
+        process(Collections.singletonList(makeVersionedRowCanonicalBlob_For_RowSample()),
+                makeVersionedDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject();
                     assertThat(value, is(sample));
                 }, WireProtocolReader::readVersionedRow);
     }
 
     @Test
     public void readVersionedRowsetMapped() {
-        process(Collections.singletonList(makeVersionedRowsetCanonicalBlob()),
-                makeVersionedRowCanonicalDescriptor(), RowSampleOject.class, value -> {
-                    final RowSampleOject sample = makeRowSampleObject();
+        process(Collections.singletonList(makeVersionedRowsetCanonicalBlob_For_RowSample()),
+                makeVersionedDescriptor_For_RowSample(), RowSampleObject.class, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject();
                     assertThat(value, is(sample));
                 }, WireProtocolReader::readVersionedRowset);
     }

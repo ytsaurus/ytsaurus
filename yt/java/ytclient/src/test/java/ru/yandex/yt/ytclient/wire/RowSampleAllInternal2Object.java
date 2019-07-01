@@ -10,7 +10,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 public class RowSampleAllInternal2Object {
 
     private int key;
-    private RowSampleOject rowSampleOject;
+    private RowSampleObject rowSampleObject;
     @YTreeFlattenField
     private RowSampleAllFlattenObject flattenObject;
 
@@ -22,12 +22,12 @@ public class RowSampleAllInternal2Object {
         this.key = key;
     }
 
-    public RowSampleOject getRowSampleOject() {
-        return rowSampleOject;
+    public RowSampleObject getRowSampleObject() {
+        return rowSampleObject;
     }
 
-    public void setRowSampleOject(RowSampleOject rowSampleOject) {
-        this.rowSampleOject = rowSampleOject;
+    public void setRowSampleObject(RowSampleObject rowSampleObject) {
+        this.rowSampleObject = rowSampleObject;
     }
 
     public RowSampleAllFlattenObject getFlattenObject() {
@@ -48,20 +48,20 @@ public class RowSampleAllInternal2Object {
         }
         RowSampleAllInternal2Object that = (RowSampleAllInternal2Object) o;
         return key == that.key &&
-                Objects.equals(rowSampleOject, that.rowSampleOject) &&
+                Objects.equals(rowSampleObject, that.rowSampleObject) &&
                 Objects.equals(flattenObject, that.flattenObject);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, rowSampleOject, flattenObject);
+        return Objects.hash(key, rowSampleObject, flattenObject);
     }
 
     @Override
     public String toString() {
         return "RowSampleAllInternal2Object{" +
                 "key=" + key +
-                ", rowSampleOject=" + rowSampleOject +
+                ", rowSampleObject=" + rowSampleObject +
                 ", flattenObject=" + flattenObject +
                 '}';
     }

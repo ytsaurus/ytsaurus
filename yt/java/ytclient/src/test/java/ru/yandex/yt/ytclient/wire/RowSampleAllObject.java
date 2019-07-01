@@ -6,14 +6,16 @@ import java.util.Objects;
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.ListF;
 import ru.yandex.bolts.collection.MapF;
+import ru.yandex.bolts.collection.SetF;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.NullSerializationStrategy;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeFlattenField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.AbstractYTreeStateSupport;
 import ru.yandex.misc.lang.number.UnsignedLong;
 
 @YTreeObject(nullSerializationStrategy = NullSerializationStrategy.IGNORE_NULL_FIELDS)
-public class RowSampleAllObject {
+public class RowSampleAllObject extends AbstractYTreeStateSupport<RowSampleAllObject> {
     @YTreeKeyField
     private int int64_as_int;
     private Integer int64_as_Integer;
@@ -41,20 +43,21 @@ public class RowSampleAllObject {
     private String any_as_string;
     private byte[] any_as_bytes;
 
-    private RowSampleOject sampleObject;
+    private RowSampleObject sampleObject;
     private RowSampleAllInternal1Object internalObject;
 
     @YTreeFlattenField
     private RowSampleAllFlattenObject flatten;
 
     private MapF<String, String> simpleMapObject;
-    private MapF<String, RowSampleOject> complexMapObject;
+    private MapF<String, RowSampleObject> complexMapObject;
     private ListF<String> simpleListObject;
-    private ListF<RowSampleOject> complexListObject;
+    private ListF<RowSampleObject> complexListObject;
     private String[] simpleArrayObject;
-    private RowSampleOject[] complexArrayObject;
+    private RowSampleObject[] complexArrayObject;
     private int[] primitiveArrayObject;
-
+    private SetF<String> simpleSetObjects;
+    private SetF<RowSampleObject> complexSetObjects;
 
     public int getInt64_as_int() {
         return int64_as_int;
@@ -192,11 +195,11 @@ public class RowSampleAllObject {
         this.any_as_bytes = any_as_bytes;
     }
 
-    public RowSampleOject getSampleObject() {
+    public RowSampleObject getSampleObject() {
         return sampleObject;
     }
 
-    public void setSampleObject(RowSampleOject sampleObject) {
+    public void setSampleObject(RowSampleObject sampleObject) {
         this.sampleObject = sampleObject;
     }
 
@@ -223,18 +226,18 @@ public class RowSampleAllObject {
         this.simpleMapObject = simpleMapObject;
     }
 
-    public MapF<String, RowSampleOject> getComplexMapObject() {
+    public MapF<String, RowSampleObject> getComplexMapObject() {
         return complexMapObject;
     }
 
-    public MapF<String, RowSampleOject> getComplexMapObject0() {
+    public MapF<String, RowSampleObject> getComplexMapObject0() {
         if (complexMapObject == null) {
             complexMapObject = Cf.hashMap();
         }
         return complexMapObject;
     }
 
-    public void setComplexMapObject(MapF<String, RowSampleOject> complexMapObject) {
+    public void setComplexMapObject(MapF<String, RowSampleObject> complexMapObject) {
         this.complexMapObject = complexMapObject;
     }
 
@@ -253,18 +256,18 @@ public class RowSampleAllObject {
         this.simpleListObject = simpleListObject;
     }
 
-    public ListF<RowSampleOject> getComplexListObject() {
+    public ListF<RowSampleObject> getComplexListObject() {
         return complexListObject;
     }
 
-    public ListF<RowSampleOject> getComplexListObject0() {
+    public ListF<RowSampleObject> getComplexListObject0() {
         if (complexListObject == null) {
             complexListObject = Cf.arrayList();
         }
         return complexListObject;
     }
 
-    public void setComplexListObject(ListF<RowSampleOject> complexListObject) {
+    public void setComplexListObject(ListF<RowSampleObject> complexListObject) {
         this.complexListObject = complexListObject;
     }
 
@@ -276,11 +279,11 @@ public class RowSampleAllObject {
         this.simpleArrayObject = simpleArrayObject;
     }
 
-    public RowSampleOject[] getComplexArrayObject() {
+    public RowSampleObject[] getComplexArrayObject() {
         return complexArrayObject;
     }
 
-    public void setComplexArrayObject(RowSampleOject... complexArrayObject) {
+    public void setComplexArrayObject(RowSampleObject... complexArrayObject) {
         this.complexArrayObject = complexArrayObject;
     }
 
@@ -298,6 +301,36 @@ public class RowSampleAllObject {
 
     public void setFlatten(RowSampleAllFlattenObject flatten) {
         this.flatten = flatten;
+    }
+
+    public SetF<String> getSimpleSetObjects() {
+        return simpleSetObjects;
+    }
+
+    public SetF<String> getSimpleSetObjects0() {
+        if (simpleSetObjects == null) {
+            simpleSetObjects = Cf.hashSet();
+        }
+        return simpleSetObjects;
+    }
+
+    public void setSimpleSetObjects(SetF<String> simpleSetObjects) {
+        this.simpleSetObjects = simpleSetObjects;
+    }
+
+    public SetF<RowSampleObject> getComplexSetObjects() {
+        return complexSetObjects;
+    }
+
+    public SetF<RowSampleObject> getComplexSetObjects0() {
+        if (complexSetObjects == null) {
+            complexSetObjects = Cf.hashSet();
+        }
+        return complexSetObjects;
+    }
+
+    public void setComplexSetObjects(SetF<RowSampleObject> complexSetObjects) {
+        this.complexSetObjects = complexSetObjects;
     }
 
     @Override
@@ -328,6 +361,7 @@ public class RowSampleAllObject {
                 Arrays.equals(any_as_bytes, that.any_as_bytes) &&
                 Objects.equals(sampleObject, that.sampleObject) &&
                 Objects.equals(internalObject, that.internalObject) &&
+                Objects.equals(flatten, that.flatten) &&
                 Objects.equals(simpleMapObject, that.simpleMapObject) &&
                 Objects.equals(complexMapObject, that.complexMapObject) &&
                 Objects.equals(simpleListObject, that.simpleListObject) &&
@@ -335,18 +369,17 @@ public class RowSampleAllObject {
                 Arrays.equals(simpleArrayObject, that.simpleArrayObject) &&
                 Arrays.equals(complexArrayObject, that.complexArrayObject) &&
                 Arrays.equals(primitiveArrayObject, that.primitiveArrayObject) &&
-                Objects.equals(flatten, that.flatten);
+                Objects.equals(simpleSetObjects, that.simpleSetObjects) &&
+                Objects.equals(complexSetObjects, that.complexSetObjects);
     }
 
     @Override
     public int hashCode() {
-        int result =
-                Objects.hash(int64_as_int, int64_as_Integer, int64_as_long, int64_as_Long, uint64_as_int,
-                        uint64_as_Integer,
-                        uint64_as_long, uint64_as_Long, uint64_as_UnsignedLong, double_as_double, double_as_Double,
-                        boolean_as_boolean, boolean_as_Boolean, string_as_string, any_as_string, sampleObject,
-                        internalObject, simpleMapObject, complexMapObject, simpleListObject, complexListObject,
-                        flatten);
+        int result = Objects.hash(int64_as_int, int64_as_Integer, int64_as_long, int64_as_Long, uint64_as_int,
+                uint64_as_Integer, uint64_as_long, uint64_as_Long, uint64_as_UnsignedLong, double_as_double,
+                double_as_Double, boolean_as_boolean, boolean_as_Boolean, string_as_string, any_as_string,
+                sampleObject, internalObject, flatten, simpleMapObject, complexMapObject, simpleListObject,
+                complexListObject, simpleSetObjects, complexSetObjects);
         result = 31 * result + Arrays.hashCode(string_as_bytes);
         result = 31 * result + Arrays.hashCode(any_as_bytes);
         result = 31 * result + Arrays.hashCode(simpleArrayObject);
@@ -377,6 +410,7 @@ public class RowSampleAllObject {
                 ", any_as_bytes=" + Arrays.toString(any_as_bytes) +
                 ", sampleObject=" + sampleObject +
                 ", internalObject=" + internalObject +
+                ", flatten=" + flatten +
                 ", simpleMapObject=" + simpleMapObject +
                 ", complexMapObject=" + complexMapObject +
                 ", simpleListObject=" + simpleListObject +
@@ -384,7 +418,8 @@ public class RowSampleAllObject {
                 ", simpleArrayObject=" + Arrays.toString(simpleArrayObject) +
                 ", complexArrayObject=" + Arrays.toString(complexArrayObject) +
                 ", primitiveArrayObject=" + Arrays.toString(primitiveArrayObject) +
-                ", flatten=" + flatten +
+                ", simpleSetObjects=" + simpleSetObjects +
+                ", complexSetObjects=" + complexSetObjects +
                 '}';
     }
 }

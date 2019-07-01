@@ -37,8 +37,8 @@ public class ObjectsMetadataTest<T> {
     @Parameterized.Parameter
     public Class<T> clazz;
 
-    private List<T> list;
-    private ObjectsMetadata<T> metadata;
+    protected List<T> list;
+    protected ObjectsMetadata<T> metadata;
 
     @Before
     public void init() {

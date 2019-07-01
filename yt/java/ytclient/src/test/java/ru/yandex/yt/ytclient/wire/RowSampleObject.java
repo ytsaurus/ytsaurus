@@ -11,7 +11,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesSerial
 import ru.yandex.misc.lang.number.UnsignedLong;
 
 @YTreeObject(nullSerializationStrategy = NullSerializationStrategy.IGNORE_NULL_FIELDS)
-public class RowSampleOject {
+public class RowSampleObject implements Cloneable {
     @YTreeKeyField
     @YTreeSerializerClass(YTreeBytesSerializer.class)
     private Object vNull;
@@ -145,7 +145,7 @@ public class RowSampleOject {
 
     @Override
     public String toString() {
-        return "RowSampleOject{" +
+        return "RowSampleObject{" +
                 "vNull=" + vNull +
                 ", vNullAggr=" + vNullAggr +
                 ", vInt64=" + vInt64 +
@@ -171,7 +171,7 @@ public class RowSampleOject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        RowSampleOject that = (RowSampleOject) o;
+        RowSampleObject that = (RowSampleObject) o;
         return vInt64 == that.vInt64 &&
                 vInt64Aggr == that.vInt64Aggr &&
                 Double.compare(that.vDouble, vDouble) == 0 &&
@@ -196,5 +196,10 @@ public class RowSampleOject {
         result = 31 * result + Arrays.hashCode(vAny);
         result = 31 * result + Arrays.hashCode(vAnyAggr);
         return result;
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        return super.clone();
     }
 }
