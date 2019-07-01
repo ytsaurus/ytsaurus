@@ -115,7 +115,7 @@ void SerializeMapFragment(
     auto iterator = CreateIterator(items);
 
     if (sortKeys) {
-        std::vector<std::pair<TStringBuf, PyObject*>> itemsSortedByKey;
+        std::vector<std::pair<TString, PyObject*>> itemsSortedByKey;
 
         while (auto* item = PyIter_Next(*iterator)) {
             auto key = Py::Object(PyTuple_GetItem(item, 0), false);
