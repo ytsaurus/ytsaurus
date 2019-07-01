@@ -1,7 +1,8 @@
 #include "ya_version.h"
 
-#include <yt/build/ya_version_data.h>
+#include <build/scripts/c_templates/svnversion.h>
 
+#include <util/stream/format.h>
 #include <util/stream/str.h>
 
 #include <util/system/compiler.h>
@@ -12,12 +13,7 @@ namespace NYT {
 
 TString CreateYTVersion(int major, int minor, TStringBuf branch)
 {
-
-#if defined(ARCADIA_PATCH_NUMBER)
-    auto patch = ARCADIA_PATCH_NUMBER;
-#else
-    auto patch = 0;
-#endif
+    auto patch = GetArcadiaGitPatchNumber();
 
     TStringStream out;
     out << major << "." << minor << "." << patch;
@@ -32,8 +28,8 @@ TString CreateYTVersion(int major, int minor, TStringBuf branch)
     out << "-asan";
 #endif
 
-    TString commit = ARCADIA_SOURCE_REVISION;
-    TString buildUser = BUILD_USER;
+    TString commit = GetProgramCommitId();
+    TString buildUser = GetProgramBuildUser();
 
     // When we use `ya make --dist` distbuild makes mess instead of svn revision:
     //   BUILD_USER == "Unknown user"
@@ -57,12 +53,12 @@ TString CreateYTVersion(int major, int minor, TStringBuf branch)
 
 TString GetYaHostName()
 {
-    return BUILD_HOST;
+    return GetProgramBuildHost();
 }
 
 TString GetYaBuildDate()
 {
-    return BUILD_DATE;
+    return GetProgramBuildDate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
