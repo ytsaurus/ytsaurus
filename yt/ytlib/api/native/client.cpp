@@ -4103,8 +4103,9 @@ private:
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
                 THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
-                                    "Operation attribute %Qv is not supported", attribute)
-                                    << TErrorAttribute("attribute_name", attribute);
+                    "Operation attribute %Qv is not supported",
+                    attribute)
+                    << TErrorAttribute("attribute_name", attribute);
 
             }
             if (attribute == "id") {
