@@ -145,6 +145,8 @@ message TResourceMeta {
 }
 
 message TResource {
+    reserved "place"; reserved 7;
+
     // Уникальное имя ресурса (в рамках pod'а).
     // Должно состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string id = 1;
@@ -182,7 +184,7 @@ message TCacheResource {
 }
 
 message TLayer {
-    reserved "resource"; reserved 2;
+    reserved "resource", "place"; reserved 2, 6;
 
     // Уникальное имя слоя (в рамках pod'а).
     // Должно состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
@@ -241,7 +243,7 @@ message TMountedStaticResource {
 }
 
 message TRootfsVolume {
-    reserved 2, 3, 5;
+    reserved "place"; reserved 2, 3, 5, 6;
 
     // Квота на размер
     // NOTE: Не обрабатывается - porto не умеет во вложенные квоты по диску
@@ -260,7 +262,7 @@ message TFileStorage {
 }
 
 message TGenericVolume {
-    reserved 1, 2, 3;
+    reserved "place"; reserved 1, 2, 3, 6;
 
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
