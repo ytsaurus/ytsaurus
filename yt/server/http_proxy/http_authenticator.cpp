@@ -84,6 +84,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
     }
 
+    NTracing::TChildTraceContextGuard authSpan("HttpProxy.Auth");
+
     auto authorizationHeader = request->GetHeaders()->Find("Authorization");
     auto tokenHash = TString();
     if (authorizationHeader) {
