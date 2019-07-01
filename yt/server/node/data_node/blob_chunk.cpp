@@ -83,7 +83,6 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
     auto result = cookie.GetValue();
 
-    auto priority = options.WorkloadDescriptor.GetPriority();
     try {
         if (cookie.IsActive()) {
             auto readGuard = TChunkReadGuard::AcquireOrThrow(this);
@@ -96,8 +95,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
                 options);
 
             Bootstrap_
-                ->GetChunkBlockManager()->GetReaderInvoker()
-                ->Invoke(callback, priority);
+                ->GetStorageHeavyInvoker()
+                ->Invoke(callback, options.WorkloadDescriptor.GetPriority());
         }
     } catch (const std::exception& ex) {
         cookie.Cancel(ex);
@@ -109,7 +108,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
-       .AsyncVia(CreateFixedPriorityInvoker(Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(), priority)));
+       .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
 }
 
 TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
@@ -129,6 +128,25 @@ bool TBlobChunkBase::IsFatalError(const TError& error)
     return true;
 }
 
+NChunkClient::TFileReaderPtr TBlobChunkBase::GetReader()
+{
+    {
+        auto guard = Guard(CachedReaderSpinLock_);
+        auto reader = CachedWeakReader_.Lock();
+        if (reader) {
+            return reader;
+        }
+    }
+
+    {
+        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+        auto reader = readerCache->GetReader(this);
+        auto guard = Guard(CachedReaderSpinLock_);
+        CachedWeakReader_ = reader;
+        return reader;
+    }
+}
+
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
     ProfileReadBlockSetLatency(session);
@@ -139,7 +157,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         auto& entry = session->Entries[entryIndex];
         blocks.push_back(std::move(entry.Block));
     }
-    session->Promise.TrySet(std::move(blocks));
+    session->SessionPromise.TrySet(std::move(blocks));
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -155,7 +173,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         asyncResult.Cancel();
     }
 
-    session->Promise.TrySet(error);
+    session->SessionPromise.TrySet(error);
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -172,8 +190,7 @@ void TBlobChunkBase::DoReadMeta(
     TRefCountedChunkMetaPtr meta;
     TWallTimer readTimer;
     try {
-        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-        auto reader = readerCache->GetReader(this);
+        auto reader = GetReader();
         meta = WaitFor(reader->GetMeta(options))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
@@ -242,30 +259,23 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     }
 
     if (diskFetchNeeded) {
+        session->DiskFetchPromise = NewPromise<void>();
+        session->AsyncResults.push_back(session->DiskFetchPromise.ToFuture());
+
+        auto readCallback = BIND([=, this_ = MakeStrong(this)] {
+            DoReadSession(session, pendingDataSize);
+        });
+
         const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
-        auto throttleAsyncResult = VoidFuture;
-        if (!outThrottler->TryAcquire(pendingDataSize)) {
+        if (outThrottler->TryAcquire(pendingDataSize)) {
+            session->Invoker->Invoke(std::move(readCallback));
+        } else {
             YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)",
                 pendingDataSize,
                 session->Options.WorkloadDescriptor);
-            throttleAsyncResult = outThrottler->Throttle(pendingDataSize);
+            auto throttleAsyncResult = outThrottler->Throttle(pendingDataSize);
+            session->AsyncResults.push_back(throttleAsyncResult.Apply(readCallback.AsyncVia(session->Invoker)));
         }
-
-        // Actually serve the request: delegate to the appropriate thread.
-        session->AsyncResults.push_back(
-            throttleAsyncResult.Apply(BIND([=, this_ = MakeStrong(this)] {
-                auto pendingIOGuard = Location_->IncreasePendingIOSize(
-                    EIODirection::Read,
-                    session->Options.WorkloadDescriptor,
-                    pendingDataSize);
-                // Note that outer Apply checks that the return value is of type
-                // TError and returns the TFuture<void> instead of TFuture<TError> here.
-                DoReadBlockSet(
-                    session,
-                    std::move(pendingIOGuard));
-            }).AsyncVia(CreateFixedPriorityInvoker(
-                Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(),
-                session->Options.WorkloadDescriptor.GetPriority()))));
     }
 
     Combine(session->AsyncResults)
@@ -277,114 +287,155 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             }
         }));
 
-    session->Promise.OnCanceled(BIND([session] {
+    session->SessionPromise.OnCanceled(BIND([session] {
         FailSession(session, TError(NYT::EErrorCode::Canceled, "Read session canceled"));
     }));
 }
 
+void TBlobChunkBase::DoReadSession(
+    const TBlobChunkBase::TReadBlockSetSessionPtr& session,
+    i64 pendingDataSize)
+{
+    auto pendingIOGuard = Location_->IncreasePendingIOSize(
+        EIODirection::Read,
+        session->Options.WorkloadDescriptor,
+        pendingDataSize);
+    DoReadBlockSet(session, 0, std::move(pendingIOGuard));
+}
+
 void TBlobChunkBase::DoReadBlockSet(
     const TReadBlockSetSessionPtr& session,
-    TPendingIOGuard /*pendingIOGuard*/)
+    int currentEntryIndex,
+    TPendingIOGuard&& pendingIOGuard)
 {
-    const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-    auto reader = readerCache->GetReader(this);
-
-    int currentEntryIndex = 0;
-    while (currentEntryIndex < session->EntryCount) {
-        if (session->Entries[currentEntryIndex].Cached) {
-            ++currentEntryIndex;
-            continue;
+    while (true) {
+        if (currentEntryIndex >= session->EntryCount) {
+            session->DiskFetchPromise.Set();
+            return;
         }
 
-        // Extract the maximum contiguous run of blocks.
-        int beginEntryIndex = currentEntryIndex;
-        int endEntryIndex = currentEntryIndex;
-        int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
-        while (
-            endEntryIndex < session->EntryCount &&
-            !session->Entries[endEntryIndex].Cached &&
-            session->Entries[endEntryIndex].BlockIndex == firstBlockIndex + (endEntryIndex - beginEntryIndex))
-        {
-            ++endEntryIndex;
-        }
-        int blocksToRead = endEntryIndex - beginEntryIndex;
-
-        YT_LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
-            Id_,
-            firstBlockIndex,
-            firstBlockIndex + blocksToRead - 1,
-            Location_->GetId(),
-            session->Options.WorkloadDescriptor,
-            session->Options.ReadSessionId);
-
-        TWallTimer readTimer;
-        auto blocksOrError = WaitFor(reader->ReadBlocks(
-            session->Options,
-            firstBlockIndex,
-            blocksToRead,
-            std::nullopt));
-        auto readTime = readTimer.GetElapsedTime();
-
-        if (!blocksOrError.IsOK()) {
-            auto error = TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error reading blob chunk %v",
-                Id_)
-                << TError(blocksOrError);
-            if (IsFatalError(blocksOrError)) {
-                Location_->Disable(error);
-                YT_ABORT();
-            }
-            THROW_ERROR error;
+        if (!session->Entries[currentEntryIndex].Cached) {
+            break;
         }
 
-        const auto& blocks = blocksOrError.Value();
-        YT_VERIFY(blocks.size() == blocksToRead);
-
-        i64 bytesRead = 0;
-        TWallTimer populateCacheTimer;
-        for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
-            auto block = blocks[entryIndex - beginEntryIndex];
-            auto& entry = session->Entries[entryIndex];
-            entry.Block = block;
-            bytesRead += block.Size();
-            if (!entry.Cached) {
-                // NB: Copy block to move data to undumpable memory and to
-                // prevent cache from holding the whole block sequence.
-                {
-                    TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                    block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
-                }
-
-                auto blockId = TBlockId(Id_, entry.BlockIndex);
-                auto cachedBlock = New<TCachedBlock>(blockId, std::move(block), std::nullopt);
-                entry.Cookie.EndInsert(cachedBlock);
-            }
-        }
-        auto populateCacheTime = populateCacheTimer.GetElapsedTime();
-
-        YT_LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
-            "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
-            Id_,
-            firstBlockIndex,
-            firstBlockIndex + blocksToRead - 1,
-            Location_->GetId(),
-            bytesRead,
-            readTime,
-            populateCacheTime,
-            session->Options.ReadSessionId);
-
-        const auto& locationProfiler = Location_->GetProfiler();
-        auto& performanceCounters = Location_->GetPerformanceCounters();
-        locationProfiler.Update(performanceCounters.BlobBlockReadSize, bytesRead);
-        locationProfiler.Update(performanceCounters.BlobBlockReadTime, NProfiling::DurationToValue(readTime));
-        locationProfiler.Update(performanceCounters.BlobBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
-        locationProfiler.Increment(performanceCounters.BlobBlockReadBytes, bytesRead);
-
-        Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
-
-        currentEntryIndex = endEntryIndex;
+        ++currentEntryIndex;
     }
+
+    // Extract the maximum contiguous run of blocks.
+    int beginEntryIndex = currentEntryIndex;
+    int endEntryIndex = currentEntryIndex;
+    int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
+    while (
+        endEntryIndex < session->EntryCount &&
+        !session->Entries[endEntryIndex].Cached &&
+        session->Entries[endEntryIndex].BlockIndex == firstBlockIndex + (endEntryIndex - beginEntryIndex))
+    {
+        ++endEntryIndex;
+    }
+    int blocksToRead = endEntryIndex - beginEntryIndex;
+
+    YT_LOG_DEBUG(
+        "Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
+        Id_,
+        firstBlockIndex,
+        firstBlockIndex + blocksToRead - 1,
+        Location_->GetId(),
+        session->Options.WorkloadDescriptor,
+        session->Options.ReadSessionId);
+
+    session->ReadTimer.emplace();
+
+    auto reader = GetReader();
+    auto asyncBlocks = reader->ReadBlocks(
+        session->Options,
+        firstBlockIndex,
+        blocksToRead,
+        std::nullopt);
+
+    asyncBlocks.Subscribe(
+        BIND(
+            &TBlobChunkBase::OnBlocksRead,
+            MakeStrong(this),
+            session,
+            firstBlockIndex,
+            beginEntryIndex,
+            endEntryIndex,
+            Passed(std::move(pendingIOGuard)))
+            .Via(session->Invoker));
+}
+
+void TBlobChunkBase::OnBlocksRead(
+    const TReadBlockSetSessionPtr& session,
+    int firstBlockIndex,
+    int beginEntryIndex,
+    int endEntryIndex,
+    TPendingIOGuard&& pendingIOGuard,
+    const TErrorOr<std::vector<TBlock>>& blocksOrError)
+{
+    if (!blocksOrError.IsOK()) {
+        auto error = TError(
+            NChunkClient::EErrorCode::IOError,
+            "Error reading blob chunk %v",
+            Id_)
+            << TError(blocksOrError);
+        if (IsFatalError(blocksOrError)) {
+            Location_->Disable(error);
+            YT_ABORT();
+        }
+        FailSession(session, error);
+        return;
+    }
+
+    auto readTime = session->ReadTimer->GetElapsedTime();
+
+    int blocksToRead = endEntryIndex - beginEntryIndex;
+
+    const auto& blocks = blocksOrError.Value();
+    YCHECK(blocks.size() == blocksToRead);
+
+    i64 bytesRead = 0;
+    TWallTimer populateCacheTimer;
+    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
+        auto block = blocks[entryIndex - beginEntryIndex];
+        auto& entry = session->Entries[entryIndex];
+        entry.Block = block;
+        bytesRead += block.Size();
+        if (!entry.Cached) {
+            // NB: Copy block to undumpable memory and to
+            // prevent cache from holding the whole block sequence.
+            {
+                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+                block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
+            }
+
+            auto blockId = TBlockId(Id_, entry.BlockIndex);
+            auto cachedBlock = New<TCachedBlock>(blockId, std::move(block), std::nullopt);
+            entry.Cookie.EndInsert(cachedBlock);
+        }
+    }
+    auto populateCacheTime = populateCacheTimer.GetElapsedTime();
+
+    YT_LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
+        "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
+        Id_,
+        firstBlockIndex,
+        firstBlockIndex + blocksToRead - 1,
+        Location_->GetId(),
+        bytesRead,
+        readTime,
+        populateCacheTime,
+        session->Options.ReadSessionId);
+
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(performanceCounters.BlobBlockReadSize, bytesRead);
+    locationProfiler.Update(performanceCounters.BlobBlockReadTime, NProfiling::DurationToValue(readTime));
+    locationProfiler.Update(performanceCounters.BlobBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+    locationProfiler.Increment(performanceCounters.BlobBlockReadBytes, bytesRead);
+
+    Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
+
+    DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
 }
 
 void TBlobChunkBase::ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session)
@@ -393,7 +444,7 @@ void TBlobChunkBase::ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& s
     auto& performanceCounters = Location_->GetPerformanceCounters();
     locationProfiler.Update(
         performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->Timer.GetElapsedValue());
+        session->SessionTimer.GetElapsedValue());
 }
 
 void TBlobChunkBase::ProfileReadMetaLatency(const TReadMetaSessionPtr& session)
@@ -401,8 +452,8 @@ void TBlobChunkBase::ProfileReadMetaLatency(const TReadMetaSessionPtr& session)
     const auto& locationProfiler = Location_->GetProfiler();
     auto& performanceCounters = Location_->GetPerformanceCounters();
     locationProfiler.Update(
-        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->Timer.GetElapsedValue());
+        performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category],
+        session->SessionTimer.GetElapsedValue());
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
@@ -413,6 +464,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
 
     // Initialize session.
     auto session = New<TReadBlockSetSession>();
+    session->Invoker = CreateFixedPriorityInvoker(
+        Bootstrap_->GetStorageHeavyInvoker(),
+        options.WorkloadDescriptor.GetPriority());
     session->Options = options;
     session->EntryCount = static_cast<int>(blockIndexes.size());
     session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
@@ -443,7 +497,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     // Check for fast path.
     if (allCached || !options.FetchFromDisk) {
         CompleteSession(session);
-        return session->Promise.ToFuture();
+        return session->SessionPromise.ToFuture();
     }
 
     // Need blocks ext.
@@ -480,7 +534,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             }));
     }
 
-    return session->Promise.ToFuture();
+    return session->SessionPromise.ToFuture();
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
