@@ -412,6 +412,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnstageExpiredChunks, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
