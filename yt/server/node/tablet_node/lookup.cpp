@@ -418,6 +418,72 @@ void VersionedLookupRows(
         });
 }
 
+void ExecuteSingleRead(
+    TTabletSnapshotPtr tabletSnapshot,
+    TTimestamp timestamp,
+    const TString& user,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    TRetentionConfigPtr retentionConfig,
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
+{
+    auto command = reader->ReadCommand();
+    switch (command) {
+        case EWireProtocolCommand::LookupRows:
+            LookupRows(
+                std::move(tabletSnapshot),
+                timestamp,
+                user,
+                blockReadOptions,
+                reader,
+                writer);
+            break;
+
+        case EWireProtocolCommand::VersionedLookupRows:
+            VersionedLookupRows(
+                std::move(tabletSnapshot),
+                timestamp,
+                user,
+                blockReadOptions,
+                std::move(retentionConfig),
+                reader,
+                writer);
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Unknown read command %v",
+                command);
+    }
+}
+
+void LookupRead(
+    TTabletSnapshotPtr tabletSnapshot,
+    TTimestamp timestamp,
+    const TString& user,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    TRetentionConfigPtr retentionConfig,
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ValidateReadTimestamp(timestamp);
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
+    tabletSnapshot->TabletRuntimeData->AccessTime = NProfiling::GetInstant();
+
+    while (!reader->IsFinished()) {
+        ExecuteSingleRead(
+            tabletSnapshot,
+            timestamp,
+            user,
+            blockReadOptions,
+            retentionConfig,
+            reader,
+            writer);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

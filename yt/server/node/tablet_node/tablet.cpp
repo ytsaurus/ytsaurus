@@ -1045,7 +1045,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     if (slot) {
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
-        snapshot->TabletManager = slot->GetTabletManager();
         snapshot->TabletCellRuntimeData = slot->GetRuntimeData();
     }
 

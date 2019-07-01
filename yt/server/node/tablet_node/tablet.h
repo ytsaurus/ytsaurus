@@ -106,7 +106,6 @@ struct TTabletSnapshot
 {
     NHydra::TCellId CellId;
     NHydra::IHydraManagerPtr HydraManager;
-    TTabletManagerPtr TabletManager;
     TTabletId TabletId;
     TString LoggingId;
     i64 MountRevision = 0;
