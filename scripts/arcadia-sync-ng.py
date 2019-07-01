@@ -1134,6 +1134,19 @@ def action_check_push(ctx, args):
 
     svn = Svn()
     svn_commit_msg = svn.call("log", ctx.arc_url, "--revision", str(push_revision), "--limit=1")
+    origin_master = "origin/master"
+    if not ctx.git.is_ancestor(push_commit, origin_master):
+        raise ArcadiaSyncError(
+            "Found push:\n"
+            "{svn_commit_msg}"
+            "But push commit {push_commit} is not ancestor of {origin_master}.\n"
+            "You need to merge it."
+            .format(
+                svn_commit_msg=indented_lines(svn_commit_msg.strip().split("\n")),
+                origin_master=origin_master,
+                push_commit=push_commit
+            )
+        )
 
     print >>sys.stderr, (
         "Found push:\n"
