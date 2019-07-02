@@ -206,9 +206,10 @@ class Poller(object):
 
     def _is_task_restartable(self, error):
         error = YtResponseError(error)
-        if error.contains_text("died silently"):
+        # TODO(tserakhau): migrate to error code, YT-10997
+        if error._contains_text("died silently"):
             return True
-        if error.contains_text("Failed jobs limit exceeded"):
+        if error._contains_text("Failed jobs limit exceeded"):
             return True
         return False
 
