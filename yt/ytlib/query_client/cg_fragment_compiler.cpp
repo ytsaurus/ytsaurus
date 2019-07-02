@@ -2489,9 +2489,9 @@ size_t MakeCodegenFilterFinalizedOp(
             Value* finalizedValuesRef = builder->ViaClosure(finalizedValues);
 
             builder->CreateMemCpy(
-                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()),
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                keySize * sizeof(TValue), 8);
+                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()), 8,
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                keySize * sizeof(TValue));
 
             for (int index = 0; index < codegenAggregates.size(); index++) {
                 auto value = TCGValue::CreateFromRowValues(
@@ -2559,9 +2559,9 @@ size_t MakeCodegenAddStreamOp(
             Value* newValuesRef = builder->ViaClosure(newValues);
 
             builder->CreateMemCpy(
-                builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                rowSize * sizeof(TValue), 8);
+                builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()), 8,
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                rowSize * sizeof(TValue));
 
             TCGValue::CreateFromValue(
                 builder,
@@ -2946,9 +2946,9 @@ size_t MakeCodegenOrderOp(
                 Value* newValuesRef = builder->ViaClosure(newValues);
 
                 builder->CreateMemCpy(
-                    builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                    builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                    schemaSize * sizeof(TValue), 8);
+                    builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()), 8,
+                    builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                    schemaSize * sizeof(TValue));
 
                 auto innerBuilder = TCGExprContext::Make(
                     builder,
