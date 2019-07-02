@@ -41,7 +41,7 @@ def prepare_binaries():
     destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
     if not os.path.exists(destination):       
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, yt_root=".")
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 def _abort_transactions(driver=None):
