@@ -944,6 +944,9 @@ enum class EOperationAttribute : int
     Result            /* "result" */,
     Progress          /* "progress" */,
     Events            /* "events" */,
+    Spec              /* "spec" */,
+    FullSpec          /* "full_spec" */,
+    UnrecognizedSpec  /* "unrecognized_spec" */,
 };
 
 struct TOperationAttributeFilter
@@ -1027,6 +1030,7 @@ struct TOperationAttributes
     TMaybe<TNode> BriefSpec;
     TMaybe<TNode> Spec;
     TMaybe<TNode> FullSpec;
+    TMaybe<TNode> UnrecognizedSpec;
     TMaybe<bool> Suspended;
     TMaybe<TOperationResult> Result;
     TMaybe<TOperationProgress> Progress;

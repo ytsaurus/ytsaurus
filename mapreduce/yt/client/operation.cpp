@@ -2042,6 +2042,7 @@ public:
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
     void UpdateBriefProgress(TMaybe<TOperationBriefProgress> briefProgress);
+    void AnalyzeUnrecognizedSpec(TNode unrecognizedSpec);
 
 private:
     void UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func);
@@ -2070,18 +2071,28 @@ public:
 
     void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
+        auto filter = TOperationAttributeFilter()
+            .Add(EOperationAttribute::State)
+            .Add(EOperationAttribute::BriefProgress)
+            .Add(EOperationAttribute::Result);
+
+        if (!UnrecognizedSpecAnalyzed_) {
+            filter.Add(EOperationAttribute::UnrecognizedSpec);
+        }
+
         OperationState_ = batchRequest->GetOperation(
             OperationImpl_->GetId(),
-            TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
-                .Add(EOperationAttribute::State)
-                .Add(EOperationAttribute::BriefProgress)
-                .Add(EOperationAttribute::Result)));
+            TGetOperationOptions().AttributeFilter(filter));
     }
 
     EStatus OnRequestExecuted() override
     {
         try {
             const auto& attributes = OperationState_.GetValue();
+            if (!UnrecognizedSpecAnalyzed_ && !attributes.UnrecognizedSpec.Empty()) {
+                OperationImpl_->AnalyzeUnrecognizedSpec(*attributes.UnrecognizedSpec);
+                UnrecognizedSpecAnalyzed_ = true;
+            }
             Y_VERIFY(attributes.BriefState);
             if (*attributes.BriefState != EOperationBriefState::InProgress) {
                 OperationImpl_->AsyncFinishOperation(attributes);
@@ -2104,6 +2115,7 @@ public:
 private:
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
     NThreading::TFuture<TOperationAttributes> OperationState_;
+    bool UnrecognizedSpecAnalyzed_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2187,6 +2199,46 @@ void TOperation::TOperationImpl::UpdateBriefProgress(TMaybe<TOperationBriefProgr
 {
     auto g = Guard(Lock_);
     Attributes_.BriefProgress = std::move(briefProgress);
+}
+
+void TOperation::TOperationImpl::AnalyzeUnrecognizedSpec(TNode unrecognizedSpec)
+{
+    static const TVector<TVector<TString>> knownUnrecognizedSpecFieldPaths = {
+        {"mapper", "class_name"},
+        {"reducer", "class_name"},
+        {"reduce_combiner", "class_name"},
+    };
+
+    auto removeByPath = [] (TNode& node, auto pathBegin, auto pathEnd, auto& removeByPath) {
+        if (pathBegin == pathEnd) {
+            return;
+        }
+        if (!node.IsMap()) {
+            return;
+        }
+        auto* child = node.AsMap().FindPtr(*pathBegin);
+        if (!child) {
+            return;
+        }
+        removeByPath(*child, std::next(pathBegin), pathEnd, removeByPath);
+        if (std::next(pathBegin) == pathEnd || (child->IsMap() && child->Empty())) {
+            node.AsMap().erase(*pathBegin);
+        }
+    };
+
+    Y_VERIFY(unrecognizedSpec.IsMap());
+    for (const auto& knownFieldPath : knownUnrecognizedSpecFieldPaths) {
+        Y_VERIFY(!knownFieldPath.empty());
+        removeByPath(unrecognizedSpec, knownFieldPath.cbegin(), knownFieldPath.cend(), removeByPath);
+    }
+
+    if (!unrecognizedSpec.Empty()) {
+        LOG_INFO(
+            "WARNING! Unrecognized spec for operation %s is not empty."
+            "It is (fields added by the YT API library are excluded): %s",
+            GetGuidAsString(Id_).Data(),
+            NodeToYsonString(unrecognizedSpec).Data());
+    }
 }
 
 void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func)

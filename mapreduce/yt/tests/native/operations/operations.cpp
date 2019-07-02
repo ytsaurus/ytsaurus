@@ -3,6 +3,8 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
+#include <mapreduce/yt/interface/logging/logger.h>
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/serialize.h>
 
@@ -28,6 +30,7 @@
 #include <util/generic/scope.h>
 #include <util/generic/xrange.h>
 #include <util/folder/path.h>
+#include <util/string/split.h>
 #include <util/system/env.h>
 #include <util/system/fs.h>
 #include <util/system/mktemp.h>
@@ -3180,6 +3183,53 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_GT(port, 1023);
         }
         UNIT_ASSERT(!stream.ReadLine(line));
+    }
+
+    Y_UNIT_TEST(UnrecognizedSpecWarnings)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto oldLogger = GetLogger();
+        Y_DEFER {
+            SetLogger(oldLogger);
+        };
+
+        TStringStream stream;
+        SetLogger(new TStreamTeeLogger(ILogger::INFO, &stream, oldLogger));
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+            new TIdMapper,
+            TOperationOptions()
+                .Spec(TNode()
+                    ("mapper", TNode()("blah1", 1))
+                    ("blah2", 2)));
+
+        TNode unrecognizedSpec;
+        auto prefix = AsStringBuf("WARNING! Unrecognized spec for operation");
+        for (TStringBuf line : StringSplitter(stream.Str()).Split('\n')) {
+            if (line.StartsWith(prefix)) {
+                unrecognizedSpec = NodeFromYsonString(line.After(':'));
+                break;
+            }
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(unrecognizedSpec.GetType(), TNode::Map);
+        UNIT_ASSERT_VALUES_EQUAL(
+            unrecognizedSpec,
+            TNode()
+                ("mapper", TNode()("blah1", 1))
+                ("blah2", 2));
     }
 
     void TestSuspendResume(bool useOperationMethods)
