@@ -16,6 +16,15 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         else:
             return os.path.join(arcadia_root, path)
 
+    if inside_arcadia:
+        yt_root = source_prefix + "yt/19_4/"
+        python_root = source_prefix + "yt/python/"
+        global_root = source_prefix
+    else:
+        yt_root = ""
+        python_root = "python/"
+        global_root = ""
+
     programs = [("master", "master/bin"),
                 ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
@@ -26,24 +35,13 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        if inside_arcadia:
-            binary_path = get_binary_path("{0}yt/19_4/yt/server/{1}/ytserver-{2}"
-                                          .format(source_prefix, server_dir, binary))
-        else:
-            binary_path = get_binary_path("yt/server/{0}/ytserver-{1}"
-                                          .format(server_dir, binary))
+        binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
-    if inside_arcadia:
-        watcher_path = get_binary_path(source_prefix + "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
-    else:
-        watcher_path = get_binary_path("python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    if inside_arcadia:
-        logrotate_path = get_binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
-    else:
-        logrotate_path = get_binary_path("infra/nanny/logrotate/logrotate")
+    logrotate_path = get_binary_path(global_root + "infra/nanny/logrotate/logrotate")
     os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
 
 def prepare_yt_environment(destination, arcadia_root=None, inside_arcadia=True):
