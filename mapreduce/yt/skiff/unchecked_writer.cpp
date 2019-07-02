@@ -24,7 +24,7 @@ namespace NSkiff {
             DoFlush();
             Y_ASSERT(RemainingBytes_ >= sizeof(T));
         }
-        WriteUnaligned(Position_, value);
+        WriteUnaligned<T>(Position_, value);
         Position_ += sizeof(T);
         RemainingBytes_ -= sizeof(T);
     }
