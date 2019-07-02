@@ -1,6 +1,8 @@
 #include "common.h"
+#include "serialize.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <mapreduce/yt/node/node_builder.h>
 
 #include <util/generic/xrange.h>
 
@@ -28,33 +30,6 @@ TString ToString(EValueType type)
         default:
             ythrow yexception() << "Invalid value type " << static_cast<int>(type);
     }
-}
-
-TNode ToNode(const TColumnSchema& columnSchema)
-{
-    TNode result = TNode::CreateMap();
-
-    result["name"] = columnSchema.Name_;
-    result["type"] = ToString(columnSchema.Type_);
-    if (columnSchema.SortOrder_) {
-        result["sort_order"] = ::ToString(*columnSchema.SortOrder_);
-    }
-    if (columnSchema.Lock_) {
-        result["lock"] = ::ToString(*columnSchema.Lock_);
-    }
-    if (columnSchema.Expression_) {
-        result["expression"] = *columnSchema.Expression_;
-    }
-    if (columnSchema.Aggregate_) {
-        result["aggregate"] = *columnSchema.Aggregate_;
-    }
-    if (columnSchema.Group_) {
-        result["group"] = *columnSchema.Group_;
-    }
-
-    result["required"] = columnSchema.Required_;
-
-    return result;
 }
 
 TString GetColumnName(const ::google::protobuf::FieldDescriptor& field) {
@@ -172,12 +147,9 @@ TTableSchema TTableSchema::SortBy(const TVector<TString>& columns) &&
 
 TNode TTableSchema::ToNode() const
 {
-    TNode result = TNode::CreateList();
-    result.Attributes()["strict"] = Strict_;
-    result.Attributes()["unique_keys"] = UniqueKeys_;
-    for (const auto& column : Columns_) {
-        result.Add(NDetail::ToNode(column));
-    }
+    TNode result;
+    TNodeBuilder builder(&result);
+    Serialize(*this, &builder);
     return result;
 }
 

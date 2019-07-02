@@ -118,8 +118,13 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("name").Value(columnSchema.Name_)
-        .Item("type").Value(NYT::NDetail::ToString(columnSchema.Type_))
-        .Item("required").Value(columnSchema.Required_)
+        .DoIf(!columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("type").Value(NDetail::ToString(columnSchema.Type_));
+            fluent.Item("required").Value(columnSchema.Required_);
+        })
+        .DoIf(columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("type_v2").Value(*columnSchema.RawTypeV2_);
+        })
         .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder_));
         })
@@ -144,6 +149,7 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
     DESERIALIZE_ITEM("name", columnSchema.Name_);
     DESERIALIZE_ITEM("type", columnSchema.Type_);
     DESERIALIZE_ITEM("required", columnSchema.Required_);
+    DESERIALIZE_ITEM("type_v2", columnSchema.RawTypeV2_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
     DESERIALIZE_ITEM("lock", columnSchema.Lock_);
     DESERIALIZE_ITEM("expression", columnSchema.Expression_);
