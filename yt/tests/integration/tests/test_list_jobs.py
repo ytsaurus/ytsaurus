@@ -1,4 +1,4 @@
-from yt_env_setup import wait, YTEnvSetup
+from yt_env_setup import wait, YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -491,8 +491,8 @@ class TestListJobs(YTEnvSetup):
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
 
-        self.Env.kill_nodes()
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
 
         clear_metadata_caches()
 

@@ -1,6 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend, parametrize_external
+from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend, parametrize_external,\
+    Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -934,8 +935,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         build_snapshot(cell_id=None)
-        self.Env.kill_master_cell()
-        self.Env.start_master_cell()
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            pass
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
@@ -1602,11 +1603,10 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     def _do_test_transition(self, initial, first_command, second_command):
         expected = self._get_expected_state(initial, first_command, second_command)
         if expected == "error":
-            self.Env.kill_nodes()
-            self._get_callback(first_command)("//tmp/t")
-            with pytest.raises(YtError):
-                self._get_callback(second_command)("//tmp/t")
-            self.Env.start_nodes()
+            with Restarter(self.Env, NODES_SERVICE):
+                self._get_callback(first_command)("//tmp/t")
+                with pytest.raises(YtError):
+                    self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
             self._get_callback(second_command)("//tmp/t")

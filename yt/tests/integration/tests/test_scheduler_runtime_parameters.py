@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
@@ -54,8 +54,8 @@ class TestRuntimeParameters(YTEnvSetup):
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         wait(lambda: op.get_state() == "running", iter=10)
 
