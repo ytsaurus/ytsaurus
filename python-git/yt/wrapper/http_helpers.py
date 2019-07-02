@@ -247,8 +247,7 @@ class RequestRetrier(Retrier):
             url = self.url.format(proxy=proxy)
             self.request_url = url
 
-        logger.debug("Request url: %r", url)
-        logger.debug("Headers: %r", self.headers)
+        logger.debug("Perform HTTP %s request %s with headers %s", self.method, url, hide_token(self.headers))
         if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
             logger.debug("Body: %r", self.kwargs["data"])
 
