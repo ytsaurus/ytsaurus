@@ -433,10 +433,9 @@ public:
                                         builder->CreateZExt(valueLength, builder->getInt64Ty())
                                     });
                                 builder->CreateMemCpy(
-                                    permanentData,
-                                    newData,
-                                    valueLength,
-                                    1);
+                                    permanentData, 1,
+                                    newData, 1,
+                                    valueLength);
                                 return TCGValue::CreateFromValue(
                                     builder,
                                     builder->getFalse(),
@@ -499,10 +498,9 @@ public:
                                                         builder->CreateZExt(valueLength, builder->getInt64Ty())
                                                     });
                                                 builder->CreateMemCpy(
-                                                    permanentData,
-                                                    newData,
-                                                    valueLength,
-                                                    1);
+                                                    permanentData, 1,
+                                                    newData, 1,
+                                                    valueLength);
                                                 return permanentData;
                                             },
                                             [&] (TCGBaseContext& builder) {
@@ -556,10 +554,9 @@ public:
                                                         builder->CreateZExt(valueLength, builder->getInt64Ty())
                                                     });
                                                 builder->CreateMemCpy(
-                                                    permanentData,
-                                                    newData,
-                                                    valueLength,
-                                                    1);
+                                                    permanentData, 1,
+                                                    newData, 1,
+                                                    valueLength);
                                                 return permanentData;
                                             },
                                             [&] (TCGBaseContext& builder) {
