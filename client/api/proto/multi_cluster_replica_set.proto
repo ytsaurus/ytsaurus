@@ -62,6 +62,7 @@ message TMultiClusterReplicaSetSpec
     }
 
     repeated TClusterReplicaSetSpecPreferences clusters = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+    string node_segment_id = 7;
 }
 
 message TMultiClusterDeployStatus
