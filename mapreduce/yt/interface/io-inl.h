@@ -277,6 +277,12 @@ public:
         Reader_->ReadRow(row);
         RowDone_ = true;
     }
+
+    ::TIntrusivePtr<IProtoReaderImpl> GetReaderImpl() const
+    {
+        return Reader_;
+    }
+
 private:
     ::TIntrusivePtr<IProtoReaderImpl> Reader_;
     mutable THolder<Message> CachedRow_;
@@ -285,32 +291,96 @@ private:
 
 template <class T>
 class TTableReader<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
-    : public TTableReader<Message>
+    : public TThrRefBase
 {
 public:
     using TRowType = T;
-    using TBase = TTableReader<Message>;
 
     explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
-        : TBase(reader)
+        : Reader_(std::move(reader))
     { }
 
-    const T& GetRow() const
+    const TRowType& GetRow() const
     {
-        return TBase::GetRow<T>();
+        switch (RowState_) {
+            case None:
+                Reader_->ReadRow(&CachedRow_);
+                RowState_ = Cached;
+                return CachedRow_;
+            case Cached:
+                return CachedRow_;
+            case MovedOut:
+                ythrow yexception() << "Row is already moved";
+        }
+        Y_FAIL();
     }
 
-    void MoveRow(T* result)
+    void MoveRow(TRowType* result)
     {
-        TBase::MoveRow(result);
+        Y_VERIFY(result != nullptr);
+        switch (RowState_) {
+            case None:
+                Reader_->ReadRow(result);
+                RowState_ = MovedOut;
+                return;
+            case Cached:
+                result->Swap(&CachedRow_);
+                RowState_ = MovedOut;
+                return;
+            case MovedOut:
+                ythrow yexception() << "Row is already moved";
+        }
+        Y_FAIL();
     }
 
-    T MoveRow()
+    TRowType MoveRow()
     {
-        T result;
-        TBase::MoveRow(&result);
+        TRowType result;
+        MoveRow(&result);
         return result;
     }
+
+    bool IsValid() const
+    {
+        return Reader_->IsValid();
+    }
+
+    void Next()
+    {
+        Reader_->Next();
+        RowState_ = None;
+    }
+
+    ui32 GetTableIndex() const
+    {
+        return Reader_->GetTableIndex();
+    }
+
+    ui32 GetRangeIndex() const
+    {
+        return Reader_->GetRangeIndex();
+    }
+
+    ui64 GetRowIndex() const
+    {
+        return Reader_->GetRowIndex();
+    }
+
+    ::TIntrusivePtr<IProtoReaderImpl> GetReaderImpl() const
+    {
+        return Reader_;
+    }
+
+private:
+    ::TIntrusivePtr<IProtoReaderImpl> Reader_;
+    mutable TRowType CachedRow_;
+
+    enum ERowState {
+        None,
+        Cached,
+        MovedOut,
+    };
+    mutable ERowState RowState_ = None;
 };
 
 
@@ -590,6 +660,38 @@ inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
 {
     TAutoPtr<T> prototype(new T);
     return TWriterCreator<T>::Create(CreateProtoWriter(path, options, prototype.Get()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+TTableReaderPtr<T> CreateConcreteProtobufReader(TTableReader<Message>* reader)
+{
+    static_assert(std::is_base_of_v<Message, T>, "T must be a protobuf type (either Message or its descendant)");
+    Y_ENSURE(reader, "reader must be non-null");
+    return ::MakeIntrusive<TTableReader<T>>(reader->GetReaderImpl());
+}
+
+template <typename T>
+TTableReaderPtr<T> CreateConcreteProtobufReader(const TTableReaderPtr<Message>& reader)
+{
+    Y_ENSURE(reader, "reader must be non-null");
+    return CreateConcreteProtobufReader<T>(reader.Get());
+}
+
+template <typename T>
+TTableReaderPtr<Message> CreateGenericProtobufReader(TTableReader<T>* reader)
+{
+    static_assert(std::is_base_of_v<Message, T>, "T must be a protobuf type (either Message or its descendant)");
+    Y_ENSURE(reader, "reader must be non-null");
+    return ::MakeIntrusive<TTableReader<Message>>(reader->GetReaderImpl());
+}
+
+template <typename T>
+TTableReaderPtr<Message> CreateGenericProtobufReader(const TTableReaderPtr<T>& reader)
+{
+    Y_ENSURE(reader, "reader must be non-null");
+    return CreateGenericProtobufReader(reader.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
