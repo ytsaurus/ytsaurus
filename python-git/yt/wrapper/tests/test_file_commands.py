@@ -129,12 +129,11 @@ class TestFileCommands(object):
         revision = yt.get(file_path + "/@revision")
         response_stream = make_request("read_file", {"path": file_path}, return_content=False)
         response = response_stream._get_response()
-        # COMPAT(ignat): remove this if.
-        if "ETag" in response.headers:
-            assert int(response.headers["ETag"]) == revision
 
-            import yt.packages.requests as requests
-            response = requests.get("http://{0}/api/v3/read_file".format(yt.config["proxy"]["url"]),
-                                    params={"path": file_path}, headers={"If-None-Match": str(revision)})
-            assert response.status_code == 304
+        assert int(response.headers["ETag"]) == revision
+
+        import yt.packages.requests as requests
+        response = requests.get("http://{0}/api/v3/read_file".format(yt.config["proxy"]["url"]),
+                                params={"path": file_path}, headers={"If-None-Match": str(revision)})
+        assert response.status_code == 304
 
