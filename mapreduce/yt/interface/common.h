@@ -193,6 +193,9 @@ struct TColumnSchema
     // Dynamic tables cannot have columns with required=true attribute.
     FLUENT_FIELD_DEFAULT(bool, Required, false);
 
+    // Experimental feature
+    FLUENT_FIELD_OPTION(TNode, RawTypeV2);
+
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
     FLUENT_FIELD_OPTION(TString, Lock);
     FLUENT_FIELD_OPTION(TString, Expression);

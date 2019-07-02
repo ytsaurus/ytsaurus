@@ -82,4 +82,38 @@ Y_UNIT_TEST_SUITE(Schema) {
         TVector<TNode> actual = ReadTable(client, workingDir + "/table");
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
+
+    Y_UNIT_TEST(RawTypeV2) {
+        auto schema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("key").RawTypeV2("string"))
+            .AddColumn(TColumnSchema().Name("value").RawTypeV2(TNode::CreateMap({{"metatype", "optional"}, {"element", "utf8"}})));
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        client->Create(workingDir + "/table", NT_TABLE,
+            TCreateOptions().Attributes(TNode::CreateMap({
+                    {"schema", schema.ToNode()}
+            }))
+        );
+
+        TTableSchema readSchema;
+        Deserialize(readSchema, client->Get(workingDir + "/table/@schema"));
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_.size(), schema.Columns_.size());
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[0].Type_, VT_STRING);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[0].Required_, true);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[1].Type_, VT_UTF8);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[1].Required_, false);
+
+        // Check no exception
+        client->Create(workingDir + "/table2", NT_TABLE,
+            TCreateOptions().Attributes(TNode::CreateMap({
+                    {"schema", readSchema.ToNode()}
+            }))
+        );
+        TTableSchema readSchema2;
+        Deserialize(readSchema2, client->Get(workingDir + "/table2/@schema"));
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.ToNode(), readSchema2.ToNode());
+    }
 }
