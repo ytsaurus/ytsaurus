@@ -391,7 +391,7 @@ void TBlobChunkBase::OnBlocksRead(
     int blocksToRead = endEntryIndex - beginEntryIndex;
 
     const auto& blocks = blocksOrError.Value();
-    YCHECK(blocks.size() == blocksToRead);
+    YT_VERIFY(blocks.size() == blocksToRead);
 
     i64 bytesRead = 0;
     TWallTimer populateCacheTimer;
