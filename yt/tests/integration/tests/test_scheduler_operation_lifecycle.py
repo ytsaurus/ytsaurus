@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -80,8 +80,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
 
@@ -129,11 +129,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         wait(lambda: op.get_job_count("running") == 1)
 
-        self.Env.kill_schedulers()
-
-        abort_transaction(transaction_id)
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(transaction_id)
 
         with pytest.raises(YtError):
             op.track()
@@ -144,12 +141,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
 
         time.sleep(2)
-        self.Env.kill_schedulers()
 
-        abort_transaction(get(op.get_path() + "/@input_transaction_id"))
-        abort_transaction(get(op.get_path() + "/@output_transaction_id"))
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(get(op.get_path() + "/@input_transaction_id"))
+            abort_transaction(get(op.get_path() + "/@output_transaction_id"))
 
         op.track()
 
@@ -169,8 +164,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.suspend()
         wait(lambda: get(op.get_path() + "/@suspended"))
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         time.sleep(2)
         wait(lambda: op.get_state() == "running")
@@ -827,9 +822,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         for iter in xrange(5):
             self._wait_for_state(op, "running")
-            self.Env.kill_schedulers()
-            set(op.get_path() + "/@input_transaction_id", "0-0-0-0")
-            self.Env.start_schedulers()
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                set(op.get_path() + "/@input_transaction_id", "0-0-0-0")
             time.sleep(1)
 
         release_breakpoint()
@@ -850,11 +844,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "aborting")
 
-        self.Env.kill_schedulers()
-
-        assert op.get_state() == "aborting"
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "aborting"
 
         with pytest.raises(YtError):
             op.track()
@@ -874,11 +865,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "completing")
 
-        self.Env.kill_schedulers()
-
-        assert op.get_state() == "completing"
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "completing"
 
         op.track()
 
@@ -922,11 +910,8 @@ class SchedulerReviveBase(YTEnvSetup):
         # Wait to perform complete before sleep.
         time.sleep(1.5)
 
-        self.Env.kill_schedulers()
-
-        assert op.get_state() == "completing"
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "completing"
 
         # complete_operation retry may come when operation is in reviving state. In this case we should complete operation again.
         wait(lambda: op.get_state() in ("running", "completed"))
@@ -1007,11 +992,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "failing")
 
-        self.Env.kill_schedulers()
-
-        assert op.get_state() == "failing"
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "failing"
 
         with pytest.raises(YtError):
             op.track()
@@ -1040,8 +1022,8 @@ class SchedulerReviveBase(YTEnvSetup):
         # Waiting until snapshot is built.
         time.sleep(2.0)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         wait(lambda: op.get_job_count("failed") >= 3)
 
@@ -1103,8 +1085,8 @@ class TestControllerAgent(YTEnvSetup):
 
         assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
 
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
 
         assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
 
@@ -1123,14 +1105,10 @@ class TestControllerAgent(YTEnvSetup):
 
                 self._wait_for_state(op, "running")
 
-                self.Env.kill_controller_agents()
-
-                if wait_transition_state:
-                    self._wait_for_state(op, "waiting_for_agent")
-
-                op.abort()
-
-                self.Env.start_controller_agents()
+                with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                    if wait_transition_state:
+                        self._wait_for_state(op, "waiting_for_agent")
+                    op.abort()
 
                 self._wait_for_state(op, "aborted")
 
@@ -1146,12 +1124,9 @@ class TestControllerAgent(YTEnvSetup):
             dont_track=True)
         self._wait_for_state(op, "running")
 
-        self.Env.kill_controller_agents()
-
-        with pytest.raises(YtError):
-            op.complete()
-
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            with pytest.raises(YtError):
+                op.complete()
 
         self._wait_for_state(op, "running")
         op.complete()
@@ -1177,8 +1152,8 @@ class TestControllerAgent(YTEnvSetup):
         snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
 
         with pytest.raises(YtError):
             op.complete()
@@ -1205,8 +1180,8 @@ class TestControllerAgent(YTEnvSetup):
             dont_track=True)
         self._wait_for_state(op, "running")
 
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
 
         op.abort()
         self._wait_for_state(op, "aborted")
@@ -1273,11 +1248,10 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
 
         time.sleep(5)
 
-        self.Env.kill_master_cell()
-        time.sleep(10)
-        release_breakpoint()
-        time.sleep(50)
-        self.Env.start_master_cell()
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            time.sleep(10)
+            release_breakpoint()
+            time.sleep(50)
 
         def is_job_aborted():
             try:

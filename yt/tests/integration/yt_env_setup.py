@@ -379,6 +379,43 @@ class Checker(Thread):
         self._active = False
         self.join()
 
+
+SCHEDULERS_SERVICE = "schedulers"
+CONTROLLER_AGENTS_SERVICE = "controller_agents"
+NODES_SERVICE = "nodes"
+MASTER_CELL_SERVICE = "master_cell"
+
+class Restarter(object):
+    def __init__(self, Env, components):
+        self.Env = Env
+        self.components = components
+        if type(self.components) == str:
+            self.components = [self.components]
+        self.kill_dict = {SCHEDULERS_SERVICE: self.Env.kill_schedulers,
+                          CONTROLLER_AGENTS_SERVICE: self.Env.kill_controller_agents,
+                          NODES_SERVICE: self.Env.kill_nodes,
+                          MASTER_CELL_SERVICE: self.Env.kill_master_cell}
+        self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
+                           CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
+                           NODES_SERVICE: self.Env.start_nodes,
+                           MASTER_CELL_SERVICE: self.Env.start_master_cell}
+
+    def __enter__(self):
+        for comp_name in self.components:
+            try:
+                self.kill_dict[comp_name]()
+            except KeyError:
+                logging.error("Failed to kill {}. No such component.".format(comp_name))
+                raise
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for comp_name in self.components:
+            try:
+                self.start_dict[comp_name]()
+            except KeyError:
+                logging.error("Failed to start {}. No such component.".format(comp_name))
+                raise
+
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_NONVOTING_MASTERS = 0

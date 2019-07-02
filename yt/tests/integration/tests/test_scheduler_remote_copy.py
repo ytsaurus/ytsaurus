@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 from yt import yson
 
@@ -257,11 +257,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         input_tx = get(op.get_path() + "/@input_transaction_id")
 
-        self.Env.kill_schedulers()
-        self.Env.kill_controller_agents()
-        time.sleep(1)
-        self.Env.start_schedulers()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+            time.sleep(1)
 
         op.track()
 
@@ -291,11 +288,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
             input_tx = get(op.get_path() + "/@input_transaction_id")
 
-            self.Env.kill_schedulers()
-            self.Env.kill_controller_agents()
-            time.sleep(1)
-            self.Env.start_schedulers()
-            self.Env.start_controller_agents()
+            with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+                time.sleep(1)
 
             op.track()
 

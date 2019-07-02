@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
+from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait, Restarter, SCHEDULERS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
@@ -584,8 +584,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         time.sleep(1.5)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         op1.track()
         op2.track()
@@ -695,8 +695,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for i in xrange(3, 5):
             run(i, "research_subpool", True)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         for i in xrange(3, 5):
             run(i, "research", True)
@@ -2104,9 +2104,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) > 2)
 
-        self.Env.kill_schedulers()
-        time.sleep(0.5)
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            time.sleep(0.5)
 
         wait(lambda: op.get_state() == "running")
         op.track()
