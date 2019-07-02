@@ -242,6 +242,18 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+TTableReaderPtr<T> CreateConcreteProtobufReader(TTableReader<Message>* reader);
+template <typename T>
+TTableReaderPtr<T> CreateConcreteProtobufReader(const TTableReaderPtr<Message>& reader);
+
+template <typename T>
+TTableReaderPtr<Message> CreateGenericProtobufReader(TTableReader<T>* reader);
+template <typename T>
+TTableReaderPtr<Message> CreateGenericProtobufReader(const TTableReaderPtr<T>& reader);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define IO_INL_H_
