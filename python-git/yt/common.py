@@ -127,6 +127,10 @@ class YtError(Exception):
         """Check if error or one of its inner errors contains specified error code."""
         return self.find_matching_error(code=code) is not None
 
+    def _contains_text(self, text):
+        """Inner method, do not call explicitly."""
+        return self.find_matching_error(predicate=lambda error: text in error.message) is not None
+
     @deprecated_with_message(ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE)
     def contains_text(self, text):
         """
@@ -137,7 +141,11 @@ class YtError(Exception):
         and we will fix that.
         """
 
-        return self.find_matching_error(predicate=lambda error: text in error.message) is not None
+        return self._contains_text(text)
+
+    def _matches_regexp(self, pattern):
+        """Inner method, do not call explicitly."""
+        return self.find_matching_error(predicate=lambda error: re.match(pattern, error.message) is not None) is not None
 
     @deprecated_with_message(ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE)
     def matches_regexp(self, pattern):
@@ -149,7 +157,7 @@ class YtError(Exception):
         and we will fix that.
         """
 
-        return self.find_matching_error(predicate=lambda error: re.match(pattern, error.message) is not None) is not None
+        return self._matches_regexp(pattern)
 
     def __str__(self):
         return format_error(self)
@@ -238,7 +246,8 @@ class YtResponseError(YtError):
 
     def is_tablet_in_intermediate_state(self):
         """Tablet is in intermediate state."""
-        return self.matches_regexp("Tablet .* is in state .*")
+        # TODO(ifsmirnov) migrate to error code, YT-10993
+        return self._matches_regexp("Tablet .* is in state .*")
 
     def is_no_such_tablet(self):
         """No such tablet."""
@@ -251,6 +260,16 @@ class YtResponseError(YtError):
     def is_all_target_nodes_failed(self):
         """Failed to write chunk since all target nodes have failed."""
         return self.contains_code(700)
+
+    def is_no_such_attribute(self, attributes_list=None):
+        """Operation attribute is not supported."""
+        if attributes_list is None:
+            pred_new = lambda err: err.code == 1920
+        else:
+            pred_new = lambda err: (err.attributes.get("attribute_name") in attributes_list) and (err.code == 1920)
+        pred_old = lambda err: ("Attribute" in err.message) and ("is not allowed" in err.message)
+        # COMPAT: remove old version
+        return self.find_matching_error(predicate=pred_new) or self.find_matching_error(predicate=pred_old)
 
 class PrettyPrintableDict(dict):
     pass
