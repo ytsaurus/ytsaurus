@@ -1,6 +1,6 @@
 import yt_commands
 
-from yt.environment import YTInstance, init_operation_archive
+from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
@@ -33,6 +33,16 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
+
+def prepare_binaries():
+    if arcadia_interop.yatest_common is None:
+        return
+    
+    destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
+    if not os.path.exists(destination):       
+        os.makedirs(destination)
+        path = arcadia_interop.prepare_yt_environment(destination, yt_root=".")
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 def _abort_transactions(driver=None):
     command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -501,6 +511,8 @@ class YTEnvSetup(object):
             test_name = cls.__name__
         cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
+
+        prepare_binaries()
 
         # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []

@@ -12,7 +12,6 @@ from yt.test_helpers.job_events import JobEvents, TimeoutError
 import __builtin__
 import contextlib
 import copy as pycopy
-import decorator
 import os
 import random
 import stat
