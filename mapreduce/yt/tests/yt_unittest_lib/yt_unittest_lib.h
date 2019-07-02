@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mapreduce/yt/interface/logging/logger.h>
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/config.h>
 #include <util/datetime/base.h>
@@ -113,6 +114,23 @@ private:
 
 // Compares only columns and only "name" and "type" fields of columns.
 bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Redirects all the LOG_* calls with the corresponding level to `stream`.
+// Moreover, the LOG_* calss are delegated to `oldLogger`.
+class TStreamTeeLogger
+    : public ILogger
+{
+public:
+    TStreamTeeLogger(ELevel cutLevel, IOutputStream* stream, ILoggerPtr oldLogger);
+    void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) override;
+
+private:
+    ILoggerPtr OldLogger_;
+    IOutputStream* Stream_;
+    ELevel Level_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

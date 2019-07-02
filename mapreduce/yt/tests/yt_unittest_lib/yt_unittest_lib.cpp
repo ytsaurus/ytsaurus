@@ -5,6 +5,8 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
 
+#include <util/stream/printf.h>
+
 #include <util/system/env.h>
 
 #include <util/random/fast.h>
@@ -203,6 +205,23 @@ bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs)
         }
     }
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamTeeLogger::TStreamTeeLogger(ELevel cutLevel, IOutputStream* stream, ILoggerPtr oldLogger)
+    : OldLogger_(oldLogger)
+    , Stream_(stream)
+    , Level_(cutLevel)
+{ }
+
+void TStreamTeeLogger::Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args)
+{
+    OldLogger_->Log(level, sourceLocation, format, args);
+    if (level <= Level_) {
+        Printf(*Stream_, format, args);
+        *Stream_ << Endl;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
