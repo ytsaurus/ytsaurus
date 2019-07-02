@@ -353,6 +353,13 @@ std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
     return Impl_->GetAuthenticatedUserName();
 }
 
+TFuture<void> TSecurityManager::CheckPermission(
+    const TString& path,
+    EPermission permission)
+{
+    return Impl_->CheckPermission(path, permission);
+}
+
 void TSecurityManager::ValidatePermission(
     const TString& path,
     EPermission permission)

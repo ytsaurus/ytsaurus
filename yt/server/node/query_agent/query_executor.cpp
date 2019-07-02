@@ -1345,10 +1345,14 @@ public:
         if (options.ExecutionPool) {
             auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool);
 
-            securityManager->ValidatePermission(path, EPermission::Use);
+            auto permissionOrError = WaitFor(securityManager->CheckPermission(path, EPermission::Use));
 
-            weight = WaitFor(PoolWeightCache_->Get(path))
-                .ValueOrThrow();
+            if (permissionOrError.IsOK()) {
+                weight = WaitFor(PoolWeightCache_->Get(path))
+                    .ValueOrThrow();
+            } else if (!permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR permissionOrError;
+            }
         }
 
         auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
