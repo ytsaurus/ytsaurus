@@ -54,6 +54,8 @@ public:
 
     std::vector<TString> FindAndBanSlowTentativeTrees();
 
+    void LogTentativeTreeStatistics() const;
+
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
 

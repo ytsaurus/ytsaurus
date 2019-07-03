@@ -47,7 +47,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
         logger,
         TProfiler("/locate_chunks_throttler", tagIds));
 
-    YCHECK(ThrottlerMap_.insert(std::make_pair(cellTag, throttler)).second);
+    YT_VERIFY(ThrottlerMap_.insert(std::make_pair(cellTag, throttler)).second);
 
     return throttler;
 }

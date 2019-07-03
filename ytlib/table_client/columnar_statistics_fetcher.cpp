@@ -88,7 +88,7 @@ void TColumnarStatisticsFetcher::OnResponse(
             if (subresponse.has_timestamp_total_weight()) {
                 ChunkStatistics_[chunkIndex].TimestampTotalWeight = subresponse.timestamp_total_weight();
             }
-            YCHECK(ChunkStatistics_[chunkIndex].ColumnDataWeights.size() == ChunkColumnNames_[chunkIndex].size());
+            YT_VERIFY(ChunkStatistics_[chunkIndex].ColumnDataWeights.size() == ChunkColumnNames_[chunkIndex].size());
         }
     }
 }

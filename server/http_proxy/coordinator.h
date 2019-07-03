@@ -189,14 +189,19 @@ class TDiscoverVersionsHandler
     : public NHttp::IHttpHandler
 {
 public:
-    TDiscoverVersionsHandler(NApi::NNative::IConnectionPtr connection, NApi::IClientPtr client);
+    TDiscoverVersionsHandler(
+        NApi::NNative::IConnectionPtr connection,
+        NApi::IClientPtr client,
+        const TCoordinatorConfigPtr config);
 
 protected:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::IClientPtr Client_;
+    const TCoordinatorConfigPtr Config_;
 
     std::vector<TString> GetInstances(const TString& path, bool fromSubdirectories = false);
     std::vector<TInstance> ListComponent(const TString& component, const TString& type);
+    std::vector<TInstance> ListProxies(const TString& component, const TString& type);
     std::vector<TInstance> GetAttributes(
         const TString& path,
         const std::vector<TString>& instances,

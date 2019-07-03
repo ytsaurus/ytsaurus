@@ -78,7 +78,7 @@ private:
         for (int index = 0; index < rowCount; index++) {
             auto row = rows[index];
             if (CheckKeySwitch(row, index + 1 == rowCount /* isLastRow */)) {
-                YCHECK(config->Lenval);
+                YT_VERIFY(config->Lenval);
                 WritePod(*stream, static_cast<ui32>(-2));
             }
 

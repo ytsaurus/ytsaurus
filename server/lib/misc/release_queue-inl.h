@@ -39,8 +39,8 @@ std::vector<T> TReleaseQueue<T>::Release(TCookie limit)
         ++HeadCookie_;
     }
 
-    YCHECK(released.size() == count);
-    YCHECK(HeadCookie_ >= limit || Queue_.empty());
+    YT_VERIFY(released.size() == count);
+    YT_VERIFY(HeadCookie_ >= limit || Queue_.empty());
 
     return released;
 }

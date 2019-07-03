@@ -41,7 +41,7 @@ TChunkLookupHashTable::TChunkLookupHashTable(size_t size)
 
 void TChunkLookupHashTable::Insert(TKey key, std::pair<ui16, ui32> index)
 {
-    YCHECK(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
+    YT_VERIFY(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
 }
 
 SmallVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TKey key) const
@@ -76,15 +76,15 @@ public:
         const TBlock& /*block*/,
         const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
-        Y_ASSERT(type == EBlockType::UncompressedData);
-        Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+        YT_ASSERT(type == EBlockType::UncompressedData);
+        YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
         return Blocks_[id.BlockIndex];
     }
 
@@ -165,11 +165,11 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         // Verify that row index fits into 32 bits.
-        YCHECK(sizeof(blockMeta.row_count()) <= sizeof(ui32));
+        YT_VERIFY(sizeof(blockMeta.row_count()) <= sizeof(ui32));
 
         for (int index = 0; index < blockMeta.row_count(); ++index) {
             auto key = blockReader->GetKey();

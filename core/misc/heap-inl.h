@@ -112,7 +112,7 @@ void AdjustHeapBack(TIterator begin, TIterator end)
 template <class TIterator, class TComparer>
 void ExtractHeap(TIterator begin, TIterator end, TComparer comparer)
 {
-    Y_ASSERT(begin != end);
+    YT_ASSERT(begin != end);
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
     SiftDown(begin, newEnd, begin, comparer);

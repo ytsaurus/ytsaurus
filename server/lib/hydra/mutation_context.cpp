@@ -62,7 +62,7 @@ TMutationContext* TryGetCurrentMutationContext()
 TMutationContext* GetCurrentMutationContext()
 {
     auto* context = TryGetCurrentMutationContext();
-    Y_ASSERT(context);
+    YT_ASSERT(context);
     return context;
 }
 
@@ -82,13 +82,13 @@ TMutationContextGuard::TMutationContextGuard(TMutationContext* context)
     : Context_(context)
     , SavedContext_(TryGetCurrentMutationContext())
 {
-    Y_ASSERT(Context_);
+    YT_ASSERT(Context_);
     SetCurrentMutationContext(Context_);
 }
 
 TMutationContextGuard::~TMutationContextGuard()
 {
-    Y_ASSERT(GetCurrentMutationContext() == Context_);
+    YT_ASSERT(GetCurrentMutationContext() == Context_);
     SetCurrentMutationContext(SavedContext_);
 }
 

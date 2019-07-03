@@ -156,7 +156,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
     }
 
     auto* item = new TItem(value);
-    YCHECK(shard->ItemMap.insert(std::make_pair(key, item)).second);
+    YT_VERIFY(shard->ItemMap.insert(std::make_pair(key, item)).second);
     ++Size_;
 
     Profiler.Increment(MissedWeightCounter_, weight);
@@ -192,7 +192,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
 
         Pop(shard, item);
 
-        YCHECK(shard->ItemMap.erase(value->GetKey()) == 1);
+        YT_VERIFY(shard->ItemMap.erase(value->GetKey()) == 1);
         --Size_;
 
         evictedValues.emplace_back(std::move(item->Value));
@@ -329,7 +329,7 @@ int TSyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem* item)
 {
-    Y_ASSERT(item->Empty());
+    YT_ASSERT(item->Empty());
     shard->YoungerLruList.PushFront(item);
     auto weight = GetWeight(item->Value);
     shard->YoungerWeightCounter += weight;
@@ -340,7 +340,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem* item)
 {
-    Y_ASSERT(!item->Empty());
+    YT_ASSERT(!item->Empty());
     item->Unlink();
     shard->YoungerLruList.PushFront(item);
     if (!item->Younger) {
@@ -356,7 +356,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* item)
 {
-    Y_ASSERT(!item->Empty());
+    YT_ASSERT(!item->Empty());
     item->Unlink();
     shard->OlderLruList.PushFront(item);
     if (item->Younger) {
@@ -403,7 +403,7 @@ template <class TKey, class TValue, class THash>
 const TValue& TSimpleLruCache<TKey, TValue, THash>::Get(const TKey& key)
 {
     auto it = ItemMap_.find(key);
-    YCHECK(it != ItemMap_.end());
+    YT_VERIFY(it != ItemMap_.end());
     UpdateLruList(it);
     return it->second.Value;
 }
@@ -436,7 +436,7 @@ TValue* TSimpleLruCache<TKey, TValue, THash>::Insert(const TKey& key, TValue val
         Pop();
     }
     auto insertResult = ItemMap_.emplace(key, std::move(item));
-    YCHECK(insertResult.second);
+    YT_VERIFY(insertResult.second);
     auto mapIt = insertResult.first;
     LruList_.push_front(mapIt);
     mapIt->second.LruListIterator = LruList_.begin();

@@ -55,7 +55,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
     for (const auto& descriptor : descriptors) {
         GpuDevices_.push_back(descriptor.DeviceName);
         FreeSlots_.emplace_back(descriptor.DeviceNumber);
-        YCHECK(HealthyGpuDeviceNumbers_.insert(descriptor.DeviceNumber).second);
+        YT_VERIFY(HealthyGpuDeviceNumbers_.insert(descriptor.DeviceNumber).second);
     }
 
     HealthCheckExecutor_ = New<TPeriodicExecutor>(
@@ -127,7 +127,7 @@ const std::vector<TString>& TGpuManager::ListGpuDevices() const
 
 TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
 {
-    YCHECK(!FreeSlots_.empty());
+    YT_VERIFY(!FreeSlots_.empty());
 
     auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
         YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",

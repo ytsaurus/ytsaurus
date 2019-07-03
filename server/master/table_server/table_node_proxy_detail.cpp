@@ -141,8 +141,8 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
                 }
             }
         }
-        
-        // No need for an extra check below. 
+
+        // No need for an extra check below.
         context->Permission = std::nullopt;
     }
 
@@ -707,7 +707,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                         case ETableChunkFormat::UnversionedColumnar:
                             return NTableClient::EOptimizeFor::Scan;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 };
 
@@ -1218,6 +1218,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 {
     DeclareNonMutating();
+    SuppressAccessTracking();
 
     context->SetRequestInfo();
 

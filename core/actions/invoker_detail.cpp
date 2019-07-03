@@ -7,7 +7,7 @@ namespace NYT {
 TInvokerWrapper::TInvokerWrapper(IInvokerPtr underlyingInvoker)
     : UnderlyingInvoker_(std::move(underlyingInvoker))
 {
-    YCHECK(UnderlyingInvoker_);
+    YT_VERIFY(UnderlyingInvoker_);
 }
 
 void TInvokerWrapper::Invoke(TClosure callback)

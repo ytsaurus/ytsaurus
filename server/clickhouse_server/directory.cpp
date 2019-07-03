@@ -168,12 +168,12 @@ public:
 
     TNode GetNode(const TString& /* name */) override
     {
-        YCHECK(false);
+        YT_VERIFY(false);
     }
 
     bool NodeExists(const TString& /* name */) override
     {
-        YCHECK(false);
+        YT_VERIFY(false);
     }
 
     IEphemeralNodeKeeperPtr CreateAndKeepEphemeralNode(

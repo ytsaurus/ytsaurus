@@ -110,12 +110,12 @@ public:
         }
 
         InputBIO_ = BIO_new(BIO_s_mem());
-        YCHECK(InputBIO_);
+        YT_VERIFY(InputBIO_);
         // Makes InputBIO_ non-blocking.
 
         BIO_set_mem_eof_return(InputBIO_, -1);
         OutputBIO_ = BIO_new(BIO_s_mem());
-        YCHECK(OutputBIO_);
+        YT_VERIFY(OutputBIO_);
 
         SSL_set_bio(Ssl_, InputBIO_, OutputBIO_);
 
@@ -133,7 +133,7 @@ public:
         SSL_set_connect_state(Ssl_);
         auto sslResult = SSL_do_handshake(Ssl_);
         sslResult = SSL_get_error(Ssl_, sslResult);
-        YCHECK(sslResult == SSL_ERROR_WANT_READ);
+        YT_VERIFY(sslResult == SSL_ERROR_WANT_READ);
 
         Invoker_->Invoke(BIND(&TTlsConnection::DoRun, MakeStrong(this)));
     }
@@ -147,7 +147,7 @@ public:
 
     virtual int GetHandle() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual i64 GetReadByteCount() const override
@@ -208,7 +208,7 @@ public:
             ReadBuffer_ = buffer;
             ReadPromise_ = promise;
 
-            YCHECK(!ReadActive_);
+            YT_VERIFY(!ReadActive_);
             ReadActive_ = true;
 
             DoRun();
@@ -229,7 +229,7 @@ public:
             WriteBuffer_ = buffer;
             WritePromise_ = promise;
 
-            YCHECK(!WriteActive_);
+            YT_VERIFY(!WriteActive_);
             WriteActive_ = true;
 
             DoRun();
@@ -356,7 +356,7 @@ private:
                     if (result.IsOK()) {
                         if (result.Value() > 0) {
                             int count = BIO_write(InputBIO_, InputBuffer_.Begin(), result.Value());
-                            YCHECK(count == result.Value());
+                            YT_VERIFY(count == result.Value());
                         } else {
                             BIO_set_mem_eof_return(InputBIO_, 0);
                         }
@@ -373,7 +373,7 @@ private:
             UnderlyingWriteActive_ = true;
 
             int count = BIO_read(OutputBIO_, OutputBuffer_.Begin(), OutputBuffer_.Size());
-            YCHECK(count > 0);
+            YT_VERIFY(count > 0);
 
             HandleUnderlyingIOResult(
                 Underlying_->Write(OutputBuffer_.Slice(0, count)),
@@ -436,7 +436,7 @@ private:
                     return;
                 }
 
-                YCHECK(count == ref.Size());
+                YT_VERIFY(count == ref.Size());
             }
 
             MaybeStartUnderlyingIO(false);
@@ -595,7 +595,7 @@ void TSslContext::AddPrivateKeyFromFile(const TString& path)
 void TSslContext::AddCertificateChain(const TString& certificateChain)
 {
     auto bio = BIO_new_mem_buf(certificateChain.c_str(), certificateChain.size());
-    YCHECK(bio);
+    YT_VERIFY(bio);
     auto freeBio = Finally([&] {
         BIO_free(bio);
     });
@@ -640,7 +640,7 @@ void TSslContext::AddCertificateChain(const TString& certificateChain)
 void TSslContext::AddCertificate(const TString& certificate)
 {
     auto bio = BIO_new_mem_buf(certificate.c_str(), certificate.size());
-    YCHECK(bio);
+    YT_VERIFY(bio);
     auto freeBio = Finally([&] {
         BIO_free(bio);
     });
@@ -663,7 +663,7 @@ void TSslContext::AddCertificate(const TString& certificate)
 void TSslContext::AddPrivateKey(const TString& privateKey)
 {
     auto bio = BIO_new_mem_buf(privateKey.c_str(), privateKey.size());
-    YCHECK(bio);
+    YT_VERIFY(bio);
     auto freeBio = Finally([&] {
         BIO_free(bio);
     });

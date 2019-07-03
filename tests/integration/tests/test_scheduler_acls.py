@@ -1,6 +1,6 @@
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 import pytest
@@ -337,8 +337,8 @@ class TestSchedulerAcls(YTEnvSetup):
             wait(lambda: op.get_alerts())
             assert op.get_alerts().keys() == ["invalid_acl"]
 
-            self.Env.kill_schedulers()
-            self.Env.start_schedulers()
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                pass
             time.sleep(0.1)
 
             assert op.get_alerts().keys() == ["invalid_acl"]

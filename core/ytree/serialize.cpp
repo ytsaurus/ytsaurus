@@ -132,7 +132,7 @@ void SerializeProtobufMessage(
     auto byteSize = message.ByteSize();
     struct TProtobufToYsonTag { };
     TBlob wireBytes(GetRefCountedTypeCookie<TProtobufToYsonTag>(), byteSize, false);
-    YCHECK(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
+    YT_VERIFY(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
     ArrayInputStream inputStream(wireBytes.Begin(), byteSize);
     ParseProtobuf(consumer, &inputStream, type);
 }
@@ -238,11 +238,12 @@ void Deserialize(TGuid& value, INodePtr node)
 void DeserializeProtobufMessage(
     Message& message,
     const TProtobufMessageType* type,
-    const INodePtr& node)
+    const INodePtr& node,
+    const NYson::TProtobufWriterOptions& options)
 {
     TString wireBytes;
     StringOutputStream outputStream(&wireBytes);
-    auto protobufWriter = CreateProtobufWriter(&outputStream, type);
+    auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
     VisitTree(node, protobufWriter.get(), true);
     if (!message.ParseFromArray(wireBytes.data(), wireBytes.size())) {
         THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",

@@ -36,7 +36,7 @@ Y_FORCE_INLINE TRef TRef::FromPod(const T& data)
 
 Y_FORCE_INLINE TRef TRef::Slice(size_t startOffset, size_t endOffset) const
 {
-    Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
+    YT_ASSERT(endOffset >= startOffset && endOffset <= Size());
     return TRef(Begin() + startOffset, endOffset - startOffset);
 }
 
@@ -75,7 +75,7 @@ Y_FORCE_INLINE TMutableRef TMutableRef::FromString(TString& str)
 
 Y_FORCE_INLINE TMutableRef TMutableRef::Slice(size_t startOffset, size_t endOffset) const
 {
-    Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
+    YT_ASSERT(endOffset >= startOffset && endOffset <= Size());
     return TMutableRef(Begin() + startOffset, endOffset - startOffset);
 }
 
@@ -117,14 +117,14 @@ Y_FORCE_INLINE TSharedRef TSharedRef::MakeCopy(TRef ref)
 
 Y_FORCE_INLINE TSharedRef TSharedRef::Slice(size_t startOffset, size_t endOffset) const
 {
-    Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
+    YT_ASSERT(endOffset >= startOffset && endOffset <= Size());
     return TSharedRef(Begin() + startOffset, endOffset - startOffset, Holder_);
 }
 
 Y_FORCE_INLINE  TSharedRef TSharedRef::Slice(const void* begin, const void* end) const
 {
-    Y_ASSERT(begin >= Begin());
-    Y_ASSERT(end <= End());
+    YT_ASSERT(begin >= Begin());
+    YT_ASSERT(end <= End());
     return TSharedRef(begin, end, Holder_);
 }
 
@@ -170,14 +170,14 @@ Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::MakeCopy(TRef ref)
 
 Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::Slice(size_t startOffset, size_t endOffset) const
 {
-    Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
+    YT_ASSERT(endOffset >= startOffset && endOffset <= Size());
     return TSharedMutableRef(Begin() + startOffset, endOffset - startOffset, Holder_);
 }
 
 Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::Slice(void* begin, void* end) const
 {
-    Y_ASSERT(begin >= Begin());
-    Y_ASSERT(end <= End());
+    YT_ASSERT(begin >= Begin());
+    YT_ASSERT(end <= End());
     return TSharedMutableRef(begin, end, Holder_);
 }
 
@@ -306,7 +306,7 @@ public:
 
     const TSharedRef& operator [] (size_t index) const
     {
-        Y_ASSERT(index < Size());
+        YT_ASSERT(index < Size());
         return Begin()[index];
     }
 
@@ -428,7 +428,7 @@ Y_FORCE_INLINE bool TSharedRefArray::Empty() const
 
 Y_FORCE_INLINE const TSharedRef& TSharedRefArray::operator[](size_t index) const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return (*Impl_)[index];
 }
 

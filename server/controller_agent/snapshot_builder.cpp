@@ -65,9 +65,9 @@ TSnapshotBuilder::TSnapshotBuilder(
     , IncarnationId_(incarnationId)
     , Profiler(ControllerAgentProfiler.AppendPath("/snapshot"))
 {
-    YCHECK(Config_);
-    YCHECK(Client_);
-    YCHECK(IOInvoker_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Client_);
+    YT_VERIFY(IOInvoker_);
 
     Logger = ControllerAgentLogger;
 }
@@ -124,9 +124,9 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     std::vector<TSnapshotJobPtr> preparedJobs;
     PROFILE_TIMING("/controllers_prepare_time") {
         auto resultsOrError = WaitFor(CombineAll(onSnapshotStartedFutures));
-        YCHECK(resultsOrError.IsOK() && "CombineAll failed");
+        YT_VERIFY(resultsOrError.IsOK() && "CombineAll failed");
         const auto& results = resultsOrError.Value();
-        YCHECK(results.size() == Jobs_.size());
+        YT_VERIFY(results.size() == Jobs_.size());
         for (int index = 0; index < Jobs_.size(); ++index) {
             const auto& coookieOrError = results[index];
             if (!coookieOrError.IsOK()) {
@@ -151,7 +151,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     for (const auto& job : Jobs_) {
         auto controller = job->WeakController.Lock();
-        YCHECK(controller);
+        YT_VERIFY(controller);
         operationSuspendFutures.emplace_back(controller->Suspend()
             .Apply(BIND(&TSnapshotBuilder::OnControllerSuspended, MakeWeak(this), job)
                 .AsyncVia(ControlInvoker_)));

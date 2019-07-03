@@ -132,7 +132,7 @@ namespace {
 
 bool TryKill(int pid, int signal)
 {
-    YCHECK(pid > 0);
+    YT_VERIFY(pid > 0);
     int result = ::kill(pid, signal);
     // Ignore ESRCH because process may have died just before TryKill.
     if (result < 0 && errno != ESRCH) {
@@ -173,7 +173,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 
 void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
-    YCHECK(infop != nullptr);
+    YT_VERIFY(infop != nullptr);
 
     memset(infop, 0, sizeof(siginfo_t));
 
@@ -183,15 +183,15 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
         YT_LOG_FATAL(TError::FromSystem(), "Waitid failed with options: %v", options);
     }
 
-    YCHECK(infop->si_pid == id);
+    YT_VERIFY(infop->si_pid == id);
 }
 
 void Cleanup(int pid)
 {
-    YCHECK(pid > 0);
+    YT_VERIFY(pid > 0);
 
-    YCHECK(TryKill(pid, 9));
-    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
+    YT_VERIFY(TryKill(pid, 9));
+    YT_VERIFY(TryWaitid(P_PID, pid, nullptr, WEXITED));
 }
 
 bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
@@ -225,14 +225,14 @@ TProcessBase::TProcessBase(const TString& path)
 
 void TProcessBase::AddArgument(TStringBuf arg)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
 
     Args_.push_back(Capture(arg));
 }
 
 void TProcessBase::AddEnvVar(TStringBuf var)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
 
     Env_.push_back(Capture(var));
 }
@@ -329,7 +329,7 @@ void TSimpleProcess::DoSpawn()
         PipeFactory_.Clear();
     });
 
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Resolve binary path.
     std::vector<TError> innerErrors;
@@ -426,7 +426,7 @@ void TSimpleProcess::DoSpawn()
     SpawnChild();
 
     // This should not fail ever.
-    YCHECK(TrySetSignalMask(&oldSignals, nullptr));
+    YT_VERIFY(TrySetSignalMask(&oldSignals, nullptr));
 
     Pipe_.CloseWriteFD();
 
@@ -461,7 +461,7 @@ void TSimpleProcess::SpawnChild()
         try {
             Child();
         } catch (...) {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -490,7 +490,7 @@ void TSimpleProcess::ValidateSpawnResult()
         return;
     }
 
-    YCHECK(res == sizeof(data));
+    YT_VERIFY(res == sizeof(data));
     Finished_ = true;
 
     Cleanup(ProcessId_);
@@ -499,7 +499,7 @@ void TSimpleProcess::ValidateSpawnResult()
     int actionIndex = data[0];
     int errorCode = data[1];
 
-    YCHECK(0 <= actionIndex && actionIndex < SpawnActions_.size());
+    YT_VERIFY(0 <= actionIndex && actionIndex < SpawnActions_.size());
     const auto& action = SpawnActions_[actionIndex];
     THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
         << TError::FromSystem(errorCode);
@@ -646,14 +646,14 @@ void TSimpleProcess::Child()
 
             // According to pipe(7) write of small buffer is atomic.
             ssize_t size = HandleEintr(::write, Pipe_.GetWriteFD(), &data, sizeof(data));
-            YCHECK(size == sizeof(data));
+            YT_VERIFY(size == sizeof(data));
             _exit(1);
         }
     }
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

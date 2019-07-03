@@ -60,7 +60,7 @@ void DoDownloadSnapshot(
             const auto& rsp = rspOrError.Value();
 
             const auto& attachments = rsp->Attachments();
-            YCHECK(attachments.size() == 1);
+            YT_VERIFY(attachments.size() == 1);
 
             const auto& block = attachments[0];
             YT_LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",

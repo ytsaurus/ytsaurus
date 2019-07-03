@@ -49,7 +49,7 @@ TJob::TJob(IJobHostPtr host)
     : Host_(std::move(host))
     , StartTime_(TInstant::Now())
 {
-    YCHECK(Host_);
+    YT_VERIFY(Host_);
 
     BlockReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
     BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -239,7 +239,7 @@ TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& ou
 TInterruptDescriptor TSimpleJobBase::GetInterruptDescriptor() const
 {
     if (Interrupted_) {
-        YCHECK(Reader_);
+        YT_VERIFY(Reader_);
         return Reader_->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
     } else {
         return {};
@@ -258,7 +258,7 @@ void TSimpleJobBase::Interrupt()
     }
 
     if (!Interrupted_) {
-        YCHECK(Reader_);
+        YT_VERIFY(Reader_);
         Interrupted_ = true;
 
         if (Reader_->GetDataStatistics().row_count() > 0) {

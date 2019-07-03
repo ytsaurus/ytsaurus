@@ -41,7 +41,7 @@ public:
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
-        YCHECK(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
+        YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
@@ -52,7 +52,7 @@ public:
 
     i64 ReadValues(TMutableRange<TMutableUnversionedRow> rows)
     {
-        YCHECK(SegmentRowIndex_ + rows.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + rows.Size() <= Meta_.row_count());
         for (i64 rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
             ui32 offset = GetOffset(SegmentRowIndex_ + rowIndex);
             const char* ptr = Data_ + offset;
@@ -82,7 +82,7 @@ public:
 
     void GetValueCounts(TMutableRange<ui32> valueCounts)
     {
-        YCHECK(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
         for (i64 rowIndex = 0; rowIndex < valueCounts.Size(); ++rowIndex) {
             valueCounts[rowIndex] = ValueCountReader_[SegmentRowIndex_ + rowIndex];
         }

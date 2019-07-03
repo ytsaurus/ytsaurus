@@ -40,7 +40,7 @@ i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
 {
     i64 result = 0;
     for (const auto& chunkSpec : chunkSpecs) {
-        YCHECK(chunkSpec.has_row_count_override());
+        YT_VERIFY(chunkSpec.has_row_count_override());
         result += chunkSpec.row_count_override();
     }
     return result;

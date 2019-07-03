@@ -159,7 +159,7 @@ void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)
 {
     TChunkStoreBase::Initialize(descriptor);
     if (descriptor) {
-        YCHECK(descriptor->has_starting_row_index());
+        YT_VERIFY(descriptor->has_starting_row_index());
         SetStartingRowIndex(descriptor->starting_row_index());
     }
 }

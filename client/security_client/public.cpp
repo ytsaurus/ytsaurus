@@ -16,6 +16,7 @@ const TString ReplicatorUserName("replicator");
 const TString OwnerUserName("owner");
 const TString FileCacheUserName("file_cache");
 const TString OperationsCleanerUserName("operations_cleaner");
+const TString OperationsClientUserName("operations_client");
 
 const TString EveryoneGroupName("everyone");
 const TString UsersGroupName("users");

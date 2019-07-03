@@ -489,9 +489,9 @@ void TBootstrap::DoInitialize()
         networks,
         Logger);
 
-    YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
+    YT_VERIFY(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {
-        YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
+        YT_VERIFY(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;

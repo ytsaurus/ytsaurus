@@ -385,7 +385,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
-        YCHECK(guard.WasAcquired());
+        YT_VERIFY(guard.WasAcquired());
 
         const auto& request = RpcContext_->Request();
         const auto& attachments = RpcContext_->RequestAttachments();
@@ -775,7 +775,7 @@ private:
             auto& response = RpcContext_->Response();
             auto& attachments = response.Attachments();
 
-            YCHECK(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
+            YT_VERIFY(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
 
             for (auto index = 0; index < CurrentSubrequestIndex_; ++index) {
                 const auto& subrequest = Subrequests_[index];
@@ -794,7 +794,7 @@ private:
             }
         }
 
-        YCHECK(!error.IsOK() ||
+        YT_VERIFY(!error.IsOK() ||
             SubrequestCount_ == 0 ||
             RpcContext_->Response().part_counts_size() > 0);
 
@@ -936,13 +936,13 @@ void TObjectService::ProcessSessions()
 
     while (!BucketHeap_.empty() && NProfiling::GetCpuInstant() < deadlineTime) {
         auto* bucket = BucketHeap_.front();
-        Y_ASSERT(bucket->InHeap);
+        YT_ASSERT(bucket->InHeap);
 
         auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
 
         // Account for charged time possibly reordering the heap.
         if (bucket->HeapKey != actualExcessTime) {
-            Y_ASSERT(bucket->HeapKey < actualExcessTime);
+            YT_ASSERT(bucket->HeapKey < actualExcessTime);
             bucket->HeapKey = actualExcessTime;
             AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
             continue;

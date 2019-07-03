@@ -50,7 +50,7 @@ public:
             return hasMore;
         }
 
-        YCHECK(hasMore);
+        YT_VERIFY(hasMore);
         auto& rows_ = *rows;
 
         try {
@@ -141,7 +141,7 @@ private:
                 writer.OnEntity();
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         writer.Flush();
         auto ysonSize = ValueBuffer_.Size();

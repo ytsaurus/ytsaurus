@@ -116,8 +116,8 @@ TChunkPlacement::TChunkPlacement(
     : Config_(config)
     , Bootstrap_(bootstrap)
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
@@ -155,10 +155,10 @@ void TChunkPlacement::OnNodeDataCenterChanged(TNode* node, const TDataCenter* ol
 void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
     for (const auto& item : node->LoadFactorIterators()) {
-        YCHECK(!item.second);
+        YT_VERIFY(!item.second);
     }
     for (const auto& item : node->FillFactorIterators()) {
-        YCHECK(!item.second);
+        YT_VERIFY(!item.second);
     }
 }
 
@@ -228,7 +228,7 @@ void TChunkPlacement::RemoveFromFillFactorMaps(
         }
 
         auto domainToFactorMapIter = DomainToFillFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        YCHECK(domainToFactorMapIter != DomainToFillFactorToNode_.end());
+        YT_VERIFY(domainToFactorMapIter != DomainToFillFactorToNode_.end());
 
         auto& factorMap = domainToFactorMapIter->second;
         factorMap.erase(*factorMapIter);
@@ -278,7 +278,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(
         }
 
         auto domainToFactorMapIter = DomainToLoadFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        YCHECK(domainToFactorMapIter != DomainToLoadFactorToNode_.end());
+        YT_VERIFY(domainToFactorMapIter != DomainToLoadFactorToNode_.end());
 
         auto& factorMap = domainToFactorMapIter->second;
         factorMap.erase(*factorMapIter);
@@ -331,7 +331,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     };
 
     auto tryAddAll = [&] (bool enableRackAwareness) {
-        YCHECK(!hasEnoughTargets());
+        YT_VERIFY(!hasEnoughTargets());
 
         bool hasProgress = false;
         if (!LoadFactorToNodeIterator_.IsValid()) {
@@ -463,7 +463,7 @@ bool TChunkPlacement::HasBalancingTargets(const TDataCenterSet& dataCenters, TMe
 
     auto* node = FillFactorToNodeIterator_->second;
     auto nodeFillFactor = node->GetFillFactor(medium->GetIndex());
-    YCHECK(nodeFillFactor);
+    YT_VERIFY(nodeFillFactor);
     return *nodeFillFactor < maxFillFactor;
 }
 
@@ -504,7 +504,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     for ( ; FillFactorToNodeIterator_.IsValid(); ++FillFactorToNodeIterator_) {
         auto* node = FillFactorToNodeIterator_->second;
         auto nodeFillFactor = node->GetFillFactor(medium->GetIndex());
-        YCHECK(nodeFillFactor);
+        YT_VERIFY(nodeFillFactor);
         if (*nodeFillFactor > maxFillFactor) {
             break;
         }
@@ -659,7 +659,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
     int iterationCount = std::min(replicaCount * 2, static_cast<int>(replicas == node->Replicas().end() ? 0 : replicas->second.size()));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
-        Y_ASSERT(replica.GetMediumIndex() == mediumIndex);
+        YT_ASSERT(replica.GetMediumIndex() == mediumIndex);
         auto* chunk = replica.GetPtr();
         if (!IsObjectAlive(chunk)) {
             break;
@@ -716,7 +716,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
         case EObjectType::Chunk:         result = std::min(result, config->MaxRegularReplicasPerRack); break;
         case EObjectType::ErasureChunk:  result = std::min(result, config->MaxErasureReplicasPerRack); break;
         case EObjectType::JournalChunk:  result = std::min(result, config->MaxJournalReplicasPerRack); break;
-        default:                         Y_UNREACHABLE();
+        default:                         YT_ABORT();
     }
     return result;
 }

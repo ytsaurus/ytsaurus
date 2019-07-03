@@ -718,6 +718,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     if (options.ExecutionPool) {
         req->set_execution_pool(*options.ExecutionPool);
     }
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

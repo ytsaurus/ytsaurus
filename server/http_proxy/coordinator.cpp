@@ -456,7 +456,7 @@ void THostsHandler::HandleRequest(
         }
 
         if (path != "/hosts" && path != "/hosts/") {
-            YCHECK(path.StartsWith("/hosts/"));
+            YT_VERIFY(path.StartsWith("/hosts/"));
             suffix = TString(path.substr(7));
         }
 
@@ -538,9 +538,11 @@ void TPingHandler::HandleRequest(
 
 TDiscoverVersionsHandler::TDiscoverVersionsHandler(
     NApi::NNative::IConnectionPtr connection,
-    NApi::IClientPtr client)
+    NApi::IClientPtr client,
+    const TCoordinatorConfigPtr config)
     : Connection_(std::move(connection))
     , Client_(std::move(client))
+    , Config_(config)
 { }
 
 std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
@@ -595,6 +597,71 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
             instance.Online = (nodeState == TString("online"));
         }
 
+        instances.push_back(instance);
+    }
+
+    return instances;
+}
+
+std::vector<TInstance> TDiscoverVersionsHandler::ListProxies(
+    const TString& component,
+    const TString& type)
+{
+    TGetNodeOptions options;
+    if (type == "rpc_proxy") {
+        options.Attributes = {
+            "start_time",
+            "version",
+            "banned",
+        };
+    } else {
+        options.Attributes = {
+            "liveness",
+            "start_time",
+            "version",
+            "banned",
+        };
+    }
+    auto nodeYson = WaitFor(Client_->GetNode("//sys/" + component, options))
+        .ValueOrThrow();
+
+    std::vector<TInstance> instances;
+    auto timeNow = TInstant::Now();
+    for (const auto& [address, node] : ConvertTo<THashMap<TString, IMapNodePtr>>(nodeYson)) {
+        auto version = node->Attributes().Find<TString>("version");
+        auto banned = node->Attributes().Find<bool>("banned");
+        auto startTime = node->Attributes().Find<TString>("start_time");
+
+        TInstance instance;
+        instance.Type = type;
+        instance.Address = address;
+
+        if (version && startTime) {
+            instance.Version = *version;
+            instance.StartTime = *startTime;
+            instance.Banned = banned.value_or(false);
+        } else {
+            instance.Error = TError("Cannot find required attributes in response")
+                << TErrorAttribute("version", version)
+                << TErrorAttribute("start_time", startTime);
+        }
+
+        if (type == "rpc_proxy") {
+            auto alive = node->AsMap()->FindChild("alive");
+            instance.Online = static_cast<bool>(alive);
+        } else {
+            auto livenessPtr = node->Attributes().Find<TLivenessPtr>("liveness");
+            if (!livenessPtr) {
+                instance.Error = TError("Liveness attribute is missing");
+            } else {
+                instance.Online = (livenessPtr->UpdatedAt + Config_->DeathAge >= timeNow);
+            }
+        }
+        if (instance.Online) {
+            instance.State = "online";
+        } else {
+            instance.State = "offline";
+        }
         instances.push_back(instance);
     }
 
@@ -713,8 +780,8 @@ void TDiscoverVersionsHandlerV1::HandleRequest(
                     GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent")
                 ))
                 .Item("nodes").Value(FormatInstances(ListComponent("nodes", "node")))
-                .Item("http_proxies").Value(FormatInstances(ListComponent("proxies", "http_proxy")))
-                .Item("rpc_proxies").Value(FormatInstances(ListComponent("rpc_proxies", "rpc_proxy")))
+                .Item("http_proxies").Value(FormatInstances(ListProxies("proxies", "http_proxy")))
+                .Item("rpc_proxies").Value(FormatInstances(ListProxies("rpc_proxies", "rpc_proxy")))
             .EndMap();
     });
 }
@@ -779,8 +846,8 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
     add(ListComponent("nodes", "node"));
-    add(ListComponent("proxies", "http_proxy"));
-    add(ListComponent("rpc_proxies", "rpc_proxy"));
+    add(ListProxies("proxies", "http_proxy"));
+    add(ListProxies("rpc_proxies", "rpc_proxy"));
 
     THashMap<TString, THashMap<TString, TVersionCounter>> summary;
     for (const auto& instance : instances) {

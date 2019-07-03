@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.environment.porto_helpers import porto_avaliable
@@ -48,24 +48,21 @@ class TestLayers(YTEnvSetup):
         set("//tmp/static_cat/@executable", True)
 
     def test_disabled_layer_locations(self):
-        self.Env.kill_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            disabled_path = None
+            for node in self.Env.configs["node"][:1]:
+                for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
+                    try:
+                        disabled_path = layer_location["path"]
+                        os.mkdir(layer_location["path"])
+                    except OSError:
+                        pass
+                    open(layer_location["path"] + "/disabled", "w")
 
-        disabled_path = None
-        for node in self.Env.configs["node"][:1]:
-            for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
-                try:
-                    disabled_path = layer_location["path"]
-                    os.mkdir(layer_location["path"])
-                except OSError:
-                    pass
-                open(layer_location["path"] + "/disabled", "w")
-
-        self.Env.start_nodes(sync=True)
         wait_for_nodes()
 
-        self.Env.kill_nodes()
-        os.unlink(disabled_path + "/disabled")
-        self.Env.start_nodes(sync=True)
+        with Restarter(self.Env, NODES_SERVICE):
+            os.unlink(disabled_path + "/disabled")
         wait_for_nodes()
 
         time.sleep(5)

@@ -203,7 +203,7 @@ public:
 
     void ExportSymbol(const TString& name)
     {
-        YCHECK(ExportedSymbols_.insert(name).second);
+        YT_VERIFY(ExportedSymbols_.insert(name).second);
     }
 
     uint64_t GetFunctionAddress(const TString& name)
@@ -254,7 +254,7 @@ public:
 private:
     void Finalize()
     {
-        YCHECK(Compiled_ == false);
+        YT_VERIFY(Compiled_ == false);
         Compile();
         Compiled_ = true;
     }
@@ -290,7 +290,7 @@ private:
         }
 
         YT_LOG_DEBUG("Verifying IR");
-        YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
+        YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         std::unique_ptr<PassManager> modulePassManager;
         std::unique_ptr<FunctionPassManager> functionPassManager;
@@ -413,7 +413,7 @@ private:
             default:
                 return "DK_(?)";
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     static const char* DiagnosticSeverityToString(llvm::DiagnosticSeverity severity)
@@ -430,7 +430,7 @@ private:
             default:
                 return "DS_(?)";
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:

@@ -81,7 +81,7 @@ bool TPacketTranscoderBase<TDerived>::EndPhase()
             return AsDerived()->EndMessagePartPhase();
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

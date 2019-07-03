@@ -22,18 +22,18 @@ TErrorOr<T> WaitFor(TFuture<T> future)
 template <class T>
 TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 {
-    Y_ASSERT(future);
-    Y_ASSERT(invoker);
+    YT_ASSERT(future);
+    YT_ASSERT(invoker);
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         TMemoryTagGuard guard(NullMemoryTag);
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
-        Y_ASSERT(future.IsSet());
+        YT_ASSERT(future.IsSet());
     } else {
         // When called from a fiber-unfriendly context, we fallback to blocking wait.
-        YCHECK(invoker == GetCurrentInvoker());
-        YCHECK(invoker == GetSyncInvoker());
+        YT_VERIFY(invoker == GetCurrentInvoker());
+        YT_VERIFY(invoker == GetSyncInvoker());
     }
 
     return future.Get();
@@ -45,7 +45,7 @@ extern Y_POD_THREAD(IScheduler*) CurrentScheduler;
 
 Y_FORCE_INLINE IScheduler* GetCurrentScheduler()
 {
-    Y_ASSERT(CurrentScheduler);
+    YT_ASSERT(CurrentScheduler);
     return CurrentScheduler;
 }
 
@@ -56,7 +56,7 @@ Y_FORCE_INLINE IScheduler* TryGetCurrentScheduler()
 
 Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
 {
-    YCHECK(!CurrentScheduler);
+    YT_VERIFY(!CurrentScheduler);
     CurrentScheduler = scheduler;
 }
 
@@ -80,7 +80,7 @@ extern Y_POD_THREAD(const TFiber*) CurrentFiber;
 
 Y_FORCE_INLINE const TFiber* GetCurrentFiber()
 {
-    Y_ASSERT(CurrentFiber);
+    YT_ASSERT(CurrentFiber);
     return CurrentFiber;
 }
 

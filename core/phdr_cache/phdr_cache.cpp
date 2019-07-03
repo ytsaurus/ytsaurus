@@ -26,7 +26,7 @@ TDlIterateFunc GetOriginalDlIteratePhdr()
 {
     static auto result = [] {
         auto func = reinterpret_cast<TDlIterateFunc>(dlsym(RTLD_NEXT, "dl_iterate_phdr"));
-        YCHECK(func);
+        YT_VERIFY(func);
         return func;
     }();
     return result;

@@ -52,7 +52,7 @@ IMessageFormat* GetMessageFormatOrThrow(EMessageFormat format)
 
 void RegisterCustomMessageFormat(EMessageFormat format, IMessageFormat* formatHandler)
 {
-    YCHECK(!GetMessageFormatRegistry()[format]);
+    YT_VERIFY(!GetMessageFormatRegistry()[format]);
     GetMessageFormatRegistry()[format] = formatHandler;
 }
 

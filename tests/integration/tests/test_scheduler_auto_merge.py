@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 from time import sleep
@@ -54,8 +54,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             if with_revive:
                 i += 1
                 if i == 20:
-                    self.Env.kill_schedulers()
-                    self.Env.start_schedulers()
+                    with Restarter(self.Env, SCHEDULERS_SERVICE):
+                        pass
                     i = 0
         print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
 

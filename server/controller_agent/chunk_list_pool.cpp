@@ -47,9 +47,9 @@ TChunkListPool::TChunkListPool(
     , Logger(NLogging::TLogger(ControllerLogger)
         .AddTag("OperationId: %v", operationId))
 {
-    YCHECK(Config_);
-    YCHECK(Client_);
-    YCHECK(ControllerInvokerPool_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Client_);
+    YT_VERIFY(ControllerInvokerPool_);
 }
 
 bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
@@ -74,7 +74,7 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 
     auto& data = CellMap_[cellTag];
 
-    YCHECK(!data.Ids.empty());
+    YT_VERIFY(!data.Ids.empty());
     auto id = data.Ids.back();
     data.Ids.pop_back();
 
@@ -140,7 +140,7 @@ void TChunkListPool::OnChunkListsCreated(
 {
     auto& data = CellMap_[cellTag];
 
-    YCHECK(data.RequestInProgress);
+    YT_VERIFY(data.RequestInProgress);
     data.RequestInProgress = false;
 
     auto error = GetCumulativeError(batchRspOrError);

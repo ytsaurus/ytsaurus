@@ -155,7 +155,7 @@ private:
 
             auto result = VoidFuture;
             for (const auto& row : rows) {
-                YCHECK(!row.Empty());
+                YT_VERIFY(!row.Empty());
                 auto batch = EnsureCurrentBatch();
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
@@ -671,7 +671,7 @@ private:
                 GenerateMutationId(batchReq);
                 batchReq->set_suppress_upstream_sync(true);
 
-                YCHECK(!replicas.empty());
+                YT_VERIFY(!replicas.empty());
                 auto* req = batchReq->add_confirm_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
@@ -948,7 +948,7 @@ private:
 
         TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
-            Y_ASSERT(row);
+            YT_ASSERT(row);
             batch->Rows.push_back(row);
             batch->DataSize += row.Size();
             ++CurrentRowIndex_;
@@ -1113,7 +1113,7 @@ private:
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);
 
-            Y_ASSERT(node->InFlightBatches.empty());
+            YT_ASSERT(node->InFlightBatches.empty());
             while (flushRowCount <= Config_->MaxFlushRowCount &&
                    flushDataSize <= Config_->MaxFlushDataSize &&
                    !node->PendingBatches.empty())

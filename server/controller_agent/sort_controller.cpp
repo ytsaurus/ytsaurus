@@ -774,7 +774,7 @@ protected:
             if (Controller->SimpleSort && stat.size() > 1) {
                 stat = AggregateStatistics(stat);
             } else {
-                YCHECK(stat.size() == 1);
+                YT_VERIFY(stat.size() == 1);
             }
             auto result = GetNeededResourcesForChunkStripe(stat.front());
             AddFootprintAndUserJobResources(result);
@@ -812,7 +812,7 @@ protected:
         {
             TPartitionBoundTask::OnJobStarted(joblet);
 
-            YCHECK(!Partition->Maniac);
+            YT_VERIFY(!Partition->Maniac);
 
             Controller->SortDataWeightCounter->Start(joblet->InputStripeList->TotalDataWeight);
 
@@ -1009,7 +1009,7 @@ protected:
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             auto nodeId = completedJob->NodeDescriptor.Id;
-            YCHECK((Partition->NodeIdToLocality[nodeId] -= completedJob->DataWeight) >= 0);
+            YT_VERIFY((Partition->NodeIdToLocality[nodeId] -= completedJob->DataWeight) >= 0);
 
             Controller->ResetTaskLocalityDelays();
 
@@ -1169,7 +1169,7 @@ protected:
         {
             i64 outputRowCount = 0;
             for (auto& jobOutput : JobOutputs_) {
-                YCHECK(jobOutput.JobSummary.Statistics);
+                YT_VERIFY(jobOutput.JobSummary.Statistics);
                 outputRowCount += GetTotalOutputDataStatistics(*jobOutput.JobSummary.Statistics).row_count();
             }
             return outputRowCount;
@@ -1201,7 +1201,7 @@ protected:
                 InvalidatedJoblets_.insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_) {
-                YCHECK(jobOutput.JobSummary.Statistics);
+                YT_VERIFY(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller->GetRowCountLimitTableIndex();
                 if (tableIndex) {
                     auto optionalCount = FindNumericValue(
@@ -1284,12 +1284,12 @@ protected:
 
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
-            YCHECK(!Partition->Maniac);
+            YT_VERIFY(!Partition->Maniac);
 
             Controller->SortedMergeJobCounter->Start(1);
 
             TMergeTask::OnJobStarted(joblet);
-            YCHECK(ActiveJoblets_.insert(joblet).second);
+            YT_VERIFY(ActiveJoblets_.insert(joblet).second);
         }
 
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -1297,7 +1297,7 @@ protected:
             auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter->Completed(1);
-            YCHECK(ActiveJoblets_.erase(joblet) == 1);
+            YT_VERIFY(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.contains(joblet)) {
                 JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
             }
@@ -1310,7 +1310,7 @@ protected:
             Controller->SortedMergeJobCounter->Failed(1);
 
             auto result = TMergeTask::OnJobFailed(joblet, jobSummary);
-            YCHECK(ActiveJoblets_.erase(joblet) == 1);
+            YT_VERIFY(ActiveJoblets_.erase(joblet) == 1);
 
             return result;
         }
@@ -1320,14 +1320,14 @@ protected:
             Controller->SortedMergeJobCounter->Aborted(1, jobSummary.AbortReason);
 
             auto result = TMergeTask::OnJobAborted(joblet, jobSummary);
-            YCHECK(ActiveJoblets_.erase(joblet) == 1);
+            YT_VERIFY(ActiveJoblets_.erase(joblet) == 1);
 
             return result;
         }
 
         virtual void OnTaskCompleted() override
         {
-            YCHECK(!Finished_);
+            YT_VERIFY(!Finished_);
             TMergeTask::OnTaskCompleted();
 
             RegisterAllOutputs();
@@ -1423,7 +1423,7 @@ protected:
 
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
-            YCHECK(Partition->Maniac);
+            YT_VERIFY(Partition->Maniac);
             TMergeTask::OnJobStarted(joblet);
 
             Controller->UnorderedMergeJobCounter->Start(1);
@@ -1693,10 +1693,10 @@ protected:
                     "Input/output row count mismatch in sort operation (TotalInputRowCount: %v, TotalOutputRowCount: %v)",
                     totalInputRowCount,
                     TotalOutputRowCount);
-                YCHECK(totalInputRowCount == TotalOutputRowCount);
+                YT_VERIFY(totalInputRowCount == TotalOutputRowCount);
             }
 
-            YCHECK(CompletedPartitionCount == Partitions.size());
+            YT_VERIFY(CompletedPartitionCount == Partitions.size());
         } else {
             if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
                 // We have to save all output in SortedMergeTask.
@@ -1715,7 +1715,7 @@ protected:
 
     void OnPartitionCompleted(TPartitionPtr partition)
     {
-        YCHECK(!partition->Completed);
+        YT_VERIFY(!partition->Completed);
         partition->Completed = true;
 
         ++CompletedPartitionCount;
@@ -1933,7 +1933,7 @@ protected:
 
     int SuggestPartitionCount() const
     {
-        YCHECK(TotalEstimatedInputDataWeight > 0);
+        YT_VERIFY(TotalEstimatedInputDataWeight > 0);
         i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
         // Use int64 during the initial stage to avoid overflow issues.
         i64 result;
@@ -2172,7 +2172,7 @@ protected:
 
     void AccountRows(const std::optional<NJobTrackerClient::TStatistics>& statistics)
     {
-        YCHECK(statistics);
+        YT_VERIFY(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
     }
 
@@ -2250,7 +2250,7 @@ protected:
             case EJobType::FinalSort:
                 return AsStringBuf("partition_data_weight");
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -2324,7 +2324,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -2427,7 +2427,7 @@ private:
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
-        YCHECK(partitionCount > 0);
+        YT_VERIFY(partitionCount > 0);
         SimpleSort = (partitionCount == 1);
 
         if (SimpleSort) {
@@ -2493,7 +2493,7 @@ private:
             index,
             key);
 
-        YCHECK(CompareRows(Partitions.back()->Key, key) < 0);
+        YT_VERIFY(CompareRows(Partitions.back()->Key, key) < 0);
         Partitions.push_back(New<TPartition>(this, index, key));
     }
 
@@ -2562,7 +2562,7 @@ private:
                         skippedCount);
 
                     lastPartition->Maniac = true;
-                    YCHECK(skippedCount >= 1);
+                    YT_VERIFY(skippedCount >= 1);
 
                     // NB: in partitioner we compare keys with the whole rows,
                     // so key prefix successor in required here.
@@ -3002,7 +3002,7 @@ protected:
             case EJobType::SortedReduce:
                 return AsStringBuf("partition_data_weight");
            default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -3431,7 +3431,7 @@ private:
 
     virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const override
@@ -3496,7 +3496,7 @@ private:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     // Progress reporting.

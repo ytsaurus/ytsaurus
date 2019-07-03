@@ -32,7 +32,7 @@ public:
     explicit TObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     {
-        YCHECK(bootstrap);
+        YT_VERIFY(bootstrap);
     }
 
     virtual ETypeFlags GetFlags() const override
@@ -61,12 +61,12 @@ public:
         TObjectId /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId /*id*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ZombifyObject(TObjectBase* object) noexcept override
@@ -142,7 +142,7 @@ protected:
         TObject* /*object*/,
         NObjectClient::TCellTag /*destinationCellTag*/)
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void DoUnexportObject(
@@ -150,7 +150,7 @@ protected:
         NObjectClient::TCellTag /*destinationCellTag*/,
         int /*importRefCounter*/)
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 

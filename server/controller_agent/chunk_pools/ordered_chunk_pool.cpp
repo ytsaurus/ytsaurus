@@ -85,7 +85,7 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
+        YT_VERIFY(!Finished);
 
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
@@ -99,7 +99,7 @@ public:
 
     virtual void Finish() override
     {
-        YCHECK(!Finished);
+        YT_VERIFY(!Finished);
         TChunkPoolInputBase::Finish();
 
         // NB: this method accounts all the stripes that were suspended before
@@ -410,7 +410,7 @@ private:
                     OutputOrder_->Push(cookie);
                 }
 
-                Y_ASSERT(!CurrentJob_);
+                YT_ASSERT(!CurrentJob_);
             } else {
                 YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, PrimatyDataWeight: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,

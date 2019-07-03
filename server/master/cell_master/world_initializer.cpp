@@ -75,8 +75,8 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
     {
-        YCHECK(Config_);
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Bootstrap_);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
@@ -99,7 +99,7 @@ public:
 
     bool HasProvisionLock()
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto sysNode = cypressManager->ResolvePathToNodeProxy("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);

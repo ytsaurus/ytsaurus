@@ -172,7 +172,7 @@ private:
 
     void ReplySuccess()
     {
-        YCHECK(!Finished_);
+        YT_VERIFY(!Finished_);
         Finished_ = true;
 
         try {
@@ -284,7 +284,7 @@ private:
             case EObjectType::Chunk:          addReplica = addRegularReplica; break;
             case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
             case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
-            default:                          Y_UNREACHABLE();
+            default:                          YT_ABORT();
         }
 
         for (auto replica : chunk->StoredReplicas()) {
@@ -742,7 +742,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YCHECK(node->IsTrunk());
+    YT_VERIFY(node->IsTrunk());
 
     auto mediumIndex = node->GetPrimaryMediumIndex();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -773,7 +773,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
 void TChunkOwnerNodeProxy::SetVital(bool vital)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YCHECK(node->IsTrunk());
+    YT_VERIFY(node->IsTrunk());
 
     auto& replication = node->Replication();
     if (replication.GetVital() == vital) {
@@ -793,7 +793,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    YCHECK(node->IsTrunk());
+    YT_VERIFY(node->IsTrunk());
 
     auto primaryMediumIndex = node->GetPrimaryMediumIndex();
     ValidateMediaChange(node->Replication(), primaryMediumIndex, replication);
@@ -817,7 +817,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YCHECK(node->IsTrunk());
+    YT_VERIFY(node->IsTrunk());
 
     TChunkReplication newReplication;
     if (!ValidatePrimaryMediumChange(
@@ -1045,7 +1045,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     lockedNode->BeginUpload(uploadContext);
@@ -1160,7 +1160,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YCHECK(node->GetTransaction() == Transaction);
+    YT_VERIFY(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
         PostToMaster(context, node->GetExternalCellTag());

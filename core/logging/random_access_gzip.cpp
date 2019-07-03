@@ -90,9 +90,9 @@ void TRandomAccessGZipFile::DoFlush()
     TGZipExtendedHeader header;
     memcpy(&header.FixedHeader, buffer.Data() + HeaderGrowth, sizeof(header.FixedHeader));
 
-    YCHECK(header.FixedHeader.Id[0] == 0x1f);
-    YCHECK(header.FixedHeader.Id[1] == 0x8b);
-    YCHECK((header.FixedHeader.Flags & ExtraFlag) == 0);
+    YT_VERIFY(header.FixedHeader.Id[0] == 0x1f);
+    YT_VERIFY(header.FixedHeader.Id[1] == 0x8b);
+    YT_VERIFY((header.FixedHeader.Flags & ExtraFlag) == 0);
     header.FixedHeader.Flags |= ExtraFlag;
     header.XLen = 8;
     header.SubfieldId[0] = 'Y';

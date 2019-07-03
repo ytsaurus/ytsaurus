@@ -60,23 +60,18 @@ public:
 
     virtual DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
     {
-        if (!isString(arguments[0])) {
+        if (!isString(removeNullable(arguments[0]))) {
             throw Exception(
                 "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
-        if (!isString(arguments[1])) {
+        if (!isString(removeNullable(arguments[1]))) {
             throw Exception(
                 "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
 
         return OutputDataType_;
-    }
-
-    virtual bool useDefaultImplementationForNulls() const override
-    {
-        return true;
     }
 
     virtual bool useDefaultImplementationForConstants() const override
@@ -88,12 +83,13 @@ public:
     {
         const IColumn* columnYson = block.getByPosition(arguments[0]).column.get();
         const IColumn* columnPath = block.getByPosition(arguments[1]).column.get();
-        if (!checkColumn<ColumnString>(columnYson) && !checkColumnConst<ColumnString>(columnYson)) {
-            throw Exception(
-                "Illegal column " + block.getByPosition(arguments[0]).column->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_COLUMN);
-        }
-        if (!checkColumn<ColumnString>(columnPath) && !checkColumnConst<ColumnString>(columnPath)) {
+        const ColumnUInt8* nullMap = nullptr;
+        if (checkColumn<ColumnString>(columnYson) || checkColumnConst<ColumnString>(columnYson)) {
+            // Everything is just fine.
+        } else if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
+            nullMap = &nullableColumnYson->getNullMapColumn();
+            columnYson = &nullableColumnYson->getNestedColumn();
+        } else {
             throw Exception(
                 "Illegal column " + block.getByPosition(arguments[1]).column->getName() + " of second argument of function " + getName(),
                 ErrorCodes::ILLEGAL_COLUMN);
@@ -109,9 +105,15 @@ public:
 
             INodePtr subNode = nullptr;
             if constexpr (Strict) {
-                subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                if (!nullMap || nullMap->getUInt(i) == 0) {
+                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                } else {
+                    THROW_ERROR_EXCEPTION("Cannot apply ypath function to null value");
+                }
             } else {
-                subNode = FindNodeByYPath(node, TString(path.data, path.size));
+                if (!nullMap || nullMap->getUInt(i) == 0) {
+                    subNode = FindNodeByYPath(node, TString(path.data, path.size));
+                }
                 if (!subNode) {
                     columnTo->insertDefault();
                     continue;
@@ -176,6 +178,11 @@ public:
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
     }
 
+    virtual bool useDefaultImplementationForNulls() const override
+    {
+        return true;
+    }
+
     static FunctionPtr create(const Context& /* context */)
     {
         return std::make_shared<TScalarYPathFunction>();
@@ -190,6 +197,11 @@ public:
     TArrayYPathFunction()
     {
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
+    }
+
+    virtual bool useDefaultImplementationForNulls() const override
+    {
+        return false;
     }
 
     static FunctionPtr create(const Context& /* context */)

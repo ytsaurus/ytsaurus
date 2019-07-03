@@ -408,7 +408,7 @@ protected:
                 --index;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     std::vector<TVersionedRow> CreateRows(int count = 10000)
@@ -505,9 +505,9 @@ protected:
 
         for (auto row : rows) {
             std::vector<TUnversionedValue> key;
-            YCHECK(row.GetKeyCount() <= readSchema.GetKeyColumnCount());
+            YT_VERIFY(row.GetKeyCount() <= readSchema.GetKeyColumnCount());
             for (int i = 0; i < row.GetKeyCount() && i < readSchema.GetKeyColumnCount(); ++i) {
-                YCHECK(row.BeginKeys()[i].Type == readSchema.Columns()[i].GetPhysicalType());
+                YT_VERIFY(row.BeginKeys()[i].Type == readSchema.Columns()[i].GetPhysicalType());
                 key.push_back(row.BeginKeys()[i]);
             }
 

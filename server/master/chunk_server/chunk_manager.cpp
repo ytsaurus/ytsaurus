@@ -12,6 +12,7 @@
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
+#include "expiration_tracker.h"
 #include "helpers.h"
 #include "job.h"
 #include "medium.h"
@@ -404,12 +405,14 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
+        , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
     {
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnstageExpiredChunks, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -683,8 +686,8 @@ public:
     // Adds #chunk to its staging transaction resource usage.
     void UpdateTransactionResourceUsage(const TChunk* chunk, i64 delta)
     {
-        Y_ASSERT(chunk->IsStaged());
-        Y_ASSERT(chunk->IsDiskSizeFinal());
+        YT_ASSERT(chunk->IsStaged());
+        YT_ASSERT(chunk->IsDiskSizeFinal());
 
         // NB: Use just the local replication as this only makes sense for staged chunks.
         const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(chunk->GetLocalRequisitionIndex());
@@ -695,7 +698,7 @@ public:
     // Adds #chunk to accounts' resource usage.
     void UpdateAccountResourceUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr)
     {
-        Y_ASSERT(chunk->IsDiskSizeFinal());
+        YT_ASSERT(chunk->IsDiskSizeFinal());
 
         const auto& requisition = forcedRequisition
             ? *forcedRequisition
@@ -750,7 +753,7 @@ public:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -857,19 +860,22 @@ public:
         StageChunkTree(chunkList, transaction, account);
     }
 
-    void StageChunk(TChunk* chunk, TTransaction* transaction, TAccount* account)
+    void StageChunk(TChunk* chunk, TInstant now, TTransaction* transaction, TAccount* account)
     {
         StageChunkTree(chunk, transaction, account);
 
         if (chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, +1);
         }
+
+        chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
+        ExpirationTracker_->OnChunkStaged(chunk);
     }
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
-        Y_ASSERT(transaction);
-        Y_ASSERT(!chunkTree->IsStaged());
+        YT_ASSERT(transaction);
+        YT_ASSERT(!chunkTree->IsStaged());
 
         chunkTree->SetStagingTransaction(transaction);
 
@@ -885,6 +891,11 @@ public:
 
     void UnstageChunk(TChunk* chunk)
     {
+        if (chunk->IsStaged()) {
+            ExpirationTracker_->OnChunkUnstaged(chunk);
+            chunk->SetExpirationTime(TInstant::Zero());
+        }
+
         UnstageChunkTree(chunk);
     }
 
@@ -996,7 +1007,7 @@ public:
     void ClearChunkList(TChunkList* chunkList)
     {
         // TODO(babenko): currently we only support clearing a chunklist with no parents.
-        YCHECK(chunkList->Parents().Empty());
+        YT_VERIFY(chunkList->Parents().Empty());
         chunkList->IncrementVersion();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1105,13 +1116,13 @@ public:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
     void ScheduleChunkRequisitionUpdate(TChunkList* chunkList)
     {
-        YCHECK(HasMutationContext());
+        YT_VERIFY(HasMutationContext());
 
         if (!IsObjectAlive(chunkList)) {
             return;
@@ -1237,8 +1248,8 @@ public:
         }
 
         // Update name.
-        YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
-        YCHECK(NameToMediumMap_.emplace(newName, medium).second);
+        YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
+        YT_VERIFY(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
         InitMediumProfiling(medium);
     }
@@ -1303,7 +1314,7 @@ public:
     TMedium* GetMediumByIndex(int index) const
     {
         auto* medium = FindMediumByIndex(index);
-        YCHECK(medium);
+        YT_VERIFY(medium);
         return medium;
     }
 
@@ -1327,7 +1338,7 @@ public:
     TChunkTree* GetChunkTree(TChunkTreeId id)
     {
         auto* chunkTree = FindChunkTree(id);
-        YCHECK(chunkTree);
+        YT_VERIFY(chunkTree);
         return chunkTree;
     }
 
@@ -1417,6 +1428,8 @@ private:
     TChunkReplicatorPtr ChunkReplicator_;
     TChunkSealerPtr ChunkSealer_;
 
+    const TExpirationTrackerPtr ExpirationTracker_;
+
     // Global chunk lists; cf. TChunkDynamicData.
     TIntrusiveLinkedList<TChunk, TChunkToAllLinkedListNode> AllChunks_;
     TIntrusiveLinkedList<TChunk, TChunkToJournalLinkedListNode> JournalChunks_;
@@ -1475,7 +1488,7 @@ private:
     void DestroyChunk(TChunk* chunk)
     {
         if (chunk->IsForeign()) {
-            YCHECK(ForeignChunks_.erase(chunk) == 1);
+            YT_VERIFY(ForeignChunks_.erase(chunk) == 1);
         }
 
         // Decrease staging resource usage; release account.
@@ -1598,7 +1611,7 @@ private:
 
     void DestroyChunkView(TChunkView* chunkView)
     {
-        YCHECK(!chunkView->GetStagingTransaction());
+        YT_VERIFY(!chunkView->GetStagingTransaction());
 
         auto* underlyingChunk = chunkView->GetUnderlyingChunk();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1677,7 +1690,7 @@ private:
 
     void HandleNodeDataCenterChange(TNode* node, TDataCenter* oldDataCenter)
     {
-        YCHECK(node->GetDataCenter() != oldDataCenter);
+        YT_VERIFY(node->GetDataCenter() != oldDataCenter);
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeDataCenterChanged(node, oldDataCenter);
@@ -1693,7 +1706,7 @@ private:
         NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
     {
         for (const auto& mediumReplicas : node->Replicas()) {
-            YCHECK(mediumReplicas.second.empty());
+            YT_VERIFY(mediumReplicas.second.empty());
         }
 
         for (const auto& stats : request->chunk_statistics()) {
@@ -1757,14 +1770,14 @@ private:
     {
         auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
         auto tagId = TProfileManager::Get()->RegisterTag("source_data_center", dataCenterName);
-        YCHECK(SourceDataCenterToTag_.emplace(dataCenter, tagId).second);
+        YT_VERIFY(SourceDataCenterToTag_.emplace(dataCenter, tagId).second);
     }
 
     void RegisterTagForDestinationDataCenter(const TDataCenter* dataCenter)
     {
         auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
         auto tagId = TProfileManager::Get()->RegisterTag("destination_data_center", dataCenterName);
-        YCHECK(DestinationDataCenterToTag_.emplace(dataCenter, tagId).second);
+        YT_VERIFY(DestinationDataCenterToTag_.emplace(dataCenter, tagId).second);
     }
 
     void RegisterTagsForDataCenter(const TDataCenter* dataCenter)
@@ -1782,7 +1795,7 @@ private:
 
     bool EnsureDataCenterTagsInitialized()
     {
-        YCHECK(SourceDataCenterToTag_.empty() == DestinationDataCenterToTag_.empty());
+        YT_VERIFY(SourceDataCenterToTag_.empty() == DestinationDataCenterToTag_.empty());
 
         if (!SourceDataCenterToTag_.empty()) {
             return false;
@@ -1830,7 +1843,7 @@ private:
     TTagId GetDataCenterTag(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>& dataCenterToTag)
     {
         auto it = dataCenterToTag.find(dataCenter);
-        YCHECK(it != dataCenterToTag.end());
+        YT_VERIFY(it != dataCenterToTag.end());
         return it->second;
     }
 
@@ -1930,7 +1943,7 @@ private:
             if (chunk->IsForeign()) {
                 setChunkRequisitionIndex(chunk, newRequisitionIndex);
 
-                Y_ASSERT(local);
+                YT_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 auto* crossCellUpdate = crossCellRequest.add_updates();
                 ToProto(crossCellUpdate->mutable_chunk_id(), chunk->GetId());
@@ -2012,13 +2025,13 @@ private:
             FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager());
             auto localIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, Bootstrap_->GetObjectManager());
 
-            YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
+            YT_VERIFY(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
 
         return [remoteToLocalIndexMap = std::move(remoteToLocalIndexMap)] (TChunkRequisitionIndex remoteIndex) {
             auto it = remoteToLocalIndexMap.find(remoteIndex);
             // The remote side must provide a dictionary entry for every index it sends us.
-            YCHECK(it != remoteToLocalIndexMap.end());
+            YT_VERIFY(it != remoteToLocalIndexMap.end());
             return it->second;
         };
     }
@@ -2089,7 +2102,7 @@ private:
                 chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
-                YCHECK(ForeignChunks_.insert(chunk).second);
+                YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
 
             transactionManager->ImportObject(transaction, chunk);
@@ -2100,6 +2113,28 @@ private:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
+    }
+
+    void HydraUnstageExpiredChunks(NProto::TReqUnstageExpiredChunks* request) noexcept
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        for (const auto& protoId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoId);
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            if (!chunk->IsStaged()) {
+                continue;
+            }
+
+            transactionManager->UnstageObject(chunk->GetStagingTransaction(), chunk, false /*recursive*/);
+
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unstaged expired chunk (ChunkId: %v)",
+                chunkId);
+        }
     }
 
     void HydraExecuteBatch(const TCtxExecuteBatchPtr& /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
@@ -2206,7 +2241,7 @@ private:
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(subrequest->movable());
 
-        Y_ASSERT(chunk->GetLocalRequisitionIndex() ==
+        YT_ASSERT(chunk->GetLocalRequisitionIndex() ==
                  (isErasure
                       ? MigrationErasureChunkRequisitionIndex
                       : MigrationChunkRequisitionIndex));
@@ -2223,7 +2258,8 @@ private:
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
-        StageChunk(chunk, transaction, account);
+        auto now = GetCurrentMutationContext()->GetTimestamp();
+        StageChunk(chunk, now, transaction, account);
 
         transactionManager->StageObject(transaction, chunk);
 
@@ -2468,7 +2504,13 @@ private:
             addReplicas(chunk->CachedReplicas());
 
             if (chunk->IsForeign()) {
-                YCHECK(ForeignChunks_.insert(chunk).second);
+                YT_VERIFY(ForeignChunks_.insert(chunk).second);
+            }
+
+            // COMPAT(shakurov)
+            // The second check is only needed for old (pre-migration) staged chunks.
+            if (chunk->IsStaged() && chunk->GetExpirationTime()) {
+                ExpirationTracker_->OnChunkStaged(chunk);
             }
         }
 
@@ -2532,6 +2574,8 @@ private:
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;
+
+        ExpirationTracker_->Clear();
     }
 
     virtual void SetZeroState() override
@@ -2682,7 +2726,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
 
                 if (childIndex + 1 < childCount && chunkList->HasCumulativeStatistics()) {
@@ -2738,6 +2782,8 @@ private:
             ChunkReplicator_->OnNodeRegistered(node);
             ChunkPlacement_->OnNodeUpdated(node);
         }
+
+        ExpirationTracker_->Start();
     }
 
     virtual void OnLeaderActive() override
@@ -2777,6 +2823,8 @@ private:
             ChunkSealer_->Stop();
             ChunkSealer_.Reset();
         }
+
+        ExpirationTracker_->Stop();
     }
 
 
@@ -2873,7 +2921,7 @@ private:
                 // Do nothing.
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         if (!IsRecovery()) {
@@ -3022,13 +3070,13 @@ private:
 
     void OnChunkSealed(TChunk* chunk)
     {
-        Y_ASSERT(chunk->IsSealed());
+        YT_ASSERT(chunk->IsSealed());
 
         if (chunk->Parents().empty())
             return;
 
         // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
+        YT_VERIFY(chunk->Parents().size() == 1);
         auto* chunkList = chunk->Parents()[0];
 
         auto statisticsDelta = chunk->GetStatistics();
@@ -3045,7 +3093,7 @@ private:
                     journalNodeLocked = true;
                 }
                 if (trunkJournalNode) {
-                    YCHECK(journalNode->GetTrunkNode() == trunkJournalNode);
+                    YT_VERIFY(journalNode->GetTrunkNode() == trunkJournalNode);
                 } else {
                     trunkJournalNode = journalNode->GetTrunkNode();
                 }
@@ -3140,7 +3188,7 @@ private:
                 return index;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     TMedium* DoCreateMedium(
@@ -3171,7 +3219,7 @@ private:
         InitializeMediumConfig(medium);
 
         // Make the fake reference.
-        YCHECK(medium->RefObject() == 1);
+        YT_VERIFY(medium->RefObject() == 1);
 
         return medium;
     }
@@ -3183,25 +3231,25 @@ private:
 
     void RegisterMedium(TMedium* medium)
     {
-        YCHECK(NameToMediumMap_.emplace(medium->GetName(), medium).second);
+        YT_VERIFY(NameToMediumMap_.emplace(medium->GetName(), medium).second);
 
         auto mediumIndex = medium->GetIndex();
-        YCHECK(!UsedMediumIndexes_[mediumIndex]);
+        YT_VERIFY(!UsedMediumIndexes_[mediumIndex]);
         UsedMediumIndexes_.set(mediumIndex);
 
-        YCHECK(!IndexToMediumMap_[mediumIndex]);
+        YT_VERIFY(!IndexToMediumMap_[mediumIndex]);
         IndexToMediumMap_[mediumIndex] = medium;
     }
 
     void UnregisterMedium(TMedium* medium)
     {
-        YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
+        YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
 
         auto mediumIndex = medium->GetIndex();
-        YCHECK(UsedMediumIndexes_[mediumIndex]);
+        YT_VERIFY(UsedMediumIndexes_[mediumIndex]);
         UsedMediumIndexes_.reset(mediumIndex);
 
-        YCHECK(IndexToMediumMap_[mediumIndex] == medium);
+        YT_VERIFY(IndexToMediumMap_[mediumIndex] == medium);
         IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
@@ -3352,7 +3400,7 @@ void TChunkManager::TChunkViewTypeHandler::DoUnstageObject(
     TChunkView* /*chunkView*/,
     bool /*recursive*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

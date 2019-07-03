@@ -268,7 +268,7 @@ TEST_W(TSchedulerTest, TerminatedPropagated)
 
     SwitchTo(invoker1);
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TEST_W(TSchedulerTest, CurrentInvokerAfterSwitch1)
@@ -947,7 +947,7 @@ TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
         auto error = future.Get();
         if (!error.IsOK()) {
             EXPECT_FALSE(flag);
-            YCHECK(error.GetCode() == EErrorCode::Canceled);
+            YT_VERIFY(error.GetCode() == EErrorCode::Canceled);
         } else {
             EXPECT_TRUE(flag);
         }
@@ -1035,11 +1035,11 @@ TEST_P(TFairShareSchedulerTest, Test)
     auto work = std::get<3>(GetParam());
 
 
-    YCHECK(numWorkers > 0);
-    YCHECK(numThreads > 0);
-    YCHECK(numPools > 0);
-    YCHECK(numWorkers > numPools);
-    YCHECK(numThreads <= numWorkers);
+    YT_VERIFY(numWorkers > 0);
+    YT_VERIFY(numThreads > 0);
+    YT_VERIFY(numPools > 0);
+    YT_VERIFY(numWorkers > numPools);
+    YT_VERIFY(numThreads <= numWorkers);
 
     auto threadPool = CreateTwoLevelFairShareThreadPool(numThreads, "MyFairSharePool");
 
@@ -1159,11 +1159,11 @@ TEST_P(TFairShareSchedulerTest, Test2)
     auto work = std::get<3>(GetParam());
 
 
-    YCHECK(numWorkers > 0);
-    YCHECK(numThreads > 0);
-    YCHECK(numPools > 0);
-    YCHECK(numWorkers > numPools);
-    YCHECK(numThreads <= numWorkers);
+    YT_VERIFY(numWorkers > 0);
+    YT_VERIFY(numThreads > 0);
+    YT_VERIFY(numPools > 0);
+    YT_VERIFY(numWorkers > numPools);
+    YT_VERIFY(numThreads <= numWorkers);
 
     if (numPools != 1) {
         return;

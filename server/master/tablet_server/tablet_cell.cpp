@@ -105,7 +105,7 @@ TPeerId TTabletCell::FindPeerId(const TString& address) const
 TPeerId TTabletCell::GetPeerId(const TString& address) const
 {
     auto peerId = FindPeerId(address);
-    YCHECK(peerId != InvalidPeerId);
+    YT_VERIFY(peerId != InvalidPeerId);
     return peerId;
 }
 
@@ -122,22 +122,22 @@ TPeerId TTabletCell::FindPeerId(TNode* node) const
 TPeerId TTabletCell::GetPeerId(TNode* node) const
 {
     auto peerId = FindPeerId(node);
-    YCHECK(peerId != InvalidPeerId);
+    YT_VERIFY(peerId != InvalidPeerId);
     return peerId;
 }
 
 void TTabletCell::AssignPeer(const TCellPeerDescriptor& descriptor, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(peer.Descriptor.IsNull());
-    YCHECK(!descriptor.IsNull());
+    YT_VERIFY(peer.Descriptor.IsNull());
+    YT_VERIFY(!descriptor.IsNull());
     peer.Descriptor = descriptor;
 }
 
 void TTabletCell::RevokePeer(TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(!peer.Descriptor.IsNull());
+    YT_VERIFY(!peer.Descriptor.IsNull());
     peer.Descriptor = TCellPeerDescriptor();
     peer.Node = nullptr;
 }
@@ -145,9 +145,9 @@ void TTabletCell::RevokePeer(TPeerId peerId)
 void TTabletCell::AttachPeer(TNode* node, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(peer.Descriptor.GetDefaultAddress() == node->GetDefaultAddress());
+    YT_VERIFY(peer.Descriptor.GetDefaultAddress() == node->GetDefaultAddress());
 
-    YCHECK(!peer.Node);
+    YT_VERIFY(!peer.Node);
     peer.Node = node;
 }
 
@@ -227,7 +227,7 @@ const TTabletCellStatistics& TTabletCell::LocalStatistics() const
 TTabletCellStatistics* TTabletCell::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     auto it = MulticellStatistics_.find(cellTag);
-    YCHECK(it != MulticellStatistics_.end());
+    YT_VERIFY(it != MulticellStatistics_.end());
     return &it->second;
 }
 

@@ -193,7 +193,7 @@ private:
                 return;
             }
 
-            YCHECK(RequestBody_.Size() >= 2);
+            YT_VERIFY(RequestBody_.Size() >= 2);
             TMessageWithAttachments messageWithAttachments;
             messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(RequestBody_[1]);
             for (int index = 2; index < RequestBody_.Size(); ++index) {
@@ -251,7 +251,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -259,7 +259,7 @@ private:
         virtual void Cancel() override
         {
             auto result = grpc_call_cancel(Call_.Unwrap(), nullptr);
-            YCHECK(result == GRPC_CALL_OK);
+            YT_VERIFY(result == GRPC_CALL_OK);
 
             YT_LOG_DEBUG("Request canceled (RequestId: %v)", Request_->GetRequestId());
 
@@ -270,12 +270,12 @@ private:
 
         virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
         {
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
         }
 
         virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
         {
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
         }
 
     private:
@@ -320,7 +320,7 @@ private:
             *ptr++ = '/';
             ::memcpy(ptr, Request_->GetMethod().c_str(), Request_->GetMethod().length());
             ptr += Request_->GetMethod().length();
-            Y_ASSERT(ptr == GRPC_SLICE_END_PTR(slice));
+            YT_ASSERT(ptr == GRPC_SLICE_END_PTR(slice));
             return slice;
         }
 
@@ -469,7 +469,7 @@ private:
                 ops.size(),
                 GetTag(),
                 nullptr);
-            YCHECK(result == GRPC_CALL_OK);
+            YT_VERIFY(result == GRPC_CALL_OK);
         }
 
         void NotifyError(TStringBuf reason, const TError& error)

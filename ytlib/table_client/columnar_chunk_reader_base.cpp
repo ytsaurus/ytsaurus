@@ -84,8 +84,8 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
 {
     for (int i = 0; i < PendingBlocks_.size(); ++i) {
         if (PendingBlocks_[i]) {
-            YCHECK(PendingBlocks_[i].IsSet());
-            YCHECK(PendingBlocks_[i].Get().IsOK());
+            YT_VERIFY(PendingBlocks_[i].IsSet());
+            YT_VERIFY(PendingBlocks_[i].Get().IsOK());
             Columns_[i].ColumnReader->ResetBlock(
                 PendingBlocks_[i].Get().Value().Data,
                 Columns_[i].PendingBlockIndex_);
@@ -97,7 +97,7 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
 
 TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockIndex) const
 {
-    YCHECK(ChunkMeta_);
+    YT_VERIFY(ChunkMeta_);
     const auto& blockMeta = ChunkMeta_->BlockMeta()->blocks(blockIndex);
     TBlockFetcher::TBlockInfo blockInfo;
     blockInfo.Index = blockIndex;
@@ -108,7 +108,7 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
 
 i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowIndex) const
 {
-    YCHECK(ChunkMeta_);
+    YT_VERIFY(ChunkMeta_);
     const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
     auto it = std::lower_bound(
         columnMeta.segments().begin(),
@@ -122,7 +122,7 @@ i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowInde
 
 i64 TColumnarChunkReaderBase::GetLowerRowIndex(TKey key) const
 {
-    YCHECK(ChunkMeta_);
+    YT_VERIFY(ChunkMeta_);
     auto it = std::lower_bound(
         ChunkMeta_->BlockLastKeys().begin(),
         ChunkMeta_->BlockLastKeys().end(),
@@ -205,7 +205,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
         return;
     }
 
-    YCHECK(keyReaders.Size() > 0);
+    YT_VERIFY(keyReaders.Size() > 0);
 
     i64 lowerRowIndex = keyReaders[0]->GetCurrentRowIndex();
     i64 upperRowIndex = keyReaders[0]->GetBlockUpperRowIndex();
@@ -220,7 +220,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
     LowerRowIndex_ = count == LowerLimit_.GetKey().GetCount()
         ? lowerRowIndex
         : upperRowIndex;
-    YCHECK(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
+    YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
     }
@@ -228,7 +228,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
 
 void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 {
-    YCHECK(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
+    YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
 
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
@@ -295,7 +295,7 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
 bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
 {
     std::vector<TFuture<void>> blockFetchResult;
-    YCHECK(PendingBlocks_.empty());
+    YT_VERIFY(PendingBlocks_.empty());
     for (int i = 0; i < Columns_.size(); ++i) {
         auto& column = Columns_[i];
         if (column.ColumnReader->GetCurrentRowIndex() == column.ColumnReader->GetBlockUpperRowIndex()) {
@@ -304,7 +304,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
             }
 
             auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
-            YCHECK(nextBlockIndex);
+            YT_VERIFY(nextBlockIndex);
             column.PendingBlockIndex_ = *nextBlockIndex;
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());

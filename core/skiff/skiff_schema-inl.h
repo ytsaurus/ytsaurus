@@ -29,7 +29,7 @@ inline bool IsSimpleType(EWireType type)
         case EWireType::RepeatedVariant16:
             return false;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -313,7 +313,7 @@ void TJobStatistics::SetError(const TError& error)
 void TJobStatistics::SetSpec(const NJobTrackerClient::NProto::TJobSpec& spec)
 {
     TString specString;
-    YCHECK(spec.SerializeToString(&specString));
+    YT_VERIFY(spec.SerializeToString(&specString));
     Spec_ = std::move(specString);
 }
 
@@ -334,7 +334,7 @@ void TJobStatistics::SetEvents(const TJobEvents& events)
 
 void TJobStatistics::SetStderrSize(ui64 stderrSize)
 {
-    YCHECK(!Stderr_.has_value());
+    YT_VERIFY(!Stderr_.has_value());
     StderrSize_ = stderrSize;
 }
 

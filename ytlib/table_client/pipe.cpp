@@ -46,7 +46,7 @@ struct TSchemafulPipe::TData
 
     void Fail(const TError& error)
     {
-        YCHECK(!error.IsOK());
+        YT_VERIFY(!error.IsOK());
 
         TPromise<void> readerReadyEvent;
         TPromise<void> writerReadyEvent;
@@ -79,7 +79,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        Y_ASSERT(rows->capacity() > 0);
+        YT_ASSERT(rows->capacity() > 0);
         rows->clear();
 
         {
@@ -148,7 +148,7 @@ public:
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
 
-            YCHECK(!Data_->WriterClosed);
+            YT_VERIFY(!Data_->WriterClosed);
             Data_->WriterClosed = true;
 
             if (!Data_->Failed) {
@@ -178,7 +178,7 @@ public:
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
 
-            YCHECK(!Data_->WriterClosed);
+            YT_VERIFY(!Data_->WriterClosed);
 
             if (Data_->Failed) {
                 return false;
@@ -203,7 +203,7 @@ public:
     {
         // TODO(babenko): implement backpressure from reader
         TGuard<TSpinLock> guard(Data_->SpinLock);
-        YCHECK(Data_->Failed);
+        YT_VERIFY(Data_->Failed);
         return Data_->WriterReadyEvent;
     }
 

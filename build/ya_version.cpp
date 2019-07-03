@@ -13,7 +13,6 @@ namespace NYT {
 
 TString CreateYTVersion(int major, int minor, TStringBuf branch)
 {
-
     auto patch = GetArcadiaGitPatchNumber();
 
     TStringStream out;

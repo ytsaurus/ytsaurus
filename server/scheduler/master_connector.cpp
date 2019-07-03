@@ -129,7 +129,7 @@ public:
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return CancelableControlInvokers_[queue];
     }
@@ -137,7 +137,7 @@ public:
     void RegisterOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
     }
@@ -145,7 +145,7 @@ public:
     void UnregisterOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
     }
@@ -153,7 +153,7 @@ public:
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
         YT_LOG_INFO("Creating operation node (OperationId: %v)",
@@ -206,7 +206,7 @@ public:
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
         YT_LOG_INFO("Updating initialized operation node (OperationId: %v)",
@@ -242,7 +242,7 @@ public:
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
             operation->GetId());
@@ -253,7 +253,7 @@ public:
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
             .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
@@ -263,7 +263,7 @@ public:
     TFuture<TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
@@ -319,7 +319,7 @@ public:
         const TOperationRuntimeParametersPtr& params)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         YT_LOG_INFO("Flushing operation runtime parameters (OperationId: %v)",
             operation->GetId());
@@ -375,7 +375,7 @@ public:
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherRequesters.push_back(requester);
@@ -384,7 +384,7 @@ public:
     void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EMasterConnectorState::Disconnected);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto* list = GetOrCreateWatcherList(operation);
         list->WatcherHandlers.push_back(handler);
@@ -522,11 +522,11 @@ private:
 
         YT_LOG_INFO("Connecting to master");
 
-        YCHECK(!CancelableContext_);
+        YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
 
         for (auto queue : TEnumTraits<EControlQueue>::GetDomainValues()) {
-            YCHECK(!CancelableControlInvokers_[queue]);
+            YT_VERIFY(!CancelableControlInvokers_[queue]);
             CancelableControlInvokers_[queue] = CancelableContext_->CreateInvoker(
                 Bootstrap_->GetControlInvoker(queue));
         }
@@ -571,7 +571,7 @@ private:
     void OnConnected(const TError& error) noexcept
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EMasterConnectorState::Connecting);
+        YT_VERIFY(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Error connecting to master");
@@ -913,7 +913,7 @@ private:
 
             auto user = attributes.Get<TString>("authenticated_user");
 
-            YCHECK(attributes.Contains("runtime_parameters"));
+            YT_VERIFY(attributes.Contains("runtime_parameters"));
             TOperationRuntimeParametersPtr runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             if (spec->AddAuthenticatedUserToAcl) {
                 TSerializableAccessControlEntry ace(
@@ -1228,7 +1228,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
-        YCHECK(LockTransaction_);
+        YT_VERIFY(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
         ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction_->GetId());
@@ -1282,7 +1282,7 @@ private:
         AlertsExecutor_->Start();
 
         for (const auto& executor : CustomGlobalWatcherExecutors_) {
-            YCHECK(executor);
+            YT_VERIFY(executor);
             executor->Start();
         }
     }
@@ -1340,7 +1340,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(!error.IsOK());
+        YT_VERIFY(!error.IsOK());
 
         Disconnect(TError("Failed to update operation node") << error);
     }
@@ -1513,7 +1513,7 @@ private:
     void UpdateWatchers()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EMasterConnectorState::Connected);
+        YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         YT_LOG_DEBUG("Updating watchers");
 
@@ -1560,7 +1560,7 @@ private:
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EMasterConnectorState::Connected);
+        YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             YT_LOG_ERROR(batchRspOrError, "Error updating global watchers");
@@ -1580,7 +1580,7 @@ private:
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EMasterConnectorState::Connected);
+        YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
             YT_LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
@@ -1608,7 +1608,7 @@ private:
     void UpdateAlerts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EMasterConnectorState::Connected);
+        YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
@@ -1642,7 +1642,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(LockTransaction_);
+        YT_VERIFY(LockTransaction_);
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));

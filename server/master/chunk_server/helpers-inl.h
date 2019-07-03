@@ -20,7 +20,7 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor)
         const auto& parents = chunkList->Parents();
         if (parents.Empty())
             break;
-        YCHECK(parents.Size() == 1);
+        YT_VERIFY(parents.Size() == 1);
         chunkList = *parents.begin();
     }
 }

@@ -112,7 +112,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     int blockCount,
     std::optional<i64> /* estimatedSize */)
 {
-    YCHECK(firstBlockIndex >= 0);
+    YT_VERIFY(firstBlockIndex >= 0);
 
     try {
         return DoReadBlocks(options, firstBlockIndex, blockCount);
@@ -145,7 +145,7 @@ bool TFileReader::IsValid() const
 
 void TFileReader::SetSlownessChecker(TCallback<TError(i64, TDuration)>)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void TFileReader::DumpBrokenBlock(
@@ -339,7 +339,7 @@ TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YCHECK(!partitionTag);
+    YT_VERIFY(!partitionTag);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
     auto chunkReaderStatistics = options.ChunkReaderStatistics;

@@ -33,8 +33,8 @@ public:
                 ChangelogId_,
                 CellManager_->GetCellId()))
     {
-        YCHECK(Config_);
-        YCHECK(CellManager_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(CellManager_);
     }
 
     TFuture<TChangelogInfo> Run()
@@ -157,8 +157,8 @@ public:
                 ChangelogId_,
                 CellManager_->GetCellId()))
     {
-        YCHECK(Config_);
-        YCHECK(CellManager_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(CellManager_);
 
         RegisterSuccess(localRecordCount);
     }

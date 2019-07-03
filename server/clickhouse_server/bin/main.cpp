@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 
+#include <Common/config_version.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +54,9 @@ public:
         Opts_.AddLongOption("http-port", "ClickHouse HTTP port")
             .DefaultValue(9203)
             .StoreResult(&HttpPort_);
+        Opts_.AddLongOption("clickhouse-version", "ClickHouse version")
+            .NoArgument()
+            .Handler0(std::bind(&TClickHouseServerProgram::PrintClickHouseVersionAndExit, this));
 
         SetCrashOnError();
     }
@@ -97,6 +102,13 @@ private:
             TcpPort_,
             HttpPort_);
         bootstrap->Run();
+    }
+
+    void PrintClickHouseVersionAndExit() const
+    {
+        Cout << VERSION_DESCRIBE << Endl;
+        Cout << VERSION_GITHASH << Endl;
+        _exit(0);
     }
 };
 

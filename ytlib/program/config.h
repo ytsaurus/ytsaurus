@@ -12,6 +12,8 @@
 
 #include <yt/core/tracing/config.h>
 
+#include <yt/core/profiling/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 namespace NYT {
@@ -26,6 +28,7 @@ public:
     NNet::TAddressResolverConfigPtr AddressResolver;
     NRpc::TDispatcherConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
+    NProfiling::TProfileManagerConfigPtr ProfileManager;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
 
@@ -38,6 +41,8 @@ public:
         RegisterParameter("rpc_dispatcher", RpcDispatcher)
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
+            .DefaultNew();
+        RegisterParameter("profile_manager", ProfileManager)
             .DefaultNew();
         RegisterParameter("logging", Logging)
             .Default(NLogging::TLogConfig::CreateDefault());

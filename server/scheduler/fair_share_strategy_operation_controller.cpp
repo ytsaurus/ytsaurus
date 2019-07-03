@@ -16,7 +16,7 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("OperationId: %v", OperationId_))
 {
-    YCHECK(Controller_);
+    YT_VERIFY(Controller_);
 }
 
 void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls()

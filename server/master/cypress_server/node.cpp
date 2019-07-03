@@ -42,14 +42,14 @@ void TCypressNodeBase::SetParent(TCypressNodeBase* parent)
 
     // Drop old parent.
     if (Parent_) {
-        YCHECK(Parent_->ImmediateDescendants().erase(this) == 1);
+        YT_VERIFY(Parent_->ImmediateDescendants().erase(this) == 1);
     }
 
     // Set new parent.
     Parent_ = parent;
     if (Parent_) {
-        YCHECK(Parent_->IsTrunk());
-        YCHECK(Parent_->ImmediateDescendants().insert(this).second);
+        YT_VERIFY(Parent_->IsTrunk());
+        YT_VERIFY(Parent_->ImmediateDescendants().insert(this).second);
     }
 }
 
@@ -110,7 +110,7 @@ bool TCypressNodeBase::IsExternal() const
 
 TClusterResources TCypressNodeBase::GetDeltaResourceUsage() const
 {
-    YCHECK(!IsExternal());
+    YT_VERIFY(!IsExternal());
 
     NSecurityServer::TClusterResources result;
     result.NodeCount = 1;

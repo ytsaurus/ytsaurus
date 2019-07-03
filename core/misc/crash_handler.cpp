@@ -190,7 +190,7 @@ void InvokeDefaultSignalHandler(int signal)
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
     sa.sa_handler = SIG_DFL;
-    YCHECK(sigaction(signal, &sa, nullptr) == 0);
+    YT_VERIFY(sigaction(signal, &sa, nullptr) == 0);
 
     pthread_kill(pthread_self(), signal);
 }
@@ -292,7 +292,7 @@ void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers)
 
     for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
         if (!signalNumbers || signalNumbers->find(FailureSignals[i].Number) != signalNumbers->end()) {
-            YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
+            YT_VERIFY(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
         }
     }
 #endif
@@ -307,7 +307,7 @@ void PushCodicil(const TString& data)
 
 void PopCodicil()
 {
-    YCHECK(!CodicilsStack->empty());
+    YT_VERIFY(!CodicilsStack->empty());
     CodicilsStack->pop_back();
 }
 

@@ -34,7 +34,7 @@ std::vector<int> AllocateFreePorts(
                 << ex;
         }
 
-        YCHECK(socket != INVALID_SOCKET);
+        YT_VERIFY(socket != INVALID_SOCKET);
 
         try {
             YT_LOG_DEBUG("Making a preliminary port bind (Port: %v, Socket: %v)", port, socket);
@@ -55,7 +55,7 @@ std::vector<int> AllocateFreePorts(
         }
     }
 
-    YCHECK(allocatedPorts.size() <= portCount);
+    YT_VERIFY(allocatedPorts.size() <= portCount);
 
     return allocatedPorts;
 }

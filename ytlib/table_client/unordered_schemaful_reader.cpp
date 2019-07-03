@@ -75,7 +75,7 @@ public:
             }
 
             if (!session.Reader->Read(rows)) {
-                YCHECK(rows->empty());
+                YT_VERIFY(rows->empty());
 
                 session.Exhausted = true;
                 if (RefillSession(session)) {
@@ -88,7 +88,7 @@ public:
                 return true;
             }
 
-            Y_ASSERT(!session.ReadyEvent);
+            YT_ASSERT(!session.ReadyEvent);
             UpdateSession(session);
             pending = true;
         }

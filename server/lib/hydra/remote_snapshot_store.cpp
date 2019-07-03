@@ -210,7 +210,7 @@ private:
 
         virtual TFuture<void> Write(const TSharedRef& buffer) override
         {
-            YCHECK(Opened_ && !Closed_);
+            YT_VERIFY(Opened_ && !Closed_);
             Length_ += buffer.Size();
             return Writer_->Write(buffer);
         }
@@ -224,7 +224,7 @@ private:
 
         virtual TSnapshotParams GetParams() const override
         {
-            YCHECK(Closed_);
+            YT_VERIFY(Closed_);
             return Params_;
         }
 
@@ -249,7 +249,7 @@ private:
         void DoOpen()
         {
             try {
-                YCHECK(!Opened_);
+                YT_VERIFY(!Opened_);
 
                 YT_LOG_DEBUG("Starting remote snapshot upload transaction");
                 {
@@ -322,7 +322,7 @@ private:
         void DoClose()
         {
             try {
-                YCHECK(Opened_ && !Closed_);
+                YT_VERIFY(Opened_ && !Closed_);
 
                 YT_LOG_DEBUG("Closing remote snapshot writer");
                 WaitFor(Writer_->Close())

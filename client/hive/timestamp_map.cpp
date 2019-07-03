@@ -17,7 +17,7 @@ TTimestamp TTimestampMap::GetTimestamp(TCellTag cellTag) const
             return pair.second;
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TTimestampMap::Persist(const TStreamPersistenceContext& context)
@@ -41,7 +41,7 @@ void ToProto(NProto::TTimestampMap* protoMap, const TTimestampMap& map)
 void FromProto(TTimestampMap* map, const NProto::TTimestampMap& protoMap)
 {
     map->Timestamps.clear();
-    YCHECK(protoMap.cell_tags_size() == protoMap.timestamps_size());
+    YT_VERIFY(protoMap.cell_tags_size() == protoMap.timestamps_size());
     for (int index = 0; index < protoMap.cell_tags_size(); ++index) {
         map->Timestamps.emplace_back(
             protoMap.cell_tags(index),

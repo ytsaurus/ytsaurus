@@ -65,7 +65,7 @@ public:
 
     bool operator[](size_t bitIndex) const
     {
-        Y_ASSERT(bitIndex < BitSize_);
+        YT_ASSERT(bitIndex < BitSize_);
         const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
         const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
         return (Chunks_[chunkIndex] & chunkMask) != 0;
@@ -115,14 +115,14 @@ public:
 
     void Reset(const TChunkType* chunks, size_t bitSize)
     {
-        YCHECK(chunks);
+        YT_VERIFY(chunks);
         Chunks_ = chunks;
         BitSize_ = bitSize;
     }
 
     bool operator[](size_t bitIndex) const
     {
-        Y_ASSERT(bitIndex < BitSize_);
+        YT_ASSERT(bitIndex < BitSize_);
         const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
         const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
         return (Chunks_[chunkIndex] & chunkMask) != 0;
@@ -135,7 +135,7 @@ public:
 
     void Prefetch(size_t bitIndex)
     {
-        Y_ASSERT(bitIndex < BitSize_);
+        YT_ASSERT(bitIndex < BitSize_);
         const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
         __builtin_prefetch(&Chunks_[chunkIndex], 0); // read-only prefetch
     }

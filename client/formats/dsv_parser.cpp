@@ -154,7 +154,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         State = EState::InsideKey;
         FieldCount += 1;
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     CurrentToken.clear();

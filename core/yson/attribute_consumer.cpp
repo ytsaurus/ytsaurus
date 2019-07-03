@@ -221,7 +221,7 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
         auto key = Key_;
         UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key] (const TYsonString& str) {
             if (str) {
-                YCHECK(str.GetType() == EYsonType::Node);
+                YT_VERIFY(str.GetType() == EYsonType::Node);
                 TStringStream stream;
                 TBufferedBinaryYsonWriter writer(&stream, EYsonType::MapFragment);
                 writer.OnKeyedItem(key);

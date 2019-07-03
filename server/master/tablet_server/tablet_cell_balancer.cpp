@@ -72,7 +72,7 @@ const TTabletCellSet& TNodeHolder::GetSlots() const
 
 std::pair<const TTabletCell*, int> TNodeHolder::ExtractCell(int cellIndex)
 {
-    Y_ASSERT(cellIndex < Slots_.size());
+    YT_ASSERT(cellIndex < Slots_.size());
 
     auto pair = Slots_[cellIndex];
     Slots_[cellIndex] = Slots_.back();
@@ -227,14 +227,14 @@ private:
     public:
         void AddPeer(const TTabletCell* cell, int peerId, const TNode* peer)
         {
-            Y_ASSERT(!IsPeer(cell, peer));
+            YT_ASSERT(!IsPeer(cell, peer));
 
             auto& peers = Peers_[cell];
             if (peers.size() <= peerId) {
                 peers.resize(peerId + 1, nullptr);
             }
 
-            Y_ASSERT(peers[peerId] == nullptr);
+            YT_ASSERT(peers[peerId] == nullptr);
             peers[peerId] = peer;
         }
 
@@ -252,16 +252,16 @@ private:
 
         void RemovePeer(const TTabletCell* cell, int peerId, const TNode* peer)
         {
-            Y_ASSERT(IsPeer(cell, peer));
+            YT_ASSERT(IsPeer(cell, peer));
 
             auto& peers = Peers_[cell];
-            Y_ASSERT(peers[peerId] == peer);
+            YT_ASSERT(peers[peerId] == peer);
             peers[peerId] = nullptr;
         }
 
         int MoveCell(const TTabletCell* cell, const TNode* src, const TNode* dst)
         {
-            Y_ASSERT(IsPeer(cell, src));
+            YT_ASSERT(IsPeer(cell, src));
 
             auto& peers = Peers_[cell];
             for (int peerId = 0; peerId < peers.size(); ++peerId) {
@@ -271,7 +271,7 @@ private:
                 }
             }
 
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         bool IsPeer(const TTabletCell* cell, const TNode* node) const
@@ -395,7 +395,7 @@ private:
 
         for (int index = 0; index < queue.size(); ++index) {
             auto nodeIndex = queue[index];
-            YCHECK(nodeIndex < Nodes_.size());
+            YT_VERIFY(nodeIndex < Nodes_.size());
             auto* node = &Nodes_[nodeIndex];
             if (node->GetTotalSlots() == node->GetSlots().size()) {
                 std::swap(queue[index], queue.back());
@@ -425,8 +425,8 @@ private:
         }
 
         for (auto nodeIndex : it->second) {
-            YCHECK(nodeIndex < Nodes_.size());
-            YCHECK(nodeIndex != peerNodeIndex);
+            YT_VERIFY(nodeIndex < Nodes_.size());
+            YT_VERIFY(nodeIndex != peerNodeIndex);
             auto* node = &Nodes_[nodeIndex];
             if (NodeInPeers(cell, node)) {
                 continue;

@@ -24,7 +24,7 @@ class TSortedStoreManagerTestBase
 protected:
     virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
     {
-        YCHECK(!StoreManager_);
+        YT_VERIFY(!StoreManager_);
         StoreManager_ = New<TSortedStoreManager>(
             New<TTabletManagerConfig>(),
             tablet,

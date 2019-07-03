@@ -390,14 +390,6 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
-            // requests for operations archive should be performed under the same user.
-            OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
-                Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-                "application_operations");
-        }
-
         ChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetChannelFactory()),
             Connection_->GetNetworks());
@@ -898,6 +890,7 @@ private:
     TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
+    bool AreOperationsArchiveChannelsInitialized_ = false;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
@@ -905,6 +898,30 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
+    const IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind)
+    {
+        if (!AreOperationsArchiveChannelsInitialized_) {
+            // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
+            TString operationsClientUserName;
+            {
+                auto path = GetUserPath(OperationsClientUserName);
+                if (DoNodeExists(path, TNodeExistsOptions())) {
+                    operationsClientUserName = OperationsClientUserName;
+                } else {
+                    operationsClientUserName = "application_operations";
+                }
+            }
+            for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+                // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
+                // requests for operations archive should be performed under the same user.
+                OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
+                    Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+                    operationsClientUserName);
+            }
+            AreOperationsArchiveChannelsInitialized_ = true;
+        }
+        return OperationsArchiveChannels_[kind];
+    }
 
     template <class T>
     TFuture<T> Execute(
@@ -1571,7 +1588,7 @@ private:
                     return;
                 }
             }
-            Y_UNREACHABLE();
+            YT_ABORT();
         };
 
         patchTableDescriptor(&query->Table, candidates[0]);
@@ -1614,12 +1631,12 @@ private:
             }
             for (int index = 0; index < row.GetKeyCount(); ++index) {
                 auto id = row.BeginKeys()[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
+                YT_VERIFY(id < mapping.size() && mapping[id] != -1);
                 row.BeginKeys()[index].Id = mapping[id];
             }
             for (int index = 0; index < row.GetValueCount(); ++index) {
                 auto id = row.BeginValues()[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
+                YT_VERIFY(id < mapping.size() && mapping[id] != -1);
                 row.BeginValues()[index].Id = mapping[id];
             }
         }
@@ -1638,7 +1655,7 @@ private:
             }
             for (int index = 0; index < row.GetCount(); ++index) {
                 auto id = row[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
+                YT_VERIFY(id < mapping.size() && mapping[id] != -1);
                 row[index].Id = mapping[id];
             }
         }
@@ -1764,7 +1781,7 @@ private:
 
                 auto nextShardIt = tableInfo->Tablets.begin() + 1;
                 for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
-                    YCHECK(!tableInfo->Tablets.empty());
+                    YT_VERIFY(!tableInfo->Tablets.empty());
 
                     // Run binary search to find the relevant tablets.
                     nextShardIt = std::upper_bound(
@@ -1802,7 +1819,7 @@ private:
                     batch.OffsetInResult = currentResultIndex;
 
                     if (startShard->InMemoryMode) {
-                        YCHECK(!inMemory || *inMemory == startShard->IsInMemory());
+                        YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
                         inMemory = startShard->IsInMemory();
                     }
 
@@ -2065,6 +2082,7 @@ private:
         queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
         queryOptions.ExecutionPool = options.ExecutionPool;
         queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
+        queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
 
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
@@ -2320,7 +2338,7 @@ private:
         for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
             const auto& subrequest = *subrequests[subrequestIndex];
             const auto& rsp = rspsOrErrors[subrequestIndex];
-            YCHECK(rsp->tablets_size() == subrequest.ResultIndexes.size());
+            YT_VERIFY(rsp->tablets_size() == subrequest.ResultIndexes.size());
             for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
                 auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
                 const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
@@ -2900,7 +2918,7 @@ private:
         // Binarize the value.
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
-        YCHECK(value.GetType() == EYsonType::Node);
+        YT_VERIFY(value.GetType() == EYsonType::Node);
         writer.OnRaw(value.GetData(), EYsonType::Node);
         writer.Flush();
         req->set_value(stream.Str());
@@ -3298,7 +3316,7 @@ private:
 
                     {
                         const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_dst_schema");
-                        YCHECK(rspOrErrorList.size() == 1);
+                        YT_VERIFY(rspOrErrorList.size() == 1);
                         const auto& rspOrError = rspOrErrorList[0];
                         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v",
                             simpleDstPath);
@@ -3322,13 +3340,13 @@ private:
                                 }
                                 break;
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
 
                     {
                         const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_src_schema");
-                        YCHECK(rspOrErrorList.size() == srcPaths.size());
+                        YT_VERIFY(rspOrErrorList.size() == srcPaths.size());
                         for (size_t i = 0; i < rspOrErrorList.size(); ++i) {
                             const auto& path = srcPaths[i];
                             const auto& rspOrError = rspOrErrorList[i];
@@ -3914,6 +3932,7 @@ private:
         }
         SetTransactionId(req, options, true);
         SetCachingHeader(req, options);
+        NCypressClient::SetSuppressAccessTracking(req, true);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -4083,8 +4102,11 @@ private:
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Operation attribute %Qv is not supported",
-                    attribute);
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
+                    "Operation attribute %Qv is not supported",
+                    attribute)
+                    << TErrorAttribute("attribute_name", attribute);
+
             }
             if (attribute == "id") {
                 result.push_back("key");
@@ -4105,8 +4127,10 @@ private:
         result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
-                    attribute);
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
+                    "Attribute %Qv is not allowed",
+                    attribute)
+                    << TErrorAttribute("attribute_name", attribute);
             }
             if (attribute == "id") {
                 result.push_back("id_hi");
@@ -4185,13 +4209,13 @@ private:
             }
 
             attrNode->RemoveChild("type");
-            YCHECK(attrNode->AddChild("type", CloneNode(child)));
+            YT_VERIFY(attrNode->AddChild("type", CloneNode(child)));
         }
 
         if (auto child = attrNode->FindChild("key")) {
             attrNode->RemoveChild("key");
             attrNode->RemoveChild("id");
-            YCHECK(attrNode->AddChild("id", child));
+            YT_VERIFY(attrNode->AddChild("id", child));
         }
 
         if (options.Attributes && !options.Attributes->contains("state")) {
@@ -4269,7 +4293,7 @@ private:
 
                         if (progressAttributeNode) {
                             attrNode->RemoveChild(attribute);
-                            YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
+                            YT_VERIFY(attrNode->AddChild(attribute, progressAttributeNode));
                         }
                     }
                 };
@@ -4329,7 +4353,7 @@ private:
             .ValueOrThrow();
 
         auto rows = rowset->GetRows();
-        YCHECK(!rows.Empty());
+        YT_VERIFY(!rows.Empty());
 
         if (rows[0]) {
 #define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
@@ -4420,7 +4444,7 @@ private:
             .ValueOrThrow();
 
         auto rows = rowset->GetRows();
-        YCHECK(!rows.Empty());
+        YT_VERIFY(!rows.Empty());
         if (rows[0]) {
             TOperationId operationId;
             operationId.Parts64[0] = rows[0][tableDescriptor.Index.OperationIdHi].Data.Uint64;
@@ -4619,7 +4643,7 @@ private:
         }
 
         auto rows = lookupResult.Value()->GetRows();
-        YCHECK(!rows.Empty());
+        YT_VERIFY(!rows.Empty());
 
         if (!rows[0]) {
             THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
@@ -4768,7 +4792,7 @@ private:
         }
 
         auto compareAbsoluteReadLimits = [] (const TReadLimit& lhs, const TReadLimit& rhs) -> bool {
-            YCHECK(lhs.HasRowIndex() == rhs.HasRowIndex());
+            YT_VERIFY(lhs.HasRowIndex() == rhs.HasRowIndex());
 
             if (lhs.HasRowIndex() && lhs.GetRowIndex() != rhs.GetRowIndex()) {
                 return lhs.GetRowIndex() < rhs.GetRowIndex();
@@ -4796,7 +4820,7 @@ private:
             auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned);
             auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
 
-            YCHECK(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
+            YT_VERIFY(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
             if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() < rhsLowerLimit.GetRowIndex()) {
                 return false;
             }
@@ -4953,7 +4977,7 @@ private:
             }
 
             i64 size = GetByteSize(blocks);
-            YCHECK(size);
+            YT_VERIFY(size);
             auto stderrFile = TSharedMutableRef::Allocate(size);
             auto memoryOutput = TMemoryOutput(stderrFile.Begin(), size);
 
@@ -5008,12 +5032,12 @@ private:
                 .ValueOrThrow();
 
             auto rows = rowset->GetRows();
-            YCHECK(!rows.Empty());
+            YT_VERIFY(!rows.Empty());
 
             if (rows[0]) {
                 auto value = rows[0][0];
 
-                YCHECK(value.Type == EValueType::String);
+                YT_VERIFY(value.Type == EValueType::String);
                 return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
             }
         } catch (const TErrorException& exception) {
@@ -5087,12 +5111,12 @@ private:
                 .ValueOrThrow();
 
             auto rows = rowset->GetRows();
-            YCHECK(!rows.Empty());
+            YT_VERIFY(!rows.Empty());
 
             if (rows[0]) {
                 auto value = rows[0][0];
 
-                YCHECK(value.Type == EValueType::String);
+                YT_VERIFY(value.Type == EValueType::String);
                 return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
             }
         } catch (const TErrorException& exception) {
@@ -5134,7 +5158,7 @@ private:
             }
 
             i64 size = GetByteSize(blocks);
-            YCHECK(size);
+            YT_VERIFY(size);
             auto failContextFile = TSharedMutableRef::Allocate(size);
             auto memoryOutput = TMemoryOutput(failContextFile.Begin(), size);
 
@@ -5224,7 +5248,7 @@ private:
 
     std::vector<TString> GetPoolsFromRuntimeParameters(const INodePtr& runtimeParameters)
     {
-        YCHECK(runtimeParameters);
+        YT_VERIFY(runtimeParameters);
 
         std::vector<TString> result;
         if (auto schedulingOptionsNode = runtimeParameters->AsMap()->FindChild("scheduling_options_per_pool_tree")) {
@@ -5456,7 +5480,7 @@ private:
                 return LightAttributes.contains(attribute);
             });
 
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
 
@@ -5501,7 +5525,7 @@ private:
                 }
 
                 if (accessFilter) {
-                    YCHECK(transitiveClosureOfSubject);
+                    YT_VERIFY(transitiveClosureOfSubject);
                     if (!operation.Acl) {
                         continue;
                     }
@@ -5630,7 +5654,7 @@ private:
             }
 
             if (accessFilter) {
-                YCHECK(transitiveClosureOfSubject);
+                YT_VERIFY(transitiveClosureOfSubject);
                 builder->AddWhereConjunct(Format("NOT is_null(acl) AND _yt_has_permissions(acl, %Qv, %Qv)",
                     ConvertToYsonString(*transitiveClosureOfSubject, EYsonFormat::Text),
                     ConvertToYsonString(accessFilter->Permissions, EYsonFormat::Text)));
@@ -5710,7 +5734,7 @@ private:
             case EOperationSortDirection::None:
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         builder.AddOrderByExpression("start_time", orderByDirection);
@@ -5923,7 +5947,7 @@ private:
                 auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
                 res.insert(subject);
                 return res;
-            } else if (!rspOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+            } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     "Failed to get \"member_of_closure\" attribute for subject %Qv",
                     subject)
@@ -5965,7 +5989,7 @@ private:
         auto accessFilter = options.AccessFilter;
         std::optional<THashSet<TString>> transitiveClosureOfSubject;
         if (accessFilter) {
-            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+            TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
             transitiveClosureOfSubject = GetSubjectClosure(
                 accessFilter->Subject,
                 proxy,
@@ -6149,7 +6173,7 @@ private:
                     orderByDirection = EOrderByDirection::Descending;
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             switch (options.SortField) {
                 case EJobSortField::Type:
@@ -6181,7 +6205,7 @@ private:
                     // XXX: progress is not present in archive table.
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -6424,7 +6448,7 @@ private:
         TInstant deadline,
         const TListJobsOptions& options)
     {
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
 
         auto attributeFilter = std::vector<TString>{
             "job_type",
@@ -6603,7 +6627,7 @@ private:
                         return transform(rhs) < transform(lhs);
                     };
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         };
 
@@ -6643,7 +6667,7 @@ private:
                     return (job.FinishTime ? *job.FinishTime : now) - job.StartTime;
                 });
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -6729,7 +6753,7 @@ private:
             case EDataSource::Manual:
                 THROW_ERROR_EXCEPTION("\"manual\" mode is deprecated and forbidden");
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         YT_LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
@@ -6869,7 +6893,7 @@ private:
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         auto beginIt = std::min(result.Jobs.end(), result.Jobs.begin() + options.Offset);
@@ -6981,7 +7005,7 @@ private:
             .ValueOrThrow();
 
         auto rows = rowset->GetRows();
-        YCHECK(!rows.Empty());
+        YT_VERIFY(!rows.Empty());
         auto row = rows[0];
 
         if (!row) {
@@ -7213,7 +7237,7 @@ IClientPtr CreateClient(
     IConnectionPtr connection,
     const TClientOptions& options)
 {
-    YCHECK(connection);
+    YT_VERIFY(connection);
 
     return New<TClient>(std::move(connection), options);
 }

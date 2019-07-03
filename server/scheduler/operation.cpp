@@ -142,7 +142,7 @@ TOperation::TOperation(
     , ControlInvoker_(std::move(controlInvoker))
     , RuntimeParameters_(std::move(runtimeParams))
 {
-    YCHECK(Spec_);
+    YT_VERIFY(Spec_);
     Restart();
 }
 
@@ -244,7 +244,7 @@ std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 int TOperation::GetSlotIndex(const TString& treeId) const
 {
     auto slotIndex = FindSlotIndex(treeId);
-    YCHECK(slotIndex);
+    YT_VERIFY(slotIndex);
     return *slotIndex;
 }
 

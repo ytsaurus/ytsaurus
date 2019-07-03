@@ -23,7 +23,7 @@ TSkiffSchemaPtr SkiffOptional(TSkiffSchemaPtr skiffSchema)
 {
     return CreateVariant8Schema({
         CreateSimpleTypeSchema(EWireType::Nothing),
-        skiffSchema
+        std::move(skiffSchema)
     });
 }
 
@@ -91,6 +91,16 @@ TString ConvertHexToTextYson(
         auto actualYsonString = ConvertHexToTextYson(logicalType, skiffSchema, skiffString, std::get<1>(cfg)); \
         EXPECT_EQ(actualYsonString, ysonString) << "Skiff -> Yson conversion error"; \
     } while (0)
+
+#define CHECK_EXCEPTION_SUBSTR(expr, pattern) \
+do { \
+    try { \
+        expr; \
+        ADD_FAILURE() << "Expected to throw"; \
+    } catch (const std::exception& ex) { \
+        EXPECT_THAT(ex.what(), testing::HasSubstr(pattern)); \
+    } \
+} while (0)
 
 
 TEST(TYsonSkiffConverterTest, TestSimpleTypes)
@@ -227,25 +237,19 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         "[#;]",
         "0100");
 
-    try {
+    CHECK_EXCEPTION_SUBSTR(
         ConvertYsonHex(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
-            " [ %true ] ");
-        ADD_FAILURE() << "Expected to throw";
-    } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("Optional nesting mismatch"));
-    }
+            " [ %true ] "),
+        "Optional nesting mismatch");
 
-    try {
+    CHECK_EXCEPTION_SUBSTR(
         ConvertHexToTextYson(
             SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false),
             CreateSimpleTypeSchema(EWireType::Boolean),
-            "00");
-        ADD_FAILURE() << "Expected to throw";
-    } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("Optional nesting mismatch"));
-    }
+            "00"),
+        "Optional nesting mismatch");
 
     TYsonToSkiffConverterConfig ysonToSkiffConfig;
     ysonToSkiffConfig.AllowOmitTopLevelOptional = true;
@@ -269,16 +273,13 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         ysonToSkiffConfig,
         skiffToYsonConfig);
 
-    try {
+    CHECK_EXCEPTION_SUBSTR(
         ConvertYsonHex(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
             " # ",
-            ysonToSkiffConfig);
-        ADD_FAILURE() << "Expected to throw";
-    } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("value expected to be nonempty"));
-    }
+            ysonToSkiffConfig),
+        "value expected to be nonempty");
 }
 
 TEST(TYsonSkiffConverterTest, TestListTypes)
@@ -399,6 +400,103 @@ TEST(TYsonSkiffConverterTest, TestTuple)
         "[2;42;]",
         "02000000" "00000000" "01" "2a000000" "00000000");
 }
+
+class TYsonSkiffConverterTestVariant
+    : public ::testing::TestWithParam<std::tuple<ELogicalMetatype, EWireType>>
+{
+public:
+    TLogicalTypePtr VariantLogicalType(const std::vector<TLogicalTypePtr>& elements)
+    {
+        auto [metatype, wireType] = GetParam();
+        if (metatype == ELogicalMetatype::VariantTuple) {
+            return VariantTupleLogicalType(elements);
+        } else {
+            std::vector<TStructField> fields;
+            for (size_t i = 0; i < elements.size(); ++i) {
+                fields.push_back({Format("field%v", i), elements[i]});
+            }
+            return VariantStructLogicalType(fields);
+        }
+    }
+
+    TSkiffSchemaPtr VariantSkiffSchema(const std::vector<TSkiffSchemaPtr> elements)
+    {
+        for (size_t i = 0; i < elements.size(); ++i) {
+            elements[i]->SetName(Format("field%v", i));
+        }
+        auto [metatype, wireType] = GetParam();
+        if (wireType == EWireType::Variant8) {
+            return CreateVariant8Schema(std::move(elements));
+        } else if (wireType == EWireType::Variant16) {
+            return CreateVariant16Schema(std::move(elements));
+        }
+        Y_UNREACHABLE();
+    }
+
+    TString VariantTagInfix() const
+    {
+        auto [metatype, wireType] = GetParam();
+        if (wireType == EWireType::Variant16) {
+            return "00";
+        }
+        return {};
+    }
+};
+
+TEST_P(TYsonSkiffConverterTestVariant, TestVariant)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        VariantLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+        }),
+        VariantSkiffSchema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Boolean),
+        }),
+        "[0;42;]",
+        "00" + VariantTagInfix() + "2a000000" "00000000");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        VariantLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+        }),
+        VariantSkiffSchema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Boolean),
+        }),
+        "[1;%true;]",
+        "01" + VariantTagInfix() + "01");
+}
+
+TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
+{
+    auto logicalType = VariantLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+    });
+    auto skiffSchema = VariantSkiffSchema({
+        CreateSimpleTypeSchema(EWireType::Boolean),
+        CreateSimpleTypeSchema(EWireType::Int64),
+    });
+
+    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[2; 42]"), "Yson to Skiff conversion error");
+    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[]"), "Yson to Skiff conversion error");
+    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[0]"), "Yson to Skiff conversion error");
+
+    CHECK_EXCEPTION_SUBSTR(ConvertHexToTextYson(logicalType, skiffSchema, "02" + VariantTagInfix() + "00"),
+        "Skiff to Yson conversion error");
+}
+
+INSTANTIATE_TEST_CASE_P(
+    Variants,
+    TYsonSkiffConverterTestVariant,
+    ::testing::Combine(
+        ::testing::ValuesIn({ELogicalMetatype::VariantStruct, ELogicalMetatype::VariantTuple}),
+        ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16})
+    )
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

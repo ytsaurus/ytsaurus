@@ -10,7 +10,7 @@ static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsume
 
 void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
 {
-    Y_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
         cursor->GetCurrent().GetType() == EYsonItemType::BeginMap);
     cursor->Next();
     while (cursor->GetCurrent().GetType() == EYsonItemType::StringValue) {
@@ -18,14 +18,14 @@ void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* c
         cursor->Next();
         TransferComplexValueImpl(cursor, consumer);
     }
-    Y_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::EndAttributes ||
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::EndAttributes ||
              cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
     cursor->Next();
 }
 
 void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
 {
-    Y_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
     cursor->Next();
     while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
         consumer->OnListItem();
@@ -84,7 +84,7 @@ static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsume
         case EYsonItemType::EndList:
             break;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +114,7 @@ TYsonSyntaxChecker::TYsonSyntaxChecker(EYsonType ysonType)
             StateStack_.push_back(EYsonState::InsideMapFragmentExpectKey);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -156,7 +156,7 @@ TStringBuf TYsonSyntaxChecker::StateExpectationString(EYsonState state)
         case EYsonState::InsideAttributeMapExpectSeparator:
             return ";";
     }
-    YCHECK(false);
+    YT_VERIFY(false);
 }
 
 void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token)
@@ -241,9 +241,9 @@ void TYsonPullParserCursor::SkipComplexValue()
         case EYsonItemType::EndAttributes:
         case EYsonItemType::EndMap:
         case EYsonItemType::EndList:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* consumer)

@@ -25,7 +25,7 @@ public:
         : Underlying_(std::move(underlying))
         , Schema_(schema)
     {
-        YCHECK(Underlying_);
+        YT_VERIFY(Underlying_);
         NameTable_->SetEnableColumnNameValidation();
     }
 

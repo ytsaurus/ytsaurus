@@ -63,7 +63,7 @@ void TBlock::ValidateChecksum() const
     }
 
     auto actual = GetChecksum(Data);
-    YCHECK(actual == Checksum);
+    YT_VERIFY(actual == Checksum);
 }
 
 TChecksum TBlock::GetOrComputeChecksum() const

@@ -373,7 +373,7 @@ void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
     } else {
         it->second += delta;
     }
-    YCHECK(it->second >= 0);
+    YT_VERIFY(it->second >= 0);
     if (it->second == 0) {
         UserToRunningQueryCount_.erase(it);
     }

@@ -388,7 +388,7 @@ private:
 
         int operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
         {
-            Y_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+            YT_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
             return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
         }
 
@@ -490,7 +490,7 @@ private:
                     }
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
             return 0;
@@ -581,7 +581,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
             return lhsLength - rhsLength;

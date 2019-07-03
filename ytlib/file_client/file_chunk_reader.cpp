@@ -105,10 +105,10 @@ public:
             }
         }
 
-        YCHECK(ReadyEvent_.IsSet());
+        YT_VERIFY(ReadyEvent_.IsSet());
         if (ReadyEvent_.Get().IsOK()) {
             *block = GetBlock();
-            YCHECK(!block->Data.Empty());
+            YT_VERIFY(!block->Data.Empty());
             BlockFetched_ = true;
         }
 
@@ -117,7 +117,7 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(SequentialBlockFetcher_);
+        YT_VERIFY(SequentialBlockFetcher_);
         TDataStatistics dataStatistics;
         dataStatistics.set_uncompressed_data_size(SequentialBlockFetcher_->GetUncompressedDataSize());
         dataStatistics.set_compressed_data_size(SequentialBlockFetcher_->GetCompressedDataSize());
@@ -126,13 +126,13 @@ public:
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
-        YCHECK(SequentialBlockFetcher_);
+        YT_VERIFY(SequentialBlockFetcher_);
         return TCodecStatistics().Append(SequentialBlockFetcher_->GetDecompressionTime());
     }
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(SequentialBlockFetcher_);
+        YT_VERIFY(SequentialBlockFetcher_);
         return SequentialBlockFetcher_->IsFetchingCompleted();
     }
 
@@ -233,7 +233,7 @@ private:
                 }
             }
         }
-        YCHECK(blockCount >= 0);
+        YT_VERIFY(blockCount >= 0);
 
         YT_LOG_INFO("Reading %v blocks out of %v starting from %v (SelectedSize: %v)",
             blockSequence.size(),
@@ -263,7 +263,7 @@ private:
         auto* begin = block.Data.Begin();
         auto* end = block.Data.End();
 
-        YCHECK(EndOffset_ > 0);
+        YT_VERIFY(EndOffset_ > 0);
 
         if (EndOffset_ < block.Size()) {
             end = block.Data.Begin() + EndOffset_;
@@ -340,7 +340,7 @@ private:
     virtual void OnReaderSwitched() override
     {
         CurrentReader_ = dynamic_cast<IFileReader*>(CurrentSession_.Reader.Get());
-        YCHECK(CurrentReader_);
+        YT_VERIFY(CurrentReader_);
     }
 };
 

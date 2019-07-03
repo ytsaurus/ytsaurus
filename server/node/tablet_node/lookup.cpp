@@ -130,7 +130,7 @@ public:
                 [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
                     return lhs < rhs->PivotKey;
                 });
-            YCHECK(nextPartitionIt != TabletSnapshot_->PartitionList.begin());
+            YT_VERIFY(nextPartitionIt != TabletSnapshot_->PartitionList.begin());
             auto nextIt = nextPartitionIt == TabletSnapshot_->PartitionList.end()
                 ? LookupKeys_.End()
                 : std::lower_bound(currentIt, LookupKeys_.End(), (*nextPartitionIt)->PivotKey);
@@ -186,7 +186,7 @@ private:
             if (RowIndex_ >= Rows_.size()) {
                 RowIndex_ = 0;
                 while (true) {
-                    YCHECK(Reader_->Read(&Rows_));
+                    YT_VERIFY(Reader_->Read(&Rows_));
                     if (!Rows_.empty()) {
                         break;
                     }

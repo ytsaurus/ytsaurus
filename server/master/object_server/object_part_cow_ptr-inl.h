@@ -14,7 +14,7 @@ TObjectPart TObjectPartCoWPtr<TObjectPart>::DefaultObjectPart;
 template <class TObjectPart>
 TObjectPartCoWPtr<TObjectPart>::~TObjectPartCoWPtr()
 {
-    YCHECK(!ObjectPart_);
+    YT_VERIFY(!ObjectPart_);
 }
 
 template <class TObjectPart>
@@ -75,7 +75,7 @@ void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) co
         if (it == context.SavedInternedObjects().end()) {
             Save(context, NHydra::TEntitySerializationKey::Inline);
             Save(context, *ObjectPart_);
-            YCHECK(context.SavedInternedObjects().emplace(ObjectPart_, context.GenerateSerializationKey()).second);
+            YT_VERIFY(context.SavedInternedObjects().emplace(ObjectPart_, context.GenerateSerializationKey()).second);
         } else {
             Save(context, it->second);
         }
@@ -89,7 +89,7 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    YCHECK(!ObjectPart_);
+    YT_VERIFY(!ObjectPart_);
 
     auto key = Load<NHydra::TEntitySerializationKey>(context);
     if (key == NHydra::TEntitySerializationKey::Null) {
@@ -122,19 +122,19 @@ void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite(const NObjectServer::TObje
         ObjectPart_->Unref();
         ObjectPart_ = objectPartCopy;
 
-        YCHECK(ObjectPart_->GetRefCount() == 1);
+        YT_VERIFY(ObjectPart_->GetRefCount() == 1);
     }
 
-    YCHECK(ObjectPart_ && ObjectPart_->GetRefCount() == 1);
+    YT_VERIFY(ObjectPart_ && ObjectPart_->GetRefCount() == 1);
 }
 
 template <class TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::ResetToDefaultConstructed()
 {
-    YCHECK(!ObjectPart_);
+    YT_VERIFY(!ObjectPart_);
     ObjectPart_ = new TObjectPart();
     ObjectPart_->Ref();
-    Y_ASSERT(ObjectPart_->GetRefCount() == 1);
+    YT_ASSERT(ObjectPart_->GetRefCount() == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

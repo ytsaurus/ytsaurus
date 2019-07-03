@@ -155,6 +155,8 @@ public:
 
     std::vector<TString> FindAndBanSlowTentativeTrees();
 
+    void LogTentativeTreeStatistics() const;
+
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
     virtual bool IsJobInterruptible() const;

@@ -264,7 +264,7 @@ TEST(TRefCountedTrackerTest, ThrowingExceptionsInConstructor)
     TThrowingConstructorObjectPtr object;
     EXPECT_THROW(object = New<TThrowingConstructorObject>(false), std::exception);
     // TODO(max42): enable this when death tests are allowed in unittests.
-    // ASSERT_DEATH(object = New<TThrowingConstructorObject>(true), "YCHECK\\(GetRefCount\\(\\) == 1\\).*");
+    // ASSERT_DEATH(object = New<TThrowingConstructorObject>(true), "YT_VERIFY\\(GetRefCount\\(\\) == 1\\).*");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

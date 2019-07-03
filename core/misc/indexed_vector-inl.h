@@ -42,14 +42,14 @@ void TIndexedVector<T>::PushBack(const T& item)
 {
     size_t index = Items_.size();
     Items_.push_back(item);
-    YCHECK(ItemToIndex_.emplace(item, index).second);
+    YT_VERIFY(ItemToIndex_.emplace(item, index).second);
 }
 
 template <class T>
 void TIndexedVector<T>::Remove(const T& item)
 {
     auto it = ItemToIndex_.find(item);
-    YCHECK(it != ItemToIndex_.end());
+    YT_VERIFY(it != ItemToIndex_.end());
     size_t index = it->second;
     if (index != Items_.size() - 1) {
         std::swap(Items_[index], Items_.back());

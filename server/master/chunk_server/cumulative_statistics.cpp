@@ -80,13 +80,13 @@ void Serialize(const TCumulativeStatisticsEntry& entry, IYsonConsumer* consumer)
 
 void TCumulativeStatistics::DeclareAppendable()
 {
-    YCHECK(Empty());
+    YT_VERIFY(Empty());
     Statistics_ = TAppendableCumulativeStatistics{};
 }
 
 void TCumulativeStatistics::DeclareModifiable()
 {
-    YCHECK(Empty());
+    YT_VERIFY(Empty());
     Statistics_ = TModifyableCumulativeStatistics{};
 }
 
@@ -187,7 +187,7 @@ TCumulativeStatisticsEntry TCumulativeStatistics::operator[](int index) const
 
 TCumulativeStatisticsEntry TCumulativeStatistics::Back() const
 {
-    YCHECK(!Empty());
+    YT_VERIFY(!Empty());
     return this->operator[](Size() - 1);
 }
 
@@ -203,11 +203,11 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
 {
     if (IsAppendable()) {
         auto& statistics = AsAppendable();
-        YCHECK(index == statistics.size() - 1);
+        YT_VERIFY(index == statistics.size() - 1);
         statistics[index] = statistics[index] + delta;
     } else {
         auto& statistics = AsModifiable();
-        YCHECK(index < statistics.Size());
+        YT_VERIFY(index < statistics.Size());
         statistics.Increment(index, delta);
     }
 }
@@ -224,25 +224,25 @@ bool TCumulativeStatistics::IsModifiable() const
 
 TCumulativeStatistics::TAppendableCumulativeStatistics& TCumulativeStatistics::AsAppendable()
 {
-    YCHECK(IsAppendable());
+    YT_VERIFY(IsAppendable());
     return std::get<TAppendableCumulativeStatistics>(Statistics_);
 }
 
 const TCumulativeStatistics::TAppendableCumulativeStatistics& TCumulativeStatistics::AsAppendable() const
 {
-    YCHECK(IsAppendable());
+    YT_VERIFY(IsAppendable());
     return std::get<TAppendableCumulativeStatistics>(Statistics_);
 }
 
 TCumulativeStatistics::TModifyableCumulativeStatistics& TCumulativeStatistics::AsModifiable()
 {
-    YCHECK(IsModifiable());
+    YT_VERIFY(IsModifiable());
     return std::get<TModifyableCumulativeStatistics>(Statistics_);
 }
 
 const TCumulativeStatistics::TModifyableCumulativeStatistics& TCumulativeStatistics::AsModifiable() const
 {
-    YCHECK(IsModifiable());
+    YT_VERIFY(IsModifiable());
     return std::get<TModifyableCumulativeStatistics>(Statistics_);
 }
 

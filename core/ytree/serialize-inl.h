@@ -571,7 +571,8 @@ void Deserialize(TEnumIndexedVector<T, E, Min, Max>& vector, INodePtr node)
 void DeserializeProtobufMessage(
     google::protobuf::Message& message,
     const NYson::TProtobufMessageType* type,
-    const INodePtr& node);
+    const INodePtr& node,
+    const NYson::TProtobufWriterOptions& options = {});
 
 template <class T>
 void Deserialize(

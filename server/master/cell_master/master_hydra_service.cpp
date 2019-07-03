@@ -21,7 +21,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
         bootstrap->GetCellId())
     , Bootstrap_(bootstrap)
 {
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Bootstrap_);
 }
 
 IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue)

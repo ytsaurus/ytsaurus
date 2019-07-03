@@ -27,10 +27,10 @@ public:
         , SkiffSchemaList_(std::move(skiffSchemaList))
     {
         auto genericTableDescriptions = CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
-        YCHECK(tablesColumnIds.size() == genericTableDescriptions.size());
+        YT_VERIFY(tablesColumnIds.size() == genericTableDescriptions.size());
 
         for (size_t tableIndex = 0; tableIndex < genericTableDescriptions.size(); ++tableIndex) {
-            YCHECK(tablesColumnIds[tableIndex].DenseFieldColumnIds.size() == genericTableDescriptions[tableIndex].DenseFieldDescriptionList.size());
+            YT_VERIFY(tablesColumnIds[tableIndex].DenseFieldColumnIds.size() == genericTableDescriptions[tableIndex].DenseFieldDescriptionList.size());
             const auto& genericTableDescription = genericTableDescriptions[tableIndex];
             auto& parserTableDescription = TableDescriptions_.emplace_back();
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
@@ -44,7 +44,7 @@ public:
                 );
             }
 
-            YCHECK(tablesColumnIds[tableIndex].SparseFieldColumnIds.size() == genericTableDescriptions[tableIndex].SparseFieldDescriptionList.size());
+            YT_VERIFY(tablesColumnIds[tableIndex].SparseFieldColumnIds.size() == genericTableDescriptions[tableIndex].SparseFieldDescriptionList.size());
 
             for (size_t fieldIndex = 0;
                  fieldIndex < tablesColumnIds[tableIndex].SparseFieldColumnIds.size();
@@ -96,7 +96,7 @@ public:
                 break;
             default:
                 // Other types should be filtered out when we parse skiff schema.
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

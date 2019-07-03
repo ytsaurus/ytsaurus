@@ -21,7 +21,7 @@ bool TLeaderLease::IsValid() const
 
 void TLeaderLease::SetDeadline(NProfiling::TCpuInstant deadline)
 {
-    YCHECK(Deadline_.load() < deadline);
+    YT_VERIFY(Deadline_.load() < deadline);
     Deadline_ = deadline;
 }
 
@@ -172,11 +172,11 @@ TLeaseTracker::TLeaseTracker(
     , Lease_(lease)
     , CustomLeaseCheckers_(customLeaseCheckers)
 {
-    YCHECK(Config_);
-    YCHECK(CellManager_);
-    YCHECK(DecoratedAutomaton_);
-    YCHECK(EpochContext_);
-    YCHECK(Lease_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(DecoratedAutomaton_);
+    YT_VERIFY(EpochContext_);
+    YT_VERIFY(Lease_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
     Logger = HydraLogger;

@@ -112,7 +112,7 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 NProfiling::TTagId TCellManager::GetPeerTag(TPeerId id) const
 {
     auto tag = PeerTags_[id];
-    YCHECK(tag != -1);
+    YT_VERIFY(tag != -1);
     return tag;
 }
 

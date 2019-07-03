@@ -212,15 +212,15 @@ public:
             LivePreviews_[index] = New<TLivePreview>(NodeDirectory_);
         }
 
-        YCHECK(LivePreviews_[index]->Chunks().insert(std::move(chunk)).second);
+        YT_VERIFY(LivePreviews_[index]->Chunks().insert(std::move(chunk)).second);
     }
 
     void UnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
-        YCHECK(0 <= index && index < LivePreviews_.size());
-        YCHECK(LivePreviews_[index]);
+        YT_VERIFY(0 <= index && index < LivePreviews_.size());
+        YT_VERIFY(LivePreviews_[index]);
 
-        YCHECK(LivePreviews_[index]->Chunks().erase(std::move(chunk)));
+        YT_VERIFY(LivePreviews_[index]->Chunks().erase(std::move(chunk)));
     }
 
 private:

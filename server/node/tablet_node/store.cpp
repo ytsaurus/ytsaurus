@@ -16,7 +16,7 @@ bool IStore::IsDynamic() const
 IDynamicStorePtr IStore::AsDynamic()
 {
     auto* result = dynamic_cast<IDynamicStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
@@ -29,7 +29,7 @@ bool IStore::IsChunk() const
 IChunkStorePtr IStore::AsChunk()
 {
     auto* result = dynamic_cast<IChunkStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
@@ -43,21 +43,21 @@ bool IStore::IsSorted() const
 ISortedStorePtr IStore::AsSorted()
 {
     auto* result = dynamic_cast<ISortedStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
 TSortedDynamicStorePtr IStore::AsSortedDynamic()
 {
     auto* result = dynamic_cast<TSortedDynamicStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
 TSortedChunkStorePtr IStore::AsSortedChunk()
 {
     auto* result = dynamic_cast<TSortedChunkStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
@@ -71,14 +71,14 @@ bool IStore::IsOrdered() const
 IOrderedStorePtr IStore::AsOrdered()
 {
     auto* result = dynamic_cast<IOrderedStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
 TOrderedDynamicStorePtr IStore::AsOrderedDynamic()
 {
     auto* result = dynamic_cast<TOrderedDynamicStore*>(this);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 

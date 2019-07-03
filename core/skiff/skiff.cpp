@@ -114,7 +114,7 @@ void TUncheckedSkiffParser::RefillBuffer(size_t minSize)
 
 void TUncheckedSkiffParser::Advance(ssize_t size)
 {
-    Y_ASSERT(size <= (ssize_t)RemainingBytes_);
+    YT_ASSERT(size <= (ssize_t)RemainingBytes_);
     Position_ += size;
     RemainingBytes_ -= size;
     ReadBytesCount_ += size;
@@ -243,7 +243,7 @@ void TUncheckedSkiffWriter::WriteSimple(T value)
 {
     if (RemainingBytes_ < sizeof(T)) {
         DoFlush();
-        Y_ASSERT(RemainingBytes_ >= sizeof(T));
+        YT_ASSERT(RemainingBytes_ >= sizeof(T));
     }
     *reinterpret_cast<T*>(Position_) = value;
     Position_ += sizeof(T);

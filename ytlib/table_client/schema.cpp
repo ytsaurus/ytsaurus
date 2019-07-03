@@ -27,7 +27,7 @@ using namespace NTabletClient;
  */
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
-    YCHECK(oldColumn.Name() == newColumn.Name());
+    YT_VERIFY(oldColumn.Name() == newColumn.Name());
     try {
         ValidateAlterType(oldColumn.LogicalType(), newColumn.LogicalType());
     } catch (const std::exception& ex) {
@@ -70,7 +70,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 //! Validates that all columns from the old schema are present in the new schema.
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    YCHECK(newSchema.GetStrict());
+    YT_VERIFY(newSchema.GetStrict());
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         if (!newSchema.FindColumn(oldColumn.Name())) {
@@ -83,7 +83,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
 //! Validates that all columns from the new schema are present in the old schema.
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    YCHECK(!oldSchema.GetStrict());
+    YT_VERIFY(!oldSchema.GetStrict());
     for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (!oldSchema.FindColumn(newColumn.Name())) {
@@ -339,7 +339,7 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns)
 {
-    YCHECK(!schemas.empty());
+    YT_VERIFY(!schemas.empty());
 
     // NB: If one schema is not strict then the resulting schema should be an intersection, not union.
     for (const auto& schema : schemas) {

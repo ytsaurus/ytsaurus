@@ -31,13 +31,13 @@ struct TNonversionedObjectRefSerializer
             if (object->IsDestroyed()) {
                 // Ephemeral ghosts aren't supposed to be a part of the
                 // persistent state. Weak ghosts are.
-                YCHECK(object->GetObjectWeakRefCounter() > 0);
+                YT_VERIFY(object->GetObjectWeakRefCounter() > 0);
                 auto key = NHydra::TEntitySerializationKey::Destroyed;
                 NYT::Save(context, key);
                 NYT::Save(context, object->GetId());
             } else {
                 auto key = object->GetDynamicData()->SerializationKey;
-                Y_ASSERT(key != NHydra::TEntitySerializationKey::Null);
+                YT_ASSERT(key != NHydra::TEntitySerializationKey::Null);
                 NYT::Save(context, key);
             }
         } else {
@@ -105,7 +105,7 @@ struct TInternedObjectSerializer
         if (it == context.SavedInternedObjects().end()) {
             Save(context, NHydra::TEntitySerializationKey::Inline);
             Save(context, *object);
-            YCHECK(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
+            YT_VERIFY(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
         } else {
             Save(context, it->second);
         }

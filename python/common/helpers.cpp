@@ -183,7 +183,7 @@ TGilGuard::TGilGuard()
 
 TGilGuard::~TGilGuard()
 {
-    YCHECK(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyGILState_Release(State_);
 }
 
@@ -196,7 +196,7 @@ TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
 
 TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
 {
-    YCHECK(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyEval_RestoreThread(State_);
 }
 

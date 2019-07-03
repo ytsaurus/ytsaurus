@@ -40,9 +40,9 @@ TSessionBase::TSessionBase(
             SessionId_))
     , Profiler(location->GetProfiler())
 {
-    YCHECK(Bootstrap_);
-    YCHECK(Location_);
-    YCHECK(Lease_);
+    YT_VERIFY(Bootstrap_);
+    YT_VERIFY(Location_);
+    YT_VERIFY(Lease_);
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
@@ -90,7 +90,7 @@ TFuture<void> TSessionBase::Start()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            YCHECK(!Active_);
+            YT_VERIFY(!Active_);
             Active_ = true;
 
             if (error.IsOK()) {
@@ -120,7 +120,7 @@ void TSessionBase::Ping()
 void TSessionBase::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(!error.IsOK());
+    YT_VERIFY(!error.IsOK());
 
     if (!Active_) {
         YT_LOG_DEBUG(error, "Session will be canceled after becoming active");

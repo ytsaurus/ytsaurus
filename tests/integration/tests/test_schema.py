@@ -328,6 +328,40 @@ class TestComplexTypes(YTEnvSetup):
         check_bad(["one", 2, 3])
         check_bad(["bar", "baz"])
 
+
+    @pytest.mark.parametrize("logical_type", [
+        variant_tuple_type(["utf8", optional_type("int64")]),
+        variant_struct_type([("a", "utf8"), ("b", optional_type("int64"))]),
+    ])
+    def test_variant(self, logical_type):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": logical_type,
+            }])
+        })
+        assert get("//tmp/table/@schema/0/type") == "any"
+        assert get("//tmp/table/@schema/0/required") == True
+
+        write_table("//tmp/table", [
+            {"column": [0, "foo"]},
+            {"column": [1, None]},
+            {"column": [1, 42]},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+
+        check_bad(None)
+        check_bad([])
+        check_bad(["three"])
+        check_bad([0, "one", 2])
+        check_bad([1, 3.14])
+        check_bad([2, None])
+
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
         with pytest.raises(YtError):

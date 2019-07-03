@@ -23,7 +23,7 @@ void RegisterShutdownCallback(double priority, void(*callback)())
     auto item = std::make_pair(priority, callback);
     auto& list = *ShutdownCallbacks();
 
-    YCHECK(std::find(list.begin(), list.end(), item) == list.end());
+    YT_VERIFY(std::find(list.begin(), list.end(), item) == list.end());
     list.push_back(item);
 }
 

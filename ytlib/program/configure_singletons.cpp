@@ -38,6 +38,7 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
 
     NTracing::TTraceManager::Get()->Configure(config->Tracing);
 
+    NProfiling::TProfileManager::Get()->Configure(config->ProfileManager);
     NProfiling::TProfileManager::Get()->Start();
 }
 

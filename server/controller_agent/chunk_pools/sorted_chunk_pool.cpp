@@ -95,7 +95,7 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
+        YT_VERIFY(!Finished);
 
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
@@ -115,7 +115,7 @@ public:
 
     virtual void Finish() override
     {
-        YCHECK(!Finished);
+        YT_VERIFY(!Finished);
         TChunkPoolInputBase::Finish();
 
         // NB: this method accounts all the stripes that were suspended before
@@ -451,13 +451,13 @@ private:
             int extraCoincidingSingleKeySlices = 0;
             if (minKey == maxKey && !EnableKeyGuarantee_) {
                 auto it = singleKeySliceNumber.find(minKey);
-                YCHECK(it != singleKeySliceNumber.end());
+                YT_VERIFY(it != singleKeySliceNumber.end());
                 // +1 because we accounted data slice for the current chunk twice (in slicesToTheLeft and slicesToTheRight),
                 // but we actually want to account it zero time since we condier only data slices different from current.
                 extraCoincidingSingleKeySlices = it->second + 1;
             }
             int nonIntersectingSlices = slicesToTheLeft + slicesToTheRight - extraCoincidingSingleKeySlices;
-            YCHECK(nonIntersectingSlices <= dataSlicesCount - 1);
+            YT_VERIFY(nonIntersectingSlices <= dataSlicesCount - 1);
             if (nonIntersectingSlices == dataSlicesCount - 1) {
                 Stripes_[cookie].SetTeleport(true);
                 if (TeleportChunkSampler_->Sample()) {
@@ -485,7 +485,7 @@ private:
                     return cmpMax < 0;
                 }
                 // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
-                YCHECK(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
+                YT_VERIFY(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
                 return false;
             });
 
@@ -680,12 +680,12 @@ private:
 
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
             builder->AddPrimaryDataSlice(dataSlice, inputCookie);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
             builder->AddForeignDataSlice(dataSlice, inputCookie);
         }
 

@@ -54,9 +54,9 @@ public:
             BIND(&TTcpBusServerBase::OnCheck, MakeWeak(this)),
             CheckPeriod))
     {
-        YCHECK(Config_);
-        YCHECK(Poller_);
-        YCHECK(Handler_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Poller_);
+        YT_VERIFY(Handler_);
 
         if (Config_->Port) {
             Logger.AddTag("ServerPort: %v", *Config_->Port);
@@ -244,7 +244,7 @@ protected:
 
             {
                 TWriterGuard guard(ConnectionsSpinLock_);
-                YCHECK(Connections_.insert(connection).second);
+                YT_VERIFY(Connections_.insert(connection).second);
             }
 
             connection->SubscribeTerminated(BIND(
@@ -409,7 +409,7 @@ public:
     explicit TTcpBusServerProxy(TTcpBusServerConfigPtr config)
         : Config_(std::move(config))
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
     }
 
     ~TTcpBusServerProxy()
@@ -426,7 +426,7 @@ public:
 
         {
             auto guard = Guard(SpinLock_);
-            YCHECK(!Server_);
+            YT_VERIFY(!Server_);
             Server_ = server;
         }
 

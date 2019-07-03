@@ -110,7 +110,7 @@ protected:
 
     void InitTables(std::vector<bool> isTeleportable, std::vector<bool> isVersioned)
     {
-        YCHECK(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
+        YT_VERIFY(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
         for (int index = 0; index < isVersioned.size(); ++index) {
             InputTables_.emplace_back(isTeleportable[index], true /* isPrimary */, isVersioned[index]);
         }
@@ -153,7 +153,7 @@ protected:
 
     void SuspendChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
     {
-        YCHECK(ActiveChunks_.erase(chunk->ChunkId()));
+        YT_VERIFY(ActiveChunks_.erase(chunk->ChunkId()));
         ChunkPool_->Suspend(cookie);
     }
 

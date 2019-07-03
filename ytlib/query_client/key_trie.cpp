@@ -198,7 +198,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
 
     UniteBounds(&bounds);
 
-    YCHECK(bounds.size() <= 1);
+    YT_VERIFY(bounds.size() <= 1);
     if (!bounds.empty()) {
         std::vector<TBound> deletedPoints;
 
@@ -287,7 +287,7 @@ TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 
 bool Covers(const std::vector<TBound>& bounds, const TValue& point)
 {
-    YCHECK(!(bounds.size() & 1));
+    YT_VERIFY(!(bounds.size() & 1));
 
     auto index = LowerBound(
         0,
@@ -330,8 +330,8 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
         return nullptr;
     }
 
-    YCHECK(lhs);
-    YCHECK(rhs);
+    YT_VERIFY(lhs);
+    YT_VERIFY(rhs);
 
     auto result = New<TKeyTrie>(lhs->Offset);
     result->Bounds = IntersectBounds(lhs->Bounds, rhs->Bounds);
@@ -428,8 +428,8 @@ void GetRangesFromTrieWithinRangeImpl(
             continue;
         }
 
-        YCHECK(!refineLower || offset < lowerBoundSize);
-        YCHECK(!refineUpper || offset < upperBoundSize);
+        YT_VERIFY(!refineLower || offset < lowerBoundSize);
+        YT_VERIFY(!refineUpper || offset < upperBoundSize);
 
         TUnversionedRowBuilder builder(offset);
 
@@ -482,10 +482,10 @@ void GetRangesFromTrieWithinRangeImpl(
             continue;
         }
 
-        YCHECK(trie);
-        YCHECK(trie->Offset == offset);
+        YT_VERIFY(trie);
+        YT_VERIFY(trie->Offset == offset);
 
-        YCHECK(!(trie->Bounds.size() & 1));
+        YT_VERIFY(!(trie->Bounds.size() & 1));
 
         resultBounds.clear();
         resultBounds.reserve(trie->Bounds.size());
@@ -494,7 +494,7 @@ void GetRangesFromTrieWithinRangeImpl(
             auto lower = trie->Bounds[i];
             auto upper = trie->Bounds[i + 1];
 
-            YCHECK(CompareBound(lower, upper, true, false) < 0);
+            YT_VERIFY(CompareBound(lower, upper, true, false) < 0);
 
             bool lowerBoundRefined = false;
             bool upperBoundRefined = false;

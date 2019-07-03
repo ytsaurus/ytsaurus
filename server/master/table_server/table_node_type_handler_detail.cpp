@@ -52,7 +52,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
     }
 
     if (branchedNode->IsDynamic()) {
-        YCHECK(originatingNode->IsDynamic());
+        YT_VERIFY(originatingNode->IsDynamic());
         // One may consider supporting unlocking unmounted dynamic tables.
         // However, it isn't immediately obvious why that should be useful and
         // allowing to unlock something always requires careful consideration.

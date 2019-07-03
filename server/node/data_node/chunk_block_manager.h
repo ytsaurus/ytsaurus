@@ -105,10 +105,6 @@ public:
     //! Gets a vector of all blocks with non-null source stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocksWithSource() const;
 
-    //! Thread-pool intended to offload all heavy non-IO reading-related actions from control thread.
-    //! Not bounded to any of the locations.
-    IPrioritizedInvokerPtr GetReaderInvoker() const;
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

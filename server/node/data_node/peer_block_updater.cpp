@@ -76,7 +76,7 @@ void TPeerBlockUpdater::Update()
 
     THashMap<TString, TDataNodeServiceProxy::TReqUpdatePeerPtr> requests;
     for (const auto& block : blocks) {
-        YCHECK(block->Source());
+        YT_VERIFY(block->Source());
         const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
 
         auto it = requests.find(sourceAddress);

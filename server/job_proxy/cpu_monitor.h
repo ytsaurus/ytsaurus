@@ -45,6 +45,7 @@ private:
 
     const double HardLimit_;
     double SoftLimit_;
+    double MinCpuLimit_;
     std::optional<double> SmoothedUsage_;
 
     std::optional<TInstant> LastCheckTime_;

@@ -173,7 +173,7 @@ template <class T>
     if (rangeBegin == rangeEnd) {
         return entries.end();
     } else {
-        YCHECK(std::distance(rangeBegin, rangeEnd) == 1);
+        YT_VERIFY(std::distance(rangeBegin, rangeEnd) == 1);
         return rangeBegin;
     }
 }
@@ -220,7 +220,7 @@ inline bool TRequisitionEntry::operator<(const TRequisitionEntry& rhs) const
 {
     // TChunkRequisition merges entries by the "account, medium, committed" triplet.
     // TSecurityManager relies on that order. Don't change it lightly.
-    Y_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
+    YT_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
     if (Account != rhs.Account) {
         return Account->GetId() < rhs.Account->GetId();
     }
@@ -242,7 +242,7 @@ inline bool TRequisitionEntry::operator<(const TRequisitionEntry& rhs) const
 
 inline bool TRequisitionEntry::operator==(const TRequisitionEntry& rhs) const
 {
-    Y_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
+    YT_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
 
     return
         Account == rhs.Account &&
@@ -270,7 +270,7 @@ inline TChunkRequisition::TChunkRequisition(
     bool committed)
     : Entries_(1, TRequisitionEntry(account, mediumIndex, replicationPolicy, committed))
 {
-    YCHECK(replicationPolicy);
+    YT_VERIFY(replicationPolicy);
 }
 
 inline TChunkRequisition::const_iterator TChunkRequisition::begin() const
@@ -321,7 +321,7 @@ inline size_t TChunkRequisition::GetHash() const
 {
     size_t result = hash<bool>()(Vital_);
 
-    Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
+    YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
 
     for (const auto& entry : Entries_) {
         HashCombine(result, entry);
@@ -335,14 +335,14 @@ inline size_t TChunkRequisition::GetHash() const
 inline const TChunkRequisition& TChunkRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
 {
     auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
+    YT_VERIFY(it != IndexToItem_.end());
     return it->second.Requisition;
 }
 
 inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunkRequisitionIndex index) const
 {
     auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
+    YT_VERIFY(it != IndexToItem_.end());
     return it->second.Replication;
 }
 
@@ -361,8 +361,8 @@ inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::Insert(const TChunk
 {
     auto index = GenerateIndex();
 
-    YCHECK(IndexToRequisition_.emplace(index, requisition).second);
-    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
+    YT_VERIFY(IndexToRequisition_.emplace(index, requisition).second);
+    YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);
 
     return index;
 }
@@ -381,7 +381,7 @@ inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::GenerateIndex()
 template <typename T>
 void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const T& requisitionRegistry)
 {
-    YCHECK(request->chunk_requisition_dict_size() == 0);
+    YT_VERIFY(request->chunk_requisition_dict_size() == 0);
 
     if (request->updates_size() == 0) {
         return;

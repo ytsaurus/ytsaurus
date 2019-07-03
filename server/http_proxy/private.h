@@ -11,6 +11,8 @@ namespace NYT::NHttpProxy {
 extern const NLogging::TLogger HttpProxyLogger;
 extern const NProfiling::TProfiler HttpProxyProfiler;
 
+extern const NLogging::TLogger HttpStructuredProxyLogger;
+
 extern const TString ClickHouseUserName;
 
 ////////////////////////////////////////////////////////////////////////////////

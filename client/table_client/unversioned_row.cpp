@@ -70,7 +70,7 @@ size_t GetByteSize(const TUnversionedValue& value)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return result;
@@ -115,7 +115,7 @@ size_t WriteValue(char* output, const TUnversionedValue& value)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return current - output;
@@ -183,7 +183,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return current - input;
@@ -206,16 +206,16 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
 {
     auto* input = context.GetInput();
     const size_t fixedSize = sizeof (ui16) + sizeof (ui16) + sizeof (ui32); // Id, Type, Length
-    YCHECK(input->Load(&value, fixedSize) == fixedSize);
+    YT_VERIFY(input->Load(&value, fixedSize) == fixedSize);
     if (IsStringLikeType(value.Type)) {
         if (value.Length != 0) {
             value.Data.String = pool->AllocateUnaligned(value.Length);
-            YCHECK(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
+            YT_VERIFY(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
         } else {
             value.Data.String = nullptr;
         }
     } else {
-        YCHECK(input->Load(&value.Data, sizeof (value.Data)) == sizeof (value.Data));
+        YT_VERIFY(input->Load(&value.Data, sizeof (value.Data)) == sizeof (value.Data));
     }
 }
 
@@ -247,7 +247,7 @@ size_t GetYsonSize(const TUnversionedValue& value)
             return 1 + 1;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -281,7 +281,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     return output.Buf() - buffer;
 }
@@ -328,7 +328,7 @@ TString ToString(const TUnversionedValue& value)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     return builder.Flush();
 }
@@ -446,7 +446,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
         case EValueType::Any:
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -828,9 +828,9 @@ void ValidateClientRow(
     }
 
     if (tabletIndexColumnId) {
-        YCHECK(idMapping.size() > *tabletIndexColumnId);
+        YT_VERIFY(idMapping.size() > *tabletIndexColumnId);
         auto mappedId = idMapping[*tabletIndexColumnId];
-        YCHECK(mappedId >= 0);
+        YT_VERIFY(mappedId >= 0);
         keyColumnSeen[mappedId] = true;
     }
 
@@ -893,7 +893,7 @@ TUnversionedOwningRow DeserializeFromString(const TString& data)
 
     ui32 version;
     current += ReadVarUint32(current, &version);
-    YCHECK(version == 0);
+    YT_VERIFY(version == 0);
 
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
@@ -923,7 +923,7 @@ TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& 
 
     ui32 version;
     current += ReadVarUint32(current, &version);
-    YCHECK(version == 0);
+    YT_VERIFY(version == 0);
 
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
@@ -967,7 +967,7 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
     static_assert(std::is_integral<T>::value, "type must be integral");
 
     if (std::is_signed<T>::value) {
-        Y_ASSERT(value.Type == EValueType::Int64);
+        YT_ASSERT(value.Type == EValueType::Int64);
         const auto intValue = value.Data.Int64;
         if (intValue < Min<T>() || intValue > Max<T>()) {
             THROW_ERROR_EXCEPTION(
@@ -979,7 +979,7 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
                 Max<T>());
         }
     } else {
-        Y_ASSERT(value.Type == EValueType::Uint64);
+        YT_ASSERT(value.Type == EValueType::Uint64);
         if (value.Data.Uint64 > Max<T>()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
@@ -994,7 +994,7 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
 
 static inline TString GetStringPrefix(const char* data, size_t size, size_t maxSize)
 {
-    YCHECK(maxSize > 3);
+    YT_VERIFY(maxSize > 3);
     if (size > maxSize) {
         return TString(data, maxSize - 3) + "...";
     } else {
@@ -1019,7 +1019,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
             // Any column can't be required.
-            YCHECK(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
+            YT_VERIFY(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
                 "Required column %Qv cannot have %Qlv value",
@@ -1169,7 +1169,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     std::vector<bool>* columnPresenceBuffer)
 {
     auto& columnSeen = *columnPresenceBuffer;
-    YCHECK(columnSeen.size() >= schema.GetColumnCount());
+    YT_VERIFY(columnSeen.size() >= schema.GetColumnCount());
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
 
     for (const auto& value : row) {
@@ -1420,7 +1420,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
 
     ui32 version;
     current += ReadVarUint32(current, &version);
-    YCHECK(version == 0);
+    YT_VERIFY(version == 0);
 
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
@@ -1514,7 +1514,7 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
         }
     }
 
-    YCHECK(alignedPtr == unalignedPtr);
+    YT_VERIFY(alignedPtr == unalignedPtr);
 
     return { MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer)), bufferSize };
 }
@@ -1840,7 +1840,7 @@ TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuff
 
 TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
-    YCHECK(keyColumnCount >= key.GetCount());
+    YT_VERIFY(keyColumnCount >= key.GetCount());
 
     TUnversionedOwningRowBuilder builder;
     for (ui32 index = 0; index < key.GetCount(); ++index) {
@@ -1858,7 +1858,7 @@ TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueT
 
 TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
-    YCHECK(keyColumnCount >= key.GetCount());
+    YT_VERIFY(keyColumnCount >= key.GetCount());
 
     auto wideKey = rowBuffer->AllocateUnversioned(keyColumnCount + 1);
 
@@ -1877,7 +1877,7 @@ TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr
 
 TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
 {
-    YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
+    YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
     if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
         return key;
@@ -1897,7 +1897,7 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColu
 
 TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
-    YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
+    YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
     if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
         return rowBuffer->Capture(key);

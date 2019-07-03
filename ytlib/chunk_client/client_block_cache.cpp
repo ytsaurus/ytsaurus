@@ -120,7 +120,7 @@ public:
                     type,
                     config,
                     profiler.AppendPath("/" + FormatEnum(type)));
-                YCHECK(PerTypeCaches_.insert({type, cache}).second);
+                YT_VERIFY(PerTypeCaches_.insert({type, cache}).second);
             }
         };
         initType(EBlockType::CompressedData, config->CompressedData);

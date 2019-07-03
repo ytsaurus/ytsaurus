@@ -104,7 +104,7 @@ TString ToString(const TChunkStripeKey& key)
     } else if (key.IsOutputOrderEntry()) {
         return ToString(key.AsOutputOrderEntry());
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 

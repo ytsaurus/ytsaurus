@@ -57,7 +57,7 @@ TPartition::TPartition(
 
 void TPartition::CheckedSetState(EPartitionState oldState, EPartitionState newState)
 {
-    YCHECK(GetState() == oldState);
+    YT_VERIFY(GetState() == oldState);
     SetState(newState);
 }
 
@@ -88,7 +88,7 @@ void TPartition::Load(TLoadContext& context)
         for (int index = 0; index < storeCount; ++index) {
             auto storeId = Load<TStoreId>(context);
             auto store = Tablet_->GetStore(storeId)->AsSorted();
-            YCHECK(Stores_.insert(store).second);
+            YT_VERIFY(Stores_.insert(store).second);
         }
     }
 }

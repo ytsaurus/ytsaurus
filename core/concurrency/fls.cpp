@@ -52,9 +52,9 @@ static void TsdDestroy(void* opaque)
 static void TsdCreate()
 {
 #if defined(_unix_)
-    YCHECK(pthread_key_create(&FlsTsdKey, &TsdDestroy) == 0);
+    YT_VERIFY(pthread_key_create(&FlsTsdKey, &TsdDestroy) == 0);
 #elif defined(_win_)
-    YCHECK((FlsTsdKey = TlsAlloc()) != TLS_OUT_OF_INDEXES);
+    YT_VERIFY((FlsTsdKey = TlsAlloc()) != TLS_OUT_OF_INDEXES);
 #endif
 }
 
@@ -74,9 +74,9 @@ static uintptr_t& TsdAt(int index)
 
     TMemoryTagGuard guard(NullMemoryTag);
     tsd = new uintptr_t[FlsMaxSize];
-    YCHECK(tsd);
+    YT_VERIFY(tsd);
     memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
-    YCHECK(TLS_SET_(FlsTsdKey, tsd));
+    YT_VERIFY(TLS_SET_(FlsTsdKey, tsd));
 
     return tsd[index];
 #undef TLS_GET_
@@ -88,7 +88,7 @@ int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     TGuard<std::atomic_flag> guard(FlsLock);
 
     int index = FlsSize++;
-    YCHECK(index < FlsMaxSize);
+    YT_VERIFY(index < FlsMaxSize);
 
     if (index == 0) {
         TsdCreate();

@@ -21,7 +21,7 @@ void ReadPodImpl(TInput& input, T& obj, bool safe)
                 << TErrorAttribute("bytes_expected", sizeof(obj));
         }
     } else {
-        YCHECK(loadBytes == sizeof(obj));
+        YT_VERIFY(loadBytes == sizeof(obj));
     }
 }
 
@@ -52,7 +52,7 @@ void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
                 << TErrorAttribute("size", size);
         }
     } else {
-        YCHECK(size >= 0);
+        YT_VERIFY(size >= 0);
     }
 
     parts->clear();
@@ -74,8 +74,8 @@ void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
                     << TErrorAttribute("bytes_left", packedRef.End() - input.Buf());
             }
         } else {
-            YCHECK(partSize >= 0);
-            YCHECK(packedRef.End() - input.Buf() >= partSize);
+            YT_VERIFY(partSize >= 0);
+            YT_VERIFY(packedRef.End() - input.Buf() >= partSize);
         }
 
         parts->push_back(packedRef.Slice(input.Buf(), input.Buf() + partSize));
@@ -89,7 +89,7 @@ void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
                 << TErrorAttribute("extra_bytes", packedRef.End() - input.Buf());
         }
     } else {
-        YCHECK(input.Buf() == packedRef.End());
+        YT_VERIFY(input.Buf() == packedRef.End());
     }
 }
 

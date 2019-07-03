@@ -88,7 +88,7 @@ public:
         : State(state)
         , ShadowState(state)
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         ++State->Constructors;
     }
 
@@ -106,7 +106,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         ++State->CopyConstructors;
     }
 
@@ -114,7 +114,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         other.State = nullptr;
         ++State->MoveConstructors;
     }
@@ -123,7 +123,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         ++State->CopyConstructors;
     }
 
@@ -131,7 +131,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         other.State = nullptr;
         ++State->MoveConstructors;
     }
@@ -140,7 +140,7 @@ public:
     {
         State = other.State;
         ShadowState = other.ShadowState;
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         ++State->CopyAssignments;
         return *this;
     }
@@ -149,7 +149,7 @@ public:
     {
         State = other.State;
         ShadowState = other.ShadowState;
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         other.State = nullptr;
         ++State->MoveAssignments;
         return *this;
@@ -157,7 +157,7 @@ public:
 
     void Tackle() const
     {
-        Y_ASSERT(State);
+        YT_ASSERT(State);
         ++State->Tackles;
     }
 

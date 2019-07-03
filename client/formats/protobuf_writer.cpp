@@ -60,7 +60,7 @@ public:
 
     void SetTableIndex(i64 tableIndex)
     {
-        YCHECK(!InsideRow_);
+        YT_VERIFY(!InsideRow_);
         FieldDescription_ = TableIndexToOtherColumnsField_[tableIndex];
     }
 
@@ -75,7 +75,7 @@ public:
             return;
         }
 
-        YCHECK(!InsideRow_);
+        YT_VERIFY(!InsideRow_);
         OutputStream_.Clear();
         Writer_.OnBeginMap();
         InsideRow_ = true;
@@ -87,7 +87,7 @@ public:
             return;
         }
 
-        YCHECK(InsideRow_);
+        YT_VERIFY(InsideRow_);
         Writer_.OnKeyedItem(NameTable_->GetName(value.Id));
         Serialize(value, &Writer_, /* anyAsRaw */ true);
     }
@@ -98,7 +98,7 @@ public:
             return;
         }
 
-        YCHECK(InsideRow_);
+        YT_VERIFY(InsideRow_);
         Writer_.OnEndMap();
         InsideRow_ = false;
     }
@@ -109,7 +109,7 @@ public:
             return 0;
         }
 
-        YCHECK(!InsideRow_);
+        YT_VERIFY(!InsideRow_);
         auto length = GetYsonString().size();
         return FieldDescription_->TagSize + WireFormatLite::UInt32Size(length) + length;
     }
@@ -120,7 +120,7 @@ public:
             return;
         }
 
-        YCHECK(!InsideRow_);
+        YT_VERIFY(!InsideRow_);
         WriteVarUint32(stream, FieldDescription_->WireTag);
         auto buffer = GetYsonString();
         WriteVarUint32(stream, buffer.size());
@@ -298,7 +298,7 @@ private:
                                 }
                                 case EValueType::String: {
                                     auto enumString = TStringBuf(value.Data.String, value.Length);
-                                    YCHECK(fieldDescription->EnumerationDescription);
+                                    YT_VERIFY(fieldDescription->EnumerationDescription);
                                     enumValue = fieldDescription->EnumerationDescription->GetValue(enumString);
                                     enumValues.push_back(enumValue);
                                     break;
@@ -327,7 +327,7 @@ private:
                             break;
                         }
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error writing value of field %Qv",
@@ -419,7 +419,7 @@ private:
                                 break;
                             default:
                                 // Must have thrown in the previous loop.
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                         WriteVarUint64(stream, enumValue); // No zigzag int32.
                         break;
@@ -436,7 +436,7 @@ private:
                         break;
                     }
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
 
@@ -478,11 +478,11 @@ private:
         }
         const auto& tableDescription = Description_->GetTableDescription(tableIndex);
         auto& fieldIndexToDescription = TableIndexToFieldIndexToDescription_[tableIndex];
-        YCHECK(fieldIndex < static_cast<ui32>(nameTable->GetSize()));
+        YT_VERIFY(fieldIndex < static_cast<ui32>(nameTable->GetSize()));
         if (fieldIndexToDescription.size() <= fieldIndex) {
             fieldIndexToDescription.reserve(fieldIndex + 1);
             for (size_t i = fieldIndexToDescription.size(); i <= fieldIndex; ++i) {
-                Y_ASSERT(fieldIndexToDescription.size() == i);
+                YT_ASSERT(fieldIndexToDescription.size() == i);
                 auto fieldName = nameTable->GetName(i);
                 auto it = tableDescription.Columns.find(fieldName);
                 if (it == tableDescription.Columns.end()) {

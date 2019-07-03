@@ -49,7 +49,7 @@ public:
 
     void SetUpdatePeriod(TDuration period)
     {
-        YCHECK(UpdateKeysExecutor_);
+        YT_VERIFY(UpdateKeysExecutor_);
         UpdateKeysExecutor_->SetPeriod(period);
     }
 

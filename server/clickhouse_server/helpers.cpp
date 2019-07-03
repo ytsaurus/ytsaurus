@@ -82,6 +82,8 @@ Field ConvertToField(const NTableClient::TUnversionedValue& value)
             return Field(static_cast<UInt64>(value.Data.Boolean ? 1 : 0));
         case EValueType::String:
             return Field(value.Data.String, value.Length);
+        case EValueType::Any:
+            return Field(value.Data.String, value.Length);
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", value.Type);
     }

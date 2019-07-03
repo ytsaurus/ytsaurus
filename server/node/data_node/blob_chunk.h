@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
 #include "chunk_block_manager.h"
 #include "chunk_detail.h"
@@ -60,7 +59,7 @@ private:
     struct TReadMetaSession
         : public TIntrinsicRefCounted
     {
-        NProfiling::TWallTimer Timer;
+        NProfiling::TWallTimer SessionTimer;
         TBlockReadOptions Options;
     };
 
@@ -77,12 +76,15 @@ private:
             NChunkClient::TBlock Block;
         };
 
-        NProfiling::TWallTimer Timer;
+        IInvokerPtr Invoker;
+        NProfiling::TWallTimer SessionTimer;
+        std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
         int EntryCount = 0;
         TBlockReadOptions Options;
         std::vector<TFuture<void>> AsyncResults;
-        TPromise<std::vector<NChunkClient::TBlock>> Promise = NewPromise<std::vector<NChunkClient::TBlock>>();
+        TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
+        TPromise<void> DiskFetchPromise;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -92,8 +94,13 @@ private:
     NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
+    TSpinLock CachedReaderSpinLock_;
+    TWeakPtr<NChunkClient::TFileReader> CachedWeakReader_;
+
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
+
+    NChunkClient::TFileReaderPtr GetReader();
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);
@@ -105,9 +112,21 @@ private:
     void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);
+
+    void DoReadSession(
+        const TReadBlockSetSessionPtr& session,
+        i64 pendingDataSize);
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session,
-        TPendingIOGuard pendingIOGuard);
+        int currentEntryIndex,
+        TPendingIOGuard&& pendingIOGuard);
+    void OnBlocksRead(
+        const TReadBlockSetSessionPtr& session,
+        int firstBlockIndex,
+        int beginEntryIndex,
+        int endEntryIndex,
+        TPendingIOGuard&& pendingIOGuard,
+        const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
 
     void ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session);
     void ProfileReadMetaLatency(const TReadMetaSessionPtr& session);

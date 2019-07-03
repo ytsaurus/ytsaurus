@@ -36,13 +36,13 @@ public:
     void Register(const TYPath& path, TYsonProducer producer)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(PathToProducer_.insert(std::make_pair(path, producer)).second);
+        YT_VERIFY(PathToProducer_.insert(std::make_pair(path, producer)).second);
     }
 
     void Unregister(const TYPath& path)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(PathToProducer_.erase(path) == 1);
+        YT_VERIFY(PathToProducer_.erase(path) == 1);
     }
 
     IYPathServicePtr GetService()
@@ -54,7 +54,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        YCHECK(!Started_);
+        YT_VERIFY(!Started_);
 
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),

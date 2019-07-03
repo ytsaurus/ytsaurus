@@ -148,7 +148,7 @@ bool TYPathServiceBase::ShouldHideAttributes()
         method, \
         { \
             tokenizer.ThrowUnexpected(); \
-            Y_UNREACHABLE(); \
+            YT_ABORT(); \
         } \
     ) \
     \
@@ -756,7 +756,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     if (!newAttributes->Contains(key)) {
                         permissionValidator.Validate(EPermission::Write);
 
-                        YCHECK(customAttributes->Remove(key));
+                        YT_VERIFY(customAttributes->Remove(key));
                     }
                 }
 
@@ -772,7 +772,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                         customAttributes->SetYson(key, newAttributes->GetYson(key));
 
-                        YCHECK(newAttributes->Remove(key));
+                        YT_VERIFY(newAttributes->Remove(key));
                     }
                 }
             }
@@ -800,7 +800,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                             ThrowCannotSetBuiltinAttribute(key);
                         }
 
-                        YCHECK(newAttributes->Remove(key));
+                        YT_VERIFY(newAttributes->Remove(key));
                     } else if (descriptor.Removable) {
                         permissionValidator.Validate(descriptor.WritePermission);
 
@@ -920,7 +920,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                 for (const auto& key : customKeys) {
                     permissionValidator.Validate(EPermission::Write);
 
-                    YCHECK(customAttributes->Remove(key));
+                    YT_VERIFY(customAttributes->Remove(key));
                 }
             }
             break;
@@ -934,7 +934,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                 if (customYson) {
                     permissionValidator.Validate(EPermission::Write);
 
-                    YCHECK(customAttributes->Remove(key));
+                    YT_VERIFY(customAttributes->Remove(key));
                 } else {
                     if (!builtinAttributeProvider) {
                         if (force) {
@@ -1035,7 +1035,7 @@ void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultiset* reques
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto* attributesDictionary = GetCombinedAttributes();
-    YCHECK(attributesDictionary);
+    YT_VERIFY(attributesDictionary);
 
     // TODO(asaitgalin): Do proper permission validation for builtin attributes.
     NYPath::TTokenizer tokenizer(path);
@@ -1153,7 +1153,7 @@ const THashSet<TInternedAttributeKey>& TBuiltinAttributeKeysCache::GetBuiltinAtt
         BuiltinKeys_.reserve(descriptors.size());
         for (const auto& descriptor : descriptors) {
             if (!descriptor.Custom) {
-                YCHECK(BuiltinKeys_.insert(descriptor.InternedKey).second);
+                YT_VERIFY(BuiltinKeys_.insert(descriptor.InternedKey).second);
             }
         }
         Initialized_ = true;
@@ -1391,7 +1391,7 @@ IServiceContextPtr CreateYPathContext(
     NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
 {
-    Y_ASSERT(requestMessage);
+    YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
@@ -1405,7 +1405,7 @@ IServiceContextPtr CreateYPathContext(
     NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
 {
-    Y_ASSERT(requestMessage);
+    YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),
@@ -1426,7 +1426,7 @@ public:
 
     virtual void Invoke(const IServiceContextPtr& /*context*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TResolveResult Resolve(

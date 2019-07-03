@@ -117,7 +117,7 @@ void TVirtualMulticellMapBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    YT_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
@@ -415,7 +415,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
 
     return Combine(asyncAttributes)
         .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
-            YCHECK(aliveKeys.size() == attributes.size());
+            YT_VERIFY(aliveKeys.size() == attributes.size());
             for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
                 if (session->Items.size() >= session->Limit) {
                     break;
@@ -533,7 +533,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             }
 
             const auto& values = valuesOrError.Value();
-            YCHECK(response->items_size() == values.size());
+            YT_VERIFY(response->items_size() == values.size());
             for (int index = 0; index < response->items_size(); ++index) {
                 const auto& value = values[index];
                 if (!value.GetData().empty()) {

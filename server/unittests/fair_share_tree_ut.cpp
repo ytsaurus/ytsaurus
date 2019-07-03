@@ -36,7 +36,7 @@ struct TSchedulerStrategyHostMock
 
     virtual IInvokerPtr GetProfilingInvoker() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
@@ -75,7 +75,7 @@ struct TSchedulerStrategyHostMock
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const TSchedulingTagFilter& /* filter */) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
@@ -86,7 +86,7 @@ struct TSchedulerStrategyHostMock
 
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ValidatePoolPermission(
@@ -188,7 +188,7 @@ public:
 
     virtual EOperationType GetType() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool IsSchedulable() const override
@@ -231,17 +231,17 @@ public:
 
     virtual NYTree::IMapNodePtr GetSpec() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool GetActivated() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()

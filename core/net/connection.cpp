@@ -177,7 +177,7 @@ public:
     {
         size_t bytesWritten = 0;
         while (true) {
-            YCHECK(Position_ < Buffer_.Size());
+            YT_VERIFY(Position_ < Buffer_.Size());
             ssize_t size = HandleEintr(::write, fd, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
 
             if (size == -1) {
@@ -189,7 +189,7 @@ public:
                     << TError::FromSystem();
             }
 
-            YCHECK(size > 0);
+            YT_VERIFY(size > 0);
             bytesWritten += size;
             Position_ += size;
 
@@ -260,7 +260,7 @@ public:
                     << TError::FromSystem();
             }
 
-            YCHECK(size > 0);
+            YT_VERIFY(size > 0);
             bytesWritten += size;
             Position_ += size;
 
@@ -714,7 +714,7 @@ private:
     {
         {
             auto guard = Guard(Lock_);
-            YCHECK(--ShutdownProtectorCount_ >= 0);
+            YT_VERIFY(--ShutdownProtectorCount_ >= 0);
             if (ShutdownProtectorCount_ > 0 || !ShutdownRequested_) {
                 return;
             }
@@ -773,7 +773,7 @@ private:
             }
         }
 
-        YCHECK(direction->Operation);
+        YT_VERIFY(direction->Operation);
         auto result = direction->Operation->PerformIO(FD_);
         if (result.IsOK()) {
             direction->BytesTransferred += result.Value().ByteCount;
@@ -854,7 +854,7 @@ private:
             WriteDirection_.Operation.reset();
         }
 
-        YCHECK(TryClose(FD_, false));
+        YT_VERIFY(TryClose(FD_, false));
         FD_ = -1;
 
         ShutdownPromise_.Set();
@@ -1029,8 +1029,8 @@ std::pair<IConnectionPtr, IConnectionPtr> CreateConnectionPair(const IPollerPtr&
         auto second = New<TFDConnection>(fds[1], address1, address0, poller);
         return std::make_pair(std::move(first), std::move(second));
     } catch (...) {
-        YCHECK(TryClose(fds[0], false));
-        YCHECK(TryClose(fds[1], false));
+        YT_VERIFY(TryClose(fds[0], false));
+        YT_VERIFY(TryClose(fds[1], false));
         throw;
     }
 }

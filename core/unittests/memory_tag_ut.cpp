@@ -50,9 +50,9 @@ void TestZero()
 // Allocate vector that results in exactly `size` memory usage considering the 16-byte header.
 std::vector<char> MakeAllocation(size_t size)
 {
-    YCHECK(size > 16);
+    YT_VERIFY(size > 16);
     // Size should be a power of two:
-    YCHECK((size & (size - 1)) == 0);
+    YT_VERIFY((size & (size - 1)) == 0);
 
     // Do not forget about 16-byte tag header.
     auto result = std::vector<char>(size - 16);

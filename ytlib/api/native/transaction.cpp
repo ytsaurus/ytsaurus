@@ -207,7 +207,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell ||
                TypeFromId(cellId) == EObjectType::ClusterCell);
 
         if (State_ != ETransactionState::Active) {
@@ -651,7 +651,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
 
                 switch (modification.Type) {
@@ -699,7 +699,7 @@ private:
                     }
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
         }
@@ -733,7 +733,7 @@ private:
                     return EWireProtocolCommand::ReadLockWriteRow;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     };
@@ -873,7 +873,7 @@ private:
         {
             // Do all the heavy lifting here.
             auto* codec = NCompression::GetCodec(Config_->WriteRowsRequestCodec);
-            YCHECK(!Batches_.empty());
+            YT_VERIFY(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->RequestData = codec->Compress(batch->Writer.Finish());
             }
@@ -977,7 +977,7 @@ private:
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     resultCommand = it->Command;
                     ++it;
@@ -1191,7 +1191,7 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto remaining = --RequestsRemaining_;
-            YCHECK(remaining >= 0);
+            YT_VERIFY(remaining >= 0);
             return remaining == 0
                 ? FinalTransactionSignature - InitialTransactionSignature - RequestsTotal_.load() + 1
                 : 1;
@@ -1228,7 +1228,7 @@ private:
                     asyncResult = SendMasterActions(transaction, channel);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             return asyncResult.Apply(
@@ -1351,7 +1351,7 @@ private:
         auto transaction = WaitFor(StartForeignTransaction(client, options))
             .ValueOrThrow();
 
-        YCHECK(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
+        YT_VERIFY(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
 
         YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
             replicaInfo->ClusterName);
@@ -1497,15 +1497,15 @@ private:
                     GetId(),
                     State_);
             }
-            YCHECK(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
-            YCHECK(!Prepared_);
+            YT_VERIFY(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
+            YT_VERIFY(!Prepared_);
             Prepared_ = true;
         }
     }
 
     TFuture<void> SendRequests()
     {
-        YCHECK(Prepared_);
+        YT_VERIFY(Prepared_);
 
         std::vector<TFuture<void>> asyncResults;
 
@@ -1654,7 +1654,7 @@ private:
     TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
         auto it = CellIdToSession_.find(cellId);
-        YCHECK(it != CellIdToSession_.end());
+        YT_VERIFY(it != CellIdToSession_.end());
         return it->second;
     }
 
@@ -1668,7 +1668,7 @@ private:
                 // NB: Start timestamp is approximate.
                 return SyncLastCommittedTimestamp;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

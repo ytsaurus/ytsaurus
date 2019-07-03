@@ -1,5 +1,6 @@
 #include "table_functions_concat.h"
 
+#include "table.h"
 #include "query_context.h"
 #include "format_helpers.h"
 #include "storage_concat.h"
@@ -125,7 +126,7 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
     }
 
     const auto& rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
-    YCHECK(rsps.size() == paths.size());
+    YT_VERIFY(rsps.size() == paths.size());
 
     std::vector<TClickHouseTablePtr> tables;
     std::vector<TError> errors;
@@ -173,12 +174,8 @@ TString BaseName(const TYPath& path) {
 class TConcatenateTablesList
     : public ITableFunction
 {
-private:
-    bool DropPrimaryKey;
-
 public:
-    TConcatenateTablesList(bool dropPrimaryKey)
-        : DropPrimaryKey(dropPrimaryKey)
+    TConcatenateTablesList()
     {}
 
     static std::string GetName()
@@ -222,9 +219,7 @@ private:
     {
         auto tables = FetchClickHouseTables(queryContext, tablePaths);
 
-        return CreateStorageConcat(
-            std::move(tables),
-            DropPrimaryKey);
+        return CreateStorageConcat(std::move(tables));
     }
 };
 
@@ -240,14 +235,9 @@ class TListFilterAndConcatenateTables
 private:
     Poco::Logger* Logger;
 
-    bool DropPrimaryKey;
-
 public:
-    TListFilterAndConcatenateTables(
-        Poco::Logger* logger,
-        bool dropPrimaryKey)
+    TListFilterAndConcatenateTables(Poco::Logger* logger)
         : Logger(logger)
-        , DropPrimaryKey(dropPrimaryKey)
     { }
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
@@ -325,7 +315,7 @@ private:
             throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
         }
 
-        return CreateStorageConcat(tables, DropPrimaryKey);
+        return CreateStorageConcat(tables);
     }
 };
 
@@ -335,10 +325,8 @@ class TConcatenateTablesRange
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRange(bool dropPrimaryKey)
-        : TListFilterAndConcatenateTables(
-            &Poco::Logger::get("ConcatYtTablesRange"),
-            dropPrimaryKey)
+    TConcatenateTablesRange()
+        : TListFilterAndConcatenateTables(&Poco::Logger::get("ConcatYtTablesRange"))
     { }
 
     static std::string GetName()
@@ -398,10 +386,9 @@ class TConcatenateTablesRegexp
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRegexp(bool dropPrimaryKey)
+    TConcatenateTablesRegexp()
         : TListFilterAndConcatenateTables(
-            &Poco::Logger::get("ConcatYtTablesRegexp"),
-            dropPrimaryKey)
+            &Poco::Logger::get("ConcatYtTablesRegexp"))
     {}
 
     static std::string GetName()
@@ -443,10 +430,8 @@ class TConcatenateTablesLike
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesLike(bool dropPrimaryKey)
-        : TListFilterAndConcatenateTables(
-            &Poco::Logger::get("ConcatYtTablesLike"),
-            dropPrimaryKey)
+    TConcatenateTablesLike()
+        : TListFilterAndConcatenateTables(&Poco::Logger::get("ConcatYtTablesLike"))
     {}
 
     static std::string GetName()
@@ -488,15 +473,12 @@ void RegisterConcatenatingTableFunctions()
 {
     auto& factory = TableFunctionFactory::instance();
 
+    // TODO(max42): simplify.
 #define REGISTER_TABLE_FUNCTION(TFunction) \
     factory.registerFunction( \
         TFunction::GetName(), \
-        [=] { return std::make_shared<TFunction>(false); } \
+        [=] { return std::make_shared<TFunction>(); } \
         ); \
-    factory.registerFunction( \
-        TFunction::GetName() + "DropPrimaryKey", \
-        [=] { return std::make_shared<TFunction>(true); } \
-        );
 
     REGISTER_TABLE_FUNCTION(TConcatenateTablesList);
     REGISTER_TABLE_FUNCTION(TConcatenateTablesRange);

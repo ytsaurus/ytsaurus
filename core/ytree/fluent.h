@@ -204,7 +204,7 @@ public:
 
         TUnwrappedParent GetUnwrappedParent()
         {
-            YCHECK(!Unwrapped_);
+            YT_VERIFY(!Unwrapped_);
             Unwrapped_ = true;
             return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
@@ -472,7 +472,7 @@ public:
 
         TThis& Items(const NYson::TYsonString& attributes)
         {
-            YCHECK(attributes.GetType() == NYson::EYsonType::MapFragment);
+            YT_VERIFY(attributes.GetType() == NYson::EYsonType::MapFragment);
             this->Consumer->OnRaw(attributes);
             return *this;
         }
@@ -563,7 +563,7 @@ public:
 
         TThis& Items(const NYson::TYsonString& attributes)
         {
-            YCHECK(attributes.GetType() == NYson::EYsonType::MapFragment);
+            YT_VERIFY(attributes.GetType() == NYson::EYsonType::MapFragment);
             this->Consumer->OnRaw(attributes);
             return *this;
         }

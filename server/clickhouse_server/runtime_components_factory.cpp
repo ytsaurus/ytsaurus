@@ -24,13 +24,13 @@ public:
 
     std::unique_ptr<DB::IUsersManager> createUsersManager() override
     {
-        YCHECK(UsersManager_);
+        YT_VERIFY(UsersManager_);
         return std::move(UsersManager_);
     }
 
     std::unique_ptr<DB::IExternalLoaderConfigRepository> createExternalDictionariesConfigRepository() override
     {
-        YCHECK(DictionariesConfigRepository_);
+        YT_VERIFY(DictionariesConfigRepository_);
         return std::move(DictionariesConfigRepository_);
     }
 
@@ -41,7 +41,7 @@ public:
 
     std::unique_ptr<IGeoDictionariesLoader> createGeoDictionariesLoader() override
     {
-        YCHECK(GeoDictionariesLoader_);
+        YT_VERIFY(GeoDictionariesLoader_);
         return std::move(GeoDictionariesLoader_);
     }
 

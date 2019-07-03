@@ -1190,7 +1190,7 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
         time.sleep(0.2)
-        assert not exists("//tmp/t")
+        wait(lambda: not exists("//tmp/t"))
 
     def test_expiration_time_can_be_set_upon_construction2(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=10.0))})
@@ -1231,7 +1231,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/x/t")
         abort_transaction(tx)
         time.sleep(1)
-        assert not exists("//tmp/x/t")
+        wait(lambda: not exists("//tmp/x/t"))
 
     def test_expiration_time_wait_for_locks_released_recursive(self):
         create("map_node", "//tmp/m")
