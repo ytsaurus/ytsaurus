@@ -35,11 +35,13 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
-            });
+            })
+            ->SetExtensible();
 
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
@@ -62,7 +64,7 @@ public:
         const TObjectId& parentId,
         ISession* session) override
     {
-        YCHECK(!parentId);
+        YT_VERIFY(!parentId);
         return std::unique_ptr<TObject>(new TReplicaSet(id, this, session));
     }
 

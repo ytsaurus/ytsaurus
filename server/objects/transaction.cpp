@@ -21,6 +21,7 @@
 #include "group.h"
 #include "geometric_2d_set_cover.h"
 #include "type_info.h"
+#include "pod_disruption_budget.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -368,12 +369,12 @@ public:
         }
         auto getIndexesForId = [&] (const auto& id) {
             auto it = objectIdToIndexes.find(id);
-            YCHECK(it != objectIdToIndexes.end() && it->second.size() >= 1);
+            YT_VERIFY(it != objectIdToIndexes.end() && it->second.size() >= 1);
             return it->second;
         };
         auto copyResultsForDuplicateIds = [&] (const auto& indexes) {
             for (size_t i = 1; i < indexes.size(); ++i) {
-                YCHECK(!result.Objects[indexes[i]]);
+                YT_VERIFY(!result.Objects[indexes[i]]);
                 result.Objects[indexes[i]] = *result.Objects[indexes.front()];
             }
         };
@@ -482,7 +483,7 @@ public:
             const auto& indexes = getIndexesForId(object->GetId());
 
             auto& valueList = result.Objects[indexes.front()];
-            YCHECK(!valueList);
+            YT_VERIFY(!valueList);
             valueList.emplace();
 
             if (options.FetchValues) {
@@ -736,6 +737,11 @@ public:
         return GetTypedObject<TGroup>(id);
     }
 
+    TPodDisruptionBudget* GetPodDisruptionBudget(const TObjectId& id)
+    {
+        return GetTypedObject<TPodDisruptionBudget>(id);
+    }
+
 
     TFuture<TTransactionCommitResult> Commit()
     {
@@ -791,7 +797,7 @@ public:
                 }
 
                 const auto& underlyingResult = underlyingResultOrError.Value();
-                Y_ASSERT(underlyingResult.CommitTimestamps.Timestamps.size() <= 1);
+                YT_ASSERT(underlyingResult.CommitTimestamps.Timestamps.size() <= 1);
                 auto timestamp = underlyingResult.CommitTimestamps.Timestamps.empty()
                     ? GetStartTimestamp()
                     : underlyingResult.CommitTimestamps.Timestamps[0].second;
@@ -1035,7 +1041,7 @@ private:
                 auto [it, emplaced] = tableLookupSessions.emplace(
                     table,
                     TTableLookupSession{this, table, Logger});
-                YCHECK(emplaced);
+                YT_VERIFY(emplaced);
                 auto& tableLookupSession = it->second;
                 asyncResults.push_back(tableLookupSession.ExecuteRequests(lookupRequests));
             }
@@ -1070,7 +1076,7 @@ private:
 
             for (const auto& [table, lookupRequests] : LookupRequestsPerTable_) {
                 auto it = tableLookupSessions.find(table);
-                YCHECK(it != tableLookupSessions.end());
+                YT_VERIFY(it != tableLookupSessions.end());
                 const auto& lookupSession = it->second;
 
                 for (const auto& lookupRequest : lookupRequests) {
@@ -1131,7 +1137,7 @@ private:
 
             TFuture<void> ExecuteRequests(const std::vector<TLookupRequest>& requests)
             {
-                YCHECK(State_ == ETransactionTableLookupSessionState::Initialized);
+                YT_VERIFY(State_ == ETransactionTableLookupSessionState::Initialized);
                 State_ = ETransactionTableLookupSessionState::Requested;
 
                 auto transaction = Owner_->Transaction_;
@@ -1196,21 +1202,21 @@ private:
 
             void ParseResults()
             {
-                YCHECK(State_ == ETransactionTableLookupSessionState::Requested);
+                YT_VERIFY(State_ == ETransactionTableLookupSessionState::Requested);
                 State_ = ETransactionTableLookupSessionState::ParsedResults;
 
                 YT_LOG_DEBUG("Parsing lookup session results (Path: %v)", TablePath_);
 
                 for (const auto& rectangleRequest : RectangleRequests_) {
-                    YCHECK(rectangleRequest.AsyncResult.IsSet());
+                    YT_VERIFY(rectangleRequest.AsyncResult.IsSet());
                     const auto& result = rectangleRequest.AsyncResult.Get().Value();
 
                     auto rows = result->GetRows();
-                    YCHECK(rows.Size() == rectangleRequest.Keys.size());
+                    YT_VERIFY(rows.Size() == rectangleRequest.Keys.size());
 
                     // Value.Id is actually a position in the rectangle request column filter.
                     auto getFieldIdByValueId = [&rectangleRequest] (int valueId) {
-                        YCHECK(0 <= valueId &&
+                        YT_VERIFY(0 <= valueId &&
                             valueId < static_cast<int>(rectangleRequest.FieldIds.size()));
                         return rectangleRequest.FieldIds[valueId];
                     };
@@ -1275,7 +1281,7 @@ private:
             std::optional<SmallVector<TVersionedValue, TypicalFieldCountPerLookupRequest>> GetResult(
                 const TLookupRequest& request) const
             {
-                YCHECK(State_ == ETransactionTableLookupSessionState::ParsedResults);
+                YT_VERIFY(State_ == ETransactionTableLookupSessionState::ParsedResults);
 
                 auto resultIt = Results_.find(request.Key);
                 if (resultIt == Results_.end()) {
@@ -1395,8 +1401,8 @@ private:
             TRange<const TDBField*> fields,
             TRange<TUnversionedValue> values) override
         {
-            Y_ASSERT(key.Size() == table->Key.size());
-            Y_ASSERT(fields.Size() == values.Size());
+            YT_ASSERT(key.Size() == table->Key.size());
+            YT_ASSERT(fields.Size() == values.Size());
             WriteRequests_[table].push_back(TWriteRequest{
                 CaptureKey(key),
                 SmallVector<const TDBField*, 4>(fields.begin(), fields.end()),
@@ -1408,7 +1414,7 @@ private:
             const TDBTable* table,
             TRange<TUnversionedValue> key) override
         {
-            Y_ASSERT(key.Size() == table->Key.size());
+            YT_ASSERT(key.Size() == table->Key.size());
             DeleteRequests_[table].push_back(TDeleteRequest{
                 CaptureKey(key)
             });
@@ -1434,7 +1440,7 @@ private:
                     for (const auto* field : request.Fields) {
                         auto it = fieldToId.find(field);
                         if (it == fieldToId.end()) {
-                            YCHECK(fieldToId.emplace(field, nameTable->RegisterName(field->Name)).second);
+                            YT_VERIFY(fieldToId.emplace(field, nameTable->RegisterName(field->Name)).second);
                             idToField.push_back(field);
                         }
                     }
@@ -1601,10 +1607,10 @@ private:
             auto objectHolder = typeHandler->InstantiateObject(actualId, parentId, this);
             auto* object = objectHolder.get();
 
-            YCHECK(InstantiatedObjects_.emplace(key, std::move(objectHolder)).second);
+            YT_VERIFY(InstantiatedObjects_.emplace(key, std::move(objectHolder)).second);
             object->InitializeCreating();
 
-            YCHECK(CreatedObjects_.emplace(key, object).second);
+            YT_VERIFY(CreatedObjects_.emplace(key, object).second);
 
             typeHandler->BeforeObjectCreated(Owner_->Owner_, object);
 
@@ -1665,7 +1671,7 @@ private:
             Owner_->EnsureReadWrite();
 
             auto state = object->GetState();
-            YCHECK(state != EObjectState::Creating);
+            YT_VERIFY(state != EObjectState::Creating);
             if (state == EObjectState::Removing ||
                 state == EObjectState::Removed ||
                 state == EObjectState::CreatedRemoving ||
@@ -1742,7 +1748,7 @@ private:
 
         virtual void ScheduleLoad(TLoadCallback callback, int priority = ISession::DefaultLoadPriority) override
         {
-            Y_ASSERT(priority >= 0 && priority < LoadPriorityCount);
+            YT_ASSERT(priority >= 0 && priority < LoadPriorityCount);
             ScheduledLoads_[priority].push_back(std::move(callback));
         }
 
@@ -1889,7 +1895,7 @@ private:
 
                 if (typeHandler->GetParentType() != EObjectType::Null) {
                     auto parentId = object->GetParentId();
-                    YCHECK(parentId);
+                    YT_VERIFY(parentId);
 
                     context.WriteRow(
                         &ParentsTable,
@@ -2088,14 +2094,14 @@ private:
     {
         auto nameTable = New<TNameTable>();
         for (int index = 0; index < static_cast<int>(table->Key.size()); ++index) {
-            YCHECK(nameTable->RegisterName(table->Key[index]->Name) == index);
+            YT_VERIFY(nameTable->RegisterName(table->Key[index]->Name) == index);
         }
         return nameTable;
     }
 
     void EnsureReadWrite()
     {
-        Y_ASSERT(UnderlyingTransaction_);
+        YT_ASSERT(UnderlyingTransaction_);
     }
 
 
@@ -2170,10 +2176,10 @@ private:
                     }
                 } else {
                     if (schema->GetMandatory()) {
-                        YCHECK(UnmatchedMandatoryAttributes_.insert(schema).second);
+                        YT_VERIFY(UnmatchedMandatoryAttributes_.insert(schema).second);
                     }
                     if (schema->HasInitializer()) {
-                        YCHECK(PendingInitializerAttributes_.insert(schema).second);
+                        YT_VERIFY(PendingInitializerAttributes_.insert(schema).second);
                     }
                 }
             }
@@ -2229,7 +2235,7 @@ private:
                         });
                     }
                     if (schema->GetMandatory()) {
-                        YCHECK(UnmatchedMandatoryAttributes_.erase(schema) == 1);
+                        YT_VERIFY(UnmatchedMandatoryAttributes_.erase(schema) == 1);
                     }
                 }
             }
@@ -2483,7 +2489,7 @@ private:
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
     {
-        YCHECK(request.Path.Empty());
+        YT_VERIFY(request.Path.Empty());
 
         if (request.Value->GetType() != ENodeType::Map) {
             THROW_ERROR_EXCEPTION("Attribute %v cannot be updated from %Qlv values",
@@ -2644,9 +2650,9 @@ private:
         TObject* object)
     {
         if (resolveResult.Attribute->IsComposite()) {
-            YCHECK(resolveResult.SuffixPath.empty());
+            YT_VERIFY(resolveResult.SuffixPath.empty());
             auto considerChild = [&] (auto* child) {
-                GetAttributeTimestamp(TResolveResult{child, TYPath()}, transaction, object);
+                PregetAttributeTimestamp(TResolveResult{child, TYPath()}, transaction, object);
             };
             for (const auto& [key, child] : resolveResult.Attribute->KeyToChild()) {
                 considerChild(child);
@@ -2665,7 +2671,7 @@ private:
         TObject* object)
     {
         if (resolveResult.Attribute->IsComposite()) {
-            YCHECK(resolveResult.SuffixPath.empty());
+            YT_VERIFY(resolveResult.SuffixPath.empty());
             auto result = NullTimestamp;
             auto considerChild = [&] (auto* child) {
                 result = std::max(result, GetAttributeTimestamp(TResolveResult{child, TYPath()}, transaction, object));
@@ -2680,9 +2686,7 @@ private:
         } else if (resolveResult.Attribute->HasTimestampGetter()) {
             return resolveResult.Attribute->RunTimestampGetter(transaction, object, resolveResult.SuffixPath);
         } else {
-            THROW_ERROR_EXCEPTION("Cannot compute timestamp for %v attribute %v",
-                GetHumanReadableTypeName(object->GetType()),
-                resolveResult.Attribute->GetPath());
+            return NullTimestamp;
         }
     }
 
@@ -2902,6 +2906,11 @@ TUser* TTransaction::GetUser(const TObjectId& id)
 TGroup* TTransaction::GetGroup(const TObjectId& id)
 {
     return Impl_->GetGroup(id);
+}
+
+TPodDisruptionBudget* TTransaction::GetPodDisruptionBudget(const TObjectId& id)
+{
+    return Impl_->GetPodDisruptionBudget(id);
 }
 
 TFuture<TTransactionCommitResult> TTransaction::Commit()

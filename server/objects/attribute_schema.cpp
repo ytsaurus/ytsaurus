@@ -1,5 +1,6 @@
 #include "attribute_schema.h"
 #include "type_handler.h"
+#include "object_manager.h"
 #include "helpers.h"
 #include "type_info.h"
 
@@ -248,8 +249,10 @@ TAttributeSchema* TAttributeSchema::SetControlAttribute()
 
 TAttributeSchema::TAttributeSchema(
     IObjectTypeHandler* typeHandler,
+    TObjectManager* objectManager,
     const TString& name)
     : TypeHandler_(typeHandler)
+    , ObjectManager_(objectManager)
     , Name_(name)
 { }
 
@@ -312,15 +315,36 @@ TAttributeSchema* TAttributeSchema::GetParent() const
 
 void TAttributeSchema::SetParent(TAttributeSchema* parent)
 {
-    YCHECK(!Parent_);
+    YT_VERIFY(!Parent_);
     Parent_ = parent;
 }
 
 TAttributeSchema* TAttributeSchema::SetComposite()
 {
-    YCHECK(!Etc_);
+    YT_VERIFY(!Etc_);
     Composite_ = true;
     return this;
+}
+
+TAttributeSchema* TAttributeSchema::SetExtensible()
+{
+    Extensible_ = true;
+    return this;
+}
+
+bool TAttributeSchema::IsExtensible() const
+{
+    if (!ObjectManager_->AreExtensibleAttributesEnabled()) {
+        return false;
+    }
+    const auto* current = this;
+    while (current) {
+        if (current->Extensible_) {
+            return true;
+        }
+        current = current->GetParent();
+    }
+    return false;
 }
 
 void TAttributeSchema::AddChild(TAttributeSchema* child)
@@ -328,10 +352,10 @@ void TAttributeSchema::AddChild(TAttributeSchema* child)
     SetComposite();
     child->SetParent(this);
     if (child->IsEtc()) {
-        YCHECK(!EtcChild_);
+        YT_VERIFY(!EtcChild_);
         EtcChild_ = child;
     } else {
-        YCHECK(KeyToChild_.emplace(child->GetName(), child).second);
+        YT_VERIFY(KeyToChild_.emplace(child->GetName(), child).second);
     }
 }
 
@@ -593,18 +617,6 @@ void TAttributeSchema::InitExpressionBuilder(const TDBField* field, TPathValidat
             }
 
             return expr;
-        };
-}
-
-void TAttributeSchema::InitNullTimestampGetter()
-{
-    TimestampGetter_ =
-        [=] (
-            TTransaction* /*transaction*/,
-            TObject* /*object*/,
-            const TYPath& /*path*/)
-        {
-            return NullTimestamp;
         };
 }
 

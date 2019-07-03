@@ -35,11 +35,13 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TMultiClusterReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
-            });
+            })
+            ->SetExtensible();
 
         StatusAttributeSchema_
             ->SetAttribute(TMultiClusterReplicaSet::StatusSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override

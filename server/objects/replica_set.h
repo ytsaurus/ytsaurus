@@ -36,13 +36,13 @@ public:
         using TAccountAttribute = TManyToOneAttribute<TReplicaSet, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        using TEtc = TExtensibleProto<NProto::TReplicaSetSpecEtc>;
+        using TEtc = NProto::TReplicaSetSpecEtc;
         static const TScalarAttributeSchema<TReplicaSet, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    using TStatus = TExtensibleProto<NYP::NClient::NApi::NProto::TReplicaSetStatus>;
+    using TStatus = NYP::NClient::NApi::NProto::TReplicaSetStatus;
     static const TScalarAttributeSchema<TReplicaSet, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };

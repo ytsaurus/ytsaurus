@@ -81,6 +81,12 @@ class TestReplicaSets(object):
         yp_client.update_object("replica_set", rs_id, remove_updates=[{"path": "/spec/hello"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/hello"])[0] == YsonEntity()
 
+        yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/spec/pod_template_spec/labels", "value": {"key": "value"}, "recursive": True}])
+        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/labels/key"])[0] == "value"
+
+        yp_client.update_object("replica_set", rs_id, remove_updates=[{"path": "/spec/pod_template_spec/labels"}])
+        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/labels/key"])[0] == YsonEntity()
+
 
     def test_extensible_status(self, yp_env):
         yp_client = yp_env.yp_client

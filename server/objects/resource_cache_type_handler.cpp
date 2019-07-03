@@ -23,11 +23,13 @@ public:
             });
 
         SpecAttributeSchema_
-            ->SetAttribute(TResourceCache::SpecSchema);
+            ->SetAttribute(TResourceCache::SpecSchema)
+            ->SetExtensible();
 
         StatusAttributeSchema_
             ->SetAttribute(TResourceCache::StatusSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override

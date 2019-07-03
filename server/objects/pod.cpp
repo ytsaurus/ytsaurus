@@ -3,6 +3,7 @@
 #include "node.h"
 #include "node_segment.h"
 #include "account.h"
+#include "pod_disruption_budget.h"
 #include "db_schema.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
@@ -171,6 +172,36 @@ void TPod::UpdateEvictionStatus(
     eviction->set_reason(static_cast<NClient::NApi::NProto::EEvictionReason>(reason));
     eviction->set_message(message);
     eviction->set_last_updated(ToProto<ui64>(TInstant::Now()));
+}
+
+TPodDisruptionBudget* TPod::GetDisruptionBudget()
+{
+    auto* podSet = PodSet().Load();
+    // Sanity check.
+    podSet->ValidateExists();
+    auto* podDisruptionBudget = podSet->Spec().PodDisruptionBudget().Load();
+    if (podDisruptionBudget) {
+        // Sanity check.
+        podDisruptionBudget->ValidateExists();
+    }
+    return podDisruptionBudget;
+}
+
+void TPod::RequestEviction(
+    EEvictionReason reason,
+    const TString& message,
+    bool validateDisruptionBudget)
+{
+    if (auto* disruptionBudget = GetDisruptionBudget()) {
+        disruptionBudget->AcceptDisruption(
+            Format("request pod %Qv eviction", GetId()),
+            Format("pod %Qv eviction request", GetId()),
+            validateDisruptionBudget);
+    }
+    UpdateEvictionStatus(
+        EEvictionState::Requested,
+        reason,
+        message);
 }
 
 void TPod::UpdateSchedulingStatus(

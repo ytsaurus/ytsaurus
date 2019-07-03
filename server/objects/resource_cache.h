@@ -29,11 +29,11 @@ public:
     using TPodSetAttribute = TParentAttribute<TPodSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSetAttribute, PodSet);
 
-    using TSpec = TExtensibleProto<NYP::NClient::NApi::NProto::TResourceCacheSpec>;
+    using TSpec = NYP::NClient::NApi::NProto::TResourceCacheSpec;
     static const TScalarAttributeSchema<TResourceCache, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
-    using TStatus = TExtensibleProto<NYP::NClient::NApi::NProto::TResourceCacheStatus>;
+    using TStatus = NYP::NClient::NApi::NProto::TResourceCacheStatus;
     static const TScalarAttributeSchema<TResourceCache, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };

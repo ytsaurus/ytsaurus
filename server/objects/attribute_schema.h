@@ -33,6 +33,7 @@ class TAttributeSchema
 public:
     TAttributeSchema(
         IObjectTypeHandler* typeHandler,
+        TObjectManager* objectManager,
         const TString& name);
 
     TAttributeSchema* SetOpaque();
@@ -48,6 +49,9 @@ public:
 
     TAttributeSchema* SetComposite();
     bool IsComposite() const;
+
+    TAttributeSchema* SetExtensible();
+    bool IsExtensible() const;
 
     TAttributeSchema* SetMandatory();
     bool GetMandatory() const;
@@ -188,6 +192,7 @@ public:
 
 private:
     IObjectTypeHandler* const TypeHandler_;
+    TObjectManager* const ObjectManager_;
     const TString Name_;
 
     THashMap<TString, TAttributeSchema*> KeyToChild_;
@@ -208,6 +213,7 @@ private:
     std::function<TTimestamp(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> TimestampGetter_;
 
     bool Composite_ = false;
+    bool Extensible_ = false;
     bool Mandatory_ = false;
     bool Updatable_ = false;
     bool Annotations_ = false;
@@ -225,7 +231,6 @@ private:
     void InitValueSetter(const TSchema& schema);
     template <class TTypedObject, class TSchema>
     void InitTimestampGetter(const TSchema& schema);
-    void InitNullTimestampGetter();
     template <class TTypedObject, class TTypedValue, class TSchema>
     void InitInitializer(const TSchema& schema);
     template <class TTypedObject, class TTypedValue, class TSchema>

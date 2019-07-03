@@ -40,6 +40,7 @@ public:
     TDuration RemovedObjectsSweepPeriod;
     TDuration RemovedObjectsGraceTimeout;
     TPodTypeHandlerConfigPtr PodTypeHandler;
+    bool EnableExtensibleAttributes;
 
     TObjectManagerConfig()
     {
@@ -49,6 +50,8 @@ public:
             .Default(TDuration::Hours(24));
         RegisterParameter("pod_type_handler", PodTypeHandler)
             .DefaultNew();
+        RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
+            .Default(false);
     }
 };
 

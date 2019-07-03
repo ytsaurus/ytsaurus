@@ -107,7 +107,7 @@ bool TObject::DoesExist() const
         case EObjectState::CreatedRemoved:
             return false;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -124,7 +124,7 @@ bool TObject::DidExist() const
         case EObjectState::CreatedRemoved:
             return false;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

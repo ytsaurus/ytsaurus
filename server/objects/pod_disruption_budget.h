@@ -46,6 +46,11 @@ public:
     void FreezeUntilSync(const TString& message);
 
     void UpdateStatus(i32 allowedPodDisruptions, const TString& message);
+
+    void AcceptDisruption(
+        const TString& disruptionVerb,
+        const TString& disruption,
+        bool validate);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

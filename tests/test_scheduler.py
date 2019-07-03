@@ -660,7 +660,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 ),
             ],
         )
-        status_check = partial(self._error_status_check, "IP6Address")
+        status_check = partial(self._error_status_check, "IP6AddressIP4Tunnel")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_ip6_address_vlan_scheduling_error(self, yp_env_configurable):
@@ -674,7 +674,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 ),
             ],
         )
-        status_check = partial(self._error_status_check, "IP6Address")
+        status_check = partial(self._error_status_check, "IP6AddressVlan")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_ip6_subnet_vlan_scheduling_error(self, yp_env_configurable):

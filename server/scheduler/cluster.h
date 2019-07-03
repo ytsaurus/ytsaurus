@@ -38,6 +38,12 @@ public:
 
     TNetworkModule* FindNetworkModule(const TObjectId& id);
 
+    std::vector<TPodSet*> GetPodSets();
+
+    std::vector<TPodDisruptionBudget*> GetPodDisruptionBudgets();
+
+    NObjects::TTimestamp GetSnapshotTimestamp() const;
+
     void LoadSnapshot();
 
 private:

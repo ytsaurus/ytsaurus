@@ -17,6 +17,48 @@ namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EAllocatorResourceType,
+    (AntiaffinityVacancy)
+    (Cpu)
+    (Memory)
+    (Disk)
+    (IP6AddressVlan)
+    (IP6AddressIP4Tunnel)
+    (IP6Subnet)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGlobalResourceAllocatorStatistics
+{
+public:
+    void RegisterUnsatisfiedResource(EAllocatorResourceType resourceType)
+    {
+        ++UnsatisfiedResourceCounts_[resourceType];
+    }
+
+    const TEnumIndexedVector<int, EAllocatorResourceType>& GetUnsatisfiedResourceCounts() const
+    {
+        return UnsatisfiedResourceCounts_;
+    }
+
+private:
+    TEnumIndexedVector<int, EAllocatorResourceType> UnsatisfiedResourceCounts_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TGlobalResourceAllocatorStatistics& statistics,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat("UnsatisfiedResourceCounts: %v",
+        statistics.GetUnsatisfiedResourceCounts());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInternetAddressAllocationContext
 {
 public:
@@ -49,8 +91,8 @@ private:
     void ReleaseAddresses()
     {
         if (AllocationSize_ > 0) {
-            YCHECK(NetworkModule_);
-            YCHECK(NetworkModule_->AllocatedInternetAddressCount() >= AllocationSize_);
+            YT_VERIFY(NetworkModule_);
+            YT_VERIFY(NetworkModule_->AllocatedInternetAddressCount() >= AllocationSize_);
             NetworkModule_->AllocatedInternetAddressCount() -= AllocationSize_;
             AllocationSize_ = 0;
         }
@@ -58,7 +100,7 @@ private:
 
     bool TryAcquireAddresses(int allocationSize)
     {
-        YCHECK(allocationSize >= 0);
+        YT_VERIFY(allocationSize >= 0);
 
         if (allocationSize == 0) {
             return true;
@@ -93,18 +135,24 @@ public:
         , InternetAddressAllocationContext_(cluster->FindNetworkModule(node->Spec().network_module_id()))
     { }
 
-    bool TryAcquireIP6Addresses()
+    bool TryAcquireIP6Addresses(TGlobalResourceAllocatorStatistics* statistics)
     {
+        bool result = true;
         int internetAddressCount = 0;
         for (const auto& addressRequest : Pod_->SpecEtc().ip6_address_requests()) {
-            if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id())) {
-                return false;
+            if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id()) && result) {
+                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressVlan);
+                result = false;
             }
             if (addressRequest.enable_internet()) {
                 ++internetAddressCount;
             }
         }
-        return InternetAddressAllocationContext_.TryAllocate(internetAddressCount);
+        if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount)) {
+            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressIP4Tunnel);
+            result = false;
+        }
+        return result;
     }
 
     bool TryAcquireIP6Subnets()
@@ -146,49 +194,6 @@ private:
     TInternetAddressAllocationContext InternetAddressAllocationContext_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EAllocatorResourceType,
-    (AntiaffinityVacancy)
-    (Cpu)
-    (Memory)
-    (Disk)
-    (IP6Address)
-    (IP6Subnet)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TGlobalResourceAllocatorStatistics
-{
-public:
-    void RegisterUnsatisfiedResource(EAllocatorResourceType resourceType)
-    {
-        ++UnsatisfiedResourceCounts_[resourceType];
-    }
-
-    const TEnumIndexedVector<int, EAllocatorResourceType>& GetUnsatisfiedResourceCounts() const
-    {
-        return UnsatisfiedResourceCounts_;
-    }
-
-private:
-    TEnumIndexedVector<int, EAllocatorResourceType> UnsatisfiedResourceCounts_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(
-    TStringBuilderBase* builder,
-    const TGlobalResourceAllocatorStatistics& statistics,
-    TStringBuf /*format*/)
-{
-    builder->AppendFormat("UnsatisfiedResourceCounts: %v",
-        statistics.GetUnsatisfiedResourceCounts());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EAllocatorNodeSelectionStrategy,
     (Every)
     (Random)
@@ -222,7 +227,7 @@ public:
         const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
 
         const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());
-        YCHECK(allSegmentNodesOrError.IsOK());
+        YT_VERIFY(allSegmentNodesOrError.IsOK());
         const auto& allSegmentNodes = allSegmentNodesOrError.Value();
         if (allSegmentNodes.empty()) {
             return TError("No schedulable nodes in segment %Qv",
@@ -285,7 +290,7 @@ public:
                     statistics);
             }
             default:
-                Y_UNIMPLEMENTED();
+                YT_UNIMPLEMENTED();
         }
     }
 
@@ -349,9 +354,8 @@ private:
     {
         bool result = true;
 
-        if (!nodeAllocationContext->TryAcquireIP6Addresses()) {
+        if (!nodeAllocationContext->TryAcquireIP6Addresses(statistics)) {
             result = false;
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6Address);
         }
 
         if (!nodeAllocationContext->TryAcquireIP6Subnets()) {
@@ -425,7 +429,7 @@ public:
                 EAllocatorNodeSelectionStrategy::Every,
                 Config_->PodNodeScore))
     {
-        YCHECK(Config_->EveryNodeSelectionStrategy->Enable);
+        YT_VERIFY(Config_->EveryNodeSelectionStrategy->Enable);
     }
 
     virtual void ReconcileState(const TClusterPtr& cluster) override
@@ -464,7 +468,7 @@ public:
             PodComputeAllocationHistory_.size());
 
         for (const auto& podId : expiredPodIds) {
-            YCHECK(PodComputeAllocationHistory_.erase(podId));
+            YT_VERIFY(PodComputeAllocationHistory_.erase(podId));
         }
 
         YT_LOG_DEBUG("State of the global resource allocator reconciled");
@@ -494,7 +498,7 @@ public:
         }
 
         if (nodeOrError.IsOK()) {
-            YCHECK(PodComputeAllocationHistory_.erase(pod->GetId()));
+            YT_VERIFY(PodComputeAllocationHistory_.erase(pod->GetId()));
             return nodeOrError;
         }
 
@@ -554,7 +558,7 @@ private:
         } else {
             const auto& history = it->second;
 
-            YCHECK(history->Uuid == pod->MetaEtc().uuid());
+            YT_VERIFY(history->Uuid == pod->MetaEtc().uuid());
         }
         return it->second.get();
     }

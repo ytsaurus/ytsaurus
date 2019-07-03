@@ -306,7 +306,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
             result.emplace_back("hostname", podStatusEtc.dns().persistent_fqdn());
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     std::vector<TString> netTokens;
@@ -361,7 +361,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
             result.emplace_back("oom_is_fatal", "false");
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     // Sysctl properties

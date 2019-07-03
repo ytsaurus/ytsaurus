@@ -102,7 +102,7 @@ const TDBField* TObjectTypeHandlerBase::GetParentIdField()
 
 TChildrenAttributeBase* TObjectTypeHandlerBase::GetParentChildrenAttribute(TObject* /*parent*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TObjectId TObjectTypeHandlerBase::GetSchemaObjectId()
@@ -189,7 +189,7 @@ void TObjectTypeHandlerBase::AfterObjectRemoved(
 TAttributeSchema* TObjectTypeHandlerBase::MakeAttributeSchema(
     const TString& name)
 {
-    auto schemaHolder = std::make_unique<TAttributeSchema>(this, name);
+    auto schemaHolder = std::make_unique<TAttributeSchema>(this, Bootstrap_->GetObjectManager().Get(), name);
     auto* schema = schemaHolder.get();
     AttributeSchemas_.push_back(std::move(schemaHolder));
     return schema;

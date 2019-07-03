@@ -256,7 +256,7 @@ void BuildProtoResourceAllocation(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -340,7 +340,7 @@ NClient::NApi::NProto::TResourceStatus_TAllocationStatistics ResourceCapacitiesT
             result.mutable_memory()->set_capacity(GetMemoryCapacity(capacities));
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     return result;
 }
@@ -507,7 +507,7 @@ void UpdatePodDiskVolumeAllocations(
         auto* volumeAllocation = newAllocations.Add();
         if (response.ExistingAllocation) {
             auto it = idToAllocation.find(volumeRequest.id());
-            YCHECK(it != idToAllocation.end());
+            YT_VERIFY(it != idToAllocation.end());
             volumeAllocation->CopyFrom(*it->second);
         } else {
             volumeAllocation->set_id(volumeRequest.id());
@@ -603,7 +603,7 @@ void UpdateScheduledResourceAllocations(
                     break;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     }

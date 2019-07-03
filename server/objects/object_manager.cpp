@@ -104,7 +104,7 @@ public:
     IObjectTypeHandler* GetTypeHandler(EObjectType type)
     {
         auto* typeHandler = FindTypeHandler(type);
-        YCHECK(typeHandler);
+        YT_VERIFY(typeHandler);
         return typeHandler;
     }
 
@@ -127,6 +127,12 @@ public:
             : nullptr;
     }
 
+
+    bool AreExtensibleAttributesEnabled()
+    {
+        return Config_->EnableExtensibleAttributes;
+    }
+
 private:
     TBootstrap* const Bootstrap_;
     const TObjectManagerConfigPtr Config_;
@@ -140,7 +146,7 @@ private:
     void RegisterTypeHandler(std::unique_ptr<IObjectTypeHandler> handler)
     {
         auto type = handler->GetType();
-        YCHECK(!TypeHandlers_[type]);
+        YT_VERIFY(!TypeHandlers_[type]);
         TypeHandlers_[type] = std::move(handler);
     }
 
@@ -333,6 +339,11 @@ IObjectTypeHandler* TObjectManager::GetTypeHandlerOrThrow(EObjectType type)
 IObjectTypeHandler* TObjectManager::FindTypeHandler(EObjectType type)
 {
     return Impl_->FindTypeHandler(type);
+}
+
+bool TObjectManager::AreExtensibleAttributesEnabled()
+{
+    return Impl_->AreExtensibleAttributesEnabled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,7 +49,7 @@ public:
         const TObjectId& parentId,
         ISession* session) override
     {
-        YCHECK(!parentId);
+        YT_VERIFY(!parentId);
         return std::unique_ptr<TObject>(new TNodeSegment(id, this, session));
     }
 

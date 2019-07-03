@@ -14,8 +14,6 @@
 
 #include <yt/core/net/public.h>
 
-#include <yt/core/ytree/helpers.h>
-
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,8 +105,6 @@ struct ISession
     virtual void FlushLoads() = 0;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectExistenceChecker
 {
 public:
@@ -129,8 +125,6 @@ private:
     void StoreToDB(IStoreContext* context);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectTombstoneChecker
 {
 public:
@@ -149,8 +143,6 @@ private:
     void LoadFromDB(ILoadContext* context);
     void StoreToDB(IStoreContext* context);
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TAttributeBase
     : public IPersistentAttribute
@@ -179,8 +171,6 @@ private:
     bool StoreScheduled_ = false;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TParentIdAttribute
     : public TAttributeBase
 {
@@ -199,8 +189,6 @@ private:
     virtual void LoadFromDB(ILoadContext* context) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
 class TParentAttribute
 {
@@ -213,8 +201,6 @@ public:
 private:
     TObject* const Owner_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TChildrenAttributeBase
     : public TAttributeBase
@@ -241,8 +227,6 @@ protected:
     virtual void LoadFromDB(ILoadContext* context) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
 class TChildrenAttribute
     : public TChildrenAttributeBase
@@ -255,8 +239,6 @@ public:
 private:
     virtual EObjectType GetChildrenType() const override;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct TScalarAttributeSchemaBase
 {
@@ -304,8 +286,6 @@ protected:
     virtual void LoadOldValue(const NTableClient::TVersionedValue& value, ILoadContext* context) = 0;
     virtual void StoreNewValue(NTableClient::TUnversionedValue* dbValue, IStoreContext* context) = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedObject, class TTypedValue>
 struct TScalarAttributeSchema
@@ -381,8 +361,6 @@ private:
     virtual void StoreNewValue(NTableClient::TUnversionedValue* dbValue, IStoreContext* context) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 using TTimestampAttributeSchema = TScalarAttributeSchemaBase;
 
 class TTimestampAttribute
@@ -406,8 +384,6 @@ private:
     virtual void LoadOldValue(const NTableClient::TVersionedValue& value, ILoadContext* context) override;
     virtual void StoreNewValue(NTableClient::TUnversionedValue* dbValue, IStoreContext* context) override;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class TMany, class TOne>
 struct TManyToOneAttributeSchema
@@ -468,8 +444,6 @@ private:
 
     virtual void OnObjectRemoved() override;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct TOneToManyAttributeSchemaBase
 {
@@ -557,8 +531,6 @@ private:
     virtual void OnObjectRemoved() override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TAnnotationsAttribute
     : public TAttributeBase
 {
@@ -597,59 +569,6 @@ private:
     virtual void OnObjectCreated() override;
     virtual void OnObjectRemoved() override;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TExtensibleProtoTag
-{ };
-
-template <class T>
-class TExtensibleProto
-    : public TExtensibleProtoTag
-{
-public:
-    using TKnownAttributes = T;
-
-    TExtensibleProto() = default;
-
-    TExtensibleProto(const TExtensibleProto& other);
-    TExtensibleProto(TExtensibleProto&& other);
-
-    TExtensibleProto(
-        T&& knownAttributes,
-        std::unique_ptr<NYTree::IAttributeDictionary>&& unknownAttributes);
-
-    T& KnownAttributes();
-    const T& KnownAttributes() const;
-
-    NYTree::IAttributeDictionary& UnknownAttributes();
-    const NYTree::IAttributeDictionary& UnknownAttributes() const;
-
-    TExtensibleProto& operator = (const TExtensibleProto& other);
-    TExtensibleProto& operator = (TExtensibleProto&& other);
-
-private:
-    T KnownAttributes_;
-    std::unique_ptr<NYTree::IAttributeDictionary> UnknownAttributes_;
-};
-
-template <class T>
-void Serialize(const TExtensibleProto<T>& proto, NYson::IYsonConsumer* consumer);
-template <class T>
-void Deserialize(TExtensibleProto<T>& proto, const NYTree::INodePtr& node);
-
-template <class T>
-void ToUnversionedValue(
-    NYT::NTableClient::TUnversionedValue* unversionedValue,
-    const T& value,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id = 0,
-    typename std::enable_if<std::is_convertible<T*, TExtensibleProtoTag*>::value, void>::type* = nullptr);
-template <class T>
-void FromUnversionedValue(
-    T* value,
-    NYT::NTableClient::TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<T*, TExtensibleProtoTag*>::value, void>::type* = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,11 +11,13 @@ TPodSet::TPodSet(
     TYsonString labels,
     TNodeSegment* nodeSegment,
     TAccount* account,
+    TPodDisruptionBudget* podDisruptionBudget,
     std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> antiaffinityConstraints,
     TString nodeFilter)
     : TObject(id, std::move(labels))
     , NodeSegment_(nodeSegment)
     , Account_(account)
+    , PodDisruptionBudget_(podDisruptionBudget)
     , AntiaffinityConstraints_(std::move(antiaffinityConstraints))
     , NodeFilter_(std::move(nodeFilter))
 { }

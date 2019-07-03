@@ -14,21 +14,12 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ytree/tree_visitor.h>
-
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
-
 namespace NYP::NServer::NObjects {
 
 using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NQueryClient::NAst;
 using namespace NYT::NYson;
-using namespace NYT::NYTree;
-using namespace NYT::NYPath;
-
-using namespace google::protobuf;
-using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,16 +83,16 @@ bool TObjectExistenceChecker::Check() const
         ScheduleCheck();
         Object_->GetSession()->FlushLoads();
     }
-    Y_ASSERT(Checked_);
+    YT_ASSERT(Checked_);
     return Exists_;
 }
 
 void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
 {
-    Y_ASSERT(!Checked_);
+    YT_ASSERT(!Checked_);
 
     auto lookupHandler = [&] (const std::optional<TRange<NYT::NTableClient::TVersionedValue>>& optionalValues) {
-        Y_ASSERT(!Checked_);
+        YT_ASSERT(!Checked_);
         Checked_ = true;
         auto* typeHandler = Object_->GetTypeHandler();
         if (typeHandler->GetParentType() == EObjectType::Null) {
@@ -138,7 +129,7 @@ void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
 
 void TObjectExistenceChecker::StoreToDB(IStoreContext* /*context*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,13 +157,13 @@ bool TObjectTombstoneChecker::Check() const
         ScheduleCheck();
         Object_->GetSession()->FlushLoads();
     }
-    Y_ASSERT(Checked_);
+    YT_ASSERT(Checked_);
     return Tombstone_;
 }
 
 void TObjectTombstoneChecker::LoadFromDB(ILoadContext* /* context */)
 {
-    Y_ASSERT(!Checked_);
+    YT_ASSERT(!Checked_);
 
     Object_->GetSession()->ScheduleLoad(
         [=] (ILoadContext* context) {
@@ -186,7 +177,7 @@ void TObjectTombstoneChecker::LoadFromDB(ILoadContext* /* context */)
                     // Not actually used, just for better diagnostics.
                     &TombstonesTable.Fields.RemovalTime),
                 [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
-                    Y_ASSERT(!Checked_);
+                    YT_ASSERT(!Checked_);
                     Checked_ = true;
                     Tombstone_ = optionalValues.operator bool();
                 });
@@ -195,7 +186,7 @@ void TObjectTombstoneChecker::LoadFromDB(ILoadContext* /* context */)
 
 void TObjectTombstoneChecker::StoreToDB(IStoreContext* /*context*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,7 +263,7 @@ const TObjectId& TParentIdAttribute::GetId() const
 
     if (!ParentId_ && !Missing_) {
         Owner_->GetSession()->FlushLoads();
-        Y_ASSERT(ParentId_ || Missing_);
+        YT_ASSERT(ParentId_ || Missing_);
     }
 
     if (Missing_) {
@@ -288,8 +279,8 @@ const TObjectId& TParentIdAttribute::GetId() const
 
 void TParentIdAttribute::LoadFromDB(ILoadContext* context)
 {
-    Y_ASSERT(!ParentId_);
-    Y_ASSERT(!Missing_);
+    YT_ASSERT(!ParentId_);
+    YT_ASSERT(!Missing_);
 
     context->ScheduleLookup(
         &ParentsTable,
@@ -300,7 +291,7 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
         MakeArray(&ParentsTable.Fields.ParentId),
         [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
             if (optionalValues) {
-                Y_ASSERT(optionalValues->Size() == 1);
+                YT_ASSERT(optionalValues->Size() == 1);
                 try {
                     FromUnversionedValue(&ParentId_, (*optionalValues)[0]);
                     YT_LOG_DEBUG("Object parent resolved (ObjectId: %v, ObjectType: %v, ParentId: %v)",
@@ -373,12 +364,12 @@ void TChildrenAttributeBase::LoadFromDB(ILoadContext* context)
             FormatLiteralValue(Owner_->GetId()),
             FormatId(ObjectsTable.Fields.Meta_RemovalTime.Name)),
         [=] (const IUnversionedRowsetPtr& rowset) {
-            Y_ASSERT(!Children_);
+            YT_ASSERT(!Children_);
             auto rows = rowset->GetRows();
             Children_.emplace();
             Children_->reserve(rows.Size());
             for (auto row : rows) {
-                Y_ASSERT(row.GetCount() == 1);
+                YT_ASSERT(row.GetCount() == 1);
                 auto childId = FromUnversionedValue<TObjectId>(row[0]);
                 auto* child = Owner_->GetSession()->GetObject(GetChildrenType(), childId);
                 Children_->insert(child);
@@ -431,7 +422,7 @@ TTimestamp TScalarAttributeBase::LoadTimestamp() const
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -465,7 +456,7 @@ void TScalarAttributeBase::OnLoad() const
 void TScalarAttributeBase::OnStore()
 {
     auto ownerState = Owner_->GetState();
-    YCHECK(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
+    YT_VERIFY(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
 
     Owner_->ValidateExists();
 
@@ -496,7 +487,7 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
         MakeArray(Schema_->Field),
         [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
             if (optionalValues) {
-                Y_ASSERT(optionalValues->Size() == 1);
+                YT_ASSERT(optionalValues->Size() == 1);
                 try {
                     const auto& value = (*optionalValues)[0];
                     Timestamp_ = value.Timestamp;
@@ -573,7 +564,7 @@ TTimestampAttribute::operator TTimestamp() const
 void TTimestampAttribute::Touch()
 {
     auto ownerState = Owner_->GetState();
-    YCHECK(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
+    YT_VERIFY(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
 
     Owner_->ValidateExists();
 
@@ -649,12 +640,12 @@ void TOneToManyAttributeBase::LoadFromDB(ILoadContext* context)
             FormatId(Schema_->PrimaryKeyField->Name),
             FormatLiteralValue(Owner_->GetId())),
         [=] (const IUnversionedRowsetPtr& rowset) {
-            Y_ASSERT(!ForeignObjects_);
+            YT_ASSERT(!ForeignObjects_);
             auto rows = rowset->GetRows();
             ForeignObjects_.emplace();
             ForeignObjects_->reserve(rows.Size());
             for (auto row : rows) {
-                Y_ASSERT(row.GetCount() == 1);
+                YT_ASSERT(row.GetCount() == 1);
                 auto foreignId = FromUnversionedValue<TObjectId>(row[0]);
                 auto* foreignObject = Owner_->GetSession()->GetObject(GetForeignObjectType(), foreignId);
                 ForeignObjects_->insert(foreignObject);
@@ -714,7 +705,7 @@ TYsonString TAnnotationsAttribute::Load(const TString& key) const
     ScheduleLoad(key);
     Owner_->GetSession()->FlushLoads();
     auto it = KeyToValue_.find(key);
-    Y_ASSERT(it != KeyToValue_.end());
+    YT_ASSERT(it != KeyToValue_.end());
     return it->second ? it->second : TYsonString();
 }
 
@@ -733,7 +724,7 @@ TTimestamp TAnnotationsAttribute::LoadTimestamp(const TString& key) const
     ScheduleLoad(key);
     Owner_->GetSession()->FlushLoads();
     auto it = KeyToTimestamp_.find(key);
-    Y_ASSERT(it != KeyToTimestamp_.end());
+    YT_ASSERT(it != KeyToTimestamp_.end());
     return it->second;
 }
 
@@ -769,7 +760,7 @@ std::vector<std::pair<TString, NYT::NYson::TYsonString>> TAnnotationsAttribute::
 void TAnnotationsAttribute::Store(const TString& key, const TYsonString& value)
 {
     auto ownerState = Owner_->GetState();
-    YCHECK(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
+    YT_VERIFY(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
 
     Owner_->ValidateExists();
 
@@ -790,7 +781,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
     auto ownerState = Owner_->GetState();
     if (ownerState == EObjectState::Removed || ownerState == EObjectState::Removing) {
         auto primaryKey = ToUnversionedValue(Owner_->GetId(), rowBuffer);
-        Y_ASSERT(primaryKey.Type == EValueType::String);
+        YT_ASSERT(primaryKey.Type == EValueType::String);
         TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
         context->ScheduleSelect(
@@ -811,10 +802,10 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                 ScheduledStoreKeys_.reserve(rows.Size());
 
                 for (auto row : rows) {
-                    Y_ASSERT(row.GetCount() == 1);
+                    YT_ASSERT(row.GetCount() == 1);
                     auto key = FromUnversionedValue<TString>(row[0]);
-                    YCHECK(KeyToValue_.emplace(key, TYsonString()).second);
-                    YCHECK(ScheduledStoreKeys_.emplace(key).second);
+                    YT_VERIFY(KeyToValue_.emplace(key, TYsonString()).second);
+                    YT_VERIFY(ScheduledStoreKeys_.emplace(key).second);
                 }
             });
     } else {
@@ -829,7 +820,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                 MakeArray(&AnnotationsTable.Fields.Value),
                 [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
                     if (optionalValues) {
-                        Y_ASSERT(optionalValues->Size() == 1);
+                        YT_ASSERT(optionalValues->Size() == 1);
                         const auto& value = (*optionalValues)[0];
                         KeyToValue_[attributeKey] = FromUnversionedValue<TYsonString>(value);
                         KeyToTimestamp_[attributeKey] = value.Timestamp;
@@ -837,13 +828,13 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                         KeyToValue_[attributeKey] = TYsonString();
                         KeyToTimestamp_[attributeKey] = NullTimestamp;
                     }
-                    YCHECK(ScheduledLoadKeys_.erase(attributeKey) == 1);
+                    YT_VERIFY(ScheduledLoadKeys_.erase(attributeKey) == 1);
                 });
         }
 
         if (ScheduledLoadAll_) {
             auto primaryKey = ToUnversionedValue(Owner_->GetId(), rowBuffer);
-            Y_ASSERT(primaryKey.Type == EValueType::String);
+            YT_ASSERT(primaryKey.Type == EValueType::String);
             TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
             context->ScheduleSelect(
@@ -858,10 +849,10 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                 [=] (const IUnversionedRowsetPtr& rowset) {
                     auto rows = rowset->GetRows();
                     for (auto row : rows) {
-                        Y_ASSERT(row.GetCount() == 2);
+                        YT_ASSERT(row.GetCount() == 2);
                         auto key = FromUnversionedValue<TString>(row[0]);
                         auto value = FromUnversionedValue<TYsonString>(row[1]);
-                        YCHECK(AllKeysToValue_.emplace(std::move(key), std::move(value)).second);
+                        YT_VERIFY(AllKeysToValue_.emplace(std::move(key), std::move(value)).second);
                     }
                 });
         }
@@ -872,7 +863,7 @@ void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
 {
     for (const auto& key : ScheduledStoreKeys_) {
         auto it = KeyToValue_.find(key);
-        Y_ASSERT(it != KeyToValue_.end());
+        YT_ASSERT(it != KeyToValue_.end());
         const auto& value = it->second;
 
         auto keyValues = ToUnversionedValues(
@@ -906,149 +897,6 @@ void TAnnotationsAttribute::OnObjectRemoved()
 {
     DoScheduleLoad();
     DoScheduleStore();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUnknownAttributesMergingConsumer
-    : public NYson::TForwardingYsonConsumer
-{
-public:
-    TUnknownAttributesMergingConsumer(
-        IYsonConsumer* underlying,
-        const IAttributeDictionary& unknownAttributes)
-        : Underlying_(underlying)
-        , UnknownAttributes_(unknownAttributes)
-    { }
-
-private:
-    NYson::IYsonConsumer* const Underlying_;
-    const NYTree::IAttributeDictionary& UnknownAttributes_;
-
-
-    virtual void OnMyBeginMap() override
-    {
-        Underlying_->OnBeginMap();
-        for (const auto& key : UnknownAttributes_.List()) {
-            Underlying_->OnKeyedItem(key);
-            Underlying_->OnRaw(UnknownAttributes_.GetYson(key));
-        }
-        Forward(Underlying_,  nullptr, NYson::EYsonType::MapFragment);
-    }
-
-    virtual void OnMyEndMap() override
-    {
-        Underlying_->OnEndMap();
-    }
-};
-
-std::unique_ptr<IYsonConsumer> CreateUnknownAttributesMergingConsumer(
-    IYsonConsumer* underlying,
-    const IAttributeDictionary& unknownAttributes)
-{
-    return std::unique_ptr<IYsonConsumer>(new TUnknownAttributesMergingConsumer(
-        underlying,
-        unknownAttributes));
-}
-
-std::unique_ptr<IAttributeDictionary> DeserializeWithUnknownAttributes(
-    google::protobuf::Message& message,
-    const TProtobufMessageType* rootType,
-    const INodePtr& node)
-{
-    TString wireBytes;
-    google::protobuf::io::StringOutputStream outputStream(&wireBytes);
-
-    std::unique_ptr<IAttributeDictionary> unknownAttributes;
-
-    TProtobufWriterOptions options;
-    options.UnknownFieldCallback = [&] (const TYPath& path, const TString& key, TYsonString value) {
-        if (!path.empty()) {
-            return false;
-        }
-
-        if (!unknownAttributes) {
-            unknownAttributes = CreateEphemeralAttributes();
-            unknownAttributes->SetYson(key, std::move(value));
-        }
-        return true;
-    };
-
-    auto protobufWriter = NYson::CreateProtobufWriter(&outputStream, rootType, options);
-    VisitTree(node, protobufWriter.get(), true);
-
-    if (!message.ParseFromArray(wireBytes.data(), wireBytes.size())) {
-        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
-            message.GetTypeName());
-    }
-
-    return unknownAttributes;
-}
-
-void ExtensibleProtobufToUnversionedValueImpl(
-    TUnversionedValue* unversionedValue,
-    const google::protobuf::Message& knownAttributes,
-    const IAttributeDictionary& unknownAttributes,
-    const TProtobufMessageType* type,
-    const TRowBufferPtr& rowBuffer,
-    int id)
-{
-    auto byteSize = knownAttributes.ByteSize();
-    auto* pool = rowBuffer->GetPool();
-    auto* wireBuffer = pool->AllocateUnaligned(byteSize);
-    YCHECK(knownAttributes.SerializePartialToArray(wireBuffer, byteSize));
-
-    ArrayInputStream inputStream(wireBuffer, byteSize);
-    TString ysonBytes;
-    TStringOutput outputStream(ysonBytes);
-
-    TYsonWriter ysonWriter(&outputStream);
-    TUnknownAttributesMergingConsumer mergingConsumer(&ysonWriter, unknownAttributes);
-    ParseProtobuf(&mergingConsumer, &inputStream, type);
-
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
-}
-
-void UnversionedValueToExtensibleProtobufImpl(
-    google::protobuf::Message* knownAttributes,
-    IAttributeDictionary* unknownAttributes,
-    const TProtobufMessageType* type,
-    TUnversionedValue unversionedValue)
-{
-    if (unversionedValue.Type == EValueType::Null) {
-        knownAttributes->Clear();
-        unknownAttributes->Clear();
-        return;
-    }
-
-    if (unversionedValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse a protobuf message from %Qlv",
-            unversionedValue.Type);
-    }
-
-    TString wireBytes;
-    StringOutputStream outputStream(&wireBytes);
-
-    TProtobufWriterOptions options;
-    options.UnknownFieldCallback = [&] (const TYPath& path, const TString& key, TYsonString value) {
-        if (!path.empty()) {
-            return false;
-        }
-
-        unknownAttributes->SetYson(key, std::move(value));
-        return true;
-    };
-    auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
-
-    ParseYsonStringBuffer(
-        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
-        EYsonType::Node,
-        protobufWriter.get());
-
-    if (!knownAttributes->ParseFromArray(wireBytes.data(), wireBytes.size())) {
-        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
-            knownAttributes->GetTypeName());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,7 @@ void TAllocationPlan::AssignPodToNode(TPod* pod, TNode* node)
 void TAllocationPlan::RevokePodFromNode(TPod* pod)
 {
     auto* node = pod->GetNode();
-    Y_ASSERT(node);
+    YT_ASSERT(node);
     EmplaceRequest(node, TPodRequest{pod, EAllocationPlanPodRequestType::RevokePodFromNode});
 }
 

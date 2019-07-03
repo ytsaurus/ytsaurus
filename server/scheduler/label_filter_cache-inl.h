@@ -40,7 +40,7 @@ const TErrorOr<std::vector<T*>>& TLabelFilterCache<T>::GetFilteredObjects(const 
         }
         bool inserted;
         std::tie(it, inserted) = QueryToObjects_.emplace(query, std::move(typedObjectsOrError));
-        YCHECK(inserted);
+        YT_VERIFY(inserted);
     }
     return it->second;
 }

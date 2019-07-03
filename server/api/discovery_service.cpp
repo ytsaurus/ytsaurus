@@ -60,7 +60,7 @@ private:
                     protoInfo->set_grpc_address(info.AgentGrpcAddress);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             protoInfo->set_instance_tag(info.InstanceTag);
             protoInfo->set_alive(info.Alive);

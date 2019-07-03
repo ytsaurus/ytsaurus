@@ -1,6 +1,7 @@
 #include "cluster.h"
 #include "node.h"
 #include "pod.h"
+#include "pod_disruption_budget.h"
 #include "pod_set.h"
 #include "resource.h"
 #include "internet_address.h"
@@ -89,6 +90,7 @@ public:
 
     IMPLEMENT_ACCESSORS(Node, Nodes)
     IMPLEMENT_ACCESSORS(NodeSegment, NodeSegments)
+    IMPLEMENT_ACCESSORS(PodDisruptionBudget, PodDisruptionBudgets)
     IMPLEMENT_ACCESSORS(PodSet, PodSets)
     IMPLEMENT_ACCESSORS(Pod, Pods)
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
@@ -97,6 +99,11 @@ public:
     IMPLEMENT_ACCESSORS(Resource, Resources)
 
     #undef IMPLEMENT_ACCESSORS
+
+    TTimestamp GetSnapshotTimestamp() const
+    {
+        return Timestamp_;
+    }
 
     void LoadSnapshot()
     {
@@ -218,6 +225,23 @@ public:
                 session->FlushLoads();
             }
 
+            PROFILE_TIMING("/cluster_snapshot/time/load_pod_disruption_budgets") {
+                session->ScheduleLoad(
+                    [&] (ILoadContext* context) {
+                        context->ScheduleSelect(
+                            GetPodDisruptionBudgetQueryString(),
+                            [&] (const IUnversionedRowsetPtr& rowset) {
+                                YT_LOG_INFO("Parsing pod disruption budgets");
+                                for (auto row : rowset->GetRows()) {
+                                    ParsePodDisruptionBudgetFromRow(row);
+                                }
+                            });
+                    });
+
+                YT_LOG_INFO("Querying pod disruption budgets");
+                session->FlushLoads();
+            }
+
             PROFILE_TIMING("/cluster_snapshot/time/load_pod_sets") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
@@ -294,6 +318,7 @@ private:
     std::unique_ptr<TLabelFilterCache<TNode>> AllNodeSegmentsLabelFilterCache_;
     std::unique_ptr<TLabelFilterCache<TNode>> SchedulableNodeSegmentsLabelFilterCache_;
     THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
+    THashMap<TObjectId, std::unique_ptr<TPodDisruptionBudget>> PodDisruptionBudgetMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
     THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
@@ -308,7 +333,7 @@ private:
     {
         for (const auto& [podId, pod] : PodMap_) {
             if (pod->GetNode()) {
-                YCHECK(pod->GetNode()->Pods().insert(pod.get()).second);
+                YT_VERIFY(pod->GetNode()->Pods().insert(pod.get()).second);
             }
         }
     }
@@ -317,14 +342,14 @@ private:
     {
         for (const auto& [podId, pod] : PodMap_) {
             auto* podSet = pod->GetPodSet();
-            YCHECK(podSet->Pods().insert(pod.get()).second);
+            YT_VERIFY(podSet->Pods().insert(pod.get()).second);
         }
     }
 
     void InitializeAccountPodSets()
     {
         for (const auto& [podId, pod] : PodMap_) {
-            YCHECK(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
+            YT_VERIFY(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
         }
     }
 
@@ -464,9 +489,9 @@ private:
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
-        YCHECK(ResourceMap_.emplace(resourceId, std::move(resource)).second);
+        YT_VERIFY(ResourceMap_.emplace(resourceId, std::move(resource)).second);
     }
 
     TTopologyZone* GetOrCreateTopologyZone(const TString& key, const TString& value)
@@ -550,7 +575,7 @@ private:
             std::move(spec),
             std::move(status));
 
-        YCHECK(InternetAddressMap_.emplace(internetAddressId, std::move(internetAddress)).second);
+        YT_VERIFY(InternetAddressMap_.emplace(internetAddressId, std::move(internetAddress)).second);
     }
 
 
@@ -591,7 +616,7 @@ private:
             static_cast<ENodeMaintenanceState>(statusEtc.maintenance().state()),
             statusEtc.unknown_pod_ids_size(),
             std::move(spec));
-        YCHECK(NodeMap_.emplace(node->GetId(), std::move(node)).second);
+        YT_VERIFY(NodeMap_.emplace(node->GetId(), std::move(node)).second);
     }
 
 
@@ -640,7 +665,7 @@ private:
             std::move(allNodes),
             std::move(schedulableNodes),
             std::move(schedulableNodeLabelFilterCache));
-        YCHECK(NodeSegmentMap_.emplace(segment->GetId(), std::move(segment)).second);
+        YT_VERIFY(NodeSegmentMap_.emplace(segment->GetId(), std::move(segment)).second);
     }
 
 
@@ -667,7 +692,7 @@ private:
         auto account = std::make_unique<TAccount>(
             accountId,
             std::move(labels));
-        YCHECK(AccountMap_.emplace(account->GetId(), std::move(account)).second);
+        YT_VERIFY(AccountMap_.emplace(account->GetId(), std::move(account)).second);
     }
 
 
@@ -705,7 +730,44 @@ private:
         }
 
         account->SetParent(parent);
-        YCHECK(parent->Children().insert(account).second);
+        YT_VERIFY(parent->Children().insert(account).second);
+    }
+
+
+    TString GetPodDisruptionBudgetQueryString()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        return Format(
+            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            PodDisruptionBudgetsTable.Fields.Meta_Id.Name,
+            PodDisruptionBudgetsTable.Fields.Labels.Name,
+            PodDisruptionBudgetsTable.Fields.Meta_Etc.Name,
+            PodDisruptionBudgetsTable.Fields.Spec.Name,
+            ytConnector->GetTablePath(&PodDisruptionBudgetsTable),
+            ObjectsTable.Fields.Meta_RemovalTime.Name);
+    }
+
+    void ParsePodDisruptionBudgetFromRow(TUnversionedRow row)
+    {
+        TObjectId id;
+        TYsonString labels;
+        NServer::NObjects::NProto::TMetaEtc metaEtc;
+        NClient::NApi::NProto::TPodDisruptionBudgetSpec spec;
+        FromUnversionedRow(
+            row,
+            &id,
+            &labels,
+            &metaEtc,
+            &spec);
+
+        auto podDisruptionBudget = std::make_unique<TPodDisruptionBudget>(
+            id,
+            std::move(labels),
+            std::move(metaEtc),
+            std::move(spec));
+        YT_VERIFY(PodDisruptionBudgetMap_.emplace(
+            podDisruptionBudget->GetId(),
+            std::move(podDisruptionBudget)).second);
     }
 
 
@@ -781,7 +843,7 @@ private:
             account,
             std::move(statusEtc),
             std::move(labels));
-        YCHECK(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
+        YT_VERIFY(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
     }
 
 
@@ -789,13 +851,14 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             PodSetsTable.Fields.Meta_Id.Name,
             PodSetsTable.Fields.Labels.Name,
             PodSetsTable.Fields.Spec_AntiaffinityConstraints.Name,
             PodSetsTable.Fields.Spec_NodeSegmentId.Name,
             PodSetsTable.Fields.Spec_AccountId.Name,
             PodSetsTable.Fields.Spec_NodeFilter.Name,
+            PodSetsTable.Fields.Spec_PodDisruptionBudgetId.Name,
             ytConnector->GetTablePath(&PodSetsTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
     }
@@ -808,6 +871,7 @@ private:
         TObjectId nodeSegmentId;
         TObjectId accountId;
         TString nodeFilter;
+        TObjectId podDisruptionBudgetId;
         FromUnversionedRow(
             row,
             &podSetId,
@@ -815,7 +879,8 @@ private:
             &antiaffinityConstraints,
             &nodeSegmentId,
             &accountId,
-            &nodeFilter);
+            &nodeFilter,
+            &podDisruptionBudgetId);
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
         if (!nodeSegment) {
@@ -827,10 +892,17 @@ private:
 
         auto* account = FindAccount(accountId);
         if (!account) {
-            YT_LOG_WARNING("Pod set refers to an account (PodSetId: %v, AccountId: %v)",
+            YT_LOG_WARNING("Pod set refers to an unknown account (PodSetId: %v, AccountId: %v)",
                 podSetId,
                 accountId);
             return;
+        }
+
+        auto* podDisruptionBudget = FindPodDisruptionBudget(podDisruptionBudgetId);
+        if (podDisruptionBudgetId && !podDisruptionBudget) {
+            YT_LOG_WARNING("Pod set refers to an unknown pod disruption budget (PodSetId: %v, PodDisruptionBudgetId: %v)",
+                podSetId,
+                podDisruptionBudgetId);
         }
 
         auto podSet = std::make_unique<TPodSet>(
@@ -838,9 +910,10 @@ private:
             std::move(labels),
             nodeSegment,
             account,
+            podDisruptionBudget,
             std::move(antiaffinityConstraints),
             std::move(nodeFilter));
-        YCHECK(PodSetMap_.emplace(podSet->GetId(), std::move(podSet)).second);
+        YT_VERIFY(PodSetMap_.emplace(podSet->GetId(), std::move(podSet)).second);
     }
 
 
@@ -861,6 +934,7 @@ private:
     {
         NodeMap_.clear();
         PodMap_.clear();
+        PodDisruptionBudgetMap_.clear();
         PodSetMap_.clear();
         AccountMap_.clear();
         InternetAddressMap_.clear();
@@ -954,6 +1028,21 @@ std::vector<TAccount*> TCluster::GetAccounts()
 TNetworkModule* TCluster::FindNetworkModule(const TObjectId& id)
 {
     return Impl_->FindNetworkModule(id);
+}
+
+std::vector<TPodSet*> TCluster::GetPodSets()
+{
+    return Impl_->GetPodSets();
+}
+
+std::vector<TPodDisruptionBudget*> TCluster::GetPodDisruptionBudgets()
+{
+    return Impl_->GetPodDisruptionBudgets();
+}
+
+TTimestamp TCluster::GetSnapshotTimestamp() const
+{
+    return Impl_->GetSnapshotTimestamp();
 }
 
 void TCluster::LoadSnapshot()

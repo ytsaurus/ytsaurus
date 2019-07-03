@@ -124,7 +124,7 @@ public:
 
 TUser* TSubject::AsUser()
 {
-    YCHECK(Type_ == EObjectType::User);
+    YT_VERIFY(Type_ == EObjectType::User);
     return static_cast<TUser*>(this);
 }
 
@@ -152,7 +152,7 @@ public:
 
 TGroup* TSubject::AsGroup()
 {
-    YCHECK(Type_ == EObjectType::Group);
+    YT_VERIFY(Type_ == EObjectType::Group);
     return static_cast<TGroup*>(this);
 }
 
@@ -222,7 +222,7 @@ public:
         }
 
         if (subject->GetType() == EObjectType::User) {
-            YCHECK(EveryoneGroup_->RecursiveUserIds().insert(id).second);
+            YT_VERIFY(EveryoneGroup_->RecursiveUserIds().insert(id).second);
         }
     }
 
@@ -325,7 +325,7 @@ private:
                     ComputeRecursiveUsers(forGroup, subject->AsGroup(), visitedGroups);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     }
@@ -359,7 +359,7 @@ private:
                     break;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -377,9 +377,9 @@ class TClusterObjectSnapshot
 public:
     void AddObjects(NObjects::EObjectType objectType, std::vector<std::unique_ptr<TObject>> objects)
     {
-        YCHECK(ObjectTypes_.emplace(objectType).second);
+        YT_VERIFY(ObjectTypes_.emplace(objectType).second);
         for (auto& object : objects) {
-            YCHECK(Objects_[objectType].emplace(object->Id(), std::move(object)).second);
+            YT_VERIFY(Objects_[objectType].emplace(object->Id(), std::move(object)).second);
         }
     }
 
@@ -438,7 +438,7 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
     bool hasParentIdField = false;
     if (typeHandler->GetParentType() != EObjectType::Null) {
         auto parentIdField = typeHandler->GetParentIdField();
-        YCHECK(parentIdField);
+        YT_VERIFY(parentIdField);
         fields.push_back(parentIdField);
         hasParentIdField = true;
     }
@@ -786,7 +786,7 @@ public:
                                 deniedForUserIds.insert(userId);
                                 break;
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     };
 
@@ -807,7 +807,7 @@ public:
                                 break;
 
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
                 }
@@ -1043,7 +1043,7 @@ private:
                             result.Action = EAccessControlAction::Deny;
                             return false;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                 }
                 return true;

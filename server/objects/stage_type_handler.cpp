@@ -35,11 +35,13 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TStage::TSpec::EtcSchema)
                     ->SetUpdatable()
-            });
+            })
+            ->SetExtensible();
 
         StatusAttributeSchema_
             ->SetAttribute(TStage::StatusSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override

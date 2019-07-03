@@ -79,6 +79,31 @@ DEFINE_REFCOUNTED_TYPE(TGlobalResourceAllocatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPodDisruptionBudgetControllerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    int UpdateConcurrency;
+    int UpdatesPerIteration;
+
+    TPodDisruptionBudgetControllerConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+        RegisterParameter("update_concurrency", UpdateConcurrency)
+            .Default(256)
+            .GreaterThanOrEqual(1);
+        RegisterParameter("updates_per_iteration", UpdatesPerIteration)
+            .Default(1024)
+            .GreaterThanOrEqual(1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodDisruptionBudgetControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -87,6 +112,7 @@ public:
     TDuration FailedAllocationBackoffTime;
     int AllocationCommitConcurrency;
     TGlobalResourceAllocatorConfigPtr GlobalResourceAllocator;
+    TPodDisruptionBudgetControllerConfigPtr PodDisruptionBudgetController;
 
     TSchedulerConfig()
     {
@@ -98,6 +124,8 @@ public:
             .Default(256)
             .GreaterThanOrEqual(1);
         RegisterParameter("global_resource_allocator", GlobalResourceAllocator)
+            .DefaultNew();
+        RegisterParameter("pod_disruption_budget_controller", PodDisruptionBudgetController)
             .DefaultNew();
     }
 };

@@ -23,7 +23,7 @@ TObjectId TScheduleQueue::Dequeue(TInstant deadline)
     auto id = std::move(Heap_.front().Id);
     ExtractHeap(Heap_.begin(), Heap_.end());
     Heap_.pop_back();
-    YCHECK(Ids_.erase(id) == 1);
+    YT_VERIFY(Ids_.erase(id) == 1);
     return id;
 }
 

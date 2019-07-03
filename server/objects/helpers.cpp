@@ -135,7 +135,7 @@ TExpressionPtr BuildSelector(
     const TYPath& path)
 {
     if (attribute->IsComposite()) {
-        YCHECK(path.empty());
+        YT_VERIFY(path.empty());
         return BuildCompositeGetter(context, attribute);
     }
     ValidateHasExpressionBuilder(attribute);
@@ -186,7 +186,7 @@ TObject* TAttributeFetcherContext::GetObject(
     TTransaction* transaction,
     TUnversionedRow row) const
 {
-    YCHECK(ObjectIdIndex_ >= 0);
+    YT_VERIFY(ObjectIdIndex_ >= 0);
     auto* typeHandler = QueryContext_->GetTypeHandler();
     auto objectId = FromUnversionedValue<TObjectId>(row[ObjectIdIndex_]);
     auto parentId = typeHandler->GetParentType() == EObjectType::Null
@@ -286,7 +286,7 @@ void TAttributeFetcher::DoPrepare(
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -321,7 +321,7 @@ void TAttributeFetcher::DoPrefetch(
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -405,7 +405,7 @@ void TAttributeFetcher::DoFetch(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -454,7 +454,7 @@ TExpressionPtr BuildFilterExpression(
             } else if (auto* typedExpr = (*expr)->As<TTransformExpression>()) {
                 Visit(typedExpr->Expr);
             } else {
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         }
 

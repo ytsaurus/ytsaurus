@@ -287,7 +287,7 @@ private:
 
         YT_LOG_INFO("YT connected");
 
-        YCHECK(!IsConnected());
+        YT_VERIFY(!IsConnected());
         IsConnected_.store(true);
         CancelableContext_ = New<TCancelableContext>();
         CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
@@ -400,7 +400,7 @@ private:
 
         YT_LOG_INFO("Started leading");
 
-        YCHECK(!IsLeading());
+        YT_VERIFY(!IsLeading());
         IsLeading_.store(true);
         StartedLeading_.Fire();
     }

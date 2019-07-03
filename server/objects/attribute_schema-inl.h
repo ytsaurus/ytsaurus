@@ -25,6 +25,8 @@ namespace NYP::NServer::NObjects {
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TEmptyPathValidator
 {
     static void Run(const TAttributeSchema* attribute, const NYPath::TYPath& path)
@@ -59,7 +61,11 @@ struct TScalarAttributePathValidator<
         const auto* protobufType = NYson::ReflectProtobufMessageType<T>();
         try {
             // NB: This is a mere validation; the result is ignored intentionally.
-            NYson::ResolveProtobufElementByYPath(protobufType, path);
+            NYson::TResolveProtobufElementByYPathOptions options;
+            if (attribute->IsExtensible()) {
+                options.AllowUnknownYsonFields = true;
+            }
+            NYson::ResolveProtobufElementByYPath(protobufType, path, options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching field %v of attribute %v",
                 path,
@@ -68,6 +74,41 @@ struct TScalarAttributePathValidator<
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class = void>
+struct TScalarAttributeYsonParser
+{
+    static T Run(const TAttributeSchema* /*schema*/, const NYT::NYTree::INodePtr& value)
+    {
+        return NYT::NYTree::ConvertTo<T>(value);
+    }
+};
+
+template <class T>
+struct TScalarAttributeYsonParser<
+    T,
+    typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value>::type
+>
+{
+    static T Run(const TAttributeSchema* schema, const NYT::NYTree::INodePtr& value)
+    {
+        NYT::NYson::TProtobufWriterOptions options;
+        options.UnknownYsonFieldsMode = schema->IsExtensible()
+            ? NYT::NYson::EUnknownYsonFieldsMode::Keep
+            : NYT::NYson::EUnknownYsonFieldsMode::Fail;
+        T message;
+        NYT::NYTree::DeserializeProtobufMessage(
+            message,
+            NYT::NYson::ReflectProtobufMessageType<T>(),
+            value,
+            options);
+        return message;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -87,7 +128,7 @@ TAttributeSchema* TAttributeSchema::SetValueSetter(std::function<void(
             const NYT::NYTree::INodePtr& value,
             bool recursive)
         {
-            auto typedValue = NYTree::ConvertTo<TTypedValue>(value);
+            auto typedValue = TScalarAttributeYsonParser<TTypedValue>::Run(this, value);
             auto* typedObject = object->template As<TTypedObject>();
             setter(transaction, typedObject, path, typedValue, recursive);
         };
@@ -334,11 +375,16 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
             auto* typedObject = object->template As<TTypedObject>();
             auto* attribute = schema.AttributeGetter(typedObject);
             TString protobuf;
+            NYT::NYson::TProtobufWriterOptions options;
+            options.UnknownYsonFieldsMode = IsExtensible()
+                ? NYT::NYson::EUnknownYsonFieldsMode::Keep
+                : NYT::NYson::EUnknownYsonFieldsMode::Fail;
             if (path.empty()) {
                 google::protobuf::io::StringOutputStream outputStream(&protobuf);
                 auto protobufWriter = NYson::CreateProtobufWriter(
                     &outputStream,
-                    NYson::ReflectProtobufMessageType<TTypedValue>());
+                    NYson::ReflectProtobufMessageType<TTypedValue>(),
+                    options);
                 NYTree::VisitTree(value, protobufWriter.get(), true);
             } else {
                 // TODO(babenko): optimize
@@ -356,7 +402,8 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
                 google::protobuf::io::StringOutputStream outputStream(&protobuf);
                 auto protobufWriter = NYson::CreateProtobufWriter(
                     &outputStream,
-                    NYson::ReflectProtobufMessageType<TTypedValue>());
+                    NYson::ReflectProtobufMessageType<TTypedValue>(),
+                    options);
                 NYTree::VisitTree(node, protobufWriter.get(), true);
             }
             if (object->GetState() == EObjectState::Creating && schema.Initializer) {
@@ -439,7 +486,7 @@ void TAttributeSchema::InitValueSetter(const TSchema& schema)
                 newValue = existingValue;
             }
 
-            auto typedValue = NYTree::ConvertTo<TTypedValue>(newValue);
+            auto typedValue = TScalarAttributeYsonParser<TTypedValue>::Run(this, newValue);
             if (object->GetState() == EObjectState::Creating && schema.Initializer) {
                 schema.Initializer(transaction, typedObject, &typedValue);
             }
@@ -516,7 +563,7 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
             NYT::NYTree::SyncYPathRemove(existingValue, path);
             auto newValue = existingValue;
 
-            auto typedValue = NYTree::ConvertTo<TTypedValue>(newValue);
+            auto typedValue = TScalarAttributeYsonParser<TTypedValue>::Run(this, newValue);
             TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
         };

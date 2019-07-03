@@ -42,7 +42,7 @@ template <class TContainedProtoMessage>
 const FileDescriptor* InferProtoFileDescriptor()
 {
     auto* messageDescriptor = TContainedProtoMessage::descriptor();
-    Y_ASSERT(messageDescriptor);
+    YT_ASSERT(messageDescriptor);
     return messageDescriptor->file();
 }
 
@@ -51,8 +51,8 @@ const FileDescriptor* GetRootProtoFileDescriptor()
     // We use TNodeMeta for the inference because it's very likely that
     // TNodeMeta will be in the root file for a long time.
     auto* protoFileDescriptor = InferProtoFileDescriptor<NClient::NApi::NProto::TNodeMeta>();
-    Y_ASSERT(protoFileDescriptor);
-    YCHECK(protoFileDescriptor->name().EndsWith("client/api/proto/autogen.proto"));
+    YT_ASSERT(protoFileDescriptor);
+    YT_VERIFY(protoFileDescriptor->name().EndsWith("client/api/proto/autogen.proto"));
     return protoFileDescriptor;
 }
 
@@ -85,7 +85,7 @@ public:
         try {
             Initialize();
         } catch (...) {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -112,8 +112,8 @@ private:
 
     void AddTypeInfo(EObjectType type, std::unique_ptr<TTypeInfo> typeInfo)
     {
-        YCHECK(typeInfo);
-        YCHECK(!TypeInfos_[type]);
+        YT_VERIFY(typeInfo);
+        YT_VERIFY(!TypeInfos_[type]);
         TypeInfos_[type] = std::move(typeInfo);
         YT_LOG_DEBUG("Initialized type info (Type: %v, HumanReadableName: %v, CapitalizedHumanReadableName: %v)",
             type,
@@ -142,7 +142,7 @@ private:
         const FileDescriptor* rootProtoFileDescriptor,
         THashSet<TString>* visitedProtoFileNames)
     {
-        Y_ASSERT(rootProtoFileDescriptor);
+        YT_ASSERT(rootProtoFileDescriptor);
         if (!visitedProtoFileNames->insert(rootProtoFileDescriptor->name()).second) {
             return;
         }
@@ -159,13 +159,13 @@ private:
 
     void InitializeTypesFromProtoFile(const FileDescriptor* protoFileDescriptor)
     {
-        Y_ASSERT(protoFileDescriptor);
+        YT_ASSERT(protoFileDescriptor);
         YT_LOG_DEBUG("Initializing types info from file (FileName: %v)",
             protoFileDescriptor->name());
         auto protoTypeInfos = protoFileDescriptor->options().GetRepeatedExtension(NClient::NApi::NProto::object_type);
         for (const auto& protoTypeInfo : protoTypeInfos) {
             auto type = EObjectType::Null;
-            YCHECK(TryEnumCast(protoTypeInfo.type_value(), &type));
+            YT_VERIFY(TryEnumCast(protoTypeInfo.type_value(), &type));
 
             auto typeInfo = std::make_unique<TTypeInfo>();
             if (protoTypeInfo.has_human_readable_name()) {
@@ -185,14 +185,14 @@ private:
 TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
 {
     auto* info = TTypeRegistry::Get()->FindInfo(type);
-    YCHECK(info);
+    YT_VERIFY(info);
     return info->CapitalizedHumanReadableName;
 }
 
 TStringBuf GetHumanReadableTypeName(EObjectType type)
 {
     auto* info = TTypeRegistry::Get()->FindInfo(type);
-    YCHECK(info);
+    YT_VERIFY(info);
     return info->HumanReadableName;
 }
 

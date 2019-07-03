@@ -10,6 +10,7 @@
 #include "helpers.h"
 #include "resource_manager.h"
 #include "global_resource_allocator.h"
+#include "pod_disruption_budget_controller.h"
 
 #include <yp/server/master/yt_connector.h>
 #include <yp/server/master/bootstrap.h>
@@ -91,12 +92,12 @@ public:
                 node->GetId(),
                 hfsmState);
 
-            pod->UpdateEvictionStatus(
-                EEvictionState::Requested,
+            pod->RequestEviction(
                 EEvictionReason::Hfsm,
                 Format("Eviction requested due to node %Qv being in %Qlv state",
                     node->GetId(),
-                    hfsmState));
+                    hfsmState),
+                /*validateDisruptionBudget*/ false);
         };
         ExecuteTransition(
             cluster,
@@ -232,6 +233,8 @@ public:
 
     void Initialize()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         // Initialize the loop.
         WaitFor(UpdateLoopConfig(InitialConfig_))
             .ThrowOnError();
@@ -269,6 +272,7 @@ private:
 
         TSchedulerConfigPtr Config;
         IGlobalResourceAllocatorPtr GlobalResourceAllocator;
+        TPodDisruptionBudgetControllerPtr PodDisruptionBudgetController;
         TClusterPtr Cluster;
         TScheduleQueuePtr ScheduleQueue;
     };
@@ -296,6 +300,9 @@ private:
             }
             PROFILE_TIMING("/loop/time/update_accounts_status") {
                 accountingManager->UpdateAccountsStatus(Context_.Cluster);
+            }
+            PROFILE_TIMING("/loop/time/run_pod_disruption_budget_controller") {
+                Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
             }
             TPodEvictionByHfsmController podEvictionByHfsmController(Bootstrap_);
             PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
@@ -635,7 +642,7 @@ private:
                             }
                             resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, transactionPod);
                         } else {
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                         }
                     }
 
@@ -686,13 +693,27 @@ private:
         YT_LOG_INFO("Updating scheduler loop configuration");
 
         auto& context = GlobalLoopContext_;
-
         context.Config = std::move(config);
         try {
-            context.GlobalResourceAllocator = CreateGlobalResourceAllocator(context.Config->GlobalResourceAllocator);
+            try {
+                context.GlobalResourceAllocator = CreateGlobalResourceAllocator(
+                    context.Config->GlobalResourceAllocator);
+            } catch (const std::exception& ex) {
+                context.GlobalResourceAllocator = nullptr;
+                THROW_ERROR_EXCEPTION("Error creating global resource allocator")
+                    << ex;
+            }
+            try {
+                context.PodDisruptionBudgetController = New<TPodDisruptionBudgetController>(
+                    Bootstrap_,
+                    context.Config->PodDisruptionBudgetController);
+            } catch (const std::exception& ex) {
+                context.PodDisruptionBudgetController = nullptr;
+                THROW_ERROR_EXCEPTION("Error creating pod disruption budget controller")
+                    << ex;
+            }
         } catch (const std::exception& ex) {
-            context.GlobalResourceAllocator = nullptr;
-            THROW_ERROR_EXCEPTION("Error creating global resource allocator while updating scheduler loop configuration")
+            THROW_ERROR_EXCEPTION("Error updating scheduler loop configuration")
                 << ex;
         }
     }
@@ -706,9 +727,9 @@ private:
             .Run();
     }
 
-    void ValidateLoopContext(const TLoopContext& context)
+    static void ValidateLoopContext(const TLoopContext& context)
     {
-        if (!context.Config || !context.GlobalResourceAllocator) {
+        if (!context.Config || !context.GlobalResourceAllocator || !context.PodDisruptionBudgetController) {
             THROW_ERROR_EXCEPTION("Loop is not configured properly");
         }
     }

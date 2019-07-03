@@ -6,6 +6,7 @@
 #include "pod_set.h"
 #include "account.h"
 #include "network_project.h"
+#include "pod_disruption_budget.h"
 #include "db_schema.h"
 #include "config.h"
 
@@ -47,7 +48,7 @@ class TPodTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TPodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
+    TPodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Pod)
         , Config_(std::move(config))
     {
@@ -450,7 +451,10 @@ private:
             pod->GetId(),
             message);
 
-        pod->UpdateEvictionStatus(EEvictionState::Requested, EEvictionReason::Client, message);
+        pod->RequestEviction(
+            EEvictionReason::Client,
+            message,
+            control.validate_disruption_budget());
     }
 
     void AbortEviction(
@@ -518,7 +522,8 @@ private:
         }
     }
 
-    void ValidateResourceRequests(TPod* pod) {
+    void ValidateResourceRequests(TPod* pod)
+    {
         const auto& resourceRequests = pod->Spec().Etc().Load().resource_requests();
 
         if (resourceRequests.has_vcpu_guarantee() && resourceRequests.vcpu_guarantee() < Config_->MinVcpuGuarantee) {

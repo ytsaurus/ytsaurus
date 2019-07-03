@@ -516,7 +516,7 @@ private:
     {
         const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
         auto* ip6AddressAllocations = pod->Status().Etc()->mutable_ip6_address_allocations();
-        Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
+        YT_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
 
         for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             UpdateIP6AddressVirtualServiceTunnel(
@@ -531,7 +531,7 @@ private:
     {
         const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
         auto* ip6AddressAllocations = pod->Status().Etc()->mutable_ip6_address_allocations();
-        Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
+        YT_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
         for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);
         }

@@ -1195,6 +1195,12 @@ message TPodControl
     {
         // Comment for the request.
         optional string message = 1;
+
+        // If true, eviction request fails with an error for the existent
+        // and empty pod disruption budget.
+        // If false, eviction can be successfully requested even for the existent
+        // and empty pod disruption budget.
+        optional bool validate_disruption_budget = 2 [default = true];
     }
 
     message TAbortEviction
@@ -1211,6 +1217,7 @@ message TPodControl
     // Requests eviction of a pod.
     // Pod must have /status/eviction/state == "none" prior to this call and
     // the latter changes it to "requested".
+    // Successful request decrements pod disruption budget if any.
     optional TRequestEviction request_eviction = 2;
 
     // Aborts eviction of a pod.

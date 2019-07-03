@@ -28,14 +28,6 @@ class TestConfig(object):
         config_update_period=CONFIG_UPDATE_PERIOD,
     )
 
-    def _set_config_patch(self, yp_env_configurable, value, type="document"):
-        yp_env_configurable.yt_client.create(
-            type,
-            yp_env_configurable.get_config_patch_cypress_path(),
-            attributes=dict(value=value),
-            force=True,
-        )
-
     def _get_config(self):
         instance_address = self._orchid.get_instances()[0]
         config = self._orchid.get(instance_address, "/config")
@@ -49,7 +41,7 @@ class TestConfig(object):
     def _set_and_validate_config_patch(self, yp_env_configurable, value, type="document"):
         initial_config = self._get_initial_config()
         expected_config = update(initial_config, value)
-        self._set_config_patch(yp_env_configurable, value, type)
+        yp_env_configurable.set_cypress_config_patch(value, type)
         def is_patch_applied():
             config, _ = self._get_config()
             return expected_config == config
@@ -64,28 +56,9 @@ class TestConfig(object):
             assert initial_update_time == update_time
             time.sleep(0.05)
 
-    def _set_and_validate_config_stability(self, *args, **kwargs):
-        self._set_config_patch(*args, **kwargs)
+    def _set_and_validate_config_stability(self, yp_env_configurable, *args, **kwargs):
+        yp_env_configurable.set_cypress_config_patch(*args, **kwargs)
         self._validate_config_stability()
-
-    def _reset_config(self, yp_env_configurable):
-        yp_env_configurable.yt_client.remove(
-            yp_env_configurable.get_config_patch_cypress_path(),
-            force=True,
-            recursive=True,
-        )
-        def is_config_reinitialized():
-            try:
-                config, update_time = self._get_config()
-                initial_config = self._get_initial_config()
-                return initial_config == config
-            except Exception:
-                return False
-        wait(is_config_reinitialized)
-
-    def _prepare(self, yp_env_configurable):
-        self._orchid = yp_env_configurable.create_orchid_client()
-        self._reset_config(yp_env_configurable)
 
     def _prepare_scheduler_validation(self, yp_client):
         create_nodes(yp_client, 1)
@@ -113,7 +86,7 @@ class TestConfig(object):
             )
 
     def test_orchid(self, yp_env_configurable):
-        self._prepare(yp_env_configurable)
+        self._orchid = yp_env_configurable.create_orchid_client()
 
         def test_default_fields(config):
             assert config["config_update_period"] == self.CONFIG_UPDATE_PERIOD
@@ -130,7 +103,7 @@ class TestConfig(object):
 
         loop_period = config["scheduler"]["loop_period"]
 
-        self._set_config_patch(yp_env_configurable, dict(scheduler=dict(loop_period=loop_period + 1)))
+        yp_env_configurable.set_cypress_config_patch(dict(scheduler=dict(loop_period=loop_period + 1)))
         def is_config_updated():
             new_config, _ = self._get_config()
             return config != new_config and new_config["scheduler"]["loop_period"] == loop_period + 1
@@ -141,7 +114,7 @@ class TestConfig(object):
         self._validate_scheduler_liveness(yp_env_configurable)
 
     def test_reconfiguration_stability(self, yp_env_configurable):
-        self._prepare(yp_env_configurable)
+        self._orchid = yp_env_configurable.create_orchid_client()
 
         initial_config, initial_update_time = self._get_config()
         assert initial_update_time > datetime.datetime.fromtimestamp(0)
@@ -207,7 +180,7 @@ class TestConfig(object):
         self._validate_scheduler_liveness(yp_env_configurable)
 
     def test_reconfiguration(self, yp_env_configurable):
-        self._prepare(yp_env_configurable)
+        self._orchid = yp_env_configurable.create_orchid_client()
 
         self._set_and_validate_config_patch(
             yp_env_configurable,
@@ -248,7 +221,7 @@ class TestConfig(object):
         self._validate_scheduler_liveness(yp_env_configurable)
 
     def test_scheduler_reconfiguration(self, yp_env_configurable):
-        self._prepare(yp_env_configurable)
+        self._orchid = yp_env_configurable.create_orchid_client()
 
         # Update different parameters without easily visible side effects.
         self._set_and_validate_config_patch(yp_env_configurable, dict(scheduler=dict(
@@ -284,8 +257,8 @@ class TestConfig(object):
             self._validate_scheduler_lifelessness(yp_env_configurable)
 
         # Update pod node score incorrectly.
-        self._reset_config(yp_env_configurable)
+        yp_env_configurable.reset_cypress_config_patch()
         test_incorrect_pod_node_score(dict(type="node_random_hash", parameters=dict(seed="abracadabra")))
 
-        self._reset_config(yp_env_configurable)
+        yp_env_configurable.reset_cypress_config_patch()
         self._validate_scheduler_liveness(yp_env_configurable)

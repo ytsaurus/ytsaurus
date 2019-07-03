@@ -31,7 +31,7 @@ TResourceCapacities TResourceBase::GetFreeCapacities() const
 {
     auto freeCapacities = TotalCapacities_;
     for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        YCHECK(freeCapacities[index] >= AllocatedCapacities_[index]);
+        YT_VERIFY(freeCapacities[index] >= AllocatedCapacities_[index]);
         freeCapacities[index] -= AllocatedCapacities_[index];
     }
     return freeCapacities;

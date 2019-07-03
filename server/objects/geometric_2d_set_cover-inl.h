@@ -44,10 +44,10 @@ std::vector<TRectangle<TRow>> BuildPerColumnSetCovering(
     const std::vector<TPoint<TRow>>& points,
     int maxRowsPerRectangle)
 {
-    YCHECK(maxRowsPerRectangle > 0);
+    YT_VERIFY(maxRowsPerRectangle > 0);
 
     for (const auto& point : points) {
-        YCHECK(point.second >= 0);
+        YT_VERIFY(point.second >= 0);
     }
 
     auto rowBitmaps = NPrivate::BuildRowBitmaps(points);

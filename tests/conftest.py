@@ -11,7 +11,7 @@ from yt.common import update, get_value
 
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map
 
 # TODO(ignat): avoid this hacks
 try:
@@ -27,7 +27,9 @@ import pytest
 import copy
 import logging
 import os
+import shutil
 import sys
+import time
 
 
 if yatest_common is None:
@@ -62,8 +64,23 @@ DEFAULT_POD_SET_SPEC = dict(
 logger.setLevel(logging.DEBUG)
 
 
+def assert_over_time(predicate, iter=20, sleep_backoff=1):
+    for _ in xrange(iter):
+        assert predicate()
+        time.sleep(sleep_backoff)
+
+
 def get_pod_scheduling_status(yp_client, pod_id):
     return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
+
+
+def get_pod_scheduling_statuses(yp_client, pod_ids):
+    responses = yp_client.get_objects(
+        "pod",
+        pod_ids,
+        selectors=["/status/scheduling"],
+    )
+    return list(map(lambda response: response[0], responses))
 
 
 def is_assigned_pod_scheduling_status(scheduling_status):
@@ -72,10 +89,18 @@ def is_assigned_pod_scheduling_status(scheduling_status):
         scheduling_status.get("node_id", "") != ""
 
 
+def are_assigned_pod_scheduling_statuses(scheduling_statuses):
+    return all(map(is_assigned_pod_scheduling_status, scheduling_statuses))
+
+
 def is_error_pod_scheduling_status(scheduling_status):
     return "error" in scheduling_status and \
         scheduling_status.get("state", None) != "assigned" and \
         scheduling_status.get("node_id", None) is None
+
+
+def are_pods_assigned(yp_client, pod_ids):
+    return are_assigned_pod_scheduling_statuses(get_pod_scheduling_statuses(yp_client, pod_ids))
 
 
 def create_pod_with_boilerplate(yp_client, pod_set_id, spec=None, pod_id=None, transaction_id=None):
@@ -304,11 +329,36 @@ class YpTestEnvironment(object):
             yatest_save_sandbox(self.test_sandbox_path)
             raise
 
-    def get_config_patch_cypress_path(self):
-        return "//yp/master/config"
-
     def create_orchid_client(self):
         return YpOrchidClient(self.yt_client, "//yp")
+
+    def get_cypress_config_patch_path(self):
+        return "//yp/master/config"
+
+    def set_cypress_config_patch(self, value, type="document"):
+        self.yt_client.create(
+            type,
+            self.get_cypress_config_patch_path(),
+            attributes=dict(value=value),
+            force=True,
+        )
+
+    def reset_cypress_config_patch(self):
+        self.yt_client.remove(
+            self.get_cypress_config_patch_path(),
+            force=True,
+            recursive=True,
+        )
+        orchid = self.create_orchid_client()
+        instance_address = orchid.get_instances()[0]
+        def is_config_reinitialized():
+            try:
+                config = dict(orchid.get(instance_address, "/config"))
+                initial_config = dict(orchid.get(instance_address, "/initial_config"))
+                return initial_config == config
+            except Exception: # Ignore non existent Orchid nodes.
+                return False
+        wait(is_config_reinitialized)
 
     def sync_access_control(self):
         orchid = self.create_orchid_client()
@@ -347,7 +397,10 @@ def test_method_setup(yp_env):
 def test_method_teardown(yp_env):
     print("\n", file=sys.stderr)
     try:
+        # Reset database state.
         reset_yp(yp_env.yp_client)
+
+        yp_env.reset_cypress_config_patch()
     except:
         # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
         logger.exception("test_method_teardown failed")

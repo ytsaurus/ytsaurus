@@ -182,7 +182,7 @@ public:
 
         void ScheduleUpdatePod(TPod* pod)
         {
-            YCHECK(PodsToUpdate_.emplace(pod, NClient::NNodes::NProto::TPodSpec()).second);
+            YT_VERIFY(PodsToUpdate_.emplace(pod, NClient::NNodes::NProto::TPodSpec()).second);
             PreparePodUpdate(pod);
         }
 
@@ -283,7 +283,7 @@ public:
         void ProcessReportedPods()
         {
             for (auto* pod : Node_->Pods().Load()) {
-                YCHECK(ExpectedPods_.emplace(pod->GetId(), pod).second);
+                YT_VERIFY(ExpectedPods_.emplace(pod->GetId(), pod).second);
                 pod->Spec().UpdateTimestamp().ScheduleLoad();
             }
 
@@ -297,7 +297,7 @@ public:
                     currentState = static_cast<EPodCurrentState>(podEntry.status().current_state());
                 }
 
-                YCHECK(ReportedPodIds_.insert(podId).second);
+                YT_VERIFY(ReportedPodIds_.insert(podId).second);
 
                 auto podIt = ExpectedPods_.find(podId);
                 if (podIt == ExpectedPods_.end()) {
@@ -336,7 +336,7 @@ public:
                         ScheduleUpdatePod(pod);
                     } else {
                         if (currentState == EPodCurrentState::Started) {
-                            YCHECK(UpToDatePodIds_.insert(podId).second);
+                            YT_VERIFY(UpToDatePodIds_.insert(podId).second);
                         }
                         ScheduleKeepPod(pod);
                     }

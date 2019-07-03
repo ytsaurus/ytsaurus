@@ -63,6 +63,22 @@ void TPodDisruptionBudget::UpdateStatus(i32 allowedPodDisruptions, const TString
     StatusUpdateTimestamp().Touch();
 }
 
+void TPodDisruptionBudget::AcceptDisruption(
+    const TString& disruptionVerb,
+    const TString& disruption,
+    bool validate)
+{
+    auto allowedPodDisruptions = Status().Load().allowed_pod_disruptions();
+    if (allowedPodDisruptions <= 0 && validate) {
+        THROW_ERROR_EXCEPTION("Cannot %v due to the empty pod disruption budget",
+            disruptionVerb);
+    }
+    auto updateMessage = Format("Pod disruption budget is decremented due to %v",
+        disruption);
+    auto newAllowedPodDisruptions = (allowedPodDisruptions <= 0) ? 0 : allowedPodDisruptions - 1;
+    UpdateStatus(newAllowedPodDisruptions, updateMessage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects

@@ -88,7 +88,7 @@ bool TLocalResourceAllocator::TryAllocate(
                     request.AllocationId,
                     resource->Id);
             }
-            YCHECK(!request.Exclusive);
+            YT_VERIFY(!request.Exclusive);
         }
 
         if (allocation->PodId != podId) {

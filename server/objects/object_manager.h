@@ -26,6 +26,8 @@ public:
     IObjectTypeHandler* GetTypeHandlerOrThrow(EObjectType type);
     IObjectTypeHandler* FindTypeHandler(EObjectType type);
 
+    bool AreExtensibleAttributesEnabled();
+
 private:
     class TImpl;
     const NYT::TIntrusivePtr<TImpl> Impl_;

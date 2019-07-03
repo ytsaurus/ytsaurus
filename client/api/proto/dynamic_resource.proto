@@ -23,7 +23,7 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 message TDynamicResourceMetaBase {
     // Id of pod_set where to deploy the resource.
     string pod_set_id = 4;
-};
+}
 
 message TDynamicResourceSpec {
     reserved 2, 3, 5;

@@ -292,7 +292,7 @@ private:
     {
         Fqdn_ = GetLocalHostName();
         if (InitialConfig_->InternalBusServer) {
-            YCHECK(InternalRpcAddresses_.emplace(DefaultNetworkName, BuildInternalRpcAddress(InitialConfig_->InternalBusServer)).second);
+            YT_VERIFY(InternalRpcAddresses_.emplace(DefaultNetworkName, BuildInternalRpcAddress(InitialConfig_->InternalBusServer)).second);
         }
         if (InitialConfig_->ClientGrpcServer) {
             ClientGrpcAddress_ = BuildGrpcAddress(InitialConfig_->ClientGrpcServer);

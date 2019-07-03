@@ -51,8 +51,8 @@ struct TNodeResources
         {
             return false;
         }
-        YCHECK(Cpu.TryAllocate(podResourceRequestCapacities.Cpu));
-        YCHECK(Memory.TryAllocate(podResourceRequestCapacities.Memory));
+        YT_VERIFY(Cpu.TryAllocate(podResourceRequestCapacities.Cpu));
+        YT_VERIFY(Memory.TryAllocate(podResourceRequestCapacities.Memory));
         return true;
     }
 
@@ -123,13 +123,13 @@ private:
 
 double GetMean(std::initializer_list<double> values)
 {
-    YCHECK(values.size() > 0);
+    YT_VERIFY(values.size() > 0);
     return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 }
 
 double GetVariance(std::initializer_list<double> values)
 {
-    YCHECK(values.size() > 0);
+    YT_VERIFY(values.size() > 0);
     auto mean = GetMean(values);
     auto variance = 0.0;
     for (auto value : values) {
@@ -146,8 +146,8 @@ class TFreeCpuMemorySharePodNodeScoreBase
 protected:
     static double ComputeShare(ui64 freeResourceCapacity, ui64 totalResourceCapacity)
     {
-        YCHECK(freeResourceCapacity <= totalResourceCapacity);
-        YCHECK(freeResourceCapacity >= 0);
+        YT_VERIFY(freeResourceCapacity <= totalResourceCapacity);
+        YT_VERIFY(freeResourceCapacity >= 0);
         return totalResourceCapacity == 0
             ? 1.0
             : static_cast<double>(freeResourceCapacity) / totalResourceCapacity;
@@ -248,7 +248,7 @@ IPodNodeScorePtr CreatePodNodeScore(TPodNodeScoreConfigPtr config)
         case EPodNodeScoreType::FreeCpuMemoryShareSquaredMinDelta:
             return New<TFreeCpuMemoryShareSquaredMinDeltaPodNodeScore>();
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 

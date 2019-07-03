@@ -128,6 +128,13 @@ public:
         EEvictionReason reason,
         const TString& message);
 
+    TPodDisruptionBudget* GetDisruptionBudget();
+
+    void RequestEviction(
+        EEvictionReason reason,
+        const TString& message,
+        bool validateDisruptionBudget);
+
     void UpdateSchedulingStatus(
         ESchedulingState state,
         const TString& message,

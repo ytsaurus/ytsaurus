@@ -62,7 +62,7 @@ public:
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& /*name*/) override
     {
         ThrowNotSupported();
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:

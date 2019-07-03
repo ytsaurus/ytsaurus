@@ -365,3 +365,19 @@ class TestObjects(object):
         spec.node_filter = FILTER
         yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec", "value": spec}])
         assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_filter"])[0] == FILTER
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestDisabledExtensibleAttributes(object):
+    YP_MASTER_CONFIG = {
+        "object_manager": {
+            "enable_extensible_attributes": False
+        }
+    }
+
+    def test_disabled_extensible_attributes(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"replica_count": 1}})
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/spec/hello", "value": "world"}])

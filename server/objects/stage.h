@@ -34,13 +34,13 @@ public:
         using TAccountAttribute = TManyToOneAttribute<TStage, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        using TEtc = TExtensibleProto<NProto::TStageSpecEtc>;
+        using TEtc = NProto::TStageSpecEtc;
         static const TScalarAttributeSchema<TStage, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    using TStatus = TExtensibleProto<NYP::NClient::NApi::NProto::TStageStatus>;
+    using TStatus = NYP::NClient::NApi::NProto::TStageStatus;
     static const TScalarAttributeSchema<TStage, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };

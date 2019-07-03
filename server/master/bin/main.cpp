@@ -46,6 +46,8 @@ protected:
         NYTAlloc::EnableProfiling();
         NYTAlloc::EnableStockpile();
 
+        google::protobuf::internal::SetProto3PreserveUnknownsDefault(true);
+
         if (HandlePdeathsigOptions()) {
             return;
         }

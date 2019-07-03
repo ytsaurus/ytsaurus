@@ -24,11 +24,13 @@ public:
 
         SpecAttributeSchema_
             ->SetAttribute(TDynamicResource::SpecSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
 
         StatusAttributeSchema_
             ->SetAttribute(TDynamicResource::StatusSchema)
-            ->SetUpdatable();
+            ->SetUpdatable()
+            ->SetExtensible();
 
     }
 

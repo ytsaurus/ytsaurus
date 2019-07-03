@@ -231,6 +231,8 @@ public:
 
     TGroup* GetGroup(const TObjectId& id);
 
+    TPodDisruptionBudget* GetPodDisruptionBudget(const TObjectId& id);
+
     TFuture<TTransactionCommitResult> Commit();
     void Abort();
 

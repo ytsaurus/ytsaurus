@@ -23,6 +23,7 @@ class TAccount;
 class TInternetAddress;
 class TNetworkModule;
 class TResource;
+class TPodDisruptionBudget;
 
 template <class T>
 class TLabelFilterCache;
@@ -33,6 +34,7 @@ class TAllocationPlan;
 struct TAllocationStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(IGlobalResourceAllocator)
+DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetController)
 
 DECLARE_REFCOUNTED_CLASS(TScheduleQueue)
 DECLARE_REFCOUNTED_CLASS(TResourceManager)
@@ -41,6 +43,7 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 DECLARE_REFCOUNTED_CLASS(TEveryNodeSelectionStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TPodNodeScoreConfig)
 DECLARE_REFCOUNTED_CLASS(TGlobalResourceAllocatorConfig)
+DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 
 constexpr size_t MaxResourceDimensions = 3;
