@@ -464,7 +464,7 @@ void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
 {
     EnsureSpace(sizeof(double) + 2);
     *BufferCursor_++ = NDetail::DoubleMarker;
-    WriteUnaligned(BufferCursor_, value);
+    WriteUnaligned<double>(BufferCursor_, value);
     BufferCursor_ += sizeof(double);
     EndNode();
 }
