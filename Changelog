@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* ifsmirnov: Changed semantics around required columns in replication log. Remove tablet cells before cluster update.
 * ermolovd: New variant_tuple and variant_struct types. Update masters via snapshot.
 * levysotsky: YT-8412: "operations_client" builtin user. Update masters via snapshot.
 * babenko: Schedule delayed recomputation of membership closure on group removal. Update masters via snapshot.

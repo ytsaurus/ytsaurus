@@ -911,6 +911,14 @@ TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element)
     return New<TOptionalLogicalType>(std::move(element));
 }
 
+TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element)
+{
+    if (element->GetMetatype() == ELogicalMetatype::Optional) {
+        return element;
+    }
+    return OptionalLogicalType(std::move(element));
+}
+
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required)
 {
     if (required) {
