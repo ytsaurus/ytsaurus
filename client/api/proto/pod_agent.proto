@@ -487,6 +487,11 @@ message TBox {
     // PS Если вы используете расширенные базовые образы, нужные симлинки в них уже есть https://wiki.yandex-team.ru/runtime-cloud/virtualimages/#rasshirennyjjobraz
     bool bind_skynet = 11;
 
+    // Если в аннотациях пода есть флаг: pod.rbind.yt: true
+    // То pod_agent создает bind volume из <pod_chroot>/yt в <box_chroot>/yt
+    // На файловой системе box'а обязательно наличие директории /yt
+    // Эту директорию можно добавить с помощью небольшого слоя sbr:1014359696
+
     // Ограничения на meta контейнер Box
     TComputeResources compute_resources = 12;
 
