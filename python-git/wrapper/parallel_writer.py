@@ -9,6 +9,8 @@ from .transaction_commands import _make_transactional_request
 from .thread_pool import ThreadPool
 from .heavy_commands import WriteRequestRetrier
 
+import yt.logger as logger
+
 import copy
 import threading
 
@@ -143,5 +145,8 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
             write_action=write_action,
             remote_temp_directory=remote_temp_directory,
             client=client)
+
+        if get_config(client)["write_progress_bar"]["enable"] is not False:
+            logger.info("Progress bar is disabled in parallel mode")
 
         writer.write(group_blobs_by_size(stream, chunk_size))

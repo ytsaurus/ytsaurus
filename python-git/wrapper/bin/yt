@@ -146,12 +146,19 @@ def yson_dumps(data):
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
+YT_SORT_STRUCTURED_OUTPUT_KEYS = os.environ.get("YT_SORT_STRUCTURED_OUTPUT_KEYS", "0")
 PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
            "yson": yson._loads_from_native_str}
 DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
            "yson": yson_dumps}
 OUTPUT_FORMATS = {"json": "<format=pretty>json",
                   "yson": "<format=pretty>yson"}
+
+try:
+    if int(YT_SORT_STRUCTURED_OUTPUT_KEYS):
+        OUTPUT_FORMATS["yson"] = "<format=pretty;sort_keys=%true>yson"
+except ValueError:
+    pass
 
 try:
     parse_arguments = PARSERS[YT_ARGUMENTS_FORMAT]

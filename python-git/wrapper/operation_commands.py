@@ -322,16 +322,15 @@ class PrintOperationInfo(object):
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
             if state.is_finished():
+                attribute_names = {"alerts": "Alerts", "unrecognized_spec": "Unrecognized spec"}
                 try:
-                    attribute_names = {"alerts": "Alerts", "unrecognized_spec": "Unrecognized spec"}
                     result = get_operation_attributes(self.operation, fields=builtins.list(iterkeys(attribute_names)), client=self.client)
                     for attribute, readable_name in iteritems(attribute_names):
                         attribute_value = result.get(attribute)
                         if attribute_value:
                             self.log("%s: %s", readable_name, str(attribute_value))
                 except YtResponseError as err:
-                    # TODO(ilpauzner): Make detection via error codes.
-                    if err.contains_text("alerts") and err.contains_text("is not allowed"):
+                    if err.is_no_such_attribute(attribute_names):
                         # Too old back-end, no support for alerts.
                         pass
                     else:
@@ -386,7 +385,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
                 elif not ignore_errors:
                     raise
                 else:
-                    logger.debug("Stderr download failed %s", str(err))
+                    logger.debug("Stderr download failed with error %s", repr(err))
         else:
             stderr_path = ypath_join(OPERATIONS_PATH, operation, "jobs", job, "stderr")
             has_stderr = exists(stderr_path, client=yt_client)

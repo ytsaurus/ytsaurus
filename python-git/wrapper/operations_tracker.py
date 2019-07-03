@@ -178,9 +178,8 @@ class OperationsTrackerBase(object):
             self.wait_all()
         else:
             logger.warning(
-                "Error: (type=%s, value=%s), aborting all operations in tracker...",
-                exc_type,
-                str(exc_value).replace("\n", "\\n"))
+                "Operations wait failed with error %s, aborting all operations in tracker...",
+                repr(exc_value))
             self.abort_all()
 
     def __del__(self):

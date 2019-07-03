@@ -513,7 +513,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             logging_config = get_at(proxy_config, "proxy/logging")
             set_at(proxy_config, "proxy/logging",
-                   init_logging(logging_config, proxy_logs_dir, "http-proxy-{}".format(index), provision["enable_debug_logging"]))
+                   init_logging(logging_config, proxy_logs_dir, "http-proxy-{}".format(index), provision["enable_debug_logging"], enable_structured_logging=True))
             set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http-application-{}.log".format(index)))
 
             _set_bind_retry_options(proxy_config)
