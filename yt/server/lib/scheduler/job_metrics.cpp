@@ -54,7 +54,7 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statisitcs_path").Value(customJobMetricDescription.StatisticsPath)
+            .Item("statistics_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
             .Item("aggregate_type").Value(FormatEnum<EAggregateType>(customJobMetricDescription.AggregateType))
         .EndMap();
