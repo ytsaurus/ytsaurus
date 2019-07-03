@@ -17,6 +17,10 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     NTableClient::TTableSchema readSchema,
     NLogging::TLogger logger);
 
+DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
+    DB::BlockInputStreamPtr blockInputStream,
+    NLogging::TLogger logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }

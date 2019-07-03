@@ -43,6 +43,16 @@ public:
         return HeaderBlock_;
     }
 
+    virtual void readPrefixImpl() override
+    {
+        YT_LOG_DEBUG("readPrefixImpl() is called");
+    }
+
+    virtual void readSuffixImpl() override
+    {
+        YT_LOG_DEBUG("readSuffixImpl() is called");
+    }
+
 private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
@@ -52,6 +62,8 @@ private:
 
     DB::Block readImpl() override
     {
+        YT_LOG_DEBUG("readImpl() is called");
+
         auto block = HeaderBlock_.cloneEmpty();
 
         // TODO(max42): consult with psushin@ about contract here.
@@ -63,12 +75,15 @@ private:
             if (!Reader_->Read(&rows)) {
                 return {};
             } else if (rows.empty()) {
+                YT_LOG_DEBUG("Waiting for ready event");
                 WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
+                YT_LOG_DEBUG("Ready event happened");
             } else {
                 break;
             }
         }
+        YT_LOG_DEBUG("Rows are ready");
 
         for (const auto& row : rows) {
             for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
@@ -100,6 +115,8 @@ private:
                 }
             }
         }
+
+        YT_LOG_DEBUG("Block is ready");
 
         return block;
     }
@@ -135,6 +152,96 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     TLogger logger)
 {
     return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlockInputStreamLoggingAdapter
+    : public DB::IBlockInputStream
+{
+public:
+    TBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+        : UnderlyingStream_(std::move(stream))
+        , Logger(logger)
+    {
+        Logger.AddTag("UnderlyingStream: %v", static_cast<void*>(UnderlyingStream_.get()));
+        YT_LOG_DEBUG("Stream created");
+        addChild(UnderlyingStream_);
+    }
+
+    virtual void readPrefix() override
+    {
+        YT_LOG_DEBUG("readPrefix() is called");
+        UnderlyingStream_->readPrefix();
+    }
+
+    virtual void readSuffix() override
+    {
+        YT_LOG_DEBUG("readSuffix() is called");
+        UnderlyingStream_->readSuffix();
+    }
+
+    virtual DB::Block readImpl() override
+    {
+        YT_LOG_DEBUG("Started reading from the underlying stream");
+        auto result = UnderlyingStream_->read();
+        YT_LOG_DEBUG("Finished reading from the underlying stream");
+        return result;
+    }
+
+    virtual DB::String getName() const override
+    {
+        return "TBlockInputStreamLoggingAdapter";
+    }
+
+    virtual DB::Block getHeader() const override
+    {
+        YT_LOG_DEBUG("Started getting header from the underlying stream");
+        auto result = UnderlyingStream_->getHeader();
+        YT_LOG_DEBUG("Finished getting header from the underlying stream");
+        return result;
+    }
+
+    virtual const DB::BlockMissingValues& getMissingValues() const override
+    {
+        return UnderlyingStream_->getMissingValues();
+    }
+
+    virtual bool isSortedOutput() const override
+    {
+        return UnderlyingStream_->isSortedOutput();
+    }
+
+    virtual const DB::SortDescription& getSortDescription() const override
+    {
+        return UnderlyingStream_->getSortDescription();
+    }
+
+    virtual DB::Block getTotals() override
+    {
+        return UnderlyingStream_->getTotals();
+    }
+
+    virtual void progress(const DB::Progress& value) override
+    {
+        UnderlyingStream_->progress(value);
+    }
+
+    virtual void cancel(bool kill) override
+    {
+        UnderlyingStream_->cancel(kill);
+    }
+
+private:
+    DB::BlockInputStreamPtr UnderlyingStream_;
+    TLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+{
+    return std::make_shared<TBlockInputStreamLoggingAdapter>(std::move(stream), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
