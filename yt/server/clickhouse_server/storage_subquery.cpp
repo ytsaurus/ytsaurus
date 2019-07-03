@@ -55,7 +55,6 @@ public:
         protoSpec.ParseFromString(base64DecodedSpec);
         SubquerySpec_ = NYT::FromProto<TSubquerySpec>(protoSpec);
 
-        YT_VERIFY((SubquerySpec_.InitialQueryId == queryContext->QueryId) == (queryContext->QueryKind == EQueryKind::InitialQuery));
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
         }
@@ -133,8 +132,8 @@ public:
         auto options = New<NTableClient::TTableReaderOptions>();
 
         YT_LOG_INFO("Creating table readers");
+        BlockInputStreams streams;
 
-        std::vector<NTableClient::ISchemalessChunkReaderPtr> readers;
         for (const auto& chunkStripe : chunkStripeList->Stripes) {
             std::vector<TDataSliceDescriptor> dataSliceDescriptors;
             i64 rowCount = 0;
@@ -164,6 +163,7 @@ public:
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+            blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
 
             auto reader = CreateSchemalessParallelMultiReader(
                 config,
@@ -186,12 +186,8 @@ public:
 
             YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
 
-            readers.emplace_back(std::move(reader));
-        }
-
-        BlockInputStreams streams;
-        for (auto& tableReader : readers) {
-            streams.emplace_back(CreateBlockInputStream(std::move(tableReader), readSchema, Logger));
+            streams.emplace_back(CreateBlockInputStream(std::move(reader), readSchema, TLogger(Logger)
+                .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }
 
         return streams;

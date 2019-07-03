@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "bootstrap.h"
+#include "block_input_stream.h"
 #include "format_helpers.h"
 #include "type_helpers.h"
 #include "helpers.h"
@@ -223,8 +224,11 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
     const Tables& externalTables,
     QueryProcessingStage::Enum processedStage)
 {
+    const auto* queryContext = GetQueryContext(context);
+
     std::string query = queryToString(queryAst);
 
+    // TODO(max42): can be done only once?
     Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, SelectQueryOptions(processedStage).analyze()).getSampleBlock());
 
     auto stream = std::make_shared<RemoteBlockInputStream>(
@@ -239,7 +243,9 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
 
     stream->setPoolMode(PoolMode::GET_MANY);
 
-    return stream;
+    return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
+        .AddTag("RemoteNode: %v", remoteNode->GetName().ToString())
+        .AddTag("RemoteStreamId: %v", TGuid::Create()));
 }
 
 void TStorageDistributedBase::startup()
