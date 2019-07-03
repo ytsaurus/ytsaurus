@@ -1,8 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
 
-#include <yt/core/misc/memory_tag.h>
+#include <yt/core/ytalloc/memory_tag.h>
 
 #include <thread>
 
@@ -32,18 +32,18 @@ class TYTAllocTaggedTest
 TEST_P(TYTAllocTaggedTest, LargeCounters)
 {
     TMemoryTagGuard guard(GetParam());
-    constexpr auto N = 100_MB;
-    constexpr auto Eps = 1_MB;
-    auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto largeTotal1 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    constexpr auto N = 100_MBs;
+    constexpr auto Eps = 1_MBs;
+    auto total1 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal1 = AggregateArenaCounters(GetLargeArenaAllocationCounters())[ELargeArenaCounter::BytesUsed];
     auto* ptr = NYTAlloc::Allocate(N);
-    auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto largeTotal2 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    auto total2 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal2 = AggregateArenaCounters(GetLargeArenaAllocationCounters())[ELargeArenaCounter::BytesUsed];
     EXPECT_LE(std::abs(total2 - total1 - N), Eps);
     EXPECT_LE(std::abs(largeTotal2 - largeTotal1 - N), Eps);
     NYTAlloc::Free(ptr);
-    auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto largeTotal3 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    auto total3 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal3 = AggregateArenaCounters(GetLargeArenaAllocationCounters())[ELargeArenaCounter::BytesUsed];
     EXPECT_LE(std::abs(total3 - total1), Eps);
     EXPECT_LE(std::abs(largeTotal3 - largeTotal1), Eps);
 }
@@ -51,18 +51,18 @@ TEST_P(TYTAllocTaggedTest, LargeCounters)
 TEST_P(TYTAllocTaggedTest, HugeCounters)
 {
     TMemoryTagGuard guard(GetParam());
-    constexpr auto N = 10_GB;
-    constexpr auto Eps = 1_MB;
-    auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto hugeTotal1 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    constexpr auto N = 10_GBs;
+    constexpr auto Eps = 1_MBs;
+    auto total1 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal1 = GetHugeAllocationCounters()[EHugeCounter::BytesUsed];
     auto* ptr = NYTAlloc::Allocate(N);
-    auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto hugeTotal2 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    auto total2 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal2 = GetHugeAllocationCounters()[EHugeCounter::BytesUsed];
     EXPECT_LE(std::abs(total2 - total1 - N), Eps);
     EXPECT_LE(std::abs(hugeTotal2 - hugeTotal1 - N), Eps);
     NYTAlloc::Free(ptr);
-    auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
-    auto hugeTotal3 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    auto total3 = GetTotalAllocationCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal3 = GetHugeAllocationCounters()[EHugeCounter::BytesUsed];
     EXPECT_LE(std::abs(total3 - total1), Eps);
     EXPECT_LE(std::abs(hugeTotal3 - hugeTotal1), Eps);
 }
@@ -97,7 +97,7 @@ TEST(TYTAllocTest, PerThreadCacheReclaim)
 
     auto getBytesCommitted = [] {
         static_assert(NYTAlloc::SmallRankCount >= 23, "SmallRankCount is too small");
-        return NYTAlloc::GetSmallArenaCounters()[22][NYTAlloc::ESmallArenaCounter::BytesCommitted];
+        return NYTAlloc::GetSmallArenaAllocationCounters()[22][NYTAlloc::ESmallArenaCounter::BytesCommitted];
     };
 
     auto bytesBefore = getBytesCommitted();
@@ -129,7 +129,7 @@ TEST(TYTAllocTest, PerThreadCacheReclaim)
     fprintf(stderr, "bytesAfter = %" PRISZT"\n", bytesAfter);
 
     EXPECT_GE(bytesAfter, bytesBefore);
-    EXPECT_LE(bytesAfter, bytesBefore + 4_MB);
+    EXPECT_LE(bytesAfter, bytesBefore + 4_MBs);
 }
 
 #endif

@@ -52,6 +52,7 @@ void FromProto(TGuid* guid, const NProto::TGuid& protoGuid);
 void ToProto(TProtoStringType* protoGuid, TGuid guid);
 void FromProto(TGuid* guid, const TProtoStringType& protoGuid);
 
+void FormatValue(TStringBuilderBase* builder, TGuid value, TStringBuf format);
 TString ToString(TGuid guid);
 
 bool operator == (TGuid lhs, TGuid rhs);

@@ -12,14 +12,15 @@
 #include <yt/server/lib/admin/admin_service.h>
 #include <yt/server/lib/core_dump/core_dumper.h>
 
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client_cache.h>
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/client/api/client.h>
@@ -34,7 +35,8 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/core/alloc/statistics_producer.h>
+
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/profiling/profile_manager.h>
 

@@ -51,7 +51,7 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/bus/server.h>
@@ -60,6 +60,8 @@
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/public.h>
+
+#include <library/ytalloc/api/ytalloc.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
@@ -750,7 +752,7 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatCounters());
+    YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatAllocationCounters());
 
     if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
         if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {

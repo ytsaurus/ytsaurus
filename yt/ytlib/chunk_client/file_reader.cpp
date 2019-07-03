@@ -6,7 +6,8 @@
 
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/client/misc/workload.h>
 
@@ -14,6 +15,7 @@ namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

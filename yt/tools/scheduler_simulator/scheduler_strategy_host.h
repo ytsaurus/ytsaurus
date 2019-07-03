@@ -13,7 +13,8 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/size_literals.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NSchedulerSimulator {
 

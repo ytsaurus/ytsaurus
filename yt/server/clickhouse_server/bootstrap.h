@@ -4,9 +4,10 @@
 
 #include "host.h"
 
+#include <yt/ytlib/monitoring/public.h>
+
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
-#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/actions/public.h>
 #include <yt/core/bus/public.h>

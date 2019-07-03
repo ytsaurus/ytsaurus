@@ -8,12 +8,14 @@
 
 #include <yt/core/misc/cast.h>
 #include <yt/core/misc/checksum.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;

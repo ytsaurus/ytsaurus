@@ -29,6 +29,7 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NYT::FromProto;

@@ -8,7 +8,6 @@
 #include <yt/client/table_client/versioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/enum.h>
 
 namespace NYT::NTabletNode {
 

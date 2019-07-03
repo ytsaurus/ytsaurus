@@ -34,6 +34,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;

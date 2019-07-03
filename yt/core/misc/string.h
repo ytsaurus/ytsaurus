@@ -2,103 +2,9 @@
 
 #include "public.h"
 
+#include "string_builder.h"
+
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations, avoid including format.h directly here.
-template <class... TArgs, size_t FormatLength>
-void Format(TStringBuilderBase* builder, const char (&format)[FormatLength], TArgs&&... args);
-template <class... TArgs>
-void Format(TStringBuilderBase* builder, TStringBuf format, TArgs&&... args);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A simple helper for constructing strings by a sequence of appends.
-class TStringBuilderBase
-{
-public:
-    char* Preallocate(size_t size);
-
-    size_t GetLength() const;
-
-    TStringBuf GetBuffer() const;
-
-    void Advance(size_t size);
-
-    void AppendChar(char ch);
-    void AppendChar(char ch, int n);
-
-    void AppendString(TStringBuf str);
-    void AppendString(const char* str);
-
-    template <class... TArgs, size_t FormatLength>
-    void AppendFormat(const char (&format)[FormatLength], TArgs&&... args);
-    template <class... TArgs>
-    void AppendFormat(TStringBuf format, TArgs&&... args);
-
-    void Reset();
-
-protected:
-    char* Begin_ = nullptr;
-    char* Current_ = nullptr;
-    char* End_ = nullptr;
-
-    virtual void DoReset() = 0;
-    virtual void DoPreallocate(size_t newLength) = 0;
-
-    static constexpr size_t MinBufferLength = 1024;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStringBuilder
-    : public TStringBuilderBase
-{
-public:
-    TString Flush();
-
-protected:
-    TString Buffer_;
-
-    virtual void DoReset() override;
-    virtual void DoPreallocate(size_t size) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TString ToStringViaBuilder(const T& value, TStringBuf spec = AsStringBuf("v"));
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Appends a certain delimiter starting from the second call.
-class TDelimitedStringBuilderWrapper
-    : private TNonCopyable
-{
-public:
-    TDelimitedStringBuilderWrapper(
-        TStringBuilderBase* builder,
-        TStringBuf delimiter = AsStringBuf(", "))
-        : Builder_(builder)
-        , Delimiter_(delimiter)
-    { }
-
-    TStringBuilderBase* operator->()
-    {
-        if (!FirstCall_) {
-            Builder_->AppendString(Delimiter_);
-        }
-        FirstCall_ = false;
-        return Builder_;
-    }
-
-private:
-    TStringBuilderBase* const Builder_;
-    const TStringBuf Delimiter_;
-
-    bool FirstCall_ = true;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,8 +19,9 @@ struct TDefaultFormatter
     }
 };
 
-extern const TStringBuf DefaultJoinToStringDelimiter;
-extern const TStringBuf DefaultKeyValueDelimiter;
+static constexpr TStringBuf DefaultJoinToStringDelimiter = AsStringBuf(", ");
+static constexpr TStringBuf DefaultKeyValueDelimiter = AsStringBuf(": ");
+static constexpr TStringBuf DefaultRangeEllipsisFormat = AsStringBuf("...");
 
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
@@ -299,7 +206,3 @@ struct TCaseInsensitiveStringEqualityComparer
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-#define STRING_INL_H_
-#include "string-inl.h"
-#undef STRING_INL_H_

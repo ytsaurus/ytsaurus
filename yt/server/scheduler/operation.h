@@ -18,7 +18,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/enum.h>
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>

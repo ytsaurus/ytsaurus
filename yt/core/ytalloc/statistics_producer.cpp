@@ -1,5 +1,6 @@
 #include "statistics_producer.h"
-#include "alloc.h"
+
+#include <library/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -9,14 +10,13 @@ namespace NYT::NYTAlloc {
 
 using namespace NYson;
 using namespace NYTree;
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonProducer CreateStatisticsProducer()
 {
     return BIND([] (IYsonConsumer* consumer) {
-        auto statistics = GetProfiledAllocationStatistics();
+        auto statistics = NYTAlloc::GetProfiledAllocationStatistics();
         std::sort(
             statistics.begin(),
             statistics.end(),
@@ -28,12 +28,12 @@ TYsonProducer CreateStatisticsProducer()
                 .Item("profiled_allocations").DoListFor(statistics, [] (auto fluent, auto& allocation) {
                     fluent
                         .Item().BeginMap()
-                            .DoIf(!allocation.Backtrace.empty(), [&] (auto fluent) {
+                            .DoIf(allocation.Backtrace.FrameCount > 0, [&] (auto fluent) {
                                 fluent
                                     .Item("backtrace").Do([&] (auto fluent) {
                                         fluent.GetConsumer()->OnBeginList();
                                         FormatStackTrace(
-                                            const_cast<void**>(allocation.Backtrace.data()), allocation.Backtrace.size(),
+                                            const_cast<void**>(allocation.Backtrace.Frames.data()), allocation.Backtrace.FrameCount,
                                             [&] (const char* data, size_t length) {
                                                 fluent.GetConsumer()->OnListItem();
                                                 auto line = TStringBuf(data, length);

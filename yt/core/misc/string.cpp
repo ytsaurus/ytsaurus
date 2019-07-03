@@ -1,14 +1,10 @@
 #include "string.h"
 #include "error.h"
+#include "guid.h"
 
 #include <util/string/ascii.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TStringBuf DefaultJoinToStringDelimiter = AsStringBuf(", ");
-const TStringBuf DefaultKeyValueDelimiter = AsStringBuf(": ");
 
 ////////////////////////////////////////////////////////////////////////////////
 

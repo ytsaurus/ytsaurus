@@ -6,11 +6,23 @@
 #endif
 
 #include <atomic>
+#include <type_traits>
 #include <mutex>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+T* LeakySingleton()
+{
+    static std::aligned_storage_t<sizeof(T), alignof(T)> Storage;
+    static std::once_flag Initialized;
+    std::call_once(Initialized, [] {
+        new (&Storage) T();
+    });
+    return reinterpret_cast<T*>(&Storage);
+}
 
 template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
@@ -29,17 +41,6 @@ TIntrusivePtr<T> RefCountedSingleton()
     });
 
     return StrongInstance;
-}
-
-template <class T>
-T* ImmortalSingleton()
-{
-    static std::aligned_storage_t<sizeof(T), alignof(T)> Storage;
-    static std::once_flag Initialized;
-    std::call_once(Initialized, [] {
-        new (&Storage) T();
-    });
-    return reinterpret_cast<T*>(&Storage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

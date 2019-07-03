@@ -26,7 +26,7 @@ namespace NYT::NRpc {
 struct TStreamingPayload
 {
     NCompression::ECodec Codec;
-    EMemoryZone MemoryZone;
+    NYTAlloc::EMemoryZone MemoryZone;
     int SequenceNumber;
     std::vector<TSharedRef> Attachments;
 };
@@ -78,7 +78,7 @@ struct TSendOptions
     std::optional<TDuration> Timeout;
     bool RequestAck = true;
     bool GenerateAttachmentChecksums = true;
-    EMemoryZone MemoryZone = EMemoryZone::Normal;
+    NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
 };
 

@@ -4,7 +4,8 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/memory_tag.h>
+#include <yt/core/ytalloc/memory_tag.h>
+
 #include <yt/core/misc/shutdownable.h>
 
 namespace NYT::NConcurrency {
@@ -78,7 +79,9 @@ ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker);
 
 //! Creates an invoker that runs each callback within a memory context defined by a
 //! given memory tag. Every allocation performed by a callback will be properly tagged.
-IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, TMemoryTag memoryTag);
+IInvokerPtr CreateMemoryTaggingInvoker(
+    IInvokerPtr underlyingInvoker,
+    NYTAlloc::TMemoryTag memoryTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

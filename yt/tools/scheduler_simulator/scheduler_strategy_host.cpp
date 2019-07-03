@@ -62,7 +62,7 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             auto resourceLimits = execNode->GetResourceLimits();
-            ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GB)];
+            ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GBs)];
         }
     }
 

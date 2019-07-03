@@ -7,7 +7,10 @@
 #undef SCHEDULER_INL_H_
 
 #include <yt/core/actions/invoker_util.h>
-#include <yt/core/misc/memory_tag.h>
+
+#include <yt/core/ytalloc/memory_tag.h>
+
+#include <library/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency {
 
@@ -27,7 +30,7 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
-        TMemoryTagGuard guard(NullMemoryTag);
+        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
         YT_ASSERT(future.IsSet());
     } else {
@@ -72,6 +75,7 @@ Y_FORCE_INLINE TFiberId GetCurrentFiberId()
 Y_FORCE_INLINE void SetCurrentFiberId(TFiberId id)
 {
     CurrentFiberId = id;
+    NYTAlloc::SetCurrentFiberId(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

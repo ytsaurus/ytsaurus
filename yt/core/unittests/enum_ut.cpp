@@ -41,15 +41,15 @@ DEFINE_ENUM(EMultipleNames,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-std::vector<T> ToVector(TRange<T> range)
+template <class T, size_t N>
+std::vector<T> ToVector(std::array<T, N> array)
 {
-    return std::vector<T>(range.begin(), range.end());
+    return std::vector<T>(array.begin(), array.end());
 }
 
 TEST(TEnumTest, Domain)
 {
-    EXPECT_EQ(3, TEnumTraits<ESimple>::GetDomainSize());
+    EXPECT_EQ(3, TEnumTraits<ESimple>::DomainSize);
     std::vector<ESimple> v {
         ESimple::X,
         ESimple::Y,
@@ -204,8 +204,8 @@ TEST(TEnumTest, SaveAndLoad)
 
 TEST(TEnumTest, DomainSize)
 {
-    EXPECT_EQ(3, TEnumTraits<ESimple>::GetDomainSize());
-    EXPECT_EQ(5, TEnumTraits<EColor>::GetDomainSize());
+    EXPECT_EQ(3, TEnumTraits<ESimple>::DomainSize);
+    EXPECT_EQ(5, TEnumTraits<EColor>::DomainSize);
 }
 
 TEST(TEnumTest, DomainValues)

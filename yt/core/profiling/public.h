@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT::NProfiling {
 
@@ -15,7 +16,6 @@ class TTimer;
 class TMonotonicCounter;
 class TSimpleGauge;
 class TAggregateGauge;
-
 
 struct TQueuedSample;
 

@@ -1,11 +1,9 @@
 #pragma once
-#ifndef STRING_INL_H_
+#ifndef STRING_BUILDER_INL_H_
 #error "Direct inclusion of this file is not allowed, include string.h"
 // For the sake of sane code completion.
-#include "string.h"
+#include "string_builder.h"
 #endif
-
-#include <type_traits>
 
 namespace NYT {
 

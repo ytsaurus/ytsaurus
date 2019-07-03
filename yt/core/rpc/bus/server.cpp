@@ -18,6 +18,7 @@ namespace NYT::NRpc::NBus {
 
 using namespace NConcurrency;
 using namespace NYT::NBus;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;

@@ -36,7 +36,7 @@ TEST_F(TTimerTest, CpuEmpty)
     auto invoker = Queue->GetInvoker();
     TValue cpu = 0;
     BIND([&] () {
-        TCpuTimer cpuTimer;
+        TFiberWallTimer cpuTimer;
         cpu = cpuTimer.GetElapsedValue();
     })
     .AsyncVia(invoker).Run()
@@ -51,7 +51,7 @@ TEST_F(TTimerTest, CpuWallCompare)
     TValue cpu = 0;
     TValue wall = 0;
     BIND([&] () {
-        TCpuTimer cpuTimer;
+        TFiberWallTimer cpuTimer;
         TWallTimer wallTimer;
 
         WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))

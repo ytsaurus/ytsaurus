@@ -64,7 +64,6 @@
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
@@ -72,6 +71,8 @@
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/yson/string.h>
+
+#include <yt/core/ytalloc/memory_tag.h>
 
 namespace NYT::NControllerAgent {
 
@@ -899,7 +900,7 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    const TMemoryTag MemoryTag_;
+    const NYTAlloc::TMemoryTag MemoryTag_;
 
     NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 

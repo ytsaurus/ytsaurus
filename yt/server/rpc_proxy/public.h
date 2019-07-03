@@ -1,7 +1,6 @@
 #pragma once
 
 #include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/misc/enum.h>
 
 #include <yt/client/api/rpc_proxy/public.h>
 
