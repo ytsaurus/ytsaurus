@@ -247,8 +247,7 @@ class RequestRetrier(Retrier):
             url = self.url.format(proxy=proxy)
             self.request_url = url
 
-        logger.debug("Request url: %r", url)
-        logger.debug("Headers: %r", self.headers)
+        logger.debug("Perform HTTP %s request %s with headers %s", self.method, url, hide_token(self.headers))
         if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
             logger.debug("Body: %r", self.kwargs["data"])
 
@@ -297,9 +296,10 @@ class RequestRetrier(Retrier):
 
     def except_action(self, error, attempt):
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                       self.method, self.request_url, str(type(error)), str(error), str(hide_token(dict(self.headers))))
+                       self.method, self.request_url, repr(error), str(hide_token(dict(self.headers))))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if isinstance(error, YtError):
+            # TODO(ignat): str may fail of error contains unicode characters.
             logger.info("Full error message:\n%s", str(error))
         if self.proxy_provider is not None:
             self.proxy_provider.on_error_occured(error)

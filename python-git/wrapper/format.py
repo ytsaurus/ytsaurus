@@ -287,6 +287,10 @@ class Format(object):
         stream = BytesIO(string)
         return self.load_row(stream)
 
+    def postprocess(self, string):
+        """Processes structured output data according to format options."""
+        return string
+
     @staticmethod
     def _create_property(property_name, conversion=None):
         if conversion is None:
@@ -558,7 +562,7 @@ class YsonFormat(Format):
     def __init__(self, format=None, control_attributes_mode=None,
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
-                 require_yson_bindings=None, lazy=None):
+                 require_yson_bindings=None, lazy=None, sort_keys=None):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
@@ -572,12 +576,14 @@ class YsonFormat(Format):
                     "ignore_inner_attributes": False,
                     "always_create_attributes": False,
                     "format": "binary",
-                    "lazy": False}
+                    "lazy": False,
+                    "sort_keys": False}
         options = {"boolean_as_string": boolean_as_string,
                    "ignore_inner_attributes": ignore_inner_attributes,
                    "always_create_attributes": always_create_attributes,
                    "format": format,
-                   "lazy": lazy}
+                   "lazy": lazy,
+                   "sort_keys": sort_keys}
 
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
@@ -706,6 +712,13 @@ class YsonFormat(Format):
                       yson_format=self.attributes["format"],
                       boolean_as_string=self.attributes["boolean_as_string"],
                       **kwargs)
+
+    def postprocess(self, string):
+        """Sorts map keys if sort_keys option is set."""
+        if self.attributes["sort_keys"]:
+            native_data = yson.loads(string)
+            return yson.dumps(native_data, yson_format=self.attributes["format"], sort_keys=True)
+        return string
 
 class YamrFormat(Format):
     """YAMR legacy data format.

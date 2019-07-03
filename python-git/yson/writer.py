@@ -42,7 +42,7 @@ from .common import YsonError
 from . import yson_types
 
 from yt.packages.six.moves import map as imap
-from yt.packages.six import integer_types, text_type, binary_type, iteritems, PY3
+from yt.packages.six import integer_types, text_type, binary_type, iteritems, iterkeys, PY3
 
 import math
 import re
@@ -69,7 +69,7 @@ def _escape_bytes(obj):
     return ESCAPE.sub(replace, obj)
 
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
-         boolean_as_string=False):
+         boolean_as_string=False, sort_keys=False):
     """Serializes `object` as a YSON formatted stream to `stream`.
 
     :param str yson_format: format of YSON, one of ["binary", "text", "pretty"].
@@ -77,10 +77,11 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
     :param int indent: number of identation spaces in pretty format.
     :param str encoding: encoding that uses to encode unicode strings.
     :param bool boolean_as_string: whether dump boolean values as YSON strings (needed for backward compatibility).
+    :param bool sort_keys: if True, mapping items are printed in sorted order.
     """
 
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding,
-                       indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string))
+                       indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string, sort_keys=sort_keys))
 
 class YsonContext(object):
     def __init__(self):
@@ -104,7 +105,7 @@ def _raise_error_with_context(message, context):
     raise YsonError(message, attributes=attributes)
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
-          boolean_as_string=False):
+          boolean_as_string=False, sort_keys=False):
     """Serializes `object` as a YSON formatted stream to string and returns it. See :func:`dump <.dump>`."""
     if indent is None:
         indent = 4
@@ -122,11 +123,11 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="
     else:
         yson_type = "node"
 
-    d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string)
+    d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string, sort_keys)
     return d.dumps(object, YsonContext())
 
 class Dumper(object):
-    def __init__(self, check_circular, encoding, indent, yson_type, boolean_as_string):
+    def __init__(self, check_circular, encoding, indent, yson_type, boolean_as_string, sort_keys):
         self.yson_type = yson_type
         self.boolean_as_string = boolean_as_string
 
@@ -135,7 +136,7 @@ class Dumper(object):
             self._seen_objects = {}
 
         self._encoding = encoding
-        self._format = FormatDetails(indent)
+        self._format = FormatDetails(indent, sort_keys)
         if yson_type == "node":
             self._level = -1
         else:
@@ -241,7 +242,7 @@ class Dumper(object):
         if not is_stream:
             result += [b"{", self._format.nextline()]
 
-        for k, v in iteritems(obj):
+        for k, v in self._format.mapping_iter(obj):
             if not isinstance(k, (text_type, binary_type)):
                 _raise_error_with_context("Only string can be Yson map key. Key: {0!r}".format(k), context)
 
@@ -328,8 +329,9 @@ class Dumper(object):
 
 
 class FormatDetails(object):
-    def __init__(self, indent):
+    def __init__(self, indent, sort_keys=False):
         self._indent = indent
+        self._sort_keys = sort_keys
 
     def prefix(self, level):
         if self._indent:
@@ -348,3 +350,9 @@ class FormatDetails(object):
             return b" "
         else:
             return b""
+
+    def mapping_iter(self, mapping):
+        if self._sort_keys:
+            return ((key, mapping[key]) for key in sorted(iterkeys(mapping)))
+        else:
+            return iteritems(mapping)

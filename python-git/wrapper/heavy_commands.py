@@ -131,7 +131,7 @@ class WriteRequestRetrier(Retrier):
             self.write_action(self.chunk, self.params)
 
     def except_action(self, error, attempt):
-        logger.warning("%s: %s", type(error), str(error))
+        logger.warning("Write failed with error %s", repr(error))
 
     def run_write_action(self, chunk, params):
         self.chunk = chunk
