@@ -84,7 +84,8 @@ class YtConfig(object):
                  node_chunk_store_quota=None,
                  cell_tag=None,
                  python_binary=None,
-                 enable_debug_logging=None):
+                 enable_debug_logging=None,
+                 start_timeout=None):
 
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
@@ -115,6 +116,7 @@ class YtConfig(object):
 
         self.cell_tag = cell_tag
         self.python_binary = python_binary
+        self.start_timeout = start_timeout
 
     def build_master_config(self):
         if self.master_config is not None:
@@ -398,7 +400,9 @@ class YtStuff(object):
                 stderr=self.yt_local_err,
             )
             # Wait until special file will appear. It means that yt_local had been started. See YT-4425 for details.
-            MAX_WAIT_TIME, SLEEP_TIME = 600, 0.1  # in seconds
+            # time amounts in seconds
+            MAX_WAIT_TIME = self.config.start_timeout if self.config.start_timeout else 600
+            SLEEP_TIME = 1
             if yatest.common.context.sanitize is not None:
                 MAX_WAIT_TIME = MAX_WAIT_TIME * 3
 
