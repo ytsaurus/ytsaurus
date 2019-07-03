@@ -1254,6 +1254,7 @@ class ArcadiaPush(object):
             "Push {svn_path_list} to arcadia\n"
             "\n"
             "__BYPASS_CHECKS__\n"
+            "[run large tests]\n"
             "yt:git_commit:{head}\n".format(
                 svn_path_list=", ".join(ctx.svn_relpath + "/" for ctx in self.ctx_list),
                 head=head
