@@ -113,7 +113,7 @@ class LogBroker(object):
         return self._log_type
 
     def _get_session_params(self, session_index, session_count):
-        return {"ident": self._service_id, "logtype": self._log_type, "sourceid": self._make_source_id(session_index, session_count)}
+        return {"ident": self._service_id, "logtype": self._log_type, "sourceid": self._make_source_id(session_index, session_count), "mode": "local"}
 
     def _request_logbroker_hostname(self, session_index, session_count):
         logger.info("Getting adviced logbroker endpoint hostname for %s...", self._url)

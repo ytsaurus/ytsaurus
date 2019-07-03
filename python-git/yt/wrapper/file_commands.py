@@ -226,7 +226,7 @@ def write_file(destination, stream,
     if filename_hint is None:
         try:
             filename_hint = os.readlink("/proc/self/fd/0")
-        except IOError:
+        except (IOError, OSError):
             pass
 
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
