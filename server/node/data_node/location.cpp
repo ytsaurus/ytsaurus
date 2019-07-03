@@ -234,7 +234,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         return DoScan();
     } catch (const std::exception& ex) {
         Disable(TError("Location scan failed") << ex);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 }
 
@@ -306,7 +306,7 @@ i64 TLocation::GetAvailableSpace() const
         auto error = TError("Failed to compute available space")
             << ex;
         const_cast<TLocation*>(this)->Disable(error);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 
     i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
@@ -343,7 +343,7 @@ TPendingIOGuard TLocation::IncreasePendingIOSize(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Y_ASSERT(delta >= 0);
+    YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
     UpdatePendingIOSize(direction, category, delta);
     return TPendingIOGuard(direction, category, delta, this);
@@ -502,7 +502,7 @@ void TLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
             chunkId)
             << ex;
         Disable(error);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 }
 
@@ -622,7 +622,7 @@ bool TLocation::IsSick() const
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
     Disable(error);
-    Y_UNREACHABLE(); // Disable() exits the process.
+    YT_ABORT(); // Disable() exits the process.
 }
 
 void TLocation::MarkAsDisabled(const TError& error)
@@ -862,7 +862,7 @@ void TStoreLocation::OnCheckTrash()
         auto error = TError("Error checking trash")
             << ex;
         Disable(error);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 }
 
@@ -968,7 +968,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
             chunkId)
             << ex;
         Disable(error);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 }
 
@@ -1099,7 +1099,7 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
             };
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1269,7 +1269,7 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
             };
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

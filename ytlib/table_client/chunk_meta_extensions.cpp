@@ -82,12 +82,12 @@ std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMet
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCachedBlockMetaPtr& cachedBlockMeta, int partitionTag)
 {
-    YCHECK(chunkMeta.type() == static_cast<int>(EChunkType::Table));
+    YT_VERIFY(chunkMeta.type() == static_cast<int>(EChunkType::Table));
     auto filteredChunkMeta = chunkMeta;
 
     std::vector<TBlockMeta> filteredBlocks;
     for (const auto& blockMeta : cachedBlockMeta->blocks()) {
-        YCHECK(blockMeta.partition_index() != DefaultPartitionTag);
+        YT_VERIFY(blockMeta.partition_index() != DefaultPartitionTag);
         if (blockMeta.partition_index() == partitionTag) {
             filteredBlocks.push_back(blockMeta);
         }

@@ -42,7 +42,7 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(!FlushExecutor_);
+    YT_VERIFY(!FlushExecutor_);
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     FlushExecutor_ = New<TPeriodicExecutor>(
         hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
@@ -103,7 +103,7 @@ void TRequestTracker::ChargeUser(
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
 
     }
 }
@@ -112,7 +112,7 @@ void TRequestTracker::DoChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
-    YCHECK(FlushExecutor_);
+    YT_VERIFY(FlushExecutor_);
 
     int index = user->GetRequestStatisticsUpdateIndex();
     if (index < 0) {
@@ -139,7 +139,7 @@ void TRequestTracker::DoChargeUser(
             statistics->set_write_request_time(ToProto<i64>(FromProto<TDuration>(statistics->write_request_time()) + workload.Time));
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     statistics->set_access_time(ToProto<i64>(now));
 }
@@ -201,7 +201,7 @@ bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
 void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
 {
     auto size = user->GetRequestQueueSize();
-    YCHECK(size > 0);
+    YT_VERIFY(size > 0);
     user->SetRequestQueueSize(size - 1);
 }
 

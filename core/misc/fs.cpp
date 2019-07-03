@@ -438,7 +438,7 @@ TString CombinePaths(const TString& path1, const TString& path2)
 
 TString CombinePaths(const std::vector<TString>& paths)
 {
-    YCHECK(!paths.empty());
+    YT_VERIFY(!paths.empty());
     if (paths.size() == 1) {
         return paths[0];
     }
@@ -581,7 +581,7 @@ std::vector<TMountPoint> GetMountPoints(const TString& mountsFile)
     return mountPoints;
 #else
     ThrowNotSupported();
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 

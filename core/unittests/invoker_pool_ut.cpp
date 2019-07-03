@@ -16,7 +16,7 @@ using namespace NConcurrency;
 
 IInvokerPoolPtr CreateDummyInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount)
 {
-    YCHECK(invokerCount > 0);
+    YT_VERIFY(invokerCount > 0);
     std::vector<IInvokerPtr> underlyingInvokers(invokerCount, underlyingInvoker);
     return New<NDetail::TInvokerPoolWrapper<IInvoker>>(std::move(underlyingInvokers));
 }

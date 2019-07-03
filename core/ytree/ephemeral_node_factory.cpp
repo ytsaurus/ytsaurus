@@ -40,7 +40,7 @@ public:
 
     virtual void SetParent(const ICompositeNodePtr& parent) override
     {
-        Y_ASSERT(!parent || Parent_.IsExpired());
+        YT_ASSERT(!parent || Parent_.IsExpired());
         Parent_ = parent;
     }
 
@@ -213,11 +213,11 @@ public:
 
     virtual bool AddChild(const TString& key, const INodePtr& child) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
         ValidateYTreeKey(key);
 
         if (KeyToChild_.insert(std::make_pair(key, child)).second) {
-            YCHECK(ChildToKey_.emplace(child, key).second);
+            YT_VERIFY(ChildToKey_.emplace(child, key).second);
             child->SetParent(this);
             return true;
         } else {
@@ -234,36 +234,36 @@ public:
         auto child = it->second;
         child->SetParent(nullptr);
         KeyToChild_.erase(it);
-        YCHECK(ChildToKey_.erase(child) == 1);
+        YT_VERIFY(ChildToKey_.erase(child) == 1);
 
         return true;
     }
 
     virtual void RemoveChild(const INodePtr& child) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
 
         child->SetParent(nullptr);
 
         auto it = ChildToKey_.find(child);
-        Y_ASSERT(it != ChildToKey_.end());
+        YT_ASSERT(it != ChildToKey_.end());
 
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
         ChildToKey_.erase(it);
-        YCHECK(KeyToChild_.erase(key) == 1);
+        YT_VERIFY(KeyToChild_.erase(key) == 1);
     }
 
     virtual void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
     {
-        Y_ASSERT(oldChild);
-        Y_ASSERT(newChild);
+        YT_ASSERT(oldChild);
+        YT_ASSERT(newChild);
 
         if (oldChild == newChild)
             return;
 
         auto it = ChildToKey_.find(oldChild);
-        Y_ASSERT(it != ChildToKey_.end());
+        YT_ASSERT(it != ChildToKey_.end());
 
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
@@ -273,12 +273,12 @@ public:
 
         KeyToChild_[key] = newChild;
         newChild->SetParent(this);
-        YCHECK(ChildToKey_.insert(std::make_pair(newChild, key)).second);
+        YT_VERIFY(ChildToKey_.insert(std::make_pair(newChild, key)).second);
     }
 
     virtual std::optional<TString> FindChildKey(const IConstNodePtr& child) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
 
         auto it = ChildToKey_.find(const_cast<INode*>(child.Get()));
         return it == ChildToKey_.end() ? std::nullopt : std::make_optional(it->second);
@@ -341,18 +341,18 @@ public:
 
     virtual void AddChild(const INodePtr& child, int beforeIndex = -1) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
 
         if (beforeIndex < 0) {
-            YCHECK(ChildToIndex_.insert(std::make_pair(child, static_cast<int>(IndexToChild_.size()))).second);
+            YT_VERIFY(ChildToIndex_.insert(std::make_pair(child, static_cast<int>(IndexToChild_.size()))).second);
             IndexToChild_.push_back(child);
         } else {
-            YCHECK(beforeIndex <= IndexToChild_.size());
+            YT_VERIFY(beforeIndex <= IndexToChild_.size());
             for (auto it = IndexToChild_.begin() + beforeIndex; it != IndexToChild_.end(); ++it) {
                 ++ChildToIndex_[*it];
             }
 
-            YCHECK(ChildToIndex_.insert(std::make_pair(child, beforeIndex)).second);
+            YT_VERIFY(ChildToIndex_.insert(std::make_pair(child, beforeIndex)).second);
             IndexToChild_.insert(IndexToChild_.begin() + beforeIndex, child);
         }
         child->SetParent(this);
@@ -370,7 +370,7 @@ public:
         }
         IndexToChild_.erase(IndexToChild_.begin() + index);
 
-        YCHECK(ChildToIndex_.erase(child) == 1);
+        YT_VERIFY(ChildToIndex_.erase(child) == 1);
         child->SetParent(nullptr);
 
         return true;
@@ -378,14 +378,14 @@ public:
 
     virtual void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
     {
-        Y_ASSERT(oldChild);
-        Y_ASSERT(newChild);
+        YT_ASSERT(oldChild);
+        YT_ASSERT(newChild);
 
         if (oldChild == newChild)
             return;
 
         auto it = ChildToIndex_.find(oldChild);
-        Y_ASSERT(it != ChildToIndex_.end());
+        YT_ASSERT(it != ChildToIndex_.end());
 
         int index = it->second;
 
@@ -393,21 +393,21 @@ public:
 
         IndexToChild_[index] = newChild;
         ChildToIndex_.erase(it);
-        YCHECK(ChildToIndex_.insert(std::make_pair(newChild, index)).second);
+        YT_VERIFY(ChildToIndex_.insert(std::make_pair(newChild, index)).second);
         newChild->SetParent(this);
     }
 
     virtual void RemoveChild(const INodePtr& child) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
 
         int index = GetChildIndexOrThrow(child);
-        YCHECK(RemoveChild(index));
+        YT_VERIFY(RemoveChild(index));
     }
 
     virtual std::optional<int> FindChildIndex(const IConstNodePtr& child) override
     {
-        Y_ASSERT(child);
+        YT_ASSERT(child);
 
         auto it = ChildToIndex_.find(const_cast<INode*>(child.Get()));
         return it == ChildToIndex_.end() ? std::nullopt : std::make_optional(it->second);

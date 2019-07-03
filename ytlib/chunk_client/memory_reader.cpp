@@ -26,7 +26,7 @@ public:
     {
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
-            YCHECK(index < Blocks_.size());
+            YT_VERIFY(index < Blocks_.size());
             blocks.push_back(Blocks_[index]);
         }
 
@@ -63,7 +63,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        YCHECK(!partitionTag);
+        YT_VERIFY(!partitionTag);
         return MakeFuture(New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags)));
     }
 

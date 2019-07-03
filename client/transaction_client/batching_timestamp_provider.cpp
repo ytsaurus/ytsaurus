@@ -40,7 +40,7 @@ public:
             result = PendingRequests_.back().Promise.ToFuture();
             // TODO(sandello): Cancellation?
             if (!GenerateInProgress_) {
-                YCHECK(PendingRequests_.size() == 1);
+                YT_VERIFY(PendingRequests_.size() == 1);
                 SendGenerateRequest(guard);
             }
         }
@@ -90,7 +90,7 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-        YCHECK(!GenerateInProgress_);
+        YT_VERIFY(!GenerateInProgress_);
         GenerateInProgress_ = true;
 
         std::vector<TRequest> requests;
@@ -120,7 +120,7 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
-            YCHECK(GenerateInProgress_);
+            YT_VERIFY(GenerateInProgress_);
             GenerateInProgress_ = false;
 
             if (!PendingRequests_.empty()) {

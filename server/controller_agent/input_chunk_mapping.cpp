@@ -28,7 +28,7 @@ TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode)
 
 TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
 {
-    YCHECK(stripe);
+    YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
         return stripe;
@@ -49,7 +49,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                 }
 
                 if (dataSlice->HasLimits()) {
-                    YCHECK(substitutes.size() == 1);
+                    YT_VERIFY(substitutes.size() == 1);
                     auto substituteChunk = substitutes.front();
                     auto chunkSlice = CreateInputChunkSlice(substituteChunk);
                     chunkSlice->LowerLimit() = dataSlice->ChunkSlices[0]->LowerLimit();
@@ -72,7 +72,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
         } else {
             // Let's hope versioned chunks are never lost nor regenerated.
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                YCHECK(!Substitutes_.contains(chunkSlice->GetInputChunk()));
+                YT_VERIFY(!Substitutes_.contains(chunkSlice->GetInputChunk()));
             }
             mappedStripe->DataSlices.emplace_back(dataSlice);
         }
@@ -85,9 +85,9 @@ void TInputChunkMapping::OnStripeRegenerated(
     IChunkPoolInput::TCookie cookie,
     const NChunkPools::TChunkStripePtr& newStripe)
 {
-    YCHECK(cookie != IChunkPoolInput::NullCookie);
+    YT_VERIFY(cookie != IChunkPoolInput::NullCookie);
     const auto& oldStripe = OriginalStripes_[cookie];
-    YCHECK(oldStripe);
+    YT_VERIFY(oldStripe);
 
     if (Mode_ == EChunkMappingMode::Sorted) {
         if (oldStripe->DataSlices.size() != newStripe->DataSlices.size()) {
@@ -106,7 +106,7 @@ void TInputChunkMapping::OnStripeRegenerated(
     for (int index = 0; index < oldStripe->DataSlices.size(); ++index) {
         const auto& oldSlice = oldStripe->DataSlices[index];
         // Versioned slices may not be lost and regenerated.
-        YCHECK(oldSlice->Type == EDataSourceType::UnversionedTable);
+        YT_VERIFY(oldSlice->Type == EDataSourceType::UnversionedTable);
         const auto& oldChunk = oldSlice->GetSingleUnversionedChunkOrThrow();
 
         // In case of unordered mode we distribute the substitutes uniformly
@@ -190,7 +190,7 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
 
 void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripePtr& stripe)
 {
-    YCHECK(OriginalStripes_.insert(std::make_pair(cookie, stripe)).second);
+    YT_VERIFY(OriginalStripes_.insert(std::make_pair(cookie, stripe)).second);
 }
 
 void TInputChunkMapping::Persist(const TPersistenceContext& context)

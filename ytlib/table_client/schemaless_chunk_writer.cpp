@@ -265,7 +265,7 @@ protected:
                 lastRow.Begin() + Schema_.GetKeyColumnCount());
         }
 
-        YCHECK(block.Meta.uncompressed_size() > 0);
+        YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
@@ -565,7 +565,7 @@ public:
              BlockWriters_.emplace_back(std::move(blockWriter));
         }
 
-        YCHECK(BlockWriters_.size() > 0);
+        YT_VERIFY(BlockWriters_.size() > 0);
     }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
@@ -646,7 +646,7 @@ private:
                 }
             }
 
-            YCHECK(maxWriterIndex >= 0);
+            YT_VERIFY(maxWriterIndex >= 0);
 
             if (totalSize > Config_->MaxBufferSize ||
                 maxWriterSize > Config_->BlockSize ||
@@ -784,7 +784,7 @@ public:
     {
         // This method is never called for partition chunks.
         // Blocks are formed in the multi chunk writer.
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual i64 GetCompressedDataSize() const override
@@ -1096,7 +1096,7 @@ private:
                 leftBuilder.FinishRow().Get());
         } else {
             if (Options_->ExplodeOnValidationError) {
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
 
             THROW_ERROR_EXCEPTION(
@@ -1166,7 +1166,7 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        YCHECK(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_);
 
         if (!Error_.IsOK()) {
             return false;
@@ -1221,7 +1221,7 @@ private:
         // Since we form blocks outside chunk writer, we must synchronize name tables between different chunks.
         if (ChunkNameTable_) {
             for (int id = 0; id < ChunkNameTable_->GetSize(); ++id) {
-                YCHECK(CurrentWriter_->GetNameTable()->GetIdOrRegisterName(ChunkNameTable_->GetName(id)) == id);
+                YT_VERIFY(CurrentWriter_->GetNameTable()->GetIdOrRegisterName(ChunkNameTable_->GetName(id)) == id);
             }
         }
         ChunkNameTable_ = CurrentWriter_->GetNameTable();
@@ -1395,7 +1395,7 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        YCHECK(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_);
 
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
@@ -1514,7 +1514,7 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        YCHECK(UnderlyingWriter_);
+        YT_VERIFY(UnderlyingWriter_);
         if (IsAborted()) {
             return false;
         }
@@ -1792,7 +1792,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
         chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         auto lastKey = FromProto<TOwningKey>(rsp->last_key());
         if (lastKey) {
-            YCHECK(lastKey.GetCount() >= tableUploadOptions.TableSchema.GetKeyColumnCount());
+            YT_VERIFY(lastKey.GetCount() >= tableUploadOptions.TableSchema.GetKeyColumnCount());
             writerLastKey = TOwningKey(
                 lastKey.Begin(),
                 lastKey.Begin() + tableUploadOptions.TableSchema.GetKeyColumnCount());

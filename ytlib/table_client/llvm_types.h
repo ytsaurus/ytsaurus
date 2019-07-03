@@ -45,7 +45,7 @@ public:
             case EValueType::Any:
                 return TAny::get(context);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

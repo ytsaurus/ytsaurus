@@ -289,7 +289,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::TabletCount: {
-                YCHECK(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
                 int tabletCount = cell->Tablets().size();
                 return FetchFromSwarm<int>(key)
@@ -304,7 +304,7 @@ private:
             }
 
             case EInternedAttributeKey::TabletIds: {
-                YCHECK(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
                 std::vector<TTabletId> tabletIds;
                 for (const auto* tablet : cell->Tablets()) {
@@ -319,7 +319,7 @@ private:
             }
 
             case EInternedAttributeKey::ActionIds: {
-                YCHECK(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
                 std::vector<TTabletActionId> actionIds;
                 for (const auto* action : cell->Actions()) {

@@ -23,8 +23,8 @@ template <class T>
 Y_FORCE_INLINE TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Value_(reinterpret_cast<uintptr_t>(ptr) | (static_cast<uintptr_t>(index) << 56))
 {
-    Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
-    Y_ASSERT(index >= 0 && index <= 0xff);
+    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
+    YT_ASSERT(index >= 0 && index <= 0xff);
 }
 
 template <class T>
@@ -128,9 +128,9 @@ Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int
         NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x1000,
         "Replica and medium indexes must fit into 12 bits.");
 
-    Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
-    Y_ASSERT(replicaIndex >= 0 && replicaIndex <= 0x1f);
-    Y_ASSERT(mediumIndex >= 0 && mediumIndex <= 0x7f);
+    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
+    YT_ASSERT(replicaIndex >= 0 && replicaIndex <= 0x1f);
+    YT_ASSERT(mediumIndex >= 0 && mediumIndex <= 0x7f);
 }
 
 template <class T>

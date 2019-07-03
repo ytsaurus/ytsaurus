@@ -120,7 +120,7 @@ void TChunkTeleporter::Export()
                 cellTag);
             const auto& rsp = rspOrError.Value();
 
-            YCHECK(rsp->chunks_size() == endIndex - beginIndex);
+            YT_VERIFY(rsp->chunks_size() == endIndex - beginIndex);
             for (int index = beginIndex; index < endIndex; ++index) {
                 chunks[index]->Data.Swap(rsp->mutable_chunks(index - beginIndex));
             }

@@ -287,34 +287,34 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
                 SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
                 const TVersionedObjectId currentTableId(Id_, NullTransactionId);
                 auto inserted = context.LoadedSchemas().emplace(currentTableId, SharedTableSchema().Get()).second;
-                YCHECK(inserted);
+                YT_VERIFY(inserted);
                 break;
             }
             case ESchemaSerializationMethod::TableIdWithSameSchema: {
                 const TVersionedObjectId previousTableId(Load<TObjectId>(context), NullTransactionId);
-                YCHECK(context.LoadedSchemas().contains(previousTableId));
+                YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
                 SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     } else {
         switch (Load<ESchemaSerializationMethod>(context)) {
             case ESchemaSerializationMethod::Schema: {
                 SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
                 auto inserted = context.LoadedSchemas().emplace(GetVersionedId(), SharedTableSchema().Get()).second;
-                YCHECK(inserted);
+                YT_VERIFY(inserted);
                 break;
             }
             case ESchemaSerializationMethod::TableIdWithSameSchema: {
                 auto previousTableId = Load<TVersionedObjectId>(context);
-                YCHECK(context.LoadedSchemas().contains(previousTableId));
+                YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
                 SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 }
@@ -516,10 +516,10 @@ void TTableNode::UpdateExpectedTabletState(ETabletState state)
 {
     auto current = GetExpectedTabletState();
 
-    Y_ASSERT(current == ETabletState::Frozen ||
+    YT_ASSERT(current == ETabletState::Frozen ||
         current == ETabletState::Mounted ||
         current == ETabletState::Unmounted);
-    Y_ASSERT(state == ETabletState::Frozen ||
+    YT_ASSERT(state == ETabletState::Frozen ||
         state == ETabletState::Mounted);
 
     if (state == ETabletState::Mounted ||

@@ -47,7 +47,7 @@ void AssertTrapImpl(
         std::optional<TString> corePath;
         if (auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore)) {
             try {
-                std::vector<TString> coreNotes = {"Reason: SafeAssertion"};
+                std::vector<TString> coreNotes{"Reason: SafeAssertion"};
                 auto contextCoreNotes = GetSafeAssertionsCoreNotes();
                 coreNotes.insert(coreNotes.end(), contextCoreNotes.begin(), contextCoreNotes.end());
                 auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump(coreNotes, "safe_assertion");
@@ -69,7 +69,7 @@ void AssertTrapImpl(
 
         NLogging::TLogManager::Get()->Shutdown();
 
-        BUILTIN_TRAP();
+        YT_BUILTIN_TRAP();
     }
 }
 

@@ -83,7 +83,7 @@ void TOverlaidAttributeDictionary<T>::SetYson(const TString& key, const NYson::T
     }
 
     if (!set) {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -120,7 +120,7 @@ void TOverlaidAttributeDictionary<T>::SetYson(
 {
     // NB: IAttributeDictionary's extension methods require SetYson() to be
     // compilable.
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 template <class T>
@@ -136,7 +136,7 @@ bool TOverlaidAttributeDictionary<T>::Remove(
     const IAttributeDictionary& dict,
     const TString& key)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

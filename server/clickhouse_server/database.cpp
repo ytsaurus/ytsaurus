@@ -175,17 +175,17 @@ DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */)
 
         virtual void next() override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual const String& name() const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual StoragePtr& table() const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     };
 

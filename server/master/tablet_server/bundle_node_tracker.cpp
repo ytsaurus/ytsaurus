@@ -49,7 +49,7 @@ public:
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            YCHECK(NodeMap_.emplace(pair.second, TNodeSet()).second);
+            YT_VERIFY(NodeMap_.emplace(pair.second, TNodeSet()).second);
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -85,7 +85,7 @@ private:
             bundle->GetId());
 
         auto result = NodeMap_.emplace(bundle, TNodeSet());
-        YCHECK(result.second);
+        YT_VERIFY(result.second);
         RevisitTabletCellBundleNodes(&result.first->second, bundle);
     }
 
@@ -110,7 +110,7 @@ private:
         YT_LOG_DEBUG("Bundle node tracker caught bundle remove signal (BundleId: %v)",
             bundle->GetId());
 
-        YCHECK(NodeMap_.erase(bundle) > 0);
+        YT_VERIFY(NodeMap_.erase(bundle) > 0);
     }
 
     void OnNodeFullHeartbeat(TNode* node, TReqFullHeartbeat* /*request*/)
@@ -149,7 +149,7 @@ private:
                 YT_LOG_DEBUG("Node added to bundle (NodeAddress: %v, BundleId: %v)",
                     node->GetDefaultAddress(),
                     bundle->GetId());
-                YCHECK(nodeSet->insert(node).second);
+                YT_VERIFY(nodeSet->insert(node).second);
                 BundleNodesChanged_.Fire(bundle);
             }
         } else {

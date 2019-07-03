@@ -8,7 +8,6 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -641,7 +640,7 @@ TEST(TYsonToProtobufTest, SkipUnknownFields)
 
     {
         TProtobufWriterOptions options;
-        options.SkipUnknownFields = true;
+        options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
 
         TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
             .BeginMap()
@@ -675,40 +674,62 @@ TEST(TYsonToProtobufTest, SkipUnknownFields)
     }
 }
 
-TEST(TYsonToProtobufTest, UnknownFieldsCallback)
+TEST(TYsonToProtobufTest, KeepUnknownFields)
 {
-    {
-        TProtobufWriterOptions options;
-        options.UnknownFieldCallback = [] (const TYPath& path, const TString& key, TYsonString value) {
-            EXPECT_EQ("", path);
-            EXPECT_EQ("unknown_field", key);
-            EXPECT_TRUE(AreNodesEqual(ConvertToNode(value), ConvertToNode(123)));
-            return true;
-        };
-
-        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
-            .BeginMap()
-                .Item("unknown_field").Value(123)
-            .EndMap();
-
-        TEST_EPILOGUE(TMessage)
-    }
-
-    EXPECT_YPATH({
-        TProtobufWriterOptions options;
-        options.UnknownFieldCallback = [] (const TYPath& /*path*/, const TString& /*key*/, TYsonString /*value*/) {
-            return false;
-        };
-
-        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
-            .BeginMap()
-                .Item("nested_message1").BeginMap()
-                    .Item("unknown_field").Value(123)
+    auto ysonString = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("known_string").Value("hello")
+            .Item("unknown_int").Value(123)
+            .Item("unknown_map").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").Value("test")
+            .EndMap()
+            .Item("known_submessage").BeginMap()
+                .Item("known_int").Value(555)
+                .Item("unknown_list").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item("known_submessages").BeginList()
+                .Item().BeginMap()
+                    .Item("known_string").Value("first")
+                    .Item("unknown_int").Value(10)
                 .EndMap()
-            .EndMap();
+                .Item().BeginMap()
+                    .Item("known_string").Value("second")
+                    .Item("unknown_int").Value(20)
+                .EndMap()
+            .EndList()
+            .Item("another_unknown_int").Value(777)
+        .EndMap();
 
-        TEST_EPILOGUE(TMessage)
-    }, "/nested_message1");
+    TString protobufString;
+    StringOutputStream protobufOutput(&protobufString);
+    TProtobufWriterOptions options;
+    options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+    auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NProto::TExtensibleMessage>(), options);
+    ParseYsonStringBuffer(ysonString.GetData(), EYsonType::Node, protobufWriter.get());
+
+    NYT::NProto::TExtensibleMessage message;
+    EXPECT_TRUE(message.ParseFromArray(protobufString.data(), protobufString.length()));
+
+    EXPECT_EQ("hello", message.known_string());
+    EXPECT_EQ(555, message.known_submessage().known_int());
+    EXPECT_EQ(2, message.known_submessages_size());
+    EXPECT_EQ("first", message.known_submessages(0).known_string());
+    EXPECT_EQ("second", message.known_submessages(1).known_string());
+
+    TString newYsonString;
+    TStringOutput newYsonOutputStream(newYsonString);
+    TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+    ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NProto::TExtensibleMessage>());
+
+    Cerr << newYsonString << Endl;
+
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(ysonString)));
 }
 
 TEST(TYsonToProtobufTest, Entities)
@@ -1221,9 +1242,12 @@ TEST(TResolveProtobufElementByYPath, AttributeDictionary)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
 void TestAnyByYPath(const TYPath& path, const TYPath& headPath)
 {
-    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    TResolveProtobufElementByYPathOptions options;
+    options.AllowUnknownYsonFields = true;
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<T>(), path, options);
     EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufAnyElement>>(result.Element));
     EXPECT_EQ(headPath, result.HeadPath);
     EXPECT_EQ(path.substr(headPath.length()), result.TailPath);
@@ -1231,10 +1255,16 @@ void TestAnyByYPath(const TYPath& path, const TYPath& headPath)
 
 TEST(TResolveProtobufElementByYPath, Any)
 {
-    TestAnyByYPath("/yson_field", "/yson_field");
-    TestAnyByYPath("/yson_field/abc", "/yson_field");
-    TestAnyByYPath("/attributes/abc", "/attributes/abc");
-    TestAnyByYPath("/attributes/abc/xyz", "/attributes/abc");
+    TestAnyByYPath<NYT::NProto::TMessage>("/yson_field", "/yson_field");
+    TestAnyByYPath<NYT::NProto::TMessage>("/yson_field/abc", "/yson_field");
+    TestAnyByYPath<NYT::NProto::TMessage>("/attributes/abc", "/attributes/abc");
+    TestAnyByYPath<NYT::NProto::TMessage>("/attributes/abc/xyz", "/attributes/abc");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/hello", "/hello");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/hello/world", "/hello");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/known_submessage/hello", "/known_submessage/hello");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/known_submessage/hello/world", "/known_submessage/hello");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/known_submessages/123/hello", "/known_submessages/123/hello");
+    TestAnyByYPath<NYT::NProto::TExtensibleMessage>("/known_submessages/123/hello/world", "/known_submessages/123/hello");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

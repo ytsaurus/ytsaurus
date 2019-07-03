@@ -56,7 +56,7 @@ protected:
 
             case EValueType::Any:
                 if (UnpackValue) {
-                    YCHECK(aggregate == false);
+                    YT_VERIFY(aggregate == false);
                     *value = MakeUnversionedValue(string, id, Lexer_);
                 } else {
                     *value = MakeUnversionedAnyValue(string, id, aggregate);
@@ -64,7 +64,7 @@ protected:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 };
@@ -303,7 +303,7 @@ public:
         : TBase(meta)
     {
         TBase::InitDirectReader(data.Begin());
-        YCHECK(meta.row_count() == OffsetsReader_.GetSize());
+        YT_VERIFY(meta.row_count() == OffsetsReader_.GetSize());
     }
 
 private:
@@ -351,7 +351,7 @@ private:
                 return DoCreateSegmentReader<TDictionarySparseReader>(meta);
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 };
@@ -473,7 +473,7 @@ private:
                 }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 };

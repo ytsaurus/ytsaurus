@@ -123,7 +123,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
             break;
         }
     }
-    YCHECK(found);
+    YT_VERIFY(found);
     return result;
 }
 
@@ -173,7 +173,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
     int size = value.ByteSize();
     TString str;
     str.resize(size);
-    YCHECK(value.SerializeToArray(str.begin(), size));
+    YT_VERIFY(value.SerializeToArray(str.begin(), size));
     extension->set_data(str);
     extension->set_tag(tag);
 }
@@ -474,8 +474,8 @@ template <class TProto, bool EnableWeak>
 void TRefCountedProto<TProto, EnableWeak>::RegisterExtraSpace()
 {
     auto spaceUsed = TProto::SpaceUsed();
-    Y_ASSERT(spaceUsed >= sizeof(TProto));
-    Y_ASSERT(ExtraSpace_ == 0);
+    YT_ASSERT(spaceUsed >= sizeof(TProto));
+    YT_ASSERT(ExtraSpace_ == 0);
     ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
     auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto, EnableWeak>>();
     TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);

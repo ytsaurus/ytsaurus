@@ -44,13 +44,13 @@ int TSchemaDictionary::GetIdOrRegisterColumn(const TColumnSchema& column)
 
 const TTableSchema& TSchemaDictionary::GetTable(int id) const
 {
-    YCHECK(id >= 0 && id < IdToTable_.size());
+    YT_VERIFY(id >= 0 && id < IdToTable_.size());
     return IdToTable_[id];
 }
 
 const TColumnSchema& TSchemaDictionary::GetColumn(int id) const
 {
-    YCHECK(id >= 0 && id < IdToColumn_.size());
+    YT_VERIFY(id >= 0 && id < IdToColumn_.size());
     return IdToColumn_[id];
 }
 
@@ -94,12 +94,12 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
 
     FromProto(&dictionary->IdToColumn_, protoDictionary.columns());
     for (int index = 0; index < dictionary->IdToColumn_.size(); ++index) {
-        YCHECK(dictionary->ColumnToId_.insert({dictionary->IdToColumn_[index], index}).second);
+        YT_VERIFY(dictionary->ColumnToId_.insert({dictionary->IdToColumn_[index], index}).second);
     }
     for (int index = 0; index < protoDictionary.tables().size(); ++index) {
         const auto& protoTable = protoDictionary.tables().Get(index);
         dictionary->IdToTableInternal_.emplace_back(protoTable);
-        YCHECK(dictionary->TableInternalToId_.insert({protoTable, index}).second);
+        YT_VERIFY(dictionary->TableInternalToId_.insert({protoTable, index}).second);
         std::vector<TColumnSchema> columns;
         for (int id : protoTable.columns()) {
             columns.emplace_back(dictionary->IdToColumn_[id]);

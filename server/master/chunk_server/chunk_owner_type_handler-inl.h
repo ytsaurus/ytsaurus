@@ -294,7 +294,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
         originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
     } else {
-        YCHECK(branchedMode == NChunkClient::EUpdateMode::Append);
+        YT_VERIFY(branchedMode == NChunkClient::EUpdateMode::Append);
 
         const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
         const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
@@ -302,7 +302,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         TChunkTree* deltaTree = nullptr;
         TChunkList* newOriginatingChunkList = nullptr;
         if (!isExternal) {
-            YCHECK(branchedChunkList->Children().size() == 2);
+            YT_VERIFY(branchedChunkList->Children().size() == 2);
             deltaTree = branchedChunkList->Children()[1];
             newOriginatingChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
 
@@ -313,7 +313,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (originatingMode == NChunkClient::EUpdateMode::Append) {
-            YCHECK(!topmostCommit);
+            YT_VERIFY(!topmostCommit);
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
                 auto* newDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
@@ -410,7 +410,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     if (!sourceNode->IsExternal()) {
         const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         auto* chunkList = sourceNode->GetChunkList();
-        YCHECK(!clonedNode->GetChunkList());
+        YT_VERIFY(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
         chunkList->AddOwningNode(clonedNode);

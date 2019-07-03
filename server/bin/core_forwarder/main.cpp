@@ -44,9 +44,9 @@ public:
         // sure that second file descriptor is occupied by open file.
         if (dup(STDERR_FILENO) == -1 && errno == EBADFD) {
             int fd = open("/dev/null", O_WRONLY);
-            YCHECK(fd != -1);
+            YT_VERIFY(fd != -1);
             if (fd != STDERR_FILENO) {
-                YCHECK(-1 != dup2(fd, STDERR_FILENO));
+                YT_VERIFY(-1 != dup2(fd, STDERR_FILENO));
             }
         }
         openlog("ytserver-core-forwarder", LOG_PID | LOG_PERROR, LOG_USER);

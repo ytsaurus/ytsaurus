@@ -118,7 +118,7 @@ SOCKET CreateUnixServerSocket()
 
 SOCKET CreateTcpClientSocket(int family)
 {
-    YCHECK(family == AF_INET6 || family == AF_INET);
+    YT_VERIFY(family == AF_INET6 || family == AF_INET);
 
     int protocol = IPPROTO_TCP;
     int type = SOCK_STREAM;

@@ -88,12 +88,12 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -103,7 +103,7 @@ public:
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override

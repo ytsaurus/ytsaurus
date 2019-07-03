@@ -98,8 +98,8 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
     {
-        YCHECK(Config_);
-        YCHECK(Client_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Client_);
 
         ReadyEvent_ = BIND(&TTableReader::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -122,7 +122,7 @@ public:
             return true;
         }
 
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->Read(rows);
     }
 
@@ -136,37 +136,37 @@ public:
             return MakeFuture(GetAbortError());
         }
 
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->GetReadyEvent();
     }
 
     i64 GetStartRowIndex() const
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return StartRowIndex_;
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->GetTotalRowCount();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->GetDataStatistics();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->GetNameTable();
     }
 
     virtual const TKeyColumns& GetKeyColumns() const override
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->Reader->GetKeyColumns();
     }
 
@@ -177,7 +177,7 @@ public:
 
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
-        YCHECK(OpenResult_);
+        YT_VERIFY(OpenResult_);
         return OpenResult_->OmittedInaccessibleColumns;
     }
 
@@ -383,11 +383,10 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
     }
 
-    // TODO(max42): looks strange, maybe use table reader options that are passed as an argument?
     auto internalOptions = New<NTableClient::TTableReaderOptions>();
-    internalOptions->EnableTableIndex = true;
-    internalOptions->EnableRangeIndex = true;
-    internalOptions->EnableRowIndex = true;
+    internalOptions->EnableTableIndex = options.EnableTableIndex;
+    internalOptions->EnableRangeIndex = options.EnableRangeIndex;
+    internalOptions->EnableRowIndex = options.EnableRowIndex;
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.WorkloadDescriptor = config->WorkloadDescriptor;

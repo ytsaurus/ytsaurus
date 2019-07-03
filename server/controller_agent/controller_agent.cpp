@@ -174,7 +174,7 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
-        YCHECK(StaticOrchidService_);
+        YT_VERIFY(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(Bootstrap_->GetControlInvoker());
@@ -341,7 +341,7 @@ public:
     TOperationPtr FindOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto it = IdToOperation_.find(operationId);
         return it == IdToOperation_.end() ? nullptr : it->second;
@@ -350,10 +350,10 @@ public:
     TOperationPtr GetOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = FindOperation(operationId);
-        YCHECK(operation);
+        YT_VERIFY(operation);
 
         return operation;
     }
@@ -361,7 +361,7 @@ public:
     TOperationPtr GetOperationOrThrow(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = FindOperation(operationId);
         if (!operation) {
@@ -376,7 +376,7 @@ public:
     const TOperationIdToOperationMap& GetOperations() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         return IdToOperation_;
     }
@@ -385,7 +385,7 @@ public:
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = New<TOperation>(descriptor);
         const auto& operationId = operation->GetId();
@@ -407,7 +407,7 @@ public:
             throw;
         }
 
-        YCHECK(IdToOperation_.emplace(operationId, operation).second);
+        YT_VERIFY(IdToOperation_.emplace(operationId, operation).second);
 
         MasterConnector_->RegisterOperation(operationId);
 
@@ -417,7 +417,7 @@ public:
     void DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
@@ -443,7 +443,7 @@ public:
     void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
@@ -451,7 +451,7 @@ public:
             controller->Cancel();
         }
 
-        YCHECK(IdToOperation_.erase(operationId) == 1);
+        YT_VERIFY(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
 
@@ -478,7 +478,7 @@ public:
         const std::optional<TControllerTransactionIds>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         auto callback = transactions
@@ -513,7 +513,7 @@ public:
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Prepare, controller)
@@ -524,7 +524,7 @@ public:
     TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Materialize, controller)
@@ -535,7 +535,7 @@ public:
     TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Revive, controller)
@@ -546,7 +546,7 @@ public:
     TFuture<void> CommitOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Commit, controller)
@@ -557,7 +557,7 @@ public:
     TFuture<void> CompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         operation->SetWatchTransactionIds({});
 
@@ -570,7 +570,7 @@ public:
     TFuture<void> AbortOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         operation->SetWatchTransactionIds({});
 
@@ -590,7 +590,7 @@ public:
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
@@ -621,7 +621,7 @@ public:
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         auto controller = operation->GetController();
@@ -635,7 +635,7 @@ public:
         TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         auto controller = operation->GetController();
@@ -773,7 +773,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ConnectScheduled_);
+        YT_VERIFY(ConnectScheduled_);
         ConnectScheduled_ = false;
 
         try {
@@ -801,7 +801,7 @@ private:
 
         YT_LOG_INFO("Connecting to scheduler");
 
-        YCHECK(!CancelableContext_);
+        YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
         CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
 
@@ -990,7 +990,7 @@ private:
                         ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             });
 
@@ -1027,7 +1027,7 @@ private:
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
-                    Y_ASSERT(response.JobId == startDescriptor.Id);
+                    YT_ASSERT(response.JobId == startDescriptor.Id);
                     protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
                     ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
                     protoResponse->set_interruptible(startDescriptor.Interruptible);
@@ -1158,7 +1158,7 @@ private:
                 if (descriptor.Online) {
                     ++onlineExecNodeCount;
                 }
-                YCHECK(execNodeDescriptors->emplace(
+                YT_VERIFY(execNodeDescriptors->emplace(
                     protoDescriptor.node_id(),
                     std::move(descriptor)).second);
             }
@@ -1223,7 +1223,7 @@ private:
                                 controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));
                                 break;
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
                 }));
@@ -1248,7 +1248,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             });
     }
@@ -1374,9 +1374,9 @@ private:
             auto nodeId = pair.first;
             const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                YCHECK(result.All->emplace(nodeId, descriptor).second);
+                YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
                 if (descriptor.Online) {
-                    YCHECK(result.Online->emplace(nodeId, descriptor).second);
+                    YT_VERIFY(result.Online->emplace(nodeId, descriptor).second);
                 }
             }
         }

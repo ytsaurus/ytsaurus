@@ -24,12 +24,12 @@ private:
         explicit TInvoker(TFinalizerThread* owner)
             : Owner_(owner)
         {
-            YCHECK(Owner_->Refs_.fetch_add(1, std::memory_order_acquire) > 0);
+            YT_VERIFY(Owner_->Refs_.fetch_add(1, std::memory_order_acquire) > 0);
         }
 
         virtual ~TInvoker() override
         {
-            YCHECK(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
+            YT_VERIFY(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
         }
 
         virtual void Invoke(TClosure callback) override
@@ -42,7 +42,7 @@ private:
 
         TDuration GetAverageWaitTime() const
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -131,7 +131,7 @@ public:
             }
 
             int refs = 1;
-            YCHECK(Refs_.compare_exchange_strong(refs, 0));
+            YT_VERIFY(Refs_.compare_exchange_strong(refs, 0));
 
             Queue_->Shutdown();
             Thread_->Shutdown();
@@ -149,7 +149,7 @@ public:
 
     void Invoke(TClosure callback)
     {
-        YCHECK(!ShutdownFinished);
+        YT_VERIFY(!ShutdownFinished);
         if (!Y_UNLIKELY(IsStarted())) {
             Start();
         }

@@ -86,7 +86,7 @@ public:
 
     virtual IYPathServicePtr FindItemService(int index) const override
     {
-        YCHECK(0 <= index && index < Collection_.size());
+        YT_VERIFY(0 <= index && index < Collection_.size());
         return Collection_[index] ? Collection_[index]->GetService() : nullptr;
     }
 

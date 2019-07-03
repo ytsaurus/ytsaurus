@@ -31,7 +31,7 @@ IConnectionPtr CreateConnection(INodePtr config)
             return NRpcProxy::CreateConnection(typedConfig);
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

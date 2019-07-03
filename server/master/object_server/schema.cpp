@@ -76,7 +76,7 @@ public:
 
     virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:

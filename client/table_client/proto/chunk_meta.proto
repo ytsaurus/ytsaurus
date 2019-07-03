@@ -11,15 +11,26 @@ message TLogicalType
         optional string name = 1;
         optional TLogicalType type = 2;
     }
+
     message TStructLogicalType
     {
         repeated TStructField fields = 1;
     }
+
     message TTupleLogicalType
     {
         repeated TLogicalType elements = 1;
     }
 
+    message TVariantTupleLogicalType
+    {
+        repeated TLogicalType elements = 1;
+    }
+
+    message TVariantStructLogicalType
+    {
+        repeated TStructField fields = 1;
+    }
 
     oneof type {
         int32 simple = 1;
@@ -27,6 +38,8 @@ message TLogicalType
         TLogicalType list = 3;
         TStructLogicalType struct_ = 4;
         TTupleLogicalType tuple = 5;
+        TVariantTupleLogicalType variant_tuple = 6;
+        TVariantStructLogicalType variant_struct = 7;
     }
 }
 

@@ -18,7 +18,7 @@ void TSkiffRawIterator::Initialize(
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
 {
-    YCHECK(inputStreamHolder.get() == inputStream);
+    YT_VERIFY(inputStreamHolder.get() == inputStream);
     InputStream_ = TStreamReader(inputStream);
     InputStreamHolder_ = std::move(inputStreamHolder);
 

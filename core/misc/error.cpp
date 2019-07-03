@@ -338,7 +338,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
 
         auto value = error.Attributes().GetYson(key);
         TTokenizer tokenizer(value.GetData());
-        YCHECK(tokenizer.ParseNext());
+        YT_VERIFY(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String:
                 AppendAttribute(builder, key, TString(tokenizer.CurrentToken().GetStringValue()), indent);

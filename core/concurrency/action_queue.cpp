@@ -156,7 +156,7 @@ private:
 
         void Activate()
         {
-            Y_ASSERT(!Activated_);
+            YT_ASSERT(!Activated_);
             Activated_ = true;
         }
 
@@ -373,7 +373,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
         if (Semaphore_ < MaxConcurrentInvocations_) {
-            YCHECK(Queue_.empty());
+            YT_VERIFY(Queue_.empty());
             IncrementSemaphore(+1);
             guard.Release();
             RunCallback(std::move(callback));
@@ -419,7 +419,7 @@ private:
     void IncrementSemaphore(int delta)
     {
         Semaphore_ += delta;
-        YCHECK(Semaphore_ >= 0 && Semaphore_ <= MaxConcurrentInvocations_);
+        YT_VERIFY(Semaphore_ >= 0 && Semaphore_ <= MaxConcurrentInvocations_);
         Profiler.Update(SemaphoreCounter_, Semaphore_);
     }
 
@@ -492,7 +492,7 @@ public:
 
     TFuture<void> Suspend() override
     {
-        YCHECK(!Suspended_.exchange(true));
+        YT_VERIFY(!Suspended_.exchange(true));
         {
             TGuard<TSpinLock> guard(SpinLock_);
             FreeEvent_ = NewPromise<void>();
@@ -505,7 +505,7 @@ public:
 
     void Resume() override
     {
-        YCHECK(Suspended_.exchange(false));
+        YT_VERIFY(Suspended_.exchange(false));
         {
             TGuard<TSpinLock> guard(SpinLock_);
             FreeEvent_.Reset();
@@ -570,7 +570,7 @@ private:
 
     void OnFinished()
     {
-        YCHECK(ActiveInvocationCount_ > 0);
+        YT_VERIFY(ActiveInvocationCount_ > 0);
 
         if (--ActiveInvocationCount_ == 0 && Suspended_) {
             TGuard<TSpinLock> guard(SpinLock_);

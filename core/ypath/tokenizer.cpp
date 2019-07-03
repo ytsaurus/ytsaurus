@@ -71,7 +71,7 @@ ETokenType TTokenizer::Advance()
                         case '@': SetType(ETokenType::At);        break;
                         case '&': SetType(ETokenType::Ampersand); break;
                         case '*': SetType(ETokenType::Asterisk);  break;
-                        default:  Y_UNREACHABLE();
+                        default:  YT_ABORT();
                     }
                     return Type_;
                 }
@@ -107,7 +107,7 @@ void TTokenizer::SetType(ETokenType type)
 
 const char* TTokenizer::AdvanceEscaped(const char* current)
 {
-    Y_ASSERT(*current == '\\');
+    YT_ASSERT(*current == '\\');
     ++current;
 
     if (current == Input_.end()) {
@@ -160,7 +160,7 @@ int TTokenizer::ParseHexDigit(char ch, TStringBuf context)
     }
 
     ThrowMalformedEscapeSequence(context);
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TTokenizer::Expect(ETokenType expectedType)

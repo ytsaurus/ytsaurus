@@ -84,7 +84,7 @@ private:
 
             THashMap<TCellId, int> idToVersion;
             for (const auto& info : CellDirectory_->GetRegisteredCells()) {
-                YCHECK(idToVersion.emplace(info.CellId, info.ConfigVersion).second);
+                YT_VERIFY(idToVersion.emplace(info.CellId, info.ConfigVersion).second);
             }
 
             // XXX(babenko): a temporarily workaround

@@ -124,8 +124,8 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        Y_ASSERT(request);
-        Y_ASSERT(responseHandler);
+        YT_ASSERT(request);
+        YT_ASSERT(responseHandler);
 
         auto asyncChannel = Provider_->GetChannel(request);
 
@@ -163,7 +163,7 @@ private:
 
 IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr provider)
 {
-    YCHECK(provider);
+    YT_VERIFY(provider);
 
     return New<TRoamingChannel>(std::move(provider));
 }

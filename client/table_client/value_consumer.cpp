@@ -276,7 +276,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
             writer.OnEntity();
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     writer.Flush();
 
@@ -337,7 +337,7 @@ TWritingValueConsumer::TWritingValueConsumer(
     , RowBuffer_(New<TRowBuffer>(TWritingValueConsumerBufferTag()))
     , MaxRowBufferSize_(maxRowBufferSize)
 {
-    YCHECK(Writer_);
+    YT_VERIFY(Writer_);
     InitializeIdToTypeMapping();
 }
 
@@ -378,7 +378,7 @@ bool TWritingValueConsumer::GetAllowUnknownColumns() const
 
 void TWritingValueConsumer::OnBeginRow()
 {
-    Y_ASSERT(Values_.empty());
+    YT_ASSERT(Values_.empty());
 }
 
 void TWritingValueConsumer::OnMyValue(const TUnversionedValue& value)

@@ -88,7 +88,7 @@ public:
         size_t size = static_cast<size_t>(message.ByteSize());
         WriteUint64(size);
         EnsureAlignedUpCapacity(size);
-        YCHECK(message.SerializePartialToArray(Current_, size));
+        YT_VERIFY(message.SerializePartialToArray(Current_, size));
         memset(Current_ + size, 0, AlignUpSpace(size, SerializationAlignment));
 
         NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(size, SerializationAlignment));
@@ -209,7 +209,7 @@ private:
             return;
         }
 
-        YCHECK(Current_ <= EndPreallocated_);
+        YT_VERIFY(Current_ <= EndPreallocated_);
         Stream_.Advance(Current_ - BeginPreallocated_);
         BeginPreallocated_ = EndPreallocated_ = Current_ = nullptr;
     }
@@ -241,7 +241,7 @@ private:
 
         NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(size, SerializationAlignment));
         Current_ += AlignUp<size_t>(size, SerializationAlignment);
-        Y_ASSERT(Current_ <= EndPreallocated_);
+        YT_ASSERT(Current_ <= EndPreallocated_);
     }
 
     template <class T>
@@ -258,7 +258,7 @@ private:
 
         NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(sizeof(T), SerializationAlignment));
         Current_ += AlignUp<size_t>(sizeof(T), SerializationAlignment);
-        Y_ASSERT(Current_ <= EndPreallocated_);
+        YT_ASSERT(Current_ <= EndPreallocated_);
     }
 
     void WriteUint64(ui64 value)
@@ -1108,12 +1108,12 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -1181,7 +1181,7 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        YCHECK(!Closed_);
+        YT_VERIFY(!Closed_);
         for (auto row : rows) {
             if (!WireWriter_) {
                 WireWriter_ = std::make_unique<TWireProtocolWriter>();
@@ -1209,7 +1209,7 @@ public:
 
     virtual std::vector<TSharedRef> GetCompressedBlocks() override
     {
-        YCHECK(Closed_);
+        YT_VERIFY(Closed_);
         return CompressedBlocks_;
     }
 

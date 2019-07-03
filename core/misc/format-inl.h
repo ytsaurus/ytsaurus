@@ -490,7 +490,7 @@ void FormatValueViaSprintf(
     };
 
     char formatBuf[MaxFormatSize];
-    YCHECK(format.length() >= 1 && format.length() <= MaxFormatSize - 2); // one for %, one for \0
+    YT_VERIFY(format.length() >= 1 && format.length() <= MaxFormatSize - 2); // one for %, one for \0
     formatBuf[0] = '%';
     if (format[format.length() - 1] == GenericSpecSymbol) {
         char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length() - 1);
@@ -505,7 +505,7 @@ void FormatValueViaSprintf(
     size_t resultSize = ::snprintf(result, SmallResultSize, formatBuf, value);
     if (resultSize >= SmallResultSize) {
         result = builder->Preallocate(resultSize + 1);
-        YCHECK(::snprintf(result, resultSize + 1, formatBuf, value) == static_cast<int>(resultSize));
+        YT_VERIFY(::snprintf(result, resultSize + 1, formatBuf, value) == static_cast<int>(resultSize));
     }
     builder->Advance(resultSize);
 }
@@ -598,7 +598,7 @@ void FormatImpl(
             break;
         }
 
-        Y_ASSERT(*current == '%');
+        YT_ASSERT(*current == '%');
         ++current;
 
         if (*current == '%') {
@@ -698,7 +698,7 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
 
     void operator() (size_t index, TStringBuilderBase* builder, TStringBuf format) const
     {
-        Y_ASSERT(index >= IndexBase);
+        YT_ASSERT(index >= IndexBase);
         if (index == IndexBase) {
             FormatValue(builder, HeadArg, format);
         } else {

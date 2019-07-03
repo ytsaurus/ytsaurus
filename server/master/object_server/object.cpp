@@ -22,7 +22,7 @@ EObjectLifeStage NextStage(EObjectLifeStage lifeStage)
         case EObjectLifeStage::CreationPreCommitted:
             return EObjectLifeStage::CreationCommitted;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

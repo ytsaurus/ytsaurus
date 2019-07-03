@@ -154,7 +154,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema();
     } else {
-        // Do not use Y_UNREACHABLE here, since this code is executed inside scheduler.
+        // Do not use YT_ABORT here, since this code is executed inside scheduler.
         THROW_ERROR_EXCEPTION("Failed to define upload parameters")
             << TErrorAttribute("path", path)
             << TErrorAttribute("schema_mode", schemaMode)

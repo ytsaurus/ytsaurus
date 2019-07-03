@@ -213,10 +213,10 @@ public:
 
             pool.Heap.emplace_back(bucket);
             AdjustHeapBack(pool.Heap.begin(), pool.Heap.end());
-            YCHECK(bucket->HeapIterator);
+            YT_VERIFY(bucket->HeapIterator);
         }
 
-        Y_ASSERT(callback);
+        YT_ASSERT(callback);
 
         TEnqueuedAction action;
         action.Finished = false;
@@ -240,7 +240,7 @@ public:
         }
 
         if (pool.TagToBucket.empty()) {
-            YCHECK(NameToPoolId_.erase(pool.PoolName));
+            YT_VERIFY(NameToPoolId_.erase(pool.PoolName));
         }
 
         Profiler_.Update(pool.BucketCounter, pool.TagToBucket.size());
@@ -266,8 +266,8 @@ public:
     {
         auto& execution = CurrentlyExecutingActionsByThread_[index];
 
-        Y_ASSERT(!execution.Bucket);
-        Y_ASSERT(action && action->Finished);
+        YT_ASSERT(!execution.Bucket);
+        YT_ASSERT(action && action->Finished);
 
         TBucketPtr bucket;
         {
@@ -287,7 +287,7 @@ public:
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
-        Y_ASSERT(action && !action->Finished);
+        YT_ASSERT(action && !action->Finished);
 
         CallbackEventCount_->CancelWait();
 
@@ -320,7 +320,7 @@ public:
             return;
         }
 
-        Y_ASSERT(action);
+        YT_ASSERT(action);
 
         if (action->Finished) {
             return;
@@ -368,7 +368,7 @@ public:
             UpdateExcessTime(bucket.Get(), GetCpuInstant() - execution.AccountedAt);
             execution.AccountedAt = GetCpuInstant();
 
-            YCHECK(bucket->CurrentExecutions-- > 0);
+            YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }
     }
 
@@ -410,7 +410,7 @@ private:
         {
             if (!Heap.empty()) {
                 auto bucket = Heap.front().Bucket;
-                YCHECK(!bucket->Queue.empty());
+                YT_VERIFY(!bucket->Queue.empty());
                 *action = std::move(bucket->Queue.front());
                 bucket->Queue.pop();
 
@@ -480,7 +480,7 @@ private:
         }
 
         size_t indexInHeap = positionInHeap - pool.Heap.data();
-        YCHECK(indexInHeap < pool.Heap.size());
+        YT_VERIFY(indexInHeap < pool.Heap.size());
         SiftDown(pool.Heap.begin(), pool.Heap.end(), pool.Heap.begin() + indexInHeap, std::less<>());
     }
 
@@ -611,7 +611,7 @@ public:
             threadNamePrefix,
             enableProfiling))
     {
-        YCHECK(threadCount > 0);
+        YT_VERIFY(threadCount > 0);
 
         for (int index = 0; index < threadCount; ++index) {
             auto thread = New<TFairShareThread>(

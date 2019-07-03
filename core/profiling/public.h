@@ -50,6 +50,8 @@ DEFINE_ENUM(EMetricType,
     (Gauge)
 );
 
+DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling

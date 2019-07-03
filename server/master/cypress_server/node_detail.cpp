@@ -108,7 +108,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
     // Copying node's account requires special handling.
-    YCHECK(!branchedNode->GetAccount());
+    YT_VERIFY(!branchedNode->GetAccount());
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* account = originatingNode->GetAccount();
     securityManager->SetAccount(branchedNode, nullptr, account, transaction);
@@ -163,7 +163,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = clonedNode->GetMutableAttributes();
         for (const auto& pair : keyToAttribute) {
-            YCHECK(clonedAttributes->Attributes().insert(pair).second);
+            YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
         }
     }
 
@@ -253,7 +253,7 @@ void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
 bool TCompositeNodeBase::HasInheritableAttributes() const
 {
     if (Attributes_) {
-        Y_ASSERT(!Attributes_->AreEmpty());
+        YT_ASSERT(!Attributes_->AreEmpty());
         return true;
     } else {
         return false;
@@ -306,8 +306,8 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(IMPLEMENT_ATTRIBUTE_ACCESSORS)
 
 TMapNodeChildren::~TMapNodeChildren()
 {
-    YCHECK(KeyToChild.empty());
-    YCHECK(ChildToKey.empty());
+    YT_VERIFY(KeyToChild.empty());
+    YT_VERIFY(ChildToKey.empty());
 }
 
 void TMapNodeChildren::Save(NCellMaster::TSaveContext& context) const
@@ -326,7 +326,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     // Reconstruct ChildToKey map.
     for (const auto& [key, childNode] : KeyToChild) {
         if (childNode) {
-            YCHECK(ChildToKey.insert(std::make_pair(childNode, key)).second);
+            YT_VERIFY(ChildToKey.insert(std::make_pair(childNode, key)).second);
         }
     }
 }
@@ -335,7 +335,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     TMapNodeChildren* children,
     const TObjectManagerPtr& objectManager)
 {
-    YCHECK(children->GetRefCount() == 0);
+    YT_VERIFY(children->GetRefCount() == 0);
     children->UnrefChildren(objectManager);
 
     children->KeyToChild.clear();
@@ -348,7 +348,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     TMapNodeChildren* srcChildren,
     const TObjectManagerPtr& objectManager)
 {
-    YCHECK(srcChildren->GetRefCount() != 0);
+    YT_VERIFY(srcChildren->GetRefCount() != 0);
 
     auto holder = std::make_unique<TMapNodeChildren>();
     holder->KeyToChild = srcChildren->KeyToChild;
@@ -445,7 +445,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
         // Reconstruct ChildToKey map.
         for (const auto& [key, childNode] : keyToChild) {
             if (childNode) {
-                YCHECK(childToKey.insert(std::make_pair(childNode, key)).second);
+                YT_VERIFY(childToKey.insert(std::make_pair(childNode, key)).second);
             }
         }
     } else {
@@ -485,7 +485,7 @@ void TMapNodeTypeHandler::DoBranch(
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
-    YCHECK(!branchedNode->Children_);
+    YT_VERIFY(!branchedNode->Children_);
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -540,30 +540,30 @@ void TMapNodeTypeHandler::DoMerge(
 
             if (it == keyToChild.end()) {
                 // Originating: missing
-                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
-                YCHECK(keyToChild.insert(std::make_pair(key, childTrunkNode)).second);
+                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                YT_VERIFY(keyToChild.insert(std::make_pair(key, childTrunkNode)).second);
             } else if (it->second) {
                 // Originating: present
                 objectManager->UnrefObject(it->second);
-                YCHECK(childToKey.erase(it->second) == 1);
-                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                YT_VERIFY(childToKey.erase(it->second) == 1);
+                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
                 it->second = childTrunkNode;
             } else {
                 // Originating: tombstone
                 it->second = childTrunkNode;
-                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
             }
         } else {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
+                    YT_VERIFY(keyToChild.insert(std::make_pair(key, nullptr)).second);
                 }
             } else if (it->second) {
                 // Originating: present
                 objectManager->UnrefObject(it->second);
-                YCHECK(childToKey.erase(it->second) == 1);
+                YT_VERIFY(childToKey.erase(it->second) == 1);
                 if (isOriginatingNodeBranched) {
                     it->second = nullptr;
                 } else {
@@ -627,8 +627,8 @@ void TMapNodeTypeHandler::DoClone(
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        YCHECK(clonedNodeKeyToChild.insert(std::make_pair(key, clonedTrunkChildNode)).second);
-        YCHECK(clonedNodeChildToKey.insert(std::make_pair(clonedTrunkChildNode, key)).second);
+        YT_VERIFY(clonedNodeKeyToChild.insert(std::make_pair(key, clonedTrunkChildNode)).second);
+        YT_VERIFY(clonedNodeChildToKey.insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
 
@@ -677,7 +677,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
     // Reconstruct ChildToIndex.
     for (int index = 0; index < IndexToChild_.size(); ++index) {
-        YCHECK(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
+        YT_VERIFY(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
     }
 }
 
@@ -773,7 +773,7 @@ void TListNodeTypeHandler::DoClone(
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
-        YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
+        YT_VERIFY(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
     }

@@ -58,7 +58,7 @@ public:
             }
         }
         if constexpr (wireType == EWireType::Yson32) {
-            YCHECK(YsonConverter_);
+            YT_VERIFY(YsonConverter_);
             auto ysonString = parser->ParseYson32();
             YsonConverter_->SetColumnIndex(ColumnId_);
             YsonConverter_->SetValueConsumer(valueConsumer);
@@ -111,7 +111,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
 #undef CASE
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -52,7 +52,7 @@ private:
         switch (key) {
             case EInternedAttributeKey::ChunkId: {
                 auto underlyingChunk = chunkView->GetUnderlyingChunk();
-                YCHECK(underlyingChunk);
+                YT_VERIFY(underlyingChunk);
                 BuildYsonFluently(consumer)
                     .Value(underlyingChunk->GetId());
                 return true;

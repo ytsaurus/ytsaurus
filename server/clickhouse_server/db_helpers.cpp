@@ -15,9 +15,9 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const TClickHouseColumn& column)
+const char* GetTypeName(EClickHouseColumnType type)
 {
-    switch (column.Type) {
+    switch (type) {
         /// Invalid type.
         case EClickHouseColumnType::Invalid:
             break;
@@ -51,8 +51,13 @@ const char* GetTypeName(const TClickHouseColumn& column)
 
     throw Exception(
         "Invalid column type",
-        Exception(toString(static_cast<int>(column.Type)), ErrorCodes::UNKNOWN_TYPE),
+        Exception(toString(static_cast<int>(type)), ErrorCodes::UNKNOWN_TYPE),
         ErrorCodes::UNKNOWN_TYPE);
+}
+
+const char* GetTypeName(const TClickHouseColumn& column)
+{
+    return GetTypeName(column.Type);
 }
 
 DB::DataTypePtr GetDataType(const std::string& name)

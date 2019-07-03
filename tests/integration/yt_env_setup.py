@@ -1,6 +1,6 @@
 import yt_commands
 
-from yt.environment import YTInstance, init_operation_archive
+from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
@@ -33,6 +33,16 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
+
+def prepare_binaries():
+    if arcadia_interop.yatest_common is None:
+        return
+    
+    destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
+    if not os.path.exists(destination):       
+        os.makedirs(destination)
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 def _abort_transactions(driver=None):
     command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -369,6 +379,43 @@ class Checker(Thread):
         self._active = False
         self.join()
 
+
+SCHEDULERS_SERVICE = "schedulers"
+CONTROLLER_AGENTS_SERVICE = "controller_agents"
+NODES_SERVICE = "nodes"
+MASTER_CELL_SERVICE = "master_cell"
+
+class Restarter(object):
+    def __init__(self, Env, components):
+        self.Env = Env
+        self.components = components
+        if type(self.components) == str:
+            self.components = [self.components]
+        self.kill_dict = {SCHEDULERS_SERVICE: self.Env.kill_schedulers,
+                          CONTROLLER_AGENTS_SERVICE: self.Env.kill_controller_agents,
+                          NODES_SERVICE: self.Env.kill_nodes,
+                          MASTER_CELL_SERVICE: self.Env.kill_master_cell}
+        self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
+                           CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
+                           NODES_SERVICE: self.Env.start_nodes,
+                           MASTER_CELL_SERVICE: self.Env.start_master_cell}
+
+    def __enter__(self):
+        for comp_name in self.components:
+            try:
+                self.kill_dict[comp_name]()
+            except KeyError:
+                logging.error("Failed to kill {}. No such component.".format(comp_name))
+                raise
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for comp_name in self.components:
+            try:
+                self.start_dict[comp_name]()
+            except KeyError:
+                logging.error("Failed to start {}. No such component.".format(comp_name))
+                raise
+
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_NONVOTING_MASTERS = 0
@@ -501,6 +548,8 @@ class YTEnvSetup(object):
             test_name = cls.__name__
         cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
+
+        prepare_binaries()
 
         # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []

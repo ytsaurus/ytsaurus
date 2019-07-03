@@ -26,7 +26,7 @@ using namespace NObjectClient;
 
 INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -89,7 +89,7 @@ private:
 
 INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

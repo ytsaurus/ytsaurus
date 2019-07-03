@@ -34,7 +34,7 @@ TSharedRefArray Serialize(TString str)
 
 TString Deserialize(TSharedRefArray message)
 {
-    Y_ASSERT(message.Size() == 1);
+    YT_ASSERT(message.Size() == 1);
     const auto& part = message[0];
     return TString(part.Begin(), part.Size());
 }

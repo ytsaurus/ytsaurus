@@ -87,7 +87,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     };
 
@@ -165,7 +165,7 @@ TVersionedRow YsonToVersionedRow(
                 builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
                 break;
         }
     }
@@ -339,7 +339,7 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
 {
-    Y_ASSERT(value.GetType() == EYsonType::Node);
+    YT_ASSERT(value.GetType() == EYsonType::Node);
     *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
 }
 
@@ -495,7 +495,7 @@ void ProtobufToUnversionedValueImpl(
     auto byteSize = value.ByteSize();
     auto* pool = rowBuffer->GetPool();
     auto* wireBuffer = pool->AllocateUnaligned(byteSize);
-    YCHECK(value.SerializePartialToArray(wireBuffer, byteSize));
+    YT_VERIFY(value.SerializePartialToArray(wireBuffer, byteSize));
     ArrayInputStream inputStream(wireBuffer, byteSize);
     TString ysonBytes;
     TStringOutput outputStream(ysonBytes);
@@ -521,7 +521,9 @@ void UnversionedValueToProtobufImpl(
     }
     TString wireBytes;
     StringOutputStream outputStream(&wireBytes);
-    auto protobufWriter = CreateProtobufWriter(&outputStream, type);
+    TProtobufWriterOptions options;
+    options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+    auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
     ParseYsonStringBuffer(
         TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
         EYsonType::Node,
@@ -794,12 +796,12 @@ void UnversionedValueToListImpl(
 
         virtual void OnKeyedItem(TStringBuf /*key*/) override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual void OnEndMap() override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual void OnBeginAttributes() override
@@ -809,7 +811,7 @@ void UnversionedValueToListImpl(
 
         virtual void OnEndAttributes() override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
     private:
@@ -1056,7 +1058,7 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* c
             consumer->OnEntity();
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

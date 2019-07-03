@@ -58,8 +58,6 @@ public:
             DataNodeProfiler.AppendPath("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , ReaderThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, "ReaderThread"))
-        , ReaderInvoker_(CreatePrioritizedInvoker(ReaderThreadPool_->GetInvoker()))
     { }
 
     TCachedBlockPtr FindCachedBlock(const TBlockId& blockId)
@@ -191,17 +189,9 @@ public:
         return result;
     }
 
-    IPrioritizedInvokerPtr GetReaderInvoker() const
-    {
-        return ReaderInvoker_;
-    }
-
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    const TThreadPoolPtr ReaderThreadPool_;
-    const IPrioritizedInvokerPtr ReaderInvoker_;
 
     TSpinLock BlocksWithSourceLock_;
     std::vector<TWeakPtr<TCachedBlock>> BlocksWithSource_;
@@ -230,8 +220,7 @@ TChunkBlockManager::TChunkBlockManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TChunkBlockManager::~TChunkBlockManager()
-{ }
+TChunkBlockManager::~TChunkBlockManager() = default;
 
 TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 {
@@ -278,11 +267,6 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
 std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocksWithSource() const
 {
     return Impl_->GetAllBlocksWithSource();
-}
-
-IPrioritizedInvokerPtr TChunkBlockManager::GetReaderInvoker() const
-{
-    return Impl_->GetReaderInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

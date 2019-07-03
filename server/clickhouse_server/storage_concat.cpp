@@ -18,6 +18,7 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/queryToString.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeNullable.h>
 
 #include <common/logger_useful.h>
 
@@ -94,7 +95,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables, bool dropPrimaryKey)
+std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables)
 {
     // TODO(max42): code below looks like a good programming contest code, but seems strange as a production code.
     // Maybe rewrite it simpler?
@@ -103,26 +104,12 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
     THashMap<TString, int> nameToOccurrenceCount;
     for (const auto& tableColumn : tables[0]->Columns) {
         auto column = tableColumn;
-        if (dropPrimaryKey) {
-            column.DropSorted();
-        }
         nameToColumn[column.Name] = column;
     }
-
-    auto validateColumnDrop = [&] (const TClickHouseColumn& column) {
-        if (column.IsSorted()) {
-            THROW_ERROR_EXCEPTION(
-                "Primary key column %v is not taken in the resulting schema; in order to force dropping primary "
-                "key columns, use 'concat...DropPrimaryKey' variant of the function", column.Name);
-        }
-    };
 
     for (const auto& table : tables) {
         for (const auto& tableColumn : table->Columns) {
             auto column = tableColumn;
-            if (dropPrimaryKey) {
-                column.DropSorted();
-            }
 
             bool columnTaken = false;
             auto it = nameToColumn.find(column.Name);
@@ -137,8 +124,6 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
 
             if (columnTaken) {
                 ++nameToOccurrenceCount[column.Name];
-            } else {
-                validateColumnDrop(column);
             }
         }
     }
@@ -146,8 +131,7 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
     for (const auto& [name, occurrenceCount] : nameToOccurrenceCount) {
         if (occurrenceCount != static_cast<int>(tables.size())) {
             auto it = nameToColumn.find(name);
-            YCHECK(it != nameToColumn.end());
-            validateColumnDrop(nameToColumn[name]);
+            YT_VERIFY(it != nameToColumn.end());
             nameToColumn.erase(it);
         }
     }
@@ -170,10 +154,13 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
 
     for (const auto& column : remainingColumns) {
         auto dataType = dataTypes.get(GetTypeName(column));
+        if (column.IsNullable()) {
+            dataType = DB::makeNullable(dataType);
+        }
         columns.emplace_back(column.Name, dataType);
         auto& columnSchema = columnSchemas.emplace_back(tables[0]->TableSchema.GetColumn(column.Name));
 
-        if (column.IsSorted() && !dropPrimaryKey) {
+        if (column.IsSorted()) {
             keyColumns.emplace_back(column.Name, dataType);
             primarySortColumns.emplace_back(column.Name);
         } else {
@@ -184,9 +171,7 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
     return {TTableSchema(std::move(columnSchemas)), TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns))};
 }
 
-DB::StoragePtr CreateStorageConcat(
-    std::vector<TClickHouseTablePtr> tables,
-    bool dropPrimaryKey)
+DB::StoragePtr CreateStorageConcat(std::vector<TClickHouseTablePtr> tables)
 {
     if (tables.empty()) {
         throw Exception(
@@ -194,7 +179,7 @@ DB::StoragePtr CreateStorageConcat(
             DB::ErrorCodes::LOGICAL_ERROR);
     }
 
-    auto commonSchema = GetCommonSchema(tables, dropPrimaryKey);
+    auto commonSchema = GetCommonSchema(tables);
 
     auto storage = std::make_shared<TStorageConcat>(
         std::move(tables),

@@ -79,7 +79,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -109,12 +109,12 @@ public:
 
     virtual const TTableSchema& GetTableSchema() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:
@@ -148,7 +148,7 @@ TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStateless
 {
     TToken token;
     lexer.GetToken(ysonString, &token);
-    YCHECK(!token.IsEmpty());
+    YT_VERIFY(!token.IsEmpty());
 
     switch (token.GetType()) {
         case ETokenType::Int64:
@@ -473,7 +473,7 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         };
     }
 

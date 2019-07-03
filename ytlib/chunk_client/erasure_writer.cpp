@@ -69,7 +69,7 @@ std::vector<std::vector<TBlock>> SplitBlocks(
         }
     }
 
-    YCHECK(groups.size() == groupCount);
+    YT_VERIFY(groups.size() == groupCount);
 
     return groups;
 }
@@ -96,7 +96,7 @@ public:
         std::vector<TBlock> blocks;
         for (int index = 0; index < blockIndexes.size(); ++index) {
             int blockIndex = blockIndexes[index];
-            YCHECK(0 <= blockIndex && blockIndex < Blocks_.size());
+            YT_VERIFY(0 <= blockIndex && blockIndex < Blocks_.size());
             blocks.push_back(Blocks_[blockIndex]);
         }
         return MakeFuture(blocks);
@@ -130,7 +130,7 @@ public:
         , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(writers)
     {
-        YCHECK(writers.size() == codec->GetTotalPartCount());
+        YT_VERIFY(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
@@ -169,7 +169,7 @@ public:
 
     virtual const NProto::TDataStatistics& GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual ECodec GetErasureCodecId() const override
@@ -182,7 +182,7 @@ public:
         TChunkReplicaWithMediumList result;
         for (int i = 0; i < Writers_.size(); ++i) {
             auto replicas = Writers_[i]->GetWrittenChunkReplicas();
-            YCHECK(replicas.size() == 1);
+            YT_VERIFY(replicas.size() == 1);
             auto replica = TChunkReplicaWithMedium(
                 replicas.front().GetNodeId(),
                 i,
@@ -304,7 +304,7 @@ void TErasureWriter::DoOpen()
 TFuture<void> TErasureWriter::WriteDataBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-    YCHECK(Groups_.size() <= Writers_.size());
+    YT_VERIFY(Groups_.size() <= Writers_.size());
 
     std::vector<TFuture<void>> asyncResults;
     for (int index = 0; index < Groups_.size(); ++index) {
@@ -338,7 +338,7 @@ void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const 
     }
 
     auto checksum = CombineChecksums(blockChecksums);
-    YCHECK(checksum != NullChecksum || blockChecksums.empty() ||
+    YT_VERIFY(checksum != NullChecksum || blockChecksums.empty() ||
         std::all_of(blockChecksums.begin(), blockChecksums.end(), [] (TChecksum value) {
             return value == NullChecksum;
         }));
@@ -398,7 +398,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
 
 TFuture<void> TErasureWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 {
-    YCHECK(IsOpen_);
+    YT_VERIFY(IsOpen_);
 
     PrepareBlocks();
     PrepareChunkMeta(*chunkMeta);
@@ -495,7 +495,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         nodeDirectory,
         ChunkClientLogger);
 
-    YCHECK(replicas.size() == codec->GetTotalPartCount());
+    YT_VERIFY(replicas.size() == codec->GetTotalPartCount());
 
     std::vector<IChunkWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {

@@ -411,10 +411,10 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         slots.resize(std::max(static_cast<size_t>(cookie + 1), slots.size() * 2));
     }
 
-    YCHECK(LocalSlotsSize >= 0);
+    YT_VERIFY(LocalSlotsSize >= 0);
     if (!LocalSlotsBegin) {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
-        YCHECK(LocalSlotHolders_.insert(Holder.GetPtr()).second);
+        YT_VERIFY(LocalSlotHolders_.insert(Holder.GetPtr()).second);
     }
 
     LocalSlotsBegin = slots.data();
@@ -449,7 +449,7 @@ void TRefCountedTracker::OnLocalSlotsDestroyed(TLocalSlotsHolder* holder)
         GlobalSlots_[index] += localSlots[index];
     }
 
-    YCHECK(LocalSlotHolders_.erase(holder) == 1);
+    YT_VERIFY(LocalSlotHolders_.erase(holder) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

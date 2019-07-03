@@ -61,8 +61,8 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     // Construct new children list.
     std::vector<TChunkTree*> newChildren;
     AppendChunkTree(&newChildren, root);
-    YCHECK(!newChildren.empty());
-    YCHECK(newChildren.front() != root);
+    YT_VERIFY(!newChildren.empty());
+    YT_VERIFY(newChildren.front() != root);
 
     // Rewrite the root with newChildren.
 
@@ -82,17 +82,17 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     }
 
     const auto& newStatistics = root->Statistics();
-    YCHECK(newStatistics.RowCount == oldStatistics.RowCount);
-    YCHECK(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
-    YCHECK(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
-    YCHECK(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
-    YCHECK(newStatistics.DataWeight == -1 ||
+    YT_VERIFY(newStatistics.RowCount == oldStatistics.RowCount);
+    YT_VERIFY(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
+    YT_VERIFY(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
+    YT_VERIFY(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
+    YT_VERIFY(newStatistics.DataWeight == -1 ||
         oldStatistics.DataWeight == -1 ||
         newStatistics.DataWeight == oldStatistics.DataWeight);
-    YCHECK(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
-    YCHECK(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
-    YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
-    YCHECK(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
+    YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
+    YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
+    YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+    YT_VERIFY(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
 }
 
 void TChunkTreeBalancer::AppendChunkTree(
@@ -151,8 +151,8 @@ void TChunkTreeBalancer::AppendChild(
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
         if (lastChild->Children().size() < Settings_.MinChunkListSize) {
-            Y_ASSERT(lastChild->Statistics().Rank <= 1);
-            Y_ASSERT(lastChild->Children().size() <= Settings_.MaxChunkListSize);
+            YT_ASSERT(lastChild->Statistics().Rank <= 1);
+            YT_ASSERT(lastChild->Children().size() <= Settings_.MaxChunkListSize);
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
                 // We want to merge to this chunk list but it is shared.
                 // Copy on write.
@@ -170,7 +170,7 @@ void TChunkTreeBalancer::AppendChild(
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
             if (chunkList->Children().size() <= Settings_.MaxChunkListSize) {
-                Y_ASSERT(Callbacks_->GetObjectRefCounter(chunkList) > 0);
+                YT_ASSERT(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
                 return;
             }
@@ -192,9 +192,9 @@ void TChunkTreeBalancer::MergeChunkTrees(
     // We are trying to add the child to the last chunk list.
     auto* lastChunkList = children->back()->AsChunkList();
 
-    Y_ASSERT(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
-    Y_ASSERT(lastChunkList->Statistics().Rank <= 1);
-    Y_ASSERT(lastChunkList->Children().size() < Settings_.MinChunkListSize);
+    YT_ASSERT(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
+    YT_ASSERT(lastChunkList->Statistics().Rank <= 1);
+    YT_ASSERT(lastChunkList->Children().size() < Settings_.MinChunkListSize);
 
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -215,7 +215,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
                 while (mergedCount < chunkList->Children().size()) {
                     if (lastChunkList->Children().size() >= Settings_.MinChunkListSize) {
                         // The last chunk list is too large. Creating a new one.
-                        Y_ASSERT(lastChunkList->Children().size() == Settings_.MinChunkListSize);
+                        YT_ASSERT(lastChunkList->Children().size() == Settings_.MinChunkListSize);
                         lastChunkList = Callbacks_->CreateChunkList();
                         children->push_back(lastChunkList);
                     }
@@ -233,7 +233,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -13,6 +13,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/logging/fluent_log.h>
+
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/http/http.h>
@@ -178,17 +180,17 @@ bool TContext::TryParseUser()
     Auth_ = authResult.Value();
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
-        DriverRequest_.AuthenticatedUser = Auth_->Login;
+        DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(Auth_->Login)) {
+    if (Api_->IsUserBannedInCache(Auth_->Result.Login)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyFakeError(Format("User %Qv is banned", Auth_->Login));
+        ReplyFakeError(Format("User %Qv is banned", Auth_->Result.Login));
         return false;
     }
 
-    DriverRequest_.AuthenticatedUser = Auth_->Login;
+    DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
     return true;
 }
 
@@ -534,17 +536,49 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     DriverRequest_.Id = Request_->GetRequestId();
+    Parameters_ = ConvertToYsonString(
+        HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+        EYsonFormat::Text).GetData();
     YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
-        ConvertToYsonString(
-            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
-            EYsonFormat::Text).GetData(),
+        Parameters_,
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
         InputContentEncoding_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
         OutputContentEncoding_);
+}
+
+void TContext::LogStructuredRequest() {
+    std::optional<TString> correlationId;
+    if (auto correlationHeader = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
+        correlationId = *correlationHeader;
+    }
+    auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
+    LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
+        .Item("request_id").Value(Request_->GetRequestId())
+        .Item("command").Value(Descriptor_->CommandName)
+        .Item("user").Value(DriverRequest_.AuthenticatedUser)
+        .Item("authenticated_from").Value(Auth_->Result.Login)
+        .Item("token_hash").Value(Auth_->TokenHash)
+        .Item("parameters").Value(Parameters_)
+        .Item("correlation_id").Value(correlationId)
+        .Item("trace_id").Value(NTracing::GetCurrentTraceId())
+        .Item("user_agent").Value(GetUserAgent(Request_))
+        .Item("path").Value(path)
+        .Item("http_path").Value(Request_->GetUrl().Path)
+        .Item("method").Value(Request_->GetMethod())
+        .Item("http_code").Value(Response_->GetStatus())
+        .Item("error_code").Value(static_cast<int>(Error_.GetCode()))
+        .Item("error").Value(Error_)
+        .Item("remote_address").Value(ToString(Request_->GetRemoteAddress()))
+        .Item("l7_request_id").Value(GetBalancerRequestId(Request_))
+        .Item("l7_real_ip").Value(GetBalancerRealIP(Request_))
+        .Item("duration").Value(Duration_)
+        .Item("start_time").Value(StartTime_)
+        .Item("in_bytes").Value(Request_->GetReadByteCount())
+        .Item("out_bytes").Value(Response_->GetWriteByteCount());
 }
 
 void TContext::SetupInputStream()
@@ -701,6 +735,19 @@ TSharedRef DumpError(const TError& error)
 
 void TContext::Finalize()
 {
+    Duration_ = TInstant::Now() - StartTime_;
+
+    LogStructuredRequest();
+
+    Api_->IncrementProfilingCounters(
+            DriverRequest_.AuthenticatedUser,
+            DriverRequest_.CommandName,
+            Response_->GetStatus(),
+            Error_.GetCode(),
+            Duration_,
+            Request_->GetReadByteCount(),
+            Response_->GetWriteByteCount());
+
     if (IsClientBuggy(Request_)) {
         try {
             while (true) {
@@ -752,15 +799,6 @@ void TContext::Finalize()
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
-
-    Api_->IncrementProfilingCounters(
-        DriverRequest_.AuthenticatedUser,
-        DriverRequest_.CommandName,
-        Response_->GetStatus(),
-        Error_.GetCode(),
-        TInstant::Now() - StartTime_,
-        Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount());
 }
 
 template <class TJsonProducer>

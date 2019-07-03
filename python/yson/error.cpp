@@ -29,7 +29,7 @@ Py::Exception CreateYsonError(const TString& message, TContext* context)
         TStringBuilder builder;
         for (const auto& pathPart : context->PathParts) {
             if (pathPart.InAttributes) {
-                YCHECK(!endedWithDelimiter);
+                YT_VERIFY(!endedWithDelimiter);
                 builder.AppendString("/@");
                 endedWithDelimiter = true;
             } else {

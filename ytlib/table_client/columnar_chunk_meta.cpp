@@ -41,7 +41,7 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
         FromProto(&ChunkSchema_, *tableSchemaExt);
     } else if (keyColumnsExt) {
         // COMPAT(savrus) No table schema is allowed only for old chunks.
-        YCHECK(ChunkFormat_ == ETableChunkFormat::SchemalessHorizontal);
+        YT_VERIFY(ChunkFormat_ == ETableChunkFormat::SchemalessHorizontal);
         TKeyColumns keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
         ChunkSchema_ = TTableSchema::FromKeyColumns(keyColumns);
     }
@@ -70,7 +70,7 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     for (const auto& block : BlockMeta_->blocks()) {
         TKey key;
         if (ChunkSchema_.GetKeyColumnCount() > 0) {
-            YCHECK(block.has_last_key());
+            YT_VERIFY(block.has_last_key());
             key = FromProto<TKey>(block.last_key(), tempBuffer);
         } else {
             key = tempBuffer->AllocateUnversioned(0);

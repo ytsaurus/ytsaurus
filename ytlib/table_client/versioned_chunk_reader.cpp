@@ -98,16 +98,16 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
 
     if (columnFilter.IsUniversal()) {
         for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
-            YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
-            YCHECK(mapping.ChunkSchemaIndex >= keyColumnCount);
+            YT_VERIFY(mapping.ChunkSchemaIndex < idMapping.size());
+            YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
             idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
         }
     } else {
         for (auto index : columnFilter.GetIndexes()) {
             for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
                 if (mapping.ReaderSchemaIndex == index) {
-                    YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
-                    YCHECK(mapping.ChunkSchemaIndex >= keyColumnCount);
+                    YT_VERIFY(mapping.ChunkSchemaIndex < idMapping.size());
+                    YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
                     idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
                     break;
                 }
@@ -196,11 +196,11 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     , MemoryPool_(TVersionedChunkReaderPoolTag())
     , PerformanceCounters_(std::move(performanceCounters))
 {
-    YCHECK(ChunkMeta_->Misc().sorted());
-    YCHECK(ChunkMeta_->GetChunkType() == EChunkType::Table);
-    YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
-    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
-    YCHECK(PerformanceCounters_);
+    YT_VERIFY(ChunkMeta_->Misc().sorted());
+    YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
+    YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
+    YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
+    YT_VERIFY(PerformanceCounters_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,7 +239,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
 
         MemoryPool_.Clear();
         rows->clear();
@@ -285,7 +285,7 @@ public:
 
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (row) {
-                Y_ASSERT(
+                YT_ASSERT(
                     rows->empty() ||
                     !rows->back() ||
                     CompareRows(
@@ -378,7 +378,7 @@ private:
                     });
 
                 ++blockKeysEnd;
-                YCHECK(rangeIndex > saved);
+                YT_VERIFY(rangeIndex > saved);
             } else {
                 ++rangeIndex;
             }
@@ -404,7 +404,7 @@ private:
             GetCurrentRangeUpperKey(),
             ChunkMeta_->GetKeyColumnCount());
 
-        YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
+        YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
@@ -426,7 +426,7 @@ private:
     virtual void InitNextBlock() override
     {
         LoadBlock();
-        YCHECK(BlockReader_->SkipToKey(GetCurrentRangeLowerKey()));
+        YT_VERIFY(BlockReader_->SkipToKey(GetCurrentRangeLowerKey()));
         ++NextBlockIndex_;
     }
 
@@ -469,7 +469,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
 
         MemoryPool_.Clear();
         rows->clear();
@@ -538,7 +538,7 @@ public:
                     RowCount_ += skippedKeys;
                     dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
                 } else {
-                    Y_UNREACHABLE();
+                    YT_ABORT();
                 }
             }
         }
@@ -576,7 +576,7 @@ private:
             if (blocksIt != blockIndexKeys.end()) {
                 auto saved = keyIt;
                 keyIt = std::upper_bound(keyIt, Keys_.end(), *blocksIt);
-                YCHECK(keyIt > saved);
+                YT_VERIFY(keyIt > saved);
 
                 auto blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
                 BlockIndexes_.push_back(blockIndex);
@@ -638,11 +638,11 @@ public:
         , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, VersionedChunkMeta_))
         , PerformanceCounters_(std::move(performanceCounters))
     {
-        YCHECK(VersionedChunkMeta_->Misc().sorted());
-        YCHECK(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
-        YCHECK(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
-        YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
-        YCHECK(PerformanceCounters_);
+        YT_VERIFY(VersionedChunkMeta_->Misc().sorted());
+        YT_VERIFY(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
+        YT_VERIFY(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
+        YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
+        YT_VERIFY(PerformanceCounters_);
 
         KeyColumnReaders_.resize(VersionedChunkMeta_->GetKeyColumnCount());
         for (int keyColumnIndex = 0;
@@ -730,7 +730,7 @@ public:
     // All column reader are owned by the chunk reader.
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YCHECK(TimestampReader_ == nullptr);
+        YT_VERIFY(TimestampReader_ == nullptr);
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TScanTransactionTimestampReader(
@@ -881,7 +881,7 @@ public:
 
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YCHECK(TimestampReader_ == nullptr);
+        YT_VERIFY(TimestampReader_ == nullptr);
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TCompactionTimestampReader(
             ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex));
@@ -1007,7 +1007,7 @@ public:
             timestamp)
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
-        YCHECK(ranges.Size() == 1);
+        YT_VERIFY(ranges.Size() == 1);
         LowerLimit_.SetKey(TOwningKey(ranges[0].first));
         UpperLimit_.SetKey(TOwningKey(ranges[0].second));
 
@@ -1033,7 +1033,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
         rows->clear();
         RowBuilder_.Clear();
 
@@ -1061,7 +1061,7 @@ public:
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
             rowLimit = std::min(rowLimit, MaxRowsPerRead_);
-            YCHECK(rowLimit > 0);
+            YT_VERIFY(rowLimit > 0);
 
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
 
@@ -1070,7 +1070,7 @@ public:
                 keyColumnReader->ReadValues(range);
             }
 
-            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
+            YT_VERIFY(RowIndex_ + rowLimit <= HardUpperRowIndex_);
             if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
@@ -1145,7 +1145,7 @@ public:
 
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YCHECK(TimestampReader_ == nullptr);
+        YT_VERIFY(TimestampReader_ == nullptr);
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TLookupTransactionTimestampReader(
@@ -1260,7 +1260,7 @@ public:
 
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YCHECK(TimestampReader_ == nullptr);
+        YT_VERIFY(TimestampReader_ == nullptr);
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TLookupTransactionAllVersionsTimestampReader(
@@ -1418,7 +1418,7 @@ public:
 
             if (RowIndexes_[NextKeyIndex_] < VersionedChunkMeta_->Misc().row_count()) {
                 const auto& key = Keys_[NextKeyIndex_];
-                YCHECK(key.GetCount() == VersionedChunkMeta_->GetKeyColumnCount());
+                YT_VERIFY(key.GetCount() == VersionedChunkMeta_->GetKeyColumnCount());
 
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
@@ -1435,7 +1435,7 @@ public:
                     rows->push_back(TMutableVersionedRow());
                 } else {
                     // Key can be present in exactly one row.
-                    YCHECK(upperRowIndex == lowerRowIndex + 1);
+                    YT_VERIFY(upperRowIndex == lowerRowIndex + 1);
                     i64 rowIndex = lowerRowIndex;
 
                     rows->push_back(ReadRow(rowIndex));
@@ -1560,7 +1560,7 @@ public:
                         });
                     auto newNextBoundIndex = std::distance(Ranges_.begin(), nextBoundIt);
 
-                    YCHECK(newNextBoundIndex > RangeIndex_);
+                    YT_VERIFY(newNextBoundIndex > RangeIndex_);
 
                     RangeIndex_ = std::distance(Ranges_.begin(), nextBoundIt);
                     continue;
@@ -1578,7 +1578,7 @@ public:
             }
             size_t newSize = std::distance(rows->begin(), finish);
 
-            YCHECK(newSize <= rows->size());
+            YT_VERIFY(newSize <= rows->size());
             rows->resize(newSize);
 
             if (RangeIndex_ == Ranges_.Size()) {
@@ -1617,7 +1617,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         TKey lowerBound = ranges.Front().first;
         TKey upperBound = ranges.Back().second;
 
-        YCHECK(singletonClippingRange.Size() <= 1);
+        YT_VERIFY(singletonClippingRange.Size() <= 1);
         if (singletonClippingRange.Size() > 0) {
             TKey clippedLowerBound = singletonClippingRange.Front().first;
             TKey clippedUpperBound = singletonClippingRange.Front().second;
@@ -1649,7 +1649,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 singletonClippingRange);
 
         case ETableChunkFormat::VersionedColumnar: {
-            YCHECK(!ranges.Empty());
+            YT_VERIFY(!ranges.Empty());
             IVersionedReaderPtr reader;
 
             if (timestamp == AllCommittedTimestamp) {
@@ -1689,7 +1689,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 return CreateEmptyVersionedReader();
             }
 
-            YCHECK(!ranges.Empty());
+            YT_VERIFY(!ranges.Empty());
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 auto options = New<TTableReaderOptions>();
@@ -1727,7 +1727,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             return New<TFilteringReader>(reader, ranges);
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1789,7 +1789,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         case ETableChunkFormat::VersionedColumnar: {
             if (produceAllVersions) {
-                YCHECK(columnFilter.IsUniversal());
+                YT_VERIFY(columnFilter.IsUniversal());
             }
             if (produceAllVersions) {
                 return New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
@@ -1856,7 +1856,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -46,7 +46,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     if (context.GetVersion() < 832) {
         const auto oldMaxMediumCount = 7;
         i64 DiskSpacePerMediumTmp[oldMaxMediumCount] = {};
-        YCHECK(context.IsLoad());
+        YT_VERIFY(context.IsLoad());
         Persist(context, DiskSpacePerMediumTmp);
         for (auto i = 0; i < oldMaxMediumCount; ++i) {
             if (DiskSpacePerMediumTmp[i] > 0) {
@@ -310,7 +310,7 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
         if (medium->GetCache()) {
             continue;
         }
-        YCHECK(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        YT_VERIFY(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
         DiskSpace_ += mediumDiskSpace;
     }
 }
@@ -497,9 +497,9 @@ void TTablet::Load(TLoadContext& context)
 void TTablet::CopyFrom(const TTablet& other)
 {
     Index_ = other.Index_;
-    YCHECK(State_ == ETabletState::Unmounted);
+    YT_VERIFY(State_ == ETabletState::Unmounted);
     MountRevision_ = other.MountRevision_;
-    YCHECK(!Cell_);
+    YT_VERIFY(!Cell_);
     PivotKey_ = other.PivotKey_;
     NodeStatistics_ = other.NodeStatistics_;
     InMemoryMode_ = other.InMemoryMode_;
@@ -527,7 +527,7 @@ TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplica* replica)
 TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
 {
     auto* replicaInfo = FindReplicaInfo(replica);
-    YCHECK(replicaInfo);
+    YT_VERIFY(replicaInfo);
     return replicaInfo;
 }
 
@@ -578,7 +578,7 @@ i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
         case EInMemoryMode::None:
             return 0;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -596,7 +596,7 @@ void TTablet::SetState(ETabletState state)
 {
     if (Table_) {
         auto* table = Table_->GetTrunkNode();
-        YCHECK(table->TabletCountByState()[State_] > 0);
+        YT_VERIFY(table->TabletCountByState()[State_] > 0);
         --table->MutableTabletCountByState()[State_];
         ++table->MutableTabletCountByState()[state];
     }
@@ -617,7 +617,7 @@ void TTablet::SetExpectedState(ETabletState state)
 {
     if (Table_) {
         auto* table = Table_->GetTrunkNode();
-        YCHECK(table->TabletCountByExpectedState()[ExpectedState_] > 0);
+        YT_VERIFY(table->TabletCountByExpectedState()[ExpectedState_] > 0);
         --table->MutableTabletCountByExpectedState()[ExpectedState_];
         ++table->MutableTabletCountByExpectedState()[state];
     }
@@ -632,17 +632,17 @@ TTableNode* TTablet::GetTable() const
 void TTablet::SetTable(TTableNode* table)
 {
     if (Table_) {
-        YCHECK(Table_->GetTrunkNode()->TabletCountByState()[State_] > 0);
-        YCHECK(Table_->GetTrunkNode()->TabletCountByExpectedState()[ExpectedState_] > 0);
+        YT_VERIFY(Table_->GetTrunkNode()->TabletCountByState()[State_] > 0);
+        YT_VERIFY(Table_->GetTrunkNode()->TabletCountByExpectedState()[ExpectedState_] > 0);
         --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
         --Table_->GetTrunkNode()->MutableTabletCountByExpectedState()[ExpectedState_];
 
         int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
-        Y_ASSERT(restTabletErrorCount >= 0);
+        YT_ASSERT(restTabletErrorCount >= 0);
         Table_->SetTabletErrorCount(restTabletErrorCount);
     }
     if (table) {
-        YCHECK(table->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
         ++table->MutableTabletCountByState()[State_];
         ++table->MutableTabletCountByExpectedState()[ExpectedState_];
 
@@ -655,7 +655,7 @@ void TTablet::SetErrors(const TTabletErrors& errors)
 {
     if (Table_) {
         int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
-        Y_ASSERT(restTabletErrorCount >= 0);
+        YT_ASSERT(restTabletErrorCount >= 0);
         Table_->SetTabletErrorCount(restTabletErrorCount);
     }
 

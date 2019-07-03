@@ -129,7 +129,7 @@ TFuture<void> TFileChunkWriter::GetReadyEvent()
 
 void TFileChunkWriter::FlushBlock()
 {
-    YCHECK(!Buffer_.IsEmpty());
+    YT_VERIFY(!Buffer_.IsEmpty());
     YT_LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
 
     auto* block = BlocksExt_.add_blocks();

@@ -77,8 +77,8 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
     {
-        YCHECK(Config_);
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Bootstrap_);
 
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);

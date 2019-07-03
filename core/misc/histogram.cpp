@@ -61,7 +61,7 @@ public:
             return result;
         }
 
-        YCHECK(IsValid());
+        YT_VERIFY(IsValid());
         i64 firstBucket = GetBucketIndex(ValueMin_);
         i64 lastBucket = GetBucketIndex(ValueMax_) + 1;
         result.Min = View_.Min + BucketWidth_ * firstBucket;
@@ -115,13 +115,13 @@ private:
 
     i64 GetBucketIndex(i64 value) const
     {
-        YCHECK(HasBucket(value));
+        YT_VERIFY(HasBucket(value));
         return (value - View_.Min) / BucketWidth_;
     }
 
     void RebuildView()
     {
-        YCHECK(Items_.size() > 1);
+        YT_VERIFY(Items_.size() > 1);
         // Make a view with a range twice largen that current and mean value in place.
         BucketWidth_ = (HistogramViewReserveFactor * (ValueMax_ + 1 - ValueMin_) + MaxBuckets_ - 1) / MaxBuckets_;
         if (BucketWidth_ == 0) {
@@ -158,7 +158,7 @@ void Serialize(const IHistogram& histogram, IYsonConsumer* consumer)
 
 THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramView)
 {
-    YCHECK(histogramView.Count.size() > 0);
+    YT_VERIFY(histogramView.Count.size() > 0);
 
     int currentBucketIndex = 0;
     i64 partialBucketSum = 0;

@@ -109,13 +109,13 @@ void Check(SRes sres)
 
 void LzmaCompress(int level, StreamSource* source, TBlob* output)
 {
-    YCHECK(0 <= level && level <= 9);
+    YT_VERIFY(0 <= level && level <= 9);
 
     TLzmaReadWrapper reader(source);
     TLzmaWriteWrapper writer(output);
 
     CLzmaEncHandle handle = LzmaEnc_Create(&Alloc);
-    YCHECK(handle);
+    YT_VERIFY(handle);
 
     {
         // Set properties.
@@ -180,7 +180,7 @@ void LzmaDecompress(StreamSource* source, TBlob* output)
 
         source->Skip(bufferSize);
     }
-    YCHECK(status == LZMA_STATUS_FINISHED_WITH_MARK);
+    YT_VERIFY(status == LZMA_STATUS_FINISHED_WITH_MARK);
     LzmaDec_Free(&handle, &Alloc);
 }
 

@@ -298,7 +298,7 @@ private:
         void OnPeerQueried(const TString& address)
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(RequestingAddresses_.erase(address) == 1);
+            YT_VERIFY(RequestingAddresses_.erase(address) == 1);
         }
 
         bool HasOutstandingQueries()
@@ -316,7 +316,7 @@ private:
 
             {
                 TGuard<TSpinLock> guard(SpinLock_);
-                YCHECK(RequestedAddresses_.erase(address) == 1);
+                YT_VERIFY(RequestedAddresses_.erase(address) == 1);
                 DiscoveryErrors_.push_back(error);
             }
 
@@ -361,7 +361,7 @@ private:
             }
 
             if (Success_.load()) {
-                Y_ASSERT(FirstPeerDiscoveredPromise_.IsSet());
+                YT_ASSERT(FirstPeerDiscoveredPromise_.IsSet());
                 FinishedPromise_.Set();
             } else {
                 auto error = owner->MakeNoAlivePeersError()
@@ -492,7 +492,7 @@ private:
     {
         TWriterGuard guard(SpinLock_);
 
-        YCHECK(CurrentDiscoverySession_);
+        YT_VERIFY(CurrentDiscoverySession_);
         CurrentDiscoverySession_.Reset();
 
         TDelayedExecutor::CancelAndClear(RediscoveryCookie_);
@@ -552,8 +552,8 @@ private:
         }
 
         const auto& result = candidates[RandomNumber(candidates.size())];
-        YCHECK(requestedAddresses->insert(result).second);
-        YCHECK(requestingAddresses->insert(result).second);
+        YT_VERIFY(requestedAddresses->insert(result).second);
+        YT_VERIFY(requestingAddresses->insert(result).second);
         return result;
     }
 
@@ -659,7 +659,7 @@ private:
         if (it == AddressToIndex_.end()) {
             int index = static_cast<int>(ViablePeers_.size());
             ViablePeers_.push_back(TViablePeer{address, channel});
-            YCHECK(AddressToIndex_.emplace(address, index).second);
+            YT_VERIFY(AddressToIndex_.emplace(address, index).second);
         } else {
             int index = it->second;
             ViablePeers_[index].Channel = channel;
@@ -794,7 +794,7 @@ private:
                 *EndpointAttributes_,
                 serviceName,
                 DiscoverRequestHook_);
-            YCHECK(SubproviderMap_.insert(std::make_pair(serviceName, subprovider)).second);
+            YT_VERIFY(SubproviderMap_.insert(std::make_pair(serviceName, subprovider)).second);
             return subprovider;
         }
     }
@@ -810,8 +810,8 @@ IChannelPtr CreateBalancingChannel(
     const IAttributeDictionary& endpointAttributes,
     TDiscoverRequestHook discoverRequestHook)
 {
-    YCHECK(config);
-    YCHECK(channelFactory);
+    YT_VERIFY(config);
+    YT_VERIFY(channelFactory);
 
     auto channelProvider = New<TBalancingChannelProvider>(
         config,

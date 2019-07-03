@@ -251,13 +251,13 @@ public:
 
     void SetAuthenticatedUserByNameOrThrow(const TString& user)
     {
-        Y_ASSERT(!*AuthenticatedUser_);
+        YT_ASSERT(!*AuthenticatedUser_);
         *AuthenticatedUser_ = user;
     }
 
     void ResetAuthenticatedUser()
     {
-        Y_ASSERT(*AuthenticatedUser_);
+        YT_ASSERT(*AuthenticatedUser_);
         AuthenticatedUser_->reset();
     }
 
@@ -351,6 +351,13 @@ void TSecurityManager::ResetAuthenticatedUser()
 std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
+}
+
+TFuture<void> TSecurityManager::CheckPermission(
+    const TString& path,
+    EPermission permission)
+{
+    return Impl_->CheckPermission(path, permission);
 }
 
 void TSecurityManager::ValidatePermission(

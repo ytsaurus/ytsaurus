@@ -130,7 +130,7 @@ public:
         }
 
         if (JobSpecHelper_->IsReaderInterruptionSupported() && !Interrupted_) {
-            YCHECK(Reader_);
+            YT_VERIFY(Reader_);
             Interrupted_ = true;
 
             if (Reader_->GetDataStatistics().row_count() > 0) {
@@ -144,7 +144,7 @@ public:
     virtual TInterruptDescriptor GetInterruptDescriptor() const override
     {
         if (Interrupted_) {
-            YCHECK(Reader_);
+            YT_VERIFY(Reader_);
             return Reader_->GetInterruptDescriptor(TRange<TUnversionedRow>());
         } else {
             return {};
@@ -249,7 +249,7 @@ private:
 
     void InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
     {
-        YCHECK(!Reader_);
+        YT_VERIFY(!Reader_);
         Reader_ = UserJobIOFactory_->CreateReader(
             Client_,
             NodeDescriptor_,

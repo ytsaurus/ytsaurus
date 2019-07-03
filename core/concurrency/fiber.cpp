@@ -72,7 +72,7 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 
 TFiber::~TFiber()
 {
-    YCHECK(IsTerminated());
+    YT_VERIFY(IsTerminated());
     for (int index = 0; index < Fsd_.size(); ++index) {
         const auto& slot = Fsd_[index];
         if (slot) {
@@ -110,7 +110,7 @@ void TFiber::SetRunning()
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
-    Y_ASSERT(State_ != EFiberState::Terminated);
+    YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
     AwaitedFuture_.Reset();
     RunStartInstant_ = NProfiling::GetCpuInstant();
@@ -124,9 +124,9 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
     TGuard<TSpinLock> guard(SpinLock_);
     UnwindIfCanceled();
     FinishRunning();
-    Y_ASSERT(State_ != EFiberState::Terminated);
+    YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
-    Y_ASSERT(!AwaitedFuture_);
+    YT_ASSERT(!AwaitedFuture_);
     AwaitedFuture_ = std::move(awaitedFuture);
 }
 
@@ -136,7 +136,7 @@ void TFiber::SetSuspended()
 
     TGuard<TSpinLock> guard(SpinLock_);
     FinishRunning();
-    Y_ASSERT(State_ != EFiberState::Terminated);
+    YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
     AwaitedFuture_.Reset();
 }
@@ -230,7 +230,7 @@ void TFiber::FsdResize()
     int oldSize = static_cast<int>(Fsd_.size());
     int newSize = NDetail::FlsCountSlots();
 
-    Y_ASSERT(newSize > oldSize);
+    YT_ASSERT(newSize > oldSize);
 
     Fsd_.resize(newSize);
 
@@ -255,7 +255,7 @@ void TFiber::DoRunNaked()
 
     GetCurrentScheduler()->Return();
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TFiber::PushContextHandler(std::function<void()> out, std::function<void()> in)
@@ -265,7 +265,7 @@ void TFiber::PushContextHandler(std::function<void()> out, std::function<void()>
 
 void TFiber::PopContextHandler()
 {
-    YCHECK(!SwitchHandlers_.empty());
+    YT_VERIFY(!SwitchHandlers_.empty());
     SwitchHandlers_.pop_front();
 }
 
@@ -311,7 +311,7 @@ bool TFiber::CheckFreeStackSpace(size_t space) const
 NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
 {
     // THREAD_AFFINITY(OwnerThread);
-    Y_ASSERT(State_ == EFiberState::Running);
+    YT_ASSERT(State_ == EFiberState::Running);
 
     return RunCpuTime_ + std::max<NProfiling::TCpuDuration>(0, NProfiling::GetCpuInstant() - RunStartInstant_);
 }
@@ -336,7 +336,7 @@ int GetFiberStackPoolSize(EExecutionStackKind stackKind)
     switch (stackKind) {
         case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
         case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
-        default:                         Y_UNREACHABLE();
+        default:                         YT_ABORT();
     }
 }
 
@@ -350,7 +350,7 @@ void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
     switch (stackKind) {
         case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize; break;
         case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize; break;
-        default:                         Y_UNREACHABLE();
+        default:                         YT_ABORT();
     }
 }
 

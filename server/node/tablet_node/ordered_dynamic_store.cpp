@@ -103,7 +103,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -188,7 +188,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
 {
-    YCHECK(FlushRowCount_ != -1);
+    YT_VERIFY(FlushRowCount_ != -1);
     return DoCreateReader(
         -1,
         StartingRowIndex_,
@@ -209,7 +209,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     TUnversionedRow row,
     TWriteContext* context)
 {
-    Y_ASSERT(context->Phase == EWritePhase::Commit);
+    YT_ASSERT(context->Phase == EWritePhase::Commit);
 
     int columnCount = static_cast<int>(Schema_.Columns().size());
     auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
@@ -243,7 +243,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 {
     rowIndex -= StartingRowIndex_;
-    Y_ASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
+    YT_ASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
     int segmentIndex;
     i64 segmentRowIndex;
     if (rowIndex < (1ULL << InitialOrderedDynamicSegmentIndex)) {
@@ -396,7 +396,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         StoreState_ == EStoreState::RemovePrepared)
     {
         // NB: No more changes are possible after load.
-        YCHECK(FlushRowCount_ == -1);
+        YT_VERIFY(FlushRowCount_ == -1);
         FlushRowCount_ = GetRowCount();
     }
 
@@ -431,7 +431,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
 
 void TOrderedDynamicStore::OnSetPassive()
 {
-    YCHECK(FlushRowCount_ == -1);
+    YT_VERIFY(FlushRowCount_ == -1);
     FlushRowCount_ = GetRowCount();
 }
 

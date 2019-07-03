@@ -382,7 +382,7 @@ void WriteYsonValue(IYsonConsumer* writer, const TUnversionedValue& value)
             writer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

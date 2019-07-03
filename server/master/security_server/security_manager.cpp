@@ -290,6 +290,7 @@ public:
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
         OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
+        OperationsClientUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffed);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -298,6 +299,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraIncreaseUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
     }
 
     void Initialize()
@@ -343,7 +345,7 @@ public:
 
     void DestroyAccount(TAccount* account)
     {
-        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
+        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
     TAccount* FindAccountByName(const TString& name)
@@ -387,7 +389,7 @@ public:
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
-        YCHECK(!chunk->IsForeign());
+        YT_VERIFY(!chunk->IsForeign());
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
@@ -413,8 +415,8 @@ public:
         const TChunkRequisition& requisition,
         i64 delta)
     {
-        Y_ASSERT(chunk->IsStaged());
-        Y_ASSERT(chunk->IsDiskSizeFinal());
+        YT_ASSERT(chunk->IsStaged());
+        YT_ASSERT(chunk->IsDiskSizeFinal());
 
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
@@ -441,10 +443,10 @@ public:
         TAccount* newAccount,
         TTransaction* transaction)
     {
-        YCHECK(node);
-        YCHECK(newAccount);
-        YCHECK(node->IsTrunk() == !transaction);
-        YCHECK(!oldAccount || !transaction);
+        YT_VERIFY(node);
+        YT_VERIFY(newAccount);
+        YT_VERIFY(node->IsTrunk() == !transaction);
+        YT_VERIFY(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
             return;
@@ -526,10 +528,10 @@ public:
             return;
         }
 
-        Y_ASSERT(resourceUsageDelta.NodeCount == 0);
-        Y_ASSERT(resourceUsageDelta.ChunkCount == 0);
+        YT_ASSERT(resourceUsageDelta.NodeCount == 0);
+        YT_ASSERT(resourceUsageDelta.ChunkCount == 0);
         for (const auto& item : resourceUsageDelta.DiskSpace) {
-            Y_ASSERT(item.second == 0);
+            YT_ASSERT(item.second == 0);
         }
 
         account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
@@ -555,17 +557,18 @@ public:
                 newName);
         }
 
-        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
-        YCHECK(AccountNameMap_.insert(std::make_pair(newName, account)).second);
+        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
+        YT_VERIFY(AccountNameMap_.insert(std::make_pair(newName, account)).second);
         account->SetName(newName);
     }
 
     void DestroySubject(TSubject* subject)
     {
         for (auto* group : subject->MemberOf()) {
-            YCHECK(group->Members().erase(subject) == 1);
+            YT_VERIFY(group->Members().erase(subject) == 1);
         }
         subject->MemberOf().clear();
+        subject->RecursiveMemberOf().clear();
 
         for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
@@ -606,7 +609,7 @@ public:
 
     void DestroyUser(TUser* user)
     {
-        YCHECK(UserNameMap_.erase(user->GetName()) == 1);
+        YT_VERIFY(UserNameMap_.erase(user->GetName()) == 1);
         DestroySubject(user);
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -626,7 +629,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; Create user by requesting any IDM role on this cluster",
+                "No such user %Qv; create user by requesting any IDM role on this cluster",
                 name);
         }
         return user;
@@ -693,16 +696,20 @@ public:
 
     void DestroyGroup(TGroup* group)
     {
-        YCHECK(GroupNameMap_.erase(group->GetName()) == 1);
+        YT_VERIFY(GroupNameMap_.erase(group->GetName()) == 1);
 
         for (auto* subject : group->Members()) {
-            YCHECK(subject->MemberOf().erase(group) == 1);
+            YT_VERIFY(subject->MemberOf().erase(group) == 1);
         }
         group->Members().clear();
 
+        for  (auto [userId, user] : UserMap_) {
+            user->RecursiveMemberOf().erase(group);
+        }
+
         DestroySubject(group);
 
-        RecomputeMembershipClosure();
+        MaybeRecomputeMembershipClosure();
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::GroupDestroyed)
@@ -780,6 +787,7 @@ public:
         }
 
         DoAddMember(group, member);
+        MaybeRecomputeMembershipClosure();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
@@ -806,6 +814,7 @@ public:
         }
 
         DoRemoveMember(group, member);
+        MaybeRecomputeMembershipClosure();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
@@ -831,17 +840,17 @@ public:
 
         switch (subject->GetType()) {
             case EObjectType::User:
-                YCHECK(UserNameMap_.erase(subject->GetName()) == 1);
-                YCHECK(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
+                YT_VERIFY(UserNameMap_.erase(subject->GetName()) == 1);
+                YT_VERIFY(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
                 break;
 
             case EObjectType::Group:
-                YCHECK(GroupNameMap_.erase(subject->GetName()) == 1);
-                YCHECK(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
+                YT_VERIFY(GroupNameMap_.erase(subject->GetName()) == 1);
+                YT_VERIFY(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -864,7 +873,7 @@ public:
     TAccessControlDescriptor* GetAcd(TObjectBase* object)
     {
         auto* acd = FindAcd(object);
-        YCHECK(acd);
+        YT_VERIFY(acd);
         return acd;
     }
 
@@ -1043,7 +1052,7 @@ public:
             return;
         }
 
-        YCHECK(!options.Columns);
+        YT_VERIFY(!options.Columns);
 
         auto response = CheckPermission(object, user, permission, options);
         if (response.Action == ESecurityAction::Allow) {
@@ -1311,6 +1320,7 @@ private:
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<TString, TAccount*> AccountNameMap_;
@@ -1355,6 +1365,9 @@ private:
     TUserId OperationsCleanerUserId_;
     TUser* OperationsCleanerUser_ = nullptr;
 
+    TUserId OperationsClientUserId_;
+    TUser* OperationsClientUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1375,6 +1388,8 @@ private:
 
     // COMPAT(shakurov)
     bool NeedAdjustUserReadRateLimits_ = false;
+
+    bool MustRecomputeMembershipClosure_ = false;
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -1399,7 +1414,7 @@ private:
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
             auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
-            YCHECK(pair.second);
+            YT_VERIFY(pair.second);
             return &pair.first->second;
         } else {
             return &it->second;
@@ -1423,7 +1438,7 @@ private:
             }
 
             auto mediumIndex = entry.MediumIndex;
-            Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
+            YT_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
 
             auto policy = entry.ReplicationPolicy;
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
@@ -1433,7 +1448,7 @@ private:
                 // TChunkRequisition keeps entries sorted, which means an
                 // uncommitted entry for account A and medium M, if any,
                 // immediately follows a committed entry for A and M (if any).
-                YCHECK(!entry.Committed);
+                YT_VERIFY(!entry.Committed);
 
                 // Avoid overcharging: if, for example, a chunk has 3 'committed' and
                 // 5 'uncommitted' replicas (for the same account and medium), the account
@@ -1465,12 +1480,12 @@ private:
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
-        YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+        YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
         InitializeAccountStatistics(account);
 
         // Make the fake reference.
-        YCHECK(account->RefObject() == 1);
+        YT_VERIFY(account->RefObject() == 1);
 
         return account;
     }
@@ -1489,7 +1504,8 @@ private:
             id == SchedulerUserId_ ||
             id == ReplicatorUserId_ ||
             id == FileCacheUserId_ ||
-            id == OperationsCleanerUserId_)
+            id == OperationsCleanerUserId_ ||
+            id == OperationsClientUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1503,12 +1519,13 @@ private:
         userHolder->SetName(name);
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
-        YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+        YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
         InitializeUserStatistics(user);
 
-        YCHECK(user->RefObject() == 1);
+        YT_VERIFY(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
+        MaybeRecomputeMembershipClosure();
 
         if (!IsRecovery()) {
             RequestTracker_->ReconfigureUserRequestRateThrottler(user);
@@ -1525,7 +1542,7 @@ private:
         }
 
         auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
-        YCHECK(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
+        YT_VERIFY(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
         return tagId;
     }
 
@@ -1535,10 +1552,10 @@ private:
         groupHolder->SetName(name);
 
         auto* group = GroupMap_.Insert(id, std::move(groupHolder));
-        YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+        YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
 
         // Make the fake reference.
-        YCHECK(group->RefObject() == 1);
+        YT_VERIFY(group->RefObject() == 1);
 
         return group;
     }
@@ -1555,8 +1572,23 @@ private:
         }
     }
 
-    void RecomputeMembershipClosure()
+    void MaybeRecomputeMembershipClosure()
     {
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->EnableDelayedMembershipClosureRecomputation) {
+            if (!MustRecomputeMembershipClosure_) {
+                MustRecomputeMembershipClosure_ = true;
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Will recompute membership closure");
+            }
+        } else {
+            DoRecomputeMembershipClosure();
+        }
+    }
+
+    void DoRecomputeMembershipClosure()
+    {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Started recomputing membership closure");
+
         for (const auto& pair : UserMap_) {
             pair.second->RecursiveMemberOf().clear();
         }
@@ -1571,23 +1603,30 @@ private:
                 PropagateRecursiveMemberOf(member, group);
             }
         }
+
+        MustRecomputeMembershipClosure_ = false;
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Finished recomputing membership closure");
+    }
+
+    void OnRecomputeMembershipClosure()
+    {
+        NProto::TReqRecomputeMembershipClosure request;
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger);
     }
 
 
     void DoAddMember(TGroup* group, TSubject* member)
     {
-        YCHECK(group->Members().insert(member).second);
-        YCHECK(member->MemberOf().insert(group).second);
-
-        RecomputeMembershipClosure();
+        YT_VERIFY(group->Members().insert(member).second);
+        YT_VERIFY(member->MemberOf().insert(group).second);
     }
 
     void DoRemoveMember(TGroup* group, TSubject* member)
     {
-        YCHECK(group->Members().erase(member) == 1);
-        YCHECK(member->MemberOf().erase(group) == 1);
-
-        RecomputeMembershipClosure();
+        YT_VERIFY(group->Members().erase(member) == 1);
+        YT_VERIFY(member->MemberOf().erase(group) == 1);
     }
 
 
@@ -1613,6 +1652,7 @@ private:
         AccountMap_.SaveValues(context);
         UserMap_.SaveValues(context);
         GroupMap_.SaveValues(context);
+        Save(context, MustRecomputeMembershipClosure_);
     }
 
 
@@ -1625,6 +1665,8 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        using NYT::Load;
+
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
@@ -1635,6 +1677,11 @@ private:
 
         // COMPAT(shakurov)
         NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 836) {
+            MustRecomputeMembershipClosure_ = Load<bool>(context);
+        }
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1654,7 +1701,7 @@ private:
 
             // Reconstruct account name map.
             if (IsObjectAlive(account)) {
-                YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+                YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
             }
 
 
@@ -1669,7 +1716,7 @@ private:
 
             // Reconstruct user name map.
             if (IsObjectAlive(user)) {
-                YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+                YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
             }
 
             // Initialize statistics for this cell.
@@ -1699,7 +1746,7 @@ private:
 
             // Reconstruct group name map.
             if (IsObjectAlive(group)) {
-                YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+                YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
             }
         }
 
@@ -1870,6 +1917,7 @@ private:
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
         OperationsCleanerUser_ = nullptr;
+        OperationsClientUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -1881,6 +1929,8 @@ private:
         TmpAccount_ = nullptr;
         IntermediateAccount_ = nullptr;
         ChunkWiseAccountingMigrationAccount_ = nullptr;
+
+        MustRecomputeMembershipClosure_ = false;
 
         ResetAuthenticatedUser();
     }
@@ -1930,7 +1980,7 @@ private:
         if (!builtin) {
             InitBuiltins();
         }
-        YCHECK(builtin);
+        YT_VERIFY(builtin);
         return builtin;
     }
 
@@ -1950,6 +2000,8 @@ private:
         if (EnsureBuiltinGroupInitialized(SuperusersGroup_, SuperusersGroupId_, SuperusersGroupName)) {
             DoAddMember(UsersGroup_, SuperusersGroup_);
         }
+
+        DoRecomputeMembershipClosure();
 
         // Users
 
@@ -1999,6 +2051,13 @@ private:
             OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
             OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // operations client
+        if (EnsureBuiltinUserInitialized(OperationsClientUser_, OperationsClientUserId_, OperationsClientUserName)) {
+            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            OperationsClientUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts
@@ -2122,6 +2181,11 @@ private:
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
         UserStatisticsGossipExecutor_->Start();
 
+        MembershipClosureRecomputeExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnRecomputeMembershipClosure, MakeWeak(this)));
+        MembershipClosureRecomputeExecutor_->Start();
+
         OnDynamicConfigChanged();
     }
 
@@ -2139,6 +2203,11 @@ private:
         if (UserStatisticsGossipExecutor_) {
             UserStatisticsGossipExecutor_->Stop();
             UserStatisticsGossipExecutor_.Reset();
+        }
+
+        if (MembershipClosureRecomputeExecutor_) {
+            MembershipClosureRecomputeExecutor_->Stop();
+            MembershipClosureRecomputeExecutor_.Reset();
         }
     }
 
@@ -2202,7 +2271,7 @@ private:
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -2227,6 +2296,13 @@ private:
             } else {
                 account->ClusterStatistics() = newStatistics;
             }
+        }
+    }
+
+    void HydraRecomputeMembershipClosure(NProto::TReqRecomputeMembershipClosure* /*request*/)
+    {
+        if (MustRecomputeMembershipClosure_) {
+            DoRecomputeMembershipClosure();
         }
     }
 
@@ -2308,7 +2384,7 @@ private:
     void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -2611,7 +2687,7 @@ private:
                 }
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -2685,7 +2761,7 @@ private:
             case EAceInheritanceMode::ImmediateDescendantsOnly:
                 return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -2713,8 +2789,13 @@ private:
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);
         }
+
         if (UserStatisticsGossipExecutor_) {
             UserStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsGossipPeriod);
+        }
+
+        if (MembershipClosureRecomputeExecutor_) {
+            MembershipClosureRecomputeExecutor_->SetPeriod(GetDynamicConfig()->MembershipClosureRecomputePeriod);
         }
     }
 };

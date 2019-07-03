@@ -69,7 +69,7 @@ public:
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         // Cache-based readers shouldn't ask meta from chunk reader.
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TChunkId GetChunkId() const override

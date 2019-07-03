@@ -59,7 +59,7 @@ public:
             auto* node = GetNode(pair.first);
             for (auto& bundleName : pair.second) {
                 auto* bundle = GetBundle(bundleName, false);
-                YCHECK(FeasibilityMap_[node].insert(bundle).second);
+                YT_VERIFY(FeasibilityMap_[node].insert(bundle).second);
             }
         }
 
@@ -68,7 +68,7 @@ public:
 
         for (auto& pair : cellDistribution) {
             auto* node = GetNode(pair.first);
-            YCHECK(seenNodes.insert(node).second);
+            YT_VERIFY(seenNodes.insert(node).second);
 
             TTabletCellSet cellSet;
 
@@ -204,13 +204,13 @@ private:
             return it->second;
         }
 
-        YCHECK(create);
+        YT_VERIFY(create);
 
         auto id = GenerateTabletCellBundleId();
         auto bundleHolder = std::make_unique<TTabletCellBundle>(id);
         bundleHolder->SetName(name);
         auto* bundle = TabletCellBundleMap_.Insert(id, std::move(bundleHolder));
-        YCHECK(NameToBundle_.insert(std::make_pair(name, bundle)).second);
+        YT_VERIFY(NameToBundle_.insert(std::make_pair(name, bundle)).second);
         bundle->RefObject();
         return bundle;
     }
@@ -222,16 +222,16 @@ private:
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
         auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
-        YCHECK(IndexToCell_.insert(std::make_pair(index, cell)).second);
-        YCHECK(CellToIndex_.insert(std::make_pair(cell, index)).second);
+        YT_VERIFY(IndexToCell_.insert(std::make_pair(index, cell)).second);
+        YT_VERIFY(CellToIndex_.insert(std::make_pair(cell, index)).second);
         cell->RefObject();
-        YCHECK(bundle->TabletCells().insert(cell).second);
+        YT_VERIFY(bundle->TabletCells().insert(cell).second);
     }
 
     TTabletCell* GetCell(int index)
     {
         auto it = IndexToCell_.find(index);
-        YCHECK(it != IndexToCell_.end());
+        YT_VERIFY(it != IndexToCell_.end());
         return it->second;
     }
 
@@ -241,13 +241,13 @@ private:
             return it->second;
         }
 
-        YCHECK(create);
+        YT_VERIFY(create);
 
         auto id = GenerateClusterNodeId();
         auto nodeHolder = std::make_unique<TNode>(id);
         auto* node = NodeMap_.Insert(id, std::move(nodeHolder));
-        YCHECK(NameToNode_.insert(std::make_pair(name, node)).second);
-        YCHECK(NodeToName_.insert(std::make_pair(node, name)).second);
+        YT_VERIFY(NameToNode_.insert(std::make_pair(name, node)).second);
+        YT_VERIFY(NodeToName_.insert(std::make_pair(node, name)).second);
         node->RefObject();
         node->SetNodeAddresses(TNodeAddressMap{std::make_pair(
             EAddressType::InternalRpc,
@@ -258,7 +258,7 @@ private:
     void RevokePeer(TNodeHolder* holder, const TTabletCell* cell, int peerId)
     {
         auto pair = holder->RemoveCell(cell);
-        YCHECK(pair.second == peerId);
+        YT_VERIFY(pair.second == peerId);
     }
 
     void AssignPeer(TNodeHolder* holder, const TTabletCell* cell, int peerId)
@@ -276,7 +276,7 @@ private:
                         CellToIndex_[slot.first],
                         NodeToName_[holder.GetNode()]);
                 }
-                YCHECK(cellSet.insert(slot.first).second);
+                YT_VERIFY(cellSet.insert(slot.first).second);
             }
         }
 
@@ -291,7 +291,7 @@ private:
                             NodeToName_[cellSet[slot]],
                             NodeToName_[holder.GetNode()]);
                     }
-                    YCHECK(cellSet.insert(std::make_pair(slot, holder.GetNode())).second);
+                    YT_VERIFY(cellSet.insert(std::make_pair(slot, holder.GetNode())).second);
                 }
             }
 

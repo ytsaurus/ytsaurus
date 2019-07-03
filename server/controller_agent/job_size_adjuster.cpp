@@ -27,7 +27,7 @@ public:
     virtual void UpdateStatistics(const TCompletedJobSummary& summary) override
     {
         if (!summary.Abandoned) {
-            YCHECK(summary.Statistics);
+            YT_VERIFY(summary.Statistics);
             UpdateStatistics(
                 GetNumericValue(*summary.Statistics, "/data/input/data_weight"),
                 summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration()),

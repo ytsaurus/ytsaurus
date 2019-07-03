@@ -152,7 +152,7 @@ private:
             return;
         }
 
-        YCHECK(!UnderlyingChangelog_);
+        YT_VERIFY(!UnderlyingChangelog_);
         UnderlyingChangelog_ = changelogOrError.Value();
 
         TFuture<void> lastBacklogAppendResult;

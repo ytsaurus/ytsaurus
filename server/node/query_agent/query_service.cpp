@@ -270,8 +270,8 @@ private:
         const auto &slotManager = Bootstrap_->GetTabletSlotManager();
 
         size_t batchCount = request->tablet_ids_size();
-        YCHECK(batchCount == request->mount_revisions_size());
-        YCHECK(batchCount == request->Attachments().size());
+        YT_VERIFY(batchCount == request->mount_revisions_size());
+        YT_VERIFY(batchCount == request->Attachments().size());
 
         auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
 

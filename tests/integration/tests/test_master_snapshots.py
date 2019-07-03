@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, MASTER_CELL_SERVICE
 from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 
@@ -129,8 +129,8 @@ class TestMasterSnapshots(YTEnvSetup):
 
         build_snapshot(cell_id=None)
 
-        self.Env.kill_master_cell()
-        self.Env.start_master_cell()
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            pass
 
         for s in checker_state_list:
             with pytest.raises(StopIteration):

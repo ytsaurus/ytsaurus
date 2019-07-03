@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
-    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto, is_asan_build
+    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto, is_asan_build, \
+    Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 from flaky import flaky
@@ -437,14 +438,12 @@ class TestStderrTable(YTEnvSetup):
 
         assert op.get_job_count("total") == 3
 
-        self.Env.kill_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            events_on_fs().notify_event("scheduler_dead")
 
-        events_on_fs().notify_event("scheduler_dead")
+            # Wait some time to give `complete_while_scheduler_dead'-job time to complete.
+            time.sleep(1)
 
-        # Wait some time to give `complete_while_scheduler_dead'-job time to complete.
-        time.sleep(1)
-
-        self.Env.start_schedulers()
         events_on_fs().notify_event("scheduler_restart")
         op.track()
 
@@ -758,8 +757,8 @@ class TestCoreTable(YTEnvSetup):
         while not q.empty():
             time.sleep(0.1)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         for job_id in wait_breakpoint():
             release_breakpoint(job_id=job_id)

@@ -21,17 +21,17 @@ TPty::TPty(int height, int width)
 TPty::~TPty()
 {
     if (MasterFD_ != InvalidFD) {
-        YCHECK(TryClose(MasterFD_, false));
+        YT_VERIFY(TryClose(MasterFD_, false));
     }
 
     if (SlaveFD_ != InvalidFD) {
-        YCHECK(TryClose(SlaveFD_, false));
+        YT_VERIFY(TryClose(SlaveFD_, false));
     }
 }
 
 IConnectionWriterPtr TPty::CreateMasterAsyncWriter()
 {
-    YCHECK(MasterFD_ != InvalidFD);
+    YT_VERIFY(MasterFD_ != InvalidFD);
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
@@ -40,7 +40,7 @@ IConnectionWriterPtr TPty::CreateMasterAsyncWriter()
 
 IConnectionReaderPtr TPty::CreateMasterAsyncReader()
 {
-    YCHECK(MasterFD_ != InvalidFD);
+    YT_VERIFY(MasterFD_ != InvalidFD);
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
@@ -49,13 +49,13 @@ IConnectionReaderPtr TPty::CreateMasterAsyncReader()
 
 int TPty::GetMasterFD() const
 {
-    YCHECK(MasterFD_ != InvalidFD);
+    YT_VERIFY(MasterFD_ != InvalidFD);
     return MasterFD_;
 }
 
 int TPty::GetSlaveFD() const
 {
-    YCHECK(SlaveFD_ != InvalidFD);
+    YT_VERIFY(SlaveFD_ != InvalidFD);
     return SlaveFD_;
 }
 

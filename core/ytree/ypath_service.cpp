@@ -141,12 +141,12 @@ private:
 
     virtual void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 
@@ -419,7 +419,7 @@ TCachedYPathService::TCachedYPathService(
         updatePeriod))
     , ProfilingCounters_(New<TCacheProfilingCounters>(profiler))
 {
-    YCHECK(UnderlyingService_);
+    YT_VERIFY(UnderlyingService_);
     SetCachePeriod(updatePeriod);
 }
 
@@ -460,7 +460,7 @@ bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
         WorkerInvoker_->Invoke(BIND([this, context, this_ = MakeStrong(this)]() {
             try {
                 auto cacheSnapshot = CurrentCacheSnapshot_.Load();
-                YCHECK(cacheSnapshot);
+                YT_VERIFY(cacheSnapshot);
 
                 if (context->GetRequestMessage().Size() < 2) {
                     context->Reply(TError("Invalid request"));

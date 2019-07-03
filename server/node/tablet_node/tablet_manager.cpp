@@ -744,7 +744,7 @@ private:
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto transactions = transactionManager->GetTransactions();
         for (auto* transaction : transactions) {
-            YCHECK(!transaction->GetTransient());
+            YT_VERIFY(!transaction->GetTransient());
 
             auto applyWrites = [&] (const TTransactionWriteLog& writeLog) {
                 for (const auto& record : writeLog) {
@@ -760,7 +760,7 @@ private:
                     TWriteContext context;
                     context.Phase = EWritePhase::Lock;
                     context.Transaction = transaction;
-                    YCHECK(storeManager->ExecuteWrites(&reader, &context));
+                    YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
                 }
             };
             applyWrites(transaction->ImmediateLockedWriteLog());
@@ -1213,7 +1213,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1231,7 +1231,7 @@ private:
 
         auto* tablet = PrelockedTablets_.front();
         PrelockedTablets_.pop();
-        YCHECK(tablet->GetId() == writeRecord.TabletId);
+        YT_VERIFY(tablet->GetId() == writeRecord.TabletId);
 
         auto finally = Finally([&]() {
             UnlockTablet(tablet);
@@ -1267,7 +1267,7 @@ private:
                 } else {
                     auto& prelockedRows = transaction->PrelockedRows();
                     for (int index = 0; index < writeRecord.RowCount; ++index) {
-                        Y_ASSERT(!prelockedRows.empty());
+                        YT_ASSERT(!prelockedRows.empty());
                         auto rowRef = prelockedRows.front();
                         prelockedRows.pop();
                         if (ValidateAndDiscardRowRef(rowRef)) {
@@ -1303,8 +1303,8 @@ private:
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
                 const auto& storeManager = tablet->GetStoreManager();
-                YCHECK(storeManager->ExecuteWrites(&reader, &context));
-                YCHECK(writeRecord.RowCount == context.RowCount);
+                YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+                YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
                 if (tablet->IsProfilingEnabled() && user) {
                     auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
@@ -1324,7 +1324,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1355,7 +1355,7 @@ private:
         }
 
         ECodec codecId;
-        YCHECK(TryEnumCast<ECodec>(request->codec(), &codecId));
+        YT_VERIFY(TryEnumCast<ECodec>(request->codec(), &codecId));
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
@@ -1384,7 +1384,7 @@ private:
                     TWriteContext context;
                     context.Phase = EWritePhase::Lock;
                     context.Transaction = transaction;
-                    YCHECK(storeManager->ExecuteWrites(&reader, &context));
+                    YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
 
                     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Rows locked (TransactionId: %v, TabletId: %v, RowCount: %v, "
                         "WriteRecordSize: %v, Signature: %x)",
@@ -1417,7 +1417,7 @@ private:
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
 
-                YCHECK(storeManager->ExecuteWrites(&reader, &context));
+                YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
 
                 FinishTabletCommit(tablet, nullptr, context.CommitTimestamp);
 
@@ -1432,7 +1432,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1477,7 +1477,7 @@ private:
 
     void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
     {
-        YCHECK(persistent);
+        YT_VERIFY(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -1554,7 +1554,7 @@ private:
                     store->SetStoreState(EStoreState::Persistent);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             if (IsLeader()) {
@@ -1602,11 +1602,11 @@ private:
         // But before proceeding to removals, we must take care of backing stores.
         THashMap<TStoreId, IDynamicStorePtr> idToBackingStore;
         auto registerBackingStore = [&] (const IStorePtr& store) {
-            YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
+            YT_VERIFY(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };
         auto getBackingStore = [&] (TStoreId id) {
             auto it = idToBackingStore.find(id);
-            YCHECK(it != idToBackingStore.end());
+            YT_VERIFY(it != idToBackingStore.end());
             return it->second;
         };
 
@@ -1684,7 +1684,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsPhysicallySorted());
+        YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1732,7 +1732,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsPhysicallySorted());
+        YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1781,7 +1781,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsPhysicallySorted());
+        YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1941,7 +1941,7 @@ private:
 
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
     {
-        YCHECK(persistent);
+        YT_VERIFY(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -1967,8 +1967,8 @@ private:
         auto newCurrentReplicationRowIndex = request->new_replication_row_index();
         auto newReplicationTimestamp = request->new_replication_timestamp();
 
-        YCHECK(newCurrentReplicationRowIndex <= tablet->GetTotalRowCount());
-        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == -1);
+        YT_VERIFY(newCurrentReplicationRowIndex <= tablet->GetTotalRowCount());
+        YT_VERIFY(replicaInfo->GetPreparedReplicationRowIndex() == -1);
 
         replicaInfo->SetPreparedReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
@@ -2000,8 +2000,8 @@ private:
             return;
         }
 
-        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
-        YCHECK(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
+        YT_VERIFY(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
+        YT_VERIFY(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
@@ -2012,8 +2012,8 @@ private:
         auto newCurrentReplicationRowIndex = request->new_replication_row_index();
         auto newCurrentReplicationTimestamp = request->new_replication_timestamp();
 
-        YCHECK(newCurrentReplicationRowIndex >= prevCurrentReplicationRowIndex);
-        YCHECK(newCurrentReplicationTimestamp >= prevCurrentReplicationTimestamp);
+        YT_VERIFY(newCurrentReplicationRowIndex >= prevCurrentReplicationRowIndex);
+        YT_VERIFY(newCurrentReplicationTimestamp >= prevCurrentReplicationTimestamp);
 
         replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
@@ -2144,7 +2144,7 @@ private:
                         replicaInfo.GetId(),
                         replicaInfo.GetState());
                 }
-                YCHECK(!replicaInfo.GetPreparedReplicationTransactionId());
+                YT_VERIFY(!replicaInfo.GetPreparedReplicationTransactionId());
                 break;
 
             case ETableReplicaMode::Async:
@@ -2158,7 +2158,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -2217,7 +2217,7 @@ private:
             }
         }
 
-        YCHECK(!transaction->GetReplicatedRowsPrepared());
+        YT_VERIFY(!transaction->GetReplicatedRowsPrepared());
         for (const auto& pair : replicaToRowCount) {
             auto* replicaInfo = pair.first;
             const auto* tablet = replicaInfo->GetTablet();
@@ -2242,7 +2242,7 @@ private:
     {
         auto commitTimestamp =  transaction->GetCommitTimestamp();
 
-        YCHECK(transaction->PrelockedRows().empty());
+        YT_VERIFY(transaction->PrelockedRows().empty());
         auto& lockedRows = transaction->LockedRows();
         int lockedRowCount = 0;
         for (const auto& rowRef : lockedRows) {
@@ -2277,8 +2277,8 @@ private:
             TWireProtocolReader reader(record.Data);
 
             const auto& storeManager = tablet->GetStoreManager();
-            YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            YCHECK(context.RowCount == record.RowCount);
+            YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+            YT_VERIFY(context.RowCount == record.RowCount);
 
             locklessRowCount += context.RowCount;
         }
@@ -2373,8 +2373,8 @@ private:
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
     {
-        YCHECK(transaction->PrelockedRows().empty());
-        YCHECK(transaction->LockedRows().empty());
+        YT_VERIFY(transaction->PrelockedRows().empty());
+        YT_VERIFY(transaction->LockedRows().empty());
 
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             return;
@@ -2400,8 +2400,8 @@ private:
             TWireProtocolReader reader(record.Data);
 
             const auto& storeManager = tablet->GetStoreManager();
-            YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            YCHECK(context.RowCount == record.RowCount);
+            YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+            YT_VERIFY(context.RowCount == record.RowCount);
 
             rowCount += context.RowCount;
         }
@@ -2422,7 +2422,7 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        YCHECK(transaction->PrelockedRows().empty());
+        YT_VERIFY(transaction->PrelockedRows().empty());
         auto lockedRowCount = transaction->LockedRows().size();
         auto& lockedRows = transaction->LockedRows();
         while (!lockedRows.empty()) {
@@ -2511,7 +2511,7 @@ private:
             tablet->GetAtomicity() == EAtomicity::Full &&
             Slot_->GetAutomatonState() == EPeerState::Leading)
         {
-            YCHECK(tablet->GetUnflushedTimestamp() <= timestamp);
+            YT_VERIFY(tablet->GetUnflushedTimestamp() <= timestamp);
         }
 
         tablet->UpdateLastCommitTimestamp(timestamp);
@@ -2576,7 +2576,7 @@ private:
         auto dynamicStore = store->AsDynamic();
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
-            YCHECK(OrphanedStores_.insert(dynamicStore).second);
+            YT_VERIFY(OrphanedStores_.insert(dynamicStore).second);
             YT_LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept "
                 "(StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
@@ -2602,7 +2602,7 @@ private:
         if (lockCount == 0) {
             YT_LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
                 store->GetId());
-            YCHECK(OrphanedStores_.erase(store) == 1);
+            YT_VERIFY(OrphanedStores_.erase(store) == 1);
         }
 
         return false;
@@ -2616,7 +2616,7 @@ private:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet is orphaned and will be kept (TabletId: %v, LockCount: %v)",
             id,
             tabletHolder->GetTabletLockCount());
-        YCHECK(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
+        YT_VERIFY(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
     }
 
     i64 LockTablet(TTablet* tablet)
@@ -2633,7 +2633,7 @@ private:
             auto id = tablet->GetId();
             YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unlocked and will be dropped (TabletId: %v)",
                 id);
-            YCHECK(OrphanedTablets_.erase(id) == 1);
+            YT_VERIFY(OrphanedTablets_.erase(id) == 1);
         }
         return lockCount;
     }
@@ -2763,7 +2763,7 @@ private:
                 newPersistentState = ETabletState::FreezeFlushing;
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         tablet->SetState(newTransientState);
 
@@ -2801,7 +2801,7 @@ private:
                 newPersistentState = ETabletState::Frozen;
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         tablet->SetState(newTransientState);
 
@@ -2869,7 +2869,7 @@ private:
 
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        YCHECK(!replicaInfo->GetReplicator());
+        YT_VERIFY(!replicaInfo->GetReplicator());
         replicaInfo->SetReplicator(New<TTableReplicator>(
             Config_,
             tablet,
@@ -3242,7 +3242,7 @@ private:
                         chunkId = storeId;
                     }
                 } else {
-                    YCHECK(IsRecovery());
+                    YT_VERIFY(IsRecovery());
                 }
 
                 auto store = New<TSortedChunkStore>(
@@ -3269,8 +3269,8 @@ private:
 
             case EStoreType::OrderedChunk: {
                 if (!IsRecovery()) {
-                    YCHECK(descriptor);
-                    YCHECK(!descriptor->has_chunk_view_descriptor());
+                    YT_VERIFY(descriptor);
+                    YT_VERIFY(!descriptor->has_chunk_view_descriptor());
                 }
                 auto store = New<TOrderedChunkStore>(
                     Config_,
@@ -3293,7 +3293,7 @@ private:
                     tablet);
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -3310,7 +3310,7 @@ private:
         }
 
         auto pair = replicas.emplace(replicaId, TTableReplicaInfo(tablet, replicaId));
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
         auto& replicaInfo = pair.first->second;
 
         replicaInfo.SetClusterName(descriptor.cluster_name());
@@ -3453,7 +3453,7 @@ private:
 
     void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction)
     {
-        YCHECK(tablet->IsReplicated());
+        YT_VERIFY(tablet->IsReplicated());
 
         if (tablet->Replicas().empty()) {
             return;
@@ -3475,7 +3475,7 @@ private:
             ? TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl
             : TInstant::Max();
         auto it = storeRowIndexMap.find(tablet->GetTrimmedRowCount());
-        YCHECK(it != storeRowIndexMap.end());
+        YT_VERIFY(it != storeRowIndexMap.end());
         while (it != storeRowIndexMap.end()) {
             const auto& store = it->second;
             if (store->IsDynamic()) {
@@ -3494,15 +3494,15 @@ private:
         if (it == storeRowIndexMap.end()) {
             // Looks like a full trim.
             // Typically we have a sentinel dynamic store at the end but during unmount this one may be missing.
-            YCHECK(!storeRowIndexMap.empty());
+            YT_VERIFY(!storeRowIndexMap.empty());
             const auto& lastStore = storeRowIndexMap.rbegin()->second;
-            YCHECK(minReplicationRowIndex == lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
+            YT_VERIFY(minReplicationRowIndex == lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
             trimmedRowCount = minReplicationRowIndex;
         } else {
             trimmedRowCount = it->second->GetStartingRowIndex();
         }
 
-        YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
+        YT_VERIFY(tablet->GetTrimmedRowCount() <= trimmedRowCount);
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
 

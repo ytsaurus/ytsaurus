@@ -35,7 +35,7 @@ inline TStringBuf TStringBuilderBase::GetBuffer() const
 inline void TStringBuilderBase::Advance(size_t size)
 {
     Current_ += size;
-    Y_ASSERT(Current_ <= End_);
+    YT_ASSERT(Current_ <= End_);
 }
 
 inline void TStringBuilderBase::AppendChar(char ch)
@@ -46,7 +46,7 @@ inline void TStringBuilderBase::AppendChar(char ch)
 
 inline void TStringBuilderBase::AppendChar(char ch, int n)
 {
-    Y_ASSERT(n >= 0);
+    YT_ASSERT(n >= 0);
     char* dst = Preallocate(n);
     ::memset(dst, ch, n);
     Advance(n);

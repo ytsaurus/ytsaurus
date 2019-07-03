@@ -61,8 +61,8 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , NodeDirectory_(New<TNodeDirectory>())
     , TrafficMeter_(trafficMeter)
 {
-    YCHECK(Config_);
-    YCHECK(Options_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Options_);
 
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
@@ -74,8 +74,8 @@ void TNontemplateMultiChunkWriterBase::Init()
 
 TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 {
-    YCHECK(!Closing_);
-    YCHECK(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
+    YT_VERIFY(!Closing_);
+    YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
 
     Closing_ = true;
     ReadyEvent_ = BIND(&TNontemplateMultiChunkWriterBase::FinishSession, MakeWeak(this))

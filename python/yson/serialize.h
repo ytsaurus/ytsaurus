@@ -76,6 +76,7 @@ void Serialize(
 #endif
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
+    bool sortKeys = false,
     int depth = 0,
     TContext* context = nullptr);
 

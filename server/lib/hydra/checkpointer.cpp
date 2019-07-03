@@ -82,7 +82,7 @@ private:
     void OnQuorumFlushed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
-        YCHECK(Owner_->DecoratedAutomaton_->GetLoggedVersion() == Version_);
+        YT_VERIFY(Owner_->DecoratedAutomaton_->GetLoggedVersion() == Version_);
 
         if (!error.IsOK())
             return;
@@ -277,7 +277,7 @@ private:
 
         YT_LOG_INFO("Local changelog rotated");
 
-        YCHECK(!LocalRotationSuccessFlag_);
+        YT_VERIFY(!LocalRotationSuccessFlag_);
         LocalRotationSuccessFlag_ = true;
         CheckRotationQuorum();
     }
@@ -339,10 +339,10 @@ TCheckpointer::TCheckpointer(
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
-    YCHECK(Config_);
-    YCHECK(CellManager_);
-    YCHECK(DecoratedAutomaton_);
-    YCHECK(EpochContext_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(DecoratedAutomaton_);
+    YT_VERIFY(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 }
@@ -350,7 +350,7 @@ TCheckpointer::TCheckpointer(
 TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(CanRotateChangelogs());
+    YT_VERIFY(CanRotateChangelogs());
 
     auto session = New<TSession>(this, false, false);
     session->Run();
@@ -360,7 +360,7 @@ TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
 TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool setReadOnly)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(CanBuildSnapshot());
+    YT_VERIFY(CanBuildSnapshot());
 
     auto session = New<TSession>(this, true, setReadOnly);
     session->Run();

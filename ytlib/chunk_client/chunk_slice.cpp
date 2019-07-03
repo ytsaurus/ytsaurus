@@ -101,7 +101,7 @@ void TChunkSlice::SliceEvenly(
     std::vector<TChunkSlice>& result,
     i64 sliceDataWeight) const
 {
-    YCHECK(sliceDataWeight > 0);
+    YT_VERIFY(sliceDataWeight > 0);
 
     i64 lowerRowIndex = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
     i64 upperRowIndex = UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : RowCount_;
@@ -165,7 +165,7 @@ public:
                     chunkId);
         }
 
-        YCHECK(FindBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
+        YT_VERIFY(FindBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(Meta_.extensions());
         i64 chunkDataWeight = miscExt.has_data_weight()
@@ -174,7 +174,7 @@ public:
 
         i64 chunkRowCount = miscExt.row_count();
 
-        YCHECK(chunkRowCount > 0);
+        YT_VERIFY(chunkRowCount > 0);
 
         i64 dataWeightPerRow = std::max((i64)1, chunkDataWeight / chunkRowCount);
 
@@ -182,7 +182,7 @@ public:
 
         IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
         for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
-            YCHECK(i == blockMetaExt.blocks(i).block_index());
+            YT_VERIFY(i == blockMetaExt.blocks(i).block_index());
             auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
             i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
             i64 rowCount = IndexKeys_.empty()
@@ -277,7 +277,7 @@ public:
             }
 
             if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
-                YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
+                YT_VERIFY(CompareRows(lowerKeyPrefix, key) <= 0);
 
                 auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
                 slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix, dataWeight, sliceRowCount);
@@ -330,7 +330,7 @@ public:
             const auto& key = IndexKeys_[currentIndex].Key;
 
             if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
-                YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
+                YT_VERIFY(CompareRows(lowerKeyPrefix, key) <= 0);
 
                 auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
 

@@ -108,7 +108,7 @@ static void GenericBlockCompress(
     size_t totalCompressedSizeBound = GenericEstimateTotalCompressedSize(totalUncompressedSize, estimateCompressedSizeFn);
 
     sink->Reserve(totalCompressedSizeBound);
-    Y_ASSERT(sink->IsEmpty());
+    YT_ASSERT(sink->IsEmpty());
 
     size_t currentPosition = 0;
 
@@ -132,7 +132,7 @@ static void GenericBlockCompress(
 
     // Write out body.
     while (totalUncompressedSize > 0) {
-        YCHECK(source->Available() == totalUncompressedSize);
+        YT_VERIFY(source->Available() == totalUncompressedSize);
 
         size_t inputSize = 0, inputOffset = 0;
         const char* input = source->Peek(&inputSize);
@@ -151,11 +151,11 @@ static void GenericBlockCompress(
                 sink->Begin() + currentPosition + sizeof(TBlockHeader),
                 uncompressedSize);
             // Non-positive return values indicate an error during compression.
-            YCHECK(compressedSize > 0);
+            YT_VERIFY(compressedSize > 0);
             // COMPAT(sandello): Since block header may be interpreted as global header we have to make sure
             // that we never produce forward-incompatible signature (which aliases to compressed size).
             // Currently we treat all values <= 2^30 as proper sizes and all other values as signatures.
-            YCHECK(compressedSize <= MaxLzBlockSize);
+            YT_VERIFY(compressedSize <= MaxLzBlockSize);
 
             TBlockHeader header;
             header.CompressedSize = static_cast<ui32>(compressedSize);
@@ -176,7 +176,7 @@ static void GenericBlockCompress(
         totalUncompressedSize -= inputOffset;
     }
 
-    YCHECK(source->Available() == 0);
+    YT_VERIFY(source->Available() == 0);
 }
 
 template <class TTag, class TDecompressFn>
@@ -216,7 +216,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
     }
 
     sink->Reserve(totalUncompressedSize);
-    Y_ASSERT(sink->IsEmpty());
+    YT_ASSERT(sink->IsEmpty());
 
     auto inputBuffer = TBlob(TTag(), 0, false);
 
@@ -254,7 +254,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
     }
 
     if (!oldStyle) {
-        YCHECK(sink->Size() == totalUncompressedSize);
+        YT_VERIFY(sink->Size() == totalUncompressedSize);
     }
 }
 
@@ -278,7 +278,7 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
         sink,
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
             int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
-            YCHECK(rv > 0 && rv == inputSize);
+            YT_VERIFY(rv > 0 && rv == inputSize);
         }
     );
 }
@@ -306,7 +306,7 @@ void QuickLzDecompress(StreamSource* source, TBlob* sink)
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
             qlz_state_decompress state;
             auto rv = qlz_decompress(input, output, &state);
-            YCHECK(rv > 0 && rv == outputSize);
+            YT_VERIFY(rv > 0 && rv == outputSize);
         }
     );
 }

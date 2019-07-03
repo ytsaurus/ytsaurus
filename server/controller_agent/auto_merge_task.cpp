@@ -187,7 +187,7 @@ void TAutoMergeTask::UpdateSelf()
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);
     }
-    YCHECK(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
+    YT_VERIFY(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)

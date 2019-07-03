@@ -43,7 +43,7 @@ template <class TInput>
 size_t Read(TInput& input, TRef& ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
-    YCHECK(loadBytes == ref.Size());
+    YT_VERIFY(loadBytes == ref.Size());
     return loadBytes;
 }
 
@@ -79,7 +79,7 @@ template <class TInput>
 size_t ReadPadded(TInput& input, const TMutableRef& ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
-    YCHECK(loadBytes == ref.Size());
+    YT_VERIFY(loadBytes == ref.Size());
     input.Skip(AlignUpSpace(ref.Size(), SerializationAlignment));
     return AlignUp(ref.Size(), SerializationAlignment);
 }
@@ -210,7 +210,7 @@ public:
 
     TSaveContext& SaveContext() const
     {
-        Y_ASSERT(SaveContext_);
+        YT_ASSERT(SaveContext_);
         return *SaveContext_;
     }
 
@@ -221,7 +221,7 @@ public:
 
     TLoadContext& LoadContext() const
     {
-        Y_ASSERT(LoadContext_);
+        YT_ASSERT(LoadContext_);
         return *LoadContext_;
     }
 
@@ -292,7 +292,7 @@ void Persist(const C& context, T& value)
     } else if (context.IsLoad()) {
         S::Load(context.LoadContext(), value);
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -413,7 +413,7 @@ struct TRangeSerializer
     static void Load(C& context, const TMutableRef& value)
     {
         auto* input = context.GetInput();
-        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+        YT_VERIFY(input->Load(value.Begin(), value.Size()) == value.Size());
 
         SERIALIZATION_DUMP_WRITE(context, "raw[%v] %v", value.Size(), DumpRangeToHex(value));
     }
@@ -497,7 +497,7 @@ struct TSharedRefSerializer
         auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
         auto* input = context.GetInput();
-        YCHECK(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
+        YT_VERIFY(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
         value = mutableValue;
 
         SERIALIZATION_DUMP_WRITE(context, "TSharedRef %v", DumpRangeToHex(value));
@@ -647,14 +647,14 @@ struct TVariantSerializerTraits<Index>
     static void Save(C& /*context*/, const V& /*variant*/)
     {
         // Invalid variant index.
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     template <class C, class V>
     static void Load(C& /*context*/, size_t /*index*/, V& /*variant*/)
     {
         // Invalid variant index.
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 };
 
@@ -1055,7 +1055,7 @@ struct TArraySerializer
     static void Load(C& context, TArray<T,N>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        YCHECK(size <= N);
+        YT_VERIFY(size <= N);
 
         SERIALIZATION_DUMP_WRITE(context, "array[%v]", size);
         SERIALIZATION_DUMP_INDENT(context) {
@@ -1202,7 +1202,7 @@ struct TSetSerializer
                     TItemSerializer::Load(context, key);
                 }
 
-                YCHECK(set.insert(key).second);
+                YT_VERIFY(set.insert(key).second);
             }
         }
     }
@@ -1286,7 +1286,7 @@ struct TOptionalSetSerializer
                     TItemSerializer::Load(context, key);
                 }
 
-                YCHECK(set->insert(key).second);
+                YT_VERIFY(set->insert(key).second);
             }
         }
     }
@@ -1332,7 +1332,7 @@ struct TMapSerializer
                     TValueSerializer::Load(context, value);
                 }
 
-                YCHECK(map.emplace(key, std::move(value)).second);
+                YT_VERIFY(map.emplace(key, std::move(value)).second);
             }
         }
     }

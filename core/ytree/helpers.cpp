@@ -61,7 +61,7 @@ public:
 
     virtual void SetYson(const TString& key, const TYsonString& value) override
     {
-        Y_ASSERT(value.GetType() == EYsonType::Node);
+        YT_ASSERT(value.GetType() == EYsonType::Node);
         Map_[key] = value.GetData();
     }
 
@@ -98,7 +98,7 @@ public:
 
     virtual void SetYson(const TString& key, const TYsonString& value) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool Remove(const TString& key) override

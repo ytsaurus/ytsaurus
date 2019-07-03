@@ -93,7 +93,7 @@ public:
             THROW_ERROR_EXCEPTION("Mutating requests to remote cells are not allowed");
         }
 
-        YCHECK(!HasMutationContext());
+        YT_VERIFY(!HasMutationContext());
 
         return TResolveResultHere{path};
     }
@@ -118,7 +118,7 @@ public:
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool ShouldHideAttributes() override
@@ -182,12 +182,12 @@ public:
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool ShouldHideAttributes() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:
@@ -393,7 +393,7 @@ private:
 
             default:
                 tokenizer.ThrowUnexpected();
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -444,7 +444,7 @@ TObjectManager::TObjectManager(TBootstrap* bootstrap)
     , RootService_(New<TRootService>(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     RegisterLoader(
         "ObjectManager.Keys",
@@ -524,7 +524,7 @@ TObjectBase* TObjectManager::GetSchema(EObjectType type)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto* schema = FindSchema(type);
-    YCHECK(schema);
+    YT_VERIFY(schema);
     return schema;
 }
 
@@ -533,9 +533,9 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto it = TypeToEntry_.find(type);
-    YCHECK(it != TypeToEntry_.end());
+    YT_VERIFY(it != TypeToEntry_.end());
     const auto& entry = it->second;
-    YCHECK(entry.SchemaProxy);
+    YT_VERIFY(entry.SchemaProxy);
     return entry.SchemaProxy;
 }
 
@@ -543,14 +543,14 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 {
     // No thread affinity check here.
     // This will be called during init-time only but from an unspecified thread.
-    YCHECK(handler);
+    YT_VERIFY(handler);
 
     auto type = handler->GetType();
 
     TTypeEntry entry;
     entry.Handler = handler;
-    YCHECK(TypeToEntry_.emplace(type, entry).second);
-    YCHECK(RegisteredTypes_.insert(type).second);
+    YT_VERIFY(TypeToEntry_.emplace(type, entry).second);
+    YT_VERIFY(RegisteredTypes_.insert(type).second);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -580,7 +580,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
-    Y_ASSERT(handler);
+    YT_ASSERT(handler);
     return handler;
 }
 
@@ -611,7 +611,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     auto id = hintId
         ? hintId
         : MakeRegularId(type, cellTag, version, hash);
-    Y_ASSERT(TypeFromId(id) == type);
+    YT_ASSERT(TypeFromId(id) == type);
 
     ++CreatedObjects_;
 
@@ -621,8 +621,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!object->IsDestroyed());
-    Y_ASSERT(object->IsTrunk());
+    YT_ASSERT(!object->IsDestroyed());
+    YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
     YT_LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
@@ -641,8 +641,8 @@ int TObjectManager::RefObject(TObjectBase* object)
 int TObjectManager::UnrefObject(TObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(object->IsAlive());
-    Y_ASSERT(object->IsTrunk());
+    YT_ASSERT(object->IsAlive());
+    YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
     YT_LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
@@ -829,7 +829,7 @@ TObjectBase* TObjectManager::GetObject(TObjectId id)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* object = FindObject(id);
-    YCHECK(object);
+    YT_VERIFY(object);
     return object;
 }
 
@@ -864,7 +864,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(IsObjectAlive(object));
+    YT_VERIFY(IsObjectAlive(object));
 
     const auto& id = object->GetId();
     const auto& handler = FindHandler(TypeFromId(id));
@@ -1024,7 +1024,7 @@ TObjectBase* TObjectManager::CreateObject(
         object->SetLifeStage(EObjectLifeStage::CreationCommitted);
     }
 
-    YCHECK(object->GetObjectRefCounter() == 1);
+    YT_VERIFY(object->GetObjectRefCounter() == 1);
 
     if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
         object->SetForeign();
@@ -1133,7 +1133,7 @@ TObjectBase* TObjectManager::ResolvePathToObject(const TYPath& path, TTransactio
 
         default:
             tokenizer.ThrowUnexpected();
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -1201,7 +1201,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     std::optional<TDuration> timeout)
 {
     NRpc::NProto::TRequestHeader header;
-    YCHECK(ParseRequestHeader(requestMessage, &header));
+    YT_VERIFY(ParseRequestHeader(requestMessage, &header));
 
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -1452,7 +1452,7 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
 
 void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
 {
-    YCHECK(Bootstrap_->IsPrimaryMaster());
+    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
     const auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
@@ -1464,7 +1464,7 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
 
     const auto voteCount = object->IncrementLifeStageVoteCount();
     if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {
-        YCHECK(voteCount < Bootstrap_->GetSecondaryCellTags().size());
+        YT_VERIFY(voteCount < Bootstrap_->GetSecondaryCellTags().size());
         return;
     }
 
@@ -1478,7 +1478,7 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
 
 void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
 {
-    YCHECK(Bootstrap_->IsSecondaryMaster());
+    YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
     const auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
@@ -1539,7 +1539,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     TObjectBase* object,
     bool mandatory)
 {
-    YCHECK(!IsVersionedType(object->GetType()));
+    YT_VERIFY(!IsVersionedType(object->GetType()));
 
     const auto& handler = GetHandler(object);
     auto proxy = handler->GetProxy(object, nullptr);

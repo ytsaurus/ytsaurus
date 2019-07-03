@@ -172,7 +172,7 @@ void TBootstrap::DoRun()
 
     if (Config_->GrpcServer) {
         const auto& addresses = Config_->GrpcServer->Addresses;
-        YCHECK(addresses.size() == 1);
+        YT_VERIFY(addresses.size() == 1);
 
         int port;
         NNet::ParseServiceAddress(addresses[0]->Address, nullptr, &port);

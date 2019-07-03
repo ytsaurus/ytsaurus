@@ -8,7 +8,7 @@ namespace NYT::NQueryClient {
 
 EValueType TTypeSet::GetFront() const
 {
-    YCHECK(!IsEmpty());
+    YT_VERIFY(!IsEmpty());
     static const int MultiplyDeBruijnBitPosition[64] = {
         0,  1,  2, 53,  3,  7, 54, 27,  4, 38, 41,  8, 34, 55, 48, 28,
        62,  5, 39, 46, 44, 42, 22,  9, 24, 35, 59, 56, 49, 18, 29, 11,

@@ -61,9 +61,9 @@ void THttpParser::Reset()
     NextField_.Reset();
     NextValue_.Reset();
     LastBodyChunk_ = {};
-    YCHECK(FirstLine_.GetLength() == 0);
-    YCHECK(NextField_.GetLength() == 0);
-    YCHECK(NextValue_.GetLength() == 0);
+    YT_VERIFY(FirstLine_.GetLength() == 0);
+    YT_VERIFY(NextField_.GetLength() == 0);
+    YT_VERIFY(NextValue_.GetLength() == 0);
 }
 
 TSharedRef THttpParser::Feed(const TSharedRef& input)
@@ -244,7 +244,7 @@ std::pair<int, int> THttpInput::GetVersion()
 
 EMethod THttpInput::GetMethod()
 {
-    YCHECK(MessageType_ == EMessageType::Request);
+    YT_VERIFY(MessageType_ == EMessageType::Request);
 
     EnsureHeadersReceived();
     return Parser_.GetMethod();
@@ -252,7 +252,7 @@ EMethod THttpInput::GetMethod()
 
 const TUrlRef& THttpInput::GetUrl()
 {
-    YCHECK(MessageType_ == EMessageType::Request);
+    YT_VERIFY(MessageType_ == EMessageType::Request);
 
     EnsureHeadersReceived();
     return Url_;
@@ -459,7 +459,7 @@ TSharedRef THttpInput::DoRead()
         }
 
         // EOF must be handled by HTTP parser.
-        YCHECK(!eof);
+        YT_VERIFY(!eof);
     }
 }
 
@@ -532,7 +532,7 @@ const THeadersPtr& THttpOutput::GetTrailers()
 
 void THttpOutput::AddConnectionCloseHeader()
 {
-    YCHECK(MessageType_ == EMessageType::Response);
+    YT_VERIFY(MessageType_ == EMessageType::Response);
     ConnectionClose_ = true;
 }
 
@@ -574,7 +574,7 @@ void THttpOutput::SetRequestId(TGuid requestId)
 
 void THttpOutput::WriteRequest(EMethod method, const TString& path)
 {
-    YCHECK(MessageType_ == EMessageType::Request);
+    YT_VERIFY(MessageType_ == EMessageType::Request);
 
     Method_ = method;
     Path_ = path;
@@ -587,7 +587,7 @@ std::optional<EStatusCode> THttpOutput::GetStatus() const
 
 void THttpOutput::SetStatus(EStatusCode status)
 {
-    YCHECK(MessageType_ == EMessageType::Response);
+    YT_VERIFY(MessageType_ == EMessageType::Response);
 
     Status_ = status;
 }
@@ -596,7 +596,7 @@ TSharedRef THttpOutput::GetHeadersPart(std::optional<size_t> contentLength)
 {
     TBufferOutput messageHeaders;
     if (MessageType_ == EMessageType::Request) {
-        YCHECK(Method_);
+        YT_VERIFY(Method_);
 
         messageHeaders << ToHttpString(*Method_) << " " << Path_ << " HTTP/1.1\r\n";
     } else {

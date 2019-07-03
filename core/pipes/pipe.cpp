@@ -49,13 +49,13 @@ void TNamedPipe::Open()
 
 IConnectionReaderPtr TNamedPipe::CreateAsyncReader()
 {
-    YCHECK(!Path_.empty());
+    YT_VERIFY(!Path_.empty());
     return CreateInputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
 IConnectionWriterPtr TNamedPipe::CreateAsyncWriter()
 {
-    YCHECK(!Path_.empty());
+    YT_VERIFY(!Path_.empty());
     return CreateOutputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
@@ -90,11 +90,11 @@ void TPipe::Init(TPipe&& other)
 TPipe::~TPipe()
 {
     if (ReadFD_ != InvalidFD) {
-        YCHECK(TryClose(ReadFD_, false));
+        YT_VERIFY(TryClose(ReadFD_, false));
     }
 
     if (WriteFD_ != InvalidFD) {
-        YCHECK(TryClose(WriteFD_, false));
+        YT_VERIFY(TryClose(WriteFD_, false));
     }
 }
 
@@ -109,21 +109,21 @@ void TPipe::operator=(TPipe&& other)
 
 IConnectionWriterPtr TPipe::CreateAsyncWriter()
 {
-    YCHECK(WriteFD_ != InvalidFD);
+    YT_VERIFY(WriteFD_ != InvalidFD);
     SafeMakeNonblocking(WriteFD_);
     return CreateConnectionFromFD(ReleaseWriteFD(), {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
 IConnectionReaderPtr TPipe::CreateAsyncReader()
 {
-    YCHECK(ReadFD_ != InvalidFD);
+    YT_VERIFY(ReadFD_ != InvalidFD);
     SafeMakeNonblocking(ReadFD_);
     return CreateConnectionFromFD(ReleaseReadFD(), {}, {}, TIODispatcher::Get()->GetPoller());
 }
 
 int TPipe::ReleaseReadFD()
 {
-    YCHECK(ReadFD_ != InvalidFD);
+    YT_VERIFY(ReadFD_ != InvalidFD);
     auto fd = ReadFD_;
     ReadFD_ = InvalidFD;
     return fd;
@@ -131,7 +131,7 @@ int TPipe::ReleaseReadFD()
 
 int TPipe::ReleaseWriteFD()
 {
-    YCHECK(WriteFD_ != InvalidFD);
+    YT_VERIFY(WriteFD_ != InvalidFD);
     auto fd = WriteFD_;
     WriteFD_ = InvalidFD;
     return fd;
@@ -139,13 +139,13 @@ int TPipe::ReleaseWriteFD()
 
 int TPipe::GetReadFD() const
 {
-    YCHECK(ReadFD_ != InvalidFD);
+    YT_VERIFY(ReadFD_ != InvalidFD);
     return ReadFD_;
 }
 
 int TPipe::GetWriteFD() const
 {
-    YCHECK(WriteFD_ != InvalidFD);
+    YT_VERIFY(WriteFD_ != InvalidFD);
     return WriteFD_;
 }
 
@@ -187,7 +187,7 @@ TPipeFactory::TPipeFactory(int minFD)
 TPipeFactory::~TPipeFactory()
 {
     for (int fd : ReservedFDs_) {
-        YCHECK(TryClose(fd, false));
+        YT_VERIFY(TryClose(fd, false));
     }
 }
 
@@ -209,7 +209,7 @@ TPipe TPipeFactory::Create()
 void TPipeFactory::Clear()
 {
     for (int& fd : ReservedFDs_) {
-        YCHECK(TryClose(fd, false));
+        YT_VERIFY(TryClose(fd, false));
         fd = TPipe::InvalidFD;
     }
     ReservedFDs_.clear();

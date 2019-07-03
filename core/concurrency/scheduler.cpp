@@ -23,7 +23,7 @@ public:
     TFiberId Generate()
     {
         const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+        YT_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
 
         while (true) {
             auto seed = Seed_++;
@@ -53,7 +53,7 @@ void Yield()
 
 void SwitchTo(IInvokerPtr invoker)
 {
-    Y_ASSERT(invoker);
+    YT_ASSERT(invoker);
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 
@@ -93,7 +93,7 @@ TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> han
 ////////////////////////////////////////////////////////////////////////////////
 
 TForbidContextSwitchGuard::TForbidContextSwitchGuard()
-    : TOneShotContextSwitchGuard( [] { Y_UNREACHABLE(); })
+    : TOneShotContextSwitchGuard( [] { YT_ABORT(); })
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

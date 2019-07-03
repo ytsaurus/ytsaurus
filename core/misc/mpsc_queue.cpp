@@ -16,9 +16,9 @@ TMpscQueueBase::TMpscQueueBase()
 TMpscQueueBase::~TMpscQueueBase()
 {
     // Check that queue is empty. Derived classes must ensure that the queue is empty.
-    YCHECK(Head_ == Tail_);
-    YCHECK(Head_ == &Stub_);
-    YCHECK(Head_.load()->Next_.load() == nullptr);
+    YT_VERIFY(Head_ == Tail_);
+    YT_VERIFY(Head_ == &Stub_);
+    YT_VERIFY(Head_.load()->Next_.load() == nullptr);
 }
 
 void TMpscQueueBase::PushImpl(TMpscQueueHook* node) noexcept

@@ -215,7 +215,7 @@ void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr context)
 {
     YT_LOG_TRACE("Installing context (Context: %v)",
         context);
-    Y_ASSERT(!CurrentTraceContext);
+    YT_ASSERT(!CurrentTraceContext);
     CurrentTraceContext = context.Release();
     CurrentTraceId = CurrentTraceContext ? CurrentTraceContext->GetTraceId() : InvalidTraceId;
     TraceContextTimingCheckpoint = now;

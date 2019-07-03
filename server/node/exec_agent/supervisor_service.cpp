@@ -74,7 +74,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThrottlerThread);
         auto id = TGuid::Create();
-        YCHECK(OutstandingThrottlingRequests_.insert(std::make_pair(id, future)).second);
+        YT_VERIFY(OutstandingThrottlingRequests_.insert(std::make_pair(id, future)).second);
         // Remove future from outstanding requests after it was set + timeout.
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /* error */) {
             TDelayedExecutor::Submit(
@@ -89,7 +89,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThrottlerThread);
         YT_LOG_DEBUG("Outstanding throttling request evicted (ThrottlingRequestId: %v)",
             id);
-        YCHECK(OutstandingThrottlingRequests_.erase(id) == 1);
+        YT_VERIFY(OutstandingThrottlingRequests_.erase(id) == 1);
     }
 
     TFuture<void> FindThrottlingRequest(TGuid id)
@@ -272,7 +272,7 @@ private:
                 throttler = Bootstrap_->GetReadRpsOutThrottler();
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         auto future = throttler->Throttle(count);

@@ -37,7 +37,7 @@ void PeekInputBytes(StreamSource* source, bz_stream* bzStream)
 void DirectOutputToBlobEnd(TBlob* blob, bz_stream* bzStream)
 {
     if (blob->Size() == blob->Capacity()) {
-        YCHECK(blob->Capacity() >= MinBlobSize);
+        YT_VERIFY(blob->Capacity() >= MinBlobSize);
 
         constexpr double growFactor = 1.5;
         blob->Reserve(growFactor * blob->Capacity());
@@ -49,7 +49,7 @@ void DirectOutputToBlobEnd(TBlob* blob, bz_stream* bzStream)
 void ActualizeOutputBlobSize(TBlob* blob, bz_stream* bzStream)
 {
     ui64 totalOut = GetTotalOut(*bzStream);
-    YCHECK(totalOut >= blob->Size());
+    YT_VERIFY(totalOut >= blob->Size());
     blob->Resize(totalOut, false);
 }
 
@@ -61,14 +61,14 @@ void ActualizeOutputBlobSize(TBlob* blob, bz_stream* bzStream)
 
 void Bzip2Compress(int level, StreamSource* source, TBlob* output)
 {
-    YCHECK(source);
-    YCHECK(output);
-    YCHECK(1 <= level && level <= 9);
+    YT_VERIFY(source);
+    YT_VERIFY(output);
+    YT_VERIFY(1 <= level && level <= 9);
 
     bz_stream bzStream;
     Zero(bzStream);
     int ret = ArcBZ2_bzCompressInit(&bzStream, level, 0, 0);
-    YCHECK(ret == BZ_OK);
+    YT_VERIFY(ret == BZ_OK);
     auto finally = Finally([&] { ArcBZ2_bzCompressEnd(&bzStream); });
 
     output->Reserve(std::max(
@@ -82,7 +82,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
         DirectOutputToBlobEnd(output, &bzStream);
 
         ret = ArcBZ2_bzCompress(&bzStream, BZ_RUN);
-        YCHECK(ret == BZ_RUN_OK);
+        YT_VERIFY(ret == BZ_RUN_OK);
 
         ActualizeOutputBlobSize(output, &bzStream);
 
@@ -94,7 +94,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
         DirectOutputToBlobEnd(output, &bzStream);
 
         ret = ArcBZ2_bzCompress(&bzStream, BZ_FINISH);
-        YCHECK(ret == BZ_FINISH_OK || ret == BZ_STREAM_END);
+        YT_VERIFY(ret == BZ_FINISH_OK || ret == BZ_STREAM_END);
 
         ActualizeOutputBlobSize(output, &bzStream);
     } while (ret != BZ_STREAM_END);
@@ -109,7 +109,7 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
         Zero(bzStream);
 
         int ret = ArcBZ2_bzDecompressInit(&bzStream, 0, 0);
-        YCHECK(ret == BZ_OK);
+        YT_VERIFY(ret == BZ_OK);
         auto finally = Finally([&] { ArcBZ2_bzDecompressEnd(&bzStream); });
 
         do {
@@ -119,7 +119,7 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
             DirectOutputToBlobEnd(output, &bzStream);
 
             ret = ArcBZ2_bzDecompress(&bzStream);
-            YCHECK(ret == BZ_OK || ret == BZ_STREAM_END);
+            YT_VERIFY(ret == BZ_OK || ret == BZ_STREAM_END);
 
             ActualizeOutputBlobSize(output, &bzStream);
 

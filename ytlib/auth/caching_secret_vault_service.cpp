@@ -35,7 +35,7 @@ public:
             auto it = subrequestToAsyncResult.find(subrequest);
             if (it == subrequestToAsyncResult.end()) {
                 auto asyncResult = Get(subrequest);
-                YCHECK(subrequestToAsyncResult.emplace(subrequest, asyncResult).second);
+                YT_VERIFY(subrequestToAsyncResult.emplace(subrequest, asyncResult).second);
                 asyncResults.push_back(std::move(asyncResult));
             } else {
                 asyncResults.push_back(it->second);
@@ -51,7 +51,7 @@ private:
     {
         return Underlying_->GetSecrets({subrequest})
             .Apply(BIND([] (const std::vector<TErrorOrSecretSubresponse>& result) {
-                YCHECK(result.size() == 1);
+                YT_VERIFY(result.size() == 1);
                 return result[0].ValueOrThrow();
             }));
     }

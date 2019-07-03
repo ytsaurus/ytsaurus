@@ -62,7 +62,7 @@ inline TEventCount::TCookie TEventCount::PrepareWait()
 inline void TEventCount::CancelWait()
 {
     ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
-    Y_ASSERT((prev & WaiterMask) != 0);
+    YT_ASSERT((prev & WaiterMask) != 0);
 }
 
 inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
@@ -106,7 +106,7 @@ inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
     }
 #endif
     ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
-    Y_ASSERT((prev & WaiterMask) != 0);
+    YT_ASSERT((prev & WaiterMask) != 0);
     return result;
 }
 

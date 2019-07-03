@@ -31,7 +31,7 @@ TProgressCounter::TProgressCounter(i64 total)
 
 void TProgressCounter::Set(i64 total)
 {
-    YCHECK(!TotalEnabled_);
+    YT_VERIFY(!TotalEnabled_);
     TotalEnabled_ = true;
     Increment(total);
 }
@@ -43,11 +43,11 @@ bool TProgressCounter::IsTotalEnabled() const
 
 void TProgressCounter::Increment(i64 value)
 {
-    YCHECK(TotalEnabled_);
+    YT_VERIFY(TotalEnabled_);
     Total_ += value;
-    YCHECK(Total_ >= 0);
+    YT_VERIFY(Total_ >= 0);
     Pending_ += value;
-    YCHECK(Pending_ >= 0);
+    YT_VERIFY(Pending_ >= 0);
 
     if (Parent_) {
         Parent_->Increment(value);
@@ -56,11 +56,11 @@ void TProgressCounter::Increment(i64 value)
 
 void TProgressCounter::Decrement(i64 value)
 {
-    YCHECK(TotalEnabled_);
+    YT_VERIFY(TotalEnabled_);
     Total_ -= value;
-    YCHECK(Total_ >= 0);
+    YT_VERIFY(Total_ >= 0);
     Pending_ -= value;
-    YCHECK(Pending_ >= 0);
+    YT_VERIFY(Pending_ >= 0);
 
     if (Parent_) {
         Parent_->Decrement(value);
@@ -69,7 +69,7 @@ void TProgressCounter::Decrement(i64 value)
 
 i64 TProgressCounter::GetTotal() const
 {
-    YCHECK(TotalEnabled_);
+    YT_VERIFY(TotalEnabled_);
     return Total_;
 }
 
@@ -95,7 +95,7 @@ i64 TProgressCounter::GetInterruptedTotal() const
 
 i64 TProgressCounter::GetPending() const
 {
-    YCHECK(TotalEnabled_);
+    YT_VERIFY(TotalEnabled_);
     return Pending_;
 }
 
@@ -138,7 +138,7 @@ i64 TProgressCounter::GetLost() const
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled_) {
-        YCHECK(Pending_ >= count);
+        YT_VERIFY(Pending_ >= count);
         Pending_ -= count;
     }
     Running_ += count;
@@ -150,7 +150,7 @@ void TProgressCounter::Start(i64 count)
 
 void TProgressCounter::Completed(i64 count, EInterruptReason reason)
 {
-    YCHECK(Running_ >= count);
+    YT_VERIFY(Running_ >= count);
     Running_ -= count;
     Completed_[reason] += count;
 
@@ -161,7 +161,7 @@ void TProgressCounter::Completed(i64 count, EInterruptReason reason)
 
 void TProgressCounter::Failed(i64 count)
 {
-    YCHECK(Running_ >= count);
+    YT_VERIFY(Running_ >= count);
     Running_ -= count;
     Failed_ += count;
     if (TotalEnabled_) {
@@ -175,8 +175,8 @@ void TProgressCounter::Failed(i64 count)
 
 void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 {
-    YCHECK(!IsSentinelReason(reason));
-    YCHECK(Running_ >= count);
+    YT_VERIFY(!IsSentinelReason(reason));
+    YT_VERIFY(Running_ >= count);
     Running_ -= count;
     Aborted_[reason] += count;
     if (TotalEnabled_) {
@@ -190,7 +190,7 @@ void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 
 void TProgressCounter::Lost(i64 count)
 {
-    YCHECK(Completed_[EInterruptReason::None] >= count);
+    YT_VERIFY(Completed_[EInterruptReason::None] >= count);
     Completed_[EInterruptReason::None] -= count;
     Lost_ += count;
     if (TotalEnabled_) {
@@ -204,7 +204,7 @@ void TProgressCounter::Lost(i64 count)
 
 void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
 {
-    YCHECK(!Parent_);
+    YT_VERIFY(!Parent_);
     Parent_ = parent;
     if (TotalEnabled_) {
         Parent_->Increment(Total_);

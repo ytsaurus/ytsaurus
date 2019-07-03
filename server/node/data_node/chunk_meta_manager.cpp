@@ -69,7 +69,7 @@ public:
         , MetaCache_(New<TChunkMetaCache>(config))
         , BlocksExtCache_(New<TBlocksExtCache>(config))
     {
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Bootstrap_);
     }
 
     

@@ -134,7 +134,7 @@ public:
             TWriterGuard guard(SpinLock_);
             auto it = ChannelMap_.find(addressWithNetwork.Address);
             if (it == ChannelMap_.end()) {
-                YCHECK(ChannelMap_.insert(std::make_pair(addressWithNetwork.Address, wrappedChannel)).second);
+                YT_VERIFY(ChannelMap_.insert(std::make_pair(addressWithNetwork.Address, wrappedChannel)).second);
                 return wrappedChannel;
             } else {
                 return it->second;
@@ -160,7 +160,7 @@ public:
             TWriterGuard guard(SpinLock_);
             auto it = ChannelMap_.find(address);
             if (it == ChannelMap_.end()) {
-                YCHECK(ChannelMap_.insert(std::make_pair(address, wrappedChannel)).second);
+                YT_VERIFY(ChannelMap_.insert(std::make_pair(address, wrappedChannel)).second);
                 return wrappedChannel;
             } else {
                 return it->second;
@@ -201,7 +201,7 @@ TFuture<void> TCachedChannel::Terminate(const TError& error)
 
 ICachingChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underlyingFactory)
 {
-    YCHECK(underlyingFactory);
+    YT_VERIFY(underlyingFactory);
 
     return New<TCachingChannelFactory>(std::move(underlyingFactory));
 }

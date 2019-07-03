@@ -90,7 +90,7 @@ i64 TScalarTypeTraits<i64>::GetValue(const IConstNodePtr& node)
         case ENodeType::Uint64:
             return CheckedIntegralCast<i64>(node->AsUint64()->GetValue());
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -108,7 +108,7 @@ void TScalarTypeTraits<i64>::SetValue(const INodePtr& node, i64 value)
             node->AsDouble()->SetValue(static_cast<double>(value));
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -140,7 +140,7 @@ ui64 TScalarTypeTraits<ui64>::GetValue(const IConstNodePtr& node)
         case ENodeType::Int64:
             return CheckedIntegralCast<ui64>(node->AsInt64()->GetValue());
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -158,7 +158,7 @@ void TScalarTypeTraits<ui64>::SetValue(const INodePtr& node, ui64 value)
             node->AsDouble()->SetValue(static_cast<double>(value));
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -191,7 +191,7 @@ double TScalarTypeTraits<double>::GetValue(const IConstNodePtr& node)
         case ENodeType::Uint64:
             return static_cast<double>(node->AsUint64()->GetValue());
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

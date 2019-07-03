@@ -74,7 +74,7 @@ void SerializeField(
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

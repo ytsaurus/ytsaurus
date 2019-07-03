@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 import yt.yson
 
@@ -107,43 +107,40 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j1")
         write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
 
-        self.Env.kill_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            assert not get("//tmp/j1/@sealed")
 
-        assert not get("//tmp/j1/@sealed")
+            chunk_ids = get("//tmp/j1/@chunk_ids")
+            unsealed_chunk_id = None
+            for chunk_id in chunk_ids:
+                if not get("#{0}/@sealed".format(chunk_id)):
+                    unsealed_chunk_id = chunk_id
+                    break
+            assert unsealed_chunk_id is not None
 
-        chunk_ids = get("//tmp/j1/@chunk_ids")
-        unsealed_chunk_id = None
-        for chunk_id in chunk_ids:
-            if not get("#{0}/@sealed".format(chunk_id)):
-                unsealed_chunk_id = chunk_id
-                break
-        assert unsealed_chunk_id is not None
+            node_to_patch = str(get("#{0}/@stored_replicas".format(unsealed_chunk_id))[0])
 
-        node_to_patch = str(get("#{0}/@stored_replicas".format(unsealed_chunk_id))[0])
+            create_medium("ssd")
 
-        create_medium("ssd")
+            patched_node_config = False
+            for i in xrange(0, len(self.Env.configs["node"])):
+                config = self.Env.configs["node"][i]
 
-        patched_node_config = False
-        for i in xrange(0, len(self.Env.configs["node"])):
-            config = self.Env.configs["node"][i]
+                node_address ="{0}:{1}".format(config["address_resolver"]["localhost_fqdn"], config["rpc_port"])
 
-            node_address ="{0}:{1}".format(config["address_resolver"]["localhost_fqdn"], config["rpc_port"])
+                if node_address == node_to_patch:
+                    location = config["data_node"]["store_locations"][0]
 
-            if node_address == node_to_patch:
-                location = config["data_node"]["store_locations"][0]
+                    assert "medium_name" not in location or location["medium_name"] == "default"
+                    location["medium_name"] = "ssd"
 
-                assert "medium_name" not in location or location["medium_name"] == "default"
-                location["medium_name"] = "ssd"
+                    config_path = self.Env.config_paths["node"][i]
+                    with open(config_path, "w") as fout:
+                        yson.dump(config, fout)
+                    patched_node_config = True
+                    break
 
-                config_path = self.Env.config_paths["node"][i]
-                with open(config_path, "w") as fout:
-                    yson.dump(config, fout)
-                patched_node_config = True
-                break
-
-        assert patched_node_config
-
-        self.Env.start_nodes()
+            assert patched_node_config
 
         set("//sys/@config/chunk_manager/enable_chunk_sealer", True, recursive=True)
 

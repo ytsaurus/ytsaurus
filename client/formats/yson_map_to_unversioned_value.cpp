@@ -18,7 +18,7 @@ TYsonMapToUnversionedValueConverter::TYsonMapToUnversionedValueConverter(IValueC
 
 void TYsonMapToUnversionedValueConverter::Reset()
 {
-    YCHECK(InsideValue_ == false);
+    YT_VERIFY(InsideValue_ == false);
 }
 
 void TYsonMapToUnversionedValueConverter::OnStringScalar(TStringBuf value)
@@ -89,7 +89,7 @@ void TYsonMapToUnversionedValueConverter::OnListItem()
     if (Y_LIKELY(InsideValue_)) {
         ColumnConsumer_.OnListItem();
     } else {
-        Y_UNREACHABLE(); // Should crash on BeginList()
+        YT_ABORT(); // Should crash on BeginList()
     }
 }
 
@@ -135,7 +135,7 @@ void TYsonMapToUnversionedValueConverter::OnEndList()
     if (Y_LIKELY(InsideValue_)) {
         ColumnConsumer_.OnEndList();
     } else {
-        Y_UNREACHABLE(); // Should crash on BeginList()
+        YT_ABORT(); // Should crash on BeginList()
     }
 }
 
@@ -144,23 +144,23 @@ void TYsonMapToUnversionedValueConverter::OnEndAttributes()
     if (Y_LIKELY(InsideValue_)) {
         ColumnConsumer_.OnEndAttributes();
     } else {
-        Y_UNREACHABLE(); // Should crash on BeginAttributes()
+        YT_ABORT(); // Should crash on BeginAttributes()
     }
 }
 
 const TNameTablePtr& TYsonMapToUnversionedValueConverter::GetNameTable() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TYsonMapToUnversionedValueConverter::GetAllowUnknownColumns() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TYsonMapToUnversionedValueConverter::OnBeginRow()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TYsonMapToUnversionedValueConverter::OnValue(const TUnversionedValue& value)
@@ -171,12 +171,12 @@ void TYsonMapToUnversionedValueConverter::OnValue(const TUnversionedValue& value
 
 void TYsonMapToUnversionedValueConverter::OnEndRow()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 const NTableClient::TTableSchema& TYsonMapToUnversionedValueConverter::GetSchema() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

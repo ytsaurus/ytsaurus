@@ -75,7 +75,7 @@ static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& ser
         }
 
         const auto* registry = GetToolRegistry();
-        YCHECK(registry != nullptr);
+        YT_VERIFY(registry != nullptr);
 
         auto it = registry->find(toolName);
         if (it == registry->end()) {

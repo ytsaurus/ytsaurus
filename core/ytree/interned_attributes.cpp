@@ -11,8 +11,8 @@ class TInternedAttributeRegistry
 public:
     void Intern(const TString& uninternedKey, TInternedAttributeKey internedKey)
     {
-        YCHECK(AttributeNameToIndex_.emplace(uninternedKey, internedKey).second);
-        YCHECK(AttributeIndexToName_.emplace(internedKey, uninternedKey).second);
+        YT_VERIFY(AttributeNameToIndex_.emplace(uninternedKey, internedKey).second);
+        YT_VERIFY(AttributeIndexToName_.emplace(internedKey, uninternedKey).second);
     }
 
     TInternedAttributeKey GetInterned(const TString& uninternedKey)
@@ -24,7 +24,7 @@ public:
     const TString& GetUninterned(TInternedAttributeKey internedKey)
     {
         auto it = AttributeIndexToName_.find(internedKey);
-        YCHECK(it != AttributeIndexToName_.end());
+        YT_VERIFY(it != AttributeIndexToName_.end());
         return it->second;
     }
 

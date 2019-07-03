@@ -29,14 +29,14 @@ public:
     {
         auto guard = Guard(Lock_);
 
-        YCHECK(IsValidBucketIndex(bucketIndex));
+        YT_VERIFY(IsValidBucketIndex(bucketIndex));
         Buckets_[bucketIndex].push(std::move(callback));
     }
 
     virtual bool TryDequeue(TClosure* resultCallback, int* resultBucketIndex) override
     {
-        YCHECK(resultCallback != nullptr);
-        YCHECK(resultBucketIndex != nullptr);
+        YT_VERIFY(resultCallback != nullptr);
+        YT_VERIFY(resultBucketIndex != nullptr);
 
         auto guard = Guard(Lock_);
 
@@ -108,7 +108,7 @@ private:
 
 IFairShareCallbackQueuePtr CreateFairShareCallbackQueue(int bucketCount)
 {
-    YCHECK(0 < bucketCount && bucketCount < 100);
+    YT_VERIFY(0 < bucketCount && bucketCount < 100);
     return New<TFairShareCallbackQueue>(bucketCount);
 }
 
@@ -147,7 +147,7 @@ public:
 protected:
     virtual const IInvokerPtr& DoGetInvoker(int index) const override
     {
-        YCHECK(IsValidInvokerIndex(index));
+        YT_VERIFY(IsValidInvokerIndex(index));
         return Invokers_[index];
     }
 
@@ -223,8 +223,8 @@ private:
     {
         TClosure callback;
         int bucketIndex = -1;
-        YCHECK(Queue_->TryDequeue(&callback, &bucketIndex));
-        YCHECK(IsValidInvokerIndex(bucketIndex));
+        YT_VERIFY(Queue_->TryDequeue(&callback, &bucketIndex));
+        YT_VERIFY(IsValidInvokerIndex(bucketIndex));
 
         TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
 
@@ -242,7 +242,7 @@ IInvokerPoolPtr CreateFairShareInvokerPool(
     int invokerCount,
     TFairShareCallbackQueueFactory callbackQueueFactory)
 {
-    YCHECK(0 < invokerCount && invokerCount < 100);
+    YT_VERIFY(0 < invokerCount && invokerCount < 100);
     return New<TFairShareInvokerPool>(
         std::move(underlyingInvoker),
         invokerCount,

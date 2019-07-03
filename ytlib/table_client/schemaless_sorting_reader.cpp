@@ -71,7 +71,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
@@ -90,7 +90,7 @@ public:
         }
         ReadDataWeight_ += dataWeight;
 
-        YCHECK(!rows->empty());
+        YT_VERIFY(!rows->empty());
         return true;
     }
 
@@ -101,13 +101,13 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
         dataStatistics.set_row_count(ReadRowCount_);
         dataStatistics.set_data_weight(ReadDataWeight_);
@@ -116,25 +116,25 @@ public:
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void Interrupt() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override

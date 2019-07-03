@@ -8,12 +8,17 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TLogicalType& type, std::ostream *os)
+void PrintTo(ELogicalMetatype metatype, std::ostream* os)
+{
+    *os << ToString(metatype);
+}
+
+void PrintTo(const TLogicalType& type, std::ostream* os)
 {
     *os << ToString(type);
 }
 
-void PrintTo(const TLogicalTypePtr& type, std::ostream *os)
+void PrintTo(const TLogicalTypePtr& type, std::ostream* os)
 {
     PrintTo(*type, os);
 }

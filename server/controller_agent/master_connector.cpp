@@ -95,7 +95,7 @@ public:
     void RegisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         OperationNodesUpdateExecutor_->AddUpdate(
             operationId,
@@ -105,7 +105,7 @@ public:
     void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         OperationNodesUpdateExecutor_->RemoveUpdate(operationId);
     }
@@ -113,7 +113,7 @@ public:
     void CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         CancelableControlInvoker_->Invoke(BIND(
             &TImpl::DoCreateJobNode,
@@ -134,7 +134,7 @@ public:
     TFuture<void> FlushOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
             operationId);
@@ -149,7 +149,7 @@ public:
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
@@ -159,7 +159,7 @@ public:
     TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         if (!Config_->EnableSnapshotLoading) {
             return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
@@ -173,7 +173,7 @@ public:
     TFuture<void> RemoveSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
@@ -183,7 +183,7 @@ public:
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         CancelableControlInvoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
             MakeWeak(this),
@@ -262,10 +262,10 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        YCHECK(!CancelableContext_);
+        YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
 
-        YCHECK(!CancelableControlInvoker_);
+        YT_VERIFY(!CancelableControlInvoker_);
         CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
     }
 
@@ -273,7 +273,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(!OperationNodesUpdateExecutor_);
+        YT_VERIFY(!OperationNodesUpdateExecutor_);
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
@@ -283,7 +283,7 @@ private:
             Logger);
         OperationNodesUpdateExecutor_->Start();
 
-        YCHECK(!TransactionRefreshExecutor_);
+        YT_VERIFY(!TransactionRefreshExecutor_);
         TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
@@ -291,7 +291,7 @@ private:
             EPeriodicExecutorMode::Automatic);
         TransactionRefreshExecutor_->Start();
 
-        YCHECK(!SnapshotExecutor_);
+        YT_VERIFY(!SnapshotExecutor_);
         SnapshotExecutor_= New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
@@ -299,7 +299,7 @@ private:
             EPeriodicExecutorMode::Automatic);
         SnapshotExecutor_->Start();
 
-        YCHECK(!UnstageExecutor_);
+        YT_VERIFY(!UnstageExecutor_);
         UnstageExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
@@ -307,7 +307,7 @@ private:
             EPeriodicExecutorMode::Automatic);
         UnstageExecutor_->Start();
 
-        YCHECK(!UpdateConfigExecutor_);
+        YT_VERIFY(!UpdateConfigExecutor_);
         UpdateConfigExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::ExecuteUpdateConfig, MakeWeak(this)),
@@ -720,10 +720,10 @@ private:
         GenerateMutationId(batchReq);
 
         auto progress = controller->GetProgress();
-        YCHECK(progress);
+        YT_VERIFY(progress);
 
         auto briefProgress = controller->GetBriefProgress();
-        YCHECK(briefProgress);
+        YT_VERIFY(briefProgress);
 
         auto operationPath = GetOperationPath(operationId);
 
@@ -987,7 +987,7 @@ private:
         }
 
         // NB: Controller must attach all live preview chunks under the same transaction.
-        YCHECK(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
+        YT_VERIFY(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
         update->LivePreviewTransactionId = transactionId;
 
         YT_LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
@@ -1300,7 +1300,7 @@ private:
     void UpdateAlerts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IsConnected());
+        YT_VERIFY(IsConnected());
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<EControllerAgentAlertType>::GetDomainValues()) {

@@ -42,8 +42,8 @@ TSchedulerConnector::TSchedulerConnector(
     , TimeBetweenAcknowledgedHeartbeatsCounter_("/scheduler_connector/time_between_acknowledged_heartbeats")
     , TimeBetweenFullyProcessedHeartbeatsCounter_("/scheduler_connector/time_between_fully_processed_heartbeats")
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YT_VERIFY(config);
+    YT_VERIFY(bootstrap);
 }
 
 void TSchedulerConnector::Start()

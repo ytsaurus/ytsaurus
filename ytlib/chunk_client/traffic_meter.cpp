@@ -64,7 +64,7 @@ TDuration TTrafficMeter::GetDuration() const
 {
     TGuard<TSpinLock> guard(Lock_);
 
-    YCHECK(StartTime_ != TInstant::Zero());
+    YT_VERIFY(StartTime_ != TInstant::Zero());
 
     return TInstant::Now() - StartTime_;
 }

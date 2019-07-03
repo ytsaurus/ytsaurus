@@ -142,6 +142,7 @@ union TUnversionedValueData;
 
 enum class EValueType : ui8;
 enum class ESimpleLogicalValueType : ui32;
+enum class ELogicalMetatype;
 
 class TColumnFilter;
 
@@ -226,11 +227,13 @@ struct IValueConsumer;
 class TComplexTypeFieldDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TLogicalType)
-DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
-DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)
-DECLARE_REFCOUNTED_CLASS(TListLogicalType)
-DECLARE_REFCOUNTED_CLASS(TStructLogicalType)
-DECLARE_REFCOUNTED_CLASS(TTupleLogicalType)
+class TSimpleLogicalType;
+class TOptionalLogicalType;
+class TListLogicalType;
+class TStructLogicalType;
+class TTupleLogicalType;
+class TVariantTupleLogicalType;
+class TVariantStructLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
