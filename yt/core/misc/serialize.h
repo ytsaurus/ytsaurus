@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "assert.h"
-#include "enum.h"
 #include "error.h"
 #include "guid.h"
 #include "mpl.h"

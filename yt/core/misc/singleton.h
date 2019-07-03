@@ -2,21 +2,19 @@
 
 #include "common.h"
 
-#include <atomic>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_LEAKY_SINGLETON_FRIEND() \
+    template <class T>                   \
+    friend T* ::NYT::LeakySingleton();
+
+template <class T>
+T* LeakySingleton();
+
 template <class T>
 TIntrusivePtr<T> RefCountedSingleton();
-
-#define DECLARE_IMMORTAL_SINGLETON_FRIEND() \
-	template <class T>                      \
-    friend T* ::NYT::ImmortalSingleton();
-
-template <class T>
-T* ImmortalSingleton();
 
 ////////////////////////////////////////////////////////////////////////////////
 

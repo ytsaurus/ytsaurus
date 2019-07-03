@@ -119,6 +119,7 @@ using namespace NProfiling;
 using namespace NScheduler;
 using namespace NEventLog;
 using namespace NLogging;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -203,7 +204,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , InvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
-        TEnumTraits<EOperationControllerQueue>::GetDomainSize()))
+        TEnumTraits<EOperationControllerQueue>::DomainSize))
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,

@@ -40,6 +40,7 @@ using namespace NYT::NBus;
 using namespace NYT::NRpc::NBus;
 using namespace NConcurrency;
 using namespace NCrypto;
+using namespace NYTAlloc;
 
 static const TString DefaultAddress = "localhost:2000";
 

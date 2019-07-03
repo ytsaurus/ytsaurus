@@ -4,6 +4,8 @@
 #include "stack_trace.h"
 #endif
 
+#include "raw_formatter.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +18,7 @@ void DumpStackFrameInfo(TRawFormatter<1024>* formatter, void* pc);
 } // namespace NDetail
 
 template <class TCallback>
-void FormatStackTrace(void** frames, int frameCount, TCallback writeCallback)
+void FormatStackTrace(void** frames, int frameCount, const TCallback& writeCallback)
 {
     TRawFormatter<1024> formatter;
 

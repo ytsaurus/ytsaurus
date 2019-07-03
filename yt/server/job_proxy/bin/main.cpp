@@ -10,7 +10,9 @@
 
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 namespace NYT::NJobProxy {
 
@@ -51,7 +53,9 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         CloseAllDescriptors();
-        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableYTLogging();
+        NYTAlloc::ConfigureFromEnv();
+        NYTAlloc::SetLibunwindBacktraceProvider();
 
         try {
             SafeCreateStderrFile("stderr");

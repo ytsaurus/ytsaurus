@@ -18,7 +18,7 @@
 #include <yt/core/http/helpers.h>
 #include <yt/core/http/server.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -125,14 +125,14 @@ public:
         const IResponseWriterPtr& rsp) override
     {
         const auto orchidPrefix = AsStringBuf("/orchid");
-    
+
         TString path{req->GetUrl().Path};
         if (!path.StartsWith(orchidPrefix)) {
             THROW_ERROR_EXCEPTION("HTTP request must start with %Qv prefix",
                 orchidPrefix)
                 << TErrorAttribute("path", path);
         }
-        
+
         path = path.substr(orchidPrefix.size(), TString::npos);
         TCgiParameters params(req->GetUrl().RawQuery);
 

@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/small_vector.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT::NDataNode {

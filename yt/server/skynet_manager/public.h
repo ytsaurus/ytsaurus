@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/misc/size_literals.h>
+#include <util/generic/size_literals.h>
 
 #include <yt/core/ypath/public.h>
 

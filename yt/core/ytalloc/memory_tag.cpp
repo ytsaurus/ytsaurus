@@ -6,6 +6,7 @@
 namespace NYT {
 
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,24 +40,6 @@ TMemoryTagGuard::TMemoryTagGuard(TMemoryTagGuard&& other)
     other.Active_ = false;
     other.PreviousTag_ = NullMemoryTag;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK TMemoryTag GetCurrentMemoryTag()
-{
-    return 0;
-}
-
-Y_WEAK void SetCurrentMemoryTag(TMemoryTag /*tag*/)
-{ }
-
-Y_WEAK size_t GetMemoryUsageForTag(TMemoryTag /*tag*/)
-{
-    return 0;
-}
-
-Y_WEAK void GetMemoryUsageForTags(TMemoryTag* /*tags*/, size_t /*count*/, size_t* /*result*/)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/shutdown.h>
 
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <util/system/yield.h>
 
 namespace NYT::NConcurrency {
 

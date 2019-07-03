@@ -1,10 +1,9 @@
 #pragma once
 
-#include <yt/core/misc/size_literals.h>
-
 #include <memory>
 
 #include <util/generic/buffer.h>
+#include <util/generic/size_literals.h>
 
 #include <util/stream/buffer.h>
 #include <util/stream/file.h>

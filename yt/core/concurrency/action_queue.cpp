@@ -17,6 +17,7 @@ namespace NYT::NConcurrency {
 using namespace NProfiling;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -37,7 +37,7 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 

@@ -3,9 +3,10 @@
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
-#include <yt/core/misc/size_literals.h>
 
 #include <yt/contrib/zstd-legacy/lib/zstd_static.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NCompression {
 

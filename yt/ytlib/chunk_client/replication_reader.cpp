@@ -34,7 +34,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -56,6 +57,7 @@ using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NNet;
+using namespace NYTAlloc;
 
 using NNodeTrackerClient::TNodeId;
 using NYT::ToProto;

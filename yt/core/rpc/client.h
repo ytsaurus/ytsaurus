@@ -81,7 +81,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
-    DEFINE_BYVAL_RO_PROPERTY(EMemoryZone, MemoryZone);
+    DEFINE_BYVAL_RO_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsInputStreamPtr, ResponseAttachmentsStream);
 
@@ -92,7 +92,7 @@ public:
         const TString& service,
         const TString& method,
         bool heavy,
-        EMemoryZone memoryZone,
+        NYTAlloc::EMemoryZone memoryZone,
         TAttachmentsOutputStreamPtr requestAttachmentsStream,
         TAttachmentsInputStreamPtr responseAttachmentsStream);
 };
@@ -113,7 +113,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
-    DEFINE_BYVAL_RW_PROPERTY(EMemoryZone, MemoryZone, EMemoryZone::Normal);
+    DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone, NYTAlloc::EMemoryZone::Normal);
 
 public:
     virtual TSharedRefArray Serialize() override;

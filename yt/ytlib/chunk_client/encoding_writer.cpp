@@ -13,13 +13,16 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/checksum.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/rpc/dispatcher.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NProfiling;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +111,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
     TBlock compressedBlock;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-        NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
+        TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
 
@@ -146,7 +149,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     TBlock compressedBlock;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-        NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
+        TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
 

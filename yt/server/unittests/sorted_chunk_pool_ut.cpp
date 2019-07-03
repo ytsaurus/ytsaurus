@@ -16,7 +16,8 @@
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
-#include <yt/core/misc/size_literals.h>
+
+#include <util/generic/size_literals.h>
 
 #include <util/stream/null.h>
 

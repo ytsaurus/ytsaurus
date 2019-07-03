@@ -43,7 +43,8 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/finally.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/rpc/local_channel.h>
 
@@ -57,6 +58,7 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NYTAlloc;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
@@ -622,7 +624,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                     asyncUncompressedBlocks.push_back(
                         BIND([&] {
                                 TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                                NProfiling::TCpuTimer timer;
+                                NProfiling::TFiberWallTimer timer;
                                 auto block = codec->Decompress(compressedBlock.Data);
                                 return std::make_pair(std::move(block), timer.GetElapsedTime());
                             })

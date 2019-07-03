@@ -14,14 +14,6 @@ namespace NYT::NMpl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An empty struct, a neutral typedef.
-struct TEmpty
-{ };
-
-typedef int TEmpty::* TNothing;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Base metaprogramming class which represents integral constant.
 template <class T, T ValueOfTheConstant>
 struct TIntegralConstant

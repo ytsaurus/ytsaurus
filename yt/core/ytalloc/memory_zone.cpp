@@ -3,9 +3,10 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/fiber.h>
 
-namespace NYT {
+namespace NYT::NYTAlloc {
 
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,14 +43,4 @@ TMemoryZoneGuard::TMemoryZoneGuard(TMemoryZoneGuard&& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK void SetCurrentMemoryZone(EMemoryZone /*zone*/)
-{ }
-
-Y_WEAK EMemoryZone GetCurrentMemoryZone()
-{
-    return EMemoryZone::Normal;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
+} // namespace NYT::NYTAlloc

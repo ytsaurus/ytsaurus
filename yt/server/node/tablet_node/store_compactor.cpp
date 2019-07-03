@@ -53,7 +53,7 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 
@@ -67,6 +67,7 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1405,8 +1406,8 @@ private:
             tabletSnapshot->CompactionThrottler});
 
         TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
-            ? EMemoryZone::Normal
-            : EMemoryZone::Undumpable);
+            ? NYTAlloc::EMemoryZone::Normal
+            : NYTAlloc::EMemoryZone::Undumpable);
 
         auto writer = CreateVersionedMultiChunkWriter(
             writerConfig,

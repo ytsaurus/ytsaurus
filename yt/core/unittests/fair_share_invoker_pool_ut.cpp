@@ -291,7 +291,7 @@ protected:
 
     static void Spin(TDuration duration)
     {
-        NProfiling::TCpuTimer timer;
+        NProfiling::TFiberWallTimer timer;
         while (timer.GetElapsedTime() < duration) {
         }
     }

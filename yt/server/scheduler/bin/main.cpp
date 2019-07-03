@@ -8,7 +8,9 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 namespace NYT::NScheduler {
 
@@ -35,8 +37,10 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        NYTAlloc::EnableLogging();
-        NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableYTLogging();
+        NYTAlloc::EnableYTProfiling();
+        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {

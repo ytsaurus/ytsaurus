@@ -14,7 +14,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/core/misc/memory_tag.h>
+#include <yt/core/ytalloc/memory_tag.h>
 
 namespace NYT::NControllerAgent {
 
@@ -33,7 +33,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
-    DEFINE_BYVAL_RW_PROPERTY(TMemoryTag, MemoryTag);
+    DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::TMemoryTag, MemoryTag);
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
     DEFINE_BYVAL_RW_PROPERTY(TOperationControllerHostPtr, Host);

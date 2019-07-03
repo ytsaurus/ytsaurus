@@ -4,8 +4,6 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/core/misc/enum.h>
-
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/fluent.h>

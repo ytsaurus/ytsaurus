@@ -117,7 +117,7 @@ public:
             LookupKeys_.Size(),
             BlockReadOptions_.ReadSessionId);
 
-        TCpuTimer timer;
+        TFiberWallTimer timer;
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 

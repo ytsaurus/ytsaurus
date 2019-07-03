@@ -498,4 +498,26 @@ i64 TRefCountedProto<TProto, EnableWeak>::GetSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// RepeatedField formatter
+template <class T>
+struct TValueFormatter<::google::protobuf::RepeatedField<T>>
+{
+    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedField<T>& collection, TStringBuf /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// RepeatedPtrField formatter
+template <class T>
+struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
+{
+    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedPtrField<T>& collection, TStringBuf /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

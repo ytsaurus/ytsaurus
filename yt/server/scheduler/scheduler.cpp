@@ -60,7 +60,6 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/size_literals.h>
 #include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/net/local_address.h>
@@ -72,6 +71,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/permission.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NScheduler {
 
@@ -2066,7 +2067,7 @@ private:
             for (const auto& pair : *CachedExecNodeDescriptors_) {
                 const auto& descriptor = pair.second;
                 if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
-                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
+                    ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
             }
         }

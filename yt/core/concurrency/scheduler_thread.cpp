@@ -8,6 +8,7 @@ namespace NYT::NConcurrency {
 
 using namespace NYPath;
 using namespace NProfiling;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

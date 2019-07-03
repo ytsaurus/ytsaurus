@@ -23,7 +23,8 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/profiling/profiler.h>
 
@@ -39,6 +40,7 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

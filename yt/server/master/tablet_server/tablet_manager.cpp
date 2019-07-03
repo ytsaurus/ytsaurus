@@ -5150,7 +5150,7 @@ private:
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
-                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
+                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
                 tabletId,
                 transaction->GetId(),
                 mountRevision,

@@ -63,6 +63,7 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,12 +75,12 @@ static const auto& Logger = QueryClientLogger;
 static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
 
 class TYielder
-    : public NProfiling::TWallTimer
-    , private NConcurrency::TContextSwitchGuard
+    : public TWallTimer
+    , private TContextSwitchGuard
 {
 public:
     TYielder()
-        : NConcurrency::TContextSwitchGuard(
+        : TContextSwitchGuard(
             [this] () noexcept { Stop(); },
             [this] () noexcept { Restart(); })
     { }
@@ -93,7 +94,6 @@ public:
             Yield();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,12 +138,12 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&statistics->WriteTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -183,7 +183,7 @@ void ScanOpHelper(
     while (true) {
         bool hasMoreData;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&statistics->ReadTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
@@ -224,7 +224,7 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -550,7 +550,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -620,7 +620,7 @@ public:
             }
 
             if (shouldWait) {
-                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -767,7 +767,7 @@ void JoinOpHelper(
                 while (true) {
                     bool hasMoreData;
                     {
-                        NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
@@ -783,7 +783,7 @@ void JoinOpHelper(
                     }
 
                     if (shouldWait) {
-                        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     }
@@ -967,7 +967,7 @@ void MultiJoinOpHelper(
             while (currentKey != orderedKeys.end()) {
                 bool hasMoreData;
                 {
-                    NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                     hasMoreData = reader->Read(&foreignRows);
                 }
 
@@ -978,7 +978,7 @@ void MultiJoinOpHelper(
                 }
 
                 {
-                    NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
                     if (isPartiallySorted) {
                         processForeignSequence(foreignValues.begin(), foreignValues.end());
                     } else {
@@ -999,14 +999,14 @@ void MultiJoinOpHelper(
                 }
 
                 if (shouldWait) {
-                    NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                     WaitFor(reader->GetReadyEvent())
                         .ThrowOnError();
                 }
             }
 
             {
-                NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
 
                 if (isPartiallySorted) {
                     std::sort(
@@ -1274,12 +1274,12 @@ void WriteOpHelper(
     if (!batch.empty()) {
         bool shouldNotWait;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -1287,7 +1287,7 @@ void WriteOpHelper(
 
     YT_LOG_DEBUG("Closing writer");
     {
-        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
         WaitFor(context->Writer->Close())
             .ThrowOnError();
     }

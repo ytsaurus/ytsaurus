@@ -25,7 +25,8 @@
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -39,6 +40,7 @@ using namespace NYson;
 using namespace NProfiling;
 using namespace NTracing;
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -412,7 +414,7 @@ private:
         } else {
             ResponseCodec_ = NCompression::ECodec::None;
         }
-        
+
         BuildGlobalRequestInfo();
 
         if (IsRegistrable()) {
@@ -603,7 +605,7 @@ private:
         const auto* fiber = GetCurrentFiber();
         auto handlerFiberTime = CpuDurationToDuration(fiber->GetRunCpuTime());
         Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
-        
+
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
             auto traceContextTime = TraceContext_->GetElapsedTime();

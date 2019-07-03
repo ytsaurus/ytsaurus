@@ -8,7 +8,7 @@ namespace NYT::NControllerAgent {
 
 int GetCurrentSnapshotVersion()
 {
-    return ToUnderlying(TEnumTraits<ESnapshotVersion>::GetDomainValues().Back());
+    return ToUnderlying(TEnumTraits<ESnapshotVersion>::GetDomainValues().back());
 }
 
 bool ValidateSnapshotVersion(int version)

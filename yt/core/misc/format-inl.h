@@ -9,10 +9,7 @@
 #include "string.h"
 #include "optional.h"
 #include "enum.h"
-#include "guid.h"
 #include "assert.h"
-#include "range.h"
-#include "shared_range.h"
 
 #include <cctype>
 
@@ -279,26 +276,6 @@ struct TValueFormatter<TFormattableView<TRange, TFormatter>>
     }
 };
 
-// TRange
-template <class T>
-struct TValueFormatter<TRange<T>>
-{
-    static void Do(TStringBuilderBase* builder, TRange<T> range, TStringBuf /*format*/)
-    {
-        FormatRange(builder, range, TDefaultFormatter());
-    }
-};
-
-// TSharedRange
-template <class T>
-struct TValueFormatter<TSharedRange<T>>
-{
-    static void Do(TStringBuilderBase* builder, const TSharedRange<T>& range, TStringBuf /*format*/)
-    {
-        FormatRange(builder, range, TDefaultFormatter());
-    }
-};
-
 // std::vector
 template <class T>
 struct TValueFormatter<std::vector<T>>
@@ -379,26 +356,6 @@ struct TValueFormatter<THashMultiMap<K, V>>
     }
 };
 
-// RepeatedField
-template <class T>
-struct TValueFormatter<::google::protobuf::RepeatedField<T>>
-{
-    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedField<T>& collection, TStringBuf /*format*/)
-    {
-        FormatRange(builder, collection, TDefaultFormatter());
-    }
-};
-
-// RepeatedPtrField
-template <class T>
-struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
-{
-    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedPtrField<T>& collection, TStringBuf /*format*/)
-    {
-        FormatRange(builder, collection, TDefaultFormatter());
-    }
-};
-
 // TEnumIndexedVector
 template <class T, class E>
 struct TValueFormatter<TEnumIndexedVector<T, E>>
@@ -420,20 +377,6 @@ struct TValueFormatter<TEnumIndexedVector<T, E>>
     }
 };
 
-// TGuid
-inline void FormatValue(TStringBuilderBase* builder, TGuid value, TStringBuf /*format*/)
-{
-    char* begin = builder->Preallocate(8 * 4 + 3);
-    char* end = WriteGuidToBuffer(begin, value);
-    builder->Advance(end - begin);
-}
-
-// std::optional
-inline void FormatValue(TStringBuilderBase* builder, std::nullopt_t, TStringBuf /*format*/)
-{
-    builder->AppendString(AsStringBuf("<null>"));
-}
-
 // std::pair
 template <class T1, class T2>
 struct TValueFormatter<std::pair<T1, T2>>
@@ -447,6 +390,12 @@ struct TValueFormatter<std::pair<T1, T2>>
         builder->AppendChar('}');
     }
 };
+
+// std::optional
+inline void FormatValue(TStringBuilderBase* builder, std::nullopt_t, TStringBuf /*format*/)
+{
+    builder->AppendString(AsStringBuf("<null>"));
+}
 
 template <class T>
 struct TValueFormatter<std::optional<T>>

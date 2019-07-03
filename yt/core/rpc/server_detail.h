@@ -3,7 +3,7 @@
 #include "server.h"
 #include "service.h"
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

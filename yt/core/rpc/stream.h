@@ -9,7 +9,8 @@
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/sliding_window.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/actions/signal.h>
 #include <yt/core/actions/future.h>
@@ -89,7 +90,7 @@ class TAttachmentsOutputStream
 {
 public:
     TAttachmentsOutputStream(
-        EMemoryZone memoryZone,
+        NYTAlloc::EMemoryZone memoryZone,
         NCompression::ECodec codec,
         IInvokerPtr compressionInvoker,
         TClosure pullCallback,
@@ -107,7 +108,7 @@ public:
     DEFINE_SIGNAL(void(), Aborted);
 
 private:
-    const EMemoryZone MemoryZone_;
+    const NYTAlloc::EMemoryZone MemoryZone_;
     const NCompression::ECodec Codec_;
     const IInvokerPtr CompressionInvoker_;
     const TClosure PullCallback_;

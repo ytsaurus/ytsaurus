@@ -7,6 +7,8 @@
 
 #include "stack_trace.h"
 
+#include <yt/core/libunwind/libunwind.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,7 @@ void DumpStackTrace(TCallback flushCallback)
 {
     // Get the stack trace (without current frame hence +1).
     std::array<void*, 99> frames; // 99 is to keep formatting. :)
-    int frameCount = GetStackTrace(frames.data(), frames.size(), 1);
+    int frameCount = NLibunwind::GetStackTrace(frames.data(), frames.size(), 1);
     FormatStackTrace(frames.data(), frameCount, flushCallback);
 }
 

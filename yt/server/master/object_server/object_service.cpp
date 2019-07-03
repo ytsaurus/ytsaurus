@@ -54,14 +54,15 @@ using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-static NProfiling::TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
-static NProfiling::TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
-static NProfiling::TMonotonicCounter ReadRequestCounter("/read_request_count");
-static NProfiling::TMonotonicCounter WriteRequestCounter("/write_request_count");
+static TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
+static TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
+static TMonotonicCounter ReadRequestCounter("/read_request_count");
+static TMonotonicCounter WriteRequestCounter("/write_request_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,12 +70,12 @@ class TStickyUserErrorCache
 {
 public:
     explicit TStickyUserErrorCache(TDuration expireTime)
-        : ExpireTime_(NProfiling::DurationToCpuDuration(expireTime))
+        : ExpireTime_(DurationToCpuDuration(expireTime))
     { }
 
     TError Get(const TString& userName)
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         {
             TReaderGuard guard(Lock_);
             auto it = Map_.find(userName);
@@ -100,7 +101,7 @@ public:
 
     void Put(const TString& userName, const TError& error)
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         {
             TWriterGuard guard(Lock_);
             Map_.emplace(userName, std::make_pair(error, now + ExpireTime_));
@@ -108,11 +109,11 @@ public:
     }
 
 private:
-    const NProfiling::TCpuDuration ExpireTime_;
+    const TCpuDuration ExpireTime_;
 
     TReaderWriterSpinLock Lock_;
     //! Maps user name to (error, deadline) pairs.
-    THashMap<TString, std::pair<TError, NProfiling::TCpuInstant>> Map_;
+    THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -573,8 +574,8 @@ private:
 
     void GuardedRunSlow()
     {
-        auto batchStartTime = NProfiling::GetCpuInstant();
-        auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+        auto batchStartTime = GetCpuInstant();
+        auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         Owner_->ValidateClusterInitialized();
 
@@ -587,7 +588,7 @@ private:
                 break;
             }
 
-            if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
+            if (GetCpuInstant() > batchDeadlineTime) {
                 YT_LOG_DEBUG("Yielding automaton thread");
                 Reschedule();
                 break;
@@ -660,7 +661,7 @@ private:
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(WriteRequestCounter);
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
 
         subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
         subrequest->AsyncCommitResult.Subscribe(
@@ -670,13 +671,13 @@ private:
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(ReadRequestCounter);
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
         TAuthenticatedUserGuard userGuard(SecurityManager_, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
-        NProfiling::TWallTimer timer;
+        TWallTimer timer;
 
         const auto& context = subrequest->Context;
 
@@ -910,8 +911,8 @@ void TObjectService::EnqueueProcessSessionsCallback()
 
 void TObjectService::ProcessSessions()
 {
-    auto startTime = NProfiling::GetCpuInstant();
-    auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
+    auto startTime = GetCpuInstant();
+    auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
 
@@ -934,7 +935,7 @@ void TObjectService::ProcessSessions()
         bucket->Sessions.push(std::move(session));
     });
 
-    while (!BucketHeap_.empty() && NProfiling::GetCpuInstant() < deadlineTime) {
+    while (!BucketHeap_.empty() && GetCpuInstant() < deadlineTime) {
         auto* bucket = BucketHeap_.front();
         YT_ASSERT(bucket->InHeap);
 

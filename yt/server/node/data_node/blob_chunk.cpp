@@ -21,7 +21,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NDataNode {
 
@@ -31,6 +31,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NProfiling;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
