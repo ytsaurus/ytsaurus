@@ -62,8 +62,6 @@ private:
 
     DB::Block readImpl() override
     {
-        YT_LOG_DEBUG("readImpl() is called");
-
         auto block = HeaderBlock_.cloneEmpty();
 
         // TODO(max42): consult with psushin@ about contract here.
@@ -75,15 +73,17 @@ private:
             if (!Reader_->Read(&rows)) {
                 return {};
             } else if (rows.empty()) {
-                YT_LOG_DEBUG("Waiting for ready event");
+                NProfiling::TWallTimer wallTime;
                 WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
-                YT_LOG_DEBUG("Ready event happened");
+                auto elapsed = wallTime.GetElapsedTime();
+                if (elapsed > TDuration::Seconds(1)) {
+                    YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+                }
             } else {
                 break;
             }
         }
-        YT_LOG_DEBUG("Rows are ready");
 
         for (const auto& row : rows) {
             for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
@@ -115,8 +115,6 @@ private:
                 }
             }
         }
-
-        YT_LOG_DEBUG("Block is ready");
 
         return block;
     }
@@ -183,9 +181,12 @@ public:
 
     virtual DB::Block readImpl() override
     {
-        YT_LOG_DEBUG("Started reading from the underlying stream");
+        NProfiling::TWallTimer wallTimer;
         auto result = UnderlyingStream_->read();
-        YT_LOG_DEBUG("Finished reading from the underlying stream");
+        auto elapsed = wallTimer.GetElapsedTime();
+        if (elapsed > TDuration::Seconds(1)) {
+            YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+        }
         return result;
     }
 
