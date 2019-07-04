@@ -186,8 +186,11 @@ public:
 
             YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
 
-            streams.emplace_back(CreateBlockInputStream(std::move(reader), readSchema, TLogger(Logger)
-                .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
+            streams.emplace_back(CreateBlockInputStream(
+                std::move(reader), 
+                readSchema, 
+                TLogger(Logger)
+                    .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }
 
         return streams;
