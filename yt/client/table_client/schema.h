@@ -107,6 +107,8 @@ public:
     i64 GetMemoryUsage() const;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec);
+
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
 
@@ -223,6 +225,8 @@ public:
 private:
     int KeyColumnCount_ = 0;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);
 
 TString ToString(const TTableSchema& schema);
 
