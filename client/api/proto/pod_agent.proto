@@ -406,8 +406,7 @@ message TWorkload {
     // @see TDestroyPolicy
     TDestroyPolicy destroy_policy = 12;
 
-    // Передавать/не передавать логи в yt при помощи push client
-    // Описание: https://wiki.yandex-team.ru/users/aneporada/push-agent-config/
+    // Передавать логи stdout и stderr в YT
     bool transmit_logs = 13;
 }
 
