@@ -1,6 +1,8 @@
 #include "command.h"
 #include "config.h"
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/misc/error.h>
 
 #include <yt/core/ypath/tokenizer.h>

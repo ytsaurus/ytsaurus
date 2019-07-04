@@ -34,11 +34,14 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/wire_protocol.h>
 
+#include <yt/client/transaction_client/helpers.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/ypath/rich.h>
@@ -413,23 +416,31 @@ private:
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
         TTransactionId transactionId,
-        const TTransactionAttachOptions& options)
+        const TTransactionAttachOptions& options,
+        bool searchInPool = true,
+        bool attach = true)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return nullptr;
         }
 
-        auto transaction = options.Sticky
-            ? StickyTransactionPool_->GetTransactionAndRenewLease(transactionId)
-            : client->AttachTransaction(transactionId, options);
+        ITransactionPtr transaction;
+        if (searchInPool) {
+            transaction = StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
+        }
+        // Don't waste time trying to attach to tablet transactions.
+        if (!transaction && attach && IsMasterTransactionId(transactionId)) {
+            auto newOptions = options;
+            newOptions.Sticky = false;
+            transaction = client->AttachTransaction(transactionId, newOptions);
+        }
 
         if (!transaction) {
-            context->Reply(TError(
+            THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::NoSuchTransaction,
                 "No such transaction %v",
-                transactionId));
-            return nullptr;
+                transactionId);
         }
 
         return transaction;
@@ -568,20 +579,15 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = true;
         attachOptions.PingAncestors = true;
-        attachOptions.Sticky = request->sticky();
 
-        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
-            transactionId,
-            attachOptions.Sticky);
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             transactionId,
             attachOptions);
-        if (!transaction) {
-            return;
-        }
 
         // TODO(sandello): Options!
         TTransactionPingOptions pingOptions;
@@ -598,20 +604,15 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
-        attachOptions.Sticky = request->sticky();
 
-        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
-            transactionId,
-            attachOptions.Sticky);
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             transactionId,
             attachOptions);
-        if (!transaction) {
-            return;
-        }
 
         // TODO(sandello): Options!
         CompleteCallWith(
@@ -633,20 +634,15 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
-        attachOptions.Sticky = request->sticky();
 
-        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
-            transactionId,
-            attachOptions.Sticky);
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             transactionId,
             attachOptions);
-        if (!transaction) {
-            return;
-        }
 
         // TODO(sandello): Options!
         CompleteCallWith(
@@ -663,9 +659,6 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransactionAttachOptions options;
-        if (request->has_sticky()) {
-            options.Sticky = request->sticky();
-        }
         if (request->has_ping_period()) {
             options.PingPeriod = TDuration::FromValue(request->ping_period());
         }
@@ -676,18 +669,16 @@ private:
             options.PingAncestors = request->ping_ancestors();
         }
 
-        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
-            transactionId,
-            options.Sticky);
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             transactionId,
-            options);
-        if (!transaction) {
-            return;
-        }
+            options,
+            false /* searchInPool */,
+            true  /* attach */);
 
         response->set_type(static_cast<NApi::NRpcProxy::NProto::ETransactionType>(transaction->GetType()));
         response->set_start_timestamp(transaction->GetStartTimestamp());
@@ -2585,16 +2576,14 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
-        attachOptions.Sticky = true; // XXX(sandello): Fix me!
 
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
-            attachOptions);
-        if (!transaction) {
-            return;
-        }
+            attachOptions,
+            true, /* searchInPool */
+            false /* attach */);
 
         DoModifyRows(*request, request->Attachments(), transaction);
 
@@ -2611,15 +2600,13 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
-        attachOptions.Sticky = true; // XXX(sandello): Fix me!
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
-            attachOptions);
-        if (!transaction) {
-            return;
-        }
+            attachOptions,
+            true /* searchInPool */,
+            false /* attach */);
 
         i64 attachmentCount = request->Attachments().size();
         i64 expectedAttachmentCount = 0;

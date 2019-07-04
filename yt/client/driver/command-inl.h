@@ -8,6 +8,8 @@
 #include "private.h"
 #include "driver.h"
 
+#include <yt/client/transaction_client/helpers.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/convert.h>
@@ -62,15 +64,20 @@ NApi::ITransactionPtr TTransactionalCommandBase<
         return nullptr;
     }
 
-    if (this->Options.Sticky) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
-    } else {
+    if (!NTransactionClient::IsMasterTransactionId(transactionId)) {
+        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
+    }
+
+    auto transaction = context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+    if (!transaction) {
         NApi::TTransactionAttachOptions options;
         options.Ping = false;
         options.PingAncestors = this->Options.PingAncestors;
         options.Sticky = false;
-        return context->GetClient()->AttachTransaction(transactionId, options);
+        transaction = context->GetClient()->AttachTransaction(transactionId, options);
     }
+
+    return transaction;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +186,7 @@ NApi::IClientBasePtr TTabletReadCommandBase<
 {
     auto transactionId = this->Options.TransactionId;
     if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
     } else {
         return context->GetClient();
     }
@@ -207,7 +214,7 @@ NApi::ITransactionPtr TTabletWriteCommandBase<
 {
     auto transactionId = this->Options.TransactionId;
     if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
     } else {
         NApi::TTransactionStartOptions options;
         options.Atomicity = this->Options.Atomicity;
