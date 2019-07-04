@@ -54,8 +54,12 @@ class _ProgressReporter(object):
             self._monitor.update(len(chunk))
             yield chunk
 
+    def __del__(self):
+        self._monitor.finish()
+
 class _SimpleProgressBar(object):
-    def __init__(self, size_hint=None, filename_hint=None, enable=None):
+    def __init__(self, default_status, size_hint=None, filename_hint=None, enable=None):
+        self.default_status = default_status
         self.size_hint = size_hint
         self.filename_hint = filename_hint
         self.enable = enable
@@ -73,13 +77,14 @@ class _SimpleProgressBar(object):
         else:
             disable = not self.enable
         self._tqdm = CustomTqdm(disable=disable, total=self.size_hint, leave=False)
-        self._set_status("upload")
+        self._set_status(self.default_status)
         return self
 
     def finish(self, status="ok"):
-        self._set_status(status)
-        self._tqdm.close()
-        self._tqdm = None
+        if self._tqdm is not None:
+            self._set_status(status)
+            self._tqdm.close()
+            self._tqdm = None
 
     def update(self, size):
         self._tqdm.update(size)
@@ -174,7 +179,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
         enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
         if progress_monitor is None:
-            progress_monitor = _SimpleProgressBar(size_hint, filename_hint, enable_progress_bar)
+            progress_monitor = _SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:
             progress_reporter = _ProgressReporter(progress_monitor)
         else:
@@ -308,7 +313,8 @@ class ReadIterator(IteratorRetrier):
         self.response = None
         process_read_exception(exception)
 
-def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
+def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
+                      filename_hint=None):
     if not get_config(client)["read_retries"]["enable"]:
         response = _make_transactional_request(
             command_name,
@@ -331,10 +337,21 @@ def make_read_request(command_name, path, params, process_response_action, retri
             if tx:
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
+
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
+
+            enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
+            if enable_progress_bar:
+                bar = _SimpleProgressBar("download", filename_hint=filename_hint, enable=enable_progress_bar)
+                reporter = _ProgressReporter(bar)
+            else:
+                reporter = _FakeProgressReporter()
+
+            # NB: __exit__() is done in __del__()
+            reporter.__enter__()
             return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
-                iter_content=iterator,
+                iter_content=reporter.wrap_stream(iterator),
                 close=lambda: iterator.close(),
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
