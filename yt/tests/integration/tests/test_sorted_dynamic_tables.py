@@ -955,14 +955,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_table_with_aggregate_column("//tmp/t", aggregate="sum", atomicity="none")
         sync_mount_table("//tmp/t")
 
-        tx1 = start_transaction(type="tablet", sticky=True, atomicity="none")
-        tx2 = start_transaction(type="tablet", sticky=True, atomicity="none")
+        tx1 = start_transaction(type="tablet", atomicity="none")
+        tx2 = start_transaction(type="tablet", atomicity="none")
 
         insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True, atomicity="none", tx=tx1)
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True, atomicity="none", tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
 
@@ -1025,22 +1025,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         create_dynamic_table("//tmp/t", **attributes)
         sync_mount_table("//tmp/t")
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
         lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
 
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
-        tx3 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
         lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
@@ -1050,35 +1050,35 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3, lock_type="shared_weak")
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         with pytest.raises(YtError):
-            commit_transaction(tx3, sticky=True)
+            commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx2)
 
         with pytest.raises(YtError):
-            commit_transaction(tx1, sticky=True)
+            commit_transaction(tx1)
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx1)
 
         with pytest.raises(YtError):
-            commit_transaction(tx2, sticky=True)
+            commit_transaction(tx2)
 
 
     def test_reshard_data(self):

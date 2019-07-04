@@ -340,7 +340,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
                 [{"index": i % key_count, "str": str(i / key_count)}],
                 tx=tx)
 
-        commit_transaction(tx, sticky=True)
+        commit_transaction(tx)
 
         expected_result = [
             {"index": i,

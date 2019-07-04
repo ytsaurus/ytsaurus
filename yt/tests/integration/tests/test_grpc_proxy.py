@@ -228,7 +228,7 @@ class TestGrpcProxy(YTEnvSetup):
             data=rows,
             data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema))
 
-        self._commit_transaction(transaction_id=uuid_to_dict(tx), sticky=True)
+        self._commit_transaction(transaction_id=uuid_to_dict(tx))
 
         msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
         selected_rows = deserialize_rows_from_unversioned_wire_format(
