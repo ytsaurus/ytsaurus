@@ -179,7 +179,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         params,
         process_response_action=process_response,
         retriable_state_class=RetriableState,
-        client=client)
+        client=client,
+        filename_hint=str(path))
 
 def write_file(destination, stream,
                file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
