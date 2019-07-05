@@ -1,10 +1,9 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import (CustomTqdm, group_blobs_by_size, split_lines_by_max_size,
-                     stream_or_empty_bytes, YtError, MB)
-from .default_config import DEFAULT_WRITE_CHUNK_SIZE
+from .common import CustomTqdm, YtError, MB
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
 from .ypath import YPathSupportingAppend
+from .stream import ChunkStream
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
@@ -16,15 +15,6 @@ import yt.logger as logger
 
 import time
 import os
-
-def _split_stream_into_pieces(stream):
-    # NB: we first split every line in a stream into pieces <= 1 MB,
-    # then merge consequent lines into chunks >= 1 MB.
-    # This way, the resulting chunks' size is between 1 MB and 2 MB.
-    stream_split = split_lines_by_max_size(stream, MB)
-    stream_grouped = group_blobs_by_size(stream_split, MB)
-    for group in stream_grouped:
-        yield b"".join(group)
 
 class _FakeProgressReporter(object):
     def __init__(self, *args, **kwargs):
@@ -149,15 +139,10 @@ class WriteRequestRetrier(Retrier):
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, size_hint=None, filename_hint=None,
                        progress_monitor=None, client=None):
-    # NB: if stream is empty, we still want to make an empty write, e.g. for `write_table(name, [])`.
-    # So, if stream is empty, we explicitly make it b"".
-    stream = stream_or_empty_bytes(stream)
-
-    # NB: split stream into 1-2 MB pieces so that we can safely send them separately
+    # NB: split stream into 2 MB pieces so that we can safely send them separately
     # without a risk of triggering timeout.
-    chunk_size = get_config(client)["write_retries"]["chunk_size"]
-    if chunk_size is None:
-        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+    assert isinstance(stream, ChunkStream)
+    stream = stream.split_chunks(2 * MB)
 
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
@@ -198,18 +183,13 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
                                              write_action=write_action,
                                              client=client)
-                for chunk in group_blobs_by_size(stream, chunk_size):
+                for chunk in stream:
                     assert isinstance(chunk, list)
                     logger.debug(
                         "Processing {0} chunk (length: {1}, transaction: {2})"
                         .format(command_name, sum(len(part) for part in chunk), get_command_param("transaction_id", client)))
 
-                    if chunk_size > 2 * MB:
-                        resplit_chunk = _split_stream_into_pieces(chunk)
-                    else:
-                        resplit_chunk = chunk
-
-                    runner.run_write_action(resplit_chunk, params)
+                    runner.run_write_action(chunk, params)
                     params["path"].append = True
                     # NOTE: If previous chunk was successfully written then
                     # no need in additional attributes here, it is already
@@ -218,12 +198,10 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if attr in params["path"].attributes:
                             del params["path"].attributes[attr]
             else:
-                if chunk_size > 2 * MB:
-                    stream = _split_stream_into_pieces(stream)
                 _make_transactional_request(
                     command_name,
                     params,
-                    data=progress_reporter.wrap_stream(stream),
+                    data=progress_reporter.wrap_stream(stream.flatten()),
                     is_data_compressed=is_stream_compressed,
                     use_heavy_proxy=True,
                     client=client)

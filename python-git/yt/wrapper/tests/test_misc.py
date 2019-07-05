@@ -10,6 +10,7 @@ from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.http_helpers import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
+from yt.wrapper.stream import ChunkStream
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -759,3 +760,20 @@ class TestGenerateTimestamp(object):
     def test_generate_timestamp(self):
         ts = yt.generate_timestamp()
         assert ts >= 0
+
+class TestStream(object):
+    def test_empty_stream(self):
+        for allow_resplit in (True, False):
+            stream = ChunkStream([], chunk_size=512, allow_resplit=allow_resplit)
+            assert list(stream) == [b""]
+
+    def test_no_resplit(self):
+        lines = ["".join(random.choice(string.digits) for _ in xrange(random.randrange(1, 10))) + "\n"
+                 for _ in xrange(100)]
+        if PY3:
+            lines = [line.encode("ascii") for line in lines]
+        make_stream = lambda: ChunkStream(lines, chunk_size=5, allow_resplit=False)
+        assert [line + b"\n" for chunk in make_stream() for line in chunk.split(b"\n") if line] == lines
+        for pieces in make_stream().split_chunks(2):
+            chunk = b"".join(pieces)
+            assert chunk[-1:] == b"\n"

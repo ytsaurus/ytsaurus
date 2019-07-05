@@ -9,6 +9,8 @@ from yt.test_helpers.job_events import JobEvents
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
+from yt.wrapper.errors import YtRetriableError
+import yt.wrapper.heavy_commands as heavy_commands
 import yt.wrapper as yt
 
 try:
@@ -236,3 +238,25 @@ def create_job_events():
     os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     return JobEvents(tmpdir)
 
+@contextmanager
+def failing_heavy_request(n_fails, assert_exhausted=True):
+    make_transactional_request = heavy_commands._make_transactional_request
+    fail_state = dict(fails_left=n_fails, exhausted=False)
+
+    def failing_make_transactional_request(*args, **kwargs):
+        if fail_state["fails_left"] > 0:
+            list(kwargs["data"])  # exhaust data generator
+            fail_state["fails_left"] -= 1
+            raise YtRetriableError
+        else:
+            fail_state["exhausted"] = True
+            return make_transactional_request(*args, **kwargs)
+
+    heavy_commands._make_transactional_request = failing_make_transactional_request
+    try:
+        yield
+    finally:
+        heavy_commands._make_transactional_request = make_transactional_request
+
+    if assert_exhausted:
+        assert fail_state["exhausted"]
