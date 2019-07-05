@@ -1038,8 +1038,16 @@ private:
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
-        for (int index = 0; index < MaximumTmpfsSizes_.size(); ++index) {
-            statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/max_size", index), MaximumTmpfsSizes_[index]);
+        auto tmpfsSizes = GetTmpfsSizes();
+        if (tmpfsSizes) {
+            YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
+            for (int index = 0; index < MaximumTmpfsSizes_.size(); ++index) {
+                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/max_size", index), MaximumTmpfsSizes_[index]);
+                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/size", index), (*tmpfsSizes)[index]);
+            }
+
+            statistics.AddSample("/user_job/tmpfs_size", std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll));
+            statistics.AddSample("/user_job/max_tmpfs_size", std::accumulate(MaximumTmpfsSizes_.begin(), MaximumTmpfsSizes_.end(), 0ll));
         }
 
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
@@ -1274,7 +1282,7 @@ private:
         return rss;
     }
 
-    std::vector<i64> GetTmpfsSizes() const
+    std::optional<std::vector<i64>> GetTmpfsSizes() const
     {
         std::vector<i64> tmpfsSizes;
         tmpfsSizes.reserve(Config_->TmpfsPaths.size());
@@ -1288,6 +1296,7 @@ private:
                     "Failed to get tmpfs size") << ex;
                 JobErrorPromise_.TrySet(error);
                 CleanupUserProcesses();
+                return std::nullopt;
             }
         }
         return tmpfsSizes;
@@ -1321,8 +1330,11 @@ private:
 
         auto rss = getMemoryUsage();
         auto tmpfsSizes = GetTmpfsSizes();
+        if (!tmpfsSizes) {
+            return;
+        }
         i64 memoryLimit = UserJobSpec_.memory_limit();
-        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll);
+        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll);
 
         CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
@@ -1336,15 +1348,15 @@ private:
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
-                << TErrorAttribute("tmpfs", tmpfsSizes)
+                << TErrorAttribute("tmpfs", *tmpfsSizes)
                 << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
         }
 
-        YT_VERIFY(tmpfsSizes.size() == MaximumTmpfsSizes_.size());
-        for (int index = 0; index < tmpfsSizes.size(); ++index) {
-            MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), tmpfsSizes[index]);
+        YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
+        for (int index = 0; index < tmpfsSizes->size(); ++index) {
+            MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), (*tmpfsSizes)[index]);
         }
 
         Host_->SetUserJobMemoryUsage(currentMemoryUsage);
