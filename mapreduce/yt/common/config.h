@@ -123,7 +123,6 @@ struct TConfig
     void LoadToken();
     void LoadSpec();
     void LoadTimings();
-    TJobBinaryConfig GetJobBinary() const;
 
     TConfig();
 

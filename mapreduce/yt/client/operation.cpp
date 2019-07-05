@@ -379,7 +379,7 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        auto jobBinary = TConfig::Get()->GetJobBinary();
+        auto jobBinary = TJobBinaryConfig();
         if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
             jobBinary = Spec_.GetJobBinary();
         }
