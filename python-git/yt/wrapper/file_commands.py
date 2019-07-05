@@ -14,6 +14,7 @@ from .retries import Retrier, default_chaos_monkey
 from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
+from .stream import ChunkStream
 
 from yt.common import to_native_str
 from yt.yson.parser import YsonParser
@@ -248,6 +249,8 @@ def write_file(destination, stream,
             stream = [stream]
         else:
             stream = chunk_iter_string(stream, chunk_size)
+
+    stream = ChunkStream(stream, chunk_size, allow_resplit=True)
 
     if size_hint is not None and size_hint <= 16 * MB and file_writer is None:
         file_writer = {

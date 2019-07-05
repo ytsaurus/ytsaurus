@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from .helpers import TEST_DIR, set_config_option, set_config_options
+from .helpers import TEST_DIR, set_config_option, set_config_options, failing_heavy_request
 
+from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
 from yt.packages.six import PY3
 
@@ -137,3 +138,31 @@ class TestFileCommands(object):
                                 params={"path": file_path}, headers={"If-None-Match": str(revision)})
         assert response.status_code == 304
 
+    def test_write_file_retries(self):
+        chunks = [b"abc", b"def", b"xyz"]
+        chunks_generator = (chunk for chunk in chunks)
+
+        file_path = TEST_DIR + "/file"
+        with failing_heavy_request(n_fails=2, assert_exhausted=True):
+            yt.write_file(file_path, chunks_generator)
+
+        assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
+
+    def test_write_big_file_retries(self):
+        with set_config_option("write_retries/chunk_size", 3 * MB):
+            with set_config_option("proxy/content_encoding", "identity"):
+                string_length = 4 * MB
+                chunks = [
+                    b"1" * string_length,
+                    b"2" * string_length,
+                    b"3" * string_length,
+                    b"4" * string_length,
+                    b"5" * string_length,
+                ]
+                chunks_generator = (chunk for chunk in chunks)
+
+                file_path = TEST_DIR + "/file"
+                with failing_heavy_request(n_fails=2, assert_exhausted=True):
+                    yt.write_file(file_path, chunks_generator)
+
+                assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
