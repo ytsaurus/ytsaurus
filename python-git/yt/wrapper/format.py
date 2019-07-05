@@ -1129,6 +1129,10 @@ class SchemafulDsvFormat(Format):
         attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes, raw, encoding)
+
+        if "columns" not in self.attributes:
+            raise YtError('Attribute "columns" is required for scheduler_dsv format')
+
         if self.enable_table_index:
             self._columns = [self.attributes["table_index_column"]] + self.columns
         else:
