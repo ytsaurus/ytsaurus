@@ -42,6 +42,14 @@ struct TQueryPreparerBufferTag
 
 namespace {
 
+void CheckStackDepth()
+{
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
     std::vector<TString>* functions);
@@ -80,6 +88,8 @@ void ExtractFunctionNames(
     if (!exprs) {
         return;
     }
+
+    CheckStackDepth();
 
     for (const auto& expr : *exprs) {
         ExtractFunctionNames(expr, functions);
@@ -1210,10 +1220,7 @@ struct TTypedExpressionBuilder
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema) const
     {
-        auto* scheduler = TryGetCurrentScheduler();
-        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
-            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
-        }
+        CheckStackDepth();
 
         ++Depth;
         auto depthGuard = Finally([&] {
