@@ -194,16 +194,6 @@ TConfig::TConfig()
     TraceHttpRequestsMode = FromString<ETraceHttpRequestsMode>(to_lower(GetEnv("YT_TRACE_HTTP_REQUESTS", "never")));
 }
 
-TJobBinaryConfig TConfig::GetJobBinary() const
-{
-    auto jobBinary = GetEnv("YT_JOB_BINARY");
-    if (!jobBinary.empty()) {
-        return TJobBinaryLocalPath{jobBinary, Nothing()};
-    } else {
-        return TJobBinaryConfig();
-    }
-}
-
 TConfig* TConfig::Get()
 {
     return Singleton<TConfig>();
