@@ -190,6 +190,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         .format(command_name, sum(len(part) for part in chunk), get_command_param("transaction_id", client)))
 
                     runner.run_write_action(chunk, params)
+
                     params["path"].append = True
                     # NOTE: If previous chunk was successfully written then
                     # no need in additional attributes here, it is already
