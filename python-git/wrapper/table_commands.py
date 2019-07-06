@@ -339,7 +339,8 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
         params,
         process_response_action=process_response,
         retriable_state_class=RetriableState,
-        client=client)
+        client=client,
+        filename_hint=str(table))
 
     return response
 
@@ -644,7 +645,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         params,
         process_response_action=process_response,
         retriable_state_class=RetriableState,
-        client=client)
+        client=client,
+        filename_hint=str(table))
 
     if raw:
         return response

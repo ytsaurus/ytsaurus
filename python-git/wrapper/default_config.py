@@ -538,9 +538,16 @@ default_config = {
 
     "enable_logging_for_params_changes": False,
 
-    # Progress bar settings.
     "write_progress_bar": {
         "enable": None,
+    },
+
+    # NB: read_progress_bar actually shows not how much data is downloaded, but how much data
+    # user code has read.
+    # WARNING: progress-bar is destroyed when input stream is deallocated. If you keep holding
+    # the reference, progress-bar will NOT be destroyed. This is why it is disabled by default.
+    "read_progress_bar": {
+        "enable": False,  # enabled in cli
     },
 
     "allow_fallback_to_native_driver": True,

@@ -1,10 +1,9 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import (CustomTqdm, group_blobs_by_size, split_lines_by_max_size,
-                     stream_or_empty_bytes, YtError, MB)
-from .default_config import DEFAULT_WRITE_CHUNK_SIZE
+from .common import CustomTqdm, YtError, MB
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
 from .ypath import YPathSupportingAppend
+from .stream import ChunkStream
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
@@ -16,15 +15,6 @@ import yt.logger as logger
 
 import time
 import os
-
-def _split_stream_into_pieces(stream):
-    # NB: we first split every line in a stream into pieces <= 1 MB,
-    # then merge consequent lines into chunks >= 1 MB.
-    # This way, the resulting chunks' size is between 1 MB and 2 MB.
-    stream_split = split_lines_by_max_size(stream, MB)
-    stream_grouped = group_blobs_by_size(stream_split, MB)
-    for group in stream_grouped:
-        yield b"".join(group)
 
 class _FakeProgressReporter(object):
     def __init__(self, *args, **kwargs):
@@ -54,8 +44,12 @@ class _ProgressReporter(object):
             self._monitor.update(len(chunk))
             yield chunk
 
+    def __del__(self):
+        self._monitor.finish()
+
 class _SimpleProgressBar(object):
-    def __init__(self, size_hint=None, filename_hint=None, enable=None):
+    def __init__(self, default_status, size_hint=None, filename_hint=None, enable=None):
+        self.default_status = default_status
         self.size_hint = size_hint
         self.filename_hint = filename_hint
         self.enable = enable
@@ -73,13 +67,14 @@ class _SimpleProgressBar(object):
         else:
             disable = not self.enable
         self._tqdm = CustomTqdm(disable=disable, total=self.size_hint, leave=False)
-        self._set_status("upload")
+        self._set_status(self.default_status)
         return self
 
     def finish(self, status="ok"):
-        self._set_status(status)
-        self._tqdm.close()
-        self._tqdm = None
+        if self._tqdm is not None:
+            self._set_status(status)
+            self._tqdm.close()
+            self._tqdm = None
 
     def update(self, size):
         self._tqdm.update(size)
@@ -144,15 +139,10 @@ class WriteRequestRetrier(Retrier):
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, size_hint=None, filename_hint=None,
                        progress_monitor=None, client=None):
-    # NB: if stream is empty, we still want to make an empty write, e.g. for `write_table(name, [])`.
-    # So, if stream is empty, we explicitly make it b"".
-    stream = stream_or_empty_bytes(stream)
-
-    # NB: split stream into 1-2 MB pieces so that we can safely send them separately
+    # NB: split stream into 2 MB pieces so that we can safely send them separately
     # without a risk of triggering timeout.
-    chunk_size = get_config(client)["write_retries"]["chunk_size"]
-    if chunk_size is None:
-        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+    assert isinstance(stream, ChunkStream)
+    stream = stream.split_chunks(2 * MB)
 
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
@@ -174,7 +164,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
         enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
         if progress_monitor is None:
-            progress_monitor = _SimpleProgressBar(size_hint, filename_hint, enable_progress_bar)
+            progress_monitor = _SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:
             progress_reporter = _ProgressReporter(progress_monitor)
         else:
@@ -193,18 +183,14 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
                                              write_action=write_action,
                                              client=client)
-                for chunk in group_blobs_by_size(stream, chunk_size):
+                for chunk in stream:
                     assert isinstance(chunk, list)
                     logger.debug(
                         "Processing {0} chunk (length: {1}, transaction: {2})"
                         .format(command_name, sum(len(part) for part in chunk), get_command_param("transaction_id", client)))
 
-                    if chunk_size > 2 * MB:
-                        resplit_chunk = list(_split_stream_into_pieces(chunk))
-                    else:
-                        resplit_chunk = chunk
+                    runner.run_write_action(chunk, params)
 
-                    runner.run_write_action(resplit_chunk, params)
                     params["path"].append = True
                     # NOTE: If previous chunk was successfully written then
                     # no need in additional attributes here, it is already
@@ -213,12 +199,10 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if attr in params["path"].attributes:
                             del params["path"].attributes[attr]
             else:
-                if chunk_size > 2 * MB:
-                    stream = _split_stream_into_pieces(stream)
                 _make_transactional_request(
                     command_name,
                     params,
-                    data=progress_reporter.wrap_stream(stream),
+                    data=progress_reporter.wrap_stream(stream.flatten()),
                     is_data_compressed=is_stream_compressed,
                     use_heavy_proxy=True,
                     client=client)
@@ -308,7 +292,8 @@ class ReadIterator(IteratorRetrier):
         self.response = None
         process_read_exception(exception)
 
-def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
+def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
+                      filename_hint=None):
     if not get_config(client)["read_retries"]["enable"]:
         response = _make_transactional_request(
             command_name,
@@ -331,10 +316,21 @@ def make_read_request(command_name, path, params, process_response_action, retri
             if tx:
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
+
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
+
+            enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
+            if enable_progress_bar:
+                bar = _SimpleProgressBar("download", filename_hint=filename_hint, enable=enable_progress_bar)
+                reporter = _ProgressReporter(bar)
+            else:
+                reporter = _FakeProgressReporter()
+
+            # NB: __exit__() is done in __del__()
+            reporter.__enter__()
             return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
-                iter_content=iterator,
+                iter_content=reporter.wrap_stream(iterator),
                 close=lambda: iterator.close(),
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
