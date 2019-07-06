@@ -123,13 +123,15 @@ def create_pod_with_boilerplate(yp_client, pod_set_id, spec=None, pod_id=None, t
 
 def create_nodes(
         yp_client,
-        node_count,
+        node_count=None,
         rack_count=1,
         hfsm_state="up",
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
         disk_spec=None,
-        vlan_id="backbone"):
+        vlan_id="backbone",
+        subnet="1:2:3:4::/64",
+        node_ids=None):
     disk_spec_defaults = dict(
         total_capacity=10 ** 11,
         total_volume_slots=10,
@@ -138,12 +140,22 @@ def create_nodes(
     )
     disk_spec = update(disk_spec_defaults, get_value(disk_spec, {}))
 
-    node_ids = []
+    assert (node_count is None) != (node_ids is None)
+    if node_ids is None:
+        node_ids = []
+    else:
+        node_count = len(node_ids)
+    assert (node_count is not None) and (node_ids is not None)
+
     for i in xrange(node_count):
+        node_meta = dict()
+        if i < len(node_ids):
+            node_meta["id"] = node_ids[i]
         node_id = yp_client.create_object("node", attributes={
+                "meta": node_meta,
                 "spec": {
                     "ip6_subnets": [
-                        {"vlan_id": vlan_id, "subnet": "1:2:3:4::/64"}
+                        {"vlan_id": vlan_id, "subnet": subnet}
                     ]
                 },
                 "labels" : {
@@ -155,7 +167,8 @@ def create_nodes(
                 }
             })
         yp_client.update_hfsm_state(node_id, hfsm_state, "Test")
-        node_ids.append(node_id)
+        if i >= len(node_ids):
+            node_ids.append(node_id)
         yp_client.create_object("resource", attributes={
                 "meta": {
                     "node_id": node_id
@@ -235,8 +248,20 @@ def _insert_environ_path(path):
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 
-def prepare_yp_test_sandbox():
+def prepare_test_sandbox(sandbox_name):
     test_sandbox_base_path = TESTS_SANDBOX
+    if yatest_common is not None:
+        ram_drive_path = yatest_common.get_param("ram_drive_path")
+        if ram_drive_path is None:
+            test_sandbox_base_path = yatest_common.output_path()
+        else:
+            test_sandbox_base_path = ram_drive_path
+    test_sandbox_path = os.path.join(test_sandbox_base_path, sandbox_name + "_" + generate_uuid())
+    os.makedirs(test_sandbox_path)
+    return test_sandbox_path
+
+
+def prepare_yp_test_sandbox():
     if yatest_common is not None:
         destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
         os.makedirs(destination)
@@ -247,15 +272,8 @@ def prepare_yp_test_sandbox():
         os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
 
         _insert_environ_path(path)
+    return prepare_test_sandbox("yp")
 
-        ram_drive_path = yatest_common.get_param("ram_drive_path")
-        if ram_drive_path is None:
-            test_sandbox_base_path = yatest_common.output_path()
-        else:
-            test_sandbox_base_path = ram_drive_path
-    test_sandbox_path = os.path.join(test_sandbox_base_path, "yp_" + generate_uuid())
-    os.makedirs(test_sandbox_path)
-    return test_sandbox_path
 
 def yatest_save_sandbox(sandbox_path):
     if yatest_common is not None:
