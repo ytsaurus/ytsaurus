@@ -1312,7 +1312,8 @@ def main():
                                                "by default YT_PROXY from environment")
     config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
                                                 "by default YT_PREFIX from environment")
-    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
+    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration",
+                               default={})
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
     config_parser.add_argument("--master-cell-id", help="perform command in master specified by this id; "
@@ -1472,6 +1473,12 @@ def main():
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
     yt.config.COMMAND_PARAMS["trace"] = config_args.trace
+
+    if "read_progress_bar" not in config_args.config:
+        config_args.config["read_progress_bar"] = {}
+    if "enable" not in config_args.config["read_progress_bar"]:
+        config_args.config["read_progress_bar"]["enable"] = True
+
     yt.config.update_config(config_args.config)
 
     yt.config["default_value_of_raw_option"] = True

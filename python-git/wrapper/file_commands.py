@@ -14,6 +14,7 @@ from .retries import Retrier, default_chaos_monkey
 from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
+from .stream import ChunkStream
 
 from yt.common import to_native_str
 from yt.yson.parser import YsonParser
@@ -179,7 +180,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         params,
         process_response_action=process_response,
         retriable_state_class=RetriableState,
-        client=client)
+        client=client,
+        filename_hint=str(path))
 
 def write_file(destination, stream,
                file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
@@ -247,6 +249,8 @@ def write_file(destination, stream,
             stream = [stream]
         else:
             stream = chunk_iter_string(stream, chunk_size)
+
+    stream = ChunkStream(stream, chunk_size, allow_resplit=True)
 
     if size_hint is not None and size_hint <= 16 * MB and file_writer is None:
         file_writer = {

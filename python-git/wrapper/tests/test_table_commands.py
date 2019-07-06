@@ -1,10 +1,12 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options, wait
+from .helpers import (TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options,
+                      wait, failing_heavy_request)
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
+from yt.wrapper.common import MB
 
 from yt.yson import YsonMap
 
@@ -17,7 +19,6 @@ import yt.wrapper as yt
 import os
 import pytest
 import tempfile
-import shutil
 import time
 import uuid
 import gzip
@@ -457,7 +458,7 @@ class TestTableCommands(object):
                 yield b'{"abc": "123"}\n' * 100000
                 yield b'{a:b}\n'
                 yield b'{"dfg": "456"}\n' * 10000000
-            
+
             try:
                 yt.write_table(table, gen_table(), raw=True, format=yt.JsonFormat())
             except yt.YtResponseError as err:
@@ -689,3 +690,59 @@ class TestTableCommands(object):
         assert res
         assert res[0].get("column_data_weights", {}).get("timestamp", 0) > 0
 
+    def test_unaligned_write(self):
+        with set_config_option("write_retries/chunk_size", 3 * MB):
+            with set_config_option("proxy/content_encoding", "identity"):
+                string_length = 4 * MB
+                rows = [
+                    {"x": "1" * string_length},
+                    {"x": "2" * string_length},
+                    {"x": "3" * string_length},
+                    {"x": "4" * string_length},
+                    {"x": "5" * string_length},
+                ]
+
+                table_path = TEST_DIR + "/table"
+                yt.create("table", table_path)
+                yt.write_table(table_path, rows)
+
+                check(rows, yt.read_table(table_path))
+
+    def test_write_table_retries(self):
+        rows = [
+            {"x": "1"},
+            {"x": "2"},
+            {"x": "4"},
+            {"x": "8"},
+        ]
+        rows_generator = (row for row in rows)
+
+        table_path = TEST_DIR + "/table"
+        yt.create("table", table_path)
+
+        with failing_heavy_request(n_fails=2, assert_exhausted=True):
+            yt.write_table(table_path, rows_generator)
+
+        check(rows, yt.read_table(table_path))
+
+    def test_write_big_table_retries(self):
+        with set_config_option("write_retries/chunk_size", 3 * MB):
+            with set_config_option("proxy/content_encoding", "identity"):
+                string_length = 4 * MB
+                rows = [
+                    {"x": "1" * string_length},
+                    {"x": "2" * string_length},
+                    {"x": "3" * string_length},
+                    {"x": "4" * string_length},
+                    {"x": "5" * string_length},
+                ]
+
+                rows_generator = (row for row in rows)
+
+                table_path = TEST_DIR + "/table"
+                yt.create("table", table_path)
+
+                with failing_heavy_request(n_fails=2, assert_exhausted=True):
+                    yt.write_table(table_path, rows_generator)
+
+                check(rows, yt.read_table(table_path))

@@ -1,8 +1,8 @@
 from . import py_wrapper
 
 from .batch_helpers import batch_apply, create_batch_client
-from .common import (NullContext, CustomTqdm, flatten, update, get_value, chunk_iter_stream,
-                     require, get_disk_size)
+from .common import (NullContext, CustomTqdm, update, get_value, chunk_iter_stream,
+                     require, get_disk_size, is_of_iterable_type, flatten)
 from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
@@ -12,6 +12,7 @@ from .transaction_commands import abort_transaction
 from .file_commands import upload_file_to_cache, is_executable, LocalFile
 from .transaction import Transaction, null_transaction_id
 from .skiff import convert_to_skiff_schema
+from .stream import ChunkStream
 
 import yt.logger as logger
 import yt.yson as yson
@@ -29,10 +30,6 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
-try:
-    from collections import Iterable, Iterator
-except ImportError:
-    from collections.abc import Iterable, Iterator
 import itertools
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
@@ -51,9 +48,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
                 raise YtError("Cannot split unicode string into chunks, consider encoding it first")
         stream = BytesIO(stream)
 
-    iterable_types = [list, types.GeneratorType, Iterator, Iterable]
-
-    is_iterable = isinstance(stream, tuple(iterable_types))
+    is_iterable = is_of_iterable_type(stream)
     is_filelike = hasattr(stream, "read")
 
     if not is_iterable and not is_filelike:
@@ -66,19 +61,15 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
                 stream = format.load_rows(stream, raw=True)
             else:
                 stream = chunk_iter_stream(stream, chunk_size)
-        for chunk in stream:
-            yield chunk
     else:
         if is_filelike:
             raise YtError("Incorrect input type, it must be generator or list")
         # is_iterable
         if split_rows:
-            for row in stream:
-                yield format.dumps_row(row)
+            stream = (format.dumps_row(row) for row in stream)
         else:
-            for chunk in iter_by_chunks(stream, rows_chunk_size):
-                yield format.dumps_rows(chunk)
-
+            stream = (format.dumps_rows(chunk) for chunk in iter_by_chunks(stream, rows_chunk_size))
+    return ChunkStream(stream, chunk_size, allow_resplit=False)
 
 def _prepare_command_format(format, raw, client):
     if format is None:
@@ -163,7 +154,7 @@ class _MultipleFilesProgressBar(object):
         if self.enable is None:
             disable = None
         else:
-            disable = not enable
+            disable = not self.enable
         self._tqdm = CustomTqdm(disable=disable, bar_format=bar_format, total=self.total_size)
         self._tqdm.set_description("Starting upload")
         return self
@@ -375,4 +366,3 @@ def _prepare_stderr_table(name, client=None):
     with Transaction(transaction_id=null_transaction_id, client=client):
         _create_table(table, ignore_existing=True, client=client)
     return table
-

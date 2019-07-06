@@ -4,8 +4,13 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues, PY3
+from yt.packages.six import iteritems, itervalues, PY3, Iterator
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
+
+try:
+    from collections import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 import argparse
 import collections
@@ -16,6 +21,7 @@ import random
 import socket
 import sys
 import threading
+import types
 try:
     from yt.packages.distro import linux_distribution
 except ImportError:
@@ -138,22 +144,6 @@ def group_blobs_by_size(lines, chunk_size):
 
     if chunk:
         yield chunk
-
-def split_lines_by_max_size(lines, max_size):
-    for line in lines:
-        if len(line) <= max_size:
-            yield line
-        else:
-            for start_index in xrange(0, len(line), max_size):
-                yield line[start_index : start_index+max_size]
-
-def stream_or_empty_bytes(stream):
-    has_some = False
-    for line in stream:
-        has_some = True
-        yield line
-    if not has_some:
-        yield b""
 
 def chunk_iter_list(lines, chunk_size):
     size = 0
@@ -450,7 +440,7 @@ def simplify_structure(obj):
 
     return obj
 
-class NullContext:
+class NullContext(object):
     def __enter__(self):
         pass
 
@@ -463,3 +453,7 @@ def format_disk_space(num, suffix="B"):
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, "Yi", suffix)
+
+def is_of_iterable_type(obj):
+    iterable_types = (list, types.GeneratorType, Iterator, Iterable)
+    return isinstance(obj, iterable_types)
