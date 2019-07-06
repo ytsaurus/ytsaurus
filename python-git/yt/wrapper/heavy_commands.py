@@ -200,7 +200,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         .format(command_name, sum(len(part) for part in chunk), get_command_param("transaction_id", client)))
 
                     if chunk_size > 2 * MB:
-                        resplit_chunk = _split_stream_into_pieces(chunk)
+                        resplit_chunk = list(_split_stream_into_pieces(chunk))
                     else:
                         resplit_chunk = chunk
 

@@ -397,9 +397,12 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
         if not tasks:
             return
 
-        # To push data by strictly by fixed portions we are necessary to add this condition.
+        # To push data strictly by fixed portions we are necessary to add this condition.
         # More details in ticket YTADMINREQ-17212.
         if strict_check and pushed_row_count != session_count * range_row_count * max_range_count:
+            logger.info("Push skipped (pushed_row_count: %d, expected_row_count: %d)",
+                pushed_row_count,
+                session_count * range_row_count * max_range_count)
             return
 
         if session_count == 1:
