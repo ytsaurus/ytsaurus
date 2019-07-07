@@ -4,7 +4,8 @@ from .conftest import (
     create_nodes,
     create_pod_with_boilerplate,
     prepare_test_sandbox,
-    test_method_setup as _test_method_setup, # Make sure these methods do not start with "test" prefix.
+    # Make sure these methods do not start with "test" prefix.
+    test_method_setup as _test_method_setup,
     test_method_teardown as _test_method_teardown,
     wait,
 )
