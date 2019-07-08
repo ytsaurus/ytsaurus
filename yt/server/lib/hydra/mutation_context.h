@@ -30,6 +30,12 @@ struct TMutationRequest
     bool Retry = false;
 };
 
+DEFINE_ENUM(EMutationResponseOrigin,
+    (Commit)
+    (LeaderForwarding)
+    (ResponseKeeper)
+);
+
 struct TMutationResponse
 {
     TMutationResponse() = default;
@@ -39,6 +45,7 @@ struct TMutationResponse
     TMutationResponse& operator = (const TMutationResponse& other) = default;
     TMutationResponse& operator = (TMutationResponse&& other) = default;
 
+    EMutationResponseOrigin Origin = EMutationResponseOrigin::Commit;
     TSharedRefArray Data;
 };
 
