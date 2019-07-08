@@ -51,19 +51,6 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding->data(), "strict"), true);
     } else {
-#if PY_MAJOR_VERSION >= 3
-        if (encoding) {
-            throw CreateYsonError(
-                Format(
-                    "Bytes object %s cannot be encoded to %s. "
-                    "Only unicode strings are expected if 'encoding' "
-                    "parameter is not None",
-                    Py::Repr(obj),
-                    encoding
-                ),
-                context);
-        }
-#endif
         return Py::Bytes(PyObject_Bytes(*obj), true);
     }
 }
