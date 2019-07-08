@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from prepare_source_tree_helpers import (
+    apply_multiple,
+    cp_r,
+    logger,
+    replace,
+    replace_symlink,
+    rm_rf,
+)
+
 import argparse
 import glob
 import os
-import shutil
-import logging
 
-logger = logging.getLogger("python_repo")
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
 
 YT_PYTHON_PACKAGE_LIST = [
     "argcomplete",
@@ -46,36 +50,6 @@ YT_PREFIX_BINARIES = [
     "yt/tools/bin/lock.py",
     "yt/tools/bin/set_account.py",
 ]
-
-def rm_rf(path):
-    """remove recursive"""
-    logger.info("Remove %s", path)
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    else:
-        os.unlink(path)
-
-
-def cp_r(path, dest_dir):
-    """copy recursive"""
-    logger.info("Copy %s to %s", path, dest_dir)
-    assert os.path.isdir(dest_dir)
-    if os.path.isdir(path):
-        shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)))
-    else:
-        shutil.copy2(path, dest_dir)
-
-def replace(path, dest_dir):
-    dst_path = os.path.join(dest_dir, os.path.basename(path))
-    if os.path.exists(dst_path):
-        rm_rf(dst_path)
-    cp_r(path, dest_dir)
-
-
-def replace_symlink(source, destination):
-    if os.path.lexists(destination):
-        os.remove(destination)
-    os.symlink(source, destination)
 
 
 def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=True, prepare_bindings=True):
@@ -142,10 +116,18 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
             replace_symlink(binary_path, link_path)
 
 
+def get_default_python_root():
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_default_yt_root():
+    return apply_multiple(times=2, func=os.path.dirname, argument=os.path.abspath(__file__))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--python-root", default=os.path.dirname(os.path.abspath(__file__)))
-    parser.add_argument("--yt-root", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    parser.add_argument("--python-root", default=get_default_python_root())
+    parser.add_argument("--yt-root", default=get_default_yt_root())
     args = parser.parse_args()
 
     prepare_python_source_tree(python_root=args.python_root, yt_root=args.yt_root)
