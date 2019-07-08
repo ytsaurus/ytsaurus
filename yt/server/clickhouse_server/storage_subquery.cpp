@@ -163,6 +163,7 @@ public:
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+            blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = QueryContext_->User;
             blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
 
             auto reader = CreateSchemalessParallelMultiReader(

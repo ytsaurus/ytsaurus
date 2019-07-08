@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/misc/shutdownable.h>
 #include <yt/core/bus/public.h>
 
@@ -39,11 +41,14 @@ public:
     //! (e.g. serialization).
     const IInvokerPtr& GetHeavyInvoker();
 
-    //! Returns the prioritized invoker for the thread pool used to
-    //! dispatch compression callbacks.
-    const IPrioritizedInvokerPtr& GetPrioritizedCompressionPoolInvoker();
     //! Returns the invoker for the thread pool used to dispatch compression callbacks.
     const IInvokerPtr& GetCompressionPoolInvoker();
+    //! Returns the prioritized invoker for the thread pool used to
+    //! dispatch compression callbacks. This invoker is a wrapper around compression pool invoker.
+    const IPrioritizedInvokerPtr& GetPrioritizedCompressionPoolInvoker();
+    //! Returns the fair share thread pool with the similar semantics as previous two.
+    //! NB: this thread pool is different from the underlying thread pool beneath two previous invokers.
+    const NConcurrency::IFairShareThreadPoolPtr& GetCompressionFairShareThreadPool();
 
 private:
     class TImpl;

@@ -25,16 +25,18 @@ TWorkloadDescriptor::TWorkloadDescriptor(
     EWorkloadCategory category,
     int band,
     TInstant instant,
-    std::vector<TString> annotations)
+    std::vector<TString> annotations,
+    std::optional<NConcurrency::TFairShareThreadPoolTag> compressionFairShareTag)
     : Category(category)
     , Band(band)
     , Instant(instant)
     , Annotations(std::move(annotations))
+    , CompressionFairShareTag(std::move(compressionFairShareTag))
 { }
 
 TWorkloadDescriptor TWorkloadDescriptor::SetCurrentInstant() const
 {
-    return TWorkloadDescriptor(Category, Band, TInstant::Now(), Annotations);
+    return TWorkloadDescriptor(Category, Band, TInstant::Now(), Annotations, CompressionFairShareTag);
 }
 
 i64 TWorkloadDescriptor::GetPriority() const

@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,8 @@ struct TWorkloadDescriptor
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
         TInstant instant = TInstant::Zero(),
-        std::vector<TString> annotations = std::vector<TString>());
+        std::vector<TString> annotations = std::vector<TString>(),
+        std::optional<NConcurrency::TFairShareThreadPoolTag> compressionFairShareTag = std::nullopt);
 
     //! The type of the workload defining its basic priority.
     EWorkloadCategory Category;
@@ -34,6 +37,9 @@ struct TWorkloadDescriptor
 
     //! Arbitrary client-supplied strings to be logged at server-side.
     std::vector<TString> Annotations;
+
+    //! If present, invoker from fair share thread pool will be used for decompression.
+    std::optional<NConcurrency::TFairShareThreadPoolTag> CompressionFairShareTag;
 
     //! Updates the instant field with the current time.
     TWorkloadDescriptor SetCurrentInstant() const;
