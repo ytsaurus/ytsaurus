@@ -363,7 +363,7 @@ default_config = {
         # Enables logging in text format operation failed error and job errors.
         "enable_logging_failed_operation": True,
         # Stderr encoding.
-        "stderr_encoding": "utf8",
+        "stderr_encoding": "utf-8",
     },
 
     "read_parallel": {
