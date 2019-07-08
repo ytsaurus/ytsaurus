@@ -331,6 +331,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(10000)
         .GreaterThan(0);
 
+    RegisterParameter("enable_cypress_job_nodes", EnableCypressJobNodes)
+        .Default(true);
+
     RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
         .DefaultNew();
 
