@@ -1272,13 +1272,28 @@ struct TTypedExpressionBuilder
 
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
-        ISchemaProxyPtr schema) const
+        ISchemaProxyPtr schema,
+        TTypeSet feasibleTypes = TTypeSet({
+            EValueType::Null,
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::String,
+            EValueType::Any})) const
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
 
+        if (!Unify(&feasibleTypes, expressionTyper.FeasibleTypes)) {
+            THROW_ERROR_EXCEPTION("Type mismatch in expression: expected %Qv, got %Qv",
+                feasibleTypes,
+                expressionTyper.FeasibleTypes)
+                << TErrorAttribute("source", expr->GetSource(Source));
+        }
+
         auto result = expressionTyper.Generator(
-            GetFrontWithCheck(expressionTyper.FeasibleTypes, expr->GetSource(Source)));
+            GetFrontWithCheck(feasibleTypes, expr->GetSource(Source)));
 
         result = TCastEliminator().Visit(result);
         result = TExpressionSimplifier().Visit(result);
@@ -2168,8 +2183,8 @@ TConstExpressionPtr BuildPredicate(
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("%v is not a boolean expression")
-            << TErrorAttribute("source", FormatExpression(expressionAst))
+        THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
+            << TErrorAttribute("source", expressionAst.front().Get()->GetSource(builder.Source))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -2186,8 +2201,15 @@ TConstGroupClausePtr BuildGroupClause(
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
 
+    TTypeSet groupItemTypes({
+        EValueType::Boolean,
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String});
+
     for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
+        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy, groupItemTypes);
 
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
@@ -2198,29 +2220,6 @@ TConstGroupClausePtr BuildGroupClause(
         &groupClause->AggregateItems);
 
     return groupClause;
-}
-
-TConstExpressionPtr BuildHavingClause(
-    const NAst::TExpressionList& expressionsAst,
-    const TSchemaProxyPtr& schemaProxy,
-    const TTypedExpressionBuilder& builder)
-{
-    if (expressionsAst.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", FormatExpression(expressionsAst));
-    }
-
-    auto typedPredicate = builder.BuildTypedExpression(expressionsAst.front().Get(), schemaProxy);
-
-    auto actualType = typedPredicate->Type;
-    EValueType expectedType(EValueType::Boolean);
-    if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("HAVING clause is not a boolean expression")
-            << TErrorAttribute("actual_type", actualType)
-            << TErrorAttribute("expected_type", expectedType);
-    }
-
-    return typedPredicate;
 }
 
 TConstProjectClausePtr BuildProjectClause(
@@ -2267,10 +2266,11 @@ void PrepareQuery(
         if (!query->GroupClause) {
             THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
         }
-        query->HavingClause = BuildHavingClause(
+        query->HavingClause = BuildPredicate(
             *ast.HavingPredicate,
             schemaProxy,
-            builder);
+            builder,
+            "HAVING-clause");
     }
 
     if (!ast.OrderExpressions.empty()) {
