@@ -94,7 +94,7 @@ EValueType RepresentClickHouseType(const DB::DataTypePtr& type)
         case DB::TypeIndex::FixedString:
             return EValueType::String;
         default:
-            THROW_ERROR_EXCEPTION("Data type %v is not representable in YT", type->getFamilyName());
+            THROW_ERROR_EXCEPTION("Data type %v is not representable in YT", physicalType->getFamilyName());
     }
 }
 
