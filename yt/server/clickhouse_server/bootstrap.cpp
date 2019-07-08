@@ -107,6 +107,9 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting ClickHouse server");
 
+    // Make RSS predictable.
+    NYTAlloc::SetEnableEagerMemoryRelease(true);
+
     Config_->MonitoringServer->Port = MonitoringPort_;
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
