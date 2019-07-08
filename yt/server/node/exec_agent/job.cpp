@@ -1588,8 +1588,9 @@ private:
     {
         auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
 
-        i64 totalUtilizationGpu = 0.0;
-        i64 totalUtilizationMemory = 0.0;
+        i64 totalUtilizationGpu = 0;
+        i64 totalUtilizationMemory = 0;
+        i64 totalLoad = 0;
         i64 totalMaxMemoryUsed = 0;
 
         auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
@@ -1612,16 +1613,21 @@ private:
             slotStatistics.CumulativeUtilizationMemory +=
                 (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
                 gpuInfo.UtilizationMemoryRate;
+            if (gpuInfo.UtilizationGpuRate > 0) {
+                slotStatistics.CumulativeLoad += (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds();
+            }
             slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
             slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
             totalUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
             totalUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
+            totalLoad += slotStatistics.CumulativeLoad;
             totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
         }
 
         statistics.AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
         statistics.AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
+        statistics.AddSample("/user_job/gpu/load", totalLoad);
         statistics.AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
 
         return ConvertToYsonString(statistics);
