@@ -609,7 +609,7 @@ private:
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
             auto traceContextTime = TraceContext_->GetElapsedTime();
-            Profiler.Increment(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(traceContextTime));
+            Profiler.Increment(PerformanceCounters_->TraceContextTimeCounter, DurationToValue(traceContextTime));
         }
     }
 
