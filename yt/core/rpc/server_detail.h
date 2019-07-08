@@ -39,6 +39,7 @@ public:
     virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
+    //! \note Thread affinity: any
     virtual bool IsReplied() const override;
 
     virtual void Reply(const TError& error) override;
@@ -99,7 +100,7 @@ protected:
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
 
-    bool Replied_ = false;
+    std::atomic<bool> Replied_ = {false};
     TError Error_;
 
     TSharedRef ResponseBody_;
