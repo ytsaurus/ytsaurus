@@ -99,8 +99,6 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 
 void TServiceContextBase::ReplyEpilogue()
 {
-    Replied_ = true;
-
     {
         auto responseGuard = Guard(ResponseLock_);
 
@@ -113,8 +111,9 @@ void TServiceContextBase::ReplyEpilogue()
         }
     }
 
-
     DoReply();
+
+    Replied_.store(true);
 
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
@@ -183,7 +182,8 @@ TSharedRefArray TServiceContextBase::BuildResponseMessage()
 
 bool TServiceContextBase::IsReplied() const
 {
-    return Replied_;
+    VERIFY_THREAD_AFFINITY_ANY();
+    return Replied_.load();
 }
 
 void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)
