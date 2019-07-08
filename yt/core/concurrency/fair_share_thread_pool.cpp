@@ -497,6 +497,7 @@ public:
             threadCount,
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableProfiling))
+        , ThreadCount_(threadCount)
     {
         YT_VERIFY(threadCount > 0);
 
@@ -531,6 +532,18 @@ public:
         }
     }
 
+    virtual void Configure(int threadCount) override
+    {
+        if (threadCount != ThreadCount_) {
+            // TODO(max42): fix me.
+            YT_LOG_WARNING(
+                "Fair share thread pool does not support thread count runtime configuration "
+                "(CurrentThreadCount: %v, NewThreadCount: %v)",
+                ThreadCount_,
+                threadCount);
+        }
+    }
+
     void DoShutdown()
     {
         Queue_->Shutdown();
@@ -559,12 +572,12 @@ public:
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TFairShareQueuePtr Queue_;
+    int ThreadCount_;
 
     std::vector<TSchedulerThreadPtr> Threads_;
     std::atomic<bool> ShutdownFlag_ = {false};
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
     TSpinLock SpinLock_;
-
 };
 
 } // namespace

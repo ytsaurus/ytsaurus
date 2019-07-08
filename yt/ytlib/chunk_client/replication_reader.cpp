@@ -29,6 +29,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/logging/log.h>
 
@@ -511,7 +512,8 @@ protected:
     //! Catalogue of peers, seen on current pass.
     THashMap<TString, TPeer> Peers_;
 
-    //! Fixed priority invoker build upon CompressionPool.
+    //! Either fixed priority invoker build upon CompressionPool or fair share thread pool invoker assigned to
+    //! compression fair share tag from the workload descriptor.
     IInvokerPtr SessionInvoker_;
 
     //! The instant this session was started.
@@ -522,7 +524,6 @@ protected:
 
     //! Total number of bytes received in this session; used to detect slow reads.
     i64 TotalBytesReceived_ = 0;
-
 
     TSessionBase(
         TReplicationReader* reader,
@@ -540,10 +541,17 @@ protected:
                 TGuid::Create(),
                 options.ReadSessionId,
                 reader->ChunkId_))
-        , SessionInvoker_(CreateFixedPriorityInvoker(
-            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-            WorkloadDescriptor_.GetPriority()))
     {
+        if (WorkloadDescriptor_.CompressionFairShareTag) {
+            SessionInvoker_ = NRpc::TDispatcher::Get()->GetCompressionFairShareThreadPool()
+                ->GetInvoker(*WorkloadDescriptor_.CompressionFairShareTag);
+            Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
+        } else {
+            SessionInvoker_ = CreateFixedPriorityInvoker(
+                NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+                WorkloadDescriptor_.GetPriority());
+        }
+
         ResetPeerQueue();
     }
 
