@@ -665,7 +665,7 @@ private:
         }
 
         try {
-            UpdateOperationNodes(operationId);
+            UpdateOperationNodeAttributes(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -699,7 +699,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodes(TOperationId operationId)
+    void UpdateOperationNodeAttributes(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
