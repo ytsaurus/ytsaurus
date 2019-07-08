@@ -818,7 +818,10 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
     }
 
     return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
-        return TMutationResponse{data};
+        return TMutationResponse{
+            EMutationResponseOrigin::ResponseKeeper,
+            data
+        };
     }));
 }
 
