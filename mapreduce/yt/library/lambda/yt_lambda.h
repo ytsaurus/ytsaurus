@@ -93,7 +93,7 @@ void TransformCopyIf(const IClientBasePtr& client, const TRichYPath& from, const
 template <class R, class W>
 void AdditiveReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const R&, R&),
@@ -110,7 +110,7 @@ void AdditiveReduce(
 template <class T>
 void AdditiveReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const T&, T&))
@@ -122,7 +122,7 @@ void AdditiveReduce(
 template <class R, class TReducerData, class W>
 void Reduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const R&, TReducerData&),
@@ -139,7 +139,7 @@ void Reduce(
 template <class R, class W>
 void Reduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const R&, W&))
@@ -150,7 +150,7 @@ void Reduce(
 template <class R, class TCombined, class W>
 void AdditiveMapReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
@@ -170,7 +170,7 @@ void AdditiveMapReduce(
 template <class R, class W>
 void AdditiveMapReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, W&),
@@ -182,7 +182,7 @@ void AdditiveMapReduce(
 template <class R, class TCombined, class W>
 void AdditiveMapReduceSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
@@ -203,7 +203,7 @@ void AdditiveMapReduceSorted(
 template <class R, class W>
 void AdditiveMapReduceSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, W&),
@@ -215,7 +215,7 @@ void AdditiveMapReduceSorted(
 template <class R, class TMapped, class TReducerData, class W>
 void MapReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -234,7 +234,7 @@ void MapReduce(
 template <class R, class TMapped, class W>
 void MapReduce(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -246,7 +246,7 @@ void MapReduce(
 template <class R, class TMapped, class TReducerData, class W>
 void MapReduceSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -267,7 +267,7 @@ void MapReduceSorted(
 template <class R, class TMapped, class W>
 void MapReduceSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -280,7 +280,7 @@ void MapReduceSorted(
 template <class R, class TMapped, class TCombined, class W>
 void MapReduceCombined(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -302,7 +302,7 @@ void MapReduceCombined(
 template <class R, class TMapped, class W>
 void MapReduceCombined(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -315,7 +315,7 @@ void MapReduceCombined(
 template <class R, class TMapped, class TCombined, class W>
 void MapReduceCombinedSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
@@ -337,7 +337,7 @@ void MapReduceCombinedSorted(
 template <class R, class TMapped, class W>
 void MapReduceCombinedSorted(
     const IClientBasePtr& client,
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
