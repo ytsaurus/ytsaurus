@@ -591,7 +591,13 @@ private:
             if (!update) {
                 return;
             }
-            std::swap(jobRequests, update->JobRequests);
+
+            if (Config_->EnableCypressJobNodes) {
+                std::swap(jobRequests, update->JobRequests);
+            } else {
+                update->JobRequests.clear();
+            }
+
             std::swap(livePreviewRequests, update->LivePreviewRequests);
             livePreviewTransactionId = update->LivePreviewTransactionId;
         }
@@ -603,56 +609,59 @@ private:
             livePreviewTransactionId,
             livePreviewRequests.size());
 
-        std::vector<TCreateJobNodeRequest> successfulJobRequests;
-        try {
-            successfulJobRequests = CreateJobNodes(operation, jobRequests);
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
-                operationId);
-            auto error = TError("Error creating job nodes for operation %v",
-                operationId)
-                << ex;
-            if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                THROW_ERROR error;
-            }
-        }
-
-        try {
-            std::vector<TJobFile> files;
-            for (const auto& request : successfulJobRequests) {
-                if (request.StderrChunkId) {
-                    auto path = GetJobPath(
-                        operationId,
-                        request.JobId,
-                        "stderr");
-
-                    files.push_back({
-                        request.JobId,
-                        path,
-                        request.StderrChunkId,
-                        "stderr"
-                    });
-                }
-                if (request.FailContextChunkId) {
-                    auto path = GetJobPath(
-                        operationId,
-                        request.JobId,
-                        "fail_context");
-
-                    files.push_back({
-                        request.JobId,
-                        path,
-                        request.FailContextChunkId,
-                        "fail_context"
-                    });
+        if (Config_->EnableCypressJobNodes)
+        {
+            std::vector<TCreateJobNodeRequest> successfulJobRequests;
+            try {
+                successfulJobRequests = CreateJobNodes(operation, jobRequests);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
+                    operationId);
+                auto error = TError("Error creating job nodes for operation %v",
+                    operationId)
+                    << ex;
+                if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                    THROW_ERROR error;
                 }
             }
-            SaveJobFiles(operationId, files);
-        } catch (const std::exception& ex) {
-            // NB: Don' treat this as a critical error.
-            // Some of these chunks could go missing for a number of reasons.
-            YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
-                operationId);
+
+            try {
+                std::vector<TJobFile> files;
+                for (const auto& request : successfulJobRequests) {
+                    if (request.StderrChunkId) {
+                        auto path = GetJobPath(
+                            operationId,
+                            request.JobId,
+                            "stderr");
+
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.StderrChunkId,
+                            "stderr"
+                        });
+                    }
+                    if (request.FailContextChunkId) {
+                        auto path = GetJobPath(
+                            operationId,
+                            request.JobId,
+                            "fail_context");
+
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.FailContextChunkId,
+                            "fail_context"
+                        });
+                    }
+                }
+                SaveJobFiles(operationId, files);
+            } catch (const std::exception& ex) {
+                // NB: Don' treat this as a critical error.
+                // Some of these chunks could go missing for a number of reasons.
+                YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
+                    operationId);
+            }
         }
 
         try {

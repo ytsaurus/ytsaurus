@@ -469,6 +469,9 @@ public:
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
+    //! Enables creation of job nodes (including stderr and fail_context nodes) in cypress.
+    bool EnableCypressJobNodes;
+
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
