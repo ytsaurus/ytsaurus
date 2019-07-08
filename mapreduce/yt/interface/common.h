@@ -63,72 +63,72 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TKeyBase
+struct TOneOrMany
 {
-    TKeyBase()
+    TOneOrMany()
     { }
 
-    TKeyBase(const TKeyBase& rhs)
+    TOneOrMany(const TOneOrMany& rhs)
     {
         Parts_ = rhs.Parts_;
     }
 
-    TKeyBase& operator=(const TKeyBase& rhs)
+    TOneOrMany& operator=(const TOneOrMany& rhs)
     {
         Parts_ = rhs.Parts_;
         return *this;
     }
 
-    TKeyBase(TKeyBase&& rhs)
+    TOneOrMany(TOneOrMany&& rhs)
     {
         Parts_ = std::move(rhs.Parts_);
     }
 
-    TKeyBase& operator=(TKeyBase&& rhs)
+    TOneOrMany& operator=(TOneOrMany&& rhs)
     {
         Parts_ = std::move(rhs.Parts_);
         return *this;
     }
 
     template<class U>
-    TKeyBase(std::initializer_list<U> il)
+    TOneOrMany(std::initializer_list<U> il)
     {
         Parts_.assign(il.begin(), il.end());
     }
 
     template <class U, class... TArgs, std::enable_if_t<std::is_convertible<U, T>::value, int> = 0>
-    TKeyBase(U&& arg, TArgs&&... args)
+    TOneOrMany(U&& arg, TArgs&&... args)
     {
         Add(arg, std::forward<TArgs>(args)...);
     }
 
-    TKeyBase(TVector<T> args)
+    TOneOrMany(TVector<T> args)
         : Parts_(std::move(args))
     { }
 
-    bool operator==(const TKeyBase& rhs) const {
+    bool operator==(const TOneOrMany& rhs) const {
         return Parts_ == rhs.Parts_;
     }
 
     template <class U, class... TArgs>
-    TKeyBase& Add(U&& part, TArgs&&... args) &
+    TOneOrMany& Add(U&& part, TArgs&&... args) &
     {
         Parts_.push_back(std::forward<U>(part));
         return Add(std::forward<TArgs>(args)...);
     }
 
     template <class... TArgs>
-    TKeyBase Add(TArgs&&... args) &&
+    TOneOrMany Add(TArgs&&... args) &&
     {
         return std::move(Add(std::forward<TArgs>(args)...));
     }
 
-    TKeyBase& Add() &
+    TOneOrMany& Add() &
     {
         return *this;
     }
 
-    TKeyBase Add() &&
+    TOneOrMany Add() &&
     {
         return std::move(*this);
     }

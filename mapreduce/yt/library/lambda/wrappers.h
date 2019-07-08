@@ -65,7 +65,7 @@ protected:
 
 template<class R, class W>
 TMapReduceOperationSpec PrepareMRSpec(
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields)
 {
@@ -81,7 +81,7 @@ TMapReduceOperationSpec PrepareMRSpec(
 
 template<class R, class W>
 TReduceOperationSpec PrepareReduceSpec(
-    const TKeyBase<TRichYPath>& from,
+    const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields)
 {

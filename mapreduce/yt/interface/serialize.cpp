@@ -61,7 +61,7 @@ void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer)
 }
 
 template <class T>
-void Deserialize(TKeyBase<T>& key, const TNode& node)
+void Deserialize(TOneOrMany<T>& key, const TNode& node)
 {
     Deserialize(key.Parts_, node);
 }

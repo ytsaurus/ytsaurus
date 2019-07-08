@@ -141,13 +141,13 @@ namespace NYT {
     using TLocalFilePath = TString;
 
     template <class T>
-    struct TKeyBase;
+    struct TOneOrMany;
 
     // key column values
-    using TKey = TKeyBase<TNode>;
+    using TKey = TOneOrMany<TNode>;
 
     // key column names
-    using TKeyColumns = TKeyBase<TString>;
+    using TKeyColumns = TOneOrMany<TString>;
 
     enum EValueType : int;
 
