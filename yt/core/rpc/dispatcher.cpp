@@ -125,6 +125,7 @@ public:
     {
         LightQueue_->Shutdown();
         HeavyPool_->Shutdown();
+        CompressionFairShareThreadPool_->Shutdown();
         CompressionPool_->Shutdown();
     }
 
