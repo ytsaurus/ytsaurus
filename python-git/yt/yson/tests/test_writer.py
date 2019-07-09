@@ -195,8 +195,7 @@ class YsonWriterTestBase(object):
     @pytest.mark.skipif("not PY3")
     def test_dump_encoding(self):
         assert self.dumps({"a": 1}, yson_format="pretty") == b'{\n    "a" = 1;\n}'
-        with pytest.raises(Exception):
-            assert self.dumps({b"a": 1})
+        assert self.dumps({b"a": 1, "b": 2}, yson_format="pretty") == b'{\n    "a" = 1;\n    "b" = 2;\n}'
         assert self.dumps({b"a": 1}, yson_format="pretty", encoding=None) == b'{\n    "a" = 1;\n}'
         with pytest.raises(Exception):
             assert self.dumps({"a": 1}, encoding=None)
