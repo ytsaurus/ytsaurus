@@ -8,6 +8,7 @@ from .conftest import (
     test_method_setup as _test_method_setup,
     test_method_teardown as _test_method_teardown,
     wait,
+    yatest_save_sandbox,
 )
 
 import os
@@ -46,27 +47,35 @@ def yp_agent_grpc_port():
 
 @pytest.fixture(scope="function")
 def iss_agent(request, iss_agent_address, yp_agent_grpc_port):
+    qemu_sandbox_path = prepare_test_sandbox("iss_local_qemu")
     iss_local = IssLocal(
         dom0_address=iss_agent_address,
         qemu_image=ISS_LOCAL_QEMU_IMAGE_FILE_PATH,
-        qemu_work_dir=prepare_test_sandbox("iss_local_qemu"),
+        qemu_work_dir=qemu_sandbox_path,
         yp_agent_port=yp_agent_grpc_port,
         port_generator=get_free_port_in_range(1024, 10240),
     )
-    request.addfinalizer(iss_local.stop)
     iss_agent = iss_local.start()
+    def finalizer():
+        iss_local.stop()
+        yatest_save_sandbox(qemu_sandbox_path)
+    request.addfinalizer(finalizer)
     return iss_agent
 
 
 @pytest.fixture(scope="function")
 def iss_resource_manager(request, iss_agent_address):
+    sandbox_path = prepare_test_sandbox("iss_resource_manager")
     resource_manager = ResourceManager(
-        prepare_test_sandbox("iss_resource_manager"),
+        sandbox_path,
         ssl=False,
         host=iss_agent_address,
     )
-    request.addfinalizer(resource_manager.stop)
     resource_manager.start()
+    def finalizer():
+        resource_manager.stop()
+        yatest_save_sandbox(sandbox_path)
+    request.addfinalizer(finalizer)
     return resource_manager
 
 
