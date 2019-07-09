@@ -39,6 +39,16 @@ struct TStructuredTablePath
         , Description(std::move(description))
     { }
 
+    TStructuredTablePath(TRichYPath richYPath, const ::google::protobuf::Descriptor* descriptor)
+        : RichYPath(std::move(richYPath))
+        , Description(TProtobufTableStructure({descriptor}))
+    { }
+
+    TStructuredTablePath(TYPath path)
+        : RichYPath(std::move(path))
+        , Description(TUnspecifiedTableStructure())
+    { }
+
     TRichYPath RichYPath;
     TTableStructure Description;
 };
@@ -177,11 +187,15 @@ public:
     template <class T>
     void AddInput(const TRichYPath& path);
 
+    void AddStructuredInput(const TStructuredTablePath& path);
+
     template <class T>
     void SetInput(size_t tableIndex, const TRichYPath& path);
 
     template <class T>
     void AddOutput(const TRichYPath& path);
+
+    void AddStructuredOutput(const TStructuredTablePath& path);
 
     template <class T>
     void SetOutput(size_t tableIndex, const TRichYPath& path);
@@ -208,11 +222,15 @@ struct TOperationIOSpec
     template <class T>
     TDerived& AddInput(const TRichYPath& path);
 
+    TDerived& AddStructuredInput(const TStructuredTablePath& path);
+
     template <class T>
     TDerived& SetInput(size_t tableIndex, const TRichYPath& path);
 
     template <class T>
     TDerived& AddOutput(const TRichYPath& path);
+
+    TDerived& AddStructuredOutput(const TStructuredTablePath& path);
 
     template <class T>
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
@@ -1431,6 +1449,13 @@ struct IOperationClient
         ::TIntrusivePtr<IMapperBase> mapper,
         const TOperationOptions& options = TOperationOptions());
 
+    IOperationPtr Map(
+        const TOneOrMany<TStructuredTablePath>& input,
+        const TOneOrMany<TStructuredTablePath>& output,
+        ::TIntrusivePtr<IMapperBase> mapper,
+        const TMapOperationSpec& spec = TMapOperationSpec(),
+        const TOperationOptions& options = TOperationOptions());
+
     virtual IOperationPtr RawMap(
         const TRawMapOperationSpec& spec,
         ::TIntrusivePtr<IRawJob> rawJob,
@@ -1439,6 +1464,14 @@ struct IOperationClient
     IOperationPtr Reduce(
         const TReduceOperationSpec& spec,
         ::TIntrusivePtr<IReducerBase> reducer,
+        const TOperationOptions& options = TOperationOptions());
+
+    IOperationPtr Reduce(
+        const TOneOrMany<TStructuredTablePath>& input,
+        const TOneOrMany<TStructuredTablePath>& output,
+        const TKeyColumns& reduceBy,
+        ::TIntrusivePtr<IReducerBase> reducer,
+        const TReduceOperationSpec& spec = TReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
     virtual IOperationPtr RawReduce(
@@ -1483,6 +1516,14 @@ struct IOperationClient
     virtual IOperationPtr Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
+
+    IOperationPtr Sort(
+        const TOneOrMany<TRichYPath>& input,
+        const TRichYPath& output,
+        const TKeyColumns& sortBy,
+        const TSortOperationSpec& spec = TSortOperationSpec(),
+        const TOperationOptions& options = TOperationOptions());
+
 
     virtual IOperationPtr Merge(
         const TMergeOperationSpec& spec,

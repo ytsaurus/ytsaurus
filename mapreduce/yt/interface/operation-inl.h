@@ -301,6 +301,20 @@ TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYP
     return *static_cast<TDerived*>(this);
 }
 
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::AddStructuredInput(const TStructuredTablePath& path)
+{
+    TOperationIOSpecBase::AddStructuredInput(path);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+TDerived& TOperationIOSpec<TDerived>::AddStructuredOutput(const TStructuredTablePath& path)
+{
+    TOperationIOSpecBase::AddStructuredOutput(path);
+    return *static_cast<TDerived*>(this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
