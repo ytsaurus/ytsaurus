@@ -5,8 +5,15 @@ import logging.handlers
 import os
 import sys
 
+log_pattern = "%(asctime)-15s\t%(levelname)s\t%(name)s\t%(message)s"
 
 logger = logging.getLogger("Executor")
+logger.setLevel(logging.DEBUG)
+logger.propagate = False
+
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter(log_pattern))
+logger.addHandler(handler)
 
 def get_pytest_item_location_str(item):
     file_path, line_number, function_name = item.location
