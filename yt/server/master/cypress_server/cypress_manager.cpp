@@ -29,6 +29,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/small_set.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
@@ -1047,68 +1048,29 @@ public:
             }
         }
 
+        SmallSet<TCypressNodeBase*, 8> unbranchedNodes;
+        TCypressNodeBase* newOriginator = nullptr;
         auto unbranchNode = [&] (TCypressNodeBase* node) {
+            newOriginator = node->GetOriginator();
             auto* transaction = node->GetTransaction();
 
             DestroyBranchedNode(transaction, node);
 
             auto& branchedNodes = transaction->BranchedNodes();
             auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
-            YT_ASSERT(std::distance(it, branchedNodes.end()) == 1);
             branchedNodes.erase(it, branchedNodes.end());
-        };
 
-        auto updateNode = [&] (TCypressNodeBase* node) {
-            node->SetLockMode(newLockMode);
+            unbranchedNodes.insert(node);
         };
-
         YT_VERIFY(!mustUnbranchThisNode || !mustUpdateThisNode);
 
         if (mustUnbranchThisNode) {
-            if (!transaction->NestedTransactions().empty()) {
-                // Nested arbitrarily deeply under the node being unbranched, there
-                // may lie a snapshot-locked branched node referencing the node we're
-                // about to unbranch as its originator. We must update these
-                // references to avoid dangling pointers.
-                // NB: the same needn't be done for the nodes to be unbrached above
-                // as they're not locked and thus couldn't possibly have been
-                // chosen to be originators of snapshot locks.
-                TCypressNodeBase* newOriginator = nullptr;
-                for (auto* current = transaction->GetParent(); current; current = current->GetParent()) {
-                    if (current->LockedNodes().contains(trunkNode)) {
-                        newOriginator = GetNode(TVersionedNodeId{trunkNode->GetId(), current->GetId()});
-                        break;
-                    }
-                }
-                if (!newOriginator) {
-                    newOriginator = trunkNode;
-                }
-
-                for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                    if (lock->Request().Mode != ELockMode::Snapshot) {
-                        continue;
-                    }
-                    auto* lockTransaction = lock->GetTransaction();
-                    if (lockTransaction->IsDescendantOf(transaction)) {
-                        auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
-                        auto* nodeOriginator = node->GetOriginator();
-                        if (nodeOriginator == branchedNode) {
-                            YT_ASSERT(newOriginator != nodeOriginator);
-                            node->SetOriginator(newOriginator);
-                            // NB: a branch holds a strong reference to its originator's trunk.
-                            // New originator will have the same trunk, which means there's
-                            // no need to adjust reference counters here.
-                        }
-                    }
-                }
-            }
-
             unbranchNode(branchedNode);
         }
 
         if (mustUpdateThisNode) {
             YT_VERIFY(!mustUnbranchThisNode);
-            updateNode(branchedNode);
+            branchedNode->SetLockMode(newLockMode);
         }
 
         YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
@@ -1122,11 +1084,57 @@ public:
                 auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), t->GetId()});
                 YT_ASSERT(t == node->GetTransaction());
 
-                if (mustUnbranchAboveNodes) {
-                    unbranchNode(node);
-                }
+                auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, t);
+                auto updateNode = [&] () {
+                    node->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
+                        ? strongestLockModeBelow = ELockMode::None
+                        : strongestLockModeBelow);
+                };
+
                 if (mustUpdateAboveNodes) {
-                    updateNode(node);
+                    updateNode();
+                }
+
+                if (mustUnbranchAboveNodes) {
+                    // Be careful: it's not always possible to continue unbranching - some sibling may have a branch.
+                    if (strongestLockModeBelow <= ELockMode::Snapshot) {
+                        unbranchNode(node);
+                    } else {
+                        // Switch to updating.
+                        updateNode();
+                        mustUnbranchAboveNodes = false;
+                        mustUpdateAboveNodes = true;
+                    }
+                }
+            }
+        }
+
+        if (!unbranchedNodes.empty()) {
+            // Nested arbitrarily deeply in the transaction tree, there may lie
+            // snapshot-locked branched nodes referencing the nodes we've unbranched
+            // as its originator. We must update these references to avoid dangling pointers.
+            auto* newOriginatorTransaction = newOriginator->GetTransaction();
+
+            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
+                if (lock->Request().Mode != ELockMode::Snapshot) {
+                    continue;
+                }
+                auto* lockTransaction = lock->GetTransaction();
+
+                // Locks are released later, so be sure to skip the node we've already unbranched.
+                if (lockTransaction == transaction) {
+                    continue;
+                }
+
+                if (!newOriginatorTransaction || lockTransaction->IsDescendantOf(newOriginatorTransaction)) {
+                    auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
+                    auto* nodeOriginator = node->GetOriginator();
+                    if (unbranchedNodes.count(nodeOriginator) != 0) {
+                        node->SetOriginator(newOriginator);
+                        // NB: a branch holds a strong reference to its originator's trunk.
+                        // New originator will have the same trunk, which means there's
+                        // no need to adjust reference counters here.
+                    }
                 }
             }
         }
@@ -2604,8 +2612,8 @@ private:
 
         auto& branchedNodes = transaction->BranchedNodes();
         // The reverse order is for efficient removal.
-        for (auto it = branchedNodes.rbegin(); it != branchedNodes.rend(); ) {
-            auto* branchedNode = *it++;
+        while (!branchedNodes.empty()) {
+            auto* branchedNode = branchedNodes.back();
             RemoveOrUpdateNodesOnLockModeChange(
                 branchedNode->GetTrunkNode(),
                 transaction,
