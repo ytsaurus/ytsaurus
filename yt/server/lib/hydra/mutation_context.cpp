@@ -47,9 +47,14 @@ TRandomGenerator& TMutationContext::RandomGenerator()
     return Parent_ ? Parent_->RandomGenerator() : RandomGenerator_;
 }
 
-TMutationResponse& TMutationContext::Response()
+void TMutationContext::SetResponseData(TSharedRefArray data)
 {
-    return Response_;
+    ResponseData_ = std::move(data);
+}
+
+const TSharedRefArray& TMutationContext::GetResponseData() const
+{
+    return ResponseData_;
 }
 
 void TMutationContext::SetResponseKeeperSuppressed(bool value)
