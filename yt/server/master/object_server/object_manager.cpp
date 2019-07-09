@@ -109,6 +109,8 @@ public:
 
         auto cellTag = CellTagFromId(ObjectId_);
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        //  XXX(babenko): logging
+        //  XXX(babenko): why leader?
         auto asyncResponseMessage = objectManager->ForwardToLeader(cellTag, updatedMessage);
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
@@ -158,6 +160,7 @@ public:
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         if (hydraManager->IsFollower()) {
+            // XXX(babenko): is this needed?
             ForwardToLeader(context);
             return;
         }

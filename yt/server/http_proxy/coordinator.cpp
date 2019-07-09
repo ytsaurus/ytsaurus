@@ -236,7 +236,7 @@ TDynamicConfigPtr TCoordinator::GetDynamicConfig()
 {
     auto guard = Guard(Lock_);
     return DynamicConfig_;
-}    
+}
 
 std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
@@ -254,7 +254,8 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
             proxy->Endpoint = proxyNode->GetValue<TString>();
             proxies.emplace_back(std::move(proxy));
         } catch (std::exception& ex) {
-            YT_LOG_WARNING(ex, "Broken proxy node found in cypress (ProxyNode: %v)", ConvertToYsonString(proxyNode));
+            YT_LOG_WARNING(ex, "Broken proxy node found in Cypress (ProxyNode: %v)",
+                ConvertToYsonString(proxyNode));
         }
     }
 
@@ -323,7 +324,7 @@ void TCoordinator::UpdateState()
             if (error.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
                 YT_LOG_INFO("Cypress node already exists (Path: %v)", selfPath);
             } else if (error.IsOK()) {
-                YT_LOG_INFO("Created cypress node (Path: %v)", selfPath);
+                YT_LOG_INFO("Created Cypress node (Path: %v)", selfPath);
             } else {
                 error.ValueOrThrow();
             }
@@ -840,7 +841,7 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
             instances.push_back(instance);
         }
     };
-    
+
     add(GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters"), "primary_master"));
     add(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master"));
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));

@@ -49,7 +49,7 @@ public:
 
     void Start()
     {
-        YT_LOG_DEBUG("Starting cypress annotations setter");
+        YT_LOG_DEBUG("Starting Cypress annotations setter");
         PeriodicExecutor_->Start();
     }
 
@@ -65,10 +65,10 @@ private:
         auto error = WaitFor(Client_->SetNode(Path_ + "/@annotations", annotations));
 
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Successfully set cypress annotations");
+            YT_LOG_DEBUG("Successfully set Cypress annotations");
             PeriodicExecutor_->Stop();
         } else {
-            YT_LOG_DEBUG(error, "Failed to set cypress annotations");
+            YT_LOG_DEBUG(error, "Failed to set Cypress annotations");
         }
     }
 };

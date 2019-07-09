@@ -2124,7 +2124,7 @@ private:
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Failed to create cypress node for operation %v",
+            auto wrappedError = TError("Failed to create Cypress node for operation %v",
                 operation->GetId())
                 << ex;
             operation->SetStarted(wrappedError);
