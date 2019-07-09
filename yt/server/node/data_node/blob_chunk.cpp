@@ -198,6 +198,7 @@ void TBlobChunkBase::DoReadMeta(
         cookie.Cancel(ex);
         return;
     }
+
     auto readTime = readTimer.GetElapsedTime();
 
     const auto& locationProfiler = Location_->GetProfiler();
@@ -346,23 +347,27 @@ void TBlobChunkBase::DoReadBlockSet(
 
     session->ReadTimer.emplace();
 
-    auto reader = GetReader();
-    auto asyncBlocks = reader->ReadBlocks(
-        session->Options,
-        firstBlockIndex,
-        blocksToRead,
-        std::nullopt);
-
-    asyncBlocks.Subscribe(
-        BIND(
-            &TBlobChunkBase::OnBlocksRead,
-            MakeStrong(this),
-            session,
+    try {
+        auto reader = GetReader();
+        auto asyncBlocks = reader->ReadBlocks(
+            session->Options,
             firstBlockIndex,
-            beginEntryIndex,
-            endEntryIndex,
-            Passed(std::move(pendingIOGuard)))
-            .Via(session->Invoker));
+            blocksToRead,
+            std::nullopt);
+        asyncBlocks.Subscribe(
+            BIND(
+                &TBlobChunkBase::OnBlocksRead,
+                MakeStrong(this),
+                session,
+                firstBlockIndex,
+                beginEntryIndex,
+                endEntryIndex,
+                Passed(std::move(pendingIOGuard)))
+                .Via(session->Invoker));
+    } catch (const std::exception& ex) {
+        FailSession(session, ex);
+        return;
+    }
 }
 
 void TBlobChunkBase::OnBlocksRead(
