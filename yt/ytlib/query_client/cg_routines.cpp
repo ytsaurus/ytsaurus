@@ -180,14 +180,22 @@ void ScanOpHelper(
     TYielder yielder;
 
     auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
-    while (true) {
-        bool hasMoreData;
+    bool hasMoreData;
+    do {
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
-        bool shouldWait = rows.empty();
+        if (rows.empty()) {
+            if (!hasMoreData) {
+                break;
+            }
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            continue;
+        }
 
         // Remove null rows.
         rows.erase(
@@ -218,17 +226,7 @@ void ScanOpHelper(
         rows.clear();
         values.clear();
         rowBuffer->Clear();
-
-        if (!hasMoreData) {
-            break;
-        }
-
-        if (shouldWait) {
-            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-        }
-    }
+    } while (hasMoreData);
 }
 
 void InsertJoinRow(
@@ -533,9 +531,19 @@ public:
             }
         };
 
-        while (currentKey != keysToRows.end()) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
+        bool hasMoreData = true;
+        while (hasMoreData && currentKey != keysToRows.end()) {
+            hasMoreData = reader->Read(&foreignRows);
+
+            if (foreignRows.empty()) {
+                if (!hasMoreData) {
+                    break;
+                }
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
 
             if (isPartiallySorted) {
                 processForeignSequence(foreignRows.begin(), foreignRows.end());
@@ -544,16 +552,6 @@ public:
             }
 
             foreignRows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            }
         }
 
         if (isPartiallySorted) {
@@ -594,9 +592,19 @@ public:
         std::vector<TRow> foreignRows;
         foreignRows.reserve(RowsetProcessingSize);
 
-        while (true) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
+        bool hasMoreData;
+        do {
+            hasMoreData = reader->Read(&foreignRows);
+
+            if (foreignRows.empty()) {
+                if (!hasMoreData) {
+                    break;
+                }
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
 
             for (auto foreignRow : foreignRows) {
                 auto it = joinLookup->find(foreignRow.Begin());
@@ -614,17 +622,7 @@ public:
             ConsumeJoinedRows();
 
             foreignRows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            }
-        }
+        } while (hasMoreData);
 
         if (isLeft) {
             for (auto lookup : *joinLookup) {
@@ -764,30 +762,28 @@ void JoinOpHelper(
                 std::vector<TRow> rows;
                 rows.reserve(RowsetProcessingSize);
 
-                while (true) {
-                    bool hasMoreData;
+                bool hasMoreData;
+                do {
                     {
                         TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
-                    bool shouldWait = foreignRows.empty();
+                    if (foreignRows.empty()) {
+                        if (!hasMoreData) {
+                            break;
+                        }
+                        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                        continue;
+                    }
 
                     for (auto row : rows) {
                         foreignLookup.insert(foreignRowsBuffer->Capture(row).Begin());
                     }
                     rows.clear();
-
-                    if (!hasMoreData) {
-                        break;
-                    }
-
-                    if (shouldWait) {
-                        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
+                } while (hasMoreData);
             }
 
             YT_LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
@@ -964,14 +960,22 @@ void MultiJoinOpHelper(
 
             TDuration sortingForeignTime;
 
-            while (currentKey != orderedKeys.end()) {
-                bool hasMoreData;
+            bool hasMoreData = true;
+            while (hasMoreData && currentKey != orderedKeys.end()) {
                 {
                     TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                     hasMoreData = reader->Read(&foreignRows);
                 }
 
-                bool shouldWait = foreignRows.empty();
+                if (foreignRows.empty()) {
+                    if (!hasMoreData) {
+                        break;
+                    }
+                    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
+                    continue;
+                }
 
                 for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
                     foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
@@ -993,16 +997,6 @@ void MultiJoinOpHelper(
 
                 foreignRows.clear();
                 foreignValues.clear();
-
-                if (!hasMoreData) {
-                    break;
-                }
-
-                if (shouldWait) {
-                    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
-                }
             }
 
             {
