@@ -5441,7 +5441,7 @@ private:
         return attributes;
     }
 
-    // Searches in cypress for operations satisfying given filters.
+    // Searches in Cypress for operations satisfying given filters.
     // Adds found operations to |idToOperation| map.
     // The operations are returned with requested fields plus necessarily "start_time" and "id".
     void DoListOperationsFromCypress(
