@@ -15,13 +15,6 @@ namespace NYT::NHydra {
 
 struct TMutationRequest
 {
-    TMutationRequest() = default;
-    TMutationRequest(const TMutationRequest& other) = default;
-    TMutationRequest(TMutationRequest&& other) noexcept = default;
-
-    TMutationRequest& operator = (const TMutationRequest& other) = default;
-    TMutationRequest& operator = (TMutationRequest&& other) = default;
-
     TString Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
@@ -38,13 +31,6 @@ DEFINE_ENUM(EMutationResponseOrigin,
 
 struct TMutationResponse
 {
-    TMutationResponse() = default;
-    TMutationResponse(const TMutationResponse& other) = default;
-    TMutationResponse(TMutationResponse&& other) = default;
-
-    TMutationResponse& operator = (const TMutationResponse& other) = default;
-    TMutationResponse& operator = (TMutationResponse&& other) = default;
-
     EMutationResponseOrigin Origin = EMutationResponseOrigin::Commit;
     TSharedRefArray Data;
 };
@@ -69,8 +55,8 @@ public:
     TInstant GetTimestamp() const;
     TRandomGenerator& RandomGenerator();
 
-    // XXX(babenko): replace with SetResponseData
-    TMutationResponse& Response();
+    void SetResponseData(TSharedRefArray data);
+    const TSharedRefArray& GetResponseData() const;
 
     void SetResponseKeeperSuppressed(bool value);
     bool GetResponseKeeperSuppressed();
@@ -81,7 +67,7 @@ private:
     const TMutationRequest& Request_;
     const TInstant Timestamp_;
 
-    TMutationResponse Response_;
+    TSharedRefArray ResponseData_;
     TRandomGenerator RandomGenerator_;
     bool ResponseKeeperSuppressed_ = false;
 };
