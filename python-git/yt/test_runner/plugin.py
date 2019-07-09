@@ -3,8 +3,9 @@ from __future__ import print_function
 from . import executor
 from . import scheduling
 
-from functools import partial
 import execnet
+
+from functools import partial
 import os
 import random
 import string
@@ -201,7 +202,9 @@ class YtParallelTestsRunnerPlugin(object):
             self._log_to_terminal("Request executor {} restart".format(process_index))
             self.processes_to_restart.append(process_index)
         else:
+            self._log_to_terminal("Executor {0} have finished".format(process_index))
             self.finished_processes.append(process_index)
+            self.processes[process_index].gateway.exit()
 
     # Thread affinity: main
     def pytest_runtestloop(self, session):
