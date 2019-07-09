@@ -17,6 +17,7 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! \note Thread affinity: single-threaded (unless noted otherwise)
 class TServiceContextBase
     : public IServiceContext
 {
@@ -46,7 +47,9 @@ public:
 
     virtual void SetComplete() override;
 
+    //! \note Thread affinity: any
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
+
     virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
@@ -124,12 +127,13 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    mutable TSharedRefArray ResponseMessage_; // cached
+    mutable TSpinLock ResponseLock_;
+    TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
 
     void Initialize();
-    void BuildResponseMessage();
+    TSharedRefArray BuildResponseMessage();
     void ReplyEpilogue();
 };
 
