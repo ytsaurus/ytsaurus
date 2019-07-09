@@ -210,6 +210,7 @@ void ScanOpHelper(
             statistics->IncompleteInput = true;
             hasMoreData = false;
         }
+
         statistics->RowsRead += rows.size();
         for (const auto& row : rows) {
             statistics->BytesRead += GetDataWeight(row);
@@ -226,6 +227,10 @@ void ScanOpHelper(
         rows.clear();
         values.clear();
         rowBuffer->Clear();
+
+        if (rows.capacity() < RowsetProcessingSize) {
+            rows.reserve(std::min(2 * rows.capacity(), RowsetProcessingSize));
+        }
     } while (hasMoreData);
 }
 
