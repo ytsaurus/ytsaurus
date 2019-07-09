@@ -42,4 +42,12 @@ public class RpcCompression {
         return requestCodecId == null
                 || responseCodecId == null;
     }
+
+    @Override
+    public String toString() {
+        return "RpcCompression{" +
+                "requestCodecId=" + requestCodecId +
+                ", responseCodecId=" + responseCodecId +
+                '}';
+    }
 }

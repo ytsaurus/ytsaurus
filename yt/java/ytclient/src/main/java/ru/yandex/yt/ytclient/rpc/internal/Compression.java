@@ -6,6 +6,9 @@ import java.util.Map;
 public enum Compression {
     None(0),
 
+    Lz4(4),
+    Lz4HighCompression(5),
+
     Zlib_1(19),
     Zlib_2(20),
     Zlib_3(21),

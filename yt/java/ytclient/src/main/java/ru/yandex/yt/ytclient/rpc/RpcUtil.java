@@ -130,7 +130,7 @@ public class RpcUtil {
     }
 
     private static List<byte[]> createCompressedAttachments(List<byte[]> attachments, Compression codecId) {
-        if (codecId == Compression.None) {
+        if (codecId == Compression.None || attachments.isEmpty()) {
             return attachments;
         } else {
             Codec codec = Codec.codecFor(codecId);
