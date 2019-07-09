@@ -1,4 +1,4 @@
-git+https://github.com/python/mypy.git@master
+git+https://github.com/python/mypy.git@e7ddba113d69055387996df33ceaace52b8c2c97
 typed-ast>=1.0.4
 flake8==3.5.0
 flake8-bugbear==18.2.0
