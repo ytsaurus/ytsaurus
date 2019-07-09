@@ -9,6 +9,7 @@ from pyspark.sql.context import SQLContext
 from pyspark.sql.session import SparkSession
 
 R = TypeVar("R", bound=MLReadable)
+S = TypeVar("S")
 
 basestring = str
 unicode = str
@@ -107,3 +108,9 @@ class DefaultParamsReader(MLReader[R]):
     def getAndSetParams(instance: R, metadata: Dict[str, Any]) -> None: ...
     @staticmethod
     def loadParamsInstance(path: str, sc: SparkContext) -> R: ...
+
+class HasTrainingSummary(Generic[S]):
+    @property
+    def hasSummary(self) -> bool: ...
+    @property
+    def summary(self) -> S: ...
