@@ -1834,11 +1834,19 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_effective_acl");
         if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error getting operations effective acl")
-                << rspOrError;
+            YT_LOG_WARNING(rspOrError, "Error getting operations effective ACL");
+            return;
         }
-        auto operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(
-            TYsonString(rspOrError.ValueOrThrow()->value()));
+
+        TSerializableAccessControlList operationsEffectiveAcl;
+        try {
+            const auto& rsp = rspOrError.Value();
+            operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(TYsonString(rsp->value()));
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error parsing operations effective ACL");
+            return;
+        }
+
         BaseOperationAcl_.emplace();
         for (const auto& ace : operationsEffectiveAcl.Entries) {
             if (ace.Action == ESecurityAction::Allow && Any(ace.Permissions & EPermission::Write)) {
