@@ -22,6 +22,18 @@ const TVector<TStructuredTablePath>& TOperationIOSpecBase::GetStructuredOutputs(
     return StructuredOutputs_;
 }
 
+void TOperationIOSpecBase::AddStructuredInput(const TStructuredTablePath& path)
+{
+    Inputs_.push_back(path.RichYPath);
+    StructuredInputs_.push_back(path);
+}
+
+void TOperationIOSpecBase::AddStructuredOutput(const TStructuredTablePath& path)
+{
+    Outputs_.push_back(path.RichYPath);
+    StructuredOutputs_.push_back(path);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRawJobContext::TRawJobContext(size_t outputTableCount)
@@ -192,6 +204,26 @@ IOperationPtr IOperationClient::Map(
         options);
 }
 
+IOperationPtr IOperationClient::Map(
+    const TOneOrMany<TStructuredTablePath>& input,
+    const TOneOrMany<TStructuredTablePath>& output,
+    ::TIntrusivePtr<IMapperBase> mapper,
+    const TMapOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    Y_ENSURE_EX(spec.Inputs_.empty(),
+        TApiUsageError() << "TMapOperationSpec::Inputs MUST be empty");
+    Y_ENSURE_EX(spec.Outputs_.empty(),
+        TApiUsageError() << "TMapOperationSpec::Outputs MUST be empty");
+
+    auto mapSpec = spec;
+    for (const auto& inputPath : input.Parts_)
+        mapSpec.AddStructuredInput(inputPath);
+    for (const auto& outputPath : output.Parts_)
+        mapSpec.AddStructuredOutput(outputPath);
+    return Map(mapSpec, mapper, options);
+}
+
 IOperationPtr IOperationClient::Reduce(
     const TReduceOperationSpec& spec,
     ::TIntrusivePtr<IReducerBase> reducer,
@@ -203,6 +235,30 @@ IOperationPtr IOperationClient::Reduce(
         spec,
         *reducer,
         options);
+}
+
+IOperationPtr IOperationClient::Reduce(
+    const TOneOrMany<TStructuredTablePath>& input,
+    const TOneOrMany<TStructuredTablePath>& output,
+    const TKeyColumns& reduceBy,
+    ::TIntrusivePtr<IReducerBase> reducer,
+    const TReduceOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    Y_ENSURE_EX(spec.Inputs_.empty(),
+        TApiUsageError() << "TReduceOperationSpec::Inputs MUST be empty");
+    Y_ENSURE_EX(spec.Outputs_.empty(),
+        TApiUsageError() << "TReduceOperationSpec::Outputs MUST be empty");
+    Y_ENSURE_EX(spec.ReduceBy_.Parts_.empty(),
+        TApiUsageError() << "TReduceOperationSpec::ReduceBy MUST be empty");
+
+    auto reduceSpec = spec;
+    for (const auto& inputPath : input.Parts_)
+        reduceSpec.AddStructuredInput(inputPath);
+    for (const auto& outputPath : output.Parts_)
+        reduceSpec.AddStructuredOutput(outputPath);
+    reduceSpec.ReduceBy(reduceBy);
+    return Reduce(reduceSpec, reducer, options);
 }
 
 IOperationPtr IOperationClient::JoinReduce(
@@ -249,6 +305,28 @@ IOperationPtr IOperationClient::MapReduce(
         reduceCombiner.Get(),
         *reducer,
         options);
+}
+
+IOperationPtr IOperationClient::Sort(
+    const TOneOrMany<TRichYPath>& input,
+    const TRichYPath& output,
+    const TKeyColumns& sortBy,
+    const TSortOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    Y_ENSURE_EX(spec.Inputs_.empty(),
+        TApiUsageError() << "TSortOperationSpec::Inputs MUST be empty");
+    Y_ENSURE_EX(spec.Output_.Path_.empty(),
+        TApiUsageError() << "TSortOperationSpec::Output MUST be empty");
+    Y_ENSURE_EX(spec.SortBy_.Parts_.empty(),
+        TApiUsageError() << "TSortOperationSpec::SortBy MUST be empty");
+
+    auto sortSpec = spec;
+    for (const auto& inputPath : input.Parts_)
+        sortSpec.AddInput(inputPath);
+    sortSpec.Output(output);
+    sortSpec.SortBy(sortBy);
+    return Sort(sortSpec, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

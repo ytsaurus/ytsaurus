@@ -1047,12 +1047,12 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         auto format = TFormat::Protobuf<TAllTypesMessage>();
+
         client->Map(
-            TMapOperationSpec()
-                .AddInput<TNode>(workingDir + "/input")
-                .AddOutput<TAllTypesMessage>(workingDir + "/output")
-                .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format(format.Config))),
-            new TMapperThatReadsProtobufFile("input"));
+            workingDir + "/input",
+            TStructuredTablePath(workingDir + "/output", TAllTypesMessage::descriptor()),
+            new TMapperThatReadsProtobufFile("input"),
+            TMapOperationSpec().MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format(format.Config))));
 
         {
             auto reader = client->CreateTableReader<TAllTypesMessage>(workingDir + "/output");
@@ -3054,12 +3054,7 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         {
-            client->Reduce(
-                TReduceOperationSpec()
-                    .ReduceBy("key")
-                    .AddInput<TNode>(workingDir + "/input")
-                    .AddOutput<TNode>(workingDir + "/output1"),
-                new TReducerThatCountsOutputTables());
+            client->Reduce(workingDir + "/input", workingDir + "/output1", "key", new TReducerThatCountsOutputTables());
 
                 auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
                 UNIT_ASSERT(reader->IsValid());
@@ -3070,11 +3065,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
         {
             client->Reduce(
-                TReduceOperationSpec()
-                    .ReduceBy("key")
-                    .AddInput<TNode>(workingDir + "/input")
-                    .AddOutput<TNode>(workingDir + "/output1")
-                    .AddOutput<TNode>(workingDir + "/output2"),
+                workingDir + "/input",
+                {workingDir + "/output1", workingDir + "/output2"},
+                "key",
                 new TReducerThatCountsOutputTables());
 
                 auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
@@ -3313,9 +3306,10 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         }
 
         auto operation = client->Sort(
-            TSortOperationSpec().SortBy({"foo"})
-            .AddInput(workingDir + "/input")
-            .Output(workingDir + "/output"),
+            workingDir + "/input",
+            workingDir + "/output",
+            "foo",
+            TSortOperationSpec(),
             TOperationOptions().Wait(false));
 
         auto fut = operation->Watch();
