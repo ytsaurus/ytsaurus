@@ -251,4 +251,4 @@ class TestSchedulePod(object):
             return workload_status.get("id") == workload_id and \
                 workload_status.get("state") == "active"
 
-        wait(is_workload_active, iter=180, sleep_backoff=1)
+        wait(is_workload_active, iter=300, sleep_backoff=1)
