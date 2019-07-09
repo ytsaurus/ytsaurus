@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar
 from pyspark.ml.util import Identifiable
 from pyspark.ml.linalg import DenseVector, Matrix
 
-T = TypeVar('T')
+U = TypeVar('U')
 ParamMap = Dict[Param, Any]
 
 class Param:
@@ -21,7 +21,7 @@ class Param:
 
 class TypeConverters:
     @staticmethod
-    def identity(T) -> T: ...
+    def identity(U) -> U: ...
     @staticmethod
     def toList(value: Any) -> List: ...
     @staticmethod

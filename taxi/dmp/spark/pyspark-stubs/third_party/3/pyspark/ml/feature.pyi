@@ -9,7 +9,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel,  JavaParams, JavaTransf
 from pyspark.ml.linalg import Vector, DenseVector, DenseMatrix
 from pyspark.sql.dataframe import DataFrame
 
-T = TypeVar("T")
+P = TypeVar("P")
 
 class Binarizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable, JavaMLWritable):
     threshold = ...  # type: Param
@@ -21,7 +21,7 @@ class Binarizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable, Java
 class LSHParams(Params):
     numHashTables = ...  # type: Param
     def __init__(self) -> None: ...
-    def setNumHashTables(self: T, value: int) -> T: ...
+    def setNumHashTables(self: P, value: int) -> P: ...
     def getNumHashTables(self) -> int: ...
 
 class LSHModel(JavaModel):

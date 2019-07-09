@@ -11,7 +11,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.wrapper import JavaWrapper
 from pyspark.sql.dataframe import DataFrame
 
-T = TypeVar("T")
+P = TypeVar("P")
 M = TypeVar("M", bound=Transformer)
 ParamMap = Dict[Param, Any]
 
@@ -128,7 +128,7 @@ class TreeClassifierParams:
     supportedImpurities = ...  # type: List[str]
     impurity = ...  # type: Param
     def __init__(self) -> None: ...
-    def setImpurity(self: T, value: str) -> T: ...
+    def setImpurity(self: P, value: str) -> P: ...
     def getImpurity(self)  -> str: ...
 
 class GBTParams(TreeEnsembleParams):
