@@ -127,7 +127,18 @@ private:
                     Options_.TransactionId))
         {
             if (Options_.TransactionId) {
-                Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
+                TTransactionAttachOptions attachOptions{
+                    .Ping = true
+                };
+                Transaction_ = Client_->AttachTransaction(Options_.TransactionId, attachOptions);
+            }
+
+            for (auto transactionId : Options_.PrerequisiteTransactionIds) {
+                TTransactionAttachOptions attachOptions{
+                    .Ping = false
+                };
+                auto transaction = Client_->AttachTransaction(transactionId, attachOptions);
+                StartProbeTransaction(transaction, Config_->PrerequisiteTransactionProbePeriod);
             }
 
             // Spawn the actor.
