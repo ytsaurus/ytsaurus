@@ -348,8 +348,8 @@ class TCodedStream
     : public TBaseStream
 {
 private:
-    static const int MaxVarintBytes = 10;
-    static const int MaxVarint32Bytes = 5;
+    static constexpr int MaxVarintBytes = 10;
+    static constexpr int MaxVarint32Bytes = 5;
 
     const ui8* BeginByte() const
     {
@@ -448,7 +448,7 @@ private:
         return true;
     }
 
-    bool ReadVarint64Fallback(ui64* value)
+    Y_FORCE_INLINE bool ReadVarint64Fallback(ui64* value)
     {
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
@@ -459,22 +459,19 @@ private:
             // this read won't cross the end, so we can skip the checks.
 
             const ui8* ptr = BeginByte();
-            ui32 b;
+            ui64 b;
+            ui64 result = 0;
 
-            // Splitting into 32-bit pieces gives better performance on 32-bit
-            // processors.
-            ui32 part0 = 0, part1 = 0, part2 = 0;
-
-            b = *(ptr++); part0  = (b & 0x7F)      ; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part0 |= (b & 0x7F) <<  7; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part0 |= (b & 0x7F) << 14; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part0 |= (b & 0x7F) << 21; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part1  = (b & 0x7F)      ; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part1 |= (b & 0x7F) <<  7; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part1 |= (b & 0x7F) << 14; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part1 |= (b & 0x7F) << 21; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part2  = (b & 0x7F)      ; if (!(b & 0x80)) goto done;
-            b = *(ptr++); part2 |= (b & 0x7F) <<  7; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result  = (b & 0x7F)      ; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) <<  7; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 14; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 21; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 28; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 35; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 42; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 49; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 56; if (!(b & 0x80)) goto done;
+            b = *(ptr++); result |= (b & 0x7F) << 63; if (!(b & 0x80)) goto done;
 
             // We have overrun the maximum size of a Varint (10 bytes).  The data
             // must be corrupt.
@@ -482,9 +479,7 @@ private:
 
         done:
             TBaseStream::Advance(ptr - BeginByte());
-            *value = (static_cast<ui64>(part0)      ) |
-                        (static_cast<ui64>(part1) << 28) |
-                        (static_cast<ui64>(part2) << 56);
+            *value = result;
             return true;
         } else {
             return ReadVarint64Slow(value);
@@ -496,7 +491,7 @@ public:
         : TBaseStream(baseStream)
     { }
 
-    bool ReadVarint64(ui64* value)
+    Y_FORCE_INLINE bool ReadVarint64(ui64* value)
     {
         if (BeginByte() < EndByte() && *BeginByte() < 0x80) {
             *value = *BeginByte();
@@ -649,7 +644,7 @@ public:
         return expectedValue;
     }
 
-    void ReadQuotedString(TStringBuf* value)
+    TStringBuf ReadQuotedString()
     {
         Buffer_.clear();
         while (true) {
@@ -679,11 +674,11 @@ public:
         auto unquotedValue = UnescapeC(Buffer_.data(), Buffer_.size());
         Buffer_.clear();
         Insert(unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
-        *value = TStringBuf(Buffer_.data(), Buffer_.size());
+        return TStringBuf(Buffer_.data(), Buffer_.size());
     }
 
     template <bool AllowFinish>
-    void ReadUnquotedString(TStringBuf* value)
+    TStringBuf ReadUnquotedString()
     {
         Buffer_.clear();
         while (true) {
@@ -697,15 +692,15 @@ public:
             }
             TBaseStream::Advance(1);
         }
-        *value = TStringBuf(Buffer_.data(), Buffer_.size());
+        return TStringBuf(Buffer_.data(), Buffer_.size());
     }
 
-    void ReadUnquotedString(TStringBuf* value)
+    TStringBuf ReadUnquotedString()
     {
-        return ReadUnquotedString<false>(value);
+        return ReadUnquotedString<false>();
     }
 
-    void ReadBinaryString(TStringBuf* value)
+    TStringBuf ReadBinaryString()
     {
         ui32 ulength = 0;
         if (!TBaseStream::ReadVarint32(&ulength)) {
@@ -721,8 +716,9 @@ public:
         }
 
         if (TBaseStream::Current() + length <= TBaseStream::End()) {
-            *value = TStringBuf(TBaseStream::Current(), length);
+            auto result = TStringBuf(TBaseStream::Current(), length);
             TBaseStream::Advance(length);
+            return result;
         } else {
             size_t needToRead = length;
             Buffer_.clear();
@@ -736,7 +732,7 @@ public:
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);
             }
-            *value = TStringBuf(Buffer_.data(), Buffer_.size());
+            return TStringBuf(Buffer_.data(), Buffer_.size());
         }
     }
 
@@ -780,30 +776,31 @@ public:
         YT_ABORT();
     }
 
-    void ReadBinaryInt64(i64* result)
+    i64 ReadBinaryInt64()
     {
         ui64 uvalue;
         if (!TBaseStream::ReadVarint64(&uvalue)) {
             THROW_ERROR_EXCEPTION("Error parsing varint value")
                 << *this;
         }
-        *result = ZigZagDecode64(uvalue);
+        return ZigZagDecode64(uvalue);
     }
 
-    void ReadBinaryUint64(ui64* result)
+    ui64 ReadBinaryUint64()
     {
         ui64 uvalue;
         if (!TBaseStream::ReadVarint64(&uvalue)) {
             THROW_ERROR_EXCEPTION("Error parsing varint value")
                 << *this;
         }
-        *result = uvalue;
+        return uvalue;
     }
 
-    void ReadBinaryDouble(double* value)
+    double ReadBinaryDouble()
     {
         size_t needToRead = sizeof(double);
 
+        double result;
         while (needToRead != 0) {
             if (TBaseStream::IsEmpty()) {
                 TBaseStream::Refresh();
@@ -818,10 +815,11 @@ public:
             std::copy(
                 TBaseStream::Current(),
                 TBaseStream::Current() + chunkSize,
-                reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
+                reinterpret_cast<char*>(&result) + (sizeof(double) - needToRead));
             needToRead -= chunkSize;
             TBaseStream::Advance(chunkSize);
         }
+        return result;
     }
 
     /// Helpers
