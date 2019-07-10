@@ -948,11 +948,16 @@ def run_ya_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping ya make tests since tests are disabled")
 
+    _, sandbox_storage = get_sandbox_dirs(options, "ya_tests")
+    junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
+
     env = ya_make_env(options)
     args = [
         os.path.join(options.checkout_directory, "ya"),
         "make",
         "--dist", "--new-dist",
+        "-E", "--output", sandbox_storage,
+        "--junit", junit_output,
         "-tt",
         "yt/tests",
     ]
@@ -960,7 +965,11 @@ def run_ya_tests(options, build_context):
     args += ya_make_definition_args(options)
     if options.use_asan:
         args += ["--sanitize=address"]
-    run(args, env=env, cwd=options.checkout_directory)
+
+    try:
+        run(args, env=env, cwd=options.checkout_directory)
+    except ChildHasNonZeroExitCode as err:
+        teamcity_interact("buildProblem", description="ya test '{}' failed, exit code {}".format(err.return_code))
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):

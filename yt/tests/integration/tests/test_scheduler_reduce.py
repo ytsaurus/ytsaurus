@@ -1419,7 +1419,6 @@ echo {v = 2} >&7
                 command="cat",
                 spec={"input_query": "a where a > 0"})
 
-    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
     def test_reduce_job_splitter(self):
         create("table", "//tmp/in_1")
         for j in range(5):
