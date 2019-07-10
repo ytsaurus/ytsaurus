@@ -249,6 +249,7 @@ class ReadIterator(IteratorRetrier):
         self.iterator.close()
 
     def except_action(self, exception, attempt):
+        super(ReadIterator, self).except_action(exception, attempt)
         self.response = None
         process_read_exception(exception)
 

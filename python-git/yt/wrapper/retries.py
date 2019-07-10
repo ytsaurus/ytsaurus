@@ -9,7 +9,7 @@ import copy
 import inspect
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
@@ -17,6 +17,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
         def __init__(self):
             retry_config = {"enable": True,
                             "count": retry_count,
+                            "total_timeout": None,
                             "backoff": {"policy": "rounded_up_to_request_timeout"}}
             super(SimpleRetrier, self).__init__(retry_config, backoff * 1000.0, exceptions)
             self.exception = None
@@ -64,8 +65,14 @@ class Retrier(object):
 
     def run(self):
         retry_count = self.retry_config["count"]
+        total_timeout = self.retry_config.get("total_timeout")
+        if total_timeout is not None:
+            deadline = datetime.now() + timedelta(seconds=total_timeout / 1000.0)
+        else:
+            deadline = None
+
         for attempt in xrange(1, retry_count + 1):
-            start_time = datetime.now()
+            attempt_start_time = datetime.now()
             try:
                 run_chaos_monkey(self._chaos_monkey)
                 return self.action()
@@ -74,6 +81,7 @@ class Retrier(object):
                     raise
 
                 is_error_retriable = False
+
                 if isinstance(exception, self.exceptions) and not isinstance(exception, self.ignore_exceptions):
                     is_error_retriable = True
                 else:
@@ -86,7 +94,11 @@ class Retrier(object):
                     raise
 
                 self.except_action(exception, attempt)
-                backoff = self.get_backoff(attempt, start_time)
+
+                backoff = self.get_backoff(attempt, attempt_start_time)
+                if deadline is not None and datetime.now() + timedelta(seconds=backoff) > deadline:
+                    raise
+
                 self.backoff_action(attempt, backoff)
 
     @abc.abstractmethod
@@ -119,7 +131,8 @@ class Retrier(object):
 
 class IteratorRetrier(Retrier):
     def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None):
-        super(IteratorRetrier, self).__init__(retry_config, timeout, exceptions, chaos_monkey)
+        super(IteratorRetrier, self).__init__(retry_config, timeout, exceptions,
+                                              ignore_exceptions=(), chaos_monkey=chaos_monkey)
         self._iter = None
 
     def action(self):
@@ -128,27 +141,12 @@ class IteratorRetrier(Retrier):
         return next(self._iter)
 
     def except_action(self, exception, attempt):
-        pass
+        self._iter = None
 
     def run(self):
-        retry_count = self.retry_config["count"]
-        attempt = 1
-
         while True:
-            start_time = datetime.now()
             try:
-                run_chaos_monkey(self._chaos_monkey)
-                yield self.action()
-                attempt = 0
-            except self.exceptions as exception:
-                if attempt == retry_count:
-                    raise
-                self.except_action(exception, attempt)
-                backoff = self.get_backoff(attempt, start_time)
-                self.backoff_action(attempt, backoff)
-
-                self._iter = None
-                attempt += 1
+                yield super(IteratorRetrier, self).run()
             except StopIteration:
                 return
 
