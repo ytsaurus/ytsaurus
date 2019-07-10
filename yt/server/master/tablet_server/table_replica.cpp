@@ -10,6 +10,7 @@ namespace NYT::NTabletServer {
 using namespace NYPath;
 using namespace NTableServer;
 using namespace NTransactionClient;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,10 +48,10 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, Mode_);
     Load(context, TransitioningTablets_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() >= 717) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddReplicatedTableOptions) {
         Load(context, EnableReplicatedTableTracker_);
     }
-    if (context.GetVersion() >= 802) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddReplicaOptions) {
         Load(context, PreserveTimestamps_);
         Load(context, Atomicity_);
     }

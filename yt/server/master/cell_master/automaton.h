@@ -30,6 +30,9 @@ public:
 
     using TSavedInternedObjectsMap = THashMap<const void*, NHydra::TEntitySerializationKey>;
     DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
+
+public:
+    NCellMaster::EMasterSnapshotVersion GetVersion();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +55,8 @@ public:
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
+
+    NCellMaster::EMasterSnapshotVersion GetVersion();
 };
 
 template <>

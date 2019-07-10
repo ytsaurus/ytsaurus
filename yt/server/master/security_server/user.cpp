@@ -20,10 +20,8 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, RequestCount);
-    if (context.GetVersion() >= 200) {
-        Persist(context, ReadRequestTime);
-        Persist(context, WriteRequestTime);
-    }
+    Persist(context, ReadRequestTime);
+    Persist(context, WriteRequestTime);
     Persist(context, AccessTime);
 }
 
@@ -96,7 +94,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < 815) {
+    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::AddReadRequestRateLimitAndWriteRequestRateLimit) {
         auto requestRateLimit = Load<int>(context);
         ReadRequestRateLimit_ = requestRateLimit;
         WriteRequestRateLimit_ = requestRateLimit;

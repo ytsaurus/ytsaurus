@@ -2440,7 +2440,7 @@ private:
         MediumMap_.LoadKeys(context);
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= 830) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
             ChunkViewMap_.LoadKeys(context);
         }
     }
@@ -2455,17 +2455,17 @@ private:
         Load(context, ChunkRequisitionRegistry_);
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 809) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::PersistRequisitionUpdateRequests) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= 830) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
             ChunkViewMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 817;
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterSnapshotVersion::PersistTNodeResourceUsageLimits;
     }
 
     virtual void OnBeforeSnapshotLoaded() override

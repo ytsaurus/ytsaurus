@@ -17,6 +17,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +45,7 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Action);
     Persist(context, InheritanceMode);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 826) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::ColumnarAcls) {
         Persist(context, Columns);
     }
 }

@@ -54,7 +54,7 @@ struct TErrorTraits;
 class TStreamSaveContext;
 class TStreamLoadContext;
 
-template <class TSaveContext, class TLoadContext>
+template <class TSaveContext, class TLoadContext, class TSnapshotVersion = int>
 class TCustomPersistenceContext;
 
 using TStreamPersistenceContext = TCustomPersistenceContext<

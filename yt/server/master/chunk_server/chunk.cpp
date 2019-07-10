@@ -132,7 +132,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, Parents_);
 
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 837) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::YT_10726_StagedChunkExpiration) {
         ExpirationTime_ = Load<TInstant>(context);
     }
 

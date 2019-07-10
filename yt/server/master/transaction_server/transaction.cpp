@@ -88,13 +88,13 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 702 && context.GetVersion() < 804) {
+    if (context.GetVersion() < EMasterSnapshotVersion::RemoveTTransactionSystem) {
         Load<bool>(context); // drop System_
     }
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
     // COMPAT(ignat)
-    if (context.GetVersion() >= 810) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::PersistTransactionDeadline) {
         Load(context, Deadline_);
     }
 }
