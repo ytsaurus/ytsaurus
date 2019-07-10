@@ -389,7 +389,7 @@ class YTInstance(object):
         logger.info("  controller agents  %d", self.controller_agent_count)
 
         if self.secondary_master_cell_count > 0:
-            logger.info("  secondary cells  %d", self.secondary_master_cell_count)
+            logger.info("  secondary cells    %d", self.secondary_master_cell_count)
 
         logger.info("  HTTP proxies       %d", self.http_proxy_count)
         logger.info("  RPC proxies        %d", self.rpc_proxy_count)
