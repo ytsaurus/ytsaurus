@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* shakurov: Commit 61ba9b7fe9 has changed mutation semantics for unlock and tx abort. Update masters via snapshot.
 * ifsmirnov: Changed semantics around required columns in replication log. Remove tablet cells before cluster update.
 * ermolovd: New variant_tuple and variant_struct types. Update masters via snapshot.
 * levysotsky: YT-8412: "operations_client" builtin user. Update masters via snapshot.
