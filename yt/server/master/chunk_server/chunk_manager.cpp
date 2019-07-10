@@ -2768,10 +2768,10 @@ private:
             beforeFirst = beforeFirst - childEntry;
         }
 
-        YT_VERIFY(chunkList->HasTrimableCumulativeStatistics());
+        YT_VERIFY(chunkList->HasTrimmableCumulativeStatistics());
         auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         cumulativeStatistics.Clear();
-        cumulativeStatistics.DeclareTrimable();
+        cumulativeStatistics.DeclareTrimmable();
         // Replace default-constructed auxiliary 'before-first' entry.
         cumulativeStatistics.PushBack(beforeFirst);
         cumulativeStatistics.TrimFront(1);

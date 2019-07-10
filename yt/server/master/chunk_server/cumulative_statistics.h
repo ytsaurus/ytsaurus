@@ -41,7 +41,7 @@ void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* co
 
 //! Holds cumulative statistics for children of a chunk tree.
 //! Each instance of this class should be declared appendable or modifiable prior to
-//! first use via calling `DeclareAppendable()`, `DeclareModifiable()` or `DeclareTrimable()`.
+//! first use via calling `DeclareAppendable()`, `DeclareModifiable()` or `DeclareTrimmable()`.
 //!
 //! `Appendable` structure stores a prefix sum array and allows quick modifications only
 //! at the end.
@@ -49,14 +49,14 @@ void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* co
 //! `Modifiable` structure stores a Fenwick tree and allows efficient aggregate modifications
 //! at any point at the cost of additional O(log |size|) factor.
 //!
-//! `Trimable` structure is the same as `Modifiable` but allows removing entries from the front.
+//! `Trimmable` structure is the same as `Modifiable` but allows removing entries from the front.
 class TCumulativeStatistics
 {
 public:
     // Meta interface.
     void DeclareAppendable();
     void DeclareModifiable();
-    void DeclareTrimable();
+    void DeclareTrimmable();
 
     void Persist(NCellMaster::TPersistenceContext& context);
 
@@ -84,22 +84,22 @@ public:
 
     TCumulativeStatisticsEntry Back() const;
 
-    // Interface for Trimable.
+    // Interface for Trimmable.
     void TrimFront(int entriesCount);
 
 private:
     using TAppendableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
     using TModifiableCumulativeStatistics = TFenwickTree<TCumulativeStatisticsEntry>;
-    using TTrimableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
+    using TTrimmableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
 
     constexpr static size_t AppendableAlternativeIndex = 0;
     constexpr static size_t ModifiableAlternativeIndex = 1;
-    constexpr static size_t TrimableAlternativeIndex = 2;
+    constexpr static size_t TrimmableAlternativeIndex = 2;
 
     std::variant<
         TAppendableCumulativeStatistics,
         TModifiableCumulativeStatistics,
-        TTrimableCumulativeStatistics
+        TTrimmableCumulativeStatistics
     > Statistics_;
 
     static_assert(std::is_same_v<
@@ -111,14 +111,14 @@ private:
         std::decay_t<decltype(std::get<ModifiableAlternativeIndex>(Statistics_))>>);
 
     static_assert(std::is_same_v<
-        TTrimableCumulativeStatistics,
-        std::decay_t<decltype(std::get<TrimableAlternativeIndex>(Statistics_))>>);
+        TTrimmableCumulativeStatistics,
+        std::decay_t<decltype(std::get<TrimmableAlternativeIndex>(Statistics_))>>);
 
     size_t GetImplementationIndex() const;
 
     bool IsAppendable() const;
     bool IsModifiable() const;
-    bool IsTrimable() const;
+    bool IsTrimmable() const;
 
     TAppendableCumulativeStatistics& AsAppendable();
     const TAppendableCumulativeStatistics& AsAppendable() const;
@@ -126,8 +126,8 @@ private:
     TModifiableCumulativeStatistics& AsModifiable();
     const TModifiableCumulativeStatistics& AsModifiable() const;
 
-    TTrimableCumulativeStatistics& AsTrimable();
-    const TTrimableCumulativeStatistics& AsTrimable() const;
+    TTrimmableCumulativeStatistics& AsTrimmable();
+    const TTrimmableCumulativeStatistics& AsTrimmable() const;
 };
 
 void Serialize(const TCumulativeStatistics& statistics, NYson::IYsonConsumer* consumer);
