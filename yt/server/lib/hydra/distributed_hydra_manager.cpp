@@ -1742,7 +1742,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
         CommitMutation(TMutationRequest())
