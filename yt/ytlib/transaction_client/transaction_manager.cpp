@@ -281,7 +281,7 @@ public:
                 Atomicity_));
         }
 
-        return SendPing(options.EnableRetries);
+        return SendPing(options);
     }
 
     void Detach()
@@ -894,7 +894,7 @@ private:
     }
 
 
-    TFuture<void> SendPing(bool retry)
+    TFuture<void> SendPing(const TTransactionPingOptions& options)
     {
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetConfirmedParticipantIds();
@@ -908,7 +908,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), retry);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), options.EnableRetries);
             auto req = proxy.PingTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
@@ -964,7 +964,10 @@ private:
         }
 
         // COMPAT(shakurov): disable retries here once all clients have retries enabled.
-        SendPing(true).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        TTransactionPingOptions options{
+            .EnableRetries = true
+        };
+        SendPing(options).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
                     Id_,
