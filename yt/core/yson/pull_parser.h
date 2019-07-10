@@ -228,6 +228,9 @@ public:
     Y_FORCE_INLINE TYsonPullParserCursor(TYsonItem current, TYsonPullParser* parser);
 
     Y_FORCE_INLINE const TYsonItem& GetCurrent() const;
+    Y_FORCE_INLINE const TYsonItem* operator->() const;
+    Y_FORCE_INLINE const TYsonItem& operator*() const;
+
     Y_FORCE_INLINE void Next();
 
     // If cursor is positioned over simple value  (i.e. just integer) cursor is moved one element further.
