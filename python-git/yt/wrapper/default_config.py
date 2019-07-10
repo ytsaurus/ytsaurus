@@ -41,6 +41,7 @@ def retries_config(**kwargs):
         "count": None,
         "enable": None,
         "backoff": retry_backoff_config(),
+        "total_timeout": None,
         "additional_retriable_error_codes": []
     }
 
@@ -67,7 +68,7 @@ default_config = {
         "content_encoding": "gzip",
 
         # Retries configuration for http requests.
-        "retries": retries_config(count=6, enable=True, backoff={
+        "retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
             "policy": "exponential",
             "exponential_policy": {
                 "start_timeout": 2000,
@@ -119,7 +120,7 @@ default_config = {
     },
 
     # Parameters for dynamic table requests retries.
-    "dynamic_table_retries": retries_config(count=6, enable=True, backoff={
+    "dynamic_table_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
         "policy": "constant_time",
         "constant_time": 5 * 1000
     }),
@@ -439,7 +440,7 @@ default_config = {
     "enable_batch_mode_for_search": False,
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
-    "read_retries": retries_config(count=30, enable=True, backoff={
+    "read_retries": retries_config(count=30, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 2000,
@@ -454,7 +455,7 @@ default_config = {
         }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
-    "write_retries": retries_config(count=6, enable=True, backoff={
+    "write_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 30000,
@@ -473,7 +474,7 @@ default_config = {
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
-    "start_operation_retries": retries_config(count=30, enable=True, backoff={
+    "start_operation_retries": retries_config(count=30, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 3000,
@@ -484,7 +485,7 @@ default_config = {
     "start_operation_request_timeout": 60000,
 
     # Retries for concatenate requests.
-    "concatenate_retries": retries_config(count=6, enable=True, backoff={
+    "concatenate_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 20000,
@@ -530,7 +531,8 @@ default_config = {
     },
 
     "max_batch_size": 100,
-    "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
+    "batch_requests_retries": retries_config(count=6, enable=True, total_timeout=None,
+                                             backoff={"policy": "rounded_up_to_request_timeout"}),
 
     "enable_operations_api": True,
 
