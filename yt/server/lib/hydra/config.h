@@ -332,6 +332,8 @@ public:
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
             .Default(TDuration::Seconds(60));
+        RegisterParameter("heartbeat_mutation_timeout", HeartbeatMutationTimeout)
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)
             .Default(TDuration::Seconds(1));
