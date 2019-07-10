@@ -115,7 +115,11 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
             create_object(path, client)
         params["path"] = path
 
-        enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
+        if stream.isatty():
+            enable_progress_bar = False
+        else:
+            enable_progress_bar = get_config(client)["write_progress_bar"]["enable"] and not stream.isatty()
+
         if progress_monitor is None:
             progress_monitor = SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:

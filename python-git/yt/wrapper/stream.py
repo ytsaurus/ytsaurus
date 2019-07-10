@@ -83,12 +83,25 @@ def _merge_items_into_chunks(items, chunk_size):
     if chunk_items:
         yield b"".join(chunk_items)
 
+def _stream_isatty(stream):
+    if hasattr(stream, "isatty"):
+        return stream.isatty()
+    else:
+        return False
+
 class Stream(object):
     """
         Base Stream class. A subclass class must set self._iter attribute.
     """
 
     item_type = binary_type
+
+    def __init__(self, input, isatty=None):
+        self._iter = iter(input)
+        if isatty is None:
+            self._isatty = _stream_isatty(input)
+        else:
+            self._isatty = isatty
 
     def __iter__(self):
         return self
@@ -102,6 +115,9 @@ class Stream(object):
         assert isinstance(item, self.item_type)
         return item
 
+    def isatty(self):
+        return self._isatty
+
 class RawStream(Stream):
     """
         Represents a stream of raw homogeneous data.
@@ -109,6 +125,7 @@ class RawStream(Stream):
 
     def __init__(self, input, chunk_size):
         self.size = None
+        isatty = _stream_isatty(input)
 
         if _is_freshly_opened_file(input):
             self.size = _get_file_size(input)
@@ -139,7 +156,7 @@ class RawStream(Stream):
             self.size = len(input)
             input = [input]
 
-        self._iter = iter(input)
+        super(RawStream, self).__init__(input, isatty)
 
     def into_chunks(self, chunk_size):
         return _ChunkStream(self, chunk_size, allow_resplit=True)
@@ -149,22 +166,23 @@ class ItemStream(Stream):
         Represents a stream of blobs, where each blob must NOT be split in the middle.
     """
 
-    def __init__(self, items):
-        self._iter = iter(items)
-
     def into_chunks(self, chunk_size):
         return _ChunkStream(self, chunk_size, allow_resplit=False)
 
 class _ChunkStream(Stream):
     def __init__(self, input, chunk_size, allow_resplit=False):
+        isatty = _stream_isatty(input)
+
         # NB: if stream is empty, we still want to make an empty write, e.g. for `write_table(name, [])`.
         # So, if stream is empty, we explicitly make it b"".
         input = _stream_or_empty_bytes(input)
         if allow_resplit:
-            self._iter = _resplit_chunks(input, chunk_size)
+            input = _resplit_chunks(input, chunk_size)
         else:
-            self._iter = _merge_items_into_chunks(input, chunk_size)
+            input = _merge_items_into_chunks(input, chunk_size)
         self.chunk_size = chunk_size
+
+        super(_ChunkStream, self).__init__(input, isatty)
 
     @classmethod
     def _make_from_raw_stream(cls, input, chunk_size):
@@ -179,9 +197,11 @@ class ChunkGroupStream(Stream):
     item_type = list
 
     def __init__(self, chunks, chunk_size, piece_max_size):
-        self._iter = _split_chunks_by_max_size(chunks, piece_max_size)
+        isatty = _stream_isatty(chunks)
+        stream = _split_chunks_by_max_size(chunks, piece_max_size)
         self.chunk_size = chunk_size
         self.piece_max_size = piece_max_size
+        super(ChunkGroupStream, self).__init__(stream, isatty)
 
     def flatten(self):
         chunks = _flatten_stream(self)
