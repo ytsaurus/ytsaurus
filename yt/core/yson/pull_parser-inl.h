@@ -668,6 +668,16 @@ const TYsonItem& TYsonPullParserCursor::GetCurrent() const
     return Current_;
 }
 
+const TYsonItem* TYsonPullParserCursor::operator->() const
+{
+    return &GetCurrent();
+}
+
+const TYsonItem& TYsonPullParserCursor::operator*() const
+{
+    return GetCurrent();
+}
+
 void TYsonPullParserCursor::Next()
 {
     Current_ = Parser_->Next();
