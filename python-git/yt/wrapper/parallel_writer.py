@@ -141,7 +141,11 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
                                 filename_hint=None, progress_monitor=None, client=None):
     assert isinstance(stream, (RawStream, ItemStream))
 
-    enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
+    if stream.isatty():
+        enable_progress_bar = False
+    else:
+        enable_progress_bar = get_config(client)["write_progress_bar"]["enable"] and not stream.isatty()
+
     if progress_monitor is None:
         progress_monitor = SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
     if get_config(client)["write_progress_bar"]["enable"] is not False:
