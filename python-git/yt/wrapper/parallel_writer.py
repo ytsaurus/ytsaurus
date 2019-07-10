@@ -1,18 +1,42 @@
 from .batch_helpers import batch_apply
 from .config import get_config, get_total_request_timeout
-from .common import group_blobs_by_size, MB
+from .common import MB
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE, DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT
 from .ypath import YPath, YPathSupportingAppend
+from .progress_bar import SimpleProgressBar, FakeProgressReporter
+from .stream import RawStream, ItemStream
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .thread_pool import ThreadPool
 from .heavy_commands import WriteRequestRetrier
 
-import yt.logger as logger
-
 import copy
 import threading
+
+class _ParallelProgressReporter(object):
+    def __init__(self, monitor):
+        self._monitor = monitor
+        self._lock = threading.Lock()
+
+    def __enter__(self):
+        self._monitor.start()
+
+    def __exit__(self, type, value, traceback):
+        self._monitor.finish()
+
+    def __del__(self):
+        self._monitor.finish()
+
+    def wrap_stream(self, stream):
+        for substream in stream:
+            yield self._wrap_substream(substream)
+
+    def _wrap_substream(self, substream):
+        for chunk in substream:
+            with self._lock:
+                self._monitor.update(len(chunk))
+            yield chunk
 
 class ParallelWriter(object):
     def __init__(self, path, params, create_object, unordered, transaction_timeout,
@@ -79,10 +103,10 @@ class ParallelWriter(object):
             return self._pool.imap_unordered(self._write_chunk, chunks)
         return self._pool.imap(self._write_chunk, chunks)
 
-    def write(self, blobs):
+    def write(self, chunks):
         try:
             output_objects = []
-            for table in self._write_iterator(blobs):
+            for table in self._write_iterator(chunks):
                 output_objects.append(table)
                 if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
                     concatenate(output_objects, self._path, client=self._client)
@@ -113,7 +137,18 @@ def _get_chunk_size_and_thread_count(size_hint, config):
     return chunk_size, thread_count
 
 def make_parallel_write_request(command_name, stream, path, params, unordered,
-                                create_object, remote_temp_directory, size_hint=None, client=None):
+                                create_object, remote_temp_directory, size_hint=None,
+                                filename_hint=None, progress_monitor=None, client=None):
+    assert isinstance(stream, (RawStream, ItemStream))
+
+    enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
+    if progress_monitor is None:
+        progress_monitor = SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
+    if get_config(client)["write_progress_bar"]["enable"] is not False:
+        progress_reporter = _ParallelProgressReporter(progress_monitor)
+    else:
+        progress_reporter = FakeProgressReporter()
+
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
@@ -125,6 +160,11 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]) as tx:
         chunk_size, thread_count = _get_chunk_size_and_thread_count(size_hint, get_config(client))
+        stream = stream.into_chunks(chunk_size)
+
+        # NB: split stream into 2 MB pieces so that we can safely send them separately
+        # without a risk of triggering timeout.
+        stream = stream.split_chunks(2 * MB)
 
         write_action = lambda chunk, params, client: _make_transactional_request(
             command_name,
@@ -146,7 +186,5 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
             remote_temp_directory=remote_temp_directory,
             client=client)
 
-        if get_config(client)["write_progress_bar"]["enable"] is not False:
-            logger.info("Progress bar is disabled in parallel mode")
-
-        writer.write(group_blobs_by_size(stream, chunk_size))
+        with progress_reporter:
+            writer.write(progress_reporter.wrap_stream(stream))

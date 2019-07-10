@@ -1,9 +1,11 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import CustomTqdm, YtError, MB
+from .common import YtError, MB
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
 from .ypath import YPathSupportingAppend
-from .stream import ChunkStream
+from .progress_bar import SimpleProgressBar, FakeProgressReporter
+from .stream import RawStream, ItemStream
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
@@ -14,20 +16,6 @@ from .format import YtFormatReadError
 import yt.logger as logger
 
 import time
-import os
-
-class _FakeProgressReporter(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, type, value, traceback):
-        pass
-
-    def wrap_stream(self, stream):
-        return stream
 
 class _ProgressReporter(object):
     def __init__(self, monitor):
@@ -46,38 +34,6 @@ class _ProgressReporter(object):
 
     def __del__(self):
         self._monitor.finish()
-
-class _SimpleProgressBar(object):
-    def __init__(self, default_status, size_hint=None, filename_hint=None, enable=None):
-        self.default_status = default_status
-        self.size_hint = size_hint
-        self.filename_hint = filename_hint
-        self.enable = enable
-        self._tqdm = None
-
-    def _set_status(self, status):
-        if self.filename_hint:
-            self._tqdm.set_description("[{}]: {}".format(status.upper(), os.path.basename(self.filename_hint)))
-        else:
-            self._tqdm.set_description("[{}]".format(status.upper()))
-
-    def start(self):
-        if self.enable is None:
-            disable = None
-        else:
-            disable = not self.enable
-        self._tqdm = CustomTqdm(disable=disable, total=self.size_hint, leave=False)
-        self._set_status(self.default_status)
-        return self
-
-    def finish(self, status="ok"):
-        if self._tqdm is not None:
-            self._set_status(status)
-            self._tqdm.close()
-            self._tqdm = None
-
-    def update(self, size):
-        self._tqdm.update(size)
 
 def process_read_exception(exception):
     logger.warning("Read request failed with error: %s", str(exception))
@@ -139,10 +95,7 @@ class WriteRequestRetrier(Retrier):
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, size_hint=None, filename_hint=None,
                        progress_monitor=None, client=None):
-    # NB: split stream into 2 MB pieces so that we can safely send them separately
-    # without a risk of triggering timeout.
-    assert isinstance(stream, ChunkStream)
-    stream = stream.split_chunks(2 * MB)
+    assert isinstance(stream, (RawStream, ItemStream))
 
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
@@ -164,14 +117,18 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
         enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
         if progress_monitor is None:
-            progress_monitor = _SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
+            progress_monitor = SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:
             progress_reporter = _ProgressReporter(progress_monitor)
         else:
-            progress_reporter = _FakeProgressReporter()
+            progress_reporter = FakeProgressReporter()
 
         with progress_reporter:
             if use_retries:
+                chunk_size = get_config(client)["write_retries"]["chunk_size"]
+                if chunk_size is None:
+                    chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
                 write_action = lambda chunk, params: _make_transactional_request(
                     command_name,
                     params,
@@ -183,7 +140,10 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
                                              write_action=write_action,
                                              client=client)
-                for chunk in stream:
+
+                # NB: split stream into 2 MB pieces so that we can safely send them separately
+                # without a risk of triggering timeout.
+                for chunk in stream.into_chunks(chunk_size).split_chunks(2 * MB):
                     assert isinstance(chunk, list)
                     logger.debug(
                         "Processing {0} chunk (length: {1}, transaction: {2})"
@@ -202,7 +162,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 _make_transactional_request(
                     command_name,
                     params,
-                    data=progress_reporter.wrap_stream(stream.flatten()),
+                    data=progress_reporter.wrap_stream(stream.into_chunks(2 * MB)),
                     is_data_compressed=is_stream_compressed,
                     use_heavy_proxy=True,
                     client=client)
@@ -321,10 +281,10 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
             enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
             if enable_progress_bar:
-                bar = _SimpleProgressBar("download", filename_hint=filename_hint, enable=enable_progress_bar)
+                bar = SimpleProgressBar("download", filename_hint=filename_hint, enable=enable_progress_bar)
                 reporter = _ProgressReporter(bar)
             else:
-                reporter = _FakeProgressReporter()
+                reporter = FakeProgressReporter()
 
             # NB: __exit__() is done in __del__()
             reporter.__enter__()
