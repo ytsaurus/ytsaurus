@@ -40,10 +40,59 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const double ChunkListThombstoneRelativeThreshold = 0.5;
-static const double ChunkListThombstoneAbsoluteThreshold = 16;
+static const double ChunkListTombstoneRelativeThreshold = 0.5;
+static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+int GetChildIndex(TChunkList* parentChunkList, TChunkTree* child)
+{
+    const auto& childToIndex = parentChunkList->ChildToIndex();
+    auto indexIt = childToIndex.find(child);
+    YT_VERIFY(indexIt != childToIndex.end());
+    return indexIt->second;
+}
+
+} // namespace
+
+TChunkList* GetUniqueParent(TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk: {
+            const auto& parents = chunkTree->AsChunk()->Parents();
+            if (parents.empty()) {
+                return nullptr;
+            }
+            YT_VERIFY(parents.size() == 1);
+            return parents[0];
+        }
+
+        case EObjectType::ChunkView: {
+            const auto& parents = chunkTree->AsChunkView()->Parents();
+            if (parents.empty()) {
+                return nullptr;
+            }
+            YT_VERIFY(parents.size() == 1);
+            return parents[0];
+        }
+
+        case EObjectType::ChunkList: {
+            const auto& parents = chunkTree->AsChunkList()->Parents();
+            if (parents.Empty()) {
+                return nullptr;
+            }
+            YT_VERIFY(parents.Size() == 1);
+            return *parents.begin();
+        }
+
+        default:
+            YT_ABORT();
+    }
+}
 
 void AttachToChunkList(
     TChunkList* chunkList,
@@ -68,15 +117,7 @@ void AttachToChunkList(
 
     ++statisticsDelta.Rank;
     chunkList->Statistics().Accumulate(statisticsDelta);
-
-    const auto& parents = chunkList->Parents();
-    if (!parents.Empty()) {
-        YT_VERIFY(parents.Size() == 1);
-        chunkList = *parents.begin();
-
-        // Go upwards and apply delta.
-        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
-    }
+    AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
 }
 
 void DetachFromChunkList(
@@ -109,14 +150,14 @@ void DetachFromChunkList(
             children[childIndex] = nullptr;
         }
         int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
-        if (newTrimmedChildCount > ChunkListThombstoneAbsoluteThreshold &&
-            newTrimmedChildCount > children.size() * ChunkListThombstoneRelativeThreshold)
+        if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
+            newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
         {
             children.erase(
                 children.begin(),
                 children.begin() + newTrimmedChildCount);
 
-            chunkList->CumulativeStatistics().EraseFromFront(newTrimmedChildCount);
+            chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
 
             chunkList->SetTrimmedChildCount(0);
         } else {
@@ -135,10 +176,19 @@ void DetachFromChunkList(
             auto indexIt = childToIndex.find(child);
             YT_VERIFY(indexIt != childToIndex.end());
             int index = indexIt->second;
+
+            // To remove child from the middle we swap it with the last one and update
+            // cumulative statistics accordingly.
             if (index != children.size() - 1) {
+                auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(children.back())) -
+                    TCumulativeStatisticsEntry(GetChunkTreeStatistics(children[index]));
+                chunkList->CumulativeStatistics().Update(index, delta);
+
                 children[index] = children.back();
                 childToIndex[children[index]] = index;
             }
+
+            chunkList->CumulativeStatistics().PopBack();
             childToIndex.erase(indexIt);
             children.pop_back();
         }
@@ -147,9 +197,34 @@ void DetachFromChunkList(
     // Go upwards and recompute statistics.
     VisitUniqueAncestors(
         chunkList,
-        [&] (TChunkList* current) {
+        [&] (TChunkList* current, TChunkTree* child) {
             current->Statistics().Deaccumulate(statisticsDelta);
+            if (child && current->HasModifyableCumulativeStatistics()) {
+                int index = GetChildIndex(current, child);
+                current->CumulativeStatistics().Update(
+                    index,
+                    TCumulativeStatisticsEntry{} - TCumulativeStatisticsEntry(statisticsDelta));
+            }
         });
+}
+
+void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild)
+{
+    auto& children = chunkList->Children();
+    auto& childToIndex = chunkList->ChildToIndex();
+
+    auto* oldChild = children[childIndex];
+    ResetChunkTreeParent(chunkList, oldChild);
+    SetChunkTreeParent(chunkList, newChild);
+
+    if (!chunkList->IsOrdered()) {
+        auto oldChildIt = childToIndex.find(oldChild);
+        YT_VERIFY(oldChildIt != childToIndex.end());
+        childToIndex.erase(oldChildIt);
+        YT_VERIFY(childToIndex.emplace(newChild, childIndex).second);
+    }
+
+    children[childIndex] = newChild;
 }
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
@@ -230,22 +305,32 @@ void AppendChunkTreeChild(
 }
 
 void AccumulateUniqueAncestorsStatistics(
-    TChunkList* chunkList,
+    TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta)
 {
+    auto* parent = GetUniqueParent(child);
+    if (!parent) {
+        return;
+    }
     auto mutableStatisticsDelta = statisticsDelta;
     VisitUniqueAncestors(
-        chunkList,
-        [&] (TChunkList* current) {
+        parent,
+        [&] (TChunkList* parent, TChunkTree* child) {
             ++mutableStatisticsDelta.Rank;
-            current->Statistics().Accumulate(mutableStatisticsDelta);
-            if (current->HasCumulativeStatistics()) {
-                auto& cumulativeStatistics = current->CumulativeStatistics();
-                cumulativeStatistics.Update(
-                    cumulativeStatistics.Size() - 1,
-                    TCumulativeStatisticsEntry(mutableStatisticsDelta));
+            parent->Statistics().Accumulate(mutableStatisticsDelta);
+
+            if (parent->HasCumulativeStatistics()) {
+                auto& cumulativeStatistics = parent->CumulativeStatistics();
+                TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
+
+                int index = parent->IsOrdered()
+                    ? parent->Children().size() - 1
+                    : GetChildIndex(parent, child);
+                YT_VERIFY(parent->Children()[index] == child);
+                cumulativeStatistics.Update(index, entry);
             }
-        });
+        },
+        child);
 }
 
 void ResetChunkListStatistics(TChunkList* chunkList)
@@ -269,6 +354,8 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
         chunkList->CumulativeStatistics().DeclareAppendable();
     } else if (chunkList->HasModifyableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareModifiable();
+    } else if (chunkList->HasTrimableCumulativeStatistics()) {
+        chunkList->CumulativeStatistics().DeclareTrimable();
     }
 
     std::vector<TChunkTree*> children;

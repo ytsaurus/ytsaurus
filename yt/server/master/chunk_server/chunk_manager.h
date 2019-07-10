@@ -95,6 +95,13 @@ public:
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 
+    //! For ordered tablets, copies all chunks taking trimmed chunks into account
+    //! and updates cumulative statistics accordingly. If all chunks were trimmed
+    //! then a nullptr chunk is appended to a cloned chunk list.
+    //!
+    //! For sorted tablets, cloned chunk list is flattened.
+    TChunkList* CloneTabletChunkList(TChunkList* chunkList);
+
     void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
@@ -116,6 +123,10 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* child);
+    void ReplaceChunkListChild(
+        TChunkList* chunkList,
+        int childIndex,
+        TChunkTree* newChild);
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange);
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange);

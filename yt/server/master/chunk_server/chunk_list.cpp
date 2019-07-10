@@ -210,17 +210,26 @@ bool TChunkList::IsOrdered() const
 
 bool TChunkList::HasCumulativeStatistics() const
 {
-    return HasAppendableCumulativeStatistics() || HasModifyableCumulativeStatistics();
+    return HasAppendableCumulativeStatistics() ||
+        HasModifyableCumulativeStatistics() ||
+        HasTrimableCumulativeStatistics();
 }
 
 bool TChunkList::HasAppendableCumulativeStatistics() const
 {
-    return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
+    return Kind_ == EChunkListKind::Static;
 }
 
 bool TChunkList::HasModifyableCumulativeStatistics() const
 {
-    return false;
+    return Kind_ == EChunkListKind::SortedDynamicRoot ||
+        Kind_ == EChunkListKind::OrderedDynamicRoot ||
+        Kind_ == EChunkListKind::SortedDynamicTablet;
+}
+
+bool TChunkList::HasTrimableCumulativeStatistics() const
+{
+    return Kind_ == EChunkListKind::OrderedDynamicTablet;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

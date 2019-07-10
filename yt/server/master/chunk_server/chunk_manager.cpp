@@ -72,6 +72,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
@@ -771,6 +773,36 @@ public:
         return chunkList;
     }
 
+    TChunkList* CloneTabletChunkList(TChunkList* chunkList)
+    {
+        auto* newChunkList = CreateChunkList(chunkList->GetKind());
+
+        if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+            AttachToChunkList(
+                newChunkList,
+                chunkList->Children().data() + chunkList->GetTrimmedChildCount(),
+                chunkList->Children().data() + chunkList->Children().size());
+
+            // Restoring statistics.
+            newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
+            newChunkList->Statistics().LogicalChunkCount = chunkList->Statistics().LogicalChunkCount;
+            newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
+            newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
+        } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
+            // TODO(ifsmirnov): to be replaced with EnumerateChunksAndChunkViewsInChunkTree
+            // when multilevel chunk lists for DTs come.
+            newChunkList->SetPivotKey(chunkList->GetPivotKey());
+            AttachToChunkList(
+                newChunkList,
+                chunkList->Children().data(),
+                chunkList->Children().data() + chunkList->Children().size());
+        } else {
+            YT_ABORT();
+        }
+
+        return newChunkList;
+    }
+
 
     void AttachToChunkList(
         TChunkList* chunkList,
@@ -838,6 +870,25 @@ public:
             chunkList,
             &child,
             &child + 1);
+    }
+
+
+    void ReplaceChunkListChild(
+        TChunkList* chunkList,
+        int childIndex,
+        TChunkTree* child)
+    {
+        auto* oldChild = chunkList->Children()[childIndex];
+
+        if (oldChild == child) {
+            return;
+        }
+
+        NChunkServer::ReplaceChunkListChild(chunkList, childIndex, child);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(child);
+        objectManager->UnrefObject(oldChild);
     }
 
 
@@ -1409,7 +1460,7 @@ private:
 
     int TotalReplicaCount_ = 0;
 
-    bool NeedToRecomputeStatistics_ = false;
+    bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
     bool NeedInitializeMediumMaxReplicationFactor_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -2466,13 +2517,17 @@ private:
 
         // COMPAT(shakurov)
         NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterSnapshotVersion::PersistTNodeResourceUsageLimits;
+
+        // COMPAT(ifsmirnov)
+        NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
+            EMasterSnapshotVersion::YT_10639_CumulativeStatisticsInDynamicTables;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedToRecomputeStatistics_ = false;
+        NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         NeedInitializeMediumMaxReplicationFactor_ = false;
     }
 
@@ -2522,9 +2577,9 @@ private:
 
         InitBuiltins();
 
-        if (NeedToRecomputeStatistics_) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics_ = false;
+        if (NeedToComputeCumulativeStatisticsForDynamicTables_) {
+            ComputeCumulativeStatisticsForDynamicTables();
+            NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         }
 
         if (NeedInitializeMediumMaxReplicationFactor_) {
@@ -2645,10 +2700,130 @@ private:
         return true;
     }
 
-
-    void ScheduleRecomputeStatistics()
+    void RecomputeStatistics(TChunkList* chunkList)
     {
-        NeedToRecomputeStatistics_ = true;
+        YT_VERIFY(chunkList->GetKind() != EChunkListKind::OrderedDynamicTablet);
+
+        auto& statistics = chunkList->Statistics();
+        auto oldStatistics = statistics;
+        statistics = TChunkTreeStatistics{};
+
+        auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+        cumulativeStatistics.Clear();
+        if (chunkList->HasModifyableCumulativeStatistics()) {
+            cumulativeStatistics.DeclareModifiable();
+        } else if (chunkList->HasAppendableCumulativeStatistics()) {
+            cumulativeStatistics.DeclareAppendable();
+        } else {
+            YT_ABORT();
+        }
+
+        for (auto* child : chunkList->Children()) {
+            YT_VERIFY(child);
+            auto childStatistics = GetChunkTreeStatistics(child);
+            statistics.Accumulate(childStatistics);
+            if (chunkList->HasCumulativeStatistics()) {
+                cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{childStatistics});
+            }
+        }
+
+        ++statistics.Rank;
+        ++statistics.ChunkListCount;
+
+        if (statistics != oldStatistics) {
+            YT_LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
+                chunkList->GetId(),
+                oldStatistics,
+                statistics);
+        }
+
+        if (!chunkList->Children().empty() && chunkList->HasCumulativeStatistics()) {
+            auto ultimateCumulativeEntry = chunkList->CumulativeStatistics().Back();
+            if (ultimateCumulativeEntry != TCumulativeStatisticsEntry{statistics}) {
+                YT_LOG_FATAL(
+                    "Chunk list cumulative statistics do not match statistics "
+                    "(ChunkListId: %v, Statistics: %v, UltimateCumulativeEntry: %v)",
+                    chunkList->GetId(),
+                    statistics,
+                    ultimateCumulativeEntry);
+            }
+        }
+    }
+
+    // Fix for YT-10619.
+    void RecomputeOrderedTabletCumulativeStatistics(TChunkList* chunkList)
+    {
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+
+        auto getChildStatisticsEntry = [] (TChunkTree* child) {
+            return child
+                ? TCumulativeStatisticsEntry{child->AsChunk()->GetStatistics()}
+                : TCumulativeStatisticsEntry(0 /*RowCount*/, 1 /*ChunkCount*/, 0 /*DataSize*/);
+        };
+
+        TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
+        for (auto* child : chunkList->Children()) {
+            auto childEntry = getChildStatisticsEntry(child);
+            beforeFirst = beforeFirst - childEntry;
+        }
+
+        YT_VERIFY(chunkList->HasTrimableCumulativeStatistics());
+        auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+        cumulativeStatistics.Clear();
+        cumulativeStatistics.DeclareTrimable();
+        // Replace default-constructed auxiliary 'before-first' entry.
+        cumulativeStatistics.PushBack(beforeFirst);
+        cumulativeStatistics.TrimFront(1);
+
+        auto currentStatistics = beforeFirst;
+        for (auto* child : chunkList->Children()) {
+            auto childEntry = getChildStatisticsEntry(child);
+            currentStatistics = currentStatistics + childEntry;
+            cumulativeStatistics.PushBack(childEntry);
+        }
+
+        YT_VERIFY(currentStatistics == TCumulativeStatisticsEntry{chunkList->Statistics()});
+        auto ultimateCumulativeEntry = chunkList->CumulativeStatistics().Empty()
+            ? chunkList->CumulativeStatistics().GetPreviousSum(0)
+            : chunkList->CumulativeStatistics().Back();
+        if (ultimateCumulativeEntry != TCumulativeStatisticsEntry{chunkList->Statistics()}) {
+            YT_LOG_FATAL(
+                "Chunk list cumulative statistics do not match statistics "
+                "(ChunkListId: %v, Statistics: %v, UltimateCumulativeEntry: %v)",
+                chunkList->GetId(),
+                chunkList->Statistics(),
+                ultimateCumulativeEntry);
+        }
+    }
+
+    // Compat for YT-10639.
+    void ComputeCumulativeStatisticsForDynamicTables()
+    {
+        for (auto [id, chunkList] : ChunkListMap_) {
+            switch (chunkList->GetKind()) {
+                case EChunkListKind::OrderedDynamicTablet:
+                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
+                    break;
+
+                case EChunkListKind::OrderedDynamicRoot:
+                case EChunkListKind::SortedDynamicRoot:
+                case EChunkListKind::SortedDynamicTablet:
+                    RecomputeStatistics(chunkList);
+                    break;
+
+                default:
+                    break;
+            }
+
+            if (chunkList->HasCumulativeStatistics()) {
+                YT_VERIFY(chunkList->Children().size() == chunkList->CumulativeStatistics().Size());
+                if (chunkList->Statistics().ChunkCount > 0 && !chunkList->CumulativeStatistics().Empty()) {
+                    YT_VERIFY(TCumulativeStatisticsEntry{chunkList->Statistics()} ==
+                        chunkList->CumulativeStatistics().Back());
+                }
+            }
+        }
     }
 
     // NB(ifsmirnov): This code was used 3 years ago as an ancient COMPAT but might soon
@@ -2694,6 +2869,7 @@ private:
 
         // Recompute statistics
         for (auto* chunkList : chunkLists) {
+            RecomputeStatistics(chunkList);
             auto& statistics = chunkList->Statistics();
             auto oldStatistics = statistics;
             statistics = TChunkTreeStatistics();
@@ -3077,10 +3253,8 @@ private:
 
         // Go upwards and apply delta.
         YT_VERIFY(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
         auto statisticsDelta = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+        AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 
         auto owningNodes = GetOwningNodes(chunk);
 
@@ -3542,6 +3716,11 @@ TChunkList* TChunkManager::CreateChunkList(EChunkListKind kind)
     return Impl_->CreateChunkList(kind);
 }
 
+TChunkList* TChunkManager::CloneTabletChunkList(TChunkList* chunkList)
+{
+    return Impl_->CloneTabletChunkList(chunkList);
+}
+
 void TChunkManager::UnstageChunk(TChunk* chunk)
 {
     Impl_->UnstageChunk(chunk);
@@ -3604,6 +3783,14 @@ void TChunkManager::DetachFromChunkList(
     TChunkTree* child)
 {
     Impl_->DetachFromChunkList(chunkList, child);
+}
+
+void TChunkManager::ReplaceChunkListChild(
+    TChunkList* chunkList,
+    int childIndex,
+    TChunkTree* newChild)
+{
+    Impl_->ReplaceChunkListChild(chunkList, childIndex, newChild);
 }
 
 TChunkView* TChunkManager::CreateChunkView(

@@ -26,7 +26,7 @@ TEST(TCumulativeStatisticsTest, SimpleAppendable)
     EXPECT_EQ(1, stats.LowerBound(300, &TCumulativeStatisticsEntry::DataSize));
     EXPECT_EQ(2, stats.UpperBound(300, &TCumulativeStatisticsEntry::DataSize));
 
-    stats.EraseFromFront(1);
+    stats.TrimFront(1);
     EXPECT_EQ(3, stats.Back().RowCount);
 }
 
