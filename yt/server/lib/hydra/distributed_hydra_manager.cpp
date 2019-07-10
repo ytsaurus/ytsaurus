@@ -1742,10 +1742,20 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        // Fire-and-forget.
-        CommitMutation(TMutationRequest());
+        CommitMutation(TMutationRequest())
+            .WithTimeout(Config_->HeartbeatMutationTimeout)
+            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+                if (result.IsOK()) {
+                    YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
+                } else {
+                    Restart(
+                        weakEpochContext,
+                        TError("Heartbeat mutation commit failed") << result);
+                }
+            }));
     }
 
 
