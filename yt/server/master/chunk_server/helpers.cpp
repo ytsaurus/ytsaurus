@@ -354,8 +354,8 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
         chunkList->CumulativeStatistics().DeclareAppendable();
     } else if (chunkList->HasModifyableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareModifiable();
-    } else if (chunkList->HasTrimableCumulativeStatistics()) {
-        chunkList->CumulativeStatistics().DeclareTrimable();
+    } else if (chunkList->HasTrimmableCumulativeStatistics()) {
+        chunkList->CumulativeStatistics().DeclareTrimmable();
     }
 
     std::vector<TChunkTree*> children;

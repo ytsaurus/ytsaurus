@@ -95,10 +95,10 @@ void TCumulativeStatistics::DeclareModifiable()
     Statistics_.emplace<ModifiableAlternativeIndex>();
 }
 
-void TCumulativeStatistics::DeclareTrimable()
+void TCumulativeStatistics::DeclareTrimmable()
 {
     YT_VERIFY(Empty());
-    Statistics_.emplace<TrimableAlternativeIndex>(1);
+    Statistics_.emplace<TrimmableAlternativeIndex>(1);
 }
 
 void TCumulativeStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -124,8 +124,8 @@ void TCumulativeStatistics::PushBack(const TCumulativeStatisticsEntry& entry)
             AsModifiable().PushBack(entry);
             break;
 
-        case TrimableAlternativeIndex: {
-            auto& statistics = AsTrimable();
+        case TrimmableAlternativeIndex: {
+            auto& statistics = AsTrimmable();
             statistics.push_back(entry + statistics.back());
             break;
         }
@@ -146,8 +146,8 @@ void TCumulativeStatistics::PopBack()
             AsModifiable().PopBack();
             break;
 
-        case TrimableAlternativeIndex:
-            AsTrimable().pop_back();
+        case TrimmableAlternativeIndex:
+            AsTrimmable().pop_back();
             break;
 
         default:
@@ -172,8 +172,8 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
             break;
         }
 
-        case TrimableAlternativeIndex: {
-            auto& statistics = AsTrimable();
+        case TrimmableAlternativeIndex: {
+            auto& statistics = AsTrimmable();
             YT_VERIFY(index == statistics.size() - 2);
             statistics[index + 1] = statistics[index + 1] + delta;
             break;
@@ -193,8 +193,8 @@ i64 TCumulativeStatistics::Size() const
         case ModifiableAlternativeIndex:
             return AsModifiable().Size();
 
-        case TrimableAlternativeIndex:
-            return AsTrimable().size() - 1;
+        case TrimmableAlternativeIndex:
+            return AsTrimmable().size() - 1;
 
         default:
             YT_ABORT();
@@ -217,8 +217,8 @@ void TCumulativeStatistics::Clear()
             AsModifiable().Clear();
             break;
 
-        case TrimableAlternativeIndex:
-            AsTrimable() = TTrimableCumulativeStatistics(1);
+        case TrimmableAlternativeIndex:
+            AsTrimmable() = TTrimmableCumulativeStatistics(1);
             break;
 
         default:
@@ -243,12 +243,12 @@ int TCumulativeStatistics::LowerBound(i64 value, i64 TCumulativeStatisticsEntry:
         case ModifiableAlternativeIndex:
             return std::max(0, AsModifiable().LowerBound(value, comparator) - 1);
 
-        case TrimableAlternativeIndex:
+        case TrimmableAlternativeIndex:
             return std::lower_bound(
-                AsTrimable().begin(),
-                AsTrimable().end(),
+                AsTrimmable().begin(),
+                AsTrimmable().end(),
                 value,
-                comparator) - AsTrimable().begin() - 1;
+                comparator) - AsTrimmable().begin() - 1;
 
         default:
             YT_ABORT();
@@ -272,12 +272,12 @@ int TCumulativeStatistics::UpperBound(i64 value, i64 TCumulativeStatisticsEntry:
         case ModifiableAlternativeIndex:
             return std::max(0, AsModifiable().UpperBound(value, comparator) - 1);
 
-        case TrimableAlternativeIndex:
+        case TrimmableAlternativeIndex:
             return std::upper_bound(
-                AsTrimable().begin(),
-                AsTrimable().end(),
+                AsTrimmable().begin(),
+                AsTrimmable().end(),
                 value,
-                comparator) - AsTrimable().begin() - 1;
+                comparator) - AsTrimmable().begin() - 1;
 
         default:
             YT_ABORT();
@@ -298,8 +298,8 @@ TCumulativeStatisticsEntry TCumulativeStatistics::GetCurrentSum(int index) const
         case ModifiableAlternativeIndex:
             return AsModifiable().GetCumulativeSum(index + 1);
 
-        case TrimableAlternativeIndex:
-            return AsTrimable()[index + 1];
+        case TrimmableAlternativeIndex:
+            return AsTrimmable()[index + 1];
 
         default:
             YT_ABORT();
@@ -309,7 +309,7 @@ TCumulativeStatisticsEntry TCumulativeStatistics::GetCurrentSum(int index) const
 TCumulativeStatisticsEntry TCumulativeStatistics::GetPreviousSum(int index) const
 {
     if (index == 0) {
-        return IsTrimable() ? AsTrimable()[0] : TCumulativeStatisticsEntry{};
+        return IsTrimmable() ? AsTrimmable()[0] : TCumulativeStatisticsEntry{};
     } else {
         return GetCurrentSum(index - 1);
     }
@@ -323,7 +323,7 @@ TCumulativeStatisticsEntry TCumulativeStatistics::Back() const
 
 void TCumulativeStatistics::TrimFront(int entriesCount)
 {
-    auto& statistics = AsTrimable();
+    auto& statistics = AsTrimmable();
     // NB: At least one entry always remains.
     YT_VERIFY(entriesCount <= Size());
     statistics.erase(
@@ -346,9 +346,9 @@ bool TCumulativeStatistics::IsModifiable() const
     return Statistics_.index() == ModifiableAlternativeIndex;
 }
 
-bool TCumulativeStatistics::IsTrimable() const
+bool TCumulativeStatistics::IsTrimmable() const
 {
-    return Statistics_.index() == TrimableAlternativeIndex;
+    return Statistics_.index() == TrimmableAlternativeIndex;
 }
 
 TCumulativeStatistics::TAppendableCumulativeStatistics& TCumulativeStatistics::AsAppendable()
@@ -375,16 +375,16 @@ const TCumulativeStatistics::TModifiableCumulativeStatistics& TCumulativeStatist
     return std::get<ModifiableAlternativeIndex>(Statistics_);
 }
 
-TCumulativeStatistics::TTrimableCumulativeStatistics& TCumulativeStatistics::AsTrimable()
+TCumulativeStatistics::TTrimmableCumulativeStatistics& TCumulativeStatistics::AsTrimmable()
 {
-    YT_VERIFY(IsTrimable());
-    return std::get<TrimableAlternativeIndex>(Statistics_);
+    YT_VERIFY(IsTrimmable());
+    return std::get<TrimmableAlternativeIndex>(Statistics_);
 }
 
-const TCumulativeStatistics::TTrimableCumulativeStatistics& TCumulativeStatistics::AsTrimable() const
+const TCumulativeStatistics::TTrimmableCumulativeStatistics& TCumulativeStatistics::AsTrimmable() const
 {
-    YT_VERIFY(IsTrimable());
-    return std::get<TrimableAlternativeIndex>(Statistics_);
+    YT_VERIFY(IsTrimmable());
+    return std::get<TrimmableAlternativeIndex>(Statistics_);
 }
 
 void Serialize(const TCumulativeStatistics& statistics, IYsonConsumer* consumer)

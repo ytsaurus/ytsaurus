@@ -53,10 +53,10 @@ TEST(TCumulativeStatisticsTest, SimpleModifiable)
     EXPECT_EQ(0, stats.LowerBound(2, &TCumulativeStatisticsEntry::RowCount));
 }
 
-TEST(TCumulativeStatisticsTest, SimpleTrimable)
+TEST(TCumulativeStatisticsTest, SimpleTrimmable)
 {
     TCumulativeStatistics stats;
-    stats.DeclareTrimable();
+    stats.DeclareTrimmable();
 
     EXPECT_EQ(stats.Size(), 0);
 
