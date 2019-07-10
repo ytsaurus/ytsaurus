@@ -1635,6 +1635,7 @@ message TReqAddMember
     required string member = 2;
 
     optional TMutatingOptions mutating_options = 103;
+    optional TPrerequisiteOptions prerequisite_options = 104;
 }
 
 message TRspAddMember
@@ -1649,6 +1650,7 @@ message TReqRemoveMember
     required string member = 2;
 
     optional TMutatingOptions mutating_options = 103;
+    optional TPrerequisiteOptions prerequisite_options = 104;
 }
 
 message TRspRemoveMember

@@ -495,6 +495,7 @@ TFuture<void> TClient::AddMember(
     req->set_group(group);
     req->set_member(member);
     ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().As<void>();
 }
@@ -512,6 +513,7 @@ TFuture<void> TClient::RemoveMember(
     req->set_group(group);
     req->set_member(member);
     ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().As<void>();
 }
