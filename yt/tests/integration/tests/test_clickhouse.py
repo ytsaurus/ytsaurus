@@ -12,7 +12,6 @@ from distutils.spawn import find_executable
 
 import json
 import pytest
-import psutil
 import subprocess
 import random
 import os
@@ -148,7 +147,7 @@ class Clique(object):
                 "--output_format_json_quote_64bit_integers", "0"]
         print >>sys.stderr, "Running '{0}' with the following input:\n> {1}".format(' '.join(args), query)
 
-        process = psutil.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         process.stdin.write(query)
         stdout, stderr = process.communicate()
         return_code = process.returncode

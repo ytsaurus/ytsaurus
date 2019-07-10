@@ -973,7 +973,6 @@ echo {v = 2} >&7
         assert job_indexes[1] == 4
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
 
-    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
     def test_join_reduce_job_splitter(self):
         create("table", "//tmp/in_1")
         for j in range(20):

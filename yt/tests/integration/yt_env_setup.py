@@ -37,7 +37,7 @@ yt.logger.LOGGER.setLevel(logging.DEBUG)
 def prepare_binaries():
     if arcadia_interop.yatest_common is None:
         return
-    
+
     destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
     if not os.path.exists(destination):       
         os.makedirs(destination)
@@ -199,6 +199,9 @@ def _wait_for_jobs_to_vanish(driver=None):
     wait(check_no_jobs)
 
 def find_ut_file(file_name):
+    if arcadia_interop.yatest_common is not None:
+        pytest.skip("Access to .bc files is not supported inside distbuild")
+
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
     for unittests_path in [
@@ -283,6 +286,9 @@ def skip_if_porto(func):
 
 
 def is_asan_build():
+    if arcadia_interop.yatest_common is not None:
+        return False
+
     binary = find_executable("ytserver-master")
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
@@ -291,6 +297,9 @@ def is_asan_build():
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
     def check_root_privileges():
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip("root is not available inside distbuild")
+
         for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
                        "ytserver-tools"]:
             binary_path = find_executable(binary)
@@ -777,4 +786,3 @@ class YTEnvSetup(object):
     def teardown_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
             self._teardown_method()
-
