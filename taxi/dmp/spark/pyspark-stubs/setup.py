@@ -33,5 +33,14 @@ setup(
     package_data={
         '': ['*.pyi', 'py.typed']
     },
-    install_requires=['pyspark>=3.0.0dev0,<3.1.0']
+    install_requires=['pyspark>=3.0.0dev0,<3.1.0'],
+    classifiers=[
+        "Programming Language :: Python :: 3 :: Only",
+        "Development Status :: 4 - Beta",
+        "License :: OSI Approved :: Apache Software License",
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Programming Language :: Python :: Implementation :: PyPy",
+        "Typing :: Typed",
+    ],
 )
