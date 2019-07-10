@@ -2658,18 +2658,8 @@ public:
 
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
 
-        // Create new tablet chunk lists.
         std::vector<TChunkTree*> newTabletChunkTrees;
         newTabletChunkTrees.reserve(newTabletCount);
-        for (int index = 0; index < newTabletCount; ++index) {
-            auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
-                ? EChunkListKind::SortedDynamicTablet
-                : EChunkListKind::OrderedDynamicTablet);
-            if (table->IsPhysicallySorted()) {
-                tabletChunkList->SetPivotKey(pivotKeys[index]);
-            }
-            newTabletChunkTrees.push_back(tabletChunkList);
-        }
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
@@ -2688,6 +2678,13 @@ public:
                 std::unique(chunksOrViews.begin(), chunksOrViews.end()),
                 chunksOrViews.end());
             int keyColumnCount = table->GetTableSchema().GetKeyColumnCount();
+
+            // Create new tablet chunk lists.
+            for (int index = 0; index < newTabletCount; ++index) {
+                auto* tabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                tabletChunkList->SetPivotKey(pivotKeys[index]);
+                newTabletChunkTrees.push_back(tabletChunkList);
+            }
 
             // Move chunks or views from the resharded tablets to appropriate chunk lists.
             std::vector<std::vector<NChunkServer::TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
@@ -2772,16 +2769,17 @@ public:
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto* chunkList = newTabletChunkTrees[index - firstTabletIndex]->AsChunkList();
-                auto* oldChunkList = oldTabletChunkTrees[index]->AsChunkList();
-                attachChunksToChunkList(chunkList, index, index);
-                chunkList->Statistics().LogicalRowCount = oldChunkList->Statistics().LogicalRowCount;
-                chunkList->Statistics().LogicalChunkCount = oldChunkList->Statistics().LogicalChunkCount;
+                newTabletChunkTrees.push_back(chunkManager->CloneTabletChunkList(oldTabletChunkTrees[index]->AsChunkList()));
             }
             if (oldTabletCount > newTabletCount) {
                 auto* chunkList = newTabletChunkTrees[newTabletCount - 1]->AsChunkList();
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
+            } else {
+                for (int index = oldTabletCount; index < newTabletCount; ++index) {
+                    newTabletChunkTrees.push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
+                }
             }
+            YT_ASSERT(newTabletChunkTrees.size() == newTabletCount);
         }
 
         // Update tablet chunk lists.
@@ -4979,18 +4977,6 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        auto copyTabletChunkList = [&] (const TChunkList* oldTabletChunkList) {
-            auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
-            newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-            chunkManager->AttachToChunkList(
-                newTabletChunkList,
-                oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
-                oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
-            newTabletChunkList->Statistics().LogicalRowCount = oldTabletChunkList->Statistics().LogicalRowCount;
-            newTabletChunkList->Statistics().LogicalChunkCount = oldTabletChunkList->Statistics().LogicalChunkCount;
-            return newTabletChunkList;
-        };
-
         if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
@@ -5000,7 +4986,7 @@ private:
                 chunkLists.data() + firstTabletIndex);
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* newTabletChunkList = copyTabletChunkList(chunkLists[index]->AsChunkList());
+                auto* newTabletChunkList = chunkManager->CloneTabletChunkList(chunkLists[index]->AsChunkList());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -5027,14 +5013,8 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
-                    auto* newTabletChunkList = copyTabletChunkList(oldTabletChunkList);
-                    chunkLists[index] = newTabletChunkList;
-
-                    // TODO(savrus): make a helper to replace a tablet chunk list.
-                    newTabletChunkList->AddParent(oldRootChunkList);
-                    objectManager->RefObject(newTabletChunkList);
-                    oldTabletChunkList->RemoveParent(oldRootChunkList);
-                    objectManager->UnrefObject(oldTabletChunkList);
+                    auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
+                    chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
                 }
             }
 

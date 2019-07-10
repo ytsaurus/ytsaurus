@@ -92,6 +92,7 @@ public:
     bool HasCumulativeStatistics() const;
     bool HasAppendableCumulativeStatistics() const;
     bool HasModifyableCumulativeStatistics() const;
+    bool HasTrimableCumulativeStatistics() const;
 
 private:
     TIndexedVector<TChunkList*> Parents_;

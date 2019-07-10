@@ -77,6 +77,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((SnapshotLockableMapNodes)                                      (835))  // shakurov
     ((YT_10952_DelayedMembershipClosureRecomputation)                (836))  // babenko
     ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
+    ((YT_10639_CumulativeStatisticsInDynamicTables)                  (838))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

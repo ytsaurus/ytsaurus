@@ -38,12 +38,23 @@ public:
         NTableClient::TOwningKey maxKey = {},
         EChunkType chunkType = EChunkType::Table);
 
+    TChunk* CreateUnconfirmedChunk(EChunkType chunkType = EChunkType::Table);
+
     TChunkList* CreateChunkList(EChunkListKind kind = EChunkListKind::Static);
 
     TChunkView* CreateChunkView(
         TChunk* underlyingChunk,
         NTableClient::TOwningKey lowerLimit,
         NTableClient::TOwningKey upperLimit);
+
+    void ConfirmChunk(
+        TChunk* chunk,
+        i64 rowCount,
+        i64 compressedDataSize,
+        i64 uncompressedDataSize,
+        i64 dataWeight,
+        NTableClient::TOwningKey minKey = {},
+        NTableClient::TOwningKey maxKey = {});
 
 private:
     std::vector<std::unique_ptr<TChunkTree>> CreatedObjects_;

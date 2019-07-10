@@ -61,6 +61,11 @@ bool TCumulativeStatisticsEntry::operator==(const TCumulativeStatisticsEntry& ot
         DataSize == other.DataSize;
 }
 
+bool TCumulativeStatisticsEntry::operator!=(const TCumulativeStatisticsEntry& other) const
+{
+    return !(*this == other);
+}
+
 TString ToString(const TCumulativeStatisticsEntry& entry)
 {
     return ConvertToYsonString(entry, EYsonFormat::Text).GetData();
@@ -81,13 +86,19 @@ void Serialize(const TCumulativeStatisticsEntry& entry, IYsonConsumer* consumer)
 void TCumulativeStatistics::DeclareAppendable()
 {
     YT_VERIFY(Empty());
-    Statistics_ = TAppendableCumulativeStatistics{};
+    Statistics_.emplace<AppendableAlternativeIndex>();
 }
 
 void TCumulativeStatistics::DeclareModifiable()
 {
     YT_VERIFY(Empty());
-    Statistics_ = TModifyableCumulativeStatistics{};
+    Statistics_.emplace<ModifiableAlternativeIndex>();
+}
+
+void TCumulativeStatistics::DeclareTrimable()
+{
+    YT_VERIFY(Empty());
+    Statistics_.emplace<TrimableAlternativeIndex>(1);
 }
 
 void TCumulativeStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -98,33 +109,95 @@ void TCumulativeStatistics::Persist(NCellMaster::TPersistenceContext& context)
 
 void TCumulativeStatistics::PushBack(const TCumulativeStatisticsEntry& entry)
 {
-    if (IsAppendable()) {
-        auto& statistics = AsAppendable();
-        if (statistics.empty()) {
-            statistics.push_back(entry);
-        } else {
-            statistics.push_back(entry + statistics.back());
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex: {
+            auto& statistics = AsAppendable();
+            if (statistics.empty()) {
+                statistics.push_back(entry);
+            } else {
+                statistics.push_back(entry + statistics.back());
+            }
+            break;
         }
-    } else {
-        AsModifiable().PushBack(entry);
+
+        case ModifiableAlternativeIndex:
+            AsModifiable().PushBack(entry);
+            break;
+
+        case TrimableAlternativeIndex: {
+            auto& statistics = AsTrimable();
+            statistics.push_back(entry + statistics.back());
+            break;
+        }
+
+        default:
+            YT_ABORT();
     }
 }
 
 void TCumulativeStatistics::PopBack()
 {
-    if (IsAppendable()) {
-        AsAppendable().pop_back();
-    } else {
-        AsModifiable().PopBack();
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            AsAppendable().pop_back();
+            break;
+
+        case ModifiableAlternativeIndex:
+            AsModifiable().PopBack();
+            break;
+
+        case TrimableAlternativeIndex:
+            AsTrimable().pop_back();
+            break;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& delta)
+{
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex: {
+            auto& statistics = AsAppendable();
+            YT_VERIFY(index == statistics.size() - 1);
+            statistics[index] = statistics[index] + delta;
+            break;
+        }
+
+        case ModifiableAlternativeIndex: {
+            auto& statistics = AsModifiable();
+            YT_VERIFY(index < statistics.Size());
+            statistics.Increment(index, delta);
+            break;
+        }
+
+        case TrimableAlternativeIndex: {
+            auto& statistics = AsTrimable();
+            YT_VERIFY(index == statistics.size() - 2);
+            statistics[index + 1] = statistics[index + 1] + delta;
+            break;
+        }
+
+        default:
+            YT_ABORT();
     }
 }
 
 i64 TCumulativeStatistics::Size() const
 {
-    if (IsAppendable()) {
-        return AsAppendable().size();
-    } else {
-        return AsModifiable().Size();
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            return AsAppendable().size();
+
+        case ModifiableAlternativeIndex:
+            return AsModifiable().Size();
+
+        case TrimableAlternativeIndex:
+            return AsTrimable().size() - 1;
+
+        default:
+            YT_ABORT();
     }
 }
 
@@ -135,10 +208,21 @@ bool TCumulativeStatistics::Empty() const
 
 void TCumulativeStatistics::Clear()
 {
-    if (IsAppendable()) {
-        AsAppendable().clear();
-    } else {
-        AsModifiable().Clear();
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            AsAppendable().clear();
+            break;
+
+        case ModifiableAlternativeIndex:
+            AsModifiable().Clear();
+            break;
+
+        case TrimableAlternativeIndex:
+            AsTrimable() = TTrimableCumulativeStatistics(1);
+            break;
+
+        default:
+            YT_ABORT();
     }
 }
 
@@ -148,14 +232,26 @@ int TCumulativeStatistics::LowerBound(i64 value, i64 TCumulativeStatisticsEntry:
         return lhs.*member < rhs;
     };
 
-    if (IsAppendable()) {
-        return std::lower_bound(
-            AsAppendable().begin(),
-            AsAppendable().end(),
-            value,
-            comparator) - AsAppendable().begin();
-    } else {
-        return std::max(0, AsModifiable().LowerBound(value, comparator) - 1);
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            return std::lower_bound(
+                AsAppendable().begin(),
+                AsAppendable().end(),
+                value,
+                comparator) - AsAppendable().begin();
+
+        case ModifiableAlternativeIndex:
+            return std::max(0, AsModifiable().LowerBound(value, comparator) - 1);
+
+        case TrimableAlternativeIndex:
+            return std::lower_bound(
+                AsTrimable().begin(),
+                AsTrimable().end(),
+                value,
+                comparator) - AsTrimable().begin() - 1;
+
+        default:
+            YT_ABORT();
     }
 }
 
@@ -165,23 +261,57 @@ int TCumulativeStatistics::UpperBound(i64 value, i64 TCumulativeStatisticsEntry:
         return lhs < rhs.*member;
     };
 
-    if (IsAppendable()) {
-        return std::upper_bound(
-            AsAppendable().begin(),
-            AsAppendable().end(),
-            value,
-            comparator) - AsAppendable().begin();
-    } else {
-        return std::max(0, AsModifiable().UpperBound(value, comparator) - 1);
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            return std::upper_bound(
+                AsAppendable().begin(),
+                AsAppendable().end(),
+                value,
+                comparator) - AsAppendable().begin();
+
+        case ModifiableAlternativeIndex:
+            return std::max(0, AsModifiable().UpperBound(value, comparator) - 1);
+
+        case TrimableAlternativeIndex:
+            return std::upper_bound(
+                AsTrimable().begin(),
+                AsTrimable().end(),
+                value,
+                comparator) - AsTrimable().begin() - 1;
+
+        default:
+            YT_ABORT();
     }
 }
 
 TCumulativeStatisticsEntry TCumulativeStatistics::operator[](int index) const
 {
-    if (IsAppendable()) {
-        return AsAppendable()[index];
+    return GetCurrentSum(index);
+}
+
+TCumulativeStatisticsEntry TCumulativeStatistics::GetCurrentSum(int index) const
+{
+    switch (GetImplementationIndex()) {
+        case AppendableAlternativeIndex:
+            return AsAppendable()[index];
+
+        case ModifiableAlternativeIndex:
+            return AsModifiable().GetCumulativeSum(index + 1);
+
+        case TrimableAlternativeIndex:
+            return AsTrimable()[index + 1];
+
+        default:
+            YT_ABORT();
+    }
+}
+
+TCumulativeStatisticsEntry TCumulativeStatistics::GetPreviousSum(int index) const
+{
+    if (index == 0) {
+        return IsTrimable() ? AsTrimable()[0] : TCumulativeStatisticsEntry{};
     } else {
-        return AsModifiable().GetCumulativeSum(index + 1);
+        return GetCurrentSum(index - 1);
     }
 }
 
@@ -191,64 +321,77 @@ TCumulativeStatisticsEntry TCumulativeStatistics::Back() const
     return this->operator[](Size() - 1);
 }
 
-void TCumulativeStatistics::EraseFromFront(int entriesCount)
+void TCumulativeStatistics::TrimFront(int entriesCount)
 {
-    auto& statistics = AsAppendable();
+    auto& statistics = AsTrimable();
+    // NB: At least one entry always remains.
+    YT_VERIFY(entriesCount <= Size());
     statistics.erase(
         statistics.begin(),
-        std::min(statistics.begin() + entriesCount, statistics.end()));
+        statistics.begin() + entriesCount);
 }
 
-void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& delta)
+size_t TCumulativeStatistics::GetImplementationIndex() const
 {
-    if (IsAppendable()) {
-        auto& statistics = AsAppendable();
-        YT_VERIFY(index == statistics.size() - 1);
-        statistics[index] = statistics[index] + delta;
-    } else {
-        auto& statistics = AsModifiable();
-        YT_VERIFY(index < statistics.Size());
-        statistics.Increment(index, delta);
-    }
+    return Statistics_.index();
 }
 
 bool TCumulativeStatistics::IsAppendable() const
 {
-    return std::holds_alternative<TAppendableCumulativeStatistics>(Statistics_);
+    return Statistics_.index() == AppendableAlternativeIndex;
 }
 
 bool TCumulativeStatistics::IsModifiable() const
 {
-    return std::holds_alternative<TModifyableCumulativeStatistics>(Statistics_);
+    return Statistics_.index() == ModifiableAlternativeIndex;
+}
+
+bool TCumulativeStatistics::IsTrimable() const
+{
+    return Statistics_.index() == TrimableAlternativeIndex;
 }
 
 TCumulativeStatistics::TAppendableCumulativeStatistics& TCumulativeStatistics::AsAppendable()
 {
     YT_VERIFY(IsAppendable());
-    return std::get<TAppendableCumulativeStatistics>(Statistics_);
+    return std::get<AppendableAlternativeIndex>(Statistics_);
 }
 
 const TCumulativeStatistics::TAppendableCumulativeStatistics& TCumulativeStatistics::AsAppendable() const
 {
     YT_VERIFY(IsAppendable());
-    return std::get<TAppendableCumulativeStatistics>(Statistics_);
+    return std::get<AppendableAlternativeIndex>(Statistics_);
 }
 
-TCumulativeStatistics::TModifyableCumulativeStatistics& TCumulativeStatistics::AsModifiable()
+TCumulativeStatistics::TModifiableCumulativeStatistics& TCumulativeStatistics::AsModifiable()
 {
     YT_VERIFY(IsModifiable());
-    return std::get<TModifyableCumulativeStatistics>(Statistics_);
+    return std::get<ModifiableAlternativeIndex>(Statistics_);
 }
 
-const TCumulativeStatistics::TModifyableCumulativeStatistics& TCumulativeStatistics::AsModifiable() const
+const TCumulativeStatistics::TModifiableCumulativeStatistics& TCumulativeStatistics::AsModifiable() const
 {
     YT_VERIFY(IsModifiable());
-    return std::get<TModifyableCumulativeStatistics>(Statistics_);
+    return std::get<ModifiableAlternativeIndex>(Statistics_);
+}
+
+TCumulativeStatistics::TTrimableCumulativeStatistics& TCumulativeStatistics::AsTrimable()
+{
+    YT_VERIFY(IsTrimable());
+    return std::get<TrimableAlternativeIndex>(Statistics_);
+}
+
+const TCumulativeStatistics::TTrimableCumulativeStatistics& TCumulativeStatistics::AsTrimable() const
+{
+    YT_VERIFY(IsTrimable());
+    return std::get<TrimableAlternativeIndex>(Statistics_);
 }
 
 void Serialize(const TCumulativeStatistics& statistics, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
+    consumer->OnListItem();
+    Serialize(statistics.GetPreviousSum(0), consumer);
     for (int index = 0; index < statistics.Size(); ++index) {
         consumer->OnListItem();
         Serialize(statistics[index], consumer);
