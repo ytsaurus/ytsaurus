@@ -247,11 +247,13 @@ struct TBalanceTabletCellsOptions
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TRemoveMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCheckPermissionOptions

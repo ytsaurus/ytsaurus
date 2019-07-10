@@ -3891,12 +3891,19 @@ private:
         const TString& member,
         const TAddMemberOptions& options)
     {
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
         req->set_name(member);
         SetMutationId(req, options);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TGroupYPathProxy::TRspAddMember>(0)
             .ThrowOnError();
     }
 
@@ -3905,12 +3912,19 @@ private:
         const TString& member,
         const TRemoveMemberOptions& options)
     {
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
         req->set_name(member);
         SetMutationId(req, options);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TGroupYPathProxy::TRspRemoveMember>(0)
             .ThrowOnError();
     }
 

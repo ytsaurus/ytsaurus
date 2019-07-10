@@ -2737,6 +2737,9 @@ private:
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
 
         context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
             group,
@@ -2763,6 +2766,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
         }
 
         context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
