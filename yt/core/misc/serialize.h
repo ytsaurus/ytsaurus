@@ -188,7 +188,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSaveContext, class TLoadContext>
+template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 class TCustomPersistenceContext
 {
 public:
@@ -230,7 +230,7 @@ public:
         return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
     }
 
-    int GetVersion() const
+    TSnapshotVersion GetVersion() const
     {
         return IsSave() ? SaveContext().GetVersion() : LoadContext().GetVersion();
     }

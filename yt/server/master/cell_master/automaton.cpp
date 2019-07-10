@@ -62,6 +62,13 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EMasterSnapshotVersion TSaveContext::GetVersion()
+{
+    return static_cast<NCellMaster::EMasterSnapshotVersion>(NHydra::TSaveContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLoadContext::TLoadContext(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
@@ -77,6 +84,11 @@ const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<TSecurityTags>()
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->GetSecurityTagsRegistry();
+}
+
+EMasterSnapshotVersion TLoadContext::GetVersion()
+{
+    return static_cast<NCellMaster::EMasterSnapshotVersion>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

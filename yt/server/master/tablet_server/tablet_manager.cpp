@@ -3390,7 +3390,7 @@ private:
             Persist(context, TabletResourceUsage);
 
             // COMPAT(aozeritsky)
-            if (context.GetVersion() >= 814) {
+            if (context.GetVersion() >= EMasterSnapshotVersion::OldVersion814) {
                 Persist(context, ModificationTime);
                 Persist(context, AccessTime);
             }
@@ -3489,20 +3489,20 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
         // COMPAT(savrus)
-        if (context.GetVersion() >= 800) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
             Load(context, TableStatisticsUpdates_);
         }
 
         // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() < 822);
+        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterSnapshotVersion::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
         // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < 800);
+        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
         // COMPAT(ifsmirnov)
-        RecomputeTabletErrorCount_ = (context.GetVersion() < 715);
+        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterSnapshotVersion::FixTabletErrorCountLag);
         // COMPAT(savrus)
-        RecomputeExpectedTabletStates_ = (context.GetVersion() < 800);
+        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
         // COMPAT(savrus)
-        ValidateAllTablesUnmounted_ = (context.GetVersion() < 801);
+        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterSnapshotVersion::MakeTabletStateBackwardCompatible);
     }
 
 

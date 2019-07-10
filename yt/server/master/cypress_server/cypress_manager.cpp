@@ -1433,7 +1433,7 @@ private:
         LockMap_.LoadValues(context);
 
         // COMPAT(shakurov) see YT-10852
-        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < 833;
+        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterSnapshotVersion::YT_10852;
     }
 
     virtual void Clear() override

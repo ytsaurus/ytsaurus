@@ -173,7 +173,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 831) {
+    if (context.GetVersion() < EMasterSnapshotVersion::VersionedExpirationTime) {
         auto oldExpirationTime = Load<std::optional<TInstant>>(context);
         if (oldExpirationTime) {
             ExpirationTime_.Set(*oldExpirationTime);
@@ -186,7 +186,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < 811) {
+    if (context.GetVersion() < EMasterSnapshotVersion::AddAttributesRevisionContentRevision) {
         ui64 revision = Load<ui64>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;

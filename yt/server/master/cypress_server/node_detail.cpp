@@ -430,7 +430,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ChildCountDelta_);
 
     // COMPAT(shakurov)
-    if (context.GetVersion() < 835) {
+    if (context.GetVersion() < EMasterSnapshotVersion::SnapshotLockableMapNodes) {
         Children_.ResetToDefaultConstructed();
         // Passing a nullptr as the object manager is a dirty hack: in this
         // particular case, we're sure there's no CoW sharing, and the object

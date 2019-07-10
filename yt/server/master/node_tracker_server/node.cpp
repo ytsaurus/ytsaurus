@@ -33,6 +33,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NCellMaster;
 using namespace NTabletServer;
 using namespace NNodeTrackerClient;
 
@@ -395,7 +396,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Statistics_);
     Load(context, Alerts_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 817) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::PersistTNodeResourceUsageLimits) {
         Load(context, ResourceLimits_);
         Load(context, ResourceUsage_);
     }
@@ -414,7 +415,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletSlots_);
 
     // COMPAT(psushin, prime)
-    if (context.GetVersion() >= 805) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddCypressAnnotations) {
         Load(context, Annotations_);
         Load(context, Version_);
     }

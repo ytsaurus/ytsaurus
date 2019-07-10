@@ -1672,14 +1672,14 @@ private:
         GroupMap_.LoadValues(context);
 
         // COMPAT(savrus) COMPAT(shakurov)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 708;
+        ValidateAccountResourceUsage_ = true;
+        RecomputeAccountResourceUsage_ = false;
 
         // COMPAT(shakurov)
-        NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+        NeedAdjustUserReadRateLimits_ = context.GetVersion() < EMasterSnapshotVersion::MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers;
 
         // COMPAT(babenko)
-        if (context.GetVersion() >= 836) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::YT_10952_DelayedMembershipClosureRecomputation) {
             MustRecomputeMembershipClosure_ = Load<bool>(context);
         }
     }

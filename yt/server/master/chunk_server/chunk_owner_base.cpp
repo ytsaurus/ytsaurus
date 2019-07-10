@@ -13,6 +13,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
 using namespace NCrypto;
 using namespace NYTree;
 using namespace NChunkClient;
@@ -65,7 +66,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 827) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::SecurityTags) {
         Load(context, SnapshotSecurityTags_);
         Load(context, DeltaSecurityTags_);
     }
