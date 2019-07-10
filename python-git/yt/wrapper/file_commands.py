@@ -1,7 +1,6 @@
 import yt.logger as logger
 from .config import get_config, get_option
-from .common import (require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value,
-                     get_disk_size, get_stream_size_or_none, MB)
+from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream
 from .driver import _create_http_client_from_rpc, get_command_list
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
@@ -14,13 +13,13 @@ from .retries import Retrier, default_chaos_monkey
 from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
-from .stream import ChunkStream
+from .stream import RawStream
 
 from yt.common import to_native_str
 from yt.yson.parser import YsonParser
 from yt.yson import to_yson_type
 
-from yt.packages.six import text_type, binary_type, PY3
+from yt.packages.six import PY3
 
 import os
 import hashlib
@@ -29,19 +28,6 @@ try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
-
-def _is_freshly_opened_file(stream):
-    try:
-        return hasattr(stream, "fileno") and stream.tell() == 0
-    except IOError:
-        return False
-
-def _get_file_size(fstream):
-    # We presuppose that current position in file is 0
-    fstream.seek(0, os.SEEK_END)
-    size = fstream.tell()
-    fstream.seek(0, os.SEEK_SET)
-    return size
 
 # TODO(ignat): avoid copypaste (same function presented in py_wrapper.py)
 def md5sum(filename):
@@ -213,45 +199,12 @@ def write_file(destination, stream,
     if chunk_size is None:
         chunk_size = DEFAULT_WRITE_CHUNK_SIZE
 
-    is_one_small_blob = False
-    if _is_freshly_opened_file(stream):
-        size = _get_file_size(stream)
-        # Read out file into the memory if it is small.
-        if size <= chunk_size:
-            stream = stream.read()
-            is_one_small_blob = True
-        if size_hint is None:
-            size_hint = size
-    elif size_hint is None:
-        size_hint = get_stream_size_or_none(stream)
+    stream = RawStream(stream, chunk_size)
 
     if filename_hint is None:
-        try:
-            filename_hint = os.readlink("/proc/self/fd/0")
-        except (IOError, OSError):
-            pass
-
-    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
-    # (it has bug with default iteration). Also it allows to avoid reading file
-    # by lines that may be slow.
-    if hasattr(stream, "read"):
-        # read files by chunks, not by lines
-        stream = chunk_iter_stream(stream, chunk_size)
-    if isinstance(stream, (text_type, binary_type)):
-        if isinstance(stream, text_type):
-            if not PY3:
-                stream = stream.encode("utf-8")
-            else:
-                raise YtError("Only binary strings are supported as string input")
-
-        if len(stream) <= chunk_size:
-            is_one_small_blob = True
-            stream = [stream]
-        else:
-            stream = chunk_iter_string(stream, chunk_size)
-
-    stream = ChunkStream(stream, chunk_size, allow_resplit=True)
-
+        filename_hint = stream.filename_hint
+    if size_hint is None:
+        size_hint = stream.size
     if size_hint is not None and size_hint <= 16 * MB and file_writer is None:
         file_writer = {
             "enable_early_finish": True,
@@ -264,6 +217,7 @@ def write_file(destination, stream,
     set_param(params, "compute_md5", compute_md5)
 
     enable_retries = get_config(client)["write_retries"]["enable"]
+    is_one_small_blob = stream.size is not None and stream.size <= chunk_size
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
@@ -282,6 +236,8 @@ def write_file(destination, stream,
             prepare_file,
             get_config(client)["remote_temp_tables_directory"],
             size_hint=size_hint,
+            filename_hint=filename_hint,
+            progress_monitor=progress_monitor,
             client=client)
     else:
         make_write_request(
