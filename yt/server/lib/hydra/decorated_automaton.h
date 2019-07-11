@@ -7,13 +7,14 @@
 #include <yt/server/lib/election/public.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
+
 #include <yt/client/hydra/version.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/async_batcher.h>
 
 #include <yt/core/logging/log.h>
 
@@ -48,10 +49,8 @@ struct TEpochContext
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
     bool LeaderLeaseExpired = false;
 
-    TPromise<void> ActiveUpstreamSyncPromise;
-    TPromise<void> PendingUpstreamSyncPromise;
-    bool UpstreamSyncDeadlineReached = false;
-    NProfiling::TCpuInstant UpstreamSyncStartTime;
+    TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> UpstreamSyncBatcher;
+    NProfiling::TWallTimer UpstreamSyncTimer;
 
     std::optional<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
