@@ -139,6 +139,10 @@ EInitStatus& GetInitStatus()
     return initStatus;
 }
 
+static void ElevateInitStatus(const EInitStatus newStatus) {
+    NDetail::GetInitStatus() = Max(NDetail::GetInitStatus(), newStatus);
+}
+
 void CommonInitialize(int argc, const char** argv)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
@@ -209,14 +213,14 @@ void JoblessInitialize(const TInitializeOptions& options)
     static const char* fakeArgv[] = {"unknown..."};
     NDetail::CommonInitialize(1, fakeArgv);
     NDetail::NonJobInitialize(options);
-    NDetail::GetInitStatus() = NDetail::EInitStatus::JoblessInitialization;
+    NDetail::ElevateInitStatus(NDetail::EInitStatus::JoblessInitialization);
 }
 
 void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
 {
     NDetail::CommonInitialize(argc, argv);
 
-    NDetail::GetInitStatus() = NDetail::EInitStatus::FullInitialization;
+    NDetail::ElevateInitStatus(NDetail::EInitStatus::FullInitialization);
 
     const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
     if (isInsideJob) {
