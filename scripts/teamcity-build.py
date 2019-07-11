@@ -943,7 +943,7 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 
-@build_step
+# @build_step
 def run_ya_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping ya make tests since tests are disabled")
@@ -969,7 +969,7 @@ def run_ya_tests(options, build_context):
     try:
         run(args, env=env, cwd=options.checkout_directory)
     except ChildHasNonZeroExitCode as err:
-        teamcity_interact("buildProblem", description="ya test '{}' failed, exit code {}".format(err.return_code))
+        raise StepFailedWithNonCriticalError(str(err))
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
