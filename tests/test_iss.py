@@ -35,6 +35,10 @@ POD_AGENT_BINARY_FILE_PATH = "yp_tests_pod_agent"
 WORKLOAD_ROOTFS_FILE_PATH = "yp_tests_workload_rootfs.tar.gz"
 
 
+def get_iss_local_qemu_image_file_path():
+    return os.path.abspath(ISS_LOCAL_QEMU_IMAGE_FILE_PATH)
+
+
 @pytest.fixture(scope="class")
 def iss_agent_address():
     return get_default_route_addresses()
@@ -50,7 +54,7 @@ def iss_agent(request, iss_agent_address, yp_agent_grpc_port):
     qemu_sandbox_path = prepare_test_sandbox("iss_local_qemu")
     iss_local = IssLocal(
         dom0_address=iss_agent_address,
-        qemu_image=ISS_LOCAL_QEMU_IMAGE_FILE_PATH,
+        qemu_image=get_iss_local_qemu_image_file_path(),
         qemu_work_dir=qemu_sandbox_path,
         yp_agent_port=yp_agent_grpc_port,
         port_generator=get_free_port_in_range(1024, 10240),
