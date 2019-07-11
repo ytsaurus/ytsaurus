@@ -118,9 +118,13 @@ TEST(TYsonToProtobufYsonTest, Success)
                     .Item().Value("foobar")
                 .EndList()
             .EndMap()
-            .Item("int32_map").BeginMap()
+            .Item("string_to_int32_map").BeginMap()
                 .Item("hello").Value(0)
                 .Item("world").Value(1)
+            .EndMap()
+            .Item("int32_to_int32_map").BeginMap()
+                .Item("100").Value(0)
+                .Item("-200").Value(1)
             .EndMap()
             .Item("nested_message_map").BeginMap()
                 .Item("hello").BeginMap()
@@ -195,9 +199,13 @@ TEST(TYsonToProtobufYsonTest, Success)
 
     EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
 
-    EXPECT_EQ(2, message.int32_map_size());
-    EXPECT_EQ(0, message.int32_map().at("hello"));
-    EXPECT_EQ(1, message.int32_map().at("world"));
+    EXPECT_EQ(2, message.string_to_int32_map_size());
+    EXPECT_EQ(0, message.string_to_int32_map().at("hello"));
+    EXPECT_EQ(1, message.string_to_int32_map().at("world"));
+
+    EXPECT_EQ(2, message.int32_to_int32_map_size());
+    EXPECT_EQ(0, message.int32_to_int32_map().at(100));
+    EXPECT_EQ(1, message.int32_to_int32_map().at(-200));
 
     EXPECT_EQ(2, message.nested_message_map_size());
     EXPECT_EQ(123, message.nested_message_map().at("hello").int32_field());
@@ -254,7 +262,8 @@ TEST(TYsonToProtobufYsonTest, Entities)
             .Item("repeated_nested_message1").Entity()
             .Item("attributes").Entity()
             .Item("yson_field").Entity()
-            .Item("int32_map").Entity()
+            .Item("string_to_int32_map").Entity()
+            .Item("int32_to_int32_map").Entity()
         .EndMap();
 
     TEST_EPILOGUE(TMessage)
@@ -264,7 +273,8 @@ TEST(TYsonToProtobufYsonTest, Entities)
     EXPECT_TRUE(message.repeated_nested_message1().empty());
     EXPECT_FALSE(message.has_attributes());
     EXPECT_EQ("#", message.yson_field());
-    EXPECT_TRUE(message.int32_map().empty());
+    EXPECT_TRUE(message.string_to_int32_map().empty());
+    EXPECT_TRUE(message.int32_to_int32_map().empty());
 }
 
 TEST(TYsonToProtobufTest, RootEntity)
@@ -579,11 +589,29 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                .Item("int32_map").BeginMap()
+                .Item("string_to_int32_map").BeginMap()
                     .Item("a").Value("b")
                 .EndMap()
             .EndMap();
-    }, "/int32_map/a");
+    }, "/string_to_int32_map/a");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_to_int32_map").BeginMap()
+                    .Item("a").Value(100)
+                .EndMap()
+            .EndMap();
+    }, "/int32_to_int32_map");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_to_int32_map").BeginMap()
+                    .Item("100").Value("b")
+                .EndMap()
+            .EndMap();
+    }, "/int32_to_int32_map/100");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
@@ -841,9 +869,15 @@ TEST(TProtobufToYsonTest, Success)
     message.set_yson_field("{a=1;b=[\"foobar\";];}");
 
     {
-        auto& map = *message.mutable_int32_map();
+        auto& map = *message.mutable_string_to_int32_map();
         map["hello"] = 0;
         map["world"] = 1;
+    }
+
+    {
+        auto& map = *message.mutable_int32_to_int32_map();
+        map[100] = 0;
+        map[-200] = 1;
     }
 
     {
@@ -928,9 +962,13 @@ TEST(TProtobufToYsonTest, Success)
                     .Item().Value("foobar")
                 .EndList()
             .EndMap()
-            .Item("int32_map").BeginMap()
+            .Item("string_to_int32_map").BeginMap()
                 .Item("hello").Value(0)
                 .Item("world").Value(1)
+            .EndMap()
+            .Item("int32_to_int32_map").BeginMap()
+                .Item("100").Value(0)
+                .Item("-200").Value(1)
             .EndMap()
             .Item("nested_message_map").BeginMap()
                 .Item("hello").BeginMap()
@@ -1222,7 +1260,8 @@ TEST(TResolveProtobufElementByYPath, Scalar)
     TestScalarByYPath("/repeated_int32_field/123");
     TestScalarByYPath("/repeated_nested_message1/0/color");
     TestScalarByYPath("/nested_message_map/abc/int32_field");
-    TestScalarByYPath("/int32_map/abc");
+    TestScalarByYPath("/string_to_int32_map/abc");
+    TestScalarByYPath("/int32_to_int32_map/100");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1295,7 +1334,8 @@ void TestMapByYPath(const TYPath& path)
 
 TEST(TResolveProtobufElementByYPath, Map)
 {
-    TestMapByYPath("/int32_map");
+    TestMapByYPath("/string_to_int32_map");
+    TestMapByYPath("/int32_to_int32_map");
     TestMapByYPath("/nested_message_map");
     TestMapByYPath("/nested_message_map/abc/nested_message_map");
     TestMapByYPath("/nested_message1/nested_message_map");
