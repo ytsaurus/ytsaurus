@@ -48,7 +48,8 @@ message TMessage
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 19;
     optional bytes yson_field = 20 [(NYT.NYson.NProto.yson_string) = true];
     map<string, TNestedMessage> nested_message_map = 22 [(NYT.NYson.NProto.yson_map) = true];
-    map<string, int32> int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
+    map<int32, int32> int32_to_int32_map = 24 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TNestedMessageWithRequriedFields
