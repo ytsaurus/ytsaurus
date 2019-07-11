@@ -217,6 +217,42 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(2));
 }
 
+TEST(TYsonToProtobufYsonTest, ParseMapFromList)
+{
+    TEST_PROLOGUE(TMessage)
+        .BeginMap()
+            .Item("string_to_int32_map").BeginList()
+                .Item().BeginMap()
+                    .Item("key").Value("hello")
+                    .Item("value").Value(0)
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("key").Value("world")
+                    .Item("value").Value(1)
+                .EndMap()
+            .EndList()
+            .Item("int32_to_int32_map").BeginList()
+                .Item().BeginMap()
+                    .Item("key").Value(100)
+                    .Item("value").Value(0)
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("key").Value(-200)
+                    .Item("value").Value(1)
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    TEST_EPILOGUE(TMessage)
+    EXPECT_EQ(2, message.string_to_int32_map_size());
+    EXPECT_EQ(0, message.string_to_int32_map().at("hello"));
+    EXPECT_EQ(1, message.string_to_int32_map().at("world"));
+
+    EXPECT_EQ(2, message.int32_to_int32_map_size());
+    EXPECT_EQ(0, message.int32_to_int32_map().at(100));
+    EXPECT_EQ(1, message.int32_to_int32_map().at(-200));
+}
+
 TEST(TYsonToProtobufYsonTest, Aliases)
 {
     TEST_PROLOGUE(TMessage)
@@ -577,7 +613,7 @@ TEST(TYsonToProtobufTest, Failure)
                     .Item().Value(123)
                 .EndList()
             .EndMap();
-    }, "/nested_message_map");
+    }, "/nested_message_map/0");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)

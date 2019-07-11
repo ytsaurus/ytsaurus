@@ -709,18 +709,14 @@ private:
 
     struct TFieldEntry
     {
-        TFieldEntry(
-            const TProtobufField* field,
-            int currentListIndex,
-            bool inList)
+        explicit TFieldEntry(const TProtobufField* field)
             : Field(field)
-            , CurrentListIndex(currentListIndex)
-            , InList(inList)
         { }
 
         const TProtobufField* Field;
-        int CurrentListIndex;
-        bool InList;
+        int CurrentListIndex = 0;
+        bool ParsingList = false;
+        bool ParsingYsonMapFromList = false;
     };
     std::vector<TFieldEntry> FieldStack_;
 
@@ -853,21 +849,19 @@ private:
 
         const auto* field = FieldStack_.back().Field;
         if (field->IsYsonMap()) {
-            THROW_ERROR_EXCEPTION("Map %v cannot be parsed from \"list\" values",
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_field", field->GetFullName());
+            // We do allow parsing map from lists to ease migration; cf. YT-11055.
+            FieldStack_.back().ParsingYsonMapFromList = true;
+        } else {
+            ValidateRepeated();
         }
-
-        ValidateRepeated();
     }
 
     virtual void OnMyListItem() override
     {
         YT_ASSERT(!TypeStack_.empty());
-        const auto* field = FieldStack_.back().Field;
         int index = FieldStack_.back().CurrentListIndex++;
-        FieldStack_.emplace_back(field, index, true);
+        FieldStack_.push_back(FieldStack_.back());
+        FieldStack_.back().ParsingList = true;
         YPathStack_.Push(index);
     }
 
@@ -882,14 +876,14 @@ private:
     {
         if (TypeStack_.empty()) {
             TypeStack_.emplace_back(RootType_);
-            FieldStack_.emplace_back(nullptr, 0, false);
+            FieldStack_.emplace_back(nullptr);
             return;
         }
 
         const auto* field = FieldStack_.back().Field;
         TypeStack_.emplace_back(field->GetMessageType());
 
-        if (!field->IsYsonMap()) {
+        if (!field->IsYsonMap() || FieldStack_.back().ParsingYsonMapFromList) {
             if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
                 THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
                     YPathStack_.GetPath())
@@ -906,7 +900,7 @@ private:
     virtual void OnMyKeyedItem(TStringBuf key) override
     {
         const auto* field = FieldStack_.back().Field;
-        if (field && field->IsYsonMap()) {
+        if (field && field->IsYsonMap() && !FieldStack_.back().ParsingYsonMapFromList) {
             OnMyKeyedItemYsonMap(field, key);
         } else {
             YT_ASSERT(!TypeStack_.empty());
@@ -982,7 +976,7 @@ private:
         }
 
         const auto* valueField = field->GetYsonMapValueField();
-        FieldStack_.emplace_back(valueField, 0, false);
+        FieldStack_.emplace_back(valueField);
         YPathStack_.Push(TString(key));
     }
 
@@ -1024,7 +1018,7 @@ private:
         } else {
             typeEntry.NonRequiredFieldNumbers.push_back(number);
         }
-        FieldStack_.emplace_back(field, 0, false);
+        FieldStack_.emplace_back(field);
         YPathStack_.Push(field);
 
         if (field->IsYsonString()) {
@@ -1057,7 +1051,7 @@ private:
         const auto* type = typeEntry.Type;
 
         const auto* field = FieldStack_.back().Field;
-        if (field && field->IsYsonMap()) {
+        if (field && field->IsYsonMap()  && !FieldStack_.back().ParsingYsonMapFromList) {
             if (typeEntry.CurrentMapIndex > 0) {
                 EndNestedMessage();
             }
@@ -1221,7 +1215,7 @@ private:
 
     void ValidateNotRepeated()
     {
-        if (FieldStack_.back().InList) {
+        if (FieldStack_.back().ParsingList) {
             return;
         }
         const auto* field = FieldStack_.back().Field;
@@ -1241,7 +1235,7 @@ private:
 
     void ValidateRepeated()
     {
-        if (FieldStack_.back().InList) {
+        if (FieldStack_.back().ParsingList) {
             THROW_ERROR_EXCEPTION("Items of list %v cannot be lists themselves",
                 YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath());
