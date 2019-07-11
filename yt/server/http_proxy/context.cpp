@@ -733,8 +733,21 @@ TSharedRef DumpError(const TError& error)
     return TSharedRef::FromString(errorMessage);
 }
 
+void TContext::DetectMarketBugAndCrash()
+{
+    if (DriverRequest_.AuthenticatedUser.StartsWith("robot-mrkt") &&
+        DriverRequest_.CommandName == "read_table" &&
+        !Error_.IsOK() &&
+        Error_.GetMessage().StartsWith("Missing required parameter /path"))
+    {
+        YT_LOG_FATAL("Here is your coredump, Sir");
+    }
+}
+
 void TContext::Finalize()
 {
+    DetectMarketBugAndCrash();
+
     Duration_ = TInstant::Now() - StartTime_;
 
     LogStructuredRequest();
