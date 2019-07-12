@@ -230,6 +230,10 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     }
 }
 
+void Initialize(int argc, char* argv[], const TInitializeOptions& options) {
+    return Initialize(argc, const_cast<const char**>(argv), options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
