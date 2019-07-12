@@ -106,10 +106,8 @@ private:
 
         const auto& tableExpressions = GetAllTableExpressions(selectQuery);
 
-        bool anyTableFunction = false;
-
         for (const auto& tableExpression : tableExpressions) {
-            ASTPtr tableFunction;
+            std::shared_ptr<ASTWithAlias> tableFunction;
 
             if (tableExpression->database_and_table_name) {
                 const auto& tableName = static_cast<ASTIdentifier&>(*tableExpression->database_and_table_name).name;
@@ -118,37 +116,24 @@ private:
                 }
             }
 
-            if (tableExpression->table_function) {
-                auto& function = typeid_cast<ASTFunction &>(*tableExpression->table_function);
-                if (function.name == "ytTable") {
-                    // TODO: forward all args
-                    tableFunction = makeASTFunction(
-                        "ytSubquery",
-                        std::make_shared<ASTLiteral>(subquerySpec));
-                }
-
-            } else {
-                tableFunction = makeASTFunction(
-                    "ytSubquery",
-                    std::make_shared<ASTLiteral>(subquerySpec));
+            tableFunction = makeASTFunction(
+                "ytSubquery",
+                std::make_shared<ASTLiteral>(subquerySpec));
+            // This is a weird check.
+            if (tableExpression->database_and_table_name) {
+                tableFunction->alias = static_cast<ASTWithAlias&>(*tableExpression->database_and_table_name).alias;
             }
 
-            if (tableFunction) {
-                tableExpression->table_function = std::move(tableFunction);
-                tableExpression->database_and_table_name = nullptr;
-                tableExpression->subquery = nullptr;
-                anyTableFunction = true;
-            }
+            tableExpression->table_function = std::move(tableFunction);
+            tableExpression->database_and_table_name = nullptr;
+            tableExpression->subquery = nullptr;
+            tableExpression->sample_offset = nullptr;
+            tableExpression->sample_size = nullptr;
 
-            static_cast<ASTTableExpression&>(*tableExpression).sample_offset = nullptr;
-            static_cast<ASTTableExpression&>(*tableExpression).sample_size = nullptr;
+            return modifiedQueryAst;
         }
 
-        if (!anyTableFunction) {
-            throw Exception("Invalid SelectQuery, no table function produced", Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
-        }
-
-        return modifiedQueryAst;
+        throw Exception("Invalid SelectQuery, no table function produced", Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
     }
 };
 

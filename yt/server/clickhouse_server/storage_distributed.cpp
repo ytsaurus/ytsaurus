@@ -80,7 +80,9 @@ BlockInputStreams TStorageDistributedBase::read(
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
 
+        YT_LOG_DEBUG("Rewriting query (OriginalQuery: %v)", queryInfo.query);
         auto subqueryAst = RewriteSelectQueryForTablePart(queryInfo.query, encodedSpec);
+        YT_LOG_DEBUG("Query rewritten (Subquery: %v)", subqueryAst);
 
         bool isLocal = clusterNode->IsLocal();
         // XXX(max42): weird workaround.
