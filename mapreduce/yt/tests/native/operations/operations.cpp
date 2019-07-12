@@ -1049,10 +1049,11 @@ Y_UNIT_TEST_SUITE(Operations)
         auto format = TFormat::Protobuf<TAllTypesMessage>();
 
         client->Map(
-            workingDir + "/input",
-            TStructuredTablePath(workingDir + "/output", TAllTypesMessage::descriptor()),
-            new TMapperThatReadsProtobufFile("input"),
-            TMapOperationSpec().MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format(format.Config))));
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TAllTypesMessage>(workingDir + "/output")
+                .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format(format.Config))),
+            new TMapperThatReadsProtobufFile("input"));
 
         {
             auto reader = client->CreateTableReader<TAllTypesMessage>(workingDir + "/output");
@@ -3054,7 +3055,12 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         {
-            client->Reduce(workingDir + "/input", workingDir + "/output1", "key", new TReducerThatCountsOutputTables());
+            client->Reduce(
+                TReduceOperationSpec()
+                    .ReduceBy("key")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output1"),
+                new TReducerThatCountsOutputTables());
 
                 auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
                 UNIT_ASSERT(reader->IsValid());
@@ -3065,9 +3071,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
         {
             client->Reduce(
-                workingDir + "/input",
-                {workingDir + "/output1", workingDir + "/output2"},
-                "key",
+                TReduceOperationSpec()
+                    .ReduceBy("key")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output1")
+                    .AddOutput<TNode>(workingDir + "/output2"),
                 new TReducerThatCountsOutputTables());
 
                 auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
@@ -3286,6 +3294,96 @@ Y_UNIT_TEST_SUITE(Operations)
     {
         TestSuspendResume(false);
     }
+
+    Y_UNIT_TEST(NewMapReduceOverloads)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(workingDir + "/input")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))
+                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING))));
+
+            writer->AddRow(TNode()("key", "foo")("value", "7"));
+            writer->Finish();
+        }
+        const std::vector<TNode> expected = {TNode()("key", "foo")("value", "7")};
+        auto readOutputAndRemove = [&] () {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
+            std::vector<TNode> result;
+            for (; reader->IsValid(); reader->Next()) {
+                result.push_back(reader->GetRow());
+            }
+            client->Remove(workingDir + "/output");
+            return result;
+        };
+
+        client->Map(
+            new TIdMapper,
+            workingDir + "/input",
+            workingDir + "/output");
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->Reduce(
+            new TIdReducer,
+            workingDir + "/input",
+            workingDir + "/output",
+            "key");
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->MapReduce(
+            new TIdMapper,
+            new TIdReducer,
+            workingDir + "/input",
+            workingDir + "/output",
+            "key");
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->MapReduce(
+            new TIdMapper,
+            new TIdReducer,
+            new TIdReducer,
+            workingDir + "/input",
+            workingDir + "/output",
+            "key");
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+    }
+
+    Y_UNIT_TEST(NewSortOverload)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(workingDir + "/input"));
+
+            writer->AddRow(TNode()("key", "foo"));
+            writer->AddRow(TNode()("key", "bar"));
+            writer->Finish();
+        }
+        const std::vector<TNode> expected = {TNode()("key", "bar"), TNode()("key", "foo")};
+        auto readOutput = [&] () {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
+            std::vector<TNode> result;
+            for (; reader->IsValid(); reader->Next()) {
+                result.push_back(reader->GetRow());
+            }
+            return result;
+        };
+
+        client->Sort(
+            workingDir + "/input",
+            workingDir + "/output",
+            "key");
+        UNIT_ASSERT_VALUES_EQUAL(readOutput(), expected);
+    }
 } // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3306,10 +3404,10 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         }
 
         auto operation = client->Sort(
-            workingDir + "/input",
-            workingDir + "/output",
-            "foo",
-            TSortOperationSpec(),
+            TSortOperationSpec()
+                .SortBy({"foo"})
+                .AddInput(workingDir + "/input")
+                .Output(workingDir + "/output"),
             TOperationOptions().Wait(false));
 
         auto fut = operation->Watch();
