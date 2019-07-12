@@ -23,6 +23,7 @@
 #include <Interpreters/ExpressionActions.h>
 #include <Storages/MergeTree/KeyCondition.h>
 #include <Storages/ColumnsDescription.h>
+#include <Parsers/IAST.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -247,3 +248,22 @@ TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyC
 
 } // namespace NYT::NClickHouseServer
 
+namespace DB {
+
+/////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const ASTPtr& ast)
+{
+    std::stringstream stream;
+    ast->format(IAST::FormatSettings(stream, true /* one_line */));
+    return TString(stream.str());
+}
+
+TString ToString(const NameSet& nameSet)
+{
+    return NYT::Format("%v", std::vector<TString>(nameSet.begin(), nameSet.end()));
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB
