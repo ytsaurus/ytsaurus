@@ -18,6 +18,9 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
+
 #include <yt/core/ytree/proto/attributes.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
@@ -155,13 +158,21 @@ public:
             descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name));
     }
 
-    const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor);
-    const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor);
+    const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor)
+    {
+        auto guard = Guard(TypeMapsLock_);
+        return ReflectMessageTypeInternal(descriptor);
+    }
 
     static TProtobufTypeRegistry* Get()
     {
         return Singleton<TProtobufTypeRegistry>();
     }
+
+    // These are called while reflecting the types recursively;
+    // the caller must be holding TypeMapsLock_.
+    const TProtobufMessageType* ReflectMessageTypeInternal(const Descriptor* descriptor);
+    const TProtobufEnumType* ReflectEnumTypeInternal(const EnumDescriptor* descriptor);
 
 private:
     Y_DECLARE_SINGLETON_FRIEND();
@@ -176,16 +187,18 @@ private:
 
     TStringBuf InternString(const TString& str)
     {
-        auto guard = Guard(SpinLock_);
+        auto guard = Guard(InternedStringsLock_);
         InternedStrings_.push_back(str);
         return InternedStrings_.back();
     }
 
 private:
-    TSpinLock SpinLock_;
-    std::vector<TString> InternedStrings_;
+    NConcurrency::TForkAwareSpinLock TypeMapsLock_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+
+    NConcurrency::TForkAwareSpinLock InternedStringsLock_;
+    std::vector<TString> InternedStrings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,9 +210,9 @@ public:
         : Underlying_(descriptor)
         , YsonName_(registry->GetYsonName(descriptor))
         , YsonNameAliases_(registry->GetYsonNameAliases(descriptor))
-        , MessageType_(descriptor->type() == FieldDescriptor::TYPE_MESSAGE ? registry->ReflectMessageType(
+        , MessageType_(descriptor->type() == FieldDescriptor::TYPE_MESSAGE ? registry->ReflectMessageTypeInternal(
             descriptor->message_type()) : nullptr)
-        , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
+        , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumTypeInternal(
             descriptor->enum_type()) : nullptr)
         , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
         , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
@@ -497,32 +510,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageType(const Descriptor* descriptor)
+const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageTypeInternal(const Descriptor* descriptor)
 {
-    auto guard = Guard(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+
     auto it = MessageTypeMap_.find(descriptor);
     if (it != MessageTypeMap_.end()) {
         return it->second.get();
     }
+
     auto typeHolder = std::make_unique<TProtobufMessageType>(this, descriptor);
     auto* type = typeHolder.get();
     it = MessageTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
-    guard.Release();
     type->Build();
     return type;
 }
 
-const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumType(const EnumDescriptor* descriptor)
+const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumTypeInternal(const EnumDescriptor* descriptor)
 {
-    auto guard = Guard(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+
     auto it = EnumTypeMap_.find(descriptor);
     if (it != EnumTypeMap_.end()) {
         return it->second.get();
     }
+
     auto typeHolder = std::make_unique<TProtobufEnumType>(this, descriptor);
     auto* type = typeHolder.get();
     it = EnumTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
-    guard.Release();
     type->Build();
     return type;
 }
