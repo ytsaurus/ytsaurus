@@ -58,5 +58,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
     const TVector<TRichYPath>& tablePaths,
     const TCreateSkiffSchemaOptions& options = TCreateSkiffSchemaOptions());
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
 } // namespace NYT

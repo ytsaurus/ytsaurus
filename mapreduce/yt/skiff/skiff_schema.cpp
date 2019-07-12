@@ -1,23 +1,69 @@
 #include "skiff_schema.h"
+#include <util/digest/numeric.h>
+#include <util/str_stl.h>
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t THash<NSkiff::TSkiffSchema>::operator()(const NSkiff::TSkiffSchema &schema) const
+{
+    auto hash = CombineHashes(
+        THash<TString>()(schema.GetName()),
+        static_cast<size_t>(schema.GetWireType()));
+    for (const auto& child : schema.GetChildren()) {
+        hash = CombineHashes(hash, (*this)(*child));
+    }
+    return hash;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintShortDebugString(const TSkiffSchemaPtr& schema, IOutputStream* out)
+bool operator==(const TSkiffSchema& lhs, const TSkiffSchema& rhs)
 {
-    (*out) << ToString(schema->GetWireType());
-    if (!IsSimpleType(schema->GetWireType())) {
-        auto children = schema->GetChildren();
+    if (lhs.GetChildren().size() != rhs.GetChildren().size()
+        || lhs.GetName() != rhs.GetName()
+        || lhs.GetWireType() != rhs.GetWireType())
+    {
+        return false;
+    }
+    return std::equal(
+        lhs.GetChildren().begin(),
+        lhs.GetChildren().end(),
+        rhs.GetChildren().begin(),
+        TSkiffSchemaPtrEqual());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintShortDebugString(const TSkiffSchema& schema, IOutputStream* out)
+{
+    (*out) << ToString(schema.GetWireType());
+    if (!IsSimpleType(schema.GetWireType())) {
+        auto children = schema.GetChildren();
         if (!children.empty()) {
             (*out) << '<';
             for (const auto& child : children) {
-                PrintShortDebugString(child, out);
+                PrintShortDebugString(*child, out);
                 (*out) << ';';
             }
             (*out) << '>';
         }
     }
+}
+
+void PrintShortDebugString(const TSkiffSchemaPtr& schema, IOutputStream* out)
+{
+    PrintShortDebugString(*schema, out);
+}
+
+TString GetShortDebugString(const TSkiffSchema& schema)
+{
+    TStringStream out;
+    PrintShortDebugString(schema, &out);
+    return out.Str();
 }
 
 TString GetShortDebugString(const TSkiffSchemaPtr& schema)
@@ -102,3 +148,4 @@ TSimpleTypeSchema::TSimpleTypeSchema(EWireType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSkiff
+
