@@ -943,7 +943,7 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 
-# @build_step
+@build_step
 def run_ya_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping ya make tests since tests are disabled")
