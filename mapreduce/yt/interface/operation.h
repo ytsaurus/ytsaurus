@@ -49,6 +49,11 @@ struct TStructuredTablePath
         , Description(TUnspecifiedTableStructure())
     { }
 
+    TStructuredTablePath(const char* path)
+        : RichYPath(path)
+        , Description(TUnspecifiedTableStructure())
+    { }
+
     TRichYPath RichYPath;
     TTableStructure Description;
 };
@@ -187,7 +192,7 @@ public:
     template <class T>
     void AddInput(const TRichYPath& path);
 
-    void AddStructuredInput(const TStructuredTablePath& path);
+    void AddStructuredInput(TStructuredTablePath path);
 
     template <class T>
     void SetInput(size_t tableIndex, const TRichYPath& path);
@@ -195,7 +200,7 @@ public:
     template <class T>
     void AddOutput(const TRichYPath& path);
 
-    void AddStructuredOutput(const TStructuredTablePath& path);
+    void AddStructuredOutput(TStructuredTablePath path);
 
     template <class T>
     void SetOutput(size_t tableIndex, const TRichYPath& path);
@@ -222,7 +227,7 @@ struct TOperationIOSpec
     template <class T>
     TDerived& AddInput(const TRichYPath& path);
 
-    TDerived& AddStructuredInput(const TStructuredTablePath& path);
+    TDerived& AddStructuredInput(TStructuredTablePath path);
 
     template <class T>
     TDerived& SetInput(size_t tableIndex, const TRichYPath& path);
@@ -230,7 +235,7 @@ struct TOperationIOSpec
     template <class T>
     TDerived& AddOutput(const TRichYPath& path);
 
-    TDerived& AddStructuredOutput(const TStructuredTablePath& path);
+    TDerived& AddStructuredOutput(TStructuredTablePath path);
 
     template <class T>
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
@@ -1450,9 +1455,9 @@ struct IOperationClient
         const TOperationOptions& options = TOperationOptions());
 
     IOperationPtr Map(
+        ::TIntrusivePtr<IMapperBase> mapper,
         const TOneOrMany<TStructuredTablePath>& input,
         const TOneOrMany<TStructuredTablePath>& output,
-        ::TIntrusivePtr<IMapperBase> mapper,
         const TMapOperationSpec& spec = TMapOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
@@ -1467,10 +1472,10 @@ struct IOperationClient
         const TOperationOptions& options = TOperationOptions());
 
     IOperationPtr Reduce(
+        ::TIntrusivePtr<IReducerBase> reducer,
         const TOneOrMany<TStructuredTablePath>& input,
         const TOneOrMany<TStructuredTablePath>& output,
         const TKeyColumns& reduceBy,
-        ::TIntrusivePtr<IReducerBase> reducer,
         const TReduceOperationSpec& spec = TReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
@@ -1503,6 +1508,25 @@ struct IOperationClient
         ::TIntrusivePtr<IMapperBase> mapper,
         ::TIntrusivePtr<IReducerBase> reduceCombiner,
         ::TIntrusivePtr<IReducerBase> reducer,
+        const TOperationOptions& options = TOperationOptions());
+
+    IOperationPtr MapReduce(
+        ::TIntrusivePtr<IMapperBase> mapper,
+        ::TIntrusivePtr<IReducerBase> reducer,
+        const TOneOrMany<TStructuredTablePath>& input,
+        const TOneOrMany<TStructuredTablePath>& output,
+        const TKeyColumns& reduceBy,
+        TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
+        const TOperationOptions& options = TOperationOptions());
+
+    IOperationPtr MapReduce(
+        ::TIntrusivePtr<IMapperBase> mapper,
+        ::TIntrusivePtr<IReducerBase> reduceCombiner,
+        ::TIntrusivePtr<IReducerBase> reducer,
+        const TOneOrMany<TStructuredTablePath>& input,
+        const TOneOrMany<TStructuredTablePath>& output,
+        const TKeyColumns& reduceBy,
+        TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
     // mapper and/or reduceCombiner may be nullptr

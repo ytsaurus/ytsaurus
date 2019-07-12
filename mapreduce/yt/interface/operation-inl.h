@@ -302,16 +302,16 @@ TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYP
 }
 
 template <class TDerived>
-TDerived& TOperationIOSpec<TDerived>::AddStructuredInput(const TStructuredTablePath& path)
+TDerived& TOperationIOSpec<TDerived>::AddStructuredInput(TStructuredTablePath path)
 {
-    TOperationIOSpecBase::AddStructuredInput(path);
+    TOperationIOSpecBase::AddStructuredInput(std::move(path));
     return *static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
-TDerived& TOperationIOSpec<TDerived>::AddStructuredOutput(const TStructuredTablePath& path)
+TDerived& TOperationIOSpec<TDerived>::AddStructuredOutput(TStructuredTablePath path)
 {
-    TOperationIOSpecBase::AddStructuredOutput(path);
+    TOperationIOSpecBase::AddStructuredOutput(std::move(path));
     return *static_cast<TDerived*>(this);
 }
 
