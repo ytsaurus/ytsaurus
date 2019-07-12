@@ -5,7 +5,7 @@ extern "C" int (*mainptr)(int argc, char** argv);
 static int (*prev_mainptr)(int argc, char** argv);
 
 static int YtMain(int argc, char** argv) {
-    NYT::Initialize(argc, const_cast<const char**>(argv));
+    NYT::Initialize(argc, argv);
     return prev_mainptr(argc, argv);
 }
 
