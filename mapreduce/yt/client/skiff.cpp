@@ -192,13 +192,39 @@ void Deserialize(NSkiff::TSkiffSchemaPtr& schema, const TNode& node)
 }
 
 TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
-    TNode node;
-    TNodeBuilder nodeBuilder(&node);
     Y_ENSURE(schema->GetWireType() == NSkiff::EWireType::Variant16,
         "Bad wire type for schema; expected 'variant16', got " << schema->GetWireType());
-    Serialize(schema, &nodeBuilder);
+
+    THashMap<
+        NSkiff::TSkiffSchemaPtr,
+        size_t,
+        NSkiff::TSkiffSchemaPtrHasher,
+        NSkiff::TSkiffSchemaPtrEqual> schemasMap;
+    size_t tableIndex = 0;
     auto config = TNode("skiff");
-    config.Attributes()["table_skiff_schemas"] = node["children"];
+    config.Attributes()["table_skiff_schemas"] = TNode::CreateList();
+
+    for (const auto& schemaChild : schema->GetChildren()) {
+        auto [iter, inserted] = schemasMap.emplace(schemaChild, tableIndex);
+        size_t currentIndex;
+        if (inserted) {
+            currentIndex = tableIndex;
+            ++tableIndex;
+        } else {
+            currentIndex = iter->second;
+        }
+        config.Attributes()["table_skiff_schemas"].Add("$" + ::ToString(currentIndex));
+    }
+
+    config.Attributes()["skiff_schema_registry"] = TNode::CreateMap();
+
+    for (const auto& [tableSchema, index] : schemasMap) {
+        TNode node;
+        TNodeBuilder nodeBuilder(&node);
+        Serialize(tableSchema, &nodeBuilder);
+        config.Attributes()["skiff_schema_registry"][::ToString(index)] = std::move(node);
+    }
+
     return TFormat(config);
 }
 
