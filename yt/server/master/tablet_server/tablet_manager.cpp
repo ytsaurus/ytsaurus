@@ -5730,7 +5730,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_WARNING("Unexpected error: prerequisite transaction not found at secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
             return;
