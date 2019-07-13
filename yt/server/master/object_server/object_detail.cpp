@@ -55,6 +55,7 @@
 
 #include <yt/core/yson/string.h>
 #include <yt/core/yson/async_consumer.h>
+#include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
 namespace NYT::NObjectServer {
@@ -821,15 +822,31 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr&
 }
 
 void TNontemplateNonversionedObjectProxyBase::GetSelf(
-    TReqGet* /*request*/,
+    TReqGet* request,
     TRspGet* response,
     const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
 
-    response->set_value("#");
-    context->Reply();
+    if (request->has_attributes()) {
+        auto attributeKeys = std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()));
+        TAsyncYsonWriter writer;
+        WriteAttributes(&writer, attributeKeys, false);
+        writer.OnEntity();
+
+        writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().GetData());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
+    } else {
+        response->set_value("#");
+        context->Reply();
+    }
 }
 
 void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
