@@ -61,6 +61,7 @@ using namespace NHiveServer;
 using namespace NTabletClient;
 using namespace NYTree;
 using namespace NApi;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,8 +217,8 @@ private:
                 ->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
 
             return BIND([=, this_ = MakeStrong(this)] () {
-                auto req = TTableReplicaYPathProxy::Alter(NObjectClient::FromObjectId(Id_));
-                NRpc::SetMutationId(req, NRpc::GenerateMutationId(), false);
+                auto req = TTableReplicaYPathProxy::Alter(FromObjectId(Id_));
+                GenerateMutationId(req);
                 req->set_mode(static_cast<int>(mode));
 
                 const auto& objectManager = bootstrap->GetObjectManager();
