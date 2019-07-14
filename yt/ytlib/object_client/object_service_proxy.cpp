@@ -90,8 +90,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
 
 TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteSubbatch::CreateResponse()
 {
-    auto clientContext = CreateClientContext();
-    return New<TRspExecuteBatch>(clientContext, std::multimap<TString, int>());
+    return New<TRspExecuteBatch>(CreateClientContext());
 }
 
 TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::PatchForRetry(const TSharedRefArray& message)
@@ -160,8 +159,8 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
-    TYPathRequestPtr innerRequest,
-    const TString& key,
+    const TYPathRequestPtr& innerRequest,
+    std::optional<TString> key,
     std::optional<size_t> hash)
 {
     TSharedRefArray innerRequestMessage;
@@ -175,28 +174,37 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
         }
     }
 
-    return AddRequestMessage(innerRequestMessage, needsPatchingForRetry, key, hash);
+    InnerRequestDescriptors_.push_back({
+        std::move(key),
+        innerRequest->Tag(),
+        std::move(innerRequestMessage),
+        needsPatchingForRetry,
+        hash
+    });
+
+    return this;
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
-    const TString& key,
+    std::optional<TString> key,
     std::optional<size_t> hash)
 {
-    if (!key.empty()) {
-        int index = static_cast<int>(InnerRequestDescriptors_.size());
-        KeyToIndexes_.insert(std::make_pair(key, index));
-    }
-
-    InnerRequestDescriptors_.emplace_back(TInnerRequestDescriptor{innerRequestMessage, needsPatchingForRetry, hash});
+    InnerRequestDescriptors_.push_back(TInnerRequestDescriptor{
+        std::move(key),
+        {},
+        std::move(innerRequestMessage),
+        needsPatchingForRetry,
+        hash
+    });
 
     return this;
 }
 
-TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetTimeout(
-    std::optional<TDuration> timeout)
+TObjectServiceProxy::TReqExecuteBatchPtr
+TObjectServiceProxy::TReqExecuteBatch::SetTimeout(std::optional<TDuration> timeout)
 {
     TClientRequest::SetTimeout(timeout);
     return this;
@@ -209,7 +217,8 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
     return this;
 }
 
-TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatch::Slice(int beginPos, int retriesEndPos, int endPos)
+TObjectServiceProxy::TReqExecuteSubbatchPtr
+TObjectServiceProxy::TReqExecuteBatch::Slice(int beginPos, int retriesEndPos, int endPos)
 {
     return New<TReqExecuteSubbatch>(*this, beginPos, retriesEndPos, endPos);
 }
@@ -233,36 +242,35 @@ void TObjectServiceProxy::TReqExecuteBatch::PushDownPrerequisites()
 
 TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::CreateResponse()
 {
-    auto clientContext = CreateClientContext();
-    return New<TRspExecuteBatch>(clientContext, KeyToIndexes_);
+    return New<TRspExecuteBatch>(CreateClientContext(), InnerRequestDescriptors_);
 }
 
 void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
 {
-    CurBatchBegin_ = GetTotalSubresponseCount();
-    auto lastBatchEnd = CurBatchEnd_;
-    CurBatchEnd_ = std::min(CurBatchBegin_ + MaxSingleSubbatchSize, GetTotalSubrequestCount());
+    CurrentBatchBegin_ = GetTotalSubresponseCount();
+    auto lastBatchEnd = CurrentBatchEnd_;
+    CurrentBatchEnd_ = std::min(CurrentBatchBegin_ + MaxSingleSubbatchSize, GetTotalSubrequestCount());
 
-    YT_VERIFY(CurBatchBegin_ < CurBatchEnd_ || GetTotalSubrequestCount() == 0);
+    YT_VERIFY(CurrentBatchBegin_ < CurrentBatchEnd_ || GetTotalSubrequestCount() == 0);
 
     // Optimization for the typical case of a small batch.
-    if (CurBatchBegin_ == 0 && CurBatchEnd_ == GetTotalSubrequestCount()) {
-        CurReqFuture_ = DoInvoke();
+    if (CurrentBatchBegin_ == 0 && CurrentBatchEnd_ == GetTotalSubrequestCount()) {
+        CurrentReqFuture_ = DoInvoke();
     } else {
         // If the last batch was backed off, we may not have received all the
         // subresponses. We must mark relevant subrequests as retries to avoid
         // them being rejected by the response keeper.
-        auto subbatchReq = Slice(CurBatchBegin_, lastBatchEnd, CurBatchEnd_);
-        CurReqFuture_ = subbatchReq->DoInvoke();
+        auto subbatchReq = Slice(CurrentBatchBegin_, lastBatchEnd, CurrentBatchEnd_);
+        CurrentReqFuture_ = subbatchReq->DoInvoke();
         YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchEnd: %v, SubbatchRetriesEnd: %v)",
             GetRequestId(),
             subbatchReq->GetRequestId(),
-            CurBatchBegin_,
-            CurBatchEnd_,
+            CurrentBatchBegin_,
+            CurrentBatchEnd_,
             lastBatchEnd);
     }
 
-    CurReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
+    CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
 }
 
 void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TRspExecuteBatchPtr>& rspOrErr)
@@ -275,7 +283,7 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     const auto& rsp = rspOrErr.Value();
 
     // Optimization for the typical case of a small batch.
-    if (CurBatchBegin_ == 0 && rsp->GetSize() == GetTotalSubrequestCount()) {
+    if (CurrentBatchBegin_ == 0 && rsp->GetSize() == GetTotalSubrequestCount()) {
         FullResponsePromise_.Set(rspOrErr);
         return;
     }
@@ -283,7 +291,7 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     YT_LOG_DEBUG("Subbatch response received (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchSubresponseCount: %v)",
         GetRequestId(),
         rsp->GetRequestId(),
-        CurBatchBegin_,
+        CurrentBatchBegin_,
         rsp->GetSize());
 
     // The remote side shouldn't backoff until there's at least one subresponse.
@@ -315,7 +323,7 @@ TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
         // Make sure the full response uses the promise we've returned to the caller.
         FullResponse_ = New<TRspExecuteBatch>(
             CreateClientContext(),
-            KeyToIndexes_,
+            InnerRequestDescriptors_,
             FullResponsePromise_);
     }
     return FullResponse_;
@@ -325,18 +333,11 @@ TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
 
 TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     TClientContextPtr clientContext,
-    const std::multimap<TString, int>& keyToIndexes)
-    : TClientResponse(std::move(clientContext))
-    , KeyToIndexes_(keyToIndexes)
-{ }
-
-TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
-    TClientContextPtr clientContext,
-    const std::multimap<TString, int>& keyToIndexes,
+    const std::vector<TInnerRequestDescriptor>& innerRequestDescriptors,
     TPromise<TRspExecuteBatchPtr> promise)
     : TClientResponse(std::move(clientContext))
-    , KeyToIndexes_(keyToIndexes)
-    , Promise_(std::move(promise))
+    , InnerRequestDescriptors_(innerRequestDescriptors)
+    , Promise_(promise ? std::move(promise) : NewPromise<TRspExecuteBatchPtr>())
 { }
 
 auto TObjectServiceProxy::TRspExecuteBatch::GetPromise() -> TPromise<TRspExecuteBatchPtr>
@@ -446,7 +447,7 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
         TSharedRefArray::TCopyParts{});
 }
 
-std::optional<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
+std::optional<ui64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
 {
     if (Revisions_.empty()) {
         return std::nullopt;

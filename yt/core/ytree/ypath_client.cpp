@@ -185,7 +185,7 @@ TSharedRefArray TYPathRequest::Serialize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYPathResponse::Deserialize(TSharedRefArray message)
+void TYPathResponse::Deserialize(const TSharedRefArray& message)
 {
     YT_ASSERT(message);
 

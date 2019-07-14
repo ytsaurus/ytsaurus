@@ -38,6 +38,17 @@ public:
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
 private:
+    struct TInnerRequestDescriptor
+    {
+        std::optional<TString> Key;
+        std::any Tag;
+        TSharedRefArray Message;
+        // True if the message contains a mutating request and has the
+        // 'retry' flag set to false.
+        bool NeedsPatchingForRetry = false;
+        std::optional<size_t> Hash;
+    };
+
     class TReqExecuteSubbatch
         : public NRpc::TClientRequest
     {
@@ -48,6 +59,8 @@ private:
         virtual size_t GetHash() const override;
 
     protected:
+        std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
+
         explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
 
     private:
@@ -70,16 +83,6 @@ private:
         //! Patch the message and set the 'retry' flag to true.
         static TSharedRefArray PatchForRetry(const TSharedRefArray& message);
 
-        struct TInnerRequestDescriptor
-        {
-            TSharedRefArray Message;
-            // True if the message contains a mutating request and has the
-            // 'retry' flag set to false.
-            bool NeedsPatchingForRetry = false;
-            std::optional<size_t> Hash;
-        };
-
-        std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         bool SuppressUpstreamSync_ = false;
 
         friend class TReqExecuteBatch;
@@ -95,7 +98,7 @@ public:
         : public TReqExecuteSubbatch
     {
     public:
-        static const int MaxSingleSubbatchSize = 100;
+        static constexpr int MaxSingleSubbatchSize = 100;
 
         //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
@@ -115,13 +118,13 @@ public:
          *  (thus avoiding complicated and error-prone index calculations).
          *
          *  The client is allowed to issue an empty (|nullptr|) request. This request is treated
-         *  like any other and is sent to the server. The server typically sends an empty (|NULL|)
+         *  like any other and is sent to the server. The server typically sends an empty (|nullptr|)
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
         TReqExecuteBatchPtr AddRequest(
-            NYTree::TYPathRequestPtr innerRequest,
-            const TString& key = TString(),
+            const NYTree::TYPathRequestPtr& innerRequest,
+            std::optional<TString> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
@@ -130,12 +133,10 @@ public:
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
-            const TString& key = TString(),
+            std::optional<TString> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);
 
     private:
-        std::multimap<TString, int> KeyToIndexes_;
-
         // The promise is needed right away as we need to return something to
         // the caller of #Invoke. The full response, however, may not be
         // required if the first subbatch response carries all subresponses. In
@@ -146,10 +147,10 @@ public:
 
         // Indexes of the first and the last subrequests in the currently
         // invoked subbatch.
-        int CurBatchBegin_ = 0;
-        int CurBatchEnd_ = 0;
+        int CurrentBatchBegin_ = 0;
+        int CurrentBatchEnd_ = 0;
 
-        TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurReqFuture_;
+        TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
 
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
@@ -210,12 +211,11 @@ public:
         //! Returns the individual generic response with a given index.
         TErrorOr<NYTree::TYPathResponsePtr> GetResponse(int index) const;
 
-        //! Returns the individual generic response with a given key or NULL if no request with
-        //! this key is known. At most one such response must exist.
+        //! Returns the individual generic response with a given key or |nullptr| if no request with
+        //! this key is known. At most one such response must exist, otherwise an exception is thrown.
         std::optional<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
 
         //! Returns the individual generic response with a given key.
-        //! Such a response must be unique.
         TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const TString& key) const;
 
         //! Returns the individual response with a given key or NULL if no request with
@@ -230,7 +230,7 @@ public:
 
         //! Returns all responses with a given key (all if no key is specified).
         template <class TTypedResponse>
-        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const TString& key = TString()) const;
+        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
 
         //! Returns all responses with a given key (all if no key is specified).
         std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const TString& key = TString()) const;
@@ -238,26 +238,23 @@ public:
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
 
-        //! Returns revision of specified response.
-        std::optional<i64> GetRevision(int index) const;
+        //! Returns the revision of the specified response.
+        std::optional<ui64> GetRevision(int index) const;
 
     private:
         friend class TReqExecuteSubbatch;
         friend class TReqExecuteBatch;
 
-        std::multimap<TString, int> KeyToIndexes_;
-        TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
+        const std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
+
+        TPromise<TRspExecuteBatchPtr> Promise_;
         std::vector<std::pair<int, int>> PartRanges_;
-        std::vector<i64> Revisions_;
+        std::vector<ui64> Revisions_;
 
-        TRspExecuteBatch(
+        explicit TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
-            const std::multimap<TString, int>& keyToIndexes);
-
-        TRspExecuteBatch(
-            NRpc::TClientContextPtr clientContext,
-            const std::multimap<TString, int>& keyToIndexes,
-            TPromise<TRspExecuteBatchPtr> promise);
+            const std::vector<TInnerRequestDescriptor>& innerRequestDescriptors = {},
+            TPromise<TRspExecuteBatchPtr> promise = {});
 
         DECLARE_NEW_FRIEND();
 
