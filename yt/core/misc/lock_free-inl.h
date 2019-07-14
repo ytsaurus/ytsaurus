@@ -29,14 +29,9 @@ struct TMultipleProducerSingleConsumerLockFreeStack<T>::TNode
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TMultipleProducerSingleConsumerLockFreeStack<T>::TMultipleProducerSingleConsumerLockFreeStack()
-    : Head(nullptr)
-{ }
-
-template <class T>
 TMultipleProducerSingleConsumerLockFreeStack<T>::~TMultipleProducerSingleConsumerLockFreeStack()
 {
-    auto* current = Head.load();
+    auto* current = Head_.load();
     while (current) {
         auto* next = current->Next;
         delete current;
@@ -47,35 +42,33 @@ TMultipleProducerSingleConsumerLockFreeStack<T>::~TMultipleProducerSingleConsume
 template <class T>
 void TMultipleProducerSingleConsumerLockFreeStack<T>::Enqueue(const T& value)
 {
-    auto* node = new TNode(value);
-    TNode* expected;
-    do {
-        expected = Head.load(std::memory_order_relaxed);
-        node->Next = expected;
-    } while (!Head.compare_exchange_weak(expected, node));
+    DoEnqueue(new TNode(value));
 }
 
 template <class T>
 void TMultipleProducerSingleConsumerLockFreeStack<T>::Enqueue(T&& value)
 {
-    auto* node = new TNode(std::move(value));
-    TNode* expected;
+    DoEnqueue(new TNode(std::move(value)));
+}
+
+template <class T>
+void TMultipleProducerSingleConsumerLockFreeStack<T>::DoEnqueue(TNode* node)
+{
+    auto* expected = Head_.load(std::memory_order_relaxed);
     do {
-        expected = Head.load(std::memory_order_relaxed);
         node->Next = expected;
-    } while (!Head.compare_exchange_weak(expected, node));
+    } while (!Head_.compare_exchange_weak(expected, node));
 }
 
 template <class T>
 bool TMultipleProducerSingleConsumerLockFreeStack<T>::Dequeue(T* value)
 {
-    TNode* expected;
+    auto* expected = Head_.load();
     do {
-        expected = Head.load(std::memory_order_acquire);
         if (!expected) {
             return false;
         }
-    } while (!Head.compare_exchange_weak(expected, expected->Next));
+    } while (!Head_.compare_exchange_weak(expected, expected->Next));
 
     *value = std::move(expected->Value);
     delete expected;
@@ -94,17 +87,12 @@ std::vector<T> TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool 
 
 template <class T>
 template <class F>
-bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, F functor)
+bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, F&& functor)
 {
-    TNode* expected;
-    do {
-        expected = Head.load(std::memory_order_relaxed);
-        if (!expected) {
-            return false;
-        }
-    } while (!Head.compare_exchange_weak(expected, nullptr));
-
-    auto* current = expected;
+    auto* current = Head_.exchange(nullptr);
+    if (!current) {
+        return false;
+    }
     if (reverse) {
         auto* next = current->Next;
         current->Next = nullptr;
@@ -127,7 +115,7 @@ bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, F
 template <class T>
 bool TMultipleProducerSingleConsumerLockFreeStack<T>::IsEmpty() const
 {
-    return !Head.load();
+    return !Head_.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

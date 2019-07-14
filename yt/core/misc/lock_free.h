@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <atomic>
 
@@ -15,32 +15,36 @@ public:
     TMultipleProducerSingleConsumerLockFreeStack(const TMultipleProducerSingleConsumerLockFreeStack&) = delete;
     void operator=(const TMultipleProducerSingleConsumerLockFreeStack&) = delete;
 
-    TMultipleProducerSingleConsumerLockFreeStack();
+    TMultipleProducerSingleConsumerLockFreeStack() = default;
     ~TMultipleProducerSingleConsumerLockFreeStack();
 
     void Enqueue(const T& value);
     void Enqueue(T&& value);
+
     bool Dequeue(T* value);
     std::vector<T> DequeueAll(bool reverse = false);
     template <class F>
-    bool DequeueAll(bool reverse, F functor);
+    bool DequeueAll(bool reverse, F&& functor);
 
     bool IsEmpty() const;
 
 private:
     struct TNode;
 
-    std::atomic<TNode*> Head;
+    std::atomic<TNode*> Head_ = {nullptr};
 
+    void DoEnqueue(TNode* node);
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 class TSingleProducerSingleConsumerQueue
-    : private TNonCopyable
 {
 public:
+    TSingleProducerSingleConsumerQueue(const TSingleProducerSingleConsumerQueue&) = delete;
+    void operator=(const TSingleProducerSingleConsumerQueue&) = delete;
+
     TSingleProducerSingleConsumerQueue();
     ~TSingleProducerSingleConsumerQueue();
 
