@@ -22,6 +22,7 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
     auto innerResponse = New<TTypedResponse>();
     try {
         innerResponse->Deserialize(innerResponseMessage);
+        innerResponse->Tag() = InnerRequestDescriptors_[index].Tag;
     } catch (const std::exception& ex) {
         return ex;
     }
@@ -31,16 +32,16 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 template <class TTypedResponse>
 std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
-    YT_VERIFY(!key.empty());
-    auto range = KeyToIndexes_.equal_range(key);
-    if (range.first == range.second) {
-        return std::nullopt;
+    std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> result;
+    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+        if (key == InnerRequestDescriptors_[index].Key) {
+            if (result) {
+                THROW_ERROR_EXCEPTION("Found multiple responses with key %Qv", key);
+            }
+            result = GetResponse<TTypedResponse>(index);
+        }
     }
-    auto it = range.first;
-    int index = it->second;
-    // Failure here means that more than one response with the given key is found.
-    YT_VERIFY(++it == range.second);
-    return GetResponse<TTypedResponse>(index);
+    return result;
 }
 
 template <class TTypedResponse>
@@ -48,22 +49,17 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 {
     auto result = FindResponse<TTypedResponse>(key);
     YT_VERIFY(result);
-    return *result;
+    return std::move(*result);
 }
 
 template <class TTypedResponse>
-std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const TString& key) const
+std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
 {
     std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> responses;
-    if (key.empty()) {
-        responses.reserve(GetSize());
-        for (int index = 0; index < GetSize(); ++index) {
+    responses.reserve(InnerRequestDescriptors_.size());
+    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+        if (!key || *key == InnerRequestDescriptors_[index].Key) {
             responses.push_back(GetResponse<TTypedResponse>(index));
-        }
-    } else {
-        auto range = KeyToIndexes_.equal_range(key);
-        for (auto it = range.first; it != range.second; ++it) {
-            responses.push_back(GetResponse<TTypedResponse>(it->second));
         }
     }
     return responses;
