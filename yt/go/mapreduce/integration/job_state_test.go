@@ -32,6 +32,8 @@ func (r *ReduceJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapr
 }
 
 func TestJobState(t *testing.T) {
+	t.SkipNow()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
