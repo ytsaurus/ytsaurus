@@ -63,6 +63,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
+    def test_no_outputs(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"key": "value"}])
+        op = map(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2")
+        check_all_stderrs(op, "stderr\n", 1)
+
     def test_empty_range(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
