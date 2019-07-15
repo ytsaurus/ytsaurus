@@ -108,6 +108,7 @@ def print_separator():
 def generate_client():
     options = []
     meta_base_dict = dict()
+    control_set = set()
     for module in get_modules():
         options += module.DESCRIPTOR.GetOptions().Extensions[data_model_pb2.object_type]
         descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
@@ -115,9 +116,12 @@ def generate_client():
             message_descriptor = module.__dict__[message_type.name].DESCRIPTOR
             T = "T"
             META_BASE = "MetaBase"
+            CONTROL = "Control"
             name = message_descriptor.name
             if name.startswith(T) and name.endswith(META_BASE):
                 meta_base_dict[name[len(T):-len(META_BASE)]] = message_descriptor
+            if name.startswith(T) and name.endswith(CONTROL):
+                control_set.add(name[len(T):-len(CONTROL)])
 
     print """\
 // AUTOMATICALLY GENERATED, DO NOT EDIT!
@@ -175,6 +179,8 @@ option java_outer_classname = "Autogen";
         print "    T{}Status status = 3;".format(option.camel_case_name)
         print "    NYT.NYTree.NProto.TAttributeDictionary labels = 4;"
         print "    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;"
+        if option.camel_case_name in control_set:
+            print "    T{}Control control = 6;".format(option.camel_case_name)
         print "}"
         print ""
         print "////////////////////////////////////////////////////////////////////////////////"

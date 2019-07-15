@@ -116,6 +116,7 @@ message TNode
     TNodeStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    TNodeControl control = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +188,7 @@ message TPod
     TPodStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    TPodControl control = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
