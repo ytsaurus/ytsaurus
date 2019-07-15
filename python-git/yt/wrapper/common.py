@@ -1,5 +1,5 @@
-from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env,
-                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string,
+from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env, unlist,
+                       get_value, filter_dict, date_string_to_timestamp, datetime_to_string, date_string_to_datetime,
                        uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated)
 import yt.yson as yson
 
