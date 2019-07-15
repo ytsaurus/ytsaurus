@@ -265,8 +265,9 @@ def add_type_argument(parser, name, hybrid=False):
     else:
         add_hybrid_argument(parser, name, "", description=NODE_TYPE_HELP)
 
-def add_read_from_argument(parser):
+def add_read_from_arguments(parser):
     parser.add_argument("--read-from", help='Can be set to "cache" to enable reads from system cache')
+    parser.add_argument("--cache-sticky-group-size", type=int, help='Size of sticky group size for read_from="cache" mode')
 
 @copy_docstring_from(yt.exists)
 def exists(**args):
@@ -275,7 +276,7 @@ def exists(**args):
 def add_exists_parser(add_parser):
     parser = add_parser("exists", exists)
     add_ypath_argument(parser, "path", hybrid=True)
-    add_read_from_argument(parser)
+    add_read_from_arguments(parser)
 
 LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "modification_time")
 
@@ -338,7 +339,7 @@ def add_list_parser(add_parser):
                               "default value is enough to list any nonsystem directory."))
     parser.add_argument("--recursive-resource-usage", action="store_true",
                         help="use recursive resource usage for in long format mode")
-    add_read_from_argument(parser)
+    add_read_from_arguments(parser)
     group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
 def find(**args):
@@ -366,7 +367,8 @@ def find(**args):
                        object_filter=object_filter,
                        depth_bound=args["depth"],
                        follow_links=args["follow_links"],
-                       read_from=args["read_from"])
+                       read_from=args["read_from"],
+                       cache_sticky_group_size=args["cache_sticky_group_size"])
 
     for elem in result:
         formatted_print(elem, elem, args["long_format"], args["recursive_resource_usage"])
@@ -384,7 +386,7 @@ def add_find_parser(add_parser):
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
     parser.add_argument("--recursive-resource-usage", action="store_true",
                         help="use recursive resource usage for in long format mode")
-    add_read_from_argument(parser)
+    add_read_from_arguments(parser)
     parser.set_defaults(func=find)
 
 @copy_docstring_from(yt.read_table)
@@ -517,7 +519,7 @@ def add_get_parser(add_parser):
                               "default value is enough to list any nonsystem directory."))
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
-    add_read_from_argument(parser)
+    add_read_from_arguments(parser)
 
 @copy_docstring_from(yt.set)
 def set(**args):
@@ -1134,7 +1136,7 @@ def add_check_permission_parser(add_parser):
     add_hybrid_argument(parser, "user")
     add_hybrid_argument(parser, "permission", help="one of read, write, administer, create, use")
     add_ypath_argument(parser, "path", hybrid=True)
-    add_read_from_argument(parser)
+    add_read_from_arguments(parser)
     add_structured_argument(parser, "--columns")
     add_structured_format_argument(parser, default=output_format)
 
