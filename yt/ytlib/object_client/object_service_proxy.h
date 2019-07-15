@@ -9,8 +9,43 @@
 #include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NObjectClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TReqExecuteBatchWithRetriesConfig)
+
+class TReqExecuteBatchWithRetriesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Since #TErrorCode is an opaque |int|, let's use |int| for serialization
+    std::vector<TErrorCode::TUnderlying> RetriableErrorCodes;
+    TDuration StartBackoff;
+    TDuration MaxBackoff;
+    double BackoffMultiplier;
+    int RetryCount;
+
+    TReqExecuteBatchWithRetriesConfig()
+    {
+        RegisterParameter("retriable_errors", RetriableErrorCodes)
+            .Default({});
+        RegisterParameter("base_backoff", StartBackoff)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("max_backoff", MaxBackoff)
+            .Default(TDuration::Seconds(20));
+        RegisterParameter("backoff_multiplier", BackoffMultiplier)
+            .GreaterThanOrEqual(1)
+            .Default(2);
+        RegisterParameter("retry_count", RetryCount)
+            .GreaterThanOrEqual(0)
+            .Default(5);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +65,12 @@ public:
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
     class TReqExecuteBatch;
+    class TReqExecuteBatchWithRetries;
     class TRspExecuteBatch;
 
     //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
     using TReqExecuteBatchPtr = TIntrusivePtr<TReqExecuteBatch>;
+    using TReqExecuteBatchWithRetriesPtr = TIntrusivePtr<TReqExecuteBatchWithRetries>;
     using TRspExecuteBatchPtr = TIntrusivePtr<TRspExecuteBatch>;
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
@@ -48,6 +85,8 @@ private:
         bool NeedsPatchingForRetry = false;
         std::optional<size_t> Hash;
     };
+
+    class TReqExecuteBatchBase;
 
     class TReqExecuteSubbatch
         : public NRpc::TClientRequest
@@ -64,6 +103,8 @@ private:
         explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
 
     private:
+        explicit TReqExecuteSubbatch(const TReqExecuteBatchBase& other);
+
         // For TReqExecuteBatch::Slice().
         TReqExecuteSubbatch(
             const TReqExecuteBatch& other,
@@ -85,31 +126,22 @@ private:
 
         bool SuppressUpstreamSync_ = false;
 
+        friend class TReqExecuteBatchBase;
         friend class TReqExecuteBatch;
+        friend class TReqExecuteBatchWithRetries;
     };
 
-    using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
-
-public:
-    //! A batched request to Cypress that holds a vector of individual requests.
-    //! They're sent in groups of several requests at a time. These groups are
-    //! called subbatches and are transferred within a single RPC envelope.
-    class TReqExecuteBatch
+    class TReqExecuteBatchBase
         : public TReqExecuteSubbatch
     {
     public:
-        static constexpr int MaxSingleSubbatchSize = 100;
-
-        //! Runs asynchronous invocation.
-        TFuture<TRspExecuteBatchPtr> Invoke();
-
         //! Overrides base method for fluent use.
         //! NB: the timeout only affects subbatch requests. The complete batch request
         //! time is essentially unbounded.
-        TReqExecuteBatchPtr SetTimeout(std::optional<TDuration> timeout);
+        void SetTimeout(std::optional<TDuration> timeout);
 
         //! Sets the upstream sync suppression option.
-        TReqExecuteBatchPtr SetSuppressUpstreamSync(bool value);
+        void SetSuppressUpstreamSync(bool value);
 
         //! Adds an individual request into the batch.
         /*!
@@ -122,7 +154,7 @@ public:
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
-        TReqExecuteBatchPtr AddRequest(
+         void AddRequest(
             const NYTree::TYPathRequestPtr& innerRequest,
             std::optional<TString> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);
@@ -130,13 +162,20 @@ public:
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         //! #needsPatchingForRetry should be true iff the message contains a mutating request with
         //! the 'retry' flag set to false.
-        TReqExecuteBatchPtr AddRequestMessage(
+        void AddRequestMessage(
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
             std::optional<TString> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);
 
-    private:
+    protected:
+        TReqExecuteBatchBase(const TReqExecuteBatchWithRetries& other);
+        explicit TReqExecuteBatchBase(NRpc::IChannelPtr channel);
+
+        TRspExecuteBatchPtr CreateResponse() override;
+
+        void PushDownPrerequisites();
+
         // The promise is needed right away as we need to return something to
         // the caller of #Invoke. The full response, however, may not be
         // required if the first subbatch response carries all subresponses. In
@@ -145,12 +184,47 @@ public:
         TPromise<TRspExecuteBatchPtr> FullResponsePromise_;
         TRspExecuteBatchPtr FullResponse_;
 
+    private:
+        friend class TReqExecuteSubbatch;
+    };
+
+    using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
+
+public:
+    //! A batched request to Cypress that holds a vector of individual requests.
+    //! They're sent in groups of several requests at a time. These groups are
+    //! called subbatches and are transferred within a single RPC envelope.
+    class TReqExecuteBatch
+        : public TReqExecuteBatchBase
+    {
+    public:
+        static constexpr int MaxSingleSubbatchSize = 100;
+
+        //! Runs asynchronous invocation
+        TFuture<TRspExecuteBatchPtr> Invoke();
+
+        TReqExecuteBatchPtr SetTimeout(std::optional<TDuration> timeout);
+        TReqExecuteBatchPtr SetSuppressUpstreamSync(bool value);
+
+        TReqExecuteBatchPtr AddRequest(
+            const NYTree::TYPathRequestPtr& innerRequest,
+            std::optional<TString> key = std::nullopt,
+            std::optional<size_t> hash = std::nullopt);
+        TReqExecuteBatchPtr AddRequestMessage(
+            TSharedRefArray innerRequestMessage,
+            bool needsPatchingForRetry,
+            std::optional<TString> key = std::nullopt,
+            std::optional<size_t> hash = std::nullopt);
+
+    private:
         // Indexes of the first and the last subrequests in the currently
         // invoked subbatch.
         int CurrentBatchBegin_ = 0;
         int CurrentBatchEnd_ = 0;
 
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
+
+        TReqExecuteBatch(const TReqExecuteBatchWithRetries& other, const std::vector<int>& indexes);
 
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
@@ -165,10 +239,6 @@ public:
          */
         TReqExecuteSubbatchPtr Slice(int beginPos, int retriesEndPos, int endPos);
 
-        virtual TRspExecuteBatchPtr CreateResponse() override;
-
-        void PushDownPrerequisites();
-
         void InvokeNextBatch();
         void OnSubbatchResponse(const TErrorOr<TRspExecuteBatchPtr>& rspOrErr);
 
@@ -176,8 +246,56 @@ public:
         int GetTotalSubresponseCount() const;
 
         TRspExecuteBatchPtr GetFullResponse();
+    };
 
-        friend class TReqExecuteSubbatch;
+    class TReqExecuteBatchWithRetries
+        : public TReqExecuteBatchBase
+    {
+    public:
+        //! Runs asynchronous invocation
+        TFuture<TRspExecuteBatchPtr> Invoke();
+
+        TReqExecuteBatchWithRetriesPtr SetTimeout(std::optional<TDuration> timeout);
+        TReqExecuteBatchWithRetriesPtr SetSuppressUpstreamSync(bool value);
+
+        TReqExecuteBatchWithRetriesPtr AddRequest(
+            const NYTree::TYPathRequestPtr& innerRequest,
+            std::optional<TString> key = std::nullopt,
+            std::optional<size_t> hash = std::nullopt);
+        TReqExecuteBatchWithRetriesPtr AddRequestMessage(
+            TSharedRefArray innerRequestMessage,
+            bool needsPatchingForRetry,
+            std::optional<TString> key = std::nullopt,
+            std::optional<size_t> hash = std::nullopt);
+
+    private:
+        // For testing purposes
+        TReqExecuteBatchWithRetries(
+            NRpc::IChannelPtr channel,
+            TReqExecuteBatchWithRetriesConfigPtr config,
+            TCallback<bool(int, const TError&)>);
+        TReqExecuteBatchWithRetries(
+            NRpc::IChannelPtr channel,
+            TReqExecuteBatchWithRetriesConfigPtr config);
+
+        DECLARE_NEW_FRIEND();
+
+        void InvokeNextBatch();
+
+        void Initialize();
+        void OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr);
+        bool IsRetryNeeded(const TError& err);
+        TDuration GetCurrentDelay();
+
+
+        static TSharedRefArray PatchMutationId(const TSharedRefArray& message);
+
+        std::vector<int> PendingIndexes_;
+        int CurrentRetry_ = 0;
+
+        TFuture<TRspExecuteBatchPtr> CurrentReqFuture_;
+        TReqExecuteBatchWithRetriesConfigPtr Config_;
+        TCallback<bool(const TError&)> NeedRetry_;
     };
 
     //! A response to a batched request.
@@ -212,10 +330,11 @@ public:
         TErrorOr<NYTree::TYPathResponsePtr> GetResponse(int index) const;
 
         //! Returns the individual generic response with a given key or |nullptr| if no request with
-        //! this key is known. At most one such response must exist, otherwise an exception is thrown.
+        //! this key is known. At most one such response must exist, otherwise and exception is thrown.
         std::optional<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
 
         //! Returns the individual generic response with a given key.
+        //! Such a response must be unique.
         TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const TString& key) const;
 
         //! Returns the individual response with a given key or NULL if no request with
@@ -233,7 +352,7 @@ public:
         std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<TString>& key = {}) const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
@@ -244,12 +363,12 @@ public:
     private:
         friend class TReqExecuteSubbatch;
         friend class TReqExecuteBatch;
+        friend class TReqExecuteBatchWithRetries;
 
         const std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
-
-        TPromise<TRspExecuteBatchPtr> Promise_;
+        TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
         std::vector<std::pair<int, int>> PartRanges_;
-        std::vector<ui64> Revisions_;
+        std::vector<i64> Revisions_;
 
         explicit TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
@@ -264,10 +383,16 @@ public:
         virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override;
 
         void Append(const TRspExecuteBatchPtr& subbatchResponse);
+        void Insert(const TRspExecuteBatchPtr& batchResponse, int batchSubresponseIndex, int resultSubresponseIndex);
     };
 
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();
+    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config);
+
+    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
+        TReqExecuteBatchWithRetriesConfigPtr config,
+        TCallback<bool(int, const TError&)> needRetry);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

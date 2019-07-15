@@ -326,6 +326,88 @@ TEST_F(TBatchRequestTest, TestBatchRequestWith1151Subrequests)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBatchWithRetriesTest
+    : public TApiTestBase
+{
+protected:
+    TString GenerateTablePath()
+    {
+        return Format("//tmp/%v", TGuid::Create());
+    }
+
+    static TYPathRequestPtr GetRequest(const TString& tablePath)
+    {
+        return TCypressYPathProxy::Get(tablePath + "/@");
+    }
+
+    static TYPathRequestPtr CreateRequest(const TString& tablePath)
+    {
+        auto request = TCypressYPathProxy::Create(tablePath);
+        request->set_type(static_cast<int>(EObjectType::Table));
+        request->set_recursive(false);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", 1);
+        ToProto(request->mutable_node_attributes(), *attributes);
+        GenerateMutationId(request);
+
+        return request;
+    }
+
+    int InvokeAndGetRetryCount(TYPathRequestPtr request, TErrorCode errorCode, int maxRetryCount)
+    {
+        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        config->RetryCount = maxRetryCount;
+        config->StartBackoff = TDuration::MilliSeconds(100);
+        config->BackoffMultiplier = 1;
+
+        int retryCount = 0;
+        auto needRetry = [&retryCount, errorCode] (int currentRetry, const TError& error) {
+            if (error.FindMatching(errorCode)) {
+                retryCount = currentRetry + 1;
+                return true;
+            }
+            return false;
+        };
+
+        auto channel = dynamic_cast<NApi::NNative::IClient*>(Client_.Get())->
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchRequest = proxy.ExecuteBatchWithRetries(config, BIND(needRetry));
+        batchRequest->AddRequest(std::move(request));
+
+        auto response = WaitFor(batchRequest->Invoke());
+        response.ThrowOnError();
+
+        return retryCount;
+    }
+};
+
+TEST_F(TBatchWithRetriesTest, TestRetryCount)
+{
+    auto tablePath = GenerateTablePath();
+    auto request = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(request, NYTree::EErrorCode::ResolveError, 5), 5);
+}
+
+TEST_F(TBatchWithRetriesTest, TestCorrectRequest)
+{
+    auto tablePath = GenerateTablePath();
+    auto badRequest = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(badRequest, NYTree::EErrorCode::ResolveError, 5), 5);
+
+    auto createRequest = CreateRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(createRequest, NYTree::EErrorCode::AlreadyExists, 5), 0);
+
+    auto createRequest2 = CreateRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(createRequest2, NYTree::EErrorCode::AlreadyExists, 5), 5);
+
+    auto goodRequest = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(goodRequest, NYTree::EErrorCode::ResolveError, 5), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedWriteTest
     : public TDynamicTablesTestBase
 {
