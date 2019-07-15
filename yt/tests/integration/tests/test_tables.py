@@ -1250,6 +1250,31 @@ class TestTables(YTEnvSetup):
         assert statistics[1]["chunk_count"] == 1
         assert statistics[2]["chunk_count"] == 2
 
+    def test_append_sorted_to_corrupted_table_YT_11060(self):
+        create("table", "//tmp/t")
+
+        write_table("<append=true; sorted_by=[key]>//tmp/t", {"key": 1})
+        assert get("//tmp/t/@sorted")
+
+        tx1 = start_transaction()
+        tx11 = start_transaction(tx=tx1)
+        lock("//tmp/t", tx=tx11, mode="exclusive")
+        abort_transaction(tx11)
+
+        write_table("<append=true>//tmp/t", [{"key": 3}, {"key": 2}])
+
+        tx12 = start_transaction(tx=tx1)
+        lock("//tmp/t", tx=tx12, mode="exclusive")
+        commit_transaction(tx=tx12)
+
+        assert not get("//tmp/t/@sorted", tx=tx1)
+        commit_transaction(tx=tx1)
+        assert not get("//tmp/t/@sorted")
+
+        with pytest.raises(YtError):
+            write_table("<append=true;sorted_by=[key]>//tmp/t", [{"key": 15}, {"key": 20}, {"key": 25}])
+
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):

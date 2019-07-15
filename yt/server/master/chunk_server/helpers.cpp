@@ -576,11 +576,15 @@ bool IsEmpty(const TChunkTree* chunkTree)
 TOwningKey GetUpperBoundKey(const TChunk* chunk)
 {
     TOwningKey key;
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    FromProto(&key, boundaryKeysExt.max());
+    if (optionalBoundaryKeysExt) {
+        FromProto(&key, optionalBoundaryKeysExt->max());
+        return GetKeySuccessor(key);
+    }
 
-    return GetKeySuccessor(key);
+    THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
+        chunk->GetId());
 }
 
 TOwningKey GetUpperBoundKey(const TChunkView* chunkView)
@@ -634,11 +638,15 @@ TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
 TOwningKey GetMinKey(const TChunk* chunk)
 {
     TOwningKey key;
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    FromProto(&key, boundaryKeysExt.min());
+    if (optionalBoundaryKeysExt) {
+        FromProto(&key, optionalBoundaryKeysExt->min());
+        return key;
+    }
 
-    return key;
+    THROW_ERROR_EXCEPTION("Cannot compute min key in chunk %v since it's missing boundary info",
+        chunk->GetId());
 }
 
 TOwningKey GetMinKey(const TChunkView* chunkView)
