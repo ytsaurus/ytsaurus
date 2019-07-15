@@ -750,7 +750,7 @@ TYPED_TEST(TNotGrpcTest, SendSimple)
     EXPECT_EQ(true, rsp->retry());
 }
 
-TYPED_TEST(TNotGrpcTest, DISABLED_StreamingEcho)
+TYPED_TEST(TNotGrpcTest, StreamingEcho)
 {
     TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultRequestCodec(NCompression::ECodec::Lz4);
@@ -970,6 +970,61 @@ TYPED_TEST(TNotGrpcTest, ServerNotWriting)
 
     WaitFor(this->Service_->GetSlowCallCanceled())
         .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, LaggyStreamingRequest)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(500);
+    proxy.DefaultClientAttachmentsStreamingParameters().WriteTimeout = TDuration::MilliSeconds(500);
+
+    auto req = proxy.StreamingEcho();
+    req->SetHeavy(true);
+    req->SetSendDelay(TDuration::MilliSeconds(250));
+    req->SetTimeout(TDuration::Seconds(2));
+    auto invokeResult = req->Invoke();
+
+    WaitFor(req->GetRequestAttachmentsStream()->Close())
+        .ThrowOnError();
+    WaitFor(ExpectEndOfStream(req->GetResponseAttachmentsStream()))
+        .ThrowOnError();
+    WaitFor(invokeResult)
+        .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, VeryLaggyStreamingRequest)
+{
+    auto configText = R"({
+        services = {
+            MyService = {
+                pending_payloads_timeout = 250;
+            };
+        };
+    })";
+    auto config = NYTree::ConvertTo<TServerConfigPtr>(
+        NYson::TYsonString(configText));
+    this->Server_->Configure(config);
+
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(500);
+
+    auto start = Now();
+
+    auto req = proxy.StreamingEcho();
+    req->SetHeavy(true);
+    req->SetSendDelay(TDuration::MilliSeconds(500));
+    auto invokeResult = req->Invoke();
+
+    auto closeError = WaitFor(req->GetRequestAttachmentsStream()->Close());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, closeError.GetCode());
+    auto streamError = WaitFor(req->GetResponseAttachmentsStream()->Read());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, streamError.GetCode());
+    auto rspOrError = WaitFor(invokeResult);
+    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+
+    auto end = Now();
+    int duration = (end - start).MilliSeconds();
+    EXPECT_LE(duration, 2000);
 }
 
 TYPED_TEST(TRpcTest, ManyAsyncRequests)
