@@ -1437,11 +1437,20 @@ print(op.id)
         ops = [0] * operation_count
         for i in xrange(operation_count):
             ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
+        start_times = [0] * operation_count
         for i in xrange(operation_count):
             ops[i].wait()
+            start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
+        start_times.sort()
 
         operations = list(yt.iterate_operations(limit_per_request=5))
         assert len(operations) == operation_count
+
+        past_to_future = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
+        future_to_past = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
+
+        assert past_to_future == future_to_past[::-1]
+        assert future_to_past == operations[1:]
 
     def test_lazy_yson(self):
         def mapper(row):
