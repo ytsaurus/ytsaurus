@@ -2,6 +2,7 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param
 from .errors import YtResponseError
+from .driver import set_read_from_params
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
 from .transaction import Transaction
@@ -31,7 +32,7 @@ class _KwargSentinelClass(object):
         return cls.__instance
 _KWARG_SENTINEL = _KwargSentinelClass()
 
-def get(path, max_size=None, attributes=None, format=None, read_from=None, client=None):
+def get(path, max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -52,7 +53,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, clien
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
-    set_param(params, "read_from", read_from)
+    set_read_from_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
     result = _make_formatted_transactional_request(
@@ -228,7 +229,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
         client=client)
 
 
-def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, client=None):
+def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, cache_sticky_group_size=None, client=None):
     """Lists directory (map_node) content. Node type must be "map_node".
 
     :param path: path.
@@ -271,7 +272,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
-    set_param(params, "read_from", read_from)
+    set_read_from_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
     result = _make_formatted_transactional_request(
@@ -281,7 +282,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
         client=client)
     return apply_function_to_result(_process_result, result)
 
-def exists(path, read_from=None, client=None):
+def exists(path, read_from=None, cache_sticky_group_size=None, client=None):
     """Checks if Cypress node exists.
 
     :param path: path.
@@ -292,7 +293,7 @@ def exists(path, read_from=None, client=None):
     def _process_result(result):
         return result["value"] if get_api_version(client) == "v4" else result
     params = {"path": YPath(path, client=client)}
-    set_param(params, "read_from", read_from)
+    set_read_from_params(params, read_from, cache_sticky_group_size)
     result = _make_formatted_transactional_request(
         "exists",
         params,
@@ -421,7 +422,7 @@ def find_free_subpath(path, client=None):
 
 def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
            map_node_order=lambda path, obj: sorted(obj), list_node_order=None, attributes=None,
-           exclude=None, depth_bound=None, follow_links=False, read_from=None,
+           exclude=None, depth_bound=None, follow_links=False, read_from=None, cache_sticky_group_size=None,
            enable_batch_mode=None, client=None):
     """Searches for some nodes in Cypress subtree.
 
@@ -494,7 +495,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     def safe_batch_get(nodes, batch_client):
         get_result = []
         for node in nodes:
-            get_result.append(batch_client.get(node.path, attributes=request_attributes, read_from=read_from))
+            get_result.append(batch_client.get(node.path, attributes=request_attributes, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size))
         batch_client.commit_batch()
 
         for content, node in zip(get_result, nodes):
@@ -509,7 +510,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     def safe_get(nodes, client):
         for node in nodes:
             try:
-                node.content = get(node.path, attributes=request_attributes, client=client, read_from=read_from)
+                node.content = get(node.path, attributes=request_attributes, client=client, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size)
             except YtResponseError as rsp:
                 process_response_error(rsp, node)
             yield node

@@ -1,7 +1,8 @@
 from . import http_driver
+
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import YtError, update, simplify_structure
+from .common import YtError, update, simplify_structure, set_param
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
 from .http_helpers import get_api_commands
@@ -45,6 +46,10 @@ def get_command_list(client=None):
         return list(native_driver.get_command_descriptors(client))
     else:  # backend == "http"
         return list(get_api_commands(client))
+
+def set_read_from_params(params, read_from, cache_sticky_group_size):
+    set_param(params, "read_from", read_from)
+    set_param(params, "cache_sticky_group_size", cache_sticky_group_size)
 
 def make_request(command_name,
                  params,
