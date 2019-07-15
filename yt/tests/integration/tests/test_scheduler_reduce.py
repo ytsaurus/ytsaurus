@@ -465,6 +465,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read_table("//tmp/out") == []
 
+    def test_no_outputs(self):
+        create("table", "//tmp/t1")
+        write_table("<sorted_by=[key]>//tmp/t1", [{"key": "value"}])
+        op = reduce(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"])
+        check_all_stderrs(op, "stderr\n", 1)
+
     def test_duplicate_key_columns(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")

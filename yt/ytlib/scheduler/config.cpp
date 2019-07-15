@@ -761,7 +761,7 @@ TMapOperationSpec::TMapOperationSpec()
     RegisterParameter("mapper", Mapper)
         .DefaultNew();
     RegisterParameter("output_table_paths", OutputTablePaths)
-        .NonEmpty();
+        .Default();
     RegisterParameter("ordered", Ordered)
         .Default(false);
 
@@ -838,7 +838,7 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
     RegisterParameter("input_table_paths", InputTablePaths)
         .NonEmpty();
     RegisterParameter("output_table_paths", OutputTablePaths)
-        .NonEmpty();
+        .Default();
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
 

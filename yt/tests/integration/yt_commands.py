@@ -930,12 +930,13 @@ def start_op(op_type, **kwargs):
         input_name = "input_table_paths"
 
     output_name = None
-    if op_type in ["map", "reduce", "join_reduce", "map_reduce"]:
-        kwargs["out"] = prepare_paths(kwargs["out"])
-        output_name = "output_table_paths"
-    elif "out" in kwargs:
-        kwargs["out"] = prepare_path(kwargs["out"])
-        output_name = "output_table_path"
+    if "out" in kwargs:
+        if op_type in ["map", "reduce", "join_reduce", "map_reduce"]:
+            kwargs["out"] = prepare_paths(kwargs["out"])
+            output_name = "output_table_paths"
+        else:
+            kwargs["out"] = prepare_path(kwargs["out"])
+            output_name = "output_table_path"
 
     if "file" in kwargs:
         kwargs["file"] = prepare_paths(kwargs["file"])
