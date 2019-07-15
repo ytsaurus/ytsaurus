@@ -511,6 +511,40 @@ class TestLocks(YTEnvSetup):
         assert get("//tmp/m1/@lock_mode", tx=tx) == "exclusive"
         with pytest.raises(YtError): unlock("//tmp/m1")
 
+    def test_snapshot_lock_patch_up(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx31 = start_transaction(tx=tx2)
+        tx32 = start_transaction(tx=tx2)
+
+        create("table", "//tmp/t")
+        lock("//tmp/t", mode="exclusive", tx=tx31)
+        lock("//tmp/t", mode="snapshot", tx=tx32)
+        unlock("//tmp/t", tx=tx31)
+
+        # Must not crash.
+        get("//tmp/t/@", tx=tx32)
+        get("//tmp/t/@", tx=tx31)
+        get("//tmp/t/@", tx=tx2)
+        get("//tmp/t/@", tx=tx1)
+        assert get("//tmp/t/@lock_mode", tx=tx32) == "snapshot"
+        assert get("//tmp/t/@lock_mode", tx=tx31) == "none"
+        assert get("//tmp/t/@lock_mode", tx=tx2) == "none"
+        assert get("//tmp/t/@lock_mode", tx=tx1) == "none"
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 1
+
+        commit_transaction(tx2)
+
+        assert get("//tmp/t/@lock_mode", tx=tx1) == "none"
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 0
+
+        commit_transaction(tx1)
+
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 0
+
     def test_remove_map_subtree_lock(self):
         set("//tmp/a", {"b" : 1})
         tx = start_transaction()
