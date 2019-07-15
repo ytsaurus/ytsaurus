@@ -1462,6 +1462,7 @@ private:
 
     bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
     bool NeedInitializeMediumMaxReplicationFactor_ = false;
+    bool NeedSetChunkViewParents_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1648,6 +1649,7 @@ private:
         auto chunkViewHolder = std::make_unique<TChunkView>(id);
         auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
         chunkView->SetUnderlyingChunk(underlyingChunk);
+        underlyingChunk->AddParent(chunkView);
         chunkView->SetReadRange(std::move(readRange));
         Bootstrap_->GetObjectManager()->RefObject(underlyingChunk);
         return chunkView;
@@ -1666,6 +1668,7 @@ private:
 
         auto* underlyingChunk = chunkView->GetUnderlyingChunk();
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        underlyingChunk->RemoveParent(chunkView);
         objectManager->UnrefObject(underlyingChunk);
 
         ++ChunkViewsDestroyed_;
@@ -2521,6 +2524,10 @@ private:
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
             EMasterSnapshotVersion::YT_10639_CumulativeStatisticsInDynamicTables;
+
+        // COMPAT(ifsmirnov)
+        NeedSetChunkViewParents_ = context.GetVersion() <
+            EMasterSnapshotVersion::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2529,6 +2536,7 @@ private:
 
         NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         NeedInitializeMediumMaxReplicationFactor_ = false;
+        NeedSetChunkViewParents_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2588,6 +2596,12 @@ private:
                 InitializeMediumMaxReplicationFactor(medium);
             }
             NeedInitializeMediumMaxReplicationFactor_ = false;
+        }
+
+        if (NeedSetChunkViewParents_) {
+            for (const auto& [id, chunkView] : ChunkViewMap_) {
+                chunkView->GetUnderlyingChunk()->AddParent(chunkView);
+            }
         }
 
         YT_LOG_INFO("Finished initializing chunks");

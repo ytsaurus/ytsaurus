@@ -1682,6 +1682,9 @@ private:
         if (context.GetVersion() >= EMasterSnapshotVersion::YT_10952_DelayedMembershipClosureRecomputation) {
             MustRecomputeMembershipClosure_ = Load<bool>(context);
         }
+
+        // COMPAT(ifsmirnov)
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterSnapshotVersion::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
