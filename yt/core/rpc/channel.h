@@ -80,6 +80,8 @@ struct TSendOptions
     bool GenerateAttachmentChecksums = true;
     NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+    // For testing purposes only.
+    std::optional<TDuration> SendDelay;
 };
 
 //! An interface for exchanging request-response pairs.

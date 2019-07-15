@@ -687,6 +687,10 @@ private:
                     TError(NRpc::EErrorCode::TransportError, "Request resent"));
             }
 
+            if (options.SendDelay) {
+                Sleep(*options.SendDelay);
+            }
+
             const auto& requestMessage = requestMessageOrError.Value();
 
             NBus::TSendOptions busOptions;

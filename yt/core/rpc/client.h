@@ -113,6 +113,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
+    // For testing purposes only.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, SendDelay);
     DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone, NYTAlloc::EMemoryZone::Normal);
 
 public:

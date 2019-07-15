@@ -111,6 +111,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
+    options.SendDelay = SendDelay_;
     auto control = Channel_->Send(
         this,
         std::move(responseHandler),

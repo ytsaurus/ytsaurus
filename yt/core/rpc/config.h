@@ -38,6 +38,9 @@ public:
     static const int DefaultAuthenticationQueueSizeLimit;
     int AuthenticationQueueSizeLimit;
 
+    static const TDuration DefaultPendingPayloadsTimeout;
+    TDuration PendingPayloadsTimeout;
+
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
@@ -45,6 +48,8 @@ public:
         RegisterParameter("authentication_queue_size_limit", AuthenticationQueueSizeLimit)
             .Alias("max_authentication_queue_size")
             .Default(DefaultAuthenticationQueueSizeLimit);
+        RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
+            .Default(DefaultPendingPayloadsTimeout);
     }
 };
 
