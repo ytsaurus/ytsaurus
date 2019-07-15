@@ -68,7 +68,8 @@ TChunkList* GetUniqueParent(TChunkTree* chunkTree)
                 return nullptr;
             }
             YT_VERIFY(parents.size() == 1);
-            return parents[0];
+            YT_VERIFY(parents[0]->GetType() == EObjectType::ChunkList);
+            return parents[0]->AsChunkList();
         }
 
         case EObjectType::ChunkView: {

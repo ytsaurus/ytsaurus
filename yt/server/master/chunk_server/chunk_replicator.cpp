@@ -2354,11 +2354,28 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         }
     };
 
-    // Put seeds into the queue.
-    for (auto* parent : chunk->Parents()) {
+    auto enqueueAdjustedParent = [&] (TChunkList* parent) {
         auto* adjustedParent = FollowParentLinks(parent);
         if (adjustedParent) {
             enqueue(adjustedParent);
+        }
+    };
+
+    // Put seeds into the queue.
+    for (auto* parent : chunk->Parents()) {
+        switch (parent->GetType()) {
+            case EObjectType::ChunkList:
+                enqueueAdjustedParent(parent->AsChunkList());
+                break;
+
+            case EObjectType::ChunkView:
+                for (auto* chunkViewParent : parent->AsChunkView()->Parents()) {
+                    enqueueAdjustedParent(chunkViewParent);
+                }
+                break;
+
+            default:
+                YT_ABORT();
         }
     }
 
@@ -2377,10 +2394,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         }
         // Proceed to parents.
         for (auto* parent : chunkList->Parents()) {
-            auto* adjustedParent = FollowParentLinks(parent);
-            if (adjustedParent) {
-                enqueue(adjustedParent);
-            }
+            enqueueAdjustedParent(parent);
         }
     }
 
