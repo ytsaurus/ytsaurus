@@ -108,8 +108,14 @@ message TDockerImageContents
 {
     // Image for which contents were retrieved.
     TDockerImageDescription description = 1;
-    // Layer order is from top to bottom, same as porto and pod agent.
+    // Layer order is from bottom to top, reverse to porto and pod agent
     repeated TDownloadableResource layers = 2;
+    // Start command and arguments like ["/bin/sh", "-c", "java -jar /run.jar"]
+    repeated string command = 3;
+    // Username for start command
+    string user = 4;
+    // Group name for start command
+    string group = 5;
 }
 
 message TDeployUnitStatus
