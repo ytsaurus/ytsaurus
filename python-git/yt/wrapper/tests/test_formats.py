@@ -131,7 +131,9 @@ def test_yson_iterator_mode():
 
 def test_yson_dump_sort_keys():
     keys = ["key_" + chr(ord("a") + i) for i in range(26)]
-    data = {key: "foo" for key in keys}
+    shuffled_keys = ["key_" + chr(ord("a") + i) for i in range(26)]
+    random.shuffle(shuffled_keys)
+    data = {key: "foo" for key in shuffled_keys}
 
     def _extract_keys_in_order(dumped):
         dumped = str(dumped)
