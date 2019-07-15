@@ -59,7 +59,7 @@ TClientRequest::TClientRequest(
 {
     YT_ASSERT(Channel_);
 
-    Header_.set_service(serviceDescriptor.ServiceName);
+    Header_.set_service(serviceDescriptor.GetFullServiceName());
     Header_.set_method(methodDescriptor.MethodName);
     Header_.set_protocol_version_major(serviceDescriptor.ProtocolVersion.Major);
     Header_.set_protocol_version_minor(serviceDescriptor.ProtocolVersion.Minor);
