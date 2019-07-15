@@ -1805,6 +1805,16 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
     ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag_});
 
     accumulator.Add(
+        "/pools/max_operation_count",
+        element->GetMaxOperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag_});
+    accumulator.Add(
+        "/pools/max_running_operation_count",
+        element->GetMaxRunningOperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag_});
+    accumulator.Add(
         "/pools/running_operation_count",
         element->RunningOperationCount(),
         EMetricType::Gauge,
@@ -1812,6 +1822,23 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
     accumulator.Add(
         "/pools/total_operation_count",
         element->OperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag_});
+
+    const auto& minShareResources = element->GetMinShareResources();
+    accumulator.Add(
+        "/pools/min_share_resources/cpu",
+        static_cast<i64>(minShareResources.GetCpu()),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag_});
+    accumulator.Add(
+        "/pools/min_share_resources/memory",
+        minShareResources.GetMemory(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag_});
+    accumulator.Add(
+        "/pools/min_share_resources/user_slots",
+        minShareResources.GetUserSlots(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag_});
 

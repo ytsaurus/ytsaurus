@@ -561,6 +561,15 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
+    def _get_last_metric_value(self, metric_key, pool):
+        results = []
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool:
+                continue
+            results.append((value["value"], value["time"]))
+        last_metric = sorted(results, key=lambda x: x[1])[-1]
+        return last_metric[0]
+
     def _get_metric_maximum_value(self, metric_key, pool):
         result = 0.0
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
@@ -614,7 +623,12 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     def test_pool_profiling(self):
         self._prepare_tables()
-        create("map_node", "//sys/pools/unique_pool")
+        pool_path = "//sys/pools/unique_pool"
+        create("map_node", pool_path)
+        set(pool_path + "/@max_operation_count", 50)
+        wait(lambda: get(pool_path + "/@max_operation_count") == 50)
+        set(pool_path + "/@max_running_operation_count", 8)
+        wait(lambda: get(pool_path + "/@max_running_operation_count") == 8)
         map(command="sleep 1; cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
         assert self._get_metric_maximum_value("fair_share_ratio_x100000", "unique_pool") == 100000
@@ -625,6 +639,15 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("resource_usage/user_slots", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
+        assert self._get_metric_maximum_value("running_operation_count", "unique_pool") == 1
+        assert self._get_metric_maximum_value("total_operation_count", "unique_pool") == 1
+
+        # pool guaranties metrics
+        assert self._get_last_metric_value("max_operation_count", "unique_pool") == 50
+        assert self._get_last_metric_value("max_running_operation_count", "unique_pool") == 8
+        assert self._get_metric_maximum_value("min_share_resources/cpu", "unique_pool") == 0
+        assert self._get_metric_maximum_value("min_share_resources/memory", "unique_pool") == 0
+        assert self._get_metric_maximum_value("min_share_resources/user_slots", "unique_pool") == 0
 
     def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
