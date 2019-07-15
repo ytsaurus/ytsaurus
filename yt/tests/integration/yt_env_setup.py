@@ -27,14 +27,18 @@ from distutils.spawn import find_executable
 from time import sleep, time
 from threading import Thread
 
-SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
-SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+if arcadia_interop.yatest_common is None:
+    SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
+    SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+else:
+    SANDBOX_ROOTDIR = None
+    SANDBOX_STORAGE_ROOTDIR = None
 
 yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
 
-def prepare_binaries():
+def prepare_yatest_environment():
     if arcadia_interop.yatest_common is None:
         return
 
@@ -43,6 +47,12 @@ def prepare_binaries():
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+
+    global SANDBOX_ROOTDIR
+    SANDBOX_ROOTDIR = arcadia_interop.yatest_common.get_param("ram_drive_path")
+
+    global SANDBOX_STORAGE_ROOTDIR
+    SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.test_output_path()
 
 def _abort_transactions(driver=None):
     command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -553,12 +563,12 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
+        prepare_yatest_environment()
+
         if test_name is None:
             test_name = cls.__name__
         cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
-
-        prepare_binaries()
 
         # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []
@@ -687,34 +697,35 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            # XXX(psushin): unlink all porto volumes.
-            remove_all_volumes(cls.path_to_run)
+            if arcadia_interop.yatest_common is None:
+                # XXX(psushin): unlink all porto volumes.
+                remove_all_volumes(cls.path_to_run)
 
-            # XXX(asaitgalin): Unmount everything.
-            subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
-                                   "mountpoint", "-q", "{}", ";", "-exec", "sudo",
-                                   "umount", "{}", ";"])
+                # XXX(asaitgalin): Unmount everything.
+                subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
+                                       "mountpoint", "-q", "{}", ";", "-exec", "sudo",
+                                       "umount", "{}", ";"])
 
-            # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
-            chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
+                # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
+                chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
 
-            p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
-            _, stderr = p.communicate()
-            if p.returncode != 0:
-                print >>sys.stderr, stderr
-                raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
+                p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
+                _, stderr = p.communicate()
+                if p.returncode != 0:
+                    print >>sys.stderr, stderr
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
-            # XXX(psushin): porto volume directories may have weirdest permissions ever.
-            chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
+                # XXX(psushin): porto volume directories may have weirdest permissions ever.
+                chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
 
-            p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
-            _, stderr = p.communicate()
-            if p.returncode != 0:
-                print >>sys.stderr, stderr
-                raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
+                p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
+                _, stderr = p.communicate()
+                if p.returncode != 0:
+                    print >>sys.stderr, stderr
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
 
-            # XXX(dcherednik): Delete named pipes.
-            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+                # XXX(dcherednik): Delete named pipes.
+                subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
