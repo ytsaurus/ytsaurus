@@ -6,7 +6,7 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IUsersManager)
+DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 
 DECLARE_REFCOUNTED_STRUCT(IResourceLimitsManager)
 
