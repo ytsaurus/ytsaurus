@@ -3197,7 +3197,8 @@ private:
             std::vector<TObjectId> srcIds;
             TCellTagList srcCellTags;
             TObjectId dstId;
-            TCellTag dstCellTag;
+            TCellTag dstNativeCellTag;
+            TCellTag dstExternalCellTag;
             std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
             std::vector<TSecurityTag> inferredSecurityTags;
             {
@@ -3279,12 +3280,12 @@ private:
                     const auto& rsp = rspsOrError[0].Value();
 
                     dstId = FromProto<TObjectId>(rsp->object_id());
-                    dstCellTag = rsp->cell_tag();
+                    dstNativeCellTag = CellTagFromId(dstId);
 
-                    YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, CellTag: %v)",
+                    YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v)",
                         simpleDstPath,
                         dstId,
-                        dstCellTag);
+                        dstExternalCellTag);
 
                     checkType(TypeFromId(dstId), simpleDstPath);
                 }
@@ -3413,10 +3414,10 @@ private:
 
             // Begin upload.
             TTransactionId uploadTransactionId;
+            TCellTag dstExternalCellTag;
             const auto dstIdPath = FromObjectId(dstId);
             {
-                // XXX(babenko): portals
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
                 req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -3437,6 +3438,7 @@ private:
                 const auto& rsp = rspOrError.Value();
 
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                dstExternalCellTag = rsp->cell_tag();
             }
 
             NTransactionClient::TTransactionAttachOptions attachOptions;
@@ -3459,8 +3461,8 @@ private:
                     uploadTransactionId,
                     Logger);
 
-                for (const auto& chunkId : flatChunkIds) {
-                    teleporter->RegisterChunk(chunkId, dstCellTag);
+                for (auto chunkId : flatChunkIds) {
+                    teleporter->RegisterChunk(chunkId, dstExternalCellTag);
                 }
 
                 WaitFor(teleporter->Run())
@@ -3470,7 +3472,7 @@ private:
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstCellTag);
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstExternalCellTag);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
@@ -3486,7 +3488,7 @@ private:
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
-                auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstCellTag);
+                auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstExternalCellTag);
 
                 auto batchReq = proxy->ExecuteBatch();
                 NRpc::GenerateMutationId(batchReq);
@@ -3508,8 +3510,7 @@ private:
 
             // End upload.
             {
-                // XXX(babenko): portals
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
