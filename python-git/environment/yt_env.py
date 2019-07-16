@@ -389,7 +389,7 @@ class YTInstance(object):
         logger.info("  controller agents  %d", self.controller_agent_count)
 
         if self.secondary_master_cell_count > 0:
-            logger.info("  secondary cells  %d", self.secondary_master_cell_count)
+            logger.info("  secondary cells    %d", self.secondary_master_cell_count)
 
         logger.info("  HTTP proxies       %d", self.http_proxy_count)
         logger.info("  RPC proxies        %d", self.rpc_proxy_count)
@@ -686,22 +686,22 @@ class YTInstance(object):
         yt_driver_bindings = None
         try:
             import yt_driver_bindings
-        except ImportError:
-            pass
-
-        if yt_driver_bindings is None:
-            try:
-                import yt_driver_rpc_bindings as yt_driver_bindings
-            except ImportError:
-                pass
-
-        if yt_driver_bindings is not None:
             yt_driver_bindings.configure_logging(
                 get_environment_driver_logging_config(self.driver_logging_config)
             )
+        except ImportError:
+            pass
 
-            import yt.wrapper.native_driver as native_driver
-            native_driver.logging_configured = True
+        try:
+            import yt_driver_rpc_bindings
+            yt_driver_rpc_bindings.configure_logging(
+                get_environment_driver_logging_config(self.rpc_driver_logging_config)
+            )
+        except ImportError:
+            pass
+
+        import yt.wrapper.native_driver as native_driver
+        native_driver.logging_configured = True
 
     def _write_environment_info_to_file(self):
         info = {}
@@ -1157,6 +1157,7 @@ class YTInstance(object):
                 self.config_paths[prefix + name] = config_path
 
         self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
+        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self):
         config = {}

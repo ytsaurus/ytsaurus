@@ -517,7 +517,7 @@ def date_string_to_timestamp(date):
 
 def date_string_to_timestamp_mcs(time_str):
     dt = date_string_to_datetime(time_str)
-    return int(calendar.timegm(dt.timetuple()) * 1000000 + dt.microsecond)
+    return int(calendar.timegm(dt.timetuple()) * (10 ** 6) + dt.microsecond)
 
 def datetime_to_string(date, is_local=False):
     if is_local:

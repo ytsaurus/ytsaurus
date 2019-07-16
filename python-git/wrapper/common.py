@@ -1,5 +1,5 @@
-from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env,
-                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string,
+from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env, unlist,
+                       get_value, filter_dict, date_string_to_timestamp, datetime_to_string, date_string_to_datetime,
                        uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated)
 import yt.yson as yson
 
@@ -30,8 +30,6 @@ except ImportError:
     except ImportError:
         linux_distribution = None
 
-from yt.packages import tqdm
-
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
@@ -45,26 +43,6 @@ EMPTY_GENERATOR = (i for i in [])
 MB = 1024 * 1024
 GB = 1024 * MB
 
-
-class CustomTqdm(tqdm.tqdm):
-    # Disable the monitor thread.
-    monitor_interval = 0
-
-    def __init__(self, *args, **kwargs):
-        kwargs = update(dict(unit="b", unit_scale=True, ascii=True), kwargs)
-        super(CustomTqdm, self).__init__(*args, **kwargs)
-
-    @classmethod
-    def format_meter(cls, n, total, *args, **kwargs):
-        # NB: `super(cls)` does not support static methods, so we need `super(cls, cls)`.
-        # https://stackoverflow.com/questions/26788214/super-and-staticmethod-interaction
-        meter = super(cls, cls).format_meter(n, total, *args, **kwargs)
-        if total:
-            return meter
-        else:
-            # Quick way to remove colon from the progress bar
-            ind = meter.find(" :")
-            return meter[:ind] + meter[ind + 2:]
 
 def compose(*args):
     def compose_two(f, g):
