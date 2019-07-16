@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request, make_formatted_request
@@ -20,7 +20,7 @@ from yt.packages.six import iteritems, itervalues, iterkeys
 from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep, time
 from multiprocessing import TimeoutError
 
@@ -130,23 +130,36 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
         client=client,
         timeout=timeout)
 
-def iterate_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None, from_time=None,
-                       to_time=None, limit_per_request=100, include_archive=None, format=None, client=None):
+def iterate_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
+                       from_time=None, to_time=None, cursor_direction="past", limit_per_request=100,
+                       include_archive=None, format=None, client=None):
     """Yield operations that satisfy given options.
     """
-    cursor_time = from_time
+    cursor_time = None
+    # First iteration with no cursor_time filter.
+    if cursor_direction == "future":
+        # From dinosaurs to mankind, from past to future.
+        step = -1
+    else:
+        # From mankind to dinosaurs, from future to past.
+        step = 1
+
     while True:
         operations_response = list_operations(user=user, state=state, type=type, filter=filter, pool=pool,
-                                              with_failed_jobs=with_failed_jobs,from_time=from_time, to_time=to_time,
-                                              cursor_time=cursor_time, limit=limit_per_request,
-                                              include_archive=include_archive, format=format, client=client)
+                                              with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time,
+                                              cursor_time=cursor_time, cursor_direction=cursor_direction,
+                                              limit=limit_per_request, include_archive=include_archive,
+                                              format=format, client=client)
         operations_response = operations_response["operations"]
         if not operations_response:
             break
-        for operation in operations_response:
+        for operation in operations_response[::step]:
             # list_operations fetches (start_time; finish_time] from archive.
             cursor_time = operation["start_time"]
             yield operation
+        if (cursor_direction == "future" and cursor_time == to_time) or (cursor_direction == "past" and cursor_time == from_time):
+            break
+        cursor_time = datetime_to_string(date_string_to_datetime(cursor_time) - timedelta(microseconds=step))
 
 def update_operation_parameters(operation_id, parameters, client=None):
     """Updates operation runtime parameters."""

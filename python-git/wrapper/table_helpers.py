@@ -1,8 +1,8 @@
 from . import py_wrapper
 
 from .batch_helpers import batch_apply, create_batch_client
-from .common import (NullContext, CustomTqdm, update, get_value, chunk_iter_stream,
-                     require, get_disk_size, is_of_iterable_type, flatten)
+from .common import (NullContext, update, get_value, chunk_iter_stream, require, get_disk_size,
+                     is_of_iterable_type, flatten)
 from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
@@ -12,7 +12,8 @@ from .transaction_commands import abort_transaction
 from .file_commands import upload_file_to_cache, is_executable, LocalFile
 from .transaction import Transaction, null_transaction_id
 from .skiff import convert_to_skiff_schema
-from .stream import ChunkStream
+from .stream import ItemStream
+from .progress_bar import CustomTqdm
 
 import yt.logger as logger
 import yt.yson as yson
@@ -69,7 +70,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
             stream = (format.dumps_row(row) for row in stream)
         else:
             stream = (format.dumps_rows(chunk) for chunk in iter_by_chunks(stream, rows_chunk_size))
-    return ChunkStream(stream, chunk_size, allow_resplit=False)
+    return ItemStream(stream)
 
 def _prepare_command_format(format, raw, client):
     if format is None:

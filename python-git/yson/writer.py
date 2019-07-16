@@ -218,11 +218,6 @@ class Dumper(object):
     def _dump_string(self, obj, context):
         result = [b'"']
         if isinstance(obj, binary_type):
-            if self._encoding is not None and PY3:
-                _raise_error_with_context('Bytes object {0!r} cannot be encoded to {1}. To disable this behaviour '
-                                          'and allow byte string dumping set "encoding" '
-                                          'parameter to None'.format(obj, self._encoding),
-                                          context)
             result.append(_escape_bytes(obj))
         elif isinstance(obj, text_type):
             if self._encoding is None:

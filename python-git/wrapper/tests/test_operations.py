@@ -26,7 +26,7 @@ import yt.subprocess_wrapper as subprocess
 
 from yt.local import start, stop
 
-from yt.packages.six import b
+from yt.packages.six import b, PY3
 from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
@@ -363,6 +363,12 @@ class TestOperations(object):
                 sum += int(rec.get("y", 1))
             yield {"x": key["x"], "y": sum}
 
+        def sum_y_bytes(key, recs):
+            sum = 0
+            for rec in recs:
+                sum += int(rec.get(b"y", 1))
+            yield {b"x": key[b"x"], b"y": sum}
+
         @yt.raw
         def change_field(line):
             yield b"z=8\n"
@@ -396,6 +402,12 @@ class TestOperations(object):
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         check(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
+
+        if PY3:
+            yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
+            yt.run_sort(table, sort_by=[b"x"])
+            yt.run_reduce(sum_y_bytes, table, table, reduce_by=[b"x"], format=yt.YsonFormat(encoding=None))
+            check(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
         yt.write_table(table, [{"x": "1"}, {"y": "2"}])
         yt.run_map(change_field, table, table, format=yt.DsvFormat())
@@ -1425,11 +1437,20 @@ print(op.id)
         ops = [0] * operation_count
         for i in xrange(operation_count):
             ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
+        start_times = [0] * operation_count
         for i in xrange(operation_count):
             ops[i].wait()
+            start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
+        start_times.sort()
 
         operations = list(yt.iterate_operations(limit_per_request=5))
         assert len(operations) == operation_count
+
+        past_to_future = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
+        future_to_past = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
+
+        assert past_to_future == future_to_past[::-1]
+        assert future_to_past == operations[1:]
 
     def test_lazy_yson(self):
         def mapper(row):

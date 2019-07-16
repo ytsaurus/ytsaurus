@@ -10,7 +10,8 @@ from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.http_helpers import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
-from yt.wrapper.stream import ChunkStream
+from yt.wrapper.stream import _ChunkStream
+from yt.wrapper.default_config import retries_config as get_default_retries_config
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -47,7 +48,7 @@ def test_docs_exist():
     for name, cl in classes:
         assert inspect.getdoc(cl)
         if name == "PingTransaction":
-            continue # Python Thread is not documented O_o
+            continue  # Python Thread is not documented O_o
         public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
                                                           not o.__name__.startswith("_"))
         ignore_methods = set()
@@ -188,7 +189,7 @@ class TestMutations(object):
         def abort(operation_response):
             operation_id = operation_response["operation_id"] if get_api_version() == "v4" else operation_response
             yt.abort_operation(operation_id)
-            time.sleep(1.0) # Wait for aborting transactions
+            time.sleep(1.0)  # Wait for aborting transactions
 
         def get_operation_count():
             operations = yt.get("//sys/operations")
@@ -231,13 +232,14 @@ class TestRetries(object):
     def test_custom_chaos_monkey(self):
         class _Retrier(Retrier):
             def __init__(self, chaos_monkey_values, retries_count=1):
-                retry_config = {
+                retry_config = get_default_retries_config()
+                retry_config.update({
                     "enable": True,
                     "count": retries_count,
                     "backoff": {
                         "policy": "rounded_up_to_request_timeout"
                     }
-                }
+                })
                 chaos_monkey_state = itertools.cycle(chaos_monkey_values)
                 chaos_monkey = lambda: next(chaos_monkey_state)
                 super(_Retrier, self).__init__(
@@ -310,7 +312,7 @@ class TestRetries(object):
 
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
             assert b'{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
-            assert [{"x":1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
+            assert [{"x": 1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
 
             table_path = yt.TablePath(table, exact_key=[2])
             for i in xrange(10):
@@ -520,6 +522,32 @@ class TestRetries(object):
             assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+
+    def test_retries_total_timeout(self):
+        class FailingRetrier(Retrier):
+            def action(self):
+                raise yt.YtError
+
+        retry_config = {
+            "count": 6,
+            "enable": True,
+            "total_timeout": 2000,
+            "backoff": {
+                "policy": "exponential",
+                "exponential_policy": {
+                    "start_timeout": 2000,
+                    "base": 2,
+                    "max_timeout": 20000,
+                    "decay_factor_bound": 0.3
+                }
+            }
+        }
+        retrier = FailingRetrier(retry_config)
+
+        start = time.time()
+        with pytest.raises(yt.YtError):
+            retrier.run()
+        assert time.time() - start < 3
 
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers
@@ -764,7 +792,7 @@ class TestGenerateTimestamp(object):
 class TestStream(object):
     def test_empty_stream(self):
         for allow_resplit in (True, False):
-            stream = ChunkStream([], chunk_size=512, allow_resplit=allow_resplit)
+            stream = _ChunkStream([], chunk_size=512, allow_resplit=allow_resplit)
             assert list(stream) == [b""]
 
     def test_no_resplit(self):
@@ -772,7 +800,7 @@ class TestStream(object):
                  for _ in xrange(100)]
         if PY3:
             lines = [line.encode("ascii") for line in lines]
-        make_stream = lambda: ChunkStream(lines, chunk_size=5, allow_resplit=False)
+        make_stream = lambda: _ChunkStream(lines, chunk_size=5, allow_resplit=False)
         assert [line + b"\n" for chunk in make_stream() for line in chunk.split(b"\n") if line] == lines
         for pieces in make_stream().split_chunks(2):
             chunk = b"".join(pieces)

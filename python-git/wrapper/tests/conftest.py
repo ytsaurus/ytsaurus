@@ -219,6 +219,7 @@ class YtTestEnvironment(object):
             hasattr(module, "__file__")
 
     def cleanup(self):
+        self.reload_global_configuration()
         self.env.stop()
         for node_config in self.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
