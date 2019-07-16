@@ -1,6 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter,\
+    SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE, require_ytserver_root_privileges
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -68,6 +69,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     }
 
     @flaky(max_runs=3)
+    @require_ytserver_root_privileges
     def test_revive(self):
         def get_connection_time():
             return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -89,6 +91,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    @require_ytserver_root_privileges
     def test_disconnect_during_revive(self):
         op_count = 20
 
@@ -121,6 +124,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for i in xrange(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [{"foo": "bar"}]
 
+    @require_ytserver_root_privileges
     def test_user_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
@@ -135,6 +139,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
+    @require_ytserver_root_privileges
     def test_scheduler_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
@@ -150,6 +155,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    @require_ytserver_root_privileges
     def test_suspend_during_revive(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -176,6 +182,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.resume()
         wait(lambda: op.get_job_count("running") == 1)
 
+    @require_ytserver_root_privileges
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -205,6 +212,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op2.track()
 
+    @require_ytserver_root_privileges
     def test_operation_suspend_with_account_limit_exceeded(self):
         create_account("limited")
         set("//sys/accounts/limited/@resource_limits/chunk_count", 1)
@@ -240,6 +248,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert not get(op.get_path() + "/@suspended")
         assert not get(op.get_path() + "/@alerts")
 
+    @require_ytserver_root_privileges
     def test_suspend_operation_after_materialization(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -257,6 +266,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.resume()
         op.track()
 
+    @require_ytserver_root_privileges
     def test_fail_context_saved_on_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -283,6 +293,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
     @flaky(max_runs=3)
+    @require_ytserver_root_privileges
     def test_fifo_default(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -316,6 +327,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
     @flaky(max_runs=3)
+    @require_ytserver_root_privileges
     def test_fifo_by_pending_job_count(self):
         op_count = 3
 
@@ -398,12 +410,14 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert op.get_state() == "aborted"
         assert get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
 
+    @require_ytserver_root_privileges
     def test_operation_pool_attributes(self):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
         assert get(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool") == "root"
 
+    @require_ytserver_root_privileges
     def test_operation_events_attribute(self):
         self._prepare_tables()
 
@@ -441,6 +455,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             assert "Job time limit exceeded" in inner_errors[0]["message"]
 
     @flaky(max_runs=3)
+    @require_ytserver_root_privileges
     def test_within_job_time_limit(self):
         self._prepare_tables()
         map(in_="//tmp/t_in",
@@ -448,6 +463,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             command="sleep 1 ; cat",
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 3000}})
 
+    @require_ytserver_root_privileges
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -478,6 +494,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
 
+    @require_ytserver_root_privileges
     def test_table_changed_during_operation_prepare(self):
         self._prepare_tables()
 
@@ -621,6 +638,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         print >>sys.stderr, "Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric)
         return last_metric
 
+    @require_ytserver_root_privileges
     def test_pool_profiling(self):
         self._prepare_tables()
         pool_path = "//sys/pools/unique_pool"
@@ -649,6 +667,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("min_share_resources/memory", "unique_pool") == 0
         assert self._get_metric_maximum_value("min_share_resources/user_slots", "unique_pool") == 0
 
+    @require_ytserver_root_privileges
     def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
@@ -696,6 +715,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
         wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
 
+    @require_ytserver_root_privileges
     def test_operations_by_user_profiling(self):
         create_user("vasya")
         create_user("petya")
@@ -772,6 +792,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
             wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
 
+    @require_ytserver_root_privileges
     def test_job_count_profiling(self):
         self._prepare_tables()
 
