@@ -102,7 +102,7 @@ class KeyCondition;
 struct SelectQueryInfo;
 class Field;
 class StorageFactory;
-class IUsersManager;
+class ISecurityManager;
 class IExternalLoaderConfigRepository;
 class IRuntimeComponentsFactory;
 
