@@ -503,6 +503,45 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(a))")),
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    {
+        TString queryString = "* from [//t] group by hash, a, b";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_TRUE(query->UseDisjointGroupBy);
+    }
+
+    {
+        TString queryString = "* from [//t] group by a, b";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_TRUE(query->UseDisjointGroupBy);
+    }
+}
+
 TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
 {
     {

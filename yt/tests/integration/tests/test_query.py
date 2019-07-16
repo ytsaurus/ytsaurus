@@ -101,6 +101,87 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
         assert_items_equal(actual, expected)
 
+    def test_group_by_primary_prefix(self):
+        sync_create_cells(1)
+
+        tt = "//tmp/t"
+
+        create("table", tt, attributes={
+               "dynamic": True,
+               "optimize_for" : "scan",
+               "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v", "type": "int64"}
+                ]
+           })
+
+        reshard_table(tt, [[], [3, 3], [6, 6]])
+        sync_mount_table(tt)
+
+        data = [{"a": i / 10, "b": i % 10, "v": i} for i in xrange(100)]
+        insert_rows(tt, data)
+
+        grouped = {}
+        for item in data:
+            key = (item['a'], item['v'] % 2)
+            if key not in grouped:
+                grouped[key] = 0
+            grouped[key] +=  item['b']
+
+        expected = [{'k': k, 'x': x, 's': s} for (k, x), s in grouped.items()]
+
+        actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
+        assert_items_equal(actual, expected)
+
+    def test_group_by_disjoint(self):
+        sync_create_cells(1)
+
+        tt = "//tmp/t"
+        tj = "//tmp/j"
+
+        create("table", tt, attributes={
+               "dynamic": True,
+               "optimize_for" : "scan",
+               "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "dummy", "type": "int64"}
+                ]
+           })
+
+        reshard_table(tt, [[], [3], [6]])
+        sync_mount_table(tt)
+
+        insert_rows(tt, [{"a": i} for i in xrange(10)])
+
+        create("table", tj, attributes={
+               "dynamic": True,
+               "optimize_for" : "scan",
+               "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v", "type": "int64"}
+                ]
+           })
+
+        reshard_table(tj, [[], [3, 6], [6, 6]])
+        sync_mount_table(tj)
+
+        data = [{"a": i / 10, "b": i % 10, "v": i} for i in xrange(100)]
+        insert_rows(tj, data)
+
+        grouped = {}
+        for item in data:
+            key = (item['a'], item['v'] % 2)
+            if key not in grouped:
+                grouped[key] = 0
+            grouped[key] +=  item['b']
+
+        expected = [{'k': k, 'x': x, 's': s} for (k, x), s in grouped.items()]
+
+        actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
+        assert_items_equal(actual, expected)
+
     def test_having(self):
         sync_create_cells(3)
 
