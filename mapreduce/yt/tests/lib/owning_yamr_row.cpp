@@ -8,9 +8,9 @@ namespace NTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningYaMRRow::TOwningYaMRRow(const TYaMRRow& row)
-    : Key(row.Key.ToString())
-    , SubKey(row.SubKey.ToString())
-    , Value(row.Value.ToString())
+    : Key(row.Key)
+    , SubKey(row.SubKey)
+    , Value(row.Value)
 {}
 
 TOwningYaMRRow::TOwningYaMRRow(TString key, TString subKey, TString value)

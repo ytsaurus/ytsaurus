@@ -22,7 +22,7 @@ public:
         auto g = Guard(Lock_);
         auto it = Metrics_.find(name);
         if (it == Metrics_.end()) {
-            it = Metrics_.insert(std::make_pair(name.ToString(), 0)).first;
+            it = Metrics_.emplace(ToString(name), 0).first;
         }
         ++it->second;
     }
