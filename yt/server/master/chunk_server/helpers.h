@@ -67,11 +67,21 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
 
-NTableClient::TOwningKey GetUpperBoundKey(const TChunk* chunk);
-NTableClient::TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree);
+//! Returns the upper boundary key of a chunk. Throws if the chunk contains no
+//! boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk);
 
-NTableClient::TOwningKey GetMinKey(const TChunk* chunk);
-NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
+//! Returns the upper boundary key of a chunk tree. Throws if the tree is empty
+//! or the last chunk in it contains no boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree);
+
+//! Returns the minimum key of a chunk. Throws if the chunk contains no boundary
+//! info (i.e. it's not sorted).
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk);
+
+//! Returns the minimum key of a chunk tree. Throws if the tree is empty or the
+//! first chunk in it contains no boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree);
 
 struct TChunkViewMergeResult;
 

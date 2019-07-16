@@ -223,7 +223,7 @@ private:
             return false;
         }
         // It is assumed that min and max keys either both exist or both do not.
-        return static_cast<bool>(GetMinKey(chunk));
+        return static_cast<bool>(GetMinKeyOrThrow(chunk));
     }
 
     bool TraverseChunkList(
@@ -290,17 +290,17 @@ private:
         }
 
         if (HasBoundaryKeys(chunk)) {
-            if (GetMinKey(chunk) >= upperKeyLimit) {
+            if (GetMinKeyOrThrow(chunk) >= upperKeyLimit) {
                 // Intentionally true. We do not want to stop traversing when one of the chunks
                 // inside the sorted tablet falls out of the range.
                 return true;
-            } else if (GetUpperBoundKey(chunk) <= lowerKeyLimit) {
+            } else if (GetUpperBoundKeyOrThrow(chunk) <= lowerKeyLimit) {
                 return true;
             } else {
-                if (GetMinKey(chunk) < lowerKeyLimit) {
+                if (GetMinKeyOrThrow(chunk) < lowerKeyLimit) {
                     correctLowerLimit.SetKey(lowerKeyLimit);
                 }
-                if (upperKeyLimit <= GetUpperBoundKey(chunk)) {
+                if (upperKeyLimit <= GetUpperBoundKeyOrThrow(chunk)) {
                     correctUpperLimit.SetKey(upperKeyLimit);
                 }
             }
@@ -356,7 +356,7 @@ TChunkTree* GenerateChunkTree(
                 if (children.empty()) {
                     child->AsChunkList()->SetPivotKey(BuildKey(""));
                 } else {
-                    child->AsChunkList()->SetPivotKey(GetMinKey(child));
+                    child->AsChunkList()->SetPivotKey(GetMinKeyOrThrow(child));
                 }
             }
 

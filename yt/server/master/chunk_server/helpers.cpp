@@ -573,23 +573,22 @@ bool IsEmpty(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetUpperBoundKey(const TChunk* chunk)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk)
 {
-    TOwningKey key;
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    if (optionalBoundaryKeysExt) {
-        FromProto(&key, optionalBoundaryKeysExt->max());
-        return GetKeySuccessor(key);
+    if (!optionalBoundaryKeysExt) {
+        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
+            chunk->GetId());
     }
 
-    THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
-        chunk->GetId());
+    auto key = FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
+    return GetKeySuccessor(key);
 }
 
-TOwningKey GetUpperBoundKey(const TChunkView* chunkView)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView)
 {
-    auto chunkMaxKey = GetUpperBoundKey(chunkView->GetUnderlyingChunk());
+    auto chunkMaxKey = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk());
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
     if (!upperLimit.HasKey()) {
         return chunkMaxKey;
@@ -597,7 +596,7 @@ TOwningKey GetUpperBoundKey(const TChunkView* chunkView)
     return std::min(chunkMaxKey, upperLimit.GetKey());
 }
 
-TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",
@@ -620,10 +619,10 @@ TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetUpperBoundKey(currentChunkTree->AsChunk());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunk());
 
             case EObjectType::ChunkView:
-                return GetUpperBoundKey(currentChunkTree->AsChunkView());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView());
 
             case EObjectType::ChunkList:
                 currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
@@ -635,23 +634,21 @@ TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
     }
 }
 
-TOwningKey GetMinKey(const TChunk* chunk)
+TOwningKey GetMinKeyOrThrow(const TChunk* chunk)
 {
-    TOwningKey key;
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    if (optionalBoundaryKeysExt) {
-        FromProto(&key, optionalBoundaryKeysExt->min());
-        return key;
+    if (!optionalBoundaryKeysExt) {
+        THROW_ERROR_EXCEPTION("Cannot compute min key in chunk %v since it's missing boundary info",
+            chunk->GetId());
     }
 
-    THROW_ERROR_EXCEPTION("Cannot compute min key in chunk %v since it's missing boundary info",
-        chunk->GetId());
+    return FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
 }
 
 TOwningKey GetMinKey(const TChunkView* chunkView)
 {
-    auto chunkMinKey = GetMinKey(chunkView->GetUnderlyingChunk());
+    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk());
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
     if (!lowerLimit.HasKey()) {
         return chunkMinKey;
@@ -659,7 +656,7 @@ TOwningKey GetMinKey(const TChunkView* chunkView)
     return std::max(chunkMinKey, lowerLimit.GetKey());
 }
 
-TOwningKey GetMinKey(const TChunkTree* chunkTree)
+TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute min key in chunk list %v since it contains no chunks",
@@ -682,7 +679,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetMinKey(currentChunkTree->AsChunk());
+                return GetMinKeyOrThrow(currentChunkTree->AsChunk());
 
             case EObjectType::ChunkView:
                 return GetMinKey(currentChunkTree->AsChunkView());
