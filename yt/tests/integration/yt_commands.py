@@ -1686,3 +1686,6 @@ def get_job_count_profiling():
     print("job_counters (take {} seconds to calculate): {}".format(duration, job_count), file=sys.stderr)
 
     return job_count
+
+def scheduler_orchid_default_pool_tree_path():
+    return "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
