@@ -29,7 +29,7 @@ REQUIREMENTS(
     cpu:8
     ram_disk:16
     disk_usage:100
-    container:1028403247
+    container:1033782305
 )
 
 DATA(
