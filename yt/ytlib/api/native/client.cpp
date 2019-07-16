@@ -3253,7 +3253,7 @@ private:
                         auto id = FromProto<TObjectId>(rsp->object_id());
                         srcIds.push_back(id);
 
-                        auto cellTag = rsp->cell_tag();
+                        auto cellTag = rsp->external_cell_tag();
                         srcCellTags.push_back(cellTag);
 
                         auto securityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
@@ -3414,7 +3414,6 @@ private:
 
             // Begin upload.
             TTransactionId uploadTransactionId;
-            TCellTag dstExternalCellTag;
             const auto dstIdPath = FromObjectId(dstId);
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
