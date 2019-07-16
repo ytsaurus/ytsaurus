@@ -3,10 +3,11 @@ from yt_commands import *
 from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
+import yt.packages.requests as requests
 
 import yt.yson as yson
 
-from yt.common import update
+from yt.common import update, parts_to_uuid
 
 from distutils.spawn import find_executable
 
@@ -19,7 +20,6 @@ import copy
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-CLICKHOUSE_CLIENT_BINARY = find_executable("clickhouse")
 YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
 
 DEFAULTS = {
@@ -31,6 +31,7 @@ DEFAULTS = {
     "clickhouse_config": {},
 }
 
+QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
 
 class Clique(object):
     base_config = None
@@ -131,43 +132,74 @@ class Clique(object):
         # Pass the error.
         return False
 
-    def make_query(self, query, user="root", verbose=True):
-        instances = get("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["host", "tcp_port"])
+    @staticmethod
+    def _parse_error(text):
+        lines = text.split("\n")
+        in_error = False
+        result = []
+        for line in lines:
+            if line.startswith("std::exception") or line.startswith("Code:"):
+                in_error = True
+            if in_error:
+                result.append(line)
+        return "\n".join(result)
+
+    def make_query(self, query, user="root", format="JSON", verbose=True, only_rows=True):
+        instances = get("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["host", "http_port"])
         assert len(instances) > 0
+
+        # Make some improvements to query: strip trailing semicolon, add format if needed.
+        query = query.strip()
+        assert "format" not in query.lower()
+        query_type = query.strip().split(' ', 1)[0]
+        if query.endswith(";"):
+            query = query[:-1]
+        output_present = query_type in QUERY_TYPES_WITH_OUTPUT
+        if output_present:
+            query = query + " format " + format
+
         instance = random.choice(instances.values())
         host = instance.attributes["host"]
-        port = instance.attributes["tcp_port"]
+        port = instance.attributes["http_port"]
 
-        args = [CLICKHOUSE_CLIENT_BINARY, "client",
-                "-h", host,
-                "--port", port,
-                "--format", "JSON",
-                "-u", user,
-                "--output_format_json_quote_64bit_integers", "0"]
-        print >>sys.stderr, "Running '{0}' with the following input:\n> {1}".format(' '.join(args), query)
+        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), random.randint(0, 2**64 - 1))
 
-        process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.stdin.write(query)
-        stdout, stderr = process.communicate()
-        return_code = process.returncode
-
+        print >>sys.stderr, ""
+        print >>sys.stderr, "Querying {0}:{1} with the following data:\n> {2}".format(host, port, query)
+        print >>sys.stderr, "Query id: {}".format(query_id)
+        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0".format(host, port),
+                               data=query,
+                               headers={"X-ClickHouse-User": user,
+                                        "X-ClickHouse-Query-Id": query_id})
         output = ""
-        if stdout:
-            output += "Stdout:\n" + stdout + "\n"
-        if stderr:
-            output += "Stderr:\n" + stderr + "\n"
+        if result.status_code != 200:
+            output += "Query failed, HTTP code: {}\n".format(result.status_code)
+            error = self._parse_error(result.text).strip()
+            if error:
+                output += "Error: {}\n".format(error)
+            else:
+                output += "Cannot parse error from response data; full response is listed below.\n"
+                verbose = True
 
         if verbose:
-            print >>sys.stderr, output
-        if return_code != 0:
-            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query})
+            output += "Headers:\n"
+            output += json.dumps(dict(result.headers)) + "\n"
+            output += "Data:\n"
+            output += result.text
 
-        if stdout != "":
-            result = json.loads(stdout)
-            print >>sys.stderr, "Got", len(result["data"]), "rows"
-            return result
+        print >>sys.stderr, output
+
+        if result.status_code != 200:
+            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query, "query_id": query_id})
         else:
-            return None
+            if output_present:
+                if format == "JSON":
+                    result = result.json()
+                if only_rows and format == "JSON":
+                    result = result["data"]
+                return result
+            else:
+                return None
 
 
 @require_ytserver_root_privileges
@@ -199,9 +231,8 @@ class ClickHouseTestBase(YTEnvSetup):
 
     def _setup(self):
         Clique.path_to_run = self.path_to_run
-        if CLICKHOUSE_CLIENT_BINARY is None or YTSERVER_CLICKHOUSE_BINARY is None:
-            pytest.skip("This test requires built clickhouse and ytserver-clickhouse binaries; "
-                        "they are available only when using ya as a build system")
+        if YTSERVER_CLICKHOUSE_BINARY is None:
+            pytest.skip("This test requires ytserver-clickhouse binary being built")
 
         if exists("//sys/clickhouse"):
             return
@@ -223,12 +254,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
             for i in range(5):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
-            assert abs(clique.make_query('select avg(a) from "//tmp/t"')["data"][0]["avg(a)"] - 4.5) < 1e-6
+            assert abs(clique.make_query('select avg(a) from "//tmp/t"')[0]["avg(a)"] - 4.5) < 1e-6
             with pytest.raises(YtError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
             # TODO(max42): support range selectors.
-            assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')["data"][0]["avg(a)"] - 5.0) < 1e-6
+            assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
     def test_aggregation_with_multiple_string_columns(self):
@@ -241,7 +272,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             total = 24 * 25 // 2
 
             result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
-            assert result["data"] == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+            assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_cast(self, instance_count):
@@ -250,7 +281,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
 
             result = clique.make_query('select CAST(a as datetime) from "//tmp/t"')
-            assert result["data"] == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
+            assert result == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
     def test_settings(self):
         with Clique(1) as clique:
@@ -258,20 +289,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Let's see if it changed in internal table with settings.
 
             result = clique.make_query("select * from system.settings where name = 'max_temporary_non_const_columns'")
-            assert result["data"][0]["value"] == "1234"
-            assert result["data"][0]["changed"] == 1
+            assert result[0]["value"] == "1234"
+            assert result[0]["changed"] == 1
 
     def test_schema_caching(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             write_table("//tmp/t", [{"a": 1}])
             old_description = clique.make_query('describe "//tmp/t"')
-            assert old_description["data"][0]["name"] == "a"
+            assert old_description[0]["name"] == "a"
             remove("//tmp/t")
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
             write_table("//tmp/t", [{"b": 1}])
             new_description = clique.make_query('describe "//tmp/t"')
-            assert new_description["data"][0]["name"] == "b"
+            assert new_description[0]["name"] == "b"
 
     def test_concat_inside_link(self):
         with Clique(1) as clique:
@@ -281,14 +312,14 @@ class TestClickHouseCommon(ClickHouseTestBase):
             create("table", "//tmp/link/t2", attributes={"schema": [{"name": "i", "type": "int64"}]})
             write_table("//tmp/link/t1", [{"i": 0}])
             write_table("//tmp/link/t2", [{"i": 1}])
-            assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")["data"]) == 2
+            assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
     def _expect_row_count(self, clique, query, exact=None, min=None, max=None, verbose=True):
-        result = clique.make_query(query, verbose=verbose)
+        result = clique.make_query(query, verbose=verbose, only_rows=False)
         assert (exact is not None) ^ (min is not None and max is not None)
         if exact is not None:
             assert result["statistics"]["rows_read"] == exact
@@ -357,7 +388,7 @@ class TestJobInput(ClickHouseTestBase):
         write_table("//tmp/t1", [{"a": 42, "b": "asd"}])
         write_table("//tmp/t2", [{"b": "qwe", "a": 27}])
         with Clique(1) as clique:
-            result = clique.make_query("select * from concatYtTables('//tmp/t1', '//tmp/t2')")["data"]
+            result = clique.make_query("select * from concatYtTables('//tmp/t1', '//tmp/t2')")
             assert len(result) == 2
             assert len(result[0]) == 2
 
@@ -601,23 +632,23 @@ class TestCompositeTypes(ClickHouseTestBase):
                         clique.make_query(query)
                 else:
                     result = clique.make_query(query)
-                    assert result["data"][0].popitem()[1] == -42
+                    assert result[0].popitem()[1] == -42
 
     def test_read_uint64_strict(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
-            assert result["data"][0].popitem()[1] == 57
+            assert result[0].popitem()[1] == 57
 
     def test_read_from_subnode(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
-            assert result["data"][0].popitem()[1] == 123
+            assert result[0].popitem()[1] == 123
 
     def test_read_int64_non_strict(self):
         with Clique(1) as clique:
             query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
             result = clique.make_query(query)
-            for i, item in enumerate(result["data"]):
+            for i, item in enumerate(result):
                 if i == 0:
                     assert item.popitem()[1] == -42
                 elif i == 4:
@@ -633,7 +664,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "YPathArrayBooleanStrict(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 0"
         with Clique(1) as clique:
             result = clique.make_query(query)
-        assert result["data"] == [{
+        assert result == [{
             "i64": -42,
             "ui64": 23,
             "bool": True,
@@ -653,7 +684,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "YPathArrayBoolean(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 3"
         with Clique(1) as clique:
             result = clique.make_query(query)
-        assert result["data"] == [{
+        assert result == [{
             "i64": 0,
             "ui64": 0,
             "bool": False,
@@ -668,13 +699,13 @@ class TestCompositeTypes(ClickHouseTestBase):
     def test_const_args(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
-        assert result["data"] == [{"str": "xyz"}]
+        assert result == [{"str": "xyz"}]
 
     def test_nulls(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
                                        "YPathString('{a=1}', NULL) as c")
-        assert result["data"] == [{"a": None, "b": None, "c": None}]
+        assert result == [{"a": None, "b": None, "c": None}]
 
 
 class TestYtDictionaries(ClickHouseTestBase):
@@ -709,7 +740,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             ]}}) as clique:
             result = clique.make_query("select number, dictGetString('dict', 'value_str', number) as str, "
                                        "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)")
-        assert result["data"] == [
+        assert result == [
             {"number": 0, "str": "n/a", "i64": 42},
             {"number": 1, "str": "str1", "i64": 1},
             {"number": 2, "str": "n/a", "i64": 42},
@@ -753,7 +784,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 }
             ]}}) as clique:
             result = clique.make_query("select dictGetString('dict', 'value', tuple(key, subkey)) as value from \"//tmp/queries\"")
-        assert result["data"] == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
+        assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
     def test_lifetime(self):
         create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
@@ -777,22 +808,22 @@ class TestYtDictionaries(ClickHouseTestBase):
                     }
                 }
             ]}}) as clique:
-            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "x"
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "x"
 
             write_table("//tmp/dict", [{"key": 42, "value": "y"}])
             # TODO(max42): make update time customizable in CH and reduce this constant.
             time.sleep(7)
-            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "y"
 
             remove("//tmp/dict")
             time.sleep(7)
-            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "y"
 
             create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
                                                                  {"name": "value", "type": "string"}]})
             write_table("//tmp/dict", [{"key": 42, "value": "z"}])
             time.sleep(7)
-            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "z"
 
 
 class TestClickHouseSchema(ClickHouseTestBase):
@@ -829,9 +860,9 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t3", {"a": "y"})
 
         with Clique(1) as clique:
-            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"]) == \
+            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")) == \
                 [{"name": "a", "type": "Nullable(Int64)"}]
-            assert clique.make_query("select * from concatYtTables(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
+            assert clique.make_query("select * from concatYtTables(\"//tmp/t1\", \"//tmp/t2\") order by a") == \
                 [{"a": 17}, {"a": 42}]
 
             with pytest.raises(YtError):
@@ -856,9 +887,9 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 17, "d": 2.71})
 
         with Clique(1) as clique:
-            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"]) == \
+            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")) == \
                 [{"name": "a", "type": "Nullable(Int64)"}]
-            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")["data"]) == \
+            assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")) == \
                 [{"name": "a", "type": "Nullable(Int64)"}]
             with pytest.raises(YtError):
                 clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
@@ -873,9 +904,9 @@ class TestClickHouseSchema(ClickHouseTestBase):
 
         with Clique(1) as clique:
             for source in ["\"//tmp/t\"", "concatYtTables('//tmp/t')"]:
-                assert clique.make_query("select * from {}".format(source))["data"] == content
-                assert clique.make_query("select * from {} where isNull(a)".format(source))["data"] == [{"a": None}]
-                assert clique.make_query("select * from {} where isNotNull(a)".format(source))["data"] == [{"a": -1}, {"a": 42}]
+                assert clique.make_query("select * from {}".format(source)) == content
+                assert clique.make_query("select * from {} where isNull(a)".format(source)) == [{"a": None}]
+                assert clique.make_query("select * from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
 
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):
@@ -887,7 +918,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
         write_table("//tmp/t", [{"a": 1}])
 
         with Clique(1, config_patch={"validate_operation_access": False}) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
 
         with Clique(1, config_patch={"validate_operation_access": True}) as clique:
             with pytest.raises(YtError):
@@ -902,7 +933,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                             "permissions": ["read"]
                         }]
                     }) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -913,5 +944,5 @@ class TestQueryLog(ClickHouseTestBase):
         with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
             clique.make_query("select 1")
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
-                                               "name = 'query_log';")["data"]) >= 1)
-            wait(lambda: len(clique.make_query("select * from system.query_log")["data"]) >= 1)
+                                               "name = 'query_log';")) >= 1)
+            wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
