@@ -79,7 +79,7 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
         auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamred_dsv_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
-            table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
+            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
         }
 
         const TVector<TOwningYaMRRow> expectedTable = {
@@ -101,7 +101,7 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
         auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamr_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
-            table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
+            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
         }
 
         const TVector<TOwningYaMRRow> expectedTable = {
@@ -132,7 +132,7 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
         auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
-            table.emplace_back(NormalizeDsv(row.Key.ToString()), row.SubKey.ToString(), row.Value.ToString());
+            table.emplace_back(NormalizeDsv(ToString(row.Key)), ToString(row.SubKey), ToString(row.Value));
         }
 
         const TVector<TOwningYaMRRow> expectedTable = {
@@ -161,7 +161,7 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
         auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
-            table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
+            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
         }
 
         const TVector<TOwningYaMRRow> expectedTable = {
