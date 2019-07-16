@@ -321,6 +321,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
+            "node_shard_count": 1,
         }
     }
 
