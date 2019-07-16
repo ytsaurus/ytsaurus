@@ -13,7 +13,6 @@ from distutils.spawn import find_executable
 
 import json
 import pytest
-import subprocess
 import random
 import os
 import copy
