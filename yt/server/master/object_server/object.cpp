@@ -14,15 +14,30 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectLifeStage NextStage(EObjectLifeStage lifeStage)
+EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage)
 {
     switch (lifeStage) {
         case EObjectLifeStage::CreationStarted:
             return EObjectLifeStage::CreationPreCommitted;
         case EObjectLifeStage::CreationPreCommitted:
             return EObjectLifeStage::CreationCommitted;
+        case EObjectLifeStage::RemovalStarted:
+            return EObjectLifeStage::RemovalPreCommitted;
+        case EObjectLifeStage::RemovalPreCommitted:
+            return EObjectLifeStage::RemovalCommitted;
         default:
             YT_ABORT();
+    }
+}
+
+bool IsStableLifeStage(EObjectLifeStage lifeStage)
+{
+    switch (lifeStage) {
+        case EObjectLifeStage::CreationCommitted:
+        case EObjectLifeStage::RemovalCommitted:
+            return true;
+        default:
+            return false;
     }
 }
 

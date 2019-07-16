@@ -384,7 +384,7 @@ private:
 
             ObjectId_ = userObject.ObjectId;
             NativeCellTag_ = CellTagFromId(ObjectId_);
-            ExternalCellTag_ = userObject.CellTag;
+            ExternalCellTag_ = userObject.ExternalCellTag;
 
             auto objectIdPath = FromObjectId(ObjectId_);
 

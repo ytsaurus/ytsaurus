@@ -226,11 +226,11 @@ protected:
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
             for (int index = 0; index < InputTables_.size(); ++index) {
-                if (!InputTables_[index]->IsDynamic &&
+                if (!InputTables_[index]->Dynamic &&
                     !InputTables_[index]->Path.GetColumns() &&
                     InputTables_[index]->ColumnRenameDescriptors.empty())
                 {
-                    InputTables_[index]->IsTeleportable = ValidateTableSchemaCompatibility(
+                    InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
                         InputTables_[index]->Schema,
                         OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();

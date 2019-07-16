@@ -55,6 +55,7 @@ message TReqUnrefExportedObjects
 message TReqConfirmObjectLifeStage
 {
     required NYT.NProto.TGuid object_id = 1;
+    required int32 cell_tag = 2;
 }
 
 // Forces an object to move on to its next life stage. Sent by primary master to

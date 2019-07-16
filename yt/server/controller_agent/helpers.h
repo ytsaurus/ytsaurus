@@ -32,18 +32,8 @@ TString TrimCommandForBriefSpec(const TString& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Common pattern in scheduler is to lock input object and
-//! then request attributes of this object by id.
-struct TLockedUserObject
-    : public NChunkClient::TUserObject
-{
-    virtual TString GetPath() const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TUserFile
-    : public TLockedUserObject
+    : public NChunkClient::TUserObject
 {
     std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
     TString FileName;

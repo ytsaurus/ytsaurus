@@ -346,9 +346,9 @@ protected:
                     if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
                         THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
                             << TErrorAttribute("column_name", columnName)
-                            << TErrorAttribute("input_table_1", referenceTable->Path.GetPath())
+                            << TErrorAttribute("input_table_1", referenceTable->GetPath())
                             << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
-                            << TErrorAttribute("input_table_2", table->Path.GetPath())
+                            << TErrorAttribute("input_table_2", table->GetPath())
                             << TErrorAttribute("type_2", ToString(*column.LogicalType()));
                     }
                 } else {
@@ -432,16 +432,16 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (const auto& inputTable : InputTables_) {
-                if (!inputTable->IsDynamic &&
+                if (!inputTable->Dynamic &&
                     !inputTable->Path.GetColumns() &&
                     inputTable->ColumnRenameDescriptors.empty())
                 {
-                    inputTable->IsTeleportable = ValidateTableSchemaCompatibility(
+                    inputTable->Teleportable = ValidateTableSchemaCompatibility(
                         inputTable->Schema,
                         OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                     if (GetJobType() == EJobType::SortedReduce) {
-                        inputTable->IsTeleportable &= inputTable->Path.GetTeleport();
+                        inputTable->Teleportable &= inputTable->Path.GetTeleport();
                     }
                 }
             }

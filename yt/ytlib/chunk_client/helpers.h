@@ -135,21 +135,31 @@ struct TUserObject
     // TODO(babenko): consider making non-optional
     std::optional<NObjectClient::TTransactionId> TransactionId;
 
-    // Output
+    // Input/output
     NObjectClient::TObjectId ObjectId;
-    NObjectClient::TCellTag CellTag;
+
+    // Output
+    NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
     ui64 Revision = 0;
+    ui64 ContentRevision = 0;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
-    ui64 ContentRevision;
 
     virtual ~TUserObject() = default;
 
-    // TODO(babenko): get rid of this
-    virtual TString GetPath() const;
-
+    //! Returns |true| if TUserObject::ObjectId is non-null.
     bool IsPrepared() const;
+
+    //! Returns the underlying path from #Path.
+    const NYPath::TYPath& GetPath() const;
+
+    //! Constructs a path from TUserObject::ObjectId.
+    //! The instance must be prepared.
+    TString GetObjectIdPath() const;
+
+    //! For prepared instances, delegates to #GetObjectIdPath, otherwise returns #Path.
+    TString GetObjectIdPathIfAvailable() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

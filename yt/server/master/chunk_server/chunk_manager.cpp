@@ -937,6 +937,7 @@ public:
         chunkTree->SetStagingAccount(account);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        // XXX(portals)
         objectManager->RefObject(account);
     }
 

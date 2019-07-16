@@ -60,6 +60,9 @@ public:
     //! This helps to offload the Automaton Thread in case of DOS attack.
     TDuration StickyUserErrorExpireTime;
 
+    //! Maximum time to wait before syncing with another cell.
+    TDuration CrossCellSyncDelay;
+
     TObjectServiceConfig()
     {
         RegisterParameter("yield_timeout", YieldTimeout)
@@ -70,6 +73,9 @@ public:
 
         RegisterParameter("sticky_user_error_expire_time", StickyUserErrorExpireTime)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("cross_cell_sync_delay", CrossCellSyncDelay)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 

@@ -209,7 +209,7 @@ private:
 
     struct TLivePreviewRequest
     {
-        TChunkListId TableId;
+        TNodeId TableId;
         TChunkTreeId ChildId;
     };
 
@@ -830,19 +830,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (requests.empty()) {
+            return;
+        }
+
         struct TTableInfo
         {
             TNodeId TableId;
-            TCellTag CellTag;
+            TCellTag ExternalCellTag;
             std::vector<TChunkId> ChildIds;
             TTransactionId UploadTransactionId;
             TChunkListId UploadChunkListId;
             NChunkClient::NProto::TDataStatistics Statistics;
         };
 
-        THashMap<TNodeId, TTableInfo> tableIdToInfo;
+        THashMap<TNodeId, TTableInfo> nodeIdToTableInfo;
         for (const auto& request : requests) {
-            auto& tableInfo = tableIdToInfo[request.TableId];
+            auto& tableInfo = nodeIdToTableInfo[request.TableId];
             tableInfo.TableId = request.TableId;
             tableInfo.ChildIds.push_back(request.ChildId);
 
@@ -852,27 +856,24 @@ private:
                 tableInfo.ChildIds.size());
         }
 
-        if (tableIdToInfo.empty()) {
-            return;
+        THashMap<TCellTag, std::vector<TTableInfo*>> nativeCellTagToTableInfos;
+        for (auto& [nodeId, tableInfo] : nodeIdToTableInfo) {
+            nativeCellTagToTableInfos[CellTagFromId(nodeId)].push_back(&tableInfo);
         }
 
         // BeginUpload
-        {
-            // XXX(babenko): portals
-            auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
+            auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
 
-            for (const auto& pair : tableIdToInfo) {
-                auto tableId = pair.first;
-                {
-                    auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableId));
-                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                    req->set_lock_mode(static_cast<int>(ELockMode::Shared));
-                    req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
-                        operationId));
-                    SetTransactionId(req, transactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "begin_upload");
-                }
+            for (const auto* tableInfo : tableInfos) {
+                auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableInfo->TableId));
+                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_lock_mode(static_cast<int>(ELockMode::Shared));
+                req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
+                    operationId));
+                SetTransactionId(req, transactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "begin_upload");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -881,25 +882,20 @@ private:
 
             auto rsps = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspBeginUpload>("begin_upload");
             int rspIndex = 0;
-            for (auto& pair : tableIdToInfo) {
-                auto& tableInfo = pair.second;
+            for (auto* tableInfo : tableInfos) {
                 const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo.CellTag = rsp->cell_tag();
-                tableInfo.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                tableInfo->ExternalCellTag = rsp->cell_tag();
+                tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
         }
 
-        THashMap<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
-        for (auto& pair : tableIdToInfo) {
-            auto& tableInfo  = pair.second;
-            cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
+        THashMap<TCellTag, std::vector<TTableInfo*>> externalCellTagToTableInfos;
+        for (auto& [nodeId, tableInfo] : nodeIdToTableInfo) {
+            externalCellTagToTableInfos[tableInfo.ExternalCellTag].push_back(&tableInfo);
         }
 
         // GetUploadParams
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
+        for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
@@ -920,10 +916,7 @@ private:
         }
 
         // Attach
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
+        for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
             auto batchReq = StartChunkBatchRequest(cellTag);
             GenerateMutationId(batchReq);
             batchReq->set_suppress_upstream_sync(true);
@@ -961,20 +954,15 @@ private:
         }
 
         // EndUpload
-        {
-            // XXX(babenko): portals
-            auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
+            auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
 
-            for (const auto& pair : tableIdToInfo) {
-                auto tableId = pair.first;
-                const auto& tableInfo = pair.second;
-                {
-                    auto req = TTableYPathProxy::EndUpload(FromObjectId(tableId));
-                    *req->mutable_statistics() = tableInfo.Statistics;
-                    SetTransactionId(req, tableInfo.UploadTransactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "end_upload");
-                }
+            for (const auto* tableInfo : tableInfos) {
+                auto req = TTableYPathProxy::EndUpload(FromObjectId(tableInfo->TableId));
+                *req->mutable_statistics() = tableInfo->Statistics;
+                SetTransactionId(req, tableInfo->UploadTransactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "end_upload");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

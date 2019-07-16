@@ -158,29 +158,36 @@ public:
 
     TCellTag PickSecondaryMasterCell(double bias)
     {
-        // XXX(babenko): portals
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        // List candidates.
+        SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
+        if (Bootstrap_->IsSecondaryMaster()) {
+            candidates.emplace_back(
+                Bootstrap_->GetChunkManager()->Chunks().size(),
+                Bootstrap_->GetCellTag());
+        }
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+            if (cellTag != Bootstrap_->GetPrimaryCellTag()) {
+                candidates.emplace_back(cellTag, entry.Statistics.chunk_count());
+            }
+        }
 
-        if (RegisteredMasterMap_.empty()) {
+        // Sanity check.
+        if (candidates.empty()) {
             return InvalidCellTag;
         }
 
         // Compute the average number of chunks.
-        int chunkCountSum = 0;
-        for (const auto& pair : RegisteredMasterMap_) {
-            const auto& entry = pair.second;
-            chunkCountSum += entry.Statistics.chunk_count();
+        i64 totalChunkCount = 0;
+        for (auto [cellTag, chunkCount] : candidates) {
+            totalChunkCount += chunkCount;
         }
-
-        int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
+        i64 avgChunkCount = totalChunkCount / candidates.size();
 
         // Split the candidates into two subsets: less-that-avg and more-than-avg.
         SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
         SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
-        for (const auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            const auto& entry = pair.second;
-            if (entry.Statistics.chunk_count() < avgChunkCount) {
+        for (auto [cellTag, chunkCount] : candidates) {
+            if (chunkCount < avgChunkCount) {
                 loCandidates.push_back(cellTag);
             } else {
                 hiCandidates.push_back(cellTag);

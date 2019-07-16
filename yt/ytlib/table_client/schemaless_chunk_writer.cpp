@@ -1651,7 +1651,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
 
     auto objectId = userObject.ObjectId;
     auto nativeCellTag = CellTagFromId(objectId);
-    auto externalCellTag = userObject.CellTag;
+    auto externalCellTag = userObject.ExternalCellTag;
     auto objectIdPath = FromObjectId(objectId);
 
     TTableWriterOptionsPtr writerOptions = options;

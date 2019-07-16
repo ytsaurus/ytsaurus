@@ -116,7 +116,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::TwoPhaseCreation;
     }
 
     virtual EObjectType GetType() const override
@@ -461,9 +462,10 @@ public:
 
         node->SetAccount(newAccount);
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
+        // XXX(babenko): portals
         objectManager->RefObject(newAccount);
 
-        UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, transaction == nullptr);
+        UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
 
     void ResetAccount(TCypressNodeBase* node)
@@ -476,7 +478,7 @@ public:
         node->SetAccount(nullptr);
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
-        UpdateAccountTabletResourceUsage(node, account, node->GetTransaction() == nullptr, nullptr, false);
+        UpdateAccountTabletResourceUsage(node, account, !node->GetTransaction(), nullptr, false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
@@ -1220,6 +1222,7 @@ public:
     }
 
 
+    // XXX(babenko): portals
     void ValidateLifeStage(TAccount* account)
     {
         if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {

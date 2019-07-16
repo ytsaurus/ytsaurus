@@ -233,7 +233,7 @@ public:
         std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const TString& key = TString()) const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
@@ -282,7 +282,12 @@ public:
  */
 TError GetCumulativeError(
     const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
-    const TString& key = TString());
+    const std::optional<TString>& key = {});
+
+//! Similar to the above but the envelope request is known to be successful.
+TError GetCumulativeError(
+    const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
+    const std::optional<TString>& key = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

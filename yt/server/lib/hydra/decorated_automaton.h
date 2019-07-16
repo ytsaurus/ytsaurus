@@ -256,9 +256,7 @@ private:
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
 
-    TRingQueue<NRpc::TMutationId> PendingMutationIds_;
-
-    NProfiling::TAggregateGauge BatchCommitTimeCounter_ = {"/batch_commit_time"};
+    NProfiling::TAggregateGauge BatchCommitTimeCounter_{"/batch_commit_time"};
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;

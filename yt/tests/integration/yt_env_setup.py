@@ -43,7 +43,7 @@ def prepare_yatest_environment():
         return
 
     destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
-    if not os.path.exists(destination):       
+    if not os.path.exists(destination):
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
@@ -639,7 +639,7 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
-        # XXX(babenko)
+        # XXX(babenko): portals
         if yt_commands.is_multicell:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})

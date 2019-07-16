@@ -208,33 +208,22 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             }
             Tokenizer_.Advance();
 
+            if (CellTagFromId(objectId) != Bootstrap_->GetCellTag() && Bootstrap_->IsPrimaryMaster()) {
+                return TRemoteObjectPayload{objectId};
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* root = objectManager->FindObject(objectId);
+            auto* root = Method_ == "Exists"
+                ? objectManager->FindObject(objectId)
+                : objectManager->GetObjectOrThrow(objectId);
             if (IsObjectAlive(root)) {
                 return TLocalObjectPayload{
                     root,
                     GetTransaction()
                 };
+            } else {
+                return TMissingObjectPayload{};
             }
-
-            bool suppressRedirect = false;
-            if (Tokenizer_.GetType() == ETokenType::Ampersand) {
-                suppressRedirect = true;
-                Tokenizer_.Advance();
-            }
-
-            if (suppressRedirect || CellTagFromId(objectId) == Bootstrap_->GetCellTag()) {
-                if (Method_ == "Exists") {
-                    return TMissingObjectPayload{};
-                } else {
-                    THROW_ERROR_EXCEPTION(
-                        NYTree::EErrorCode::ResolveError,
-                        "No such object %v",
-                        objectId);
-                }
-            }
-
-            return TRemoteObjectPayload{objectId};
         }
 
         default:

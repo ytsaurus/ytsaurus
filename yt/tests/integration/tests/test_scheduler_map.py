@@ -522,7 +522,6 @@ print row + table_index
 
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
-    @flaky(max_runs=3)
     def test_live_preview(self):
         create_user("u")
 
@@ -941,7 +940,7 @@ print row + table_index
             command='cat')
 
         assert read_table("//tmp/t_output") == rows
-        
+
 
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):

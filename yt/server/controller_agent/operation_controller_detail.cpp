@@ -817,7 +817,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     {
         THashSet<TObjectId> updatingTableIds;
         for (const auto& table : UpdatingTables_) {
-            const auto& path = table->Path.GetPath();
+            const auto& path = table->GetPath();
             if (table->Type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                     path,
@@ -1128,7 +1128,7 @@ TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
     std::vector<TInputStreamDescriptor> inputStreams;
     inputStreams.reserve(InputTables_.size());
     for (const auto& inputTable : InputTables_) {
-        inputStreams.emplace_back(inputTable->IsTeleportable, inputTable->IsPrimary(), inputTable->IsDynamic /* isVersioned */);
+        inputStreams.emplace_back(inputTable->Teleportable, inputTable->IsPrimary(), inputTable->Dynamic /* isVersioned */);
     }
     return TInputStreamDirectory(std::move(inputStreams));
 }
@@ -1250,7 +1250,7 @@ void TOperationControllerBase::InitChunkListPools()
 
         CellTagToRequiredOutputChunkLists_.clear();
         for (const auto& table : UpdatingTables_) {
-            ++CellTagToRequiredOutputChunkLists_[table->CellTag];
+            ++CellTagToRequiredOutputChunkLists_[table->ExternalCellTag];
         }
 
         ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
@@ -1265,10 +1265,10 @@ void TOperationControllerBase::InitChunkListPools()
 
     CellTagToRequiredDebugChunkLists_.clear();
     if (StderrTable_) {
-        ++CellTagToRequiredDebugChunkLists_[StderrTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[StderrTable_->ExternalCellTag];
     }
     if (CoreTable_) {
-        ++CellTagToRequiredDebugChunkLists_[CoreTable_->CellTag];
+        ++CellTagToRequiredDebugChunkLists_[CoreTable_->ExternalCellTag];
     }
 }
 
@@ -1696,7 +1696,7 @@ void TOperationControllerBase::TeleportOutputChunks()
             const auto& id = pair.second;
             if (TypeFromId(id) == EObjectType::ChunkList)
                 continue;
-            teleporter->RegisterChunk(id, table->CellTag);
+            teleporter->RegisterChunk(id, table->ExternalCellTag);
         }
     }
 
@@ -1707,15 +1707,14 @@ void TOperationControllerBase::TeleportOutputChunks()
 void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList)
 {
     for (const auto& table : tableList) {
-        auto objectIdPath = FromObjectId(table->ObjectId);
-        const auto& path = table->Path.GetPath();
+        const auto& path = table->GetPath();
 
         YT_LOG_INFO("Attaching output chunks (Path: %v)",
             path);
 
         auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
-            table->CellTag);
+            table->ExternalCellTag);
         TChunkServiceProxy proxy(channel);
 
         // Split large outputs into separate requests.
@@ -1784,14 +1783,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
                 if (cmp < 0) {
                     THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
-                        table->Path.GetPath())
+                        table->GetPath())
                         << TErrorAttribute("table_max_key", table->LastKey)
                         << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
                 }
 
                 if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                     THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
-                        table->Path.GetPath())
+                        table->GetPath())
                         << TErrorAttribute("table_max_key", table->LastKey)
                         << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
                 }
@@ -1804,14 +1803,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
                     if (cmp < 0) {
                         THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
-                            table->Path.GetPath())
+                            table->GetPath())
                             << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
                             << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
                     }
 
                     if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                         THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
-                            table->Path.GetPath())
+                            table->GetPath())
                             << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
                             << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
                     }
@@ -1861,49 +1860,62 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 void TOperationControllerBase::CustomCommit()
 { }
 
-void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tableList)
+void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables)
 {
-    // XXX(babenko): portals
-    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : tableList) {
-        auto objectIdPath = FromObjectId(table->ObjectId);
-        const auto& path = table->Path.GetPath();
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> nativeCellTagToTables;
+    for (const auto& table : tables) {
+        nativeCellTagToTables[CellTagFromId(table->ObjectId)].push_back(table);
 
         YT_LOG_INFO("Finishing upload to output table (Path: %v, Schema: %v)",
-            path,
+            table->GetPath(),
             table->TableUploadOptions.TableSchema);
-
-        {
-            auto req = TTableYPathProxy::EndUpload(objectIdPath);
-            *req->mutable_statistics() = table->DataStatistics;
-            ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
-            req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
-            req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
-            req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
-            req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
-            if (table->TableUploadOptions.SecurityTags) {
-                ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
-            }
-
-            SetTransactionId(req, table->UploadTransactionId);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "end_upload");
-        }
-
-        if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
-            auto req = TYPathProxy::Set(path + "/@part_size");
-            SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-            req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
-            batchReq->AddRequest(req, "set_part_size");
-        }
     }
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
+    {
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+            TObjectServiceProxy proxy(channel);
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : tables) {
+                {
+                    auto req = TTableYPathProxy::EndUpload(table->GetObjectIdPath());
+                    SetTransactionId(req, table->UploadTransactionId);
+                    GenerateMutationId(req);
+                    *req->mutable_statistics() = table->DataStatistics;
+                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
+                    req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
+                    req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
+                    req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
+                    req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+                    if (table->TableUploadOptions.SecurityTags) {
+                        ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
+                    }
+                    batchReq->AddRequest(req);
+                }
+                if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
+                    auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
+                    SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+                    req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
+                    batchReq->AddRequest(req);
+                }
+            }
+
+            asyncResults.push_back(batchReq->Invoke());
+        }
+
+        auto checkError = [] (const auto& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error finishing upload to output tables");
+        };
+
+        auto result = WaitFor(Combine(asyncResults));
+        checkError(result);
+
+        for (const auto& batchRsp : result.Value()) {
+            checkError(GetCumulativeError(batchRsp));
+        }
+    }
 }
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
@@ -2032,13 +2044,13 @@ void TOperationControllerBase::InitializeSecurityTags()
         if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
             // TODO(babenko): audit
             YT_LOG_INFO("Output table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
-                table->Path.GetPath(),
+                table->GetPath(),
                 inferredSecurityTags,
                 explicitSecurityTags);
             table->TableUploadOptions.SecurityTags = *explicitSecurityTags;
         } else {
             YT_LOG_INFO("Output table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
-                table->Path.GetPath(),
+                table->GetPath(),
                 inferredSecurityTags);
             table->TableUploadOptions.SecurityTags = inferredSecurityTags;
         }
@@ -4339,7 +4351,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const std::optional<TString>& account,
         const TString& key,
         const TYsonString& acl,
-        std::optional<TTableSchema> schema)
+        const std::optional<TTableSchema>& schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -4349,19 +4361,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("replication_factor", replicationFactor);
         // Does this affect anything or is this for viewing only? Should we set the 'media' ('primary_medium') property?
         attributes->Set("compression_codec", compressionCodec);
-        if (cellTag == connection->GetPrimaryMasterCellTag()) {
-            attributes->Set("external", false);
-        } else {
-            attributes->Set("external_cell_tag", cellTag);
-        }
+        attributes->Set("external", true);
+        attributes->Set("external_cell_tag", cellTag);
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
         if (schema) {
             attributes->Set("schema", *schema);
         }
-        if (account) {
-            attributes->Set("account", *account);
-        }
+// XXX(babenko): portals
+//        if (account) {
+//            attributes->Set("account", *account);
+//        }
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
         SetTransactionId(req, AsyncTransaction->GetId());
@@ -4378,7 +4388,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
             addRequest(
                 path,
-                table->CellTag,
+                table->ExternalCellTag,
                 table->TableWriterOptions->ReplicationFactor,
                 table->TableWriterOptions->CompressionCodec,
                 table->TableWriterOptions->Account,
@@ -4395,7 +4405,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         addRequest(
             path,
-            StderrTable_->CellTag,
+            StderrTable_->ExternalCellTag,
             StderrTable_->TableWriterOptions->ReplicationFactor,
             StderrTable_->TableWriterOptions->CompressionCodec,
             std::nullopt /* account */,
@@ -4522,11 +4532,11 @@ void TOperationControllerBase::FetchInputTables()
                 "Too many ranges on table: maximum allowed %v, actual %v",
                 Config->MaxRangesOnTable,
                 ranges.size())
-                << TErrorAttribute("table_path", table->Path.GetPath());
+                << TErrorAttribute("table_path", table->Path);
         }
 
         YT_LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
-            table->Path.GetPath(),
+            table->GetPath(),
             originalRangeCount,
             ranges.size(),
             hasColumnSelectors);
@@ -4534,8 +4544,8 @@ void TOperationControllerBase::FetchInputTables()
         auto chunkSpecs = FetchChunkSpecs(
             InputClient,
             InputNodeDirectory_,
-            table->CellTag,
-            FromObjectId(table->ObjectId),
+            table->ExternalCellTag,
+            table->GetObjectIdPath(),
             ranges,
             table->ChunkCount,
             Config->MaxChunksPerFetch,
@@ -4543,7 +4553,7 @@ void TOperationControllerBase::FetchInputTables()
             [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (table->IsDynamic || IsBoundaryKeysFetchEnabled()) {
+                if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
                     req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                 }
                 // NB: we always fetch parity replicas since
@@ -4573,7 +4583,7 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         YT_LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-            table->Path.GetPath(),
+            table->GetPath(),
             table->Chunks.size());
     }
 
@@ -4615,7 +4625,8 @@ void TOperationControllerBase::LockInputTables()
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : InputTables_) {
-        auto req = TTableYPathProxy::Lock(table->Path.GetPath());
+        auto req = TTableYPathProxy::Lock(table->GetPath());
+        req->Tag() = table;
         req->set_mode(static_cast<int>(ELockMode::Snapshot));
         SetTransactionId(req, *table->TransactionId);
         GenerateMutationId(req);
@@ -4625,17 +4636,14 @@ void TOperationControllerBase::LockInputTables()
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking input tables");
 
-    const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-    for (int index = 0; index < InputTables_.size(); ++index) {
-        auto& table = InputTables_[index];
-        const auto& path = table->Path.GetPath();
-        const auto& rspOrError = batchRsp[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %v", path);
+    const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
         const auto& rsp = rspOrError.Value();
+        auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->Revision = rsp->revision();
-        table->CellTag = FromProto<TCellTag>(rsp->cell_tag());
-        InputTablesByPath_[path].push_back(table);
+        table->ExternalCellTag = FromProto<TCellTag>(rsp->cell_tag());
+        PathToInputTables_[table->GetPath()].push_back(table);
     }
 }
 
@@ -4657,7 +4665,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
     for (const auto& table : InputTables_) {
         if (table->Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                table->Path.GetPath(),
+                table->GetPath(),
                 EObjectType::Table,
                 table->Type);
         }
@@ -4668,7 +4676,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
         if (!table->OmittedInaccessibleColumns.empty()) {
             omittedInaccessibleColumnsList.push_back(BuildYsonStringFluently()
                 .BeginMap()
-                    .Item("path").Value(table->Path.GetPath())
+                    .Item("path").Value(table->GetPath())
                     .Item("columns").Value(table->OmittedInaccessibleColumns)
                 .EndMap());
         }
@@ -4679,84 +4687,69 @@ void TOperationControllerBase::GetInputTablesAttributes()
         SetOperationAlert(EOperationAlertType::OmittedInaccesibleColumnsInInputTables, error);
     }
 
-    THashMap<TCellTag, std::vector<TInputTablePtr>> cellTagToTables;
-    for (auto& table : InputTables_) {
-        cellTagToTables[table->CellTag].push_back(table);
+    THashMap<TCellTag, std::vector<TInputTablePtr>> externalCellTagToTables;
+    for (const auto& table : InputTables_) {
+        externalCellTagToTables[table->ExternalCellTag].push_back(table);
     }
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TTagId> cellTags;
-
-    for (const auto& pair : cellTagToTables) {
-        auto cellTag = pair.first;
-        const auto& tables = pair.second;
-
-        auto channel = InputClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
-            cellTag);
+    for (const auto& [cellTag, tables] : externalCellTagToTables) {
+        auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
-
         for (const auto& table : tables) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            {
-                auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-                std::vector<TString> attributeKeys{
-                    "dynamic",
-                    "chunk_count",
-                    "retained_timestamp",
-                    "schema_mode",
-                    "schema",
-                    "unflushed_timestamp",
-                    "content_revision"
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, *table->TransactionId);
-                batchReq->AddRequest(req, "get_attributes");
-            }
+            auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
+            std::vector<TString> attributeKeys{
+                "dynamic",
+                "chunk_count",
+                "retained_timestamp",
+                "schema_mode",
+                "schema",
+                "unflushed_timestamp",
+                "content_revision"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            SetTransactionId(req, *table->TransactionId);
+            req->Tag() = table;
+            batchReq->AddRequest(req);
         }
 
         asyncResults.push_back(batchReq->Invoke());
-        cellTags.push_back(cellTag);
     }
 
-    auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
-    THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error getting attributes of input tables");
-    auto& combinedResult = combinedResultOrError.Value();
+    auto checkError = [] (const auto& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting attributes of input tables");
+    };
 
-    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
-        auto& tables = cellTagToTables[cellTags[cellIndex]];
-        auto& batchRspOrError = combinedResult[cellIndex];
+    auto result = WaitFor(Combine(asyncResults));
+    checkError(result);
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of input tables");
-        const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& batchRsp : result.Value()) {
+        checkError(GetCumulativeError(batchRsp));
+        for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
+            const auto& rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        auto lockInRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspLock>("lock");
-        auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-        for (int index = 0; index < tables.size(); ++index) {
-            auto& table = tables[index];
-            auto path = table->Path.GetPath();
-            {
-                const auto& rsp = getInAttributesRspsOrError[index].Value();
-                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
+            table->Dynamic = attributes->Get<bool>("dynamic");
+            table->Schema = attributes->Get<TTableSchema>("schema");
+            table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+            table->ChunkCount = attributes->Get<int>("chunk_count");
+            table->ContentRevision = attributes->Get<ui64>("content_revision");
 
-                table->IsDynamic = attributes->Get<bool>("dynamic");
-                table->Schema = attributes->Get<TTableSchema>("schema");
-                table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-                table->ChunkCount = attributes->Get<int>("chunk_count");
-                table->ContentRevision = attributes->Get<ui64>("content_revision");
+            // Validate that timestamp is correct.
+            ValidateDynamicTableTimestamp(table->Path, table->Dynamic, table->Schema, *attributes);
 
-                // Validate that timestamp is correct.
-                ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
-            }
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, ContentRevision: %v)",
-                path,
+            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
+                "Revision: %llx, ContentRevision: %llx)",
+                table->GetPath(),
                 table->ObjectId,
                 table->Schema,
-                table->IsDynamic,
+                table->Dynamic,
                 table->ChunkCount,
                 table->SecurityTags,
+                table->Revision,
                 table->ContentRevision);
 
             if (!table->ColumnRenameDescriptors.empty()) {
@@ -4776,7 +4769,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                         auto it = columnMapping.find(column.Name());
                         if (it != columnMapping.end()) {
                             column.SetName(it->second);
-                            ValidateColumnSchema(column, table->Schema.IsSorted(), table->IsDynamic);
+                            ValidateColumnSchema(column, table->Schema.IsSorted(), table->Dynamic);
                             columnMapping.erase(it);
                         }
                     }
@@ -4793,7 +4786,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                         << ex;
                 }
                 YT_LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
-                    table->Path,
+                    table->GetPath(),
                     table->Schema);
             }
         }
@@ -4810,21 +4803,18 @@ void TOperationControllerBase::GetOutputTablesSchema()
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : UpdatingTables_) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            {
-                auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-                std::vector<TString> attributeKeys{
-                    "schema_mode",
-                    "schema",
-                    "optimize_for",
-                    "compression_codec",
-                    "erasure_codec",
-                    "dynamic"
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                batchReq->AddRequest(req, "get_attributes");
-            }
+            auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
+            std::vector<TString> attributeKeys{
+                "schema_mode",
+                "schema",
+                "optimize_for",
+                "compression_codec",
+                "erasure_codec",
+                "dynamic"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+            batchReq->AddRequest(req, "get_attributes");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4886,7 +4876,7 @@ void TOperationControllerBase::PrepareInputTables()
         for (const auto& table : InputTables_) {
             if (table->IsForeign()) {
                 THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
-                    << TErrorAttribute("foreign_table", table->Path.GetPath());
+                    << TErrorAttribute("foreign_table", table->GetPath());
             }
         }
     }
@@ -4906,8 +4896,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         {
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : UpdatingTables_) {
-                auto objectIdPath = FromObjectId(table->ObjectId);
-                auto req = TCypressYPathProxy::Lock(objectIdPath);
+                auto req = TCypressYPathProxy::Lock(table->GetObjectIdPath());
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
@@ -4922,12 +4911,11 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             for (int index = 0; index < UpdatingTables_.size(); ++index) {
                 const auto& table = UpdatingTables_[index];
                 const auto& rsp = batchRsp[index].Value();
-
                 auto objectId = FromProto<TObjectId>(rsp->node_id());
                 ui64 revision = rsp->revision();
 
-                auto it = InputTablesByPath_.find(table->Path.GetPath());
-                if (it != InputTablesByPath_.end()) {
+                auto it = PathToInputTables_.find(table->GetPath());
+                if (it != PathToInputTables_.end()) {
                     for (const auto& inputTable : it->second) {
                         // Check case of remote copy operation.
                         if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
@@ -4957,24 +4945,20 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : UpdatingTables_) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            {
-                auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-
-                std::vector<TString> attributeKeys{
-                    "account",
-                    "chunk_writer",
-                    "effective_acl",
-                    "primary_medium",
-                    "replication_factor",
-                    "row_count",
-                    "vital",
-                    "enable_skynet_sharing",
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                batchReq->AddRequest(req, "get_attributes");
-            }
+            auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
+            std::vector<TString> attributeKeys{
+                "account",
+                "chunk_writer",
+                "effective_acl",
+                "primary_medium",
+                "replication_factor",
+                "row_count",
+                "vital",
+                "enable_skynet_sharing",
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+            batchReq->AddRequest(req, "get_attributes");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4986,7 +4970,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
         for (int index = 0; index < UpdatingTables_.size(); ++index) {
             const auto& table = UpdatingTables_[index];
-            const auto& path = table->Path.GetPath();
+            const auto& path = table->GetPath();
             {
                 const auto& rsp = getOutAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -5025,97 +5009,101 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     }
 }
 
-void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutputTablePtr>& updatingTables)
+void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables)
 {
-    YT_LOG_INFO("Beginning upload for output tables");
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> nativeCellTagToTables;
+    for (const auto& table : tables) {
+        nativeCellTagToTables[CellTagFromId(table->ObjectId)].push_back(table);
+    }
+
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
+    for (const auto& table : tables) {
+        externalCellTagToTables[table->ExternalCellTag].push_back(table);
+    }
 
     {
-        // XXX(babenko): portals
-        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        YT_LOG_INFO("Starting upload for output tables");
 
-        {
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+            TObjectServiceProxy proxy(channel);
+
             auto batchReq = proxy.ExecuteBatch();
-            for (const auto& table : updatingTables) {
-                auto objectIdPath = FromObjectId(table->ObjectId);
-                auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+            for (const auto& table : tables) {
+                auto req = TTableYPathProxy::BeginUpload(table->GetObjectIdPath());
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
+                req->Tag() = table;
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v from operation %v",
-                    table->Path.GetPath(),
+                    table->GetPath(),
                     OperationId));
-                batchReq->AddRequest(req, "begin_upload");
+                batchReq->AddRequest(req);
             }
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                "Error starting upload transactions for output tables");
-            const auto& batchRsp = batchRspOrError.Value();
 
-            auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-            for (int index = 0; index < updatingTables.size(); ++index) {
-                const auto& table = updatingTables[index];
-                const auto& rsp = beginUploadRspsOrError[index].Value();
+            asyncResults.push_back(batchReq->Invoke());
+        }
+
+        auto checkError = [] (const auto& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error starting upload for output tables");
+        };
+
+        auto result = WaitFor(Combine(asyncResults));
+        checkError(result);
+
+        for (const auto& batchRsp : result.Value()) {
+            checkError(GetCumulativeError(batchRsp));
+            for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>()) {
+                const auto& rsp = rspOrError.Value();
+                auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
         }
     }
 
-    THashMap<TCellTag, std::vector<TOutputTablePtr>> cellTagToTables;
-    for (const auto& table : updatingTables) {
-        cellTagToTables[table->CellTag].push_back(table);
-    }
+    {
+        YT_LOG_INFO("Getting output tables upload parameters");
 
-    for (const auto& pair : cellTagToTables) {
-        auto cellTag = pair.first;
-        const auto& tables = pair.second;
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        for (const auto& [cellTag, tables] : externalCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            TObjectServiceProxy proxy(channel);
 
-        YT_LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
-
-        auto channel = OutputClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
-            cellTag);
-        TObjectServiceProxy proxy(channel);
-
-        auto batchReq = proxy.ExecuteBatch();
-        for (const auto& table : tables) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            {
-                auto req = TTableYPathProxy::GetUploadParams(objectIdPath);
-
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : tables) {
+                auto req = TTableYPathProxy::GetUploadParams(table->GetObjectIdPath());
+                SetTransactionId(req, table->UploadTransactionId);
+                req->Tag() = table;
                 if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                     req->set_fetch_last_key(true);
                 }
-
-                SetTransactionId(req, table->UploadTransactionId);
-                batchReq->AddRequest(req, "get_upload_params");
+                batchReq->AddRequest(req);
             }
+
+            asyncResults.push_back(batchReq->Invoke());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting upload parameters of output tables");
-        const auto& batchRsp = batchRspOrError.Value();
+        auto checkError = [] (const auto& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting upload parameters of output tables");
+        };
 
-        auto getUploadParamsRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGetUploadParams>("get_upload_params");
-        for (int index = 0; index < tables.size(); ++index) {
-            const auto& table = tables[index];
-            const auto& path = table->Path.GetPath();
-            {
-                const auto& rspOrError = getUploadParamsRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting upload parameters of output table %v",
-                    path);
+        auto result = WaitFor(Combine(asyncResults));
+        checkError(result);
 
+        for (const auto& batchRsp : result.Value()) {
+            checkError(GetCumulativeError(batchRsp));
+            for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGetUploadParams>()) {
                 const auto& rsp = rspOrError.Value();
+                auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-
                 if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                     table->LastKey = FromProto<TOwningKey>(rsp->last_key());
                 }
 
                 YT_LOG_INFO("Upload parameters of output table received (Path: %v, ChunkListId: %v)",
-                    path,
+                    table->GetPath(),
                     table->OutputChunkListId);
             }
         }
@@ -5127,7 +5115,6 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
     auto Logger = TLogger(this->Logger)
         .AddTag("TaskTitle: %v", userJobSpec->TaskTitle);
     for (auto& file : files) {
-        auto objectIdPath = FromObjectId(file.ObjectId);
         const auto& path = file.Path.GetPath();
 
         YT_LOG_INFO("Fetching user file (Path: %v)",
@@ -5138,8 +5125,8 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 file.ChunkSpecs = FetchChunkSpecs(
                     InputClient,
                     InputNodeDirectory_,
-                    file.CellTag,
-                    objectIdPath,
+                    file.ExternalCellTag,
+                    file.GetObjectIdPath(),
                     file.Path.GetRanges(),
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
@@ -5163,12 +5150,12 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 // TODO(max42): use FetchChunkSpecs here.
                 auto channel = InputClient->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
-                    file.CellTag);
+                    file.ExternalCellTag);
                 TObjectServiceProxy proxy(channel);
 
                 auto batchReq = proxy.ExecuteBatch();
 
-                auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
+                auto req = TChunkOwnerYPathProxy::Fetch(file.GetObjectIdPath());
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 SetTransactionId(req, *file.TransactionId);
@@ -5183,7 +5170,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 ProcessFetchResponse(
                     InputClient,
                     rsp,
-                    file.CellTag,
+                    file.ExternalCellTag,
                     nullptr,
                     Config->MaxChunksPerLocateRequest,
                     std::nullopt,
@@ -5382,9 +5369,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
     for (const auto& files : GetValues(UserJobFiles_)) {
         for (const auto& file : files) {
-            auto objectIdPath = FromObjectId(file.ObjectId);
             {
-                auto req = TYPathProxy::Get(objectIdPath + "/@");
+                auto req = TYPathProxy::Get(file.GetObjectIdPath() + "/@");
                 SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
@@ -5718,7 +5704,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
 {
     std::vector<TInputChunkPtr> result;
     for (const auto& table : InputTables_) {
-        if (!table->IsForeign() && ((table->IsDynamic && table->Schema.IsSorted()) == versioned)) {
+        if (!table->IsForeign() && ((table->Dynamic && table->Schema.IsSorted()) == versioned)) {
             for (const auto& chunk : table->Chunks) {
                 if (IsUnavailable(chunk, CheckParityReplicas())) {
                     switch (Spec_->UnavailableChunkStrategy) {
@@ -5755,7 +5741,7 @@ std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksSta
     i64 dataWeight = 0;
     i64 rowCount = 0;
     for (const auto& table : InputTables_) {
-        if (!table->IsForeign() && table->IsDynamic && table->Schema.IsSorted()) {
+        if (!table->IsForeign() && table->Dynamic && table->Schema.IsSorted()) {
             for (const auto& chunk : table->Chunks) {
                 dataWeight += chunk->GetDataWeight();
                 rowCount += chunk->GetRowCount();
@@ -5781,7 +5767,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     std::vector<TDataSliceFetcherPtr> fetchers;
 
     for (const auto& table : InputTables_) {
-        if (!table->IsForeign() && table->IsDynamic && table->Schema.IsSorted()) {
+        if (!table->IsForeign() && table->Dynamic && table->Schema.IsSorted()) {
             auto fetcher = New<TDataSliceFetcher>(
                 Config->Fetcher,
                 sliceSize,
@@ -5816,7 +5802,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     for (const auto& fetcher : fetchers) {
         for (auto& dataSlice : fetcher->GetDataSlices()) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
-                InputTables_[dataSlice->GetTableIndex()]->Path.GetPath(),
+                InputTables_[dataSlice->GetTableIndex()]->GetPath(),
                 dataSlice->LowerLimit(),
                 dataSlice->UpperLimit(),
                 dataSlice->ChunkSlices);
@@ -5853,7 +5839,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
         if (table->IsForeign()) {
             result.push_back(std::deque<TInputDataSlicePtr>());
 
-            if (table->IsDynamic && table->Schema.IsSorted()) {
+            if (table->Dynamic && table->Schema.IsSorted()) {
                 std::vector<TInputChunkSlicePtr> chunkSlices;
                 chunkSlices.reserve(table->Chunks.size());
                 for (const auto& chunkSpec : table->Chunks) {
@@ -5909,7 +5895,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
 bool TOperationControllerBase::InputHasVersionedTables() const
 {
     for (const auto& table : InputTables_) {
-        if (table->IsDynamic && table->Schema.IsSorted()) {
+        if (table->Dynamic && table->Schema.IsSorted()) {
             return true;
         }
     }
@@ -5997,7 +5983,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
         TInputDataSlicePtr dataSlice;
-        if (InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->IsDynamic) {
+        if (InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->Dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
         } else {
             YT_VERIFY(chunkSliceList.size() == 1);
@@ -6046,7 +6032,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     for (const auto& table : InputTables_) {
         if (inputTableFilter(table) && !table->Schema.IsSorted()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
-                table->Path.GetPath());
+                table->GetPath());
         }
     }
 
@@ -6060,7 +6046,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
-                    table->Path.GetPath(),
+                    table->GetPath(),
                     keyColumn);
             }
         }
@@ -6075,7 +6061,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             if (!CheckKeyColumnsCompatible(table->Schema.GetKeyColumns(), keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
-                    table->Path.GetPath(),
+                    table->GetPath(),
                     table->Schema.GetKeyColumns(),
                     keyColumns);
             }
@@ -6093,9 +6079,9 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
                     if (table->Schema.GetKeyColumns() != referenceTable->Schema.GetKeyColumns()) {
                         THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
                             "while input table %v is sorted by columns %v",
-                            table->Path.GetPath(),
+                            table->GetPath(),
                             table->Schema.GetKeyColumns(),
-                            referenceTable->Path.GetPath(),
+                            referenceTable->GetPath(),
                             referenceTable->Schema.GetKeyColumns());
                     }
                     validateColumnFilter(table, referenceTable->Schema.GetKeyColumns());
@@ -6509,10 +6495,10 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
     for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
-        if (StderrTable_ && !isWritingStderrTable && StderrTable_->CellTag == cellTag) {
+        if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
             --requiredChunkList;
         }
-        if (CoreTable_ && !isWritingCoreTable && CoreTable_->CellTag == cellTag) {
+        if (CoreTable_ && !isWritingCoreTable && CoreTable_->ExternalCellTag == cellTag) {
             --requiredChunkList;
         }
         if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
@@ -7472,9 +7458,9 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables_) {
         if (table->SchemaMode != OutputTables_[0]->TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                << TErrorAttribute("input_table1_path", table->Path.GetPath())
+                << TErrorAttribute("input_table1_path", table->GetPath())
                 << TErrorAttribute("input_table1_schema_mode", table->SchemaMode)
-                << TErrorAttribute("input_table2_path", InputTables_[0]->Path.GetPath())
+                << TErrorAttribute("input_table2_path", InputTables_[0]->GetPath())
                 << TErrorAttribute("input_table2_schema_mode", InputTables_[0]->SchemaMode);
         }
     }
@@ -7644,7 +7630,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, BannedTreeIds_);
 
     if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
-        Persist(context, InputTablesByPath_);
+        Persist(context, PathToInputTables_);
     }
 }
 

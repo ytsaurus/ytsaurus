@@ -422,11 +422,11 @@ void TTask::ScheduleJob(
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
-        joblet->StderrTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->StderrTable()->CellTag);
+        joblet->StderrTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->StderrTable()->ExternalCellTag);
     }
 
     if (TaskHost_->CoreTable() && IsCoreTableEnabled()) {
-        joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->CellTag);
+        joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->ExternalCellTag);
     }
 
     // Sync part.
