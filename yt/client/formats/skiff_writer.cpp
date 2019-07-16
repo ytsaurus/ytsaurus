@@ -454,7 +454,7 @@ private:
         writeContext.TmpBuffer = &YsonBuffer_;
 
         for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            const auto& row = rows[rowIndex];
+            auto row = rows[rowIndex];
             CurrentRow_ = &row;
             auto finallyGuard = Finally([&] {
                 CurrentRow_ = nullptr;
