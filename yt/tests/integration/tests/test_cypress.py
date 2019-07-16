@@ -1195,7 +1195,6 @@ class TestCypress(YTEnvSetup):
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
-        time.sleep(0.2)
         wait(lambda: not exists("//tmp/t"))
 
     def test_expiration_time_can_be_set_upon_construction2(self):
