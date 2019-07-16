@@ -530,12 +530,6 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
-        if (DefaultTreeId_) {
-            GetTree(*DefaultTreeId_)->BuildPoolsInformation(fluent);
-        }
-
-
         THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
@@ -561,10 +555,6 @@ public:
         fluent
             .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    // COMPAT(asaitgalin): Remove it when UI will use scheduling_info_per_pool_tree
-                    .Item("fair_share_info").BeginMap()
-                        .Do(BIND(&TFairShareTree::BuildFairShareInfo, GetTree(*DefaultTreeId_)))
-                    .EndMap()
                     .Item("default_fair_share_tree").Value(*DefaultTreeId_);
             })
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
