@@ -1841,18 +1841,6 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         minShareResources.GetUserSlots(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag_});
-
-    // Deprecated.
-    accumulator.Add(
-        "/running_operation_count",
-        element->RunningOperationCount(),
-        EMetricType::Gauge,
-        {tag, TreeIdProfilingTag_});
-    accumulator.Add(
-        "/total_operation_count",
-        element->OperationCount(),
-        EMetricType::Gauge,
-        {tag, TreeIdProfilingTag_});
 }
 
 void TFairShareTree::ProfileSchedulerElement(
