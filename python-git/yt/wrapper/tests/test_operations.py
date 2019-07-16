@@ -1526,9 +1526,9 @@ print(op.id)
         op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
-        assert are_almost_equal(
+        wait(lambda: are_almost_equal(
             yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
-            10.0)
+            10.0))
 
     @add_failed_operation_stderrs_to_error_message
     def test_skiff(self):
