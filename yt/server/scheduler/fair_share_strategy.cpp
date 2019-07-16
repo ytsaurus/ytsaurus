@@ -446,7 +446,7 @@ public:
 
         YT_VERIFY(newPools.size() == state->TreeIdToPoolNameMap().size());
 
-        //tentative trees can be removed from state, we must apply these changes to new state
+        // Tentative trees can be removed from state, we must apply these changes to new state.
         for (const auto& erasedTree : state->ErasedTrees()) {
             newPools.erase(erasedTree);
         }
