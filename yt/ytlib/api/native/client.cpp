@@ -2400,6 +2400,10 @@ private:
             &cellTag,
             {"path"});
 
+        if (!IsTableType(TypeFromId(tableId))) {
+            THROW_ERROR_EXCEPTION("Object %Qv is not a table", path);
+        }
+
         TTransactionStartOptions txOptions;
         txOptions.Multicell = cellTag != PrimaryMasterCellTag;
         txOptions.CellTag = cellTag;
