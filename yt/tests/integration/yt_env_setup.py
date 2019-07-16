@@ -54,7 +54,7 @@ def prepare_yatest_environment():
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
 
     global SANDBOX_STORAGE_ROOTDIR
-    SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.test_output_path()
+    SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 def _abort_transactions(driver=None):
     command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -577,8 +577,12 @@ class YTEnvSetup(object):
 
         cls.path_to_test = path_to_test
         # For running in parallel
-        cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
-        cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+        if arcadia_interop.yatest_common is None:
+            cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
+            cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+        else:
+            cls.run_id = None
+            cls.path_to_run = path_to_test
 
         primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
@@ -729,7 +733,9 @@ class YTEnvSetup(object):
                 # XXX(dcherednik): Delete named pipes.
                 subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
-            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
+            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+            if cls.run_id:
+                destination_path = os.path.join(destination_path, cls.run_id)
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
