@@ -22,9 +22,10 @@ public:
     int GetInputTableCount() const override;
     int GetOutputTableCount() const override;
 
+    const TVector<TTableSchema>& GetInputTableSchemas() const override;
     const TTableSchema& GetInputTableSchema(int index) const override;
-    TMaybe<TYPath> GetInputTablePath(int index) const override;
 
+    TMaybe<TYPath> GetInputTablePath(int index) const override;
     TMaybe<TYPath> GetOutputTablePath(int index) const override;
 
 private:
@@ -35,6 +36,7 @@ private:
     TTransactionId TransactionId_;
 
     mutable TVector<TTableSchema> InputSchemas_;
+    mutable TVector<bool> InputSchemasLoaded_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,13 +53,14 @@ public:
     int GetInputTableCount() const override;
     int GetOutputTableCount() const override;
 
+    const TVector<TTableSchema>& GetInputTableSchemas() const override;
     const TTableSchema& GetInputTableSchema(int index) const override;
-    TMaybe<TYPath> GetInputTablePath(int index) const override;
 
+    TMaybe<TYPath> GetInputTablePath(int index) const override;
     TMaybe<TYPath> GetOutputTablePath(int index) const override;
 
 private:
-    TSchemaInferenceResult PreviousResult_;
+    TVector<TTableSchema> InputSchemas_;
     TStructuredJobTableList Inputs_;
     TStructuredJobTableList Outputs_;
 };

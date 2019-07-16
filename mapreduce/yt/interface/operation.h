@@ -698,6 +698,7 @@ public:
     virtual int GetOutputTableCount() const = 0;
 
     virtual const TTableSchema& GetInputTableSchema(int index) const = 0;
+    virtual const TVector<TTableSchema>& GetInputTableSchemas() const = 0;
 
     // The below methods can return `Nothing()` if an input or output
     // doesn't correspond to a real table in Cypress (i.e. it's itermediate table of map_reduce).
