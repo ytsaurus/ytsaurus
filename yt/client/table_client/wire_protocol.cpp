@@ -1023,6 +1023,22 @@ auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaDa
     return schemaData;
 }
 
+template <>
+TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
+{
+    return ReadUnversionedRowset(deep);
+}
+
+template <>
+TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
+{
+    return ReadVersionedRowset(schemaData, deep);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWireProtocolRowsetReader
