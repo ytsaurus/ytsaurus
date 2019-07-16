@@ -401,7 +401,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_="//tmp/t_in",
              out="<row_count_limit=10>//tmp/t_out",
              sort_by="key",
-             spec={"partition_count": 5,
+             spec={"partition_count": 50,
                    "partition_job_count": 100,
                    "data_size_per_sort_job": 1,
                    "partition_job_io" : {"table_writer" :
