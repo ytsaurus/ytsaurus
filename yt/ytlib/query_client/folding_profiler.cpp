@@ -737,7 +737,9 @@ void TQueryProfiler::Profile(
         TCodegenFragmentInfosPtr havingFragmentsInfos;
 
         size_t havingPredicateId;
-        if (query->HavingClause) {
+        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
+
+        if (addHaving) {
             TExpressionFragments havingExprFragments;
             havingPredicateId = TExpressionProfiler::Profile(query->HavingClause, schema, &havingExprFragments);
 
@@ -749,19 +751,19 @@ void TQueryProfiler::Profile(
             size_t newFinalSlot;
             size_t totalsSlotNew;
 
-            if (groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-                if (query->HavingClause && !IsTrue(query->HavingClause)) {
-                    Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                    intermediateSlot = MakeCodegenFilterFinalizedOp(
-                        codegenSource,
-                        slotCount,
-                        intermediateSlot,
-                        havingFragmentsInfos,
-                        havingPredicateId,
-                        keyTypes.size(),
-                        codegenAggregates,
-                        stateTypes);
-                }
+            if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
+                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+
+                // Finalizes row to evaluate predicate and filters source values.
+                intermediateSlot = MakeCodegenFilterFinalizedOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot,
+                    havingFragmentsInfos,
+                    havingPredicateId,
+                    keyTypes.size(),
+                    codegenAggregates,
+                    stateTypes);
             }
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
@@ -774,7 +776,6 @@ void TQueryProfiler::Profile(
             }
 
             intermediateSlot = dummySlot;
-
             newFinalSlot = MakeCodegenFinalizeOp(
                 codegenSource,
                 slotCount,
@@ -783,16 +784,14 @@ void TQueryProfiler::Profile(
                 codegenAggregates,
                 stateTypes);
 
-            if (groupClause->TotalsMode != ETotalsMode::AfterHaving) {
-                if (query->HavingClause && !IsTrue(query->HavingClause)) {
-                    Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                    newFinalSlot = MakeCodegenFilterOp(
-                        codegenSource,
-                        slotCount,
-                        newFinalSlot,
-                        havingFragmentsInfos,
-                        havingPredicateId);
-                }
+            if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
+                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                newFinalSlot = MakeCodegenFilterOp(
+                    codegenSource,
+                    slotCount,
+                    newFinalSlot,
+                    havingFragmentsInfos,
+                    havingPredicateId);
             }
 
             if (isMerge) {
