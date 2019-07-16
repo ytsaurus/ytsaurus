@@ -124,13 +124,12 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     }
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
-    getBasicAttributesContext.CellTag = CellTagFromId(GetId());
+    getBasicAttributesContext.ExternalCellTag = CellTagFromId(GetId());
 
     GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
-    // XXX(babenko): external_cell_tag?
-    response->set_cell_tag(getBasicAttributesContext.CellTag);
+    response->set_external_cell_tag(getBasicAttributesContext.ExternalCellTag);
     if (getBasicAttributesContext.OmittedInaccessibleColumns) {
         ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
     }

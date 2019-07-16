@@ -100,7 +100,7 @@ void GetUserObjectBasicAttributes(
         const auto& rsp = rspOrError.Value();
         auto* userObject = std::any_cast<TUserObject*>(rsp->Tag());
         userObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
-        userObject->ExternalCellTag = rsp->cell_tag();
+        userObject->ExternalCellTag = rsp->external_cell_tag();
         userObject->Type = TypeFromId(userObject->ObjectId);
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());

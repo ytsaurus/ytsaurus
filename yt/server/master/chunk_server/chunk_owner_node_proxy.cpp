@@ -871,7 +871,7 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     const auto& handler = objectManager->GetHandler(Object_);
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
     if (!replicationCellTags.empty()) {
-        context->CellTag = replicationCellTags[0];
+        context->ExternalCellTag = replicationCellTags[0];
     }
 
     if (context->PopulateSecurityTags) {
