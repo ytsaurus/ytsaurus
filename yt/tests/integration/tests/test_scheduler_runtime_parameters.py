@@ -84,14 +84,14 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running", iter=10)
 
-        pools_path = "//sys/scheduler/orchid/scheduler/pools/"
-        wait(lambda: get(pools_path + "initial_pool/running_operation_count") == 1)
-        wait(lambda: get(pools_path + "changed_pool/running_operation_count") == 0)
+        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
+        wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 1)
+        wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 0)
 
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
-        wait(lambda: get(pools_path + "initial_pool/running_operation_count") == 0)
-        wait(lambda: get(pools_path + "changed_pool/running_operation_count") == 1)
+        wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 0)
+        wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 1)
 
     def test_change_pool_of_multitree_operation(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="custom")
@@ -139,7 +139,7 @@ class TestRuntimeParameters(YTEnvSetup):
         set("//sys/pools/test_pool/@max_operation_count", 0)
         set("//sys/pools/test_pool/@max_running_operation_count", 0)
 
-        orchid_pools = "//sys/scheduler/orchid/scheduler/pools"
+        orchid_pools = scheduler_orchid_default_pool_tree_path() + "/pools"
         wait(lambda: get(orchid_pools + "/test_pool/max_running_operation_count") == 0)
 
         # assert this doesn't fail
