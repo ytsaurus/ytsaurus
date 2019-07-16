@@ -136,9 +136,9 @@ void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 val
     } // Else we have a strange situation on our hands but we intentionally ignore it.
 }
 
-TString ToString(const TDataStatistics& statistics)
+void FormatValue(TStringBuilderBase* builder, const TDataStatistics& statistics, TStringBuf /*spec*/)
 {
-    return Format(
+    builder->AppendFormat(
         "{UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, RowCount: %v, "
         "ChunkCount: %v, RegularDiskSpace: %v, ErasureDiskSpace: %v, "
         "UnmergedRowCount: %v, UnmergedDataWeight: %v}",
@@ -151,6 +151,20 @@ TString ToString(const TDataStatistics& statistics)
         statistics.erasure_disk_space(),
         statistics.unmerged_row_count(),
         statistics.unmerged_data_weight());
+}
+
+void FormatValue(TStringBuilderBase* builder, const TDataStatistics* statistics, TStringBuf spec)
+{
+    if (statistics) {
+        FormatValue(builder, *statistics, spec);
+    } else {
+        FormatValue(builder, std::nullopt, spec);
+    }
+}
+
+TString ToString(const TDataStatistics& statistics)
+{
+    return ToStringViaBuilder(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

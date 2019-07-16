@@ -78,9 +78,9 @@ public:
         return EObjectType::File;
     }
 
-    virtual bool IsExternalizable() const override
+    virtual ETypeFlags GetFlags() const override
     {
-        return true;
+        return TBase::GetFlags() | ETypeFlags::Externalizable;
     }
 
 protected:

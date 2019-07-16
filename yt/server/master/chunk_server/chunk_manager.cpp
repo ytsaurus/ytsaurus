@@ -25,7 +25,7 @@
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.pb.h>
+#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -3509,8 +3509,10 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
 
 void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
+    // NB: TObjectTypeHandlerWithMapBase::DoDestroyObject will release
+    // the runtime data; postpone its call.
     Owner_->DestroyChunk(chunk);
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
@@ -3623,6 +3625,7 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
 
 void TChunkManager::TMediumTypeHandler::DoZombifyObject(TMedium* medium)
 {
+    TObjectTypeHandlerBase::DoZombifyObject(medium);
     // NB: Destroying arbitrary media is not currently supported.
     // This handler, however, is needed to destroy just-created media
     // for which attribute initialization has failed.

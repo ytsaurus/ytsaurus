@@ -3415,6 +3415,7 @@ private:
             TTransactionId uploadTransactionId;
             const auto dstIdPath = FromObjectId(dstId);
             {
+                // XXX(babenko): portals
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
@@ -3507,6 +3508,7 @@ private:
 
             // End upload.
             {
+                // XXX(babenko): portals
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);

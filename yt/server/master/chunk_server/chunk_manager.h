@@ -6,7 +6,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.pb.h>
+#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/entity_map.h>

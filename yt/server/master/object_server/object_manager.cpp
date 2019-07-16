@@ -8,12 +8,15 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/server/master/chunk_server/chunk_list.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/path_resolver.h>
 
 #include <yt/server/lib/election/election_manager.h>
 
@@ -64,7 +67,6 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NChunkServer;
 using namespace NObjectClient;
-using namespace NHydra;
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -88,30 +90,37 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating()) {
-            THROW_ERROR_EXCEPTION("Mutating requests to remote cells are not allowed");
-        }
-
-        YT_VERIFY(!HasMutationContext());
-
         return TResolveResultHere{path};
     }
 
     virtual void Invoke(const IServiceContextPtr& context) override
     {
+        auto* mutationContext = TryGetCurrentMutationContext();
+        if (mutationContext) {
+            mutationContext->SetResponseKeeperSuppressed(true);
+        }
+
+        const auto& hydraManager  = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (ypathExt.mutating() && hydraManager->GetAutomatonState() != EPeerState::Leading) {
+            return;
+        }
+
         auto requestMessage = context->GetRequestMessage();
         auto requestHeader = context->RequestHeader();
 
-        auto updatedYPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
-        SetRequestYPath(&requestHeader, updatedYPath);
+        auto originalPath  = GetRequestYPath(requestHeader);
+        auto redirectedPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
+        SetRequestYPath(&requestHeader, redirectedPath);
         auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
 
-        auto cellTag = CellTagFromId(ObjectId_);
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        //  XXX(babenko): logging
-        //  XXX(babenko): why leader?
-        auto asyncResponseMessage = objectManager->ForwardToLeader(cellTag, updatedMessage);
+        auto cellTag = CellTagFromId(ObjectId_);
+        auto asyncResponseMessage = objectManager->ForwardObjectRequest(
+            std::move(updatedMessage),
+            cellTag,
+            ypathExt.mutating() ? EPeerKind::Leader : EPeerKind::Follower,
+            context->GetTimeout());
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
@@ -149,29 +158,21 @@ public:
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (ypathExt.mutating() && !HasMutationContext()) {
             // Nested call or recovery.
-            return DoResolveHere(path);
+            return TResolveResultHere{path};
         } else {
-            // Read-only request.
             return DoResolveThere(path, context);
         }
     }
 
     virtual void Invoke(const IServiceContextPtr& context) override
     {
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (hydraManager->IsFollower()) {
-            // XXX(babenko): is this needed?
-            ForwardToLeader(context);
-            return;
-        }
-
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager
-            ->CreateExecuteMutation(user->GetName(), context)
-            ->Commit()
+        auto mutation = objectManager->CreateExecuteMutation(user->GetName(), context);
+        mutation->SetAllowLeaderForwarding(true);
+        mutation->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
                     // Reply with commit error.
@@ -197,246 +198,33 @@ private:
     TBootstrap* const Bootstrap_;
 
 
-    static TResolveResult DoResolveHere(const TYPath& path)
-    {
-        return TResolveResultHere{path};
-    }
-
     TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (context->GetService() == TMasterYPathProxy::GetDescriptor().ServiceName) {
-            return TResolveResultThere{objectManager->GetMasterProxy(), TYPath()};
-        }
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
-        auto transactionId = GetTransactionId(context);
-        auto* transaction = transactionId
-            ? transactionManager->GetTransactionOrThrow(transactionId)
-            : nullptr;
-
-        return DoFastDescent(path, transaction, context->GetMethod());
-    }
-
-    //! Resolves several path segments in a single call.
-    /*!
-     *  This avoids creating a proxy object per every node down the path.
-     *  This optimizes a highly popular case of long chains of Cypress map nodes
-     *  (though list and link nodes are also supported).
-     */
-    TResolveResult DoFastDescent(
-        const TYPath& path,
-        TTransaction* transaction,
-        const TString& method)
-    {
-        static const auto emptyYPath = TYPath("");
-        static const auto slashYPath = TYPath("/");
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            path,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto proxy = Visit(result.Payload,
+            [&] (const TPathResolver::TLocalObjectPayload& payload) -> IYPathServicePtr {
+                return objectManager->GetProxy(payload.Object, payload.Transaction);
+            },
+            [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
+                return objectManager->CreateRemoteProxy(payload.ObjectId);
+            },
+            [&] (const TPathResolver::TMissingObjectPayload& payload) -> IYPathServicePtr {
+                return TNonexistingService::Get();
+            });
 
-        NYPath::TTokenizer tokenizer(path);
-
-        auto resolvedRoot = ResolveRoot(tokenizer, method);
-        if (auto* resolveResultThere = std::get_if<TResolveResultThere>(&resolvedRoot)) {
-            return *resolveResultThere;
-        }
-
-        auto* currentObject = *std::get_if<TObjectBase*>(&resolvedRoot);
-
-        auto ampersandSkipped = false;
-        auto slashSkipped = false;
-
-        auto currentResolveResult = [&] () {
-            auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNodeBase>()->GetTrunkNode();
-            auto proxy = objectManager->GetProxy(trunkObject, transaction);
-            auto path = (ampersandSkipped ? TYPath("&") : emptyYPath) + (slashSkipped ? slashYPath : emptyYPath) + tokenizer.GetInput();
-
-            return TResolveResultThere{proxy, path};
+        return TResolveResultThere{
+            std::move(proxy),
+            std::move(result.UnresolvedPathSuffix)
         };
-
-        for (auto i = 1; ; ++i) { // 1 because we've already resolved the starting segment
-            ValidateYPathResolutionDepth(path, i);
-
-            ampersandSkipped = tokenizer.Skip(NYPath::ETokenType::Ampersand);
-            slashSkipped = tokenizer.Skip(NYPath::ETokenType::Slash);
-
-            switch (currentObject->GetType()) {
-                case EObjectType::MapNode:
-                case EObjectType::ListNode: {
-                    if (!slashSkipped) {
-                        return currentResolveResult();
-                    }
-
-                    if (tokenizer.GetType() != NYPath::ETokenType::Literal) {
-                        return currentResolveResult();
-                    }
-
-                    auto token = tokenizer.GetToken();
-
-                    if (currentObject->GetType() == EObjectType::ListNode &&
-                        IsSpecialListKey(token))
-                    {
-                        return currentResolveResult();
-                    }
-
-                    auto* child = currentObject->GetType() == EObjectType::MapNode
-                        ? FindMapNodeChild(currentObject, transaction, token)
-                        : FindListNodeChild(currentObject, token);
-
-                    if (!IsObjectAlive(child)) {
-                        return currentResolveResult();
-                    }
-
-                    currentObject = child;
-                    tokenizer.Advance();
-
-                    break;
-                }
-
-                case EObjectType::Link: {
-                    if (ampersandSkipped) {
-                        return currentResolveResult();
-                    }
-
-                    if (!slashSkipped) {
-                        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream ||
-                            (method == "Remove" || method == "Create" || method == "Copy"))
-                        {
-                            return currentResolveResult();
-                        }
-                    }
-
-                    tokenizer.Reset(
-                        currentObject->As<TLinkNode>()->GetTargetPath() +
-                        (slashSkipped ? slashYPath : emptyYPath) +
-                        tokenizer.GetInput());
-
-                    auto resolvedRoot = ResolveRoot(tokenizer, method);
-                    if (auto* resolveResultThere = std::get_if<TResolveResultThere>(&resolvedRoot)) {
-                        return *resolveResultThere;
-                    }
-
-                    currentObject = *std::get_if<TObjectBase*>(&resolvedRoot);
-                    ++i;
-
-                    break;
-                }
-
-                default:
-                    return currentResolveResult();
-            }
-        }
     }
-
-    using TResolveRootResult = std::variant<TObjectBase*, TResolveResultThere>;
-
-    //! Resolves a path's first segment.
-    /*!
-     *  If it designates a foreign object, or the resolved object is not alive,
-     *  an immediate "resolve there" result is returned. Otherwise, the resolved
-     *  root object is returned.
-     *
-     *  NB: May throw.
-     */
-    TResolveRootResult ResolveRoot(NYPath::TTokenizer& tokenizer, const TString& method)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        switch (tokenizer.Advance()) {
-            case NYPath::ETokenType::EndOfStream:
-                THROW_ERROR_EXCEPTION("YPath cannot be empty");
-
-            case NYPath::ETokenType::Slash: {
-                const auto& cypressManager = Bootstrap_->GetCypressManager();
-                tokenizer.Advance();
-                return static_cast<TObjectBase*>(cypressManager->GetRootNode());
-            }
-
-            case NYPath::ETokenType::Literal: {
-                const auto& token = tokenizer.GetToken();
-                if (!token.StartsWith(ObjectIdPathPrefix)) {
-                    tokenizer.ThrowUnexpected();
-                }
-
-                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
-                TObjectId objectId;
-                if (!TObjectId::FromString(objectIdString, &objectId)) {
-                    THROW_ERROR_EXCEPTION("Error parsing object id %v",
-                        objectIdString);
-                }
-
-                tokenizer.Advance();
-
-                bool foreign =
-                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
-                    Bootstrap_->IsPrimaryMaster();
-
-                bool suppressRedirect = false;
-                if (foreign && tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
-                    suppressRedirect = true;
-                    tokenizer.Advance();
-                }
-
-                IYPathServicePtr proxy;
-                if (foreign && !suppressRedirect) {
-                    return TResolveResultThere{objectManager->CreateRemoteProxy(objectId), TYPath(tokenizer.GetInput())};
-                }
-
-                auto* root = (method == "Exists")
-                    ? objectManager->FindObject(objectId)
-                    : objectManager->GetObjectOrThrow(objectId);
-
-                if (!IsObjectAlive(root)) {
-                    return TResolveResultThere{TNonexistingService::Get(), TYPath(tokenizer.GetInput())};
-                }
-
-                return root;
-            }
-
-            default:
-                tokenizer.ThrowUnexpected();
-                YT_ABORT();
-        }
-    }
-
-    TObjectBase* FindMapNodeChild(TObjectBase* map, TTransaction* transaction, TStringBuf key)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return NCypressServer::FindMapNodeChild(cypressManager, map->As<TMapNode>()->GetTrunkNode(), transaction, key);
-    }
-
-    TObjectBase* FindListNodeChild(TObjectBase* list, TStringBuf key)
-    {
-        auto& indexToChild = list->As<TListNode>()->IndexToChild();
-        auto indexStr = ExtractListIndex(key);
-        int index = ParseListIndex(indexStr);
-        auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
-        if (!adjustedIndex) {
-            return nullptr;
-        }
-        return indexToChild[*adjustedIndex];
-
-    }
-
-    static bool IsSpecialListKey(TStringBuf key)
-    {
-        return
-            key == ListBeginToken ||
-            key == ListEndToken ||
-            key.StartsWith(ListBeforeToken) ||
-            key.StartsWith(ListAfterToken);
-    }
-
-    void ForwardToLeader(const IServiceContextPtr& context)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto asyncResponseMessage = objectManager->ForwardToLeader(
-            Bootstrap_->GetCellTag(),
-            context->GetRequestMessage());
-        context->ReplyFrom(std::move(asyncResponseMessage));
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -660,6 +448,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 
         GarbageCollector_->RegisterZombie(object);
 
+        // XXX(babenko): move to ZombifyObject
         if (Bootstrap_->IsPrimaryMaster()) {
             auto flags = handler->GetFlags();
             if (Any(flags & ETypeFlags::ReplicateDestroy)) {
@@ -750,7 +539,7 @@ void TObjectManager::Clear()
     MasterObject_.reset(new TMasterObject(MasterObjectId_));
     MasterObject_->RefObject();
 
-    MasterProxy_ = GetProxy(MasterObject_.get());
+    MasterProxy_ = GetHandler(EObjectType::Master)->GetProxy(MasterObject_.get(), nullptr);
 
     SchemaMap_.Clear();
 
@@ -869,7 +658,13 @@ IObjectProxyPtr TObjectManager::GetProxy(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsObjectAlive(object));
 
-    const auto& id = object->GetId();
+    // Fast path.
+    if (object == MasterObject_.get()) {
+        return MasterProxy_;
+    }
+
+    // Slow path.
+    auto id = object->GetId();
     const auto& handler = FindHandler(TypeFromId(id));
     if (!handler) {
         return nullptr;
@@ -1198,9 +993,10 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
     }
 }
 
-TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
-    TCellTag cellTag,
+TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     TSharedRefArray requestMessage,
+    TCellTag cellTag,
+    EPeerKind peerKind,
     std::optional<TDuration> timeout)
 {
     NRpc::NProto::TRequestHeader header;
@@ -1209,21 +1005,11 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
-    YT_LOG_DEBUG("Forwarding request to leader (RequestId: %v, Invocation: %v:%v %v, CellTag: %v, Timeout: %v)",
-        requestId,
-        header.service(),
-        header.method(),
-        ypathExt.path(),
-        cellTag,
-        timeout);
-
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->GetMasterChannelOrThrow(
-        cellTag,
-        EPeerKind::Leader);
+    auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
 
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatch();
@@ -1234,10 +1020,21 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     bool needsSettingRetry = !header.retry() && FromProto<TMutationId>(header.mutation_id());
     batchReq->AddRequestMessage(requestMessage, needsSettingRetry);
 
+    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, Mutating: %v, "
+        "CellTag: %v, PeerKind: %v)",
+        requestId,
+        batchReq->GetRequestId(),
+        header.service(),
+        header.method(),
+        ypathExt.path(),
+        ypathExt.mutating(),
+        cellTag,
+        peerKind);
+
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
 
-        YT_LOG_DEBUG("Request forwarding succeeded (RequestId: %v)",
+        YT_LOG_DEBUG("Redirected forwarding succeeded (RequestId: %v)",
             requestId);
 
         const auto& batchRsp = batchRspOrError.Value();
@@ -1292,8 +1089,8 @@ TString TObjectManager::MakeCodicilData(const TString& userName)
 void TObjectManager::HydraExecuteLeader(
     const TString& userName,
     const TString& codicilData,
-    const IServiceContextPtr& context,
-    TMutationContext*)
+    const IServiceContextPtr& rpcContext,
+    TMutationContext* mutationContext)
 {
     TWallTimer timer;
 
@@ -1305,21 +1102,26 @@ void TObjectManager::HydraExecuteLeader(
     try {
         user = securityManager->GetUserByNameOrThrow(userName);
         TAuthenticatedUserGuard userGuard(securityManager, user);
-        ExecuteVerb(RootService_, context);
+        ExecuteVerb(RootService_, rpcContext);
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        rpcContext->Reply(ex);
     }
 
     if (!IsRecovery() && IsObjectAlive(user)) {
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, timer.GetElapsedTime()});
     }
 
-    auto mutationId = context->GetMutationId();
+    auto mutationId = rpcContext->GetMutationId();
     if (mutationId) {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        // NB: Context must already be replied by now.
-        responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
+        if (mutationContext->GetResponseKeeperSuppressed()) {
+            // XXX(babenko)
+            responseKeeper->CancelRequest(mutationId, TError("Request is not retriable"));
+        } else {
+            // NB: Context must already be replied by now.
+            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
+        }
     }
 }
 
@@ -1344,7 +1146,7 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
     const auto& userName = request->user_name();
     auto codicilData = MakeCodicilData(userName);
 
-    HydraExecuteLeader(userName, codicilData, context, nullptr);
+    HydraExecuteLeader(userName, codicilData, context, GetCurrentMutationContext());
 }
 
 void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)

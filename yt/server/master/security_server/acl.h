@@ -77,6 +77,7 @@ public:
 
     void AddEntry(const TAccessControlEntry& ace);
     void ClearEntries();
+    void SetEntries(const TAccessControlList& acl);
 
     void OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner);
 

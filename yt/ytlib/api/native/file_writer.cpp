@@ -120,7 +120,8 @@ private:
 
     IFileMultiChunkWriterPtr Writer_;
 
-    TCellTag CellTag_ = InvalidCellTag;
+    TCellTag NativeCellTag_ = InvalidCellTag;
+    TCellTag ExternalCellTag_ = InvalidCellTag;
     TObjectId ObjectId_;
 
     const NLogging::TLogger Logger;
@@ -155,8 +156,9 @@ private:
             Logger,
             EPermission::Write);
 
-        CellTag_ = userObject.CellTag;
         ObjectId_ = userObject.ObjectId;
+        NativeCellTag_ = CellTagFromId(ObjectId_);
+        ExternalCellTag_ = userObject.CellTag;
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -170,7 +172,7 @@ private:
         {
             YT_LOG_INFO("Requesting extended file attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, NativeCellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
@@ -208,7 +210,7 @@ private:
         {
             YT_LOG_INFO("Starting file upload");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -263,7 +265,7 @@ private:
         {
             YT_LOG_INFO("Requesting file upload parameters");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, ExternalCellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetUploadParams(objectIdPath);
@@ -300,7 +302,7 @@ private:
             Config_,
             writerOptions,
             Client_,
-            CellTag_,
+            ExternalCellTag_,
             UploadTransaction_->GetId(),
             chunkListId);
 
@@ -320,9 +322,8 @@ private:
 
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
         TObjectServiceProxy proxy(channel);
-
 
         auto batchReq = proxy.ExecuteBatch();
 
@@ -368,7 +369,6 @@ private:
 
         YT_LOG_INFO("File closed");
     }
-
 };
 
 IFileWriterPtr CreateFileWriter(

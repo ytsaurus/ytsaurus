@@ -6,6 +6,8 @@
 
 #include <yt/server/master/security_server/cluster_resources.h>
 
+#include <yt/server/master/object_server/public.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -18,6 +20,9 @@ namespace NYT::NCypressServer {
 struct INodeTypeHandler
     : public virtual TRefCounted
 {
+    //! Returns the type-specific flags; see IObjectTypeHandler::GetFlags.
+    virtual NObjectServer::ETypeFlags GetFlags() const =  0;
+
     //! Constructs a proxy.
     virtual ICypressNodeProxyPtr GetProxy(
         TCypressNodeBase* trunkNode,
@@ -38,6 +43,7 @@ struct INodeTypeHandler
     //! Creates a new trunk node.
     /*!
      *  This is called during |Create| verb.
+     *  The node is not yet linked into Cypress.
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
         TNodeId hintId,
@@ -101,9 +107,6 @@ struct INodeTypeHandler
         TNodeId hintId,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) = 0;
-
-    //! Returns |true| if nodes of this type can be stored at external cells.
-    virtual bool IsExternalizable() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)

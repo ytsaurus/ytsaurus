@@ -129,6 +129,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
+    // XXX(babenko): external_cell_tag?
     response->set_cell_tag(getBasicAttributesContext.CellTag);
     if (getBasicAttributesContext.OmittedInaccessibleColumns) {
         ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
@@ -543,6 +544,14 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+            if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
+                THROW_ERROR_EXCEPTION("Cannot change %Qlv attribute for objects of type %Qlv",
+                    GetUninternedAttributeKey(EInternedAttributeKey::InheritAcl),
+                    Object_->GetType());
+            }
+
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
         }
@@ -552,11 +561,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             TAccessControlList newAcl;
             Deserialize(newAcl, ConvertToNode(value), securityManager);
-
-            acd->ClearEntries();
-            for (const auto& ace : newAcl.Entries) {
-                acd->AddEntry(ace);
-            }
+            acd->SetEntries(newAcl);
 
             return true;
         }

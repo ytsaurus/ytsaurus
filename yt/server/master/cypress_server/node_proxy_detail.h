@@ -100,10 +100,7 @@ protected:
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
-    virtual void RemoveSelf(
-        TReqRemove* request,
-        TRspRemove* response,
-        const TCtxRemovePtr& context) override;
+    virtual void DoRemoveSelf() override;
 
     // Suppress access handling in the cases below.
     virtual void GetAttribute(

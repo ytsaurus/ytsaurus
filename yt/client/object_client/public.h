@@ -144,6 +144,12 @@ DEFINE_ENUM(EObjectType,
     ((Document)                   (421))
     ((ReplicatedTable)            (425))
 
+    // Portals
+    ((PortalEntrance)            (11000))
+    ((PortalExit)                (11001))
+    ((PortalEntranceMap)         (11002))
+    ((PortalExitMap)             (11003))
+
     // Security Manager stuff
     ((Account)                    (500))
     ((AccountMap)                 (414))
@@ -182,7 +188,6 @@ DEFINE_ENUM(EObjectType,
     ((DataCenter)                 (805))
     ((DataCenterMap)              (806))
 
-
     // Job Tracker stuff
     ((SchedulerJob)               (900))
     ((MasterJob)                  (901))
@@ -192,7 +197,7 @@ DEFINE_ENUM(EObjectType,
 );
 
 //! A bit mask marking schema types.
-const int SchemaObjectTypeMask = 0x8000;
+const ui32 SchemaObjectTypeMask = 0x8000;
 
 // The range of erasure chunk part types.
 const EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;

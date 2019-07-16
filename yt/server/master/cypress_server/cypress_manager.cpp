@@ -6,6 +6,9 @@
 #include "lock_proxy.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "portal_manager.h"
+#include "portal_entrance_node.h"
+#include "portal_exit_node.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -34,6 +37,8 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <yt/core/ypath/token.h>
+
 // COMPAT(shakurov)
 #include <yt/server/master/table_server/table_node.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
@@ -53,6 +58,7 @@ using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +100,14 @@ public:
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
             }
+        }
+
+        const auto& portalManager = Bootstrap_->GetPortalManager();
+        for (const auto& entrance : CreatedPortalEntrances_) {
+            portalManager->RegisterEntranceNode(
+                entrance.Node,
+                *entrance.InheritedAttributes,
+                *entrance.ExplicitAttributes);
         }
 
         ReleaseCreatedNodes();
@@ -202,37 +216,40 @@ public:
         securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        bool isExternalDefault =
+        bool defaultExternal =
+            // XXX(babenko): or request through a portal
             Bootstrap_->IsPrimaryMaster() &&
             !multicellManager->GetRegisteredMasterCellTags().empty() &&
-            handler->IsExternalizable();
-        bool isExternal = explicitAttributes->GetAndRemove<bool>("external", isExternalDefault);
+            Any(handler->GetFlags() & ETypeFlags::Externalizable);
+        bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
         double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", 1.0);
         if (externalCellBias < 0.0 || externalCellBias > 1.0) {
             THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
         }
 
-        auto cellTag = NotReplicatedCellTag;
-        if (isExternal) {
-            if (!Bootstrap_->IsPrimaryMaster()) {
-                THROW_ERROR_EXCEPTION("External nodes are only created at primary masters");
-            }
+        auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
 
-            if (!handler->IsExternalizable()) {
+        if (external && optionalExternalCellTag &&  *optionalExternalCellTag == Bootstrap_->GetCellTag()) {
+            external = false;
+            optionalExternalCellTag = std::nullopt;
+        }
+
+        auto externalCellTag = NotReplicatedCellTag;
+        if (external) {
+            if (None(handler->GetFlags() & ETypeFlags::Externalizable)) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
                     handler->GetObjectType());
             }
 
-            auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
             if (optionalExternalCellTag) {
-                cellTag = *optionalExternalCellTag;
-                if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
+                externalCellTag = *optionalExternalCellTag;
+                if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
+                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
                 }
             } else {
-                cellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
-                if (cellTag == InvalidCellTag) {
+                externalCellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
+                if (externalCellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
             }
@@ -241,14 +258,14 @@ public:
         // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.
         std::unique_ptr<IAttributeDictionary> replicationExplicitAttributes;
         std::unique_ptr<IAttributeDictionary> replicationInheritedAttributes;
-        if (isExternal) {
+        if (external) {
             replicationExplicitAttributes = explicitAttributes->Clone();
             replicationInheritedAttributes = inheritedAttributes->Clone();
         }
 
         auto* trunkNode = cypressManager->CreateNode(
             NullObjectId,
-            cellTag,
+            externalCellTag,
             handler,
             account,
             Transaction_,
@@ -266,7 +283,8 @@ public:
             false,
             true);
 
-        if (isExternal) {
+        // XXX(babenko): post on commit
+        if (external) {
             NProto::TReqCreateForeignNode replicationRequest;
             ToProto(replicationRequest.mutable_node_id(), trunkNode->GetId());
             if (Transaction_) {
@@ -276,7 +294,15 @@ public:
             ToProto(replicationRequest.mutable_explicit_node_attributes(), *replicationExplicitAttributes);
             ToProto(replicationRequest.mutable_inherited_node_attributes(), *replicationInheritedAttributes);
             ToProto(replicationRequest.mutable_account_id(), account->GetId());
-            multicellManager->PostToMaster(replicationRequest, cellTag);
+            multicellManager->PostToMaster(replicationRequest, externalCellTag);
+        }
+
+        if (type == EObjectType::PortalEntrance)  {
+            CreatedPortalEntrances_.push_back({
+                trunkNode->As<TPortalEntranceNode>(),
+                inheritedAttributes->Clone(),
+                explicitAttributes->Clone()
+            });
         }
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
@@ -327,6 +353,7 @@ public:
         // NB: No need to call RegisterCreatedNode since
         // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
         // which calls RegisterCreatedNode.
+        // XXX(babenko): post on commit
         if (sourceNode->IsExternal()) {
             NProto::TReqCloneForeignNode protoRequest;
             ToProto(protoRequest.mutable_source_node_id(), sourceNode->GetId());
@@ -354,6 +381,14 @@ private:
     const TNodeFactoryOptions Options_;
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
+
+    struct TCreatedPortalEntrance
+    {
+        TPortalEntranceNode* Node;
+        std::unique_ptr<IAttributeDictionary> InheritedAttributes;
+        std::unique_ptr<IAttributeDictionary> ExplicitAttributes;
+    };
+    std::vector<TCreatedPortalEntrance> CreatedPortalEntrances_;
 
 
     void ValidateCreatedNodeTypePermission(EObjectType type)
@@ -395,10 +430,7 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::Creatable;
+        return UnderlyingHandler_->GetFlags();
     }
 
     virtual EObjectType GetType() const override
@@ -418,8 +450,6 @@ public:
     {
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }
-
-    virtual void DestroyObject(TObjectBase* object) noexcept;
 
 private:
     TImpl* const Owner_;
@@ -451,6 +481,9 @@ private:
     {
         return node->GetParent();
     }
+
+    virtual void DoDestroyObject(TCypressNodeBase* node) noexcept;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -703,7 +736,7 @@ public:
         };
 
         using TToken = std::variant<TStringBuf, int>;
-        SmallVector<TToken, 32> tokens;
+        SmallVector<TToken, 64> tokens;
 
         auto* currentNode = GetVersionedNode(trunkNode, transaction);
         while (true) {
@@ -736,21 +769,26 @@ public:
             currentNode = currentParentNode;
         }
 
-        if (currentNode->GetTrunkNode() != RootNode_) {
+        TStringBuilder builder;
+
+        if (currentNode->GetTrunkNode() == RootNode_) {
+            builder.AppendChar('/');
+        } else if (currentNode->GetType() == EObjectType::PortalExit) {
+            const auto* portalExit = currentNode->GetTrunkNode()->As<TPortalExitNode>();
+            builder.AppendString(portalExit->GetPath());
+        } else {
             return fallbackToId();
         }
 
-        TStringBuilder builder;
-        builder.AppendChar('/');
         for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
             auto token = *it;
             builder.AppendChar('/');
             Visit(token,
-                [&] (const TStringBuf& stringBuf) {
-                    builder.AppendString(stringBuf);
+                [&] (TStringBuf value) {
+                    AppendYPathLiteral(&builder, value);
                 },
-                [&] (int integer) {
-                    builder.AppendFormat("%v", integer);
+                [&] (int value) {
+                    AppendYPathLiteral(&builder, value);
                 });
         }
 
@@ -1703,7 +1741,7 @@ private:
         node->SetContentRevision(mutationContext->GetVersion().ToRevision());
 
         if (node->IsExternal()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %vExternalCellTag: %v)",
                 node->GetId(),
                 node->GetType(),
                 node->GetExternalCellTag());
@@ -1846,6 +1884,13 @@ private:
     {
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(transaction || request.Mode != ELockMode::Snapshot);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& handler = objectManager->GetHandler(trunkNode);
+        if (Any(handler->GetFlags() & ETypeFlags::ForbidLocking)) {
+            THROW_ERROR_EXCEPTION("Cannot lock objects of type %Qlv",
+                trunkNode->GetType());
+        }
 
         const auto& lockingState = trunkNode->LockingState();
         const auto& transactionToSnapshotLocks = lockingState.TransactionToSnapshotLocks;
@@ -2700,26 +2745,14 @@ private:
             : nullptr;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = accountId
-            ? securityManager->GetAccount(accountId)
-            : nullptr;
+        auto* account = securityManager->GetAccount(accountId);
 
-        auto explicitAttributes = request->has_explicit_node_attributes()
-            ? FromProto(request->explicit_node_attributes())
-            : CreateEphemeralAttributes();
-        auto inheritedAttributes = request->has_inherited_node_attributes()
-            ? FromProto(request->inherited_node_attributes())
-            : CreateEphemeralAttributes();
+        auto explicitAttributes = FromProto(request->explicit_node_attributes());
+        auto inheritedAttributes = FromProto(request->inherited_node_attributes());
 
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
-            versionedNodeId,
-            type,
-            account ? std::make_optional(account->GetName()) : std::nullopt);
-
         const auto& handler = GetHandler(type);
-
         auto* trunkNode = CreateNode(
             nodeId,
             NotReplicatedCellTag,
@@ -2768,11 +2801,6 @@ private:
             account,
             TNodeFactoryOptions());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
-            TVersionedNodeId(sourceNodeId, sourceTransactionId),
-            TVersionedNodeId(clonedNodeId, clonedTransactionId),
-            account->GetName());
-
         auto* clonedTrunkNode = DoCloneNode(
             sourceNode,
             factory.get(),
@@ -2785,6 +2813,11 @@ private:
         LockNode(clonedTrunkNode, clonedTransaction, ELockMode::Exclusive);
 
         factory->Commit();
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Foreign node cloned (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
+            TVersionedNodeId(sourceNodeId, sourceTransactionId),
+            TVersionedNodeId(clonedNodeId, clonedTransactionId),
+            account->GetName());
     }
 
     void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) noexcept
@@ -2943,9 +2976,9 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
     , UnderlyingHandler_(underlyingHandler)
 { }
 
-void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) noexcept
+void TCypressManager::TNodeTypeHandler::DoDestroyObject(TCypressNodeBase* node) noexcept
 {
-    Owner_->DestroyNode(object->As<TCypressNodeBase>());
+    Owner_->DestroyNode(node);
 }
 
 TString TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNodeBase* node)
@@ -2964,9 +2997,6 @@ TCypressManager::TLockTypeHandler::TLockTypeHandler(TImpl* owner)
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TCypressManager::~TCypressManager()
 { }
 
 void TCypressManager::Initialize()

@@ -93,7 +93,7 @@ class TTabletCellNodeTypeHandler
 {
 public:
     explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
+        : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() const override

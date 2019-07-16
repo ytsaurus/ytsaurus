@@ -17,7 +17,7 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/world_initializer.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/multicell_manager.pb.h>
+#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 

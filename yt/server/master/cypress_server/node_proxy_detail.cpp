@@ -875,20 +875,22 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     }));
 }
 
-void TNontemplateCypressNodeProxyBase::RemoveSelf(
-    TReqRemove* request,
-    TRspRemove* response,
-    const TCtxRemovePtr& context)
+void TNontemplateCypressNodeProxyBase::DoRemoveSelf()
 {
     auto* node = GetThisImpl();
-    if (node->IsForeign()) {
+    if (node->GetType() == EObjectType::PortalExit) {
+        // XXX(babenko)
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Removing portal in transaction is not supported");
+        }
         YT_VERIFY(node->IsTrunk());
-        YT_VERIFY(node->LockingState().AcquiredLocks.empty());
+
+        LockImpl(node, ELockMode::Exclusive, true);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        YT_VERIFY(objectManager->GetObjectRefCounter(node) == 1);
         objectManager->UnrefObject(node);
     } else {
-        TNodeBase::RemoveSelf(request, response, context);
+        TNodeBase::DoRemoveSelf();
     }
 }
 
@@ -1029,7 +1031,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
         ValidatePermission(node, permission);
     }
 
-    if (Any(scope & EPermissionCheckScope::Parent)) {
+    if (Any(scope & EPermissionCheckScope::Parent) && node->GetParent()) {
         ValidatePermission(node->GetParent(), permission);
     }
 

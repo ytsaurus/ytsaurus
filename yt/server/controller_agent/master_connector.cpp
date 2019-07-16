@@ -858,6 +858,7 @@ private:
 
         // BeginUpload
         {
+            // XXX(babenko): portals
             auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
@@ -961,6 +962,7 @@ private:
 
         // EndUpload
         {
+            // XXX(babenko): portals
             auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {

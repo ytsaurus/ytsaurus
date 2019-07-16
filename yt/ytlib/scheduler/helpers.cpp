@@ -376,6 +376,7 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
         std::vector<TJobFileInfo> infos;
 
         {
+            // XXX(babenko): portals
             TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
             auto batchReq =  proxy.ExecuteBatch();
 
@@ -490,6 +491,7 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
         }
 
         {
+            // XXX(babenko): portals
             TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
             auto batchReq =  proxy.ExecuteBatch();
 

@@ -29,6 +29,8 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
 
 void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 value);
 
+void FormatValue(TStringBuilderBase* builder, const TDataStatistics& statistics, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TDataStatistics* statistics, TStringBuf spec);
 TString ToString(const TDataStatistics& statistics);
 
 } // namespace NProto

@@ -8,7 +8,7 @@
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/transaction_server/timestamp_manager.pb.h>
+#include <yt/server/master/transaction_server/proto/timestamp_manager.pb.h>
 
 #include <yt/client/transaction_client/timestamp_service_proxy.h>
 

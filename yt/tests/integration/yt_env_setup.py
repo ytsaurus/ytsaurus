@@ -639,6 +639,11 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
+        # XXX(babenko)
+        if yt_commands.is_multicell:
+            yt_commands.remove("//sys/operations")
+            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
+
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))

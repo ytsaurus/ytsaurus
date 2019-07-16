@@ -15,6 +15,19 @@ class TReqRemoveForeignObject;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_BIT_ENUM(ETypeFlags,
+    ((None)                   (0x0000))
+    ((ReplicateCreate)        (0x0001)) // replicate object creation
+    ((ReplicateDestroy)       (0x0002)) // replicate object destruction
+    ((ReplicateAttributes)    (0x0004)) // replicate object attribute changes
+    ((Creatable)              (0x0008)) // objects of this type can be created at runtime
+    ((Externalizable)         (0x0010)) // objects of this (versioned) type can be externalized to another cell (e.g. tables, files)
+    ((ForbidInheritAclChange) (0x0020)) // inherit_acl attribute cannot be changed
+    ((ForbidLocking)          (0x0040)) // no locks can be taken objects of this (versioned) type
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
@@ -28,9 +41,6 @@ class TNonversionedObjectBase;
 class TObjectProxyBase;
 
 class TAttributeSet;
-
-class TObjectBase;
-class TNonversionedObjectBase;
 
 struct TObjectTypeMetadata;
 

@@ -9,7 +9,7 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/object_server/object_manager.pb.h>
+#include <yt/server/master/object_server/proto/object_manager.pb.h>
 
 #include <yt/client/object_client/helpers.h>
 

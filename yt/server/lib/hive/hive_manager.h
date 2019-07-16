@@ -23,10 +23,6 @@ bool IsHiveMutation();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// WinAPI is still with us :)
-#undef PostMessage
-#undef SendMessage
-
 class THiveManager
     : public TRefCounted
 {

@@ -5,7 +5,7 @@
 #include <yt/server/master/cell_master/public.h>
 
 #include <yt/server/master/chunk_server/public.h>
-#include <yt/server/master/chunk_server/chunk_manager.pb.h>
+#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/server/master/security_server/public.h>
 #include <yt/server/master/security_server/account.h>

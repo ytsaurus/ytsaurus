@@ -52,6 +52,16 @@ TMutationResponse& TMutationContext::Response()
     return Response_;
 }
 
+void TMutationContext::SetResponseKeeperSuppressed(bool value)
+{
+    ResponseKeeperSuppressed_ = value;
+}
+
+bool TMutationContext::GetResponseKeeperSuppressed()
+{
+    return ResponseKeeperSuppressed_;
+}
+
 static NConcurrency::TFls<TMutationContext*> CurrentMutationContext;
 
 TMutationContext* TryGetCurrentMutationContext()

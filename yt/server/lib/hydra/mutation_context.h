@@ -69,7 +69,11 @@ public:
     TInstant GetTimestamp() const;
     TRandomGenerator& RandomGenerator();
 
+    // XXX(babenko): replace with SetResponseData
     TMutationResponse& Response();
+
+    void SetResponseKeeperSuppressed(bool value);
+    bool GetResponseKeeperSuppressed();
 
 private:
     TMutationContext* const Parent_;
@@ -79,6 +83,7 @@ private:
 
     TMutationResponse Response_;
     TRandomGenerator RandomGenerator_;
+    bool ResponseKeeperSuppressed_ = false;
 };
 
 TMutationContext* TryGetCurrentMutationContext();

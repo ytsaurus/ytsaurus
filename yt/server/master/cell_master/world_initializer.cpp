@@ -489,6 +489,16 @@ private:
                 transactionId,
                 EObjectType::TabletActionMap);
 
+            ScheduleCreateNode(
+                "//sys/portal_entrances",
+                transactionId,
+                EObjectType::PortalEntranceMap);
+
+            ScheduleCreateNode(
+                "//sys/portal_exits",
+                transactionId,
+                EObjectType::PortalExitMap);
+
             FlushScheduled();
 
             // Level 3

@@ -68,7 +68,7 @@ void GetUserObjectBasicAttributes(
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Getting basic attributes of user objects");
+    YT_LOG_DEBUG("Getting basic attributes of user objects");
 
     auto channel = client->GetMasterChannelOrThrow(options.ChannelKind);
     TObjectServiceProxy proxy(channel);
@@ -102,9 +102,9 @@ void GetUserObjectBasicAttributes(
         const auto& rspOrError = rspsOrError[index];
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
             userObject->Path.GetPath());
-        
+
         const auto& rsp = rspOrError.Value();
-        userObject->ObjectId = NYT::FromProto<TObjectId>(rsp->object_id());
+        userObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
         userObject->CellTag = rsp->cell_tag();
         userObject->Type = TypeFromId(userObject->ObjectId);
         if (rsp->has_omitted_inaccessible_columns()) {
@@ -114,6 +114,13 @@ void GetUserObjectBasicAttributes(
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
     }
+
+    YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
+        MakeFormattableView(objects, [] (auto* builder, const auto* object) {
+            builder->AppendFormat("{Id: %v, ExternalCellTag: %v}",
+                object->ObjectId,
+                object->CellTag);
+        }));
 }
 
 TSessionId CreateChunk(
@@ -247,7 +254,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 
             auto req = TChunkOwnerYPathProxy::Fetch(path);
             initializeFetchRequest(req.Get());
-            NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req, "fetch");
             rangeIndices.push_back(rangeIndex);
         }
@@ -433,8 +440,8 @@ IChunkReaderPtr CreateRemoteReader(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
-    auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
+    auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
     auto Logger = TLogger(ChunkClientLogger).AddTag("ChunkId: %v", chunkId);
 

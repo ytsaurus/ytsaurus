@@ -1863,6 +1863,7 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tableList)
 {
+    // XXX(babenko): portals
     auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
@@ -5029,6 +5030,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     YT_LOG_INFO("Beginning upload for output tables");
 
     {
+        // XXX(babenko): portals
         auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 

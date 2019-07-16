@@ -74,15 +74,15 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
-    {
-        YT_ABORT();
-    }
-
 private:
     typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
 
     const EObjectType Type_;
+
+    virtual void DoDestroyObject(TSchemaObject* /*object*/) noexcept override
+    {
+        YT_ABORT();
+    }
 
     virtual TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
     {

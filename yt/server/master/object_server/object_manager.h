@@ -11,7 +11,7 @@
 #include <yt/server/lib/hydra/entity_map.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/object_server/object_manager.pb.h>
+#include <yt/server/master/object_server/proto/object_manager.pb.h>
 
 #include <yt/server/master/security_server/public.h>
 
@@ -25,9 +25,6 @@
 #include <yt/core/profiling/profiler.h>
 
 namespace NYT::NObjectServer {
-
-// WinAPI is great.
-#undef GetObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,11 +184,12 @@ public:
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
-    //! Forwards a request to the leader of a given cell.
-    TFuture<TSharedRefArray> ForwardToLeader(
-        TCellTag cellTag,
+    //! Forwards an object request to a given cell.
+    TFuture<TSharedRefArray> ForwardObjectRequest(
         TSharedRefArray requestMessage,
-        std::optional<TDuration> timeout = std::nullopt);
+        TCellTag cellTag,
+        NHydra::EPeerKind peerKind,
+        std::optional<TDuration> timeout);
 
     //! Posts a creation request to the secondary master.
     void ReplicateObjectCreationToSecondaryMaster(
@@ -280,7 +278,7 @@ private:
     void HydraExecuteLeader(
         const TString& userName,
         const TString& codicilData,
-        const NRpc::IServiceContextPtr& context,
+        const NRpc::IServiceContextPtr& rpcContext,
         NHydra::TMutationContext*);
     void HydraExecuteFollower(NProto::TReqExecute* request);
     void HydraDestroyObjects(NProto::TReqDestroyObjects* request);
