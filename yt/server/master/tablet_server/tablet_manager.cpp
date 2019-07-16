@@ -1014,8 +1014,8 @@ public:
 
                 i64 size = chunk->MiscExt().uncompressed_data_size();
                 entries.push_back({
-                    GetMinKey(chunkOrView),
-                    GetUpperBoundKey(chunkOrView),
+                    GetMinKeyOrThrow(chunkOrView),
+                    GetUpperBoundKeyOrThrow(chunkOrView),
                     size});
                 totalSize += size;
             }

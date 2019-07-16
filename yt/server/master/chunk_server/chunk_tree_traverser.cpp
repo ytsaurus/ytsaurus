@@ -287,14 +287,14 @@ protected:
         // Key
         {
             if (entry->UpperBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKey(child));
+                childLowerBound.SetKey(GetMinKeyOrThrow(child));
                 if (entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
                     PopStack();
                     return;
                 }
-                childUpperBound.SetKey(GetUpperBoundKey(child));
+                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child));
             } else if (entry->LowerBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKey(child));
+                childLowerBound.SetKey(GetMinKeyOrThrow(child));
             }
         }
 
@@ -442,8 +442,8 @@ protected:
         // Key
         {
             if (entry->UpperBound.HasKey() || entry->LowerBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKey(child));
-                childUpperBound.SetKey(GetUpperBoundKey(child));
+                childLowerBound.SetKey(GetMinKeyOrThrow(child));
+                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child));
 
                 if (entry->UpperBound.HasKey() && entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
                     return;
@@ -594,7 +594,7 @@ protected:
                 lowerBound.GetKey(),
                 // isLess
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
-                    return key > GetUpperBoundKey(chunkTree);
+                    return key > GetUpperBoundKeyOrThrow(chunkTree);
                 },
                 // isMissing
                 [] (const TChunkTree* chunkTree) {

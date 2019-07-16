@@ -82,8 +82,8 @@ TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
 TReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
-        GetAdjustedLowerReadLimit(TReadLimit(GetMinKey(UnderlyingChunk_))),
-        GetAdjustedUpperReadLimit(TReadLimit(GetUpperBoundKey(UnderlyingChunk_)))
+        GetAdjustedLowerReadLimit(TReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),
+        GetAdjustedUpperReadLimit(TReadLimit(GetUpperBoundKeyOrThrow(UnderlyingChunk_)))
     };
 }
 
