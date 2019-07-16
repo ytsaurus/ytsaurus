@@ -2284,7 +2284,34 @@ void PrepareQuery(
             }
         }
 
-        query->OrderClause = std::move(orderClause);
+        size_t keyPrefix = 0;
+        while (keyPrefix < orderClause->OrderItems.size()) {
+            const auto& item = orderClause->OrderItems[keyPrefix];
+
+            if (item.second) {
+                break;
+            }
+
+            const auto* referenceExpr = item.first->As<TReferenceExpression>();
+
+            if (!referenceExpr) {
+                break;
+            }
+
+            auto columnIndex = ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName);
+
+            if (keyPrefix != columnIndex) {
+                break;
+            }
+            ++keyPrefix;
+        }
+
+        if (keyPrefix < orderClause->OrderItems.size()) {
+            query->OrderClause = std::move(orderClause);
+
+        }
+
+        // Use ordered scan otherwise
     }
 
     if (ast.SelectExprs) {
