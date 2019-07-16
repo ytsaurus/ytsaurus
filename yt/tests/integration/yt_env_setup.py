@@ -202,12 +202,12 @@ def _remove_operations(driver=None):
         assert not yt_commands.get_batch_output(response)
 
 def _wait_for_jobs_to_vanish(driver=None):
+    nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
     def check_no_jobs():
-        for node in yt_commands.ls("//sys/cluster_nodes", driver=driver):
-            jobs = yt_commands.get("//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
-            if jobs.get("scheduler", 0) > 0:
-                return False
-        return True
+        requests = [yt_commands.make_batch_request("get", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), return_only_value=True)
+                    for node in nodes]
+        responses = yt_commands.execute_batch(requests, driver=driver)
+        return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
     wait(check_no_jobs)
 
 def find_ut_file(file_name):
