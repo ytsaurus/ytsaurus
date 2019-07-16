@@ -16,21 +16,27 @@ struct TObjectDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Some objects must be created atomically.
+// Some objects must be created and removed atomically.
 //
 // Let's consider accounts. In the absence of an atomic commit, it's possible
 // that some cell knows about an account, and some other cell doesn't. Then, the
 // former cell sending a chunk requisition update to the latter will cause
 // trouble.
 //
-// To be extended for deletion (for symmetry's sake).
+// Removal also needs two-phase locking since otherwise a primary master
+// is unable to command the destruction of an object to its secondaries without risking
+// that some secondary still holds a reference to the object.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
-     (CreationStarted)
-     (CreationPreCommitted)
-     (CreationCommitted)
+     ((CreationStarted)         (0))
+     ((CreationPreCommitted)    (1))
+     ((CreationCommitted)       (2))
+     ((RemovalStarted)          (3))
+     ((RemovalPreCommitted)     (4))
+     ((RemovalCommitted)        (5))
 );
 
-EObjectLifeStage NextStage(EObjectLifeStage lifeStage);
+EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage);
+bool IsStableLifeStage(EObjectLifeStage lifeStage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,9 +149,6 @@ public:
 
     //! Sets object's life stage and resets vote count to zero.
     void SetLifeStage(EObjectLifeStage lifeStage);
-
-    //! Advances object's life stage and resets vote count to zero.
-    void AdvanceLifeStage();
 
     //! Increases life stage vote count and returns the vote count.
     int IncrementLifeStageVoteCount();

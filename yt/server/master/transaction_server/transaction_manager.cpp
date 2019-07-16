@@ -306,7 +306,7 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
@@ -390,7 +390,7 @@ public:
 
         auto transactionId = transaction->GetId();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
@@ -592,7 +592,7 @@ public:
                 prepareTimestamp);
         }
 
-        if (persistent && Bootstrap_->IsPrimaryMaster()) {
+        if (persistent && !transaction->SecondaryCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);

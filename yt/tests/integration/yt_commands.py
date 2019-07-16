@@ -1409,8 +1409,6 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
     assert get(jobs_path + "/@count") == expected_count
     for job_id in ls(jobs_path):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-        if is_multicell:
-            assert get(stderr_path + "/@external")
         content = read_file(stderr_path)
         assert get(stderr_path + "/@uncompressed_data_size") == len(content)
         if substring:

@@ -9,6 +9,8 @@
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/concurrency/async_stream.h>
@@ -30,6 +32,7 @@ namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NPipes;
@@ -350,6 +353,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         }
 
         // Create new snapshot node.
+        TNodeId snapshotUploadNodeId;
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -357,11 +361,12 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             options.Attributes = std::move(attributes);
             options.Force = true;
             options.Recursive = true;
-            auto result = WaitFor(transaction->CreateNode(
+            auto nodeIdOrError = WaitFor(transaction->CreateNode(
                 snapshotUploadPath,
                 EObjectType::File,
                 options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error creating snapshot node");
+            THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating snapshot node");
+            snapshotUploadNodeId = nodeIdOrError.Value();
         }
 
         i64 snapshotSize = 0;
@@ -417,7 +422,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             options.PrerequisiteTransactionIds = {IncarnationId_};
 
             WaitFor(Client_->MoveNode(
-                snapshotUploadPath,
+                // XXX(babenko): portals
+                FromObjectId(snapshotUploadNodeId),
                 snapshotPath,
                 options))
                 .ThrowOnError();

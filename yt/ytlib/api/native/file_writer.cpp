@@ -158,7 +158,7 @@ private:
 
         ObjectId_ = userObject.ObjectId;
         NativeCellTag_ = CellTagFromId(ObjectId_);
-        ExternalCellTag_ = userObject.CellTag;
+        ExternalCellTag_ = userObject.ExternalCellTag;
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",

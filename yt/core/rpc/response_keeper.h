@@ -70,13 +70,17 @@ public:
     //! Called when a request with a given mutation #id is finished and a #response is ready.
     /*
      *  The latter #response is pushed to every subscriber waiting for the future
-     *  previously returned by #TryBeginRequest. Additionally, the #response
-     *  is remembered and returned by future calls to #TryBeginRequest.
+     *  previously returned by #TryBeginRequest. Additionally, if #remember is true,
+     *  #response is remembered and returned by future calls to #TryBeginRequest.
      */
-    void EndRequest(TMutationId id, TSharedRefArray response);
+    void EndRequest(TMutationId id, TSharedRefArray response, bool remember = true);
 
-    //! Forgets the request, which was previously registered via #TryBeginRequest.
-    void CancelRequest(TMutationId id, const TError& error);
+    //! Similar to its non-error counterpart but also accepts errors.
+    //! Note that these are never remembered and are just propagated to the listeners.
+    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember = true);
+
+    //! Forgets all pending requests, which were previously registered via #TryBeginRequest.
+    void CancelPendingRequests(const TError& error);
 
     //! Combines #TryBeginRequest and #EndBeginRequest.
     /*!
@@ -89,7 +93,7 @@ public:
      *  Also, if the request has mutation id assigned the response will be automatically remembered
      *  when #context is replied.
      */
-    bool TryReplyFrom(IServiceContextPtr context);
+    bool TryReplyFrom(const IServiceContextPtr& context);
 
     //! Returns |true| if the keeper is still warming up.
     bool IsWarmingUp() const;

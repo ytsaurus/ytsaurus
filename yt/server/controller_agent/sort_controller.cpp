@@ -2136,7 +2136,7 @@ protected:
                 if (auto column = table->Schema.FindColumn(name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
-                            << TErrorAttribute("table_path", table->Path.GetPath())
+                            << TErrorAttribute("table_path", table->Path)
                             << TErrorAttribute("column_name", name);
                     }
                 }

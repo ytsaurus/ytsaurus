@@ -97,6 +97,7 @@ public:
     {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
+            // XXX(babenko): portals
             mutationContext->SetResponseKeeperSuppressed(true);
         }
 
@@ -109,7 +110,6 @@ public:
         auto requestMessage = context->GetRequestMessage();
         auto requestHeader = context->RequestHeader();
 
-        auto originalPath  = GetRequestYPath(requestHeader);
         auto redirectedPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
         SetRequestYPath(&requestHeader, redirectedPath);
         auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
@@ -121,7 +121,25 @@ public:
             cellTag,
             ypathExt.mutating() ? EPeerKind::Leader : EPeerKind::Follower,
             context->GetTimeout());
-        context->ReplyFrom(std::move(asyncResponseMessage));
+
+        asyncResponseMessage
+            .Subscribe(
+                BIND([
+                    bootstrap = Bootstrap_,
+                    mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId,
+                    context
+                ] (const TErrorOr<TSharedRefArray>& messageOrError) {
+                    if (messageOrError.IsOK()) {
+                        context->Reply(messageOrError.Value());
+                    } else {
+                        context->Reply(TError(messageOrError));
+                    }
+
+                    if (mutationId) {
+                        const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
+                        responseKeeper->EndRequest(mutationId, messageOrError, false);
+                    }
+                }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
     virtual void DoWriteAttributesFragment(
@@ -815,10 +833,12 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     auto* object = handler->CreateObject(hintId, attributes);
-    // The "life_stage" attribute is only applied at object's creation. It's not writable.
-    attributes->Remove("life_stage");
 
-    if (!Bootstrap_->IsMulticell()) {
+    if (Bootstrap_->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
+        object->SetLifeStage(EObjectLifeStage::CreationStarted);
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object creation started (ObjectId: %v)",
+            object->GetId());
+    } else {
         object->SetLifeStage(EObjectLifeStage::CreationCommitted);
     }
 
@@ -858,15 +878,18 @@ TObjectBase* TObjectManager::CreateObject(
 
 void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObjectBase* object)
 {
-    if (!Bootstrap_->IsSecondaryMaster()) {
-        return;
-    }
-    if (object->GetLifeStage() == EObjectLifeStage::CreationCommitted) {
+    if (!Bootstrap_->IsSecondaryMaster() || IsStableLifeStage(object->GetLifeStage())) {
         return;
     }
 
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirming object life stage to primary master (ObjectId: %v, LifeStage: %v)",
+        object->GetId(),
+        object->GetLifeStage());
+
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
+    request.set_cell_tag(Bootstrap_->GetCellTag());
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(request, PrimaryMasterCellTag);
 }
@@ -1032,9 +1055,9 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
         peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Object request forwarding failed");
 
-        YT_LOG_DEBUG("Redirected forwarding succeeded (RequestId: %v)",
+        YT_LOG_DEBUG("Object request forwarding succeeded (RequestId: %v)",
             requestId);
 
         const auto& batchRsp = batchRspOrError.Value();
@@ -1112,16 +1135,11 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     auto mutationId = rpcContext->GetMutationId();
-    if (mutationId) {
+    if (mutationId && !mutationContext->GetResponseKeeperSuppressed()) {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        if (mutationContext->GetResponseKeeperSuppressed()) {
-            // XXX(babenko)
-            responseKeeper->CancelRequest(mutationId, TError("Request is not retriable"));
-        } else {
-            // NB: Context must already be replied by now.
-            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
-        }
+        // NB: Context must already be replied by now.
+        responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
     }
 }
 
@@ -1259,7 +1277,7 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
 {
     YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
-    const auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
+    auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
@@ -1267,13 +1285,28 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
         return;
     }
 
-    const auto voteCount = object->IncrementLifeStageVoteCount();
+    auto voteCount = object->IncrementLifeStageVoteCount();
+    YT_VERIFY(voteCount <= Bootstrap_->GetSecondaryCellTags().size());
+
+    auto oldLifeStage = object->GetLifeStage();
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object life stage confirmed by secondary master (ObjectId: %v, CellTag: %v, LifeStage: %v, VoteCount: %v)",
+        objectId,
+        confirmRequest->cell_tag(),
+        oldLifeStage,
+        voteCount);
+
     if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {
-        YT_VERIFY(voteCount < Bootstrap_->GetSecondaryCellTags().size());
         return;
     }
 
-    object->AdvanceLifeStage();
+    auto newLifeStage = GetNextLifeStage(oldLifeStage);
+    object->SetLifeStage(newLifeStage);
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
+        objectId,
+        oldLifeStage,
+        newLifeStage);
 
     NProto::TReqAdvanceObjectLifeStage advanceRequest;
     ToProto(advanceRequest.mutable_object_id(), object->GetId());
@@ -1285,7 +1318,7 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
 {
     YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
-    const auto objectId = FromProto<TObjectId>(request->object_id());
+    auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(),
@@ -1294,7 +1327,14 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
         return;
     }
 
-    object->AdvanceLifeStage();
+    auto oldLifeStage = object->GetLifeStage();
+    auto newLifeStage = GetNextLifeStage(oldLifeStage);
+    object->SetLifeStage(newLifeStage);
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object life stage advanced by primary master (ObjectId: %v, LifeStage: %v -> %v)",
+        objectId,
+        oldLifeStage,
+        newLifeStage);
 
     ConfirmObjectLifeStageToPrimaryMaster(object);
 }

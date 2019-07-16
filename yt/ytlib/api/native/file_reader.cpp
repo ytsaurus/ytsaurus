@@ -137,7 +137,7 @@ private:
             EPermission::Read,
             getUserObjectBasicAttributesOptions);
 
-        auto cellTag = userObject.CellTag;
+        auto cellTag = userObject.ExternalCellTag;
         auto objectId = userObject.ObjectId;
         auto objectIdPath = FromObjectId(objectId);
 

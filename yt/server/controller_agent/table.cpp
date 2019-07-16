@@ -40,7 +40,7 @@ void TInputTable::Persist(const TPersistenceContext& context)
     Persist(context, Chunks);
     Persist(context, Schema);
     Persist(context, SchemaMode);
-    Persist(context, IsDynamic);
+    Persist(context, Dynamic);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +80,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
     // Output tables never lose data (hopefully), so we do not need to store
     // recovery info for chunks that get there.
     descriptor.RequiresRecoveryInfo = false;
-    descriptor.CellTag = CellTag;
+    descriptor.CellTag = ExternalCellTag;
     descriptor.ImmediatelyUnstageChunkLists = false;
     return descriptor;
 }

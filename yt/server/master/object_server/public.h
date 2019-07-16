@@ -24,6 +24,7 @@ DEFINE_BIT_ENUM(ETypeFlags,
     ((Externalizable)         (0x0010)) // objects of this (versioned) type can be externalized to another cell (e.g. tables, files)
     ((ForbidInheritAclChange) (0x0020)) // inherit_acl attribute cannot be changed
     ((ForbidLocking)          (0x0040)) // no locks can be taken objects of this (versioned) type
+    ((TwoPhaseCreation)       (0x0080)) // employ two-phase creation protocol
 );
 
 ////////////////////////////////////////////////////////////////////////////////

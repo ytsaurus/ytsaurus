@@ -615,8 +615,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YT_VERIFY(SnapshotStore_);
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-
-    StopEpoch();
 }
 
 void TDecoratedAutomaton::Initialize()
@@ -813,7 +811,6 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
 
     auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
     if (!asyncResponseData) {
-        PendingMutationIds_.push(request.MutationId);
         return TFuture<TMutationResponse>();
     }
 
@@ -1032,11 +1029,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Automaton_->ApplyMutation(context);
     }
 
-    if (Options_.ResponseKeeper && mutationId) {
-        if (State_ == EPeerState::Leading) {
-            YT_VERIFY(mutationId == PendingMutationIds_.front());
-            PendingMutationIds_.pop();
-        }
+    if (Options_.ResponseKeeper && mutationId && !context->GetResponseKeeperSuppressed()) {
         Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
 
@@ -1201,9 +1194,8 @@ void TDecoratedAutomaton::StopEpoch()
         PendingMutations_.pop();
     }
 
-    while (!PendingMutationIds_.empty()) {
-        Options_.ResponseKeeper->CancelRequest(PendingMutationIds_.front(), error);
-        PendingMutationIds_.pop();
+    if (Options_.ResponseKeeper) {
+        Options_.ResponseKeeper->CancelPendingRequests(error);
     }
 
     RotatingChangelog_ = false;

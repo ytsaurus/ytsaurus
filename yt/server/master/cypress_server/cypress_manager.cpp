@@ -217,7 +217,7 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
-            // XXX(babenko): or request through a portal
+            // XXX(babenko): portals
             Bootstrap_->IsPrimaryMaster() &&
             !multicellManager->GetRegisteredMasterCellTags().empty() &&
             Any(handler->GetFlags() & ETypeFlags::Externalizable);
@@ -950,7 +950,7 @@ public:
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
         auto strongestLockModeAfter = getStrongestLockMode();
 
-        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster()) {
+        if (trunkNode->IsExternal() && !trunkNode->IsForeign()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
@@ -1697,6 +1697,7 @@ private:
 
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
+        // XXX(babenko): portals
         if (Bootstrap_->IsPrimaryMaster()) {
             ExpirationTracker_->Start();
         }
@@ -1710,6 +1711,7 @@ private:
 
         AccessTracker_->Stop();
 
+        // XXX(babenko): portals
         if (Bootstrap_->IsPrimaryMaster()) {
             ExpirationTracker_->Stop();
         }
@@ -2244,7 +2246,7 @@ private:
                 transaction->GetId());
         }
 
-        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster() && !dontLockForeign) {
+        if (trunkNode->IsExternal() && !trunkNode->IsForeign() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 

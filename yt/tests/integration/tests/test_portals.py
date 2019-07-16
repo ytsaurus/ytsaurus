@@ -44,9 +44,9 @@ class TestPortals(YTEnvSetup):
             set("#{}/@inherit_acl".format(exit_id), True, driver=get_driver(1))
 
     def test_portal_reads(self):
-        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
-        
+
         assert get("//tmp/p") == {}
         assert get("//tmp/p/@type") == "portal_exit"
         assert get("//tmp/p/@id") == exit_id
@@ -84,8 +84,7 @@ class TestPortals(YTEnvSetup):
         set("//tmp/p/map/key", "value", force=True, recursive=True)
         assert get("//tmp/p/map/key") == "value"
 
-    # XXX(babenko): add test for cell 2
-    @pytest.mark.parametrize("external_cell_tag", [1])
+    @pytest.mark.parametrize("external_cell_tag", [1, 2])
     def test_table_in_portal(self, external_cell_tag):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": external_cell_tag})
@@ -98,8 +97,7 @@ class TestPortals(YTEnvSetup):
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/t"]
         assert read_table("//tmp/p/t") == PAYLOAD
 
-    # XXX(babenko): add test for cell 2
-    @pytest.mark.parametrize("external_cell_tag", [1])
+    @pytest.mark.parametrize("external_cell_tag", [1, 2])
     def test_file_in_portal(self, external_cell_tag):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("file", "//tmp/p/f", attributes={"external": True, "external_cell_tag": external_cell_tag})
@@ -111,3 +109,9 @@ class TestPortals(YTEnvSetup):
         assert len(chunk_ids) == 1
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/f"]
         assert read_file("//tmp/p/f") == PAYLOAD
+
+    def test_create_auto_external_table_in_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t", attributes={"external": True})
+        assert get("//tmp/p/t/@external")
+        assert get("//tmp/p/t/@external_cell_tag") in [1, 2]

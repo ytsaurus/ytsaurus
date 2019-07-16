@@ -296,7 +296,7 @@ private:
             stage,
             GetDataSliceStatisticsDebugString(DataSlices_));
     }
-    
+
     void FetchChunks()
     {
         i64 totalChunkCount = 0;
@@ -324,22 +324,22 @@ private:
 
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto& table = InputTables_[tableIndex];
-    
+
             if (table.IsDynamic) {
                 THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
                     << TErrorAttribute("table", table.Path.GetPath());
             }
-    
+
             auto dataSource = MakeUnversionedDataSource(
                 table.Path.GetPath(),
                 table.Schema,
                 /* columns */ std::nullopt,
                 // TODO(max42): YT-10402, omitted inaccessible columns
                 {});
-    
+
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
-    
-            chunkSpecFetcher->Add(FromObjectId(table.ObjectId), table.CellTag, table.ChunkCount, table.Path.GetRanges());
+
+            chunkSpecFetcher->Add(FromObjectId(table.ObjectId), table.ExternalCellTag, table.ChunkCount, table.Path.GetRanges());
         }
 
         WaitFor(chunkSpecFetcher->Fetch())

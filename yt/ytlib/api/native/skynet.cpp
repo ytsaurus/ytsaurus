@@ -58,7 +58,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         EPermission::Read);
 
     auto objectId = userObject.ObjectId;
-    auto tableCellTag = userObject.CellTag;
+    auto tableCellTag = userObject.ExternalCellTag;
     auto objectIdPath = FromObjectId(objectId);
 
     if (userObject.Type != EObjectType::Table) {

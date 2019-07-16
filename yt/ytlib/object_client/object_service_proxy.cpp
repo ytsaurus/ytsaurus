@@ -426,7 +426,7 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(c
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const TString& key) const
+std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -467,20 +467,26 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const TString& key)
+TError GetCumulativeError(
+    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
+    const std::optional<TString>& key)
 {
     if (!batchRspOrError.IsOK()) {
         return batchRspOrError;
     }
+    return GetCumulativeError(batchRspOrError.Value());
+}
 
+TError GetCumulativeError(
+    const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
+    const std::optional<TString>& key)
+{
     TError cumulativeError("Error communicating with master");
-    const auto& batchRsp = batchRspOrError.Value();
     for (const auto& rspOrError : batchRsp->GetResponses(key)) {
         if (!rspOrError.IsOK()) {
             cumulativeError.InnerErrors().push_back(rspOrError);
         }
     }
-
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 

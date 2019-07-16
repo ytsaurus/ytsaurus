@@ -13,11 +13,15 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/message.h>
@@ -36,6 +40,7 @@
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/async_batcher.h>
 
 #include <atomic>
 #include <queue>
@@ -54,6 +59,8 @@ using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
+using namespace NObjectClient;
+using namespace NHiveServer;
 using namespace NCellMaster;
 using namespace NProfiling;
 
@@ -194,6 +201,8 @@ private:
 
     TStickyUserErrorCache StickyUserErrorCache_;
 
+    THashMap<TCellTag, TIntrusivePtr<TAsyncBatcher<void>>> CellTagSyncBatcher_;
+
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -210,6 +219,8 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const TString& userName, const TError& error);
+
+    TFuture<void> SyncWithCell(TCellTag cellTag);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
@@ -242,6 +253,7 @@ public:
         , RequestId_(RpcContext_->GetRequestId())
         , HydraFacade_(Owner_->Bootstrap_->GetHydraFacade())
         , HydraManager_(HydraFacade_->GetHydraManager())
+        , HiveManager_(Owner_->Bootstrap_->GetHiveManager())
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
         , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
         , CodicilData_(Format("RequestId: %v, User: %v",
@@ -338,6 +350,7 @@ private:
     const TRequestId RequestId_;
     const THydraFacadePtr HydraFacade_;
     const IHydraManagerPtr HydraManager_;
+    const THiveManagerPtr HiveManager_;
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
     const TString CodicilData_;
@@ -360,7 +373,10 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
     TUser* User_ = nullptr;
-    bool NeedsUpstreamSync_ = true;
+    bool NeedsSync_ = true;
+    bool SuppressUpstreamSync_ = false;
+    // TODO(babenko): temporary workaround util transactions are fully sharded
+    std::vector<TCellTag> CellTagsToSyncWith_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
@@ -436,6 +452,16 @@ private:
                 SetSuppressAccessTracking(&subrequestHeader, true);
             }
 
+            auto transactionId = GetTransactionId(subrequestHeader);
+            if (transactionId) {
+                auto cellTag = CellTagFromId(transactionId);
+                if (cellTag != Owner_->Bootstrap_->GetCellTag() &&
+                    cellTag != Owner_->Bootstrap_->GetPrimaryCellTag())
+                {
+                    CellTagsToSyncWith_.push_back(cellTag);
+                }
+            }
+
             auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
             auto subcontext = CreateYPathContext(
@@ -454,7 +480,18 @@ private:
             }
         }
 
-        NeedsUpstreamSync_ = !request.suppress_upstream_sync();
+        SuppressUpstreamSync_ = request.suppress_upstream_sync();
+        if (!SuppressUpstreamSync_) {
+            NeedsSync_ = true;
+        }
+
+        SortUnique(CellTagsToSyncWith_);
+        if (!CellTagsToSyncWith_.empty()) {
+            NeedsSync_ = true;
+            YT_LOG_DEBUG("Request will synchronize with secondary cells (RequestId: %v, CellTags: %v)",
+                RequestId_,
+                CellTagsToSyncWith_);
+        }
 
         // The backoff alarm may've been triggered while we were parsing.
         CheckBackoffAlarmTriggered();
@@ -505,18 +542,8 @@ private:
             EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
         }
 
-        if (NeedsUpstreamSync_) {
-            NeedsUpstreamSync_ = false;
-
-            auto result = HydraManager_->SyncWithUpstream();
-            auto optionalError = result.TryGet();
-            if (!optionalError) {
-                result.Subscribe(
-                    BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
-                return false;
-            }
-
-            optionalError->ThrowOnError();
+        if (!SyncIfNeeded()) {
+            return false;
         }
 
         if (ScheduleFinishIfCanceled()) {
@@ -849,6 +876,36 @@ private:
         }
     }
 
+    bool SyncIfNeeded()
+    {
+        if (!NeedsSync_) {
+            return true;
+        }
+        NeedsSync_ = false;
+
+        std::vector<TFuture<void>> asyncResults;
+
+        if (!SuppressUpstreamSync_) {
+            auto result = HydraManager_->SyncWithUpstream();
+            if (!result.IsSet() || !result.Get().IsOK()) {
+                asyncResults.push_back(std::move(result));
+            }
+        }
+
+        for (auto cellTag : CellTagsToSyncWith_) {
+            asyncResults.push_back(Owner_->SyncWithCell(cellTag));
+        }
+
+        if (asyncResults.empty()) {
+            return true;
+        }
+
+        Combine(std::move(asyncResults))
+            .Subscribe(BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+
+        return false;
+    }
+
     bool ScheduleFinishIfCanceled()
     {
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
@@ -1024,6 +1081,27 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
 {
     StickyUserErrorCache_.Put(userName, error);
+}
+
+TFuture<void> TObjectService::SyncWithCell(TCellTag cellTag)
+{
+    auto it = CellTagSyncBatcher_.find(cellTag);
+    if (it == CellTagSyncBatcher_.end()) {
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto invoker = Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
+        auto batcher = New<TAsyncBatcher<void>>(
+            BIND([cellId, hiveManager = Bootstrap_->GetHiveManager()] {
+                auto* mailbox = hiveManager->FindMailbox(cellId);
+                if (!mailbox) {
+                    return MakeFuture<void>(TError("Unable to sync with an unknown cell %v",
+                        cellId));
+                }
+                return hiveManager->SyncWith(mailbox);
+            }).AsyncVia(invoker),
+            Config_->CrossCellSyncDelay);
+        it = CellTagSyncBatcher_.emplace(cellTag, std::move(batcher)).first;
+    }
+    return it->second->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

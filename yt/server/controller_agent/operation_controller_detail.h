@@ -443,7 +443,7 @@ protected:
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
-    THashMap<TString, std::vector<TInputTablePtr>> InputTablesByPath_;
+    THashMap<TString, std::vector<TInputTablePtr>> PathToInputTables_;
 
     TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
@@ -603,9 +603,9 @@ protected:
 
     // Completion.
     void TeleportOutputChunks();
-    void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& updatingTables);
+    void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
-    void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tableList);
+    void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void CommitTransactions();
     virtual void CustomCommit();
 
