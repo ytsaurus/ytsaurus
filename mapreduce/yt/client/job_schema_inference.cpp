@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
+#include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 namespace NYT::NDetail {
 
@@ -20,6 +21,7 @@ TSchemaInferenceContext::TSchemaInferenceContext(
     , RetryPolicy_(retryPolicy)
     , TransactionId_(transactionId)
     , InputSchemas_(Inputs_.size())
+    , InputSchemasLoaded_(Inputs_.size(), false)
 { }
 
 int TSchemaInferenceContext::GetInputTableCount() const
@@ -32,19 +34,43 @@ int TSchemaInferenceContext::GetOutputTableCount() const
     return static_cast<int>(Outputs_.size());
 }
 
+const TVector<TTableSchema>& TSchemaInferenceContext::GetInputTableSchemas() const
+{
+    NRawClient::TRawBatchRequest batchRequest;
+    for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
+        if (InputSchemasLoaded_[tableIndex]) {
+            continue;
+        }
+        const auto& maybePath = Inputs_[tableIndex].RichYPath;
+        Y_VERIFY(maybePath);
+        batchRequest.Get(TransactionId_, maybePath->Path_ + "/@schema", TGetOptions{})
+            .Subscribe([this, tableIndex] (auto& schemaFuture) {
+                Deserialize(InputSchemas_[tableIndex], schemaFuture.GetValue());
+            });
+    }
+
+    NRawClient::ExecuteBatch(
+        RetryPolicy_->CreatePolicyForGenericRequest(),
+        Auth_,
+        batchRequest,
+        TExecuteBatchOptions());
+
+    return InputSchemas_;
+}
+
 const TTableSchema& TSchemaInferenceContext::GetInputTableSchema(int index) const
 {
-    auto& maybeSchema = InputSchemas_[index];
-    if (maybeSchema.Empty()) {
+    auto& schema = InputSchemas_[index];
+    if (!InputSchemasLoaded_[index]) {
         Y_VERIFY(Inputs_[index].RichYPath);
         auto schemaNode = NRawClient::Get(
             RetryPolicy_->CreatePolicyForGenericRequest(),
             Auth_,
             TransactionId_,
             Inputs_[index].RichYPath->Path_ + "/@schema");
-        Deserialize(maybeSchema, schemaNode);
+        Deserialize(schema, schemaNode);
     }
-    return maybeSchema;
+    return schema;
 }
 
 TMaybe<TYPath> TSchemaInferenceContext::GetInputTablePath(int index) const
@@ -71,11 +97,14 @@ TSpeculativeSchemaInferenceContext::TSpeculativeSchemaInferenceContext(
     const TSchemaInferenceResult& previousResult,
     TStructuredJobTableList inputs,
     TStructuredJobTableList outputs)
-    : PreviousResult_(previousResult)
-    , Inputs_(std::move(inputs))
+    : Inputs_(std::move(inputs))
     , Outputs_(std::move(outputs))
 {
-    Y_VERIFY(Inputs_.size() == PreviousResult_.size());
+    Y_VERIFY(Inputs_.size() == previousResult.size());
+    InputSchemas_.reserve(previousResult.size());
+    for (const auto& maybeSchema : previousResult) {
+        InputSchemas_.push_back(maybeSchema.GetOrElse(TTableSchema{}));
+    }
 }
 
 int TSpeculativeSchemaInferenceContext::GetInputTableCount() const
@@ -88,10 +117,15 @@ int TSpeculativeSchemaInferenceContext::GetOutputTableCount() const
     return static_cast<int>(Outputs_.size());
 }
 
+const TVector<TTableSchema>& TSpeculativeSchemaInferenceContext::GetInputTableSchemas() const
+{
+    return InputSchemas_;
+}
+
 const TTableSchema& TSpeculativeSchemaInferenceContext::GetInputTableSchema(int index) const
 {
-    Y_VERIFY(index < static_cast<int>(PreviousResult_.size()));
-    return PreviousResult_[index].GetOrElse(TTableSchema{});
+    Y_VERIFY(index < static_cast<int>(InputSchemas_.size()));
+    return InputSchemas_[index];
 }
 
 TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetInputTablePath(int index) const

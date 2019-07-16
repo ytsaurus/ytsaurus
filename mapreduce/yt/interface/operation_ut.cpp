@@ -14,30 +14,35 @@ public:
     TDummyInferenceContext(int inputCount, int outputCount)
         : InputCount_(inputCount)
         , OutputCount_(outputCount)
+        , InputSchemas_(inputCount)
     { }
 
-    int GetInputTableCount() const
+    int GetInputTableCount() const override
     {
         return InputCount_;
     }
 
-    int GetOutputTableCount() const
+    int GetOutputTableCount() const override
     {
         return OutputCount_;
     }
 
-    const TTableSchema& GetInputTableSchema(int) const
+    const TVector<TTableSchema>& GetInputTableSchemas() const override
     {
-        static const TTableSchema schema;
-        return schema;
+        return InputSchemas_;
     }
 
-    TMaybe<TYPath> GetInputTablePath(int) const
+    const TTableSchema& GetInputTableSchema(int index) const override
+    {
+        return InputSchemas_[index];
+    }
+
+    TMaybe<TYPath> GetInputTablePath(int) const override
     {
         return Nothing();
     }
 
-    TMaybe<TYPath> GetOutputTablePath(int) const
+    TMaybe<TYPath> GetOutputTablePath(int) const override
     {
         return Nothing();
     }
@@ -45,6 +50,7 @@ public:
 private:
     int InputCount_;
     int OutputCount_;
+    TVector<TTableSchema> InputSchemas_;
 };
 
 Y_UNIT_TEST_SUITE(SchemaInference)
