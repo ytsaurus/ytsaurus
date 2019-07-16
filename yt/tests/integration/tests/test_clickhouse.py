@@ -38,7 +38,7 @@ class Clique(object):
     path_to_run = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
-        config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+        config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         if "spec" in kwargs:
             spec = update(spec, kwargs.pop("spec"))
@@ -54,7 +54,6 @@ class Clique(object):
         Clique.clique_index += 1
         create("file", filename)
         write_file(filename, yson.dumps(config, yson_format="pretty"))
-
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           cypress_config_path=filename,
                                                           max_failed_job_count=max_failed_job_count,
