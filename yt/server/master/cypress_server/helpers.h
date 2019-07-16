@@ -74,6 +74,14 @@ bool IsAncestorOf(
     const TCypressNodeBase* trunkAncestor,
     const TCypressNodeBase* trunkDescendant);
 
+TNodeId MakePortalExitNodeId(
+    TNodeId entranceNodeId,
+    NObjectClient::TCellTag exitCellTag);
+
+TNodeId MakePortalEntranceNodeId(
+    TNodeId exitNodeId,
+    NObjectClient::TCellTag entranceCellTag);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

@@ -176,6 +176,14 @@ void TAccessControlDescriptor::ClearEntries()
     Acl_.Entries.clear();
 }
 
+void TAccessControlDescriptor::SetEntries(const TAccessControlList& acl)
+{
+    ClearEntries();
+    for (const auto& ace : acl.Entries) {
+        AddEntry(ace);
+    }
+}
+
 void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner)
 {
     // Remove the subject from every ACE.

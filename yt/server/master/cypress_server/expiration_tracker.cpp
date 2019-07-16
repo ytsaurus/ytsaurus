@@ -3,7 +3,7 @@
 #include "config.h"
 #include "cypress_manager.h"
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/lib/hydra/mutation.h>
 

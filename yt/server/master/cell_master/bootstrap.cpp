@@ -14,6 +14,7 @@
 
 #include <yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/server/master/file_server/file_node.h>
 
@@ -279,6 +280,11 @@ const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
 const TCypressManagerPtr& TBootstrap::GetCypressManager() const
 {
     return CypressManager_;
+}
+
+const TPortalManagerPtr& TBootstrap::GetPortalManager() const
+{
+    return PortalManager_;
 }
 
 const THydraFacadePtr& TBootstrap::GetHydraFacade() const
@@ -558,6 +564,8 @@ void TBootstrap::DoInitialize()
 
     CypressManager_ = New<TCypressManager>(this);
 
+    PortalManager_ =  New<TPortalManager>(this);
+
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
     JournalManager_ = New<NJournalServer::TJournalManager>(this);
@@ -604,6 +612,7 @@ void TBootstrap::DoInitialize()
     TransactionManager_->Initialize();
     NodeTracker_->Initialize();
     CypressManager_->Initialize();
+    PortalManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();

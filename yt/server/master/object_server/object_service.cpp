@@ -8,6 +8,7 @@
 #include <yt/server/master/cell_master/master_hydra_service.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/path_resolver.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
@@ -343,7 +344,7 @@ private:
 
     struct TSubrequest
     {
-        IServiceContextPtr Context;
+        IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         TFuture<TMutationResponse> AsyncCommitResult;
         TRequestHeader RequestHeader;
@@ -417,6 +418,9 @@ private:
             ToProto(subrequestHeader.mutable_request_id(), RequestId_);
             subrequestHeader.set_retry(subrequestHeader.retry() || RpcContext_->IsRetry());
             subrequestHeader.set_user(UserName_);
+            if (RpcContext_->GetTimeout()) {
+                subrequestHeader.set_timeout(ToProto<i64>(*RpcContext_->GetTimeout()));
+            }
 
             auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
 
@@ -440,7 +444,7 @@ private:
                 NLogging::ELogLevel::Debug);
 
             subrequest.RequestMessage = std::move(updatedSubrequestMessage);
-            subrequest.Context = subcontext;
+            subrequest.RpcContext = subcontext;
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 subrequestHeader.service(),
                 subrequestHeader.method());
@@ -623,7 +627,7 @@ private:
     bool ExecuteCurrentSubrequest()
     {
         auto& subrequest = Subrequests_[CurrentSubrequestIndex_++];
-        if (!subrequest.Context) {
+        if (!subrequest.RpcContext) {
             ExecuteEmptySubrequest(&subrequest);
             return true;
         }
@@ -655,7 +659,7 @@ private:
 
     void ExecuteEmptySubrequest(TSubrequest* subrequest)
     {
-        OnSubresponse(subrequest, TError());
+        OnSuccessfullSubresponse(subrequest);
     }
 
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
@@ -679,10 +683,28 @@ private:
 
         TWallTimer timer;
 
-        const auto& context = subrequest->Context;
+        const auto& context = subrequest->RpcContext;
 
-        // NB: IServiceContext is not thread-safe; get the async result here to avoid races with Reply.
-        auto asyncResponseMessage = context->GetAsyncResponseMessage();
+//        try {
+//            auto transactionId = GetTransactionId(context);
+//            const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
+//            auto* transaction = transactionId
+//                ? transactionManager->GetTransactionOrThrow(transactionId)
+//                : nullptr;
+//
+//            const auto& path = GetRequestYPath(context->GetRequestHeader());
+//
+//            TPathResolver resolver(Owner_->Bootstrap_);
+//            auto resolveResult = resolver.Resolve(
+//                context->GetService(),
+//                context->GetMethod(),
+//                path,
+//                transaction);
+//
+//            // XXX
+//        } catch (const std::exception& ex) {
+//            context->Reply(TError(ex));
+//        }
 
         try {
             auto rootService = ObjectManager_->GetRootService();
@@ -690,9 +712,10 @@ private:
         } catch (const TLeaderFallbackException&) {
             YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
                 RequestId_);
-            context->ReplyFrom(ObjectManager_->ForwardToLeader(
-                Owner_->Bootstrap_->GetCellTag(),
+            context->ReplyFrom(ObjectManager_->ForwardObjectRequest(
                 subrequest->RequestMessage,
+                Owner_->Bootstrap_->GetCellTag(),
+                EPeerKind::Leader,
                 RpcContext_->GetTimeout()));
         }
 
@@ -701,13 +724,7 @@ private:
             SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
 
-        // Optimize for the (typical) case of synchronous response.
-        if (asyncResponseMessage.IsSet()) {
-            OnSubresponse(subrequest, asyncResponseMessage.Get());
-        } else {
-            asyncResponseMessage.Subscribe(
-                BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), subrequest));
-        }
+        WaitForSubresponse(subrequest);
     }
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
@@ -717,18 +734,30 @@ private:
             return;
         }
 
-        // Here the context is typically already replied.
-        // A notable exception is when the mutation response comes from Response Keeper.
-        const auto& context = subrequest->Context;
-        if (!context->IsReplied()) {
-            context->Reply(responseOrError.Value().Data);
+        const auto& response = responseOrError.Value();
+        const auto& context = subrequest->RpcContext;
+        if (response.Origin != EMutationResponseOrigin::Commit) {
+            context->Reply(response.Data);
         }
 
-        OnSubresponse(subrequest, responseOrError);
+        WaitForSubresponse(subrequest);
     }
 
-    template <class T>
-    void OnSubresponse(TSubrequest* subrequest, const TErrorOr<T>& result)
+    void WaitForSubresponse(TSubrequest* subrequest)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // Optimize for the (typical) case of synchronous response.
+        const auto& context = subrequest->RpcContext;
+        if (context->IsReplied()) {
+            OnSuccessfullSubresponse(subrequest);
+        } else {
+            context->GetAsyncResponseMessage().Subscribe(
+                BIND(&TExecuteSession::OnSubresponse, MakeStrong(this), subrequest));
+        }
+    }
+
+    void OnSubresponse(TSubrequest* subrequest, const TErrorOr<TSharedRefArray>& result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -736,6 +765,13 @@ private:
             Reply(result);
             return;
         }
+
+        OnSuccessfullSubresponse(subrequest);
+    }
+
+    void OnSuccessfullSubresponse(TSubrequest* subrequest)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (subrequest->TraceContext) {
             subrequest->TraceContext->Finish();
@@ -780,8 +816,8 @@ private:
 
             for (auto index = 0; index < CurrentSubrequestIndex_; ++index) {
                 const auto& subrequest = Subrequests_[index];
-                if (subrequest.Context) {
-                    const auto& subresponseMessage = subrequest.Context->GetResponseMessage();
+                if (subrequest.RpcContext) {
+                    const auto& subresponseMessage = subrequest.RpcContext->GetResponseMessage();
                     response.add_part_counts(subresponseMessage.Size());
                     attachments.insert(
                         attachments.end(),

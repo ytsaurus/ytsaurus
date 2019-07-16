@@ -1115,8 +1115,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 {
     DeclareMutating();
-    ValidateTransaction();
-    ValidateInUpdate();
 
     TChunkOwnerBase::TEndUploadContext uploadContext;
 
@@ -1159,6 +1157,18 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
     }
 
+    context->SetRequestInfo("SchemaMode: %v, Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, OptimizeFor: %v, "
+        "MD5Hasher: %v",
+        uploadContext.SchemaMode,
+        uploadContext.Statistics,
+        uploadContext.CompressionCodec,
+        uploadContext.ErasureCodec,
+        uploadContext.OptimizeFor,
+        uploadContext.MD5Hasher.has_value());
+
+    ValidateTransaction();
+    ValidateInUpdate();
+
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction);
 
@@ -1170,7 +1180,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     SetModified();
 
-    if (Bootstrap_->IsPrimaryMaster()) {
+    if (!node->IsForeign()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitTransaction(Transaction, NullTimestamp);
     }

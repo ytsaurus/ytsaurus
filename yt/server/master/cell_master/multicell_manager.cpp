@@ -31,7 +31,7 @@
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/cell_master/multicell_manager.pb.h>
+#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 namespace NYT::NCellMaster {
 
@@ -158,6 +158,7 @@ public:
 
     TCellTag PickSecondaryMasterCell(double bias)
     {
+        // XXX(babenko): portals
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         if (RegisteredMasterMap_.empty()) {

@@ -187,8 +187,8 @@ public:
         ValidateAttachOptions(id, options);
 
         Type_ = ETransactionType::Master;
-        CellTag_ = CellTagFromId(Owner_->PrimaryCellId_);
-        CellId_ = Owner_->PrimaryCellId_;
+        CellTag_ = CellTagFromId(id);
+        CellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CellTag_);
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
         YT_VERIFY(!options.Sticky);

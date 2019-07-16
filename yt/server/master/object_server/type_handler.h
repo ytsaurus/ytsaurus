@@ -31,17 +31,6 @@ DEFINE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
-DEFINE_BIT_ENUM(ETypeFlags,
-    ((None)                 (0x0000))
-    ((ReplicateCreate)      (0x0001)) // replicate object creation
-    ((ReplicateDestroy)     (0x0002)) // replicate object destruction
-    ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
-    ((Creatable)            (0x0008)) // objects of this type can be created at runtime
-);
-
-// WinAPI is great.
-#undef GetObject
-
 //! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
     : public virtual TRefCounted

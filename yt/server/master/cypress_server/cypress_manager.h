@@ -8,7 +8,7 @@
 
 #include <yt/server/master/cell_master/automaton.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/entity_map.h>
@@ -48,7 +48,6 @@ class TCypressManager
 {
 public:
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
-    ~TCypressManager();
 
     void Initialize();
 

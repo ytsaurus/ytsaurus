@@ -308,6 +308,20 @@ bool IsAncestorOf(
     return false;
 }
 
+TNodeId MakePortalExitNodeId(
+    TNodeId entranceNodeId,
+    TCellTag exitCellTag)
+{
+    return ReplaceCellTagInId(ReplaceTypeInId(entranceNodeId, EObjectType::PortalExit), exitCellTag);
+}
+
+TNodeId MakePortalEntranceNodeId(
+    TNodeId exitNodeId,
+    TCellTag entranceCellTag)
+{
+    return ReplaceCellTagInId(ReplaceTypeInId(exitNodeId, EObjectType::PortalEntrance), entranceCellTag);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

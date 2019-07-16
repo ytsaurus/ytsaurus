@@ -25,6 +25,9 @@ DEFINE_ENUM(ETokenType,
 TString ToYPathLiteral(TStringBuf value);
 TString ToYPathLiteral(i64 value);
 
+void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value);
+void AppendYPathLiteral(TStringBuilderBase* builder, i64 value);
+
 TStringBuf ExtractListIndex(TStringBuf token);
 int ParseListIndex(TStringBuf token);
 

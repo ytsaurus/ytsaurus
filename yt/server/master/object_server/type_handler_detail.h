@@ -69,6 +69,11 @@ public:
         YT_ABORT();
     }
 
+    virtual void DestroyObject(TObjectBase* object) noexcept override
+    {
+        DoDestroyObject(object->As<TObject>());
+    }
+
     virtual void ZombifyObject(TObjectBase* object) noexcept override
     {
         DoZombifyObject(object->As<TObject>());
@@ -121,6 +126,15 @@ protected:
         TObject* object,
         NTransactionServer::TTransaction* transaction) = 0;
 
+    virtual void DoDestroyObject(TObject* object)
+    {
+        // Clear ACD, if any.
+        auto* acd = FindAcd(object);
+        if (acd) {
+            acd->Clear();
+        }
+    }
+
     virtual void DoZombifyObject(TObject* /*object*/)
     { }
 
@@ -172,19 +186,13 @@ class TObjectTypeHandlerWithMapBase
     : public TObjectTypeHandlerBase<TObject>
 {
 public:
-    typedef typename NHydra::TEntityMap<TObject> TMapType;
+    using TMapType = NHydra::TEntityMap<TObject>;
+    using TBase = TObjectTypeHandlerBase<TObject>;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMapType* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)
         , Map_(map)
     { }
-
-    virtual void DestroyObject(TObjectBase* object) noexcept override
-    {
-        this->DoDestroyObject(object->As<TObject>());
-        // Remove the object from the map but keep it alive.
-        Map_->Release(object->GetId()).release();
-    }
 
     virtual NObjectServer::TObjectBase* FindObject(TObjectId id) override
     {
@@ -196,13 +204,11 @@ protected:
     TMapType* const Map_;
 
 
-    virtual void DoDestroyObject(TObject* object)
+    virtual void DoDestroyObject(TObject* object) override
     {
-        // Clear ACD, if any.
-        auto* acd = this->FindAcd(object);
-        if (acd) {
-            acd->Clear();
-        }
+        TBase::DoDestroyObject(object);
+        // Remove the object from the map but keep it alive.
+        Map_->Release(object->GetId()).release();
     }
 };
 

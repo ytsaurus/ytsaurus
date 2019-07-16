@@ -39,7 +39,7 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual bool IsExternalizable() const override;
+    virtual NObjectServer::ETypeFlags GetFlags() const override;
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -800,49 +800,55 @@ public:
 private:
     NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;
 
-    friend class TMapNodeTypeHandler;
+    template <class TImpl>
+    friend class TMapNodeTypeHandlerImpl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapNodeTypeHandler
-    : public TCompositeNodeBaseTypeHandler<TMapNode>
+// NB: The implementation of this template class can be found in _cpp_file,
+// together with all relevant explicit instantiations.
+template <class TImpl = TMapNode>
+class TMapNodeTypeHandlerImpl
+    : public TCompositeNodeBaseTypeHandler<TImpl>
 {
 public:
-    using TBase = TCompositeNodeBaseTypeHandler<TMapNode>;
+    using TBase = TCompositeNodeBaseTypeHandler<TImpl>;
 
     using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
     virtual NYTree::ENodeType GetNodeType() const override;
 
-private:
+protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
+        TImpl* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual void DoDestroy(TMapNode* node) override;
+    virtual void DoDestroy(TImpl* node) override;
 
     virtual void DoBranch(
-        const TMapNode* originatingNode,
-        TMapNode* branchedNode,
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
         const TLockRequest& lockRequest) override;
 
     virtual void DoMerge(
-        TMapNode* originatingNode,
-        TMapNode* branchedNode) override;
+        TImpl* originatingNode,
+        TImpl* branchedNode) override;
 
     virtual void DoClone(
-        TMapNode* sourceNode,
-        TMapNode* clonedNode,
+        TImpl* sourceNode,
+        TImpl* clonedNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
     virtual bool HasBranchedChangesImpl(
-        TMapNode* originatingNode,
-        TMapNode* branchedNode) override;
+        TImpl* originatingNode,
+        TImpl* branchedNode) override;
 };
+
+using TMapNodeTypeHandler = TMapNodeTypeHandlerImpl<TMapNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

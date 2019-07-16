@@ -1,6 +1,7 @@
 #include "node_detail.h"
 #include "helpers.h"
 #include "node_proxy_detail.h"
+#include "portal_exit_node.h"
 
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config.h>
@@ -50,9 +51,12 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap_(bootstrap)
 { }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable() const
+ETypeFlags TNontemplateCypressNodeTypeHandlerBase::GetFlags() const
 {
-    return false;
+    return
+        ETypeFlags::ReplicateAttributes |
+        ETypeFlags::ReplicateDestroy |
+        ETypeFlags::Creatable;
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
@@ -460,27 +464,31 @@ int TMapNode::GetGCWeight() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectType TMapNodeTypeHandler::GetObjectType() const
+template <class TImpl>
+EObjectType TMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
 {
     return EObjectType::MapNode;
 }
 
-ENodeType TMapNodeTypeHandler::GetNodeType() const
+template <class TImpl>
+ENodeType TMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
 {
     return ENodeType::Map;
 }
 
-void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 {
     TBase::DoDestroy(node);
 
     node->ChildCountDelta_ = 0;
-    node->Children_.Reset(Bootstrap_->GetObjectManager());
+    node->Children_.Reset(this->Bootstrap_->GetObjectManager());
 }
 
-void TMapNodeTypeHandler::DoBranch(
-    const TMapNode* originatingNode,
-    TMapNode* branchedNode,
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
+    const TImpl* originatingNode,
+    TImpl* branchedNode,
     const TLockRequest& lockRequest)
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
@@ -488,13 +496,13 @@ void TMapNodeTypeHandler::DoBranch(
     YT_VERIFY(!branchedNode->Children_);
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
         if (originatingNode->IsTrunk()) {
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
             branchedNode->Children_.Assign(originatingNode->Children_, objectManager);
         } else {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
             THashMap<TString, TCypressNodeBase*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
@@ -516,13 +524,14 @@ void TMapNodeTypeHandler::DoBranch(
     // Non-snapshot branches only hold changes, i.e. deltas. Which are empty at first.
 }
 
-void TMapNodeTypeHandler::DoMerge(
-    TMapNode* originatingNode,
-    TMapNode* branchedNode)
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
@@ -580,20 +589,22 @@ void TMapNodeTypeHandler::DoMerge(
     branchedNode->Children_.Reset(objectManager);
 }
 
-ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
-    TMapNode* trunkNode,
+template <class TImpl>
+ICypressNodeProxyPtr TMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
+    TImpl* trunkNode,
     TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
-        Bootstrap_,
-        &Metadata_,
+        this->Bootstrap_,
+        &this->Metadata_,
         transaction,
         trunkNode);
 }
 
-void TMapNodeTypeHandler::DoClone(
-    TMapNode* sourceNode,
-    TMapNode* clonedNode,
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
+    TImpl* sourceNode,
+    TImpl* clonedNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
@@ -602,7 +613,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* transaction = factory->GetTransaction();
 
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
     THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -614,7 +625,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
     auto& clonedNodeKeyToChild = clonedNode->MutableKeyToChild(objectManager);
     auto& clonedNodeChildToKey = clonedNode->MutableChildToKey(objectManager);
 
@@ -636,7 +647,8 @@ void TMapNodeTypeHandler::DoClone(
     }
 }
 
-bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMapNode* branchedNode)
+template <class TImpl>
+bool TMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode)
 {
     if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
         return true;
@@ -648,6 +660,10 @@ bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMap
 
     return !branchedNode->KeyToChild().empty();
 }
+
+// Explicit instantiations.
+template class TMapNodeTypeHandlerImpl<TMapNode>;
+template class TMapNodeTypeHandlerImpl<TPortalExitNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -277,9 +277,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 }
 
 template <class TImpl>
-bool TTableNodeTypeHandlerBase<TImpl>::IsExternalizable() const
+ETypeFlags TTableNodeTypeHandlerBase<TImpl>::GetFlags() const
 {
-    return true;
+    return TBase::GetFlags() | ETypeFlags::Externalizable;
 }
 
 template<class TImpl>

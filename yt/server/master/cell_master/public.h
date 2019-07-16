@@ -44,6 +44,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ConfigManager)
     (ChunkManager)
     (CypressManager)
+    (PortalManager)
     (HiveManager)
     (JournalManager)
     (NodeTracker)

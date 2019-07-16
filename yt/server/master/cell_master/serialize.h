@@ -79,6 +79,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
     ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (839))  // ifsmirnov
+    ((PortalsInitial)                                                (900))  // XXX(babenko): portals
 );
 
 ////////////////////////////////////////////////////////////////////////////////

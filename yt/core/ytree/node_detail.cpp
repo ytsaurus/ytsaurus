@@ -110,11 +110,6 @@ void TNodeBase::RemoveSelf(
 {
     context->SetRequestInfo();
 
-    auto parent = GetParent();
-    if (!parent) {
-        ThrowCannotRemoveRoot();
-    }
-
     ValidatePermission(
         EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
         EPermission::Remove);
@@ -127,9 +122,18 @@ void TNodeBase::RemoveSelf(
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
-    parent->AsComposite()->RemoveChild(this);
+    DoRemoveSelf();
 
     context->Reply();
+}
+
+void TNodeBase::DoRemoveSelf()
+{
+    auto parent = GetParent();
+    if (!parent) {
+        ThrowCannotRemoveRoot();
+    }
+    parent->AsComposite()->RemoveChild(this);
 }
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(

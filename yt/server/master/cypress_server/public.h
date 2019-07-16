@@ -27,6 +27,10 @@ DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
+DECLARE_REFCOUNTED_CLASS(TPortalManager)
+
+DECLARE_REFCOUNTED_STRUCT(TPortalTreeNode)
+DECLARE_REFCOUNTED_CLASS(TPortalTree)
 
 struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
@@ -49,6 +53,11 @@ using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
+
+class TLinkNode;
+class TDocumentNode;
+class TPortalEntranceNode;
+class TPortalExitNode;
 
 template <class T>
 class TScalarNodeTypeHandler;

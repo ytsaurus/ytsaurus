@@ -29,12 +29,12 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
+private:
+    virtual void DoDestroyObject(TMasterObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }
 
-private:
     virtual TString DoGetName(const TMasterObject* /*object*/) override
     {
         return "master";

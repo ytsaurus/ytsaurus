@@ -84,6 +84,8 @@
     XX(EffectiveAcl, effective_acl) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
+    XX(EntranceCellTag, entrance_cell_tag) \
+    XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \
@@ -91,6 +93,8 @@
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(Executable, executable) \
+    XX(ExitCellTag, exit_cell_tag) \
+    XX(ExitNodeId, exit_node_id) \
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \

@@ -4,7 +4,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
