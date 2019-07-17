@@ -437,8 +437,7 @@ private:
 
         auto delayTime = TInstant::Now() - AllocateWriteTargetsTimestamp_;
         if (delayTime < Config_->AllocateWriteTargetsBackoffTime) {
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->AllocateWriteTargetsBackoffTime - delayTime))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(Config_->AllocateWriteTargetsBackoffTime - delayTime);
         }
         AllocateWriteTargetsTimestamp_ = TInstant::Now();
 

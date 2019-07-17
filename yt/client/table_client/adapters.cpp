@@ -140,8 +140,7 @@ void PipeReaderToWriter(
         }
 
         if (!rows.empty() && options.PipeDelay) {
-            WaitFor(TDelayedExecutor::MakeDelayed(options.PipeDelay))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(options.PipeDelay);
         }
 
         if (!writer->Write(rows)) {
