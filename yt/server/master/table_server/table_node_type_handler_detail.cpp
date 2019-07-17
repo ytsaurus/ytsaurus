@@ -128,6 +128,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto* tabletCellBundle = optionalTabletCellBundleName
         ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName)
         : tabletManager->GetDefaultTabletCellBundle();
+    tabletCellBundle->ValidateCreationCommitted();
 
     auto nodeHolder = this->DoCreateImpl(
         id,

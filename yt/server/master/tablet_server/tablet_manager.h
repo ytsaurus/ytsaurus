@@ -162,6 +162,7 @@ public:
     void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
+    void SetTabletCellBundle(NCypressServer::TCompositeNodeBase* node, TTabletCellBundle* cellBundle);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);

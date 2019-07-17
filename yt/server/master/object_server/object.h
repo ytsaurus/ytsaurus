@@ -138,17 +138,16 @@ public:
     int GetImportRefCounter() const;
 
     //! Returns the current life stage of the object.
-    /*!
-     *  For most objects, this is always #Created.
-     *
-     *  Some objects, however, need to be created atomically (across all
-     *  cells). Returning an object in the #PreCreated stage from type handler
-     *  initiates atomic creation procedure.
-     */
     EObjectLifeStage GetLifeStage() const;
 
-    //! Sets object's life stage and resets vote count to zero.
+    //! Sets the object's life stage.
     void SetLifeStage(EObjectLifeStage lifeStage);
+
+    //! Returns the life stage vote count.
+    int GetLifeStageVoteCount() const;
+
+    //! Resets the life stage vote count to zero.
+    void ResetLifeStageVoteCount();
 
     //! Increases life stage vote count and returns the vote count.
     int IncrementLifeStageVoteCount();
@@ -243,6 +242,11 @@ class TNonversionedObjectBase
 public:
     explicit TNonversionedObjectBase(TObjectId id);
 
+    //! Builds a human-readable string for diagnostics.
+    virtual TString GetObjectName() const;
+
+    //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
+    void ValidateCreationCommitted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

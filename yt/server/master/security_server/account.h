@@ -51,6 +51,8 @@ public:
 public:
     explicit TAccount(TAccountId id);
 
+    virtual TString GetObjectName() const override;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 

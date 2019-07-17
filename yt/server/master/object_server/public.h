@@ -23,8 +23,10 @@ DEFINE_BIT_ENUM(ETypeFlags,
     ((Creatable)              (0x0008)) // objects of this type can be created at runtime
     ((Externalizable)         (0x0010)) // objects of this (versioned) type can be externalized to another cell (e.g. tables, files)
     ((ForbidInheritAclChange) (0x0020)) // inherit_acl attribute cannot be changed
-    ((ForbidLocking)          (0x0040)) // no locks can be taken objects of this (versioned) type
-    ((TwoPhaseCreation)       (0x0080)) // employ two-phase creation protocol
+    ((ForbidLocking)          (0x0040)) // no locks can be taken for objects of this (versioned) type
+    ((TwoPhaseCreation)       (0x0080)) // employ two-phase creation protocol: CreationStarted -> CreationPreCommitted -> CreationCommitted
+    ((Removable)              (0x0100)) // objects of this (unversioned) type can be removed by explicit Remove call
+    ((TwoPhaseRemoval)        (0x0200)) // employ two-phase removal protocol: RemovalStarted -> RemovalPreCommitted -> RemovalComitted
 );
 
 ////////////////////////////////////////////////////////////////////////////////

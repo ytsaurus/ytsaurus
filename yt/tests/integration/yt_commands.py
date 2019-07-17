@@ -1093,6 +1093,7 @@ def create_user(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+    wait(lambda: get("//sys/users/{0}/@life_stage".format(name)) == "creation_committed")
 
 def make_random_string(length=10):
     return "".join(random.choice(string.letters) for _ in xrange(length))
@@ -1124,6 +1125,7 @@ def create_group(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+    wait(lambda: get("//sys/groups/{0}/@life_stage".format(name)) == "creation_committed")
 
 def remove_group(name, **kwargs):
     remove("//sys/groups/" + name, **kwargs)
@@ -1156,6 +1158,7 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
             if option not in kwargs["attributes"]["options"]:
                 kwargs["attributes"]["options"][option] = "sys"
     execute_command("create", kwargs)
+    wait(lambda: get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name)) == "creation_committed")
 
 def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)

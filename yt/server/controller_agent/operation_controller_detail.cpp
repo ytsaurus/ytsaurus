@@ -4368,10 +4368,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         if (schema) {
             attributes->Set("schema", *schema);
         }
-// XXX(babenko): portals
-//        if (account) {
-//            attributes->Set("account", *account);
-//        }
+        if (account) {
+            attributes->Set("account", *account);
+        }
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
         SetTransactionId(req, AsyncTransaction->GetId());

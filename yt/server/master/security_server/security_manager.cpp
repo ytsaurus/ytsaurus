@@ -117,7 +117,9 @@ public:
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
             ETypeFlags::Creatable |
-            ETypeFlags::TwoPhaseCreation;
+            ETypeFlags::TwoPhaseCreation |
+            ETypeFlags::Removable |
+            ETypeFlags::TwoPhaseRemoval;
     }
 
     virtual EObjectType GetType() const override
@@ -168,7 +170,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
@@ -216,7 +219,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -462,7 +466,6 @@ public:
 
         node->SetAccount(newAccount);
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
-        // XXX(babenko): portals
         objectManager->RefObject(newAccount);
 
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
@@ -1160,7 +1163,7 @@ public:
             return;
         }
 
-        ValidateLifeStage(account);
+        account->ValidateCreationCommitted();
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
@@ -1221,17 +1224,6 @@ public:
         }
     }
 
-
-    // XXX(babenko): portals
-    void ValidateLifeStage(TAccount* account)
-    {
-        if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ObjectNotReplicated,
-                "Account %Qv is not replicated to all cells yet",
-                account->GetName());
-        }
-    }
 
     void SetUserBanned(TUser* user, bool banned)
     {
@@ -2822,11 +2814,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
-    auto lifeStage = attributes->GetAndRemove<EObjectLifeStage>("life_stage", EObjectLifeStage::CreationStarted);
-
-    auto* account = Owner_->CreateAccount(name, hintId);
-    account->SetLifeStage(lifeStage);
-    return account;
+    return Owner_->CreateAccount(name, hintId);
 }
 
 std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)

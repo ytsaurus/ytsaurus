@@ -127,7 +127,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
     def do():
         list_objects_results = yt_commands.execute_batch([
             yt_commands.make_batch_request("list", return_only_value=True, path="//sys/" + type,
-                attributes=["id", "builtin"]) for type in TYPES],
+                attributes=["id", "builtin", "life_stage"]) for type in TYPES],
                 driver=driver)
 
         object_ids_to_remove = []
@@ -135,6 +135,8 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
             objects = yt_commands.get_batch_output(list_objects_results[index])
             for object in objects:
                 if object.attributes["builtin"]:
+                    continue
+                if object.attributes["life_stage"] == "removal_pre_committed":
                     continue
                 if type == "users" and str(object) == "application_operations":
                     continue
@@ -144,6 +146,13 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                 yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
             ], driver=driver):
             assert not yt_commands.get_batch_output(result)
+
+        def check_removed():
+            results = yt_commands.execute_batch([
+                yt_commands.make_batch_request("exists", path="#" + id) for id in object_ids_to_remove
+            ], driver=driver)
+            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
+        wait(check_removed)
 
     _retry_with_gc_collect(do, driver=driver)
 

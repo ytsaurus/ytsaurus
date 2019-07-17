@@ -43,7 +43,9 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return ETypeFlags::Creatable;
+        return
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual TObjectBase* CreateObject(

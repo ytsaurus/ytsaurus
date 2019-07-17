@@ -115,3 +115,19 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/p/t", attributes={"external": True})
         assert get("//tmp/p/t/@external")
         assert get("//tmp/p/t/@external_cell_tag") in [1, 2]
+
+    def test_account_lifetime(self):
+        create_account("a")
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("table", "//tmp/p1/t", attributes={"account": "a"})
+        create("table", "//tmp/p2/t", attributes={"account": "a"})
+        remove("//sys/accounts/a")
+        assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_started")
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started")
+        remove("//tmp/p1/t")
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_pre_committed")
+        assert get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started"
+        remove("//tmp/p2/t")
+        wait(lambda: not exists("//sys/accounts/a"))

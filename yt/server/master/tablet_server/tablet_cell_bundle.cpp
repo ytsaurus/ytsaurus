@@ -27,9 +27,13 @@ TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
     , TabletBalancerConfig_(New<TTabletBalancerConfig>())
-    , Health_(ETabletCellHealth::Good)
     , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
+
+TString TTabletCellBundle::GetObjectName() const
+{
+    return Format("Tablet cell bundle %Qv", Name_);
+}
 
 void TTabletCellBundle::IncreaseActiveTabletActionCount()
 {
