@@ -75,6 +75,10 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
+    if (trunkNode->IsForeign()) {
+        return;
+    }
+
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
     }
@@ -95,6 +99,10 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
+    if (trunkNode->IsForeign()) {
+        return;
+    }
+
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
     }
@@ -107,6 +115,10 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
 
     if (trunkNode->GetExpirationIterator()) {
         return;
