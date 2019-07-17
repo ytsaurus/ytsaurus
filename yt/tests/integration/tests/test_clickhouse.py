@@ -706,6 +706,21 @@ class TestCompositeTypes(ClickHouseTestBase):
                                        "YPathString('{a=1}', NULL) as c")
         assert result == [{"a": None, "b": None, "c": None}]
 
+    # CHYT-157.
+    def test_int64_as_any(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "any"}]})
+        lst = [{"a": -2**63},
+               {"a": -42},
+               {"a": 123456789123456789},
+               {"a": 2**63 - 1}]
+        write_table("//tmp/t1", lst)
+        merge(in_="//tmp/t1",
+              out="//tmp/t2")
+
+        with Clique(1) as clique:
+            result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/t2\" order by i")
+            assert result == [{"i": row["a"]} for row in lst]
 
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
