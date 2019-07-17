@@ -50,6 +50,8 @@ def prepare_yatest_environment():
 
     global SANDBOX_ROOTDIR
     SANDBOX_ROOTDIR = arcadia_interop.yatest_common.get_param("ram_drive_path")
+    if SANDBOX_ROOTDIR is None:
+        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
 
     global SANDBOX_STORAGE_ROOTDIR
     SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.test_output_path()
