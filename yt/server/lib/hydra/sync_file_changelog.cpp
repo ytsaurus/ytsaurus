@@ -377,8 +377,8 @@ public:
         Error_.ThrowOnError();
         ValidateOpen();
 
-        YCHECK(!TruncatedRecordCount_);
-        YCHECK(firstRecordId == RecordCount_);
+        YT_VERIFY(!TruncatedRecordCount_);
+        YT_VERIFY(firstRecordId == RecordCount_);
 
         YT_LOG_DEBUG("Started appending to changelog (RecordIds: %v-%v)",
             firstRecordId,
@@ -393,7 +393,7 @@ public:
             // Combine records into a single memory blob.
             for (int index = 0; index < records.size(); ++index) {
                 const auto& record = records[index];
-                YCHECK(!record.Empty());
+                YT_VERIFY(!record.Empty());
 
                 int totalSize = 0;
                 i64 paddedSize = 0;
@@ -406,7 +406,7 @@ public:
                     paddedSize = ::AlignUp(blockSize, Alignment_) - blockSize;
                 }
 
-                YCHECK(paddedSize <= std::numeric_limits<i16>::max());
+                YT_VERIFY(paddedSize <= std::numeric_limits<i16>::max());
 
                 TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record), paddedSize);
                 totalSize += WritePodPadded(AppendOutput_, header);
@@ -416,8 +416,8 @@ public:
                 AppendSizes_.push_back(totalSize);
             }
 
-            YCHECK(::AlignUp(CurrentFilePosition_, Alignment_) == CurrentFilePosition_);
-            YCHECK(::AlignUp<i64>(AppendOutput_.Size(), Alignment_) == AppendOutput_.Size());
+            YT_VERIFY(::AlignUp(CurrentFilePosition_, Alignment_) == CurrentFilePosition_);
+            YT_VERIFY(::AlignUp<i64>(AppendOutput_.Size(), Alignment_) == AppendOutput_.Size());
 
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
@@ -481,8 +481,8 @@ public:
         Error_.ThrowOnError();
         ValidateOpen();
 
-        YCHECK(firstRecordId >= 0);
-        YCHECK(maxRecords >= 0);
+        YT_VERIFY(firstRecordId >= 0);
+        YT_VERIFY(maxRecords >= 0);
 
         YT_LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
@@ -559,8 +559,8 @@ public:
         Error_.ThrowOnError();
         ValidateOpen();
 
-        YCHECK(recordCount >= 0);
-        YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
+        YT_VERIFY(recordCount >= 0);
+        YT_VERIFY(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
         YT_LOG_DEBUG("Started truncating changelog (RecordCount: %v)",
             recordCount);
@@ -584,7 +584,7 @@ public:
 
         auto guard = Guard(Lock_);
 
-        YCHECK(CurrentFilePosition_ <= size);
+        YT_VERIFY(CurrentFilePosition_ <= size);
 
         WaitFor(IOEngine_->Fallocate(DataFile_, size))
             .ThrowOnError();
@@ -678,7 +678,7 @@ private:
                 Write(tempFile, SerializedMeta_);
                 WriteZeroes(tempFile, header.PaddingSize);
 
-                YCHECK(tempFile.GetPosition() == header.HeaderSize);
+                YT_VERIFY(tempFile.GetPosition() == header.HeaderSize);
 
                 tempFile.FlushData();
                 tempFile.Close();
@@ -734,7 +734,7 @@ private:
 
         result.Blob = IOEngine_->Pread(DataFile_, result.GetLength(), result.GetStartPosition()).Get().Value();
 
-        YCHECK(result.Blob.Size() == result.GetLength());
+        YT_VERIFY(result.Blob.Size() == result.GetLength());
 
         return result;
     }
@@ -764,7 +764,7 @@ private:
             // Skip the first index record.
             // It must be correct since we have already checked the index.
             auto recordInfoOrError = TryReadRecord(dataReader);
-            YCHECK(recordInfoOrError.IsOK());
+            YT_VERIFY(recordInfoOrError.IsOK());
             const auto& recordInfo = recordInfoOrError.Value();
             RecordCount_ = IndexFile_.LastRecord().RecordId + 1;
             CurrentFilePosition_ += recordInfo.TotalSize;
@@ -820,7 +820,7 @@ private:
         auto correctSize = ::AlignUp<i64>(CurrentFilePosition_, Alignment_);
         // rewrite the last 4K-block in case of incorrect size?
         if (correctSize > CurrentFilePosition_) {
-            YCHECK(lastCorrectRecordInfo);
+            YT_VERIFY(lastCorrectRecordInfo);
 
             auto totalRecordSize =  lastCorrectRecordInfo->TotalSize;
             auto offset = CurrentFilePosition_ - totalRecordSize;
@@ -839,7 +839,7 @@ private:
             CurrentFilePosition_ = correctSize;
         }
 
-        YCHECK(correctSize == CurrentFilePosition_);
+        YT_VERIFY(correctSize == CurrentFilePosition_);
     }
 
     template <class TOutput>
@@ -853,7 +853,7 @@ private:
             written += toWrite;
         }
 
-        YCHECK(written == count);
+        YT_VERIFY(written == count);
 
         return written;
     }

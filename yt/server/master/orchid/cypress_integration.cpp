@@ -106,12 +106,12 @@ public:
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool ShouldHideAttributes() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:

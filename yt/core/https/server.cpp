@@ -73,14 +73,14 @@ IServerPtr CreateServer(
     } else if (config->Credentials->CertChain->Value) {
         sslContext->AddCertificateChain(*config->Credentials->CertChain->Value);
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
     if (config->Credentials->PrivateKey->FileName) {
         sslContext->AddPrivateKeyFromFile(*config->Credentials->PrivateKey->FileName);
     } else if (config->Credentials->PrivateKey->Value) {
         sslContext->AddPrivateKey(*config->Credentials->PrivateKey->Value);
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);

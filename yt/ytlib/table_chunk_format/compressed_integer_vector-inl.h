@@ -36,7 +36,7 @@ CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst)
     ui64 header = values.Size();
 
     // Check that most significant byte is empty.
-    YCHECK((MaskLowerBits(8, 56) & header) == 0);
+    YT_VERIFY((MaskLowerBits(8, 56) & header) == 0);
     header |= width << 56;
 
     // Save header.
@@ -90,7 +90,7 @@ CompressUnsignedVector(TRange<T> values, ui64 maxValue)
     size_t size = CompressedUnsignedVectorSizeInBytes(maxValue, values.Size());
     auto data = TSharedMutableRef::Allocate<TCompressedUnsignedVectorTag>(size);
     auto actualSize = CompressUnsignedVector(values, maxValue, reinterpret_cast<ui64*>(data.Begin()));
-    YCHECK(size == actualSize * sizeof(ui64));
+    YT_VERIFY(size == actualSize * sizeof(ui64));
 
     return data;
 };
@@ -118,7 +118,7 @@ TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader()
 template <class T, bool Scan>
 inline T TCompressedUnsignedVectorReader<T, Scan>::operator[] (size_t index) const
 {
-    Y_ASSERT(index < Size_);
+    YT_ASSERT(index < Size_);
     if (Scan) {
         return Values_[index];
     } else {

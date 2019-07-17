@@ -117,7 +117,7 @@ public:
         }
 
         if (!coreAppearedWaitResult.IsOK()) {
-            YCHECK(coreAppearedWaitResult.FindMatching(NYT::EErrorCode::Timeout));
+            YT_VERIFY(coreAppearedWaitResult.FindMatching(NYT::EErrorCode::Timeout));
             YT_LOG_INFO("Core did not appear within timeout, creating a dummy core info entry (Timeout: %v)", timeout);
             // Even though the core file we have been waiting for didn't appear, we create an entity node in Cypress related to it.
             TCoreInfo dummyCoreInfo;
@@ -230,7 +230,7 @@ private:
             auto outputResult = blobWriter.GetOutputResult();
 
             // A sanity check.
-            YCHECK(!outputResult.empty() || coreSize == 0);
+            YT_VERIFY(!outputResult.empty() || coreSize == 0);
 
             if (BoundaryKeys_.empty()) {
                 BoundaryKeys_.MergeFrom(outputResult);

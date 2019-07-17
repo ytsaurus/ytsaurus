@@ -389,13 +389,13 @@ IJobPtr TJobProxy::CreateBuiltinJob()
             return CreateRemoteCopyJob(this);
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 TString TJobProxy::AdjustPath(const TString& path) const
 {
-    YCHECK(path.StartsWith(GetPreparationPath()));
+    YT_VERIFY(path.StartsWith(GetPreparationPath()));
     auto pathSuffix = path.substr(GetPreparationPath().size() + 1);
     auto adjustedPath = NFS::CombinePaths(GetSlotPath(), pathSuffix);
     return adjustedPath;
@@ -666,7 +666,7 @@ TJobId TJobProxy::GetJobId() const
 
 const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const
 {
-    YCHECK(JobSpecHelper_);
+    YT_VERIFY(JobSpecHelper_);
     return JobSpecHelper_;
 }
 

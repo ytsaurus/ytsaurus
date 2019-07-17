@@ -41,7 +41,7 @@ public:
 
     virtual void Initialize() override
     {
-        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
 
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -58,7 +58,7 @@ public:
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-            YCHECK(!Reader_);
+            YT_VERIFY(!Reader_);
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.
             Reader_ = CreateSchemalessSequentialMultiReader(
@@ -82,7 +82,7 @@ public:
             return Reader_;
         };
 
-        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
@@ -94,7 +94,7 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
 
         WriterFactory_ = [=] (TNameTablePtr nameTable, const TTableSchema& schema) mutable {
-            YCHECK(!Writer_);
+            YT_VERIFY(!Writer_);
             Writer_ = CreatePartitionMultiChunkWriter(
                 writerConfig,
                 options,

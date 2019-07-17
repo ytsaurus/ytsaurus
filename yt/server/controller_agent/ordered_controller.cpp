@@ -320,7 +320,7 @@ protected:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
@@ -607,7 +607,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -863,7 +863,7 @@ private:
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -978,7 +978,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1069,7 +1069,7 @@ private:
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

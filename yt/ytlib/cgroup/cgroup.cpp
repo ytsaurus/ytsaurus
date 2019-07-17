@@ -136,7 +136,7 @@ void TNonOwningCGroup::AddTask(int pid) const
 
 void TNonOwningCGroup::AddCurrentTask() const
 {
-    YCHECK(!IsNull());
+    YT_VERIFY(!IsNull());
 #ifdef _linux_
     auto pid = getpid();
     AddTask(pid);
@@ -145,7 +145,7 @@ void TNonOwningCGroup::AddCurrentTask() const
 
 TString TNonOwningCGroup::Get(const TString& name) const
 {
-    YCHECK(!IsNull());
+    YT_VERIFY(!IsNull());
     TString result;
 #ifdef _linux_
     const auto path = GetPath(name);
@@ -156,7 +156,7 @@ TString TNonOwningCGroup::Get(const TString& name) const
 
 void TNonOwningCGroup::Set(const TString& name, const TString& value) const
 {
-    YCHECK(!IsNull());
+    YT_VERIFY(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
     TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
@@ -166,7 +166,7 @@ void TNonOwningCGroup::Set(const TString& name, const TString& value) const
 
 void TNonOwningCGroup::Append(const TString& name, const TString& value) const
 {
-    YCHECK(!IsNull());
+    YT_VERIFY(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
     TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
@@ -236,7 +236,7 @@ void TNonOwningCGroup::EnsureExistance() const
 {
     YT_LOG_INFO("Creating cgroup %v", FullPath_);
 
-    YCHECK(!IsNull());
+    YT_VERIFY(!IsNull());
 
 #ifdef _linux_
     NFS::MakeDirRecursive(FullPath_, 0755);
@@ -261,7 +261,7 @@ void TNonOwningCGroup::Unlock() const
 
 void TNonOwningCGroup::Kill() const
 {
-    YCHECK(!IsRoot());
+    YT_VERIFY(!IsRoot());
 
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }),
@@ -297,10 +297,10 @@ void TNonOwningCGroup::DoLock() const
 #ifdef _linux_
     if (!IsNull()) {
         int code = chmod(FullPath_.data(), ReadExecuteByAll);
-        YCHECK(code == 0);
+        YT_VERIFY(code == 0);
 
         code = chmod(GetPath("tasks").data(), ReadByAll);
-        YCHECK(code == 0);
+        YT_VERIFY(code == 0);
     }
 #endif
 }
@@ -334,7 +334,7 @@ bool TNonOwningCGroup::TryUnlock() const
 
 void TNonOwningCGroup::DoUnlock() const
 {
-    YCHECK(TryUnlock());
+    YT_VERIFY(TryUnlock());
 }
 
 void TNonOwningCGroup::DoKill() const
@@ -352,7 +352,7 @@ void TNonOwningCGroup::DoKill() const
         for (int pid : pids) {
             auto result = kill(pid, SIGKILL);
             if (result == -1) {
-                YCHECK(errno == ESRCH);
+                YT_VERIFY(errno == ESRCH);
             }
         }
 
@@ -422,7 +422,7 @@ void TCGroup::Create()
 void TCGroup::Destroy()
 {
     YT_LOG_INFO("Destroying cgroup %v", FullPath_);
-    YCHECK(Created_);
+    YT_VERIFY(Created_);
 
 #ifdef _linux_
     try {
@@ -471,7 +471,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
     try {
         auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
         auto values = ReadAllValues(path);
-        YCHECK(values.size() == 4);
+        YT_VERIFY(values.size() == 4);
 
         TString type[2];
         ui64 jiffies[2];

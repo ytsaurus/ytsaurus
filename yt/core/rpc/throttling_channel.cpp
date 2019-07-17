@@ -68,8 +68,8 @@ IChannelPtr CreateThrottlingChannel(
     TThrottlingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
 {
-    YCHECK(config);
-    YCHECK(underlyingChannel);
+    YT_VERIFY(config);
+    YT_VERIFY(underlyingChannel);
 
     return New<TThrottlingChannel>(config, underlyingChannel);
 }

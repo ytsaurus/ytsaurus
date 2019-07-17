@@ -22,7 +22,10 @@ DEFINE_ENUM(ELogicalMetatype,
     (List)
     (Struct)
     (Tuple)
-    // In the future there will be Variant, Map, etc
+
+    (VariantStruct)
+    (VariantTuple)
+    // In the future there will be VariantTuple, Map, etc
 );
 
 class TLogicalType
@@ -37,6 +40,8 @@ public:
     const TListLogicalType& AsListTypeRef() const;
     const TStructLogicalType& AsStructTypeRef() const;
     const TTupleLogicalType& AsTupleTypeRef() const;
+    const TVariantTupleLogicalType& AsVariantTupleTypeRef() const;
+    const TVariantStructLogicalType& AsVariantStructTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -97,7 +102,6 @@ public:
 private:
     const TLogicalTypePtr Element_;
 };
-DEFINE_REFCOUNTED_TYPE(TOptionalLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,7 +120,6 @@ public:
 private:
     ESimpleLogicalValueType Element_;
 };
-DEFINE_REFCOUNTED_TYPE(TSimpleLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +138,6 @@ public:
 private:
     TLogicalTypePtr Element_;
 };
-DEFINE_REFCOUNTED_TYPE(TListLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,6 +153,8 @@ public:
     TComplexTypeFieldDescriptor ListElement() const;
     TComplexTypeFieldDescriptor StructField(size_t i) const;
     TComplexTypeFieldDescriptor TupleElement(size_t i) const;
+    TComplexTypeFieldDescriptor VariantTupleElement(size_t i) const;
+    TComplexTypeFieldDescriptor VariantStructField(size_t i) const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
@@ -164,36 +168,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStructLogicalType
+struct TStructField
+{
+    TString Name;
+    TLogicalTypePtr Type;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Base class for struct and named variant.
+class TStructLogicalTypeBase
     : public TLogicalType
 {
 public:
-    struct TField
-    {
-        TString Name;
-        TLogicalTypePtr Type;
-    };
 
 public:
-    explicit TStructLogicalType(std::vector<TField> fields);
-    const std::vector<TField>& GetFields() const;
+    TStructLogicalTypeBase(ELogicalMetatype metatype, std::vector<TStructField> fields);
+    const std::vector<TStructField>& GetFields() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
 
 private:
-    std::vector<TField> Fields_;
+    std::vector<TStructField> Fields_;
 };
-DEFINE_REFCOUNTED_TYPE(TStructLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTupleLogicalType
+class TTupleLogicalTypeBase
     : public TLogicalType
 {
 public:
-    explicit TTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+    explicit TTupleLogicalTypeBase(ELogicalMetatype metatype, std::vector<TLogicalTypePtr> elements);
 
     const std::vector<TLogicalTypePtr>& GetElements() const;
 
@@ -204,7 +211,42 @@ public:
 private:
     std::vector<TLogicalTypePtr> Elements_;
 };
-DEFINE_REFCOUNTED_TYPE(TTupleLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStructLogicalType
+    : public TStructLogicalTypeBase
+{
+public:
+    TStructLogicalType(std::vector<TStructField> fields);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTupleLogicalType
+    : public TTupleLogicalTypeBase
+{
+public:
+    TTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVariantStructLogicalType
+    : public TStructLogicalTypeBase
+{
+public:
+    explicit TVariantStructLogicalType(std::vector<TStructField> fields);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVariantTupleLogicalType
+    : public TTupleLogicalTypeBase
+{
+public:
+    explicit TVariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,9 +256,12 @@ extern TLogicalTypePtr NullLogicalType;
 
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required = true);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
+TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
-TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
-TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> fields);
+TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields);
+TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements);
+TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
+TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,7 +19,7 @@ namespace NYT::NObjectServer {
 template <class TObject>
 TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShepherd(const NYPath::TYPath& path)
 {
-    Y_ASSERT(Bootstrap_->IsSecondaryMaster());
+    YT_ASSERT(Bootstrap_->IsSecondaryMaster());
 
     auto cellTag = Bootstrap_->GetPrimaryCellTag();
     const auto multicellManager = Bootstrap_->GetMulticellManager();
@@ -55,7 +55,7 @@ template <class TObject>
 template <class T>
 TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NYTree::TInternedAttributeKey key)
 {
-    Y_ASSERT(Bootstrap_->IsPrimaryMaster());
+    YT_ASSERT(Bootstrap_->IsPrimaryMaster());
 
     const auto* object = GetThisImpl();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();

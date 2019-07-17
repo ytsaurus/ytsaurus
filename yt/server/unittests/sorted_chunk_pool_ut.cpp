@@ -121,7 +121,7 @@ protected:
 
     IChunkSliceFetcherFactoryPtr BuildMockChunkSliceFetcherFactory()
     {
-        YCHECK(Fetchers_.empty());
+        YT_VERIFY(Fetchers_.empty());
         for (auto& mockBuilder : MockBuilders_) {
             Fetchers_.emplace_back(mockBuilder.Build());
         }
@@ -135,7 +135,7 @@ protected:
 
     TMockChunkSliceFetcherBuilder& CurrentMock()
     {
-        YCHECK(!MockBuilders_.empty());
+        YT_VERIFY(!MockBuilders_.empty());
         return MockBuilders_.back();
     }
 
@@ -209,7 +209,7 @@ protected:
 
     void InitTables(std::vector<bool> isForeign, std::vector<bool> isTeleportable, std::vector<bool> isVersioned)
     {
-        YCHECK(isForeign.size() == isTeleportable.size() && isTeleportable.size() == isVersioned.size() && isForeign.size() > 0);
+        YT_VERIFY(isForeign.size() == isTeleportable.size() && isTeleportable.size() == isVersioned.size() && isForeign.size() > 0);
         for (int index = 0; index < isForeign.size(); ++index) {
             InputTables_.emplace_back(isTeleportable[index], !isForeign[index] /* isPrimary */, isVersioned[index]);
         }
@@ -227,16 +227,16 @@ protected:
             // Fix the first size to fix the error because of integer division.
             sliceSizes[0] += chunk->GetUncompressedDataSize() - (internalPoints.size() + 1) * sliceSizes[0];
         } else {
-            YCHECK(internalPoints.size() + 1 == sliceSizes.size());
+            YT_VERIFY(internalPoints.size() + 1 == sliceSizes.size());
         }
         if (sliceRowCounts.empty()) {
             sliceRowCounts.assign(internalPoints.size() + 1, chunk->GetRowCount() / (internalPoints.size() + 1));
             sliceRowCounts[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
         } else {
-            YCHECK(internalPoints.size() + 1 == sliceSizes.size());
+            YT_VERIFY(internalPoints.size() + 1 == sliceSizes.size());
         }
 
-        YCHECK(!InputTables_[chunk->GetTableIndex()].IsVersioned());
+        YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
 
         TKey lastKey = chunk->LowerLimit() ? chunk->LowerLimit()->GetKey() : chunk->BoundaryKeys()->MinKey;
         i64 currentRow = 0;
@@ -303,15 +303,15 @@ protected:
     void SuspendChunk(IChunkPoolInput::TCookie cookie)
     {
         const auto& chunkId = InputCookieToChunkId_[cookie];
-        YCHECK(chunkId);
-        YCHECK(ActiveChunks_.erase(chunkId));
+        YT_VERIFY(chunkId);
+        YT_VERIFY(ActiveChunks_.erase(chunkId));
         ChunkPool_->Suspend(cookie);
     }
 
     void ResumeChunk(IChunkPoolInput::TCookie cookie)
     {
         const auto& chunkId = InputCookieToChunkId_[cookie];
-        YCHECK(chunkId);
+        YT_VERIFY(chunkId);
         ActiveChunks_.insert(chunkId);
         ChunkPool_->Resume(cookie);
     }
@@ -319,7 +319,7 @@ protected:
     void ResetChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
     {
         const auto& oldChunkId = InputCookieToChunkId_[cookie];
-        YCHECK(oldChunkId);
+        YT_VERIFY(oldChunkId);
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->InputStreamIndex = chunk->GetTableIndex();
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
@@ -382,7 +382,7 @@ protected:
             }
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     //! Check that:
@@ -2967,7 +2967,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto cookie = *randomElement;
                 Cdebug << Format("Suspending cookie %v", cookie);
                 auto chunkId = InputCookieToChunkId_[cookie];
-                YCHECK(chunkId);
+                YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedCookies.erase(cookie));
                 ASSERT_TRUE(suspendedCookies.insert(cookie).second);
@@ -2980,7 +2980,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto cookie = *randomElement;
                 Cdebug << Format("Resuming cookie %v", cookie);
                 auto chunkId = InputCookieToChunkId_[cookie];
-                YCHECK(chunkId);
+                YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(suspendedCookies.erase(cookie));
                 ASSERT_TRUE(resumedCookies.insert(cookie).second);
@@ -2993,7 +2993,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto cookie = *randomElement;
                 Cdebug << Format("Resetting cookie %v", cookie);
                 auto chunkId = InputCookieToChunkId_[cookie];
-                YCHECK(chunkId);
+                YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 // TODO(max42): reset to something different.
                 const auto& chunk = chunkIdToChunk.at(chunkId);

@@ -89,7 +89,7 @@ bool TJournalNode::GetSealed() const
 
 void TJournalNode::SetSealed(bool value)
 {
-    YCHECK(IsTrunk());
+    YT_VERIFY(IsTrunk());
     Sealed_ = value;
 }
 
@@ -254,7 +254,7 @@ protected:
     {
         // NB: Don't call TBase::DoMerge.
 
-        YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
+        YT_VERIFY(originatingNode->GetChunkList() == branchedNode->GetChunkList());
         auto* chunkList = originatingNode->GetChunkList();
 
         if (!originatingNode->IsExternal()) {
@@ -285,7 +285,7 @@ protected:
     {
         // NB: Don't call TBase::DoUnbranch.
 
-        YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
+        YT_VERIFY(originatingNode->GetChunkList() == branchedNode->GetChunkList());
 
         HandleTransactionFinished(originatingNode, branchedNode);
     }

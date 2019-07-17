@@ -23,6 +23,8 @@
 #include <yt/core/profiling/profile_manager.h>
 
 #include <AggregateFunctions/registerAggregateFunctions.h>
+#include <Common/CurrentMetrics.h>
+#include <Common/ClickHouseRevision.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/config.h>
@@ -47,7 +49,6 @@
 #include <common/logger_useful.h>
 
 #include <Poco/DirectoryIterator.h>
-#include <Poco/Ext/LevelFilterChannel.h>
 #include <Poco/File.h>
 #include <Poco/Logger.h>
 #include <Poco/Net/HTTPServer.h>
@@ -140,7 +141,7 @@ public:
         , ControlInvoker_(Bootstrap_->GetControlInvoker())
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
-    {}
+    { }
 
     void Start()
     {
@@ -194,7 +195,7 @@ public:
 
         YT_LOG_DEBUG("Flushing profiling");
 
-        for (auto& [user, runningQueryCount] : UserToRunningInitialQueryCount_) {
+        for (const auto& [user, runningQueryCount] : UserToRunningInitialQueryCount_) {
             ServerProfiler.Enqueue(
                 "/running_initial_query_count",
                 runningQueryCount,
@@ -202,13 +203,24 @@ public:
                 {TProfileManager::Get()->RegisterTag("user", user)});
         }
 
-        for (auto& [user, runningQueryCount] : UserToRunningSecondaryQueryCount_) {
+        for (const auto& [user, runningQueryCount] : UserToRunningSecondaryQueryCount_) {
             ServerProfiler.Enqueue(
                 "/running_secondary_query_count",
                 runningQueryCount,
                 EMetricType::Gauge,
                 {TProfileManager::Get()->RegisterTag("user", user)});
         }
+
+        for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
+            const auto* name = CurrentMetrics::getName(index);
+            auto value = CurrentMetrics::values[index].load();
+            ServerProfiler.Enqueue(
+                "/ch_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
+                value,
+                EMetricType::Gauge);
+        }
+
+        YT_LOG_DEBUG("Profiling flushed");
     }
 
     void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)
@@ -225,7 +237,7 @@ public:
         } else {
             it->second += delta;
         }
-        YCHECK(it->second >= 0);
+        YT_VERIFY(it->second >= 0);
         if (it->second == 0) {
             queryCountMap.erase(it);
         }
@@ -294,6 +306,9 @@ private:
         RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Bootstrap_);
         RegisterStorageTable();
+
+        CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
+        CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
 
         // Initialize DateLUT early, to not interfere with running time of first query.
         YT_LOG_INFO("Initializing DateLUT");

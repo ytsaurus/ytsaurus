@@ -148,7 +148,7 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->To == typedRhs->To &&
             typedLhs->DefaultExpr == typedRhs->DefaultExpr;
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -251,7 +251,7 @@ void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
             builder->AppendChar('"');
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -428,13 +428,13 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool
 
         builder->AppendChar(')');
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
 void FormatExpression(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases)
 {
-    YCHECK(exprs.size() > 0);
+    YT_VERIFY(exprs.size() > 0);
     if (exprs.size() > 1) {
         builder->AppendChar('(');
     }

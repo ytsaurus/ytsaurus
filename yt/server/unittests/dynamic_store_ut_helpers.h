@@ -97,7 +97,7 @@ protected:
                     storeId,
                     tablet);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -162,7 +162,7 @@ protected:
 
     virtual IDynamicStorePtr GetDynamicStore()
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual EAtomicity GetAtomicity() const
@@ -302,7 +302,7 @@ protected:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 

@@ -25,18 +25,18 @@ IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe,
 {
     // `key` argument should be set to something non-trivial only for sink chunk pool inputs,
     // so for all classes that are inherited from this `key` should never be set.
-    YCHECK(!key);
+    YT_VERIFY(!key);
     // Stripes may either contain several data slices or consist only of a single chunk tree id.
     // All classes that are inherited from this base are dealing with explicit chunk representations,
     // so they are not ready to work with stripes that do not contain data slices.
-    YCHECK(!stripe->DataSlices.empty());
+    YT_VERIFY(!stripe->DataSlices.empty());
 
     return Add(stripe);
 }
 
 void TChunkPoolInputBase::Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TChunkPoolInputBase::Persist(const TPersistenceContext& context)

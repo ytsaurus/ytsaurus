@@ -28,7 +28,7 @@ void TCountDownLatch::CountDown()
             nullptr,
             nullptr,
             0);
-        Y_ASSERT(rv >= 0);
+        YT_ASSERT(rv >= 0);
         Y_UNUSED(rv);
 #else
         ConditionVariable_.BroadCast();
@@ -54,7 +54,7 @@ void TCountDownLatch::Wait() const
             nullptr,
             nullptr,
             0);
-        Y_ASSERT(rv >= 0 || errno == EWOULDBLOCK || errno == EINTR);
+        YT_ASSERT(rv >= 0 || errno == EWOULDBLOCK || errno == EINTR);
         Y_UNUSED(rv);
 #else
         ConditionVariable_.WaitI(Mutex_);

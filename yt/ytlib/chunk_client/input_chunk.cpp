@@ -45,7 +45,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         UniqueKeys_ = miscExt->unique_keys();
     }
 
-    YCHECK(EChunkType(chunkMeta.type()) == EChunkType::Table);
+    YT_VERIFY(EChunkType(chunkMeta.type()) == EChunkType::Table);
     TableChunkFormat_ = ETableChunkFormat(chunkMeta.version());
 }
 
@@ -73,7 +73,7 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
             }
         } else {
             int erasureIndex = replica.GetReplicaIndex();
-            YCHECK(erasureIndex < MaxInputChunkReplicaCount);
+            YT_VERIFY(erasureIndex < MaxInputChunkReplicaCount);
             Replicas_[erasureIndex] = replica;
         }
     }
@@ -82,7 +82,7 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
 // Workaround for TSerializationDumpPodWriter.
 TString ToString(const TInputChunkBase&)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 // Intentionally used.
@@ -187,7 +187,7 @@ i64 TInputChunk::GetRowCount() const
         : TotalRowCount_;
 
     auto rowCount = std::max(0l, upperRowIndex - lowerRowIndex);
-    YCHECK(rowCount <= TotalRowCount_);
+    YT_VERIFY(rowCount <= TotalRowCount_);
     return rowCount;
 }
 
@@ -306,7 +306,7 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
         [=] (TChunkReplica replica) {
             return replica.GetNodeId() == nodeId;
         });
-    YCHECK(replicaIt != inputChunk->Replicas().end());
+    YT_VERIFY(replicaIt != inputChunk->Replicas().end());
 
     TChunkIdWithIndexes chunkIdWithIndexes(
         inputChunk->ChunkId(),

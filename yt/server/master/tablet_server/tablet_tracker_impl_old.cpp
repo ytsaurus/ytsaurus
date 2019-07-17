@@ -87,7 +87,7 @@ private:
             }
 
             auto result = tagFilter.IsSatisfiedBy(Node_->Tags());
-            YCHECK(Cache_.insert(std::make_pair(formula, result)).second);
+            YT_VERIFY(Cache_.insert(std::make_pair(formula, result)).second);
             return result;
         }
 
@@ -175,7 +175,7 @@ private:
         for (auto& pair : node.Iterators) {
             auto* bundle = pair.first;
             auto& it = pair.second;
-            YCHECK(it->second == index);
+            YT_VERIFY(it->second == index);
 
             int count = it->first.first;
             int spare = -it->first.second - 1;
@@ -193,7 +193,7 @@ private:
         }
 
         for (auto* bundle : remove) {
-            YCHECK(node.Iterators.erase(bundle));
+            YT_VERIFY(node.Iterators.erase(bundle));
         }
     }
 };
@@ -208,8 +208,8 @@ TTabletTrackerImplOld::TTabletTrackerImplOld(
     , Bootstrap_(bootstrap)
     , StartTime_(startTime)
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 

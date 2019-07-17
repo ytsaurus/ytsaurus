@@ -73,13 +73,13 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
 
 int TInputDataSlice::GetTableIndex() const
 {
-    YCHECK(ChunkSlices.size() > 0);
+    YT_VERIFY(ChunkSlices.size() > 0);
     return ChunkSlices[0]->GetInputChunk()->GetTableIndex();
 }
 
 int TInputDataSlice::GetRangeIndex() const
 {
-    YCHECK(ChunkSlices.size() > 0);
+    YT_VERIFY(ChunkSlices.size() > 0);
     return ChunkSlices[0]->GetInputChunk()->GetRangeIndex();
 }
 
@@ -108,7 +108,7 @@ bool TInputDataSlice::HasLimits() const
 
 std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
 {
-    YCHECK(IsTrivial());
+    YT_VERIFY(IsTrivial());
     auto slices = ChunkSlices[0]->SplitByRowIndex(rowIndex);
 
     return std::make_pair(CreateUnversionedInputDataSlice(slices.first),
@@ -141,7 +141,7 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
 {
     std::vector<TInputDataSlicePtr> dataSlices;
 
-    YCHECK(!inputChunkSlices.empty());
+    YT_VERIFY(!inputChunkSlices.empty());
     TInputDataSlice::TChunkSliceList chunkSlices;
     std::optional<int> tableIndex;
     TInputSliceLimit lowerLimit;
@@ -152,9 +152,9 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
             lowerLimit.Key = inputChunkSlice->LowerLimit().Key;
             upperLimit.Key = inputChunkSlice->UpperLimit().Key;
         } else {
-            YCHECK(*tableIndex == inputChunkSlice->GetInputChunk()->GetTableIndex());
-            YCHECK(lowerLimit.Key == inputChunkSlice->LowerLimit().Key);
-            YCHECK(upperLimit.Key == inputChunkSlice->UpperLimit().Key);
+            YT_VERIFY(*tableIndex == inputChunkSlice->GetInputChunk()->GetTableIndex());
+            YT_VERIFY(lowerLimit.Key == inputChunkSlice->LowerLimit().Key);
+            YT_VERIFY(upperLimit.Key == inputChunkSlice->UpperLimit().Key);
         }
         chunkSlices.push_back(inputChunkSlice);
     }
@@ -177,7 +177,7 @@ TInputDataSlicePtr CreateInputDataSlice(
         if (!tableIndex) {
             tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
         } else {
-            YCHECK(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
+            YT_VERIFY(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
         }
         chunkSlices.push_back(CreateInputChunkSlice(*inputChunk, lowerKey, upperKey));
     }

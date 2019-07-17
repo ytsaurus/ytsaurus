@@ -99,7 +99,7 @@ public:
 
         if (Bootstrap_->GetConfig()->GrpcServer) {
             const auto& addresses = Bootstrap_->GetConfig()->GrpcServer->Addresses;
-            YCHECK(addresses.size() == 1);
+            YT_VERIFY(addresses.size() == 1);
 
             int port;
             ParseServiceAddress(addresses[0]->Address, nullptr, &port);

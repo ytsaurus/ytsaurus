@@ -26,7 +26,7 @@ TErrorOr<T> WaitForWithStrategy(
         case ESyncStreamAdapterStrategy::Get:
             return future.Get();
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -61,7 +61,7 @@ std::unique_ptr<IInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return std::make_unique<TSyncInputStreamAdapter>(
         std::move(underlyingStream),
         strategy);
@@ -103,7 +103,7 @@ IAsyncInputStreamPtr CreateAsyncAdapter(
     IInputStream* underlyingStream,
     IInvokerPtr invoker)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return New<TAsyncInputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
@@ -206,7 +206,7 @@ std::unique_ptr<IOutputStream> CreateBufferedSyncAdapter(
     ESyncStreamAdapterStrategy strategy,
     size_t bufferSize)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return std::make_unique<TSyncBufferedOutputStreamAdapter>(
         std::move(underlyingStream),
         strategy,
@@ -283,7 +283,7 @@ std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAda
     ESyncStreamAdapterStrategy strategy,
     size_t bufferSize)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return std::make_unique<TSyncBufferedCheckpointableOutputStreamAdapter>(
         std::move(underlyingStream),
         strategy,
@@ -337,7 +337,7 @@ IAsyncOutputStreamPtr CreateAsyncAdapter(
     IOutputStream* underlyingStream,
     IInvokerPtr invoker)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return New<TAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
@@ -441,7 +441,7 @@ IAsyncZeroCopyInputStreamPtr CreateZeroCopyAdapter(
     IAsyncInputStreamPtr underlyingStream,
     size_t blockSize)
 {
-    YCHECK(underlyingStream);
+    YT_VERIFY(underlyingStream);
     return New<TZeroCopyInputStreamAdapter>(underlyingStream, blockSize);
 }
 
@@ -454,7 +454,7 @@ public:
     explicit TCopyingInputStreamAdapter(IAsyncZeroCopyInputStreamPtr underlyingStream)
         : UnderlyingStream_(underlyingStream)
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
     }
 
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
@@ -511,12 +511,12 @@ public:
     explicit TZeroCopyOutputStreamAdapter(IAsyncOutputStreamPtr underlyingStream)
         : UnderlyingStream_(underlyingStream)
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
     }
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        Y_ASSERT(data);
+        YT_ASSERT(data);
         return Push(data);
     }
 
@@ -546,7 +546,7 @@ private:
         bool needInvoke;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!Closed_);
+            YT_VERIFY(!Closed_);
             if (!Error_.IsOK()) {
                 return MakeFuture(Error_);
             }
@@ -628,7 +628,7 @@ public:
     explicit TCopyingOutputStreamAdapter(IAsyncZeroCopyOutputStreamPtr underlyingStream)
         : UnderlyingStream_(underlyingStream)
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
     }
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override
@@ -665,8 +665,8 @@ public:
         : UnderlyingStream_(underlyingStream)
         , WindowSize_(windowSize)
     {
-        YCHECK(UnderlyingStream_);
-        YCHECK(WindowSize_ > 0);
+        YT_VERIFY(UnderlyingStream_);
+        YT_VERIFY(WindowSize_ > 0);
     }
 
     virtual TFuture<TSharedRef> Read() override
@@ -726,7 +726,7 @@ private:
 
     void PushBlock(TGuard<TSpinLock>* guard, const TErrorOr<TSharedRef>& result)
     {
-        Y_ASSERT(OutstandingResult_);
+        YT_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
         if (!result.IsOK()) {
             Error_ = TError(result);
@@ -742,7 +742,7 @@ private:
 
     TSharedRef PopBlock(TGuard<TSpinLock>* guard)
     {
-        Y_ASSERT(!PrefetchedBlocks_.empty());
+        YT_ASSERT(!PrefetchedBlocks_.empty());
         auto block = PrefetchedBlocks_.front();
         PrefetchedBlocks_.pop();
         PrefetchedSize_ -= block.Size();
@@ -775,8 +775,8 @@ public:
         : UnderlyingStream_(underlyingStream)
         , WindowSize_(windowSize)
     {
-        YCHECK(UnderlyingStream_);
-        YCHECK(WindowSize_ > 0);
+        YT_VERIFY(UnderlyingStream_);
+        YT_VERIFY(WindowSize_ > 0);
 
         Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
     }
@@ -837,13 +837,13 @@ private:
     TSharedRef OnPrefetched()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        Y_ASSERT(PrefetchedSize_ != 0);
+        YT_ASSERT(PrefetchedSize_ != 0);
         return CopyPrefetched(&guard);
     }
 
     void AppendPrefetched(TGuard<TSpinLock>* guard, const TErrorOr<size_t>& result)
     {
-        Y_ASSERT(OutstandingResult_);
+        YT_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
         if (!result.IsOK()) {
             Error_ = TError(result);
@@ -871,7 +871,7 @@ private:
 
     TSharedRef CopyPrefetched(TGuard<TSpinLock>* guard)
     {
-        Y_ASSERT(PrefetchedSize_ != 0);
+        YT_ASSERT(PrefetchedSize_ != 0);
         auto block = Prefetched_.Slice(0, PrefetchedSize_);
         Prefetched_ = TSharedMutableRef();
         PrefetchedSize_ = 0;
@@ -902,8 +902,8 @@ public:
         : UnderlyingStream_(underlyingStream)
         , Timeout_(timeout)
     {
-        YCHECK(UnderlyingStream_);
-        YCHECK(Timeout_ > TDuration::Zero());
+        YT_VERIFY(UnderlyingStream_);
+        YT_VERIFY(Timeout_ > TDuration::Zero());
     }
 
     virtual TFuture<TSharedRef> Read() override
@@ -921,7 +921,7 @@ public:
         Cookie_ = TDelayedExecutor::Submit(
             BIND(&TExpiringInputStreamAdapter::OnTimeout, MakeWeak(this), promise), Timeout_);
 
-        Y_ASSERT(!Promise_);
+        YT_ASSERT(!Promise_);
         Promise_ = promise;
 
         if (!Fetching_) {
@@ -1002,7 +1002,7 @@ public:
         IAsyncZeroCopyInputStreamPtr underlyingStream)
         : UnderlyingStream_(underlyingStream)
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
     }
 
     virtual TFuture<TSharedRef> Read() override
@@ -1050,10 +1050,10 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             Fetching_ = false;
-            Y_ASSERT(Promise_);
+            YT_ASSERT(Promise_);
             swap(promise, Promise_);
             if (promise.IsSet()) {
-                Y_ASSERT(!PendingBlock_);
+                YT_ASSERT(!PendingBlock_);
                 PendingBlock_ = value;
                 return;
             }
@@ -1092,7 +1092,7 @@ void PipeInputToOutput(
 TFuture<void> ExpectEndOfStream(
     const IAsyncZeroCopyInputStreamPtr& input)
 {
-    YCHECK(input);
+    YT_VERIFY(input);
     return input->Read().Apply(BIND([] (const TSharedRef& ref) {
         if (ref) {
             THROW_ERROR_EXCEPTION("Expected end-of-stream, received a non-null ref of size %v",

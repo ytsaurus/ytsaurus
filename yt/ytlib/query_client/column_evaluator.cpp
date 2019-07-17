@@ -75,12 +75,12 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
 {
-    YCHECK(index < fullRow.GetCount());
-    YCHECK(index < Columns_.size());
+    YT_VERIFY(index < fullRow.GetCount());
+    YT_VERIFY(index < Columns_.size());
 
     const auto& column = Columns_[index];
     const auto& evaluator = column.Evaluator;
-    YCHECK(evaluator);
+    YT_VERIFY(evaluator);
 
     // Zero row to avoid garbage after evaluator.
     fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);

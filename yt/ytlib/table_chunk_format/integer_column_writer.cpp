@@ -77,10 +77,10 @@ protected:
 
         for (i64 index = 0; index < Values_.size(); ++index) {
             if (nullBitmap[index]) {
-                Y_ASSERT(Values_[index] == 0);
+                YT_ASSERT(Values_[index] == 0);
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[index]];
-                Y_ASSERT(dictionaryIndex <= dictionary.size() + 1);
+                YT_ASSERT(dictionaryIndex <= dictionary.size() + 1);
 
                 if (dictionaryIndex > dictionary.size()) {
                     dictionary.push_back(Values_[index] - MinValue_);
@@ -310,7 +310,7 @@ private:
                     Values_.size() / 8; // Null bitmap.
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -351,7 +351,7 @@ private:
             runBegin = runEnd;
         }
 
-        YCHECK(runIndex == RunCount_);
+        YT_VERIFY(runIndex == RunCount_);
         Values_.resize(RunCount_);
 
         // 1. Compressed vector of values.
@@ -387,7 +387,7 @@ private:
                 Values_[runIndex] = 0;
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[runBegin]];
-                Y_ASSERT(dictionaryIndex <= dictionary.size() + 1);
+                YT_ASSERT(dictionaryIndex <= dictionary.size() + 1);
 
                 if (dictionaryIndex > dictionary.size()) {
                     dictionary.push_back(Values_[runBegin] - MinValue_);
@@ -402,7 +402,7 @@ private:
             runBegin = runEnd;
         }
 
-        YCHECK(runIndex == RunCount_);
+        YT_VERIFY(runIndex == RunCount_);
         Values_.resize(RunCount_);
 
         // 1. Dictionary - compressed vector of values.
@@ -448,7 +448,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         TColumnWriterBase::DumpSegment(&segmentInfo);

@@ -342,8 +342,8 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
 template <class TReader, class TRow>
 TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows)
 {
-    YCHECK(reader);
-    YCHECK(rows);
+    YT_VERIFY(reader);
+    YT_VERIFY(rows);
 
     rows->clear();
     if (!reader->Read(rows) || !rows->empty()) {

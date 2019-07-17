@@ -8,6 +8,8 @@
 
 #include <cstdlib>
 
+#include <yt/core/misc/assert.h>
+
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +31,7 @@ Y_WEAK void Free(void* ptr)
 
 Y_WEAK void FreeNonNull(void* ptr)
 {
-    Y_ASSERT(ptr);
+    YT_ASSERT(ptr);
     ::free(ptr);
 }
 

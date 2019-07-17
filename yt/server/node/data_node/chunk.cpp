@@ -20,7 +20,7 @@ EObjectType IChunk::GetType() const
 TJournalChunkPtr IChunk::AsJournalChunk()
 {
     auto* journalChunk = dynamic_cast<TJournalChunk*>(this);
-    YCHECK(journalChunk);
+    YT_VERIFY(journalChunk);
     return journalChunk;
 }
 

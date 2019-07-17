@@ -31,7 +31,7 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 template <class TTypedResponse>
 std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
-    YCHECK(!key.empty());
+    YT_VERIFY(!key.empty());
     auto range = KeyToIndexes_.equal_range(key);
     if (range.first == range.second) {
         return std::nullopt;
@@ -39,7 +39,7 @@ std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRsp
     auto it = range.first;
     int index = it->second;
     // Failure here means that more than one response with the given key is found.
-    YCHECK(++it == range.second);
+    YT_VERIFY(++it == range.second);
     return GetResponse<TTypedResponse>(index);
 }
 
@@ -47,7 +47,7 @@ template <class TTypedResponse>
 TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
 {
     auto result = FindResponse<TTypedResponse>(key);
-    YCHECK(result);
+    YT_VERIFY(result);
     return *result;
 }
 

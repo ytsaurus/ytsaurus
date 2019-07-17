@@ -932,6 +932,10 @@ public:
     this->assign(IL);
     return *this;
   }
+
+  SmallVector(const std::vector<T>& vec) : SmallVectorImpl<T>(N) {
+    this->append(vec.begin(), vec.end());
+  }
 };
 
 template <typename T, unsigned N>

@@ -80,7 +80,7 @@ const NProto::TReadLimit& TReadLimit::AsProto() const
 
 const TOwningKey& TReadLimit::GetKey() const
 {
-    Y_ASSERT(HasKey());
+    YT_ASSERT(HasKey());
     return Key_;
 }
 
@@ -105,7 +105,7 @@ TReadLimit& TReadLimit::SetKey(TOwningKey&& key)
 
 i64 TReadLimit::GetRowIndex() const
 {
-    Y_ASSERT(HasRowIndex());
+    YT_ASSERT(HasRowIndex());
     return ReadLimit_.row_index();
 }
 
@@ -122,7 +122,7 @@ TReadLimit& TReadLimit::SetRowIndex(i64 rowIndex)
 
 i64 TReadLimit::GetOffset() const
 {
-    Y_ASSERT(HasOffset());
+    YT_ASSERT(HasOffset());
     return ReadLimit_.offset();
 }
 
@@ -139,7 +139,7 @@ TReadLimit& TReadLimit::SetOffset(i64 offset)
 
 i64 TReadLimit::GetChunkIndex() const
 {
-    Y_ASSERT(HasChunkIndex());
+    YT_ASSERT(HasChunkIndex());
     return ReadLimit_.chunk_index();
 }
 

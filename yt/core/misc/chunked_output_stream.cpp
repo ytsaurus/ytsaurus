@@ -17,7 +17,7 @@ TChunkedOutputStream::TChunkedOutputStream(
     , CurrentReserveSize_(RoundUpToPage(initialReserveSize))
     , CurrentChunk_(tagCookie, 0, true)
 {
-    YCHECK(MaxReserveSize_ > 0);
+    YT_VERIFY(MaxReserveSize_ > 0);
 
     if (CurrentReserveSize_ > MaxReserveSize_) {
         CurrentReserveSize_ = MaxReserveSize_;
@@ -32,7 +32,7 @@ std::vector<TSharedRef> TChunkedOutputStream::Flush()
 {
     FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
-    Y_ASSERT(CurrentChunk_.IsEmpty());
+    YT_ASSERT(CurrentChunk_.IsEmpty());
     FinishedSize_ = 0;
 
     for (auto& chunk : FinishedChunks_) {
@@ -64,12 +64,12 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
     CurrentChunk_.Append(buffer, spaceAvailable);
 
     if (spaceRequired) {
-        Y_ASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
+        YT_ASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
 
         FinishedSize_ += CurrentChunk_.Size();
         FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
-        Y_ASSERT(CurrentChunk_.IsEmpty());
+        YT_ASSERT(CurrentChunk_.IsEmpty());
 
         CurrentReserveSize_ = std::min(2 * CurrentReserveSize_, MaxReserveSize_);
 
@@ -94,7 +94,7 @@ char* TChunkedOutputStream::Preallocate(size_t size)
 
 void TChunkedOutputStream::Advance(size_t size)
 {
-    Y_ASSERT(CurrentChunk_.Size() + size <= CurrentChunk_.Capacity());
+    YT_ASSERT(CurrentChunk_.Size() + size <= CurrentChunk_.Capacity());
     CurrentChunk_.Resize(CurrentChunk_.Size() + size, false);
 }
 

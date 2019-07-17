@@ -50,7 +50,7 @@ TSharedRef TSharedRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
 
 std::vector<TSharedRef> TSharedRef::Split(size_t partSize) const
 {
-    YCHECK(partSize > 0);
+    YT_VERIFY(partSize > 0);
     std::vector<TSharedRef> result;
     result.reserve(Size() / partSize + 1);
     auto sliceBegin = Begin();
@@ -186,7 +186,7 @@ size_t GetPageSize()
 size_t RoundUpToPage(size_t bytes)
 {
     static const size_t PageSize = NSystemInfo::GetPageSize();
-    Y_ASSERT((PageSize & (PageSize - 1)) == 0);
+    YT_ASSERT((PageSize & (PageSize - 1)) == 0);
     return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
@@ -265,14 +265,14 @@ TSharedRefArrayBuilder::TSharedRefArrayBuilder(
 
 void TSharedRefArrayBuilder::Add(TSharedRef part)
 {
-    Y_ASSERT(CurrentPartIndex_ < Impl_->Size());
+    YT_ASSERT(CurrentPartIndex_ < Impl_->Size());
     Impl_->MutableBegin()[CurrentPartIndex_++] = std::move(part);
 }
 
 TMutableRef TSharedRefArrayBuilder::AllocateAndAdd(size_t size)
 {
-    Y_ASSERT(CurrentPartIndex_ < Impl_->Size());
-    Y_ASSERT(CurrentAllocationPtr_ + size <= Impl_->GetBeginAllocationPtr() + AllocationCapacity_);
+    YT_ASSERT(CurrentPartIndex_ < Impl_->Size());
+    YT_ASSERT(CurrentAllocationPtr_ + size <= Impl_->GetBeginAllocationPtr() + AllocationCapacity_);
     TMutableRef ref(CurrentAllocationPtr_, size);
     CurrentAllocationPtr_ += size;
     TIntrusivePtr<TIntrinsicRefCounted> holder(Impl_.Get(), false);

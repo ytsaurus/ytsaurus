@@ -77,8 +77,8 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
             descriptorPtr = it->second;
         }
 
-        YCHECK(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
-        YCHECK(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
+        YT_VERIFY(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
+        YT_VERIFY(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
     }
 }
 

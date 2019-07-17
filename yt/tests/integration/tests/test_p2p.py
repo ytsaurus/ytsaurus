@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt_helpers import ProfileMetric
 
@@ -8,8 +8,8 @@ def clear_everything_after_test(func):
     def wrapped(*args, **kwargs):
         func(*args, **kwargs)
         self = args[0]
-        self.Env.kill_nodes()
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
         nodes = list(get("//sys/cluster_nodes"))
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), [])

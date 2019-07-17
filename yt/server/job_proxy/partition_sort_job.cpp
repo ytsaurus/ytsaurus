@@ -40,7 +40,7 @@ public:
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     {
-        YCHECK(SortJobSpecExt_.has_partition_tag());
+        YT_VERIFY(SortJobSpecExt_.has_partition_tag());
     }
 
     virtual void Initialize() override
@@ -50,7 +50,7 @@ public:
 
         TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 
-        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
@@ -75,7 +75,7 @@ public:
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
 
-        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

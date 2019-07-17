@@ -128,7 +128,7 @@ private:
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(!RowsetReader_);
+        YT_VERIFY(!RowsetReader_);
         RowsetReader_ = CreateWireProtocolRowsetReader(
             response->Attachments(),
             CodecId_,
@@ -222,7 +222,7 @@ private:
                 continue;
             }
 
-            YCHECK(!tableInfo->Tablets.empty());
+            YT_VERIFY(!tableInfo->Tablets.empty());
 
             // Run binary search to find the relevant tablets.
             nextShardIt = std::lower_bound(
@@ -327,7 +327,7 @@ private:
 
         if (dataSource.Ranges) {
             auto ranges = dataSource.Ranges;
-            YCHECK(!dataSource.Keys);
+            YT_VERIFY(!dataSource.Keys);
 
             if (query->InferRanges) {
                 auto prunedRanges = GetPrunedRanges(
@@ -402,8 +402,8 @@ private:
                         ranges.GetHolder());
                 });
         } else {
-            YCHECK(!dataSource.Ranges);
-            YCHECK(!dataSource.Schema.empty());
+            YT_VERIFY(!dataSource.Ranges);
+            YT_VERIFY(!dataSource.Schema.empty());
 
             const auto& keys = dataSource.Keys;
 
@@ -622,7 +622,7 @@ private:
         // Should be already sorted.
         YT_LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
 
-        YCHECK(std::is_sorted(
+        YT_VERIFY(std::is_sorted(
             allSplits.begin(),
             allSplits.end(),
             [] (const std::pair<TDataRanges, TString>& lhs, const std::pair<TDataRanges, TString>& rhs) {

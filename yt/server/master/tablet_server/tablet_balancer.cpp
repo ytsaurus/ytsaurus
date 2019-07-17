@@ -406,7 +406,7 @@ private:
 
     void CreateReshardAction(const std::vector<TTablet*>& tablets, int newTabletCount, i64 size, bool sync)
     {
-        YCHECK(!tablets.empty());
+        YT_VERIFY(!tablets.empty());
 
         std::vector<TTabletId> tabletIds;
         for (const auto& tablet : tablets) {
@@ -658,10 +658,10 @@ private:
                     slackTablets->at(cells[dstIndex].second).push_back(tablet);
                 }
             }
-            YCHECK(moveCount == limit);
+            YT_VERIFY(moveCount == limit);
         };
 
-        YCHECK(!cells.empty());
+        YT_VERIFY(!cells.empty());
         int dstIndex = cells.size() - 1;
 
         for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
@@ -669,7 +669,7 @@ private:
             while (srcLimit > 0 && srcIndex < dstIndex) {
                 int dstLimit = getExpectedTabletCount(dstIndex) - cells[dstIndex].first;
                 int moveCount = std::min(srcLimit, dstLimit);
-                YCHECK(moveCount >= 0);
+                YT_VERIFY(moveCount >= 0);
                 moveTablets(srcIndex, dstIndex, moveCount);
                 if (moveCount == dstLimit) {
                     --dstIndex;
@@ -691,7 +691,7 @@ private:
         }
 
         for (int cellIndex = 0; cellIndex < cells.size(); ++cellIndex) {
-            Y_ASSERT(cells[cellIndex].first == getExpectedTabletCount(cellIndex));
+            YT_ASSERT(cells[cellIndex].first == getExpectedTabletCount(cellIndex));
         }
     }
 
@@ -713,7 +713,7 @@ private:
 
             presentTables.emplace_back();
             for (auto* tablet : pair.second) {
-                YCHECK(presentTables.back().insert(tablet->GetTable()).second);
+                YT_VERIFY(presentTables.back().insert(tablet->GetTable()).second);
             }
         }
 
@@ -739,10 +739,10 @@ private:
                     ++tabletCount[dstIndex];
                 }
             }
-            YCHECK(moveCount == limit);
+            YT_VERIFY(moveCount == limit);
         };
 
-        YCHECK(!cellTablets.empty());
+        YT_VERIFY(!cellTablets.empty());
         int dstIndex = cellTablets.size() - 1;
 
         for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
@@ -750,7 +750,7 @@ private:
             while (srcLimit > 0 && srcIndex < dstIndex) {
                 int dstLimit = getExpectedTabletCount(dstIndex) - tabletCount[dstIndex];
                 int moveCount = std::min(srcLimit, dstLimit);
-                YCHECK(moveCount >= 0);
+                YT_VERIFY(moveCount >= 0);
                 moveTablets(srcIndex, dstIndex, moveCount);
                 if (moveCount == dstLimit) {
                     --dstIndex;
@@ -760,7 +760,7 @@ private:
         }
 
         for (int cellIndex = 0; cellIndex < cellTablets.size(); ++cellIndex) {
-            Y_ASSERT(tabletCount[cellIndex] == getExpectedTabletCount(cellIndex));
+            YT_ASSERT(tabletCount[cellIndex] == getExpectedTabletCount(cellIndex));
         }
     }
 

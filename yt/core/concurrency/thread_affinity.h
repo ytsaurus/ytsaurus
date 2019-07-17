@@ -55,16 +55,16 @@ private:
     PP_CONCAT(slot, _Slot).Check()
 
 #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
-    YCHECK((spinLock).IsLocked());
+    YT_VERIFY((spinLock).IsLocked());
 
 #define VERIFY_INVOKER_AFFINITY(invoker) \
-    YCHECK(::NYT::NConcurrency::VerifyInvokerAffinity(invoker))
+    YT_VERIFY(::NYT::NConcurrency::VerifyInvokerAffinity(invoker))
 
 #define VERIFY_INVOKERS_AFFINITY(invokers) \
-    YCHECK(::NYT::NConcurrency::VerifyInvokersAffinity(invokers))
+    YT_VERIFY(::NYT::NConcurrency::VerifyInvokersAffinity(invokers))
 
 #define VERIFY_INVOKER_POOL_AFFINITY(invokerPool) \
-    YCHECK(::NYT::NConcurrency::VerifyInvokerPoolAffinity(invokerPool))
+    YT_VERIFY(::NYT::NConcurrency::VerifyInvokerPoolAffinity(invokerPool))
 
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot) \
     PP_CONCAT(slot, _Slot).Check((invoker)->GetThreadId());

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -187,8 +187,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) == 2)
         time.sleep(1.0)
         # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
         release_breakpoint()
         op.track()
 
@@ -211,8 +211,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             # 6 jobs may not be running simultaneously, so the snapshot will contain information about
             # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
             time.sleep(1.0)
-            self.Env.kill_schedulers()
-            self.Env.start_schedulers()
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                pass
             op.track()
 
     def test_abandon_job(self):

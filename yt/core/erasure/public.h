@@ -34,8 +34,8 @@ struct TCodecTraits
     static inline void Check(bool expr, const char* strExpr, const char* file, int line)
     {
         if (Y_UNLIKELY(!expr)) {
-            ::NYT::NDetail::AssertTrapImpl("YCHECK", strExpr, file, line);
-            BUILTIN_UNREACHABLE();
+            ::NYT::NDetail::AssertTrapImpl("YT_VERIFY", strExpr, file, line);
+            Y_UNREACHABLE();
         }
     }
 

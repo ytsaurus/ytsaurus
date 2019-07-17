@@ -191,7 +191,7 @@ T* TSingleProducerSingleConsumerQueue<T>::Front() const
 
     while (Y_UNLIKELY(Offset_ >= Head_->Offset + BufferSize)) {
         auto next = Head_->Next.load();
-        YCHECK(next);
+        YT_VERIFY(next);
         delete Head_;
         Head_ = next;
     }
@@ -210,7 +210,7 @@ template <class T>
 bool TSingleProducerSingleConsumerQueue<T>::IsEmpty() const
 {
     auto count = Count_.load();
-    Y_ASSERT(Offset_ <= count);
+    YT_ASSERT(Offset_ <= count);
     return Offset_ == count;
 }
 

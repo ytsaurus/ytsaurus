@@ -418,7 +418,7 @@ ICallingConventionPtr GetCallingConvention(
                 return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
             }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -430,7 +430,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
         case ECallingConvention::UnversionedValue:
             return New<TUnversionedValueCallingConvention>(-1);
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -603,7 +603,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     const TString& name,
     llvm::FoldingSetNodeID* id) const
 {
-    YCHECK(!ImplementationFile_.Empty());
+    YT_VERIFY(!ImplementationFile_.Empty());
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
@@ -654,7 +654,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
                 ToStringRef(this_->SymbolName_));
-            YCHECK(callee);
+            YT_VERIFY(callee);
 
             auto result = innerBuilder->CreateCall(callee, arguments);
             return result;
@@ -678,7 +678,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     const TString& name,
     llvm::FoldingSetNodeID* id) const
 {
-    YCHECK(!ImplementationFile_.Empty());
+    YT_VERIFY(!ImplementationFile_.Empty());
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
@@ -760,7 +760,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 this_->ImplementationFile_);
 
             auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
-            YCHECK(callee);
+            YT_VERIFY(callee);
 
             return builder->CreateCall(callee, arguments);
         };

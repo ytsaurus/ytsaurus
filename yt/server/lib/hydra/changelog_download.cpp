@@ -77,7 +77,7 @@ void DoDownloadChangelog(
             const auto& rsp = rspOrError.Value();
 
             const auto& attachments = rsp->Attachments();
-            YCHECK(attachments.size() == 1);
+            YT_VERIFY(attachments.size() == 1);
 
             std::vector<TSharedRef> recordsData;
             UnpackRefs(rsp->Attachments()[0], &recordsData);

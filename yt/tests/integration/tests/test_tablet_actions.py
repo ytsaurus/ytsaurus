@@ -3,7 +3,7 @@ import __builtin__
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import wait, parametrize_external
+from yt_env_setup import wait, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from flaky import flaky
@@ -193,16 +193,15 @@ class TestTabletActions(TabletActionsBase):
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        self.Env.kill_nodes()
-        action = create("tablet_action", "", attributes={
-            "kind": "move",
-            "keep_finished": True,
-            "skip_freezing": skip_freezing,
-            "tablet_ids": [tablet_id],
-            "cell_ids": [cells[1]]})
-        remove("//tmp/t")
-        wait(lambda: get("#{0}/@state".format(action)) == "failed")
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            action = create("tablet_action", "", attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "skip_freezing": skip_freezing,
+                "tablet_ids": [tablet_id],
+                "cell_ids": [cells[1]]})
+            remove("//tmp/t")
+            wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
 
     @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
@@ -228,20 +227,19 @@ class TestTabletActions(TabletActionsBase):
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet1 = get("//tmp/t/@tablets/0/tablet_id")
         tablet2 = get("//tmp/t/@tablets/1/tablet_id")
-        self.Env.kill_nodes()
-        action = create("tablet_action", "", attributes={
-            "kind": "move",
-            "keep_finished": True,
-            "skip_freezing": skip_freezing,
-            "tablet_ids": [tablet1, tablet2],
-            "cell_ids": [cells[1], cells[1]]})
-        try:
-            touch_callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
-        except Exception as e:
-            expected_touch_state = expected_state
-            expected_action_state = "completed"
-        self._validate_tablets("//tmp/t", expected_state=[None, expected_state])
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            action = create("tablet_action", "", attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "skip_freezing": skip_freezing,
+                "tablet_ids": [tablet1, tablet2],
+                "cell_ids": [cells[1], cells[1]]})
+            try:
+                touch_callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+            except Exception as e:
+                expected_touch_state = expected_state
+                expected_action_state = "completed"
+            self._validate_tablets("//tmp/t", expected_state=[None, expected_state])
 
         wait(lambda: get("#{0}/@state".format(action)) == expected_action_state)
         if expected_action_state == "failed":
@@ -260,15 +258,14 @@ class TestTabletActions(TabletActionsBase):
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         expected_state = "frozen" if freeze else "mounted"
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        self.Env.kill_nodes()
-        action = create("tablet_action", "", attributes={
-            "kind": "move",
-            "keep_finished": True,
-            "skip_freezing": skip_freezing,
-            "tablet_ids": [tablet_id],
-            "cell_ids": [cells[1]]})
-        sync_remove_tablet_cells([cells[1]])
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            action = create("tablet_action", "", attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "skip_freezing": skip_freezing,
+                "tablet_ids": [tablet_id],
+                "cell_ids": [cells[1]]})
+            sync_remove_tablet_cells([cells[1]])
         self._validate_tablets("//tmp/t", expected_state=[expected_state])
 
         wait(lambda: get("#{0}/@state".format(action)) == "failed")

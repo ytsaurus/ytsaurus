@@ -65,7 +65,7 @@ void TYsonSerializableLite::Load(
     bool setDefaults,
     const TYPath& path)
 {
-    YCHECK(node);
+    YT_VERIFY(node);
 
     if (setDefaults) {
         SetDefaults();
@@ -103,7 +103,7 @@ void TYsonSerializableLite::Load(
             auto child = pair.second;
             if (registeredKeys.find(key) == registeredKeys.end()) {
                 Unrecognized->RemoveChild(key);
-                YCHECK(Unrecognized->AddChild(key, ConvertToNode(child)));
+                YT_VERIFY(Unrecognized->AddChild(key, ConvertToNode(child)));
             }
         }
     }

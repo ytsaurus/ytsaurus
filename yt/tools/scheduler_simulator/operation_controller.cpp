@@ -42,7 +42,7 @@ public:
 
     void OnJobCompleted()
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
 
         BucketCompletedJobCount_ += 1;
         if (BucketCompletedJobCount_ == BucketJobCount_) {
@@ -55,13 +55,13 @@ public:
 
     void OnNonscheduledJobAborted(const TJobDescription& abortedJobDescription)
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
         PendingJobs_.push_back(abortedJobDescription);
     }
 
     void FinishInitialization()
     {
-        YCHECK(!InitializationFinished_);
+        YT_VERIFY(!InitializationFinished_);
 
         InitializationFinished_ = true;
 
@@ -72,7 +72,7 @@ public:
 
     int GetPendingJobCount()
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
         return PendingJobs_.size();
     }
 
@@ -81,7 +81,7 @@ public:
         TJobDescription* jobToScheduleOutput,
         EScheduleJobFailReason* failReasonOutput)
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
 
         if (PendingJobs_.empty()) {
             *failReasonOutput = EScheduleJobFailReason::NoPendingJobs;
@@ -104,7 +104,7 @@ public:
     // Note that this method is quite slow. Add caching if you want to call it frequently.
     TJobResources GetNeededResources()
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
 
         TJobResources neededResources;
         for (const auto& job : PendingJobs_) {
@@ -117,7 +117,7 @@ public:
     // Note that this method is quite slow. Add caching if you want to call it frequently.
     TJobResources GetMinNeededResources()
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
 
         TJobResources minNeededResources = TJobResources::Infinite();
         for (const auto& job : PendingJobs_) {
@@ -147,19 +147,19 @@ private:
 
     void AddDependentBucket(TJobBucket* other)
     {
-        YCHECK(!InitializationFinished_);
+        YT_VERIFY(!InitializationFinished_);
         DependentBuckets_.push_back(other);
     }
 
     void IncreaseActiveDependenciesCount()
     {
-        YCHECK(!InitializationFinished_);
+        YT_VERIFY(!InitializationFinished_);
         ActiveDependenciesCount_ += 1;
     }
 
     void OnResolvedDependency()
     {
-        YCHECK(InitializationFinished_);
+        YT_VERIFY(InitializationFinished_);
         ActiveDependenciesCount_ -= 1;
         if (ActiveDependenciesCount_ == 0) {
             Host_->OnBucketActivated(this);
@@ -337,7 +337,7 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
             return;
         }
     }
-    YCHECK(false);
+    YT_VERIFY(false);
 }
 
 int TSimulatorOperationController::GetPendingJobCount() const
@@ -358,7 +358,7 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
 
     // TODO: try to avoid this boilerplate code (map::at throws very uninformative exceptions)
     auto jobBucketIt = JobBuckets_.find(jobDescription.Type);
-    YCHECK(jobBucketIt != JobBuckets_.end());
+    YT_VERIFY(jobBucketIt != JobBuckets_.end());
     auto& jobBucket = jobBucketIt->second;
 
     {
@@ -374,7 +374,7 @@ void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbor
     const auto& jobDescription = IdToDescription_.Get(jobId);
 
     auto jobBucketIt = JobBuckets_.find(jobDescription.Type);
-    YCHECK(jobBucketIt != JobBuckets_.end());
+    YT_VERIFY(jobBucketIt != JobBuckets_.end());
     auto& jobBucket = jobBucketIt->second;
 
     {

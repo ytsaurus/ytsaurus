@@ -70,7 +70,7 @@ class THiveMutationGuard
 public:
     THiveMutationGuard()
     {
-        Y_ASSERT(!*HiveMutation);
+        YT_ASSERT(!*HiveMutation);
         *HiveMutation = true;
     }
 
@@ -220,7 +220,7 @@ public:
 
     TFuture<void> SyncWith(TMailbox* mailbox)
     {
-        YCHECK(EpochAutomatonInvoker_);
+        YT_VERIFY(EpochAutomatonInvoker_);
 
         auto cellId = mailbox->GetCellId();
         auto channel = FindMailboxChannel(mailbox);
@@ -305,12 +305,12 @@ private:
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
         THashMap<TCellId, TCellInfo> registeredCellMap;
         for (const auto& cellInfo : registeredCellList) {
-            YCHECK(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
+            YT_VERIFY(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
         }
 
         THashSet<TCellId> missingCellIds;
         for (const auto& cellInfo : registeredCellList) {
-            YCHECK(missingCellIds.insert(cellInfo.CellId).second);
+            YT_VERIFY(missingCellIds.insert(cellInfo.CellId).second);
         }
 
         auto requestReconfigure = [&] (const TCellDescriptor& cellDescriptor, int oldVersion) {
@@ -335,7 +335,7 @@ private:
             if (it == registeredCellMap.end()) {
                 requestUnregister(cellId);
             } else {
-                YCHECK(missingCellIds.erase(cellId) == 1);
+                YT_VERIFY(missingCellIds.erase(cellId) == 1);
                 const auto& cellInfo = it->second;
                 if (protoCellInfo.config_version() < cellInfo.ConfigVersion) {
                     auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
@@ -539,7 +539,7 @@ private:
     void ReliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
         // A typical mistake is posting a reliable Hive message outside of a mutation.
-        YCHECK(HasMutationContext());
+        YT_VERIFY(HasMutationContext());
 
         AnnotateWithTraceContext(message.Get());
 
@@ -617,9 +617,9 @@ private:
         }
 
         mailbox->SetConnected(true);
-        YCHECK(mailbox->SyncRequests().empty());
+        YT_VERIFY(mailbox->SyncRequests().empty());
         mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
-        YCHECK(mailbox->GetInFlightOutcomingMessageCount() == 0);
+        YT_VERIFY(mailbox->GetInFlightOutcomingMessageCount() == 0);
 
         YT_LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -698,7 +698,7 @@ private:
     {
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
-            YCHECK(!mailbox->GetConnected());
+            YT_VERIFY(!mailbox->GetConnected());
             SendPeriodicPing(mailbox);
         }
     }
@@ -839,7 +839,7 @@ private:
         }
 
         auto promise = NewPromise<void>();
-        YCHECK(syncRequests.emplace(messageId, promise).second);
+        YT_VERIFY(syncRequests.emplace(messageId, promise).second);
         return promise.ToFuture();
     }
 
@@ -914,8 +914,8 @@ private:
 
         auto firstMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
         const auto& outcomingMessages = mailbox->OutcomingMessages();
-        YCHECK(firstMessageId >= mailbox->GetFirstOutcomingMessageId());
-        YCHECK(firstMessageId <= mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size());
+        YT_VERIFY(firstMessageId >= mailbox->GetFirstOutcomingMessageId());
+        YT_VERIFY(firstMessageId <= mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size());
 
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
         if (!allowIdle && firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {

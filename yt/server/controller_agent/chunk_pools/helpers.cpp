@@ -90,14 +90,14 @@ bool TSuspendableStripe::IsSuspended() const
 
 bool TSuspendableStripe::Resume()
 {
-    YCHECK(SuspendedStripeCount_ > 0);
+    YT_VERIFY(SuspendedStripeCount_ > 0);
 
     return --SuspendedStripeCount_ == 0;
 }
 
 void TSuspendableStripe::Reset(TChunkStripePtr stripe)
 {
-    YCHECK(stripe);
+    YT_VERIFY(stripe);
 
     Stripe_ = stripe;
 }
@@ -141,7 +141,7 @@ void TBernoulliSampler::Persist(const TPersistenceContext& context)
         std::vector<char> bytes; \
         if (context.IsLoad()) { \
             Persist(context, bytes); \
-            YCHECK(sizeof(field) == bytes.size()); \
+            YT_VERIFY(sizeof(field) == bytes.size()); \
             memcpy(&field, bytes.data(), sizeof(field)); \
         } else { \
             bytes.resize(sizeof(field)); \

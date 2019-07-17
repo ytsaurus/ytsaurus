@@ -100,7 +100,7 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        YCHECK(CurrentReaderIndex_ == 0);
+        YT_VERIFY(CurrentReaderIndex_ == 0);
         for (auto& reader : Readers_) {
             reader->Open();
         }
@@ -257,7 +257,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Another fast lane: check for backing store.
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
-        YCHECK(!HasNontrivialReadRange());
+        YT_VERIFY(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             tabletSnapshot,
             ranges,
@@ -302,8 +302,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(ChunkState_);
-    YCHECK(ChunkState_->ChunkMeta);
+    YT_VERIFY(ChunkState_);
+    YT_VERIFY(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
@@ -356,7 +356,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Another fast lane: check for backing store.
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
-        YCHECK(!HasNontrivialReadRange());
+        YT_VERIFY(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             std::move(tabletSnapshot),
             filteredKeys,
@@ -414,8 +414,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(ChunkState_);
-    YCHECK(ChunkState_->ChunkMeta);
+    YT_VERIFY(ChunkState_);
+    YT_VERIFY(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,

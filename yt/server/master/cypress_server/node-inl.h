@@ -58,7 +58,7 @@ T TVersionedBuiltinAttribute<T>::Get(
     const TOwner* node) const
 {
     auto result = TryGet(member, node);
-    YCHECK(result);
+    YT_VERIFY(result);
     return *result;
 }
 

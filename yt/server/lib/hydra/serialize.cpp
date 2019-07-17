@@ -39,13 +39,13 @@ TSharedRef SerializeMutationRecord(
 
     struct TMutationRecordTag { };
     auto recordData = TSharedMutableRef::Allocate<TMutationRecordTag>(recordSize, false);
-    Y_ASSERT(recordData.Size() >= recordSize);
+    YT_ASSERT(recordData.Size() >= recordSize);
 
     std::copy(
         reinterpret_cast<ui8*>(&recordHeader),
         reinterpret_cast<ui8*>(&recordHeader + 1),
         recordData.Begin());
-    YCHECK(mutationHeader.SerializeToArray(
+    YT_VERIFY(mutationHeader.SerializeToArray(
         recordData.Begin() + sizeof (TFixedMutationHeader),
         recordHeader.HeaderSize));
     std::copy(

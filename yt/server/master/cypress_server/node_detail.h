@@ -753,7 +753,7 @@ struct TMapNodeChildren
 
     void Unref() noexcept
     {
-        YCHECK(--RefCount_ >= 0);
+        YT_VERIFY(--RefCount_ >= 0);
     }
 
     static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);

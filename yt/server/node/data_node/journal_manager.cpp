@@ -221,7 +221,7 @@ private:
     TVersion GetFirstRelevantVersion(TChunkId chunkId)
     {
         auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
-        YCHECK(it != ChunkIdToFirstRelevantVersion_.end());
+        YT_VERIFY(it != ChunkIdToFirstRelevantVersion_.end());
         return it->second;
     }
 
@@ -242,7 +242,7 @@ private:
 
             int currentRecordId = startRecordId;
             for (const auto& recordData : recordsData) {
-                YCHECK(recordData.Size() >= sizeof (TMultiplexedRecordHeader));
+                YT_VERIFY(recordData.Size() >= sizeof (TMultiplexedRecordHeader));
                 TMultiplexedRecord record;
                 record.Header = *reinterpret_cast<const TMultiplexedRecordHeader*>(recordData.Begin());
                 record.Data = recordData.Slice(sizeof (TMultiplexedRecordHeader), recordData.Size());
@@ -265,18 +265,18 @@ private:
             const auto& chunkId = record.Header.ChunkId;
             switch (record.Header.Type) {
                 case EMultiplexedRecordType::Append: {
-                    YCHECK(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
+                    YT_VERIFY(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
                     auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
                     if (it == ChunkIdToFirstRelevantVersion_.end()) {
-                        YCHECK(ChunkIdToFirstRelevantVersion_.insert(std::make_pair(chunkId, version)).second);
+                        YT_VERIFY(ChunkIdToFirstRelevantVersion_.insert(std::make_pair(chunkId, version)).second);
                     }
                     AppendChunkIds_.insert(chunkId);
                     break;
                 }
 
                 case EMultiplexedRecordType::Create:
-                    YCHECK(AppendChunkIds_.find(chunkId) == AppendChunkIds_.end());
-                    YCHECK(CreateChunkIds_.find(chunkId) == CreateChunkIds_.end());
+                    YT_VERIFY(AppendChunkIds_.find(chunkId) == AppendChunkIds_.end());
+                    YT_VERIFY(CreateChunkIds_.find(chunkId) == CreateChunkIds_.end());
                     CreateChunkIds_.insert(chunkId);
                     RemoveChunkIds_.erase(chunkId);
                     ChunkIdToFirstRelevantVersion_[chunkId] = version;
@@ -293,7 +293,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         });
     }
@@ -345,7 +345,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         });
 
@@ -445,7 +445,7 @@ private:
             return;
         }
 
-        YCHECK(SplitMap_.insert(std::make_pair(
+        YT_VERIFY(SplitMap_.insert(std::make_pair(
             chunkId,
             TSplitEntry(chunkId, changelog))).second);
 
@@ -457,7 +457,7 @@ private:
     {
         const auto& chunkId = record.Header.ChunkId;
 
-        YCHECK(SplitMap_.find(chunkId) == SplitMap_.end());
+        YT_VERIFY(SplitMap_.find(chunkId) == SplitMap_.end());
 
         if (!Callbacks_->RemoveSplitChangelog(chunkId))
             return;
@@ -536,7 +536,7 @@ public:
     {
         auto barrier = NewPromise<void>();
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(Barriers_.insert(barrier).second);
+        YT_VERIFY(Barriers_.insert(barrier).second);
         return barrier;
     }
 
@@ -575,7 +575,7 @@ public:
         YT_LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
 
         auto curResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId);
-        YCHECK(curResultIt != MultiplexedChangelogIdToCleanResult_.end());
+        YT_VERIFY(curResultIt != MultiplexedChangelogIdToCleanResult_.end());
         auto curResult = curResultIt->second;
 
         auto prevResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId - 1);
@@ -711,7 +711,7 @@ private:
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
-        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
+        YT_VERIFY(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
 
         return changelog;
     }
@@ -1138,7 +1138,7 @@ private:
 
             auto journalChunk = chunk->AsJournalChunk();
             auto changelog = journalChunk->GetAttachedChangelog();
-            YCHECK(changelog);
+            YT_VERIFY(changelog);
             changelog->Flush()
                 .Get()
                 .ThrowOnError();

@@ -372,7 +372,7 @@ private:
 
     TString ExtractIP(TString address)
     {
-        YCHECK(address.StartsWith("tcp://"));
+        YT_VERIFY(address.StartsWith("tcp://"));
 
         address = address.substr(6);
         {
@@ -2418,6 +2418,10 @@ private:
             options.ExecutionPool = request->execution_pool();
         }
 
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
             options.Timestamp);
@@ -2641,7 +2645,7 @@ private:
         const auto attachmentsStart = request->Attachments().begin();
         for (const auto& partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
-            // TODO(kiselyovp) if this fails, YCHECK happens
+            // TODO(kiselyovp) if this fails, YT_VERIFY happens
             DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
             ++blobIndex;
             std::vector<TSharedRef> attachments(

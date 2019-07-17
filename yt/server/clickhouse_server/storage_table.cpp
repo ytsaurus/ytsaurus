@@ -1,5 +1,6 @@
 #include "storage_table.h"
 
+#include "table.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "private.h"
@@ -216,7 +217,7 @@ DB::StoragePtr CreateStorageTableFromCH(StorageFactory::Arguments args)
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
     auto table = FetchClickHouseTable(client, path, Logger);
-    YCHECK(table);
+    YT_VERIFY(table);
 
     return CreateStorageTable(std::move(table));
 }

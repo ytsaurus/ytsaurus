@@ -67,7 +67,7 @@ std::vector<int> GetPidsByUid(int uid)
     std::vector<int> result;
 
     DIR* dirStream = ::opendir("/proc");
-    YCHECK(dirStream != nullptr);
+    YT_VERIFY(dirStream != nullptr);
 
     struct dirent* ep;
     while ((ep = ::readdir(dirStream)) != nullptr) {
@@ -92,11 +92,11 @@ std::vector<int> GetPidsByUid(int uid)
             auto errno_ = errno;
             YT_LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
                 pid);
-            YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
+            YT_VERIFY(errno_ == ENOENT || errno_ == ENOTDIR);
         }
     }
 
-    YCHECK(::closedir(dirStream) == 0);
+    YT_VERIFY(::closedir(dirStream) == 0);
     return result;
 #else
     return std::vector<int>();
@@ -108,7 +108,7 @@ size_t GetCurrentProcessId()
 #if defined(_linux_)
     return getpid();
 #else
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 
@@ -118,10 +118,10 @@ size_t GetCurrentThreadId()
     return static_cast<size_t>(::syscall(SYS_gettid));
 #elif defined(_darwin_)
     uint64_t tid;
-    YCHECK(pthread_threadid_np(nullptr, &tid) == 0);
+    YT_VERIFY(pthread_threadid_np(nullptr, &tid) == 0);
     return static_cast<size_t>(tid);
 #else
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 
@@ -151,7 +151,7 @@ void ChownChmodDirectoriesRecursively(const TString& path, const std::optional<u
         }
     }
 #else
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 
@@ -164,7 +164,7 @@ void SetThreadPriority(int tid, int priority)
             tid) << TError::FromSystem();
     }
 #else
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 
@@ -703,7 +703,7 @@ void KillAllByUid(int uid)
         for (int pid : pidsToKill) {
             auto result = kill(pid, 9);
             if (result == -1) {
-                YCHECK(errno == ESRCH);
+                YT_VERIFY(errno == ESRCH);
             }
         }
 
@@ -719,42 +719,42 @@ void KillAllByUid(int uid)
 
 bool TryClose(int /* fd */, bool /* ignoreBadFD */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeClose(int /* fd */, bool /* ignoreBadFD */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 bool TryDup2(int /* oldFD */, int /* newFD */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeDup2(int /* oldFD */, int /* newFD */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeSetCloexec(int /* fd */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 bool TryExecve(const char /* *path */, const char* /* argv[] */, const char* /* env[] */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TError StatusToError(int /* status */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void RemoveDirAsRoot(const TString& /* path */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void RemoveDirContentAsRoot(const TString& /* path */)
@@ -769,72 +769,72 @@ void KillAllByUid(int /* uid */)
 
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void KillAllByUid(int /* uid */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void UmountAsRoot(const TString& /* path */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr /* config */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void CloseAllDescriptors()
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafePipe(int /* fd */ [2])
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 int SafeDup(int /* fd */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeOpenPty(int* /* masterFD */, int* /* slaveFD */, int /* height */, int /* width */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeLoginTty(int /* slaveFD */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeSetTtyWindowSize(int /* slaveFD */, int /* height */, int /* width */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 bool TryMakeNonblocking(int /* fd */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeMakeNonblocking(int /* fd */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void SafeSetUid(int /* uid */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TString SafeGetUsernameByUid(int /* uid */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 #endif
 
@@ -842,10 +842,10 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 {
 #ifdef _linux_
     auto* dirStream = ::opendir("/proc/self/fd");
-    YCHECK(dirStream != nullptr);
+    YT_VERIFY(dirStream != nullptr);
 
     int dirFD = ::dirfd(dirStream);
-    YCHECK(dirFD >= 0);
+    YT_VERIFY(dirFD >= 0);
 
     std::vector<int> fds;
     dirent* ep;
@@ -862,11 +862,11 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
         fds.push_back(fd);
     }
 
-    YCHECK(::closedir(dirStream) == 0);
+    YT_VERIFY(::closedir(dirStream) == 0);
 
     bool ignoreBadFD = true;
     for (int fd : fds) {
-        YCHECK(TryClose(fd, ignoreBadFD));
+        YT_VERIFY(TryClose(fd, ignoreBadFD));
     }
 #endif
 }
@@ -887,14 +887,14 @@ bool HasRootPermissions()
 #ifdef _unix_
     uid_t ruid, euid, suid;
 #ifdef _linux_
-    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+    YT_VERIFY(getresuid(&ruid, &euid, &suid) == 0);
 #else
     ruid = getuid();
     euid = geteuid();
     setuid(0);
     suid = getuid();
-    YCHECK(seteuid(euid) == 0);
-    YCHECK(setruid(ruid) == 0);
+    YT_VERIFY(seteuid(euid) == 0);
+    YT_VERIFY(setruid(ruid) == 0);
 #endif
     return suid == 0;
 #else // not _unix_
@@ -917,7 +917,7 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
     for (TString line; procNetDev.ReadLine(line) != 0; ) {
         TNetworkInterfaceStatistics statistics;
         TVector<TString> lineParts = StringSplitter(line).SplitBySet(": ").SkipEmpty();
-        YCHECK(lineParts.size() == 1 + sizeof(TNetworkInterfaceStatistics) / sizeof(ui64));
+        YT_VERIFY(lineParts.size() == 1 + sizeof(TNetworkInterfaceStatistics) / sizeof(ui64));
         auto interfaceName = lineParts[0];
 
         int index = 1;
@@ -939,7 +939,7 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
         XX(Tx.Carrier);
         XX(Tx.Compressed);
 #undef XX
-        YCHECK(interfaceToStatistics.insert({interfaceName, statistics}).second);
+        YT_VERIFY(interfaceToStatistics.insert({interfaceName, statistics}).second);
     }
     return interfaceToStatistics;
 #else

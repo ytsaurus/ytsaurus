@@ -11,9 +11,9 @@ void TForwardingYsonConsumer::Forward(
     std::function<void()> onFinished,
     EYsonType type)
 {
-    Y_ASSERT(!ForwardingConsumer_);
-    Y_ASSERT(consumer);
-    Y_ASSERT(ForwardingDepth_ == 0);
+    YT_ASSERT(!ForwardingConsumer_);
+    YT_ASSERT(consumer);
+    YT_ASSERT(ForwardingDepth_ == 0);
 
     ForwardingConsumer_ = consumer;
     OnFinished_ = std::move(onFinished);
@@ -31,7 +31,7 @@ bool TForwardingYsonConsumer::CheckForwarding(int depthDelta)
 void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 {
     ForwardingDepth_ += depthDelta;
-    Y_ASSERT(ForwardingDepth_ >= 0);
+    YT_ASSERT(ForwardingDepth_ >= 0);
     if (checkFinish && ForwardingType_ == EYsonType::Node && ForwardingDepth_ == 0) {
         FinishForwarding();
     }
@@ -198,72 +198,72 @@ void TForwardingYsonConsumer::OnEndAttributes()
 
 void TForwardingYsonConsumer::OnMyStringScalar(TStringBuf /*value*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyInt64Scalar(i64 /*value*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyUint64Scalar(ui64 /*value*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyDoubleScalar(double /*value*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyBooleanScalar(bool /*value*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyEntity()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyBeginList()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyListItem()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyEndList()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyBeginMap()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyKeyedItem(TStringBuf /*name*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyEndMap()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyBeginAttributes()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyEndAttributes()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TForwardingYsonConsumer::OnMyRaw(TStringBuf yson, EYsonType type)

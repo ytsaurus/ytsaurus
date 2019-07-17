@@ -117,7 +117,7 @@ void TAutoMergeDirector::OnMergeJobStarted()
 void TAutoMergeDirector::OnMergeJobFinished(int unregisteredOutputChunkCount)
 {
     --RunningMergeJobCount_;
-    YCHECK(RunningMergeJobCount_ >= 0);
+    YT_VERIFY(RunningMergeJobCount_ >= 0);
     CurrentIntermediateChunkCount_ = std::max(CurrentIntermediateChunkCount_ - unregisteredOutputChunkCount, 0);
 
     StateChanged_.Fire();

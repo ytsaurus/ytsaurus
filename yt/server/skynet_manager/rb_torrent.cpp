@@ -43,17 +43,17 @@ public:
 
     virtual void OnDoubleScalar(double /*value*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnBooleanScalar(bool /*value*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnEntity() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnBeginList() override
@@ -95,17 +95,17 @@ public:
 
     virtual void OnBeginAttributes() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnEndAttributes() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     //! Return bencoded representation of value written so far.

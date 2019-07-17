@@ -25,19 +25,19 @@ public:
     explicit TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
     {
-        Y_ASSERT(Factory);
+        YT_ASSERT(Factory);
     }
 
     virtual void BeginTree() override
     {
-        YCHECK(NodeStack.size() == 0);
+        YT_VERIFY(NodeStack.size() == 0);
     }
 
     virtual INodePtr EndTree() override
     {
         // Failure here means that the tree is not fully constructed yet.
-        YCHECK(NodeStack.size() == 0);
-        YCHECK(ResultNode);
+        YT_VERIFY(NodeStack.size() == 0);
+        YT_VERIFY(ResultNode);
 
         return ResultNode;
     }
@@ -95,7 +95,7 @@ public:
 
     virtual void OnMyListItem() override
     {
-        Y_ASSERT(!Key);
+        YT_ASSERT(!Key);
     }
 
     virtual void OnMyEndList() override
@@ -121,7 +121,7 @@ public:
 
     virtual void OnMyBeginAttributes() override
     {
-        Y_ASSERT(!AttributeConsumer);
+        YT_ASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
         AttributeConsumer.reset(new TAttributeConsumer(Attributes.get()));
         Forward(AttributeConsumer.get(), nullptr, NYson::EYsonType::MapFragment);
@@ -130,7 +130,7 @@ public:
     virtual void OnMyEndAttributes() override
     {
         AttributeConsumer.reset();
-        Y_ASSERT(Attributes);
+        YT_ASSERT(Attributes);
     }
 
 private:

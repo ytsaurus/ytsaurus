@@ -142,7 +142,7 @@ private:
 
             auto user = CreateNewUserFromTemplate(userName);
             auto result = Users_.emplace(userName, user);
-            YCHECK(result.second);
+            YT_VERIFY(result.second);
             return user;
         }
     }

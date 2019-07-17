@@ -19,7 +19,7 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter()
 
 void TYsonToUnversionedValueConverter::SetValueConsumer(IValueConsumer* valueConsumer)
 {
-    YCHECK(valueConsumer != nullptr);
+    YT_VERIFY(valueConsumer != nullptr);
     ValueConsumer_ = valueConsumer;
 }
 
@@ -118,7 +118,7 @@ void TYsonToUnversionedValueConverter::OnKeyedItem(TStringBuf name)
 
 void TYsonToUnversionedValueConverter::OnEndMap()
 {
-    YCHECK(Depth_ > 0);
+    YT_VERIFY(Depth_ > 0);
 
     --Depth_;
     ValueWriter_.OnEndMap();
@@ -127,7 +127,7 @@ void TYsonToUnversionedValueConverter::OnEndMap()
 
 void TYsonToUnversionedValueConverter::OnEndList()
 {
-    YCHECK(Depth_ > 0);
+    YT_VERIFY(Depth_ > 0);
 
     --Depth_;
     ValueWriter_.OnEndList();
@@ -138,7 +138,7 @@ void TYsonToUnversionedValueConverter::OnEndAttributes()
 {
     --Depth_;
 
-    YCHECK(Depth_ > 0);
+    YT_VERIFY(Depth_ > 0);
     ValueWriter_.OnEndAttributes();
 }
 
@@ -203,7 +203,7 @@ void TTableConsumer::OnControlStringScalar(TStringBuf /*value*/)
 void TTableConsumer::OnStringScalar(TStringBuf value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         OnControlStringScalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
@@ -211,7 +211,7 @@ void TTableConsumer::OnStringScalar(TStringBuf value)
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -223,7 +223,7 @@ void TTableConsumer::OnStringScalar(TStringBuf value)
 void TTableConsumer::OnInt64Scalar(i64 value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         OnControlInt64Scalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
@@ -231,7 +231,7 @@ void TTableConsumer::OnInt64Scalar(i64 value)
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -248,7 +248,7 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -260,14 +260,14 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
 void TTableConsumer::OnDoubleScalar(double value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a double value");
         return;
     } else if (ControlState_ == EControlState::ExpectEntity) {
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -279,14 +279,14 @@ void TTableConsumer::OnDoubleScalar(double value)
 void TTableConsumer::OnBooleanScalar(bool value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a boolean value");
         return;
     } else if (ControlState_ == EControlState::ExpectEntity) {
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -302,7 +302,7 @@ void TTableConsumer::OnEntity()
             break;
 
         case EControlState::ExpectEntity:
-            Y_ASSERT(Depth_ == 0);
+            YT_ASSERT(Depth_ == 0);
             // Successfully processed control statement.
             ControlState_ = EControlState::None;
             return;
@@ -312,7 +312,7 @@ void TTableConsumer::OnEntity()
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     if (Depth_ == 0) {
@@ -325,14 +325,14 @@ void TTableConsumer::OnEntity()
 void TTableConsumer::OnBeginList()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a list");
         return;
     } else if (ControlState_ == EControlState::ExpectEntity) {
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -345,11 +345,11 @@ void TTableConsumer::OnBeginList()
 void TTableConsumer::OnBeginAttributes()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ControlState_ = EControlState::ExpectName;
@@ -384,7 +384,7 @@ void TTableConsumer::ThrowInvalidControlAttribute(const TString& whatsWrong) con
 
 void TTableConsumer::OnListItem()
 {
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         // Row separator, do nothing.
@@ -396,13 +396,13 @@ void TTableConsumer::OnListItem()
 void TTableConsumer::OnBeginMap()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        Y_ASSERT(Depth_ == 1);
+        YT_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a map");
     } else if (ControlState_ == EControlState::ExpectEntity) {
         ThrowEntityExpected();
     }
 
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         CurrentValueConsumer_->OnBeginRow();
@@ -419,7 +419,7 @@ void TTableConsumer::OnKeyedItem(TStringBuf name)
             break;
 
         case EControlState::ExpectName:
-            Y_ASSERT(Depth_ == 1);
+            YT_ASSERT(Depth_ == 1);
             try {
                 ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(name));
             } catch (const std::exception&) {
@@ -430,14 +430,14 @@ void TTableConsumer::OnKeyedItem(TStringBuf name)
             return;
 
         case EControlState::ExpectEndAttributes:
-            Y_ASSERT(Depth_ == 1);
+            YT_ASSERT(Depth_ == 1);
             THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
-    Y_ASSERT(Depth_ > 0);
+    YT_ASSERT(Depth_ > 0);
     if (Depth_ == 1) {
         int columnIndex = -1;
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
@@ -454,7 +454,7 @@ void TTableConsumer::OnKeyedItem(TStringBuf name)
                 THROW_ERROR AttachLocationAttributes(ex);
             }
         }
-        YCHECK(columnIndex != -1);
+        YT_VERIFY(columnIndex != -1);
         YsonToUnversionedValueConverter_.SetColumnIndex(columnIndex);
     } else {
         YsonToUnversionedValueConverter_.OnKeyedItem(name);
@@ -463,9 +463,9 @@ void TTableConsumer::OnKeyedItem(TStringBuf name)
 
 void TTableConsumer::OnEndMap()
 {
-    Y_ASSERT(Depth_ > 0);
+    YT_ASSERT(Depth_ > 0);
     // No control attribute allows map or composite values.
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     --Depth_;
     if (Depth_ == 0) {
@@ -479,10 +479,10 @@ void TTableConsumer::OnEndMap()
 void TTableConsumer::OnEndList()
 {
     // No control attribute allow list or composite values.
-    Y_ASSERT(ControlState_ == EControlState::None);
+    YT_ASSERT(ControlState_ == EControlState::None);
 
     --Depth_;
-    Y_ASSERT(Depth_ > 0);
+    YT_ASSERT(Depth_ > 0);
 
     YsonToUnversionedValueConverter_.OnEndList();
 }
@@ -497,23 +497,23 @@ void TTableConsumer::OnEndAttributes()
             break;
 
         case EControlState::ExpectEndAttributes:
-            Y_ASSERT(Depth_ == 0);
+            YT_ASSERT(Depth_ == 0);
             ControlState_ = EControlState::ExpectEntity;
             break;
 
         case EControlState::None:
-            Y_ASSERT(Depth_ > 0);
+            YT_ASSERT(Depth_ > 0);
             YsonToUnversionedValueConverter_.OnEndAttributes();
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 void TTableConsumer::SwitchToTable(int tableIndex)
 {
-    YCHECK(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
+    YT_VERIFY(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
     CurrentValueConsumer_ = ValueConsumers_[tableIndex];
     CurrentNameTableWriter_ = NameTableWriters_[tableIndex].get();
     YsonToUnversionedValueConverter_.SetValueConsumer(CurrentValueConsumer_);

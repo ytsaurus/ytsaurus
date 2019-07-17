@@ -57,7 +57,7 @@ public:
                 Error_ = TError("Listener is shut down");
             }
             std::swap(Queue_, queue);
-            YCHECK(TryClose(ServerSocket_, false));
+            YT_VERIFY(TryClose(ServerSocket_, false));
         }
 
         for (auto& promise : queue) {
@@ -120,7 +120,7 @@ private:
 
     void Abort(const TError& error)
     {
-        YCHECK(!error.IsOK());
+        YT_VERIFY(!error.IsOK());
 
         auto guard = Guard(Lock_);
 
@@ -200,7 +200,7 @@ IListenerPtr CreateListener(
             Format("Listener{%v}", realAddress),
             poller);
     } catch (const std::exception& ) {
-        YCHECK(TryClose(serverSocket, false));
+        YT_VERIFY(TryClose(serverSocket, false));
         throw;
     }
 }

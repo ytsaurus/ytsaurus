@@ -34,7 +34,7 @@ public:
     virtual TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         // Fast lane.
         if (count == 0) {
@@ -82,7 +82,7 @@ public:
     virtual bool TryAcquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         // Fast lane (only).
         if (count == 0) {
@@ -108,7 +108,7 @@ public:
     virtual i64 TryAcquireAvailable(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         // Fast lane (only).
         if (count == 0) {
@@ -136,7 +136,7 @@ public:
     virtual void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         // Fast lane (only).
         if (count == 0) {
@@ -303,7 +303,7 @@ public:
     virtual TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         Profiler.Increment(ValueCounter_, count);
         return VoidFuture;
@@ -312,7 +312,7 @@ public:
     virtual bool TryAcquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         Profiler.Increment(ValueCounter_, count);
         return true;
@@ -321,7 +321,7 @@ public:
     virtual i64 TryAcquireAvailable(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         Profiler.Increment(ValueCounter_, count);
         return count;
@@ -330,7 +330,7 @@ public:
     virtual void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         Profiler.Increment(ValueCounter_, count);
     }
@@ -379,7 +379,7 @@ public:
     virtual TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         QueueTotalCount_ += count;
 
@@ -397,18 +397,18 @@ public:
 
     virtual bool TryAcquire(i64 /*count*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual i64 TryAcquireAvailable(i64 /*count*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         for (const auto& throttler : Throttlers_) {
             throttler->Acquire(count);

@@ -83,12 +83,12 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
                 return ChunkList_;
             } else {
                 const auto& children = ChunkList_->Children();
-                YCHECK(children.size() == 2);
+                YT_VERIFY(children.size() == 2);
                 return children[0]->AsChunkList();
             }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -100,7 +100,7 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
                 return ChunkList_;
             } else {
                 const auto& children = ChunkList_->Children();
-                YCHECK(children.size() == 2);
+                YT_VERIFY(children.size() == 2);
                 return children[1]->AsChunkList();
             }
 
@@ -108,7 +108,7 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
             return ChunkList_;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -138,7 +138,7 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     }
 
     if (context.Statistics && updateStatistics) {
-        YCHECK(*context.Statistics == *updateStatistics);
+        YT_VERIFY(*context.Statistics == *updateStatistics);
     }
 
     switch (UpdateMode_) {
@@ -157,7 +157,7 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -181,7 +181,7 @@ TDataStatistics TChunkOwnerBase::ComputeTotalStatistics() const
 
 TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 {
-    YCHECK(!IsExternal());
+    YT_VERIFY(!IsExternal());
 
     switch (UpdateMode_) {
         case EUpdateMode::Append:
@@ -191,7 +191,7 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
             return GetSnapshotChunkList()->Statistics().ToDataStatistics();
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

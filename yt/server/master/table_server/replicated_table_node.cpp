@@ -43,7 +43,7 @@ const TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas() const
 
 TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas()
 {
-    Y_ASSERT(IsTrunk());
+    YT_ASSERT(IsTrunk());
     return Replicas_;
 }
 

@@ -652,7 +652,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         id.AddPointer(labels.back());
     }
@@ -752,7 +752,7 @@ Function* TComparerManager::GetEqComparer(
     size_t start,
     size_t finish)
 {
-    YCHECK(finish <= types.size());
+    YT_VERIFY(finish <= types.size());
 
     llvm::FoldingSetNodeID id;
     id.AddInteger(start);
@@ -812,7 +812,7 @@ Function* TComparerManager::GetLessComparer(
     size_t start,
     size_t finish)
 {
-    YCHECK(finish <= types.size());
+    YT_VERIFY(finish <= types.size());
 
     llvm::FoldingSetNodeID id;
     id.AddInteger(start);
@@ -872,7 +872,7 @@ Function* TComparerManager::GetTernaryComparer(
     size_t start,
     size_t finish)
 {
-    YCHECK(finish <= types.size());
+    YT_VERIFY(finish <= types.size());
 
     llvm::FoldingSetNodeID id;
     id.AddInteger(start);
@@ -1205,7 +1205,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                             evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
                             break;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
 
@@ -1216,7 +1216,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             return TCGValue::CreateFromValue(
@@ -1265,11 +1265,11 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
         Value* rhsIsNull = rhsValue.GetIsNull(builder);
 
         if (!items[lhsId].Nullable) {
-            YCHECK(llvm::dyn_cast<llvm::Constant>(lhsIsNull));
+            YT_VERIFY(llvm::dyn_cast<llvm::Constant>(lhsIsNull));
         }
 
         if (!items[rhsId].Nullable) {
-            YCHECK(llvm::dyn_cast<llvm::Constant>(rhsIsNull));
+            YT_VERIFY(llvm::dyn_cast<llvm::Constant>(rhsIsNull));
         }
 
         Value* lhsData = lhsValue.GetTypedData(builder);
@@ -1339,14 +1339,14 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 CMP_OP(Greater, ICmpUGT)
                 CMP_OP(GreaterOrEqual, ICmpUGE)
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             return evalData;
         };
 
         if (!IsStringLikeType(lhsValue.GetStaticType()) && !IsStringLikeType(rhsValue.GetStaticType())) {
-            YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+            YT_VERIFY(lhsValue.GetStaticType() == rhsValue.GetStaticType());
 
             auto operandType = lhsValue.GetStaticType();
 
@@ -1365,7 +1365,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         CMP_OP(Greater, ICmpSGT)
                         CMP_OP(GreaterOrEqual, ICmpSGE)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 case EValueType::Uint64:
@@ -1377,7 +1377,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         CMP_OP(Greater, ICmpUGT)
                         CMP_OP(GreaterOrEqual, ICmpUGE)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 case EValueType::Double:
@@ -1389,11 +1389,11 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         CMP_OP(Greater, FCmpUGT)
                         CMP_OP(GreaterOrEqual, FCmpUGE)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
@@ -1437,7 +1437,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     evalData = builder->CreateICmpSGE(cmpResult, builder->getInt32(0));
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             return evalData;
         };
@@ -1511,16 +1511,16 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 break;
                             }
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
 
                         return cmpResultToResult(builder, cmpResult, resultOpcode);
                     } else {
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                     }
                 }
 
-                YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+                YT_VERIFY(lhsValue.GetStaticType() == rhsValue.GetStaticType());
 
                 auto operandType = lhsValue.GetStaticType();
 
@@ -1580,7 +1580,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength));
                                 break;
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
 
                         break;
@@ -1603,7 +1603,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         break;
                     }
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
 
                 return evalData;
@@ -1652,7 +1652,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
         auto lhsValue = CodegenFragment(builder, lhsId);
         auto rhsValue = CodegenFragment(builder, rhsId);
 
-        YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+        YT_VERIFY(lhsValue.GetStaticType() == rhsValue.GetStaticType());
         auto operandType = lhsValue.GetStaticType();
 
         #define OP(opcode, optype) \
@@ -1710,7 +1710,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                 OP(Divide, SDiv)
                                 OP(Modulo, SRem)
                                 default:
-                                    Y_UNREACHABLE();
+                                    YT_ABORT();
                             }
                             break;
                         case EValueType::Uint64:
@@ -1718,11 +1718,11 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                 OP(Divide, UDiv)
                                 OP(Modulo, URem)
                                 default:
-                                    Y_UNREACHABLE();
+                                    YT_ABORT();
                             }
                             break;
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
 
                     return TCGValue::CreateFromValue(
@@ -1749,7 +1749,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                         OP(LeftShift, Shl)
                         OP(RightShift, LShr)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 case EValueType::Uint64:
@@ -1764,7 +1764,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                         OP(LeftShift, Shl)
                         OP(RightShift, LShr)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 case EValueType::Double:
@@ -1774,11 +1774,11 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                         OP(Multiply, FMul)
                         OP(Divide, FDiv)
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             return TCGValue::CreateFromValue(
@@ -2489,8 +2489,10 @@ size_t MakeCodegenFilterFinalizedOp(
             Value* finalizedValuesRef = builder->ViaClosure(finalizedValues);
 
             builder->CreateMemCpy(
-                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()), 8,
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()),
+                8,
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                8,
                 keySize * sizeof(TValue));
 
             for (int index = 0; index < codegenAggregates.size(); index++) {
@@ -2559,8 +2561,10 @@ size_t MakeCodegenAddStreamOp(
             Value* newValuesRef = builder->ViaClosure(newValues);
 
             builder->CreateMemCpy(
-                builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()), 8,
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
+                8,
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                8,
                 rowSize * sizeof(TValue));
 
             TCGValue::CreateFromValue(
@@ -2946,8 +2950,10 @@ size_t MakeCodegenOrderOp(
                 Value* newValuesRef = builder->ViaClosure(newValues);
 
                 builder->CreateMemCpy(
-                    builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()), 8,
-                    builder->CreatePointerCast(values, builder->getInt8PtrTy()), 8,
+                    builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
+                    8,
+                    builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                    8,
                     schemaSize * sizeof(TValue));
 
                 auto innerBuilder = TCGExprContext::Make(

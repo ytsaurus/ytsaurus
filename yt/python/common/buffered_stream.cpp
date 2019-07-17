@@ -54,7 +54,7 @@ void TBufferedStream::Read(size_t size, char* dest)
 {
     TGuard<TMutex> guard(ReadMutex_);
 
-    YCHECK(Size_ >= size);
+    YT_VERIFY(Size_ >= size);
 
     SizeToRead_ = 0;
 
@@ -78,7 +78,7 @@ void TBufferedStream::Finish()
 {
     TGuard<TMutex> guard(Mutex_);
 
-    YCHECK(!Finished_);
+    YT_VERIFY(!Finished_);
 
     Finished_ = true;
 
@@ -95,7 +95,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
 {
     TGuard<TMutex> guard(Mutex_);
 
-    YCHECK(!Finished_);
+    YT_VERIFY(!Finished_);
 
     {
         if (Data_.End() < Begin_ + Size_ + data.Size()) {
@@ -127,7 +127,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
 
 void TBufferedStream::Reallocate(size_t len)
 {
-    YCHECK(len >= Size_);
+    YT_VERIFY(len >= Size_);
 
     auto newData = TSharedMutableRef::Allocate(len, false);
     Move(newData.Begin());

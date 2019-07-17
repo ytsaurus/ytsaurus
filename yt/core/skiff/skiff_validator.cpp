@@ -36,7 +36,7 @@ struct IValidatorNode
 
     virtual void OnChildDone(TValidatorNodeStack* /*validatorNodeStack*/)
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void OnSimpleType(TValidatorNodeStack* /*validatorNodeStack*/, EWireType wireType)
@@ -84,7 +84,7 @@ public:
 
     void PopValidator()
     {
-        YCHECK(!ValidatorStack_.empty());
+        YT_VERIFY(!ValidatorStack_.empty());
         ValidatorStack_.pop();
         if (!ValidatorStack_.empty()) {
             ValidatorStack_.top()->OnChildDone(this);
@@ -100,7 +100,7 @@ public:
 
     IValidatorNode* Top() const
     {
-        YCHECK(!ValidatorStack_.empty());
+        YT_VERIFY(!ValidatorStack_.empty());
         return ValidatorStack_.top();
     }
 
@@ -390,7 +390,7 @@ IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
         case EWireType::RepeatedVariant16:
             return New<TRepeatedVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

@@ -254,7 +254,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 {
     auto addCell = [&] (TCellTag someTag) {
         if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
-            YCHECK(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics()}).second);
+            YT_VERIFY(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics()}).second);
         }
     };
 
@@ -301,7 +301,7 @@ void TNode::SetLocalState(ENodeState state)
 void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
 {
     auto it = MulticellDescriptors_.find(cellTag);
-    YCHECK(it != MulticellDescriptors_.end());
+    YT_VERIFY(it != MulticellDescriptors_.end());
     auto mustRecomputeState = (it->second.State != descriptor.State);
     it->second = descriptor;
     if (mustRecomputeState) {
@@ -430,12 +430,12 @@ TJobPtr TNode::FindJob(TJobId jobId)
 
 void TNode::RegisterJob(const TJobPtr& job)
 {
-    YCHECK(IdToJob_.emplace(job->GetJobId(), job).second);
+    YT_VERIFY(IdToJob_.emplace(job->GetJobId(), job).second);
 }
 
 void TNode::UnregisterJob(const TJobPtr& job)
 {
-    YCHECK(IdToJob_.erase(job->GetJobId()) == 1);
+    YT_VERIFY(IdToJob_.erase(job->GetJobId()) == 1);
 }
 
 void TNode::ReserveReplicas(int mediumIndex, int sizeHint)
@@ -510,7 +510,7 @@ void TNode::ClearReplicas()
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
 {
-    YCHECK(UnapprovedReplicas_.emplace(ToUnapprovedKey(replica), timestamp).second);
+    YT_VERIFY(UnapprovedReplicas_.emplace(ToUnapprovedKey(replica), timestamp).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndexes replica) const
@@ -520,20 +520,20 @@ bool TNode::HasUnapprovedReplica(TChunkPtrWithIndexes replica) const
 
 void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
 {
-    YCHECK(UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 1);
+    YT_VERIFY(UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
         int mediumIndex = replica.GetMediumIndex();
         DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
         DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
         DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
-        YCHECK(DoAddReplica(replica));
+        YT_VERIFY(DoAddReplica(replica));
     }
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
-    Y_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(GetLocalState() == ENodeState::Online);
     ChunkRemovalQueue_[ToRemovalKey(replica)].set(replica.MediumIndex);
 }
 
@@ -551,7 +551,7 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
-    Y_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(GetLocalState() == ENodeState::Online);
     ChunkReplicationQueues_[priority][ToReplicationKey(replica)].set(targetMediumIndex);
 }
 
@@ -575,7 +575,7 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int t
 
 void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    Y_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(GetLocalState() == ENodeState::Online);
     auto key = ToSealKey(chunkWithIndexes);
     ChunkSealQueue_[key].set(chunkWithIndexes.GetMediumIndex());
 }
@@ -619,7 +619,7 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
             ++TotalHintedRepairSessionCount_;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -641,7 +641,7 @@ int TNode::GetSessionCount(ESessionType sessionType) const
         case ESessionType::Repair:
             return Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -666,7 +666,7 @@ TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
 TNode::TTabletSlot* TNode::GetTabletSlot(const TTabletCell* cell)
 {
     auto* slot = FindTabletSlot(cell);
-    YCHECK(slot);
+    YT_VERIFY(slot);
     return slot;
 }
 
@@ -680,7 +680,7 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
 
 void TNode::InitTabletSlots()
 {
-    YCHECK(TabletSlots_.empty());
+    YT_VERIFY(TabletSlots_.empty());
     TabletSlots_.resize(Statistics_.available_tablet_slots() + Statistics_.used_tablet_slots());
 }
 

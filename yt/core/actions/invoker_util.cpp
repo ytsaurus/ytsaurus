@@ -102,9 +102,9 @@ void GuardedInvoke(
     TClosure onSuccess,
     TClosure onCancel)
 {
-    Y_ASSERT(invoker);
-    Y_ASSERT(onSuccess);
-    Y_ASSERT(onCancel);
+    YT_ASSERT(invoker);
+    YT_ASSERT(onSuccess);
+    YT_ASSERT(onCancel);
 
     class TGuard
     {

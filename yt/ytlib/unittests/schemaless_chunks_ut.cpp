@@ -81,7 +81,7 @@ protected:
             case 5:
                 return MakeUnversionedStringValue(StringValue, id);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -172,7 +172,7 @@ protected:
             case 7:
                 return MakeUnversionedAnyValue(AnyValueMap, id);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -467,7 +467,7 @@ protected:
             case EValueType::Any:
                 return CreateAny(rowIndex, id);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

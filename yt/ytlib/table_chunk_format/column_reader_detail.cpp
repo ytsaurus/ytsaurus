@@ -192,7 +192,7 @@ void TVersionedColumnReaderBase::ReadValues(
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
         EnsureSegmentReader();
 
         i64 count = SegmentReader_->ReadValues(
@@ -214,7 +214,7 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
         EnsureSegmentReader();
 
         i64 count = SegmentReader_->ReadAllValues(

@@ -1,4 +1,5 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges, is_asan_build
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
+    require_ytserver_root_privileges, is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
 from yt_commands import *
 
 from yt.yson import *
@@ -1382,15 +1383,14 @@ class TestSchedulerCommon(YTEnvSetup):
 
         wait(lambda: exists(op.get_path() + "/snapshot"))
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         wait(lambda: op.get_state() == "running")
         assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx]
 
-        self.Env.kill_schedulers()
-        abort_transaction(nested_tx)
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(nested_tx)
 
         wait(lambda: op.get_state() == "running")
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
@@ -1584,8 +1584,8 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
 
         op2.track()  # this makes slot index 1 available again since operation is completed
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         time.sleep(2.0)
 
@@ -1727,8 +1727,8 @@ class TestSchedulerRevive(YTEnvSetup):
         ok = False
         for iter in xrange(100):
             time.sleep(random.randint(5, 15) * 0.5)
-            self.Env.kill_controller_agents()
-            self.Env.start_controller_agents()
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
 
             completed_count = 0
             for index, op in enumerate(ops):
@@ -1771,11 +1771,9 @@ class TestSchedulerRevive(YTEnvSetup):
         live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
-        self.Env.kill_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(async_transaction_id)
 
-        abort_transaction(async_transaction_id)
-
-        self.Env.start_schedulers()
 
         wait(lambda: op.get_state() == "running")
 
@@ -1812,8 +1810,8 @@ class TestSchedulerRevive(YTEnvSetup):
 
         brief_spec = get(op.get_path() + "/@brief_spec")
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         release_breakpoint()
 
@@ -1846,12 +1844,8 @@ class TestJobRevivalBase(YTEnvSetup):
         assert False, "Wait failed"
 
     def _kill_and_start(self, components):
-        if "controller_agents" in components:
-            self.Env.kill_controller_agents()
-            self.Env.start_controller_agents()
-        if "schedulers" in components:
-            self.Env.kill_schedulers()
-            self.Env.start_schedulers()
+        with Restarter(self.Env, components):
+            pass
 
 ################################################################################
 
@@ -1983,14 +1977,14 @@ class TestJobRevival(TestJobRevivalBase):
                 print >>sys.stderr, "aborted_on_revival_job_count =", aborted_on_revival_job_count
                 if completed_job_count >= switch_job_count:
                     if (switch_job_count // 40) % 2 == 0:
-                        self.Env.kill_schedulers()
-                        self.Env.start_schedulers()
+                        with Restarter(self.Env, SCHEDULERS_SERVICE):
+                            pass
                     else:
-                        self.Env.kill_controller_agents()
-                        self.Env.start_controller_agents()
+                        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                            pass
                     if switch_job_count % 3 == 0:
-                        self.Env.kill_nodes()
-                        self.Env.start_nodes()
+                        with Restarter(self.Env, NODES_SERVICE):
+                            pass
                     break
                 time.sleep(1)
 
@@ -2036,8 +2030,8 @@ class TestJobRevival(TestJobRevivalBase):
         wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]) == user_slots_limit)
 
         self._kill_and_start(components_to_kill)
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
 
         orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
         wait(lambda: exists(orchid_path + "/operations/" + op.id))
@@ -2448,11 +2442,8 @@ class TestSchedulingTags(YTEnvSetup):
         snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
 
-        self.Env.kill_schedulers()
-
-        set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])
-
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])
 
         wait(lambda: self._get_slots_by_filter("tagC") == 0)
         time.sleep(2)
@@ -2562,8 +2553,8 @@ class TestSchedulerConfig(YTEnvSetup):
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
 
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
         time.sleep(1)
 
         wait(lambda: op.get_state() == "running")
@@ -3019,16 +3010,16 @@ class TestSecureVault(YTEnvSetup):
 
     def test_secure_vault_with_revive(self):
         op = self.run_map_with_secure_vault()
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
         op.track()
         res = read_table("//tmp/t_out")
         self.check_content(res)
 
     def test_secure_vault_with_revive_with_new_storage_scheme(self):
         op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
         op.track()
         res = read_table("//tmp/t_out")
         self.check_content(res)
@@ -3519,8 +3510,8 @@ fi
             # '+1' since snapshot building can be started before job has failed.
             wait(lambda: get(snapshot_index_path) > snapshot_index + 1)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         for op in ops:
             wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")

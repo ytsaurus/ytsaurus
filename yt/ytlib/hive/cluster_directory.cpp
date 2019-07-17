@@ -78,7 +78,7 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     auto cellTag = GetCellTag(cluster);
     cluster.Connection->Terminate();
     NameToCluster_.erase(it);
-    YCHECK(CellTagToCluster_.erase(cellTag) == 1);
+    YT_VERIFY(CellTagToCluster_.erase(cellTag) == 1);
     YT_LOG_DEBUG("Remote cluster unregistered (Name: %v)",
         name);
 }
@@ -126,7 +126,7 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
 {
     THashMap<TString, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
-        YCHECK(nameToConfig.emplace(
+        YT_VERIFY(nameToConfig.emplace(
             item.name(),
             ConvertToNode(NYson::TYsonString(item.config()))).second);
     }

@@ -118,7 +118,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     const auto& rowBuffer = closure->OutputBuffer;
 
-    Y_ASSERT(batch.size() < batch.capacity());
+    YT_ASSERT(batch.size() < batch.capacity());
 
     batch.push_back(rowBuffer->Capture(values, closure->RowSize));
 
@@ -197,7 +197,7 @@ void ScanOpHelper(
             rows.end());
 
         if (statistics->RowsRead + rows.size() >= context->InputRowLimit) {
-            YCHECK(statistics->RowsRead <= context->InputRowLimit);
+            YT_VERIFY(statistics->RowsRead <= context->InputRowLimit);
             rows.resize(context->InputRowLimit - statistics->RowsRead);
             statistics->IncompleteInput = true;
             hasMoreData = false;
@@ -255,7 +255,7 @@ void InsertJoinRow(
     if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
         if (closure->LastKey) {
             size_t rowSize = closure->CommonKeyPrefixDebug;
-            Y_ASSERT(CompareRows(closure->LastKey, closure->LastKey + rowSize, key, key + rowSize) <= 0);
+            YT_ASSERT(CompareRows(closure->LastKey, closure->LastKey + rowSize, key, key + rowSize) <= 0);
         }
 
         closure->ProcessSegment();
@@ -719,7 +719,7 @@ void JoinOpHelper(
             consumeRows,
             parameters->SelfColumns,
             parameters->ForeignColumns);
-        Y_ASSERT(std::is_sorted(keys.begin(), keys.end()));
+        YT_ASSERT(std::is_sorted(keys.begin(), keys.end()));
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
@@ -1061,7 +1061,7 @@ void MultiJoinOpHelper(
                     const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
 
                     if (slot.second != 0) {
-                        YCHECK(indexes[joinId] < slot.second);
+                        YT_VERIFY(indexes[joinId] < slot.second);
                         TValue* foreignRow = sortedForeignSequences[joinId][slot.first + indexes[joinId]];
 
                         if (incrementIndex == joinId) {
@@ -1461,7 +1461,7 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
                 result = hash64(0, result);
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1506,7 +1506,7 @@ void RegexDestroy(re2::RE2* re2)
 
 ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
 {
-    YCHECK(string->Type == EValueType::String);
+    YT_VERIFY(string->Type == EValueType::String);
 
     return re2::RE2::FullMatch(
         re2::StringPiece(string->Data.String, string->Length),
@@ -1515,7 +1515,7 @@ ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
 
 ui8 RegexPartialMatch(re2::RE2* re2, TUnversionedValue* string)
 {
-    YCHECK(string->Type == EValueType::String);
+    YT_VERIFY(string->Type == EValueType::String);
 
     return re2::RE2::PartialMatch(
         re2::StringPiece(string->Data.String, string->Length),
@@ -1549,8 +1549,8 @@ void RegexReplaceFirst(
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
 {
-    YCHECK(string->Type == EValueType::String);
-    YCHECK(rewrite->Type == EValueType::String);
+    YT_VERIFY(string->Type == EValueType::String);
+    YT_VERIFY(rewrite->Type == EValueType::String);
 
     re2::string str(string->Data.String, string->Length);
     re2::RE2::Replace(
@@ -1568,8 +1568,8 @@ void RegexReplaceAll(
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
 {
-    YCHECK(string->Type == EValueType::String);
-    YCHECK(rewrite->Type == EValueType::String);
+    YT_VERIFY(string->Type == EValueType::String);
+    YT_VERIFY(rewrite->Type == EValueType::String);
 
     re2::string str(string->Data.String, string->Length);
     re2::RE2::GlobalReplace(
@@ -1587,8 +1587,8 @@ void RegexExtract(
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
 {
-    YCHECK(string->Type == EValueType::String);
-    YCHECK(rewrite->Type == EValueType::String);
+    YT_VERIFY(string->Type == EValueType::String);
+    YT_VERIFY(rewrite->Type == EValueType::String);
 
     re2::string str;
     re2::RE2::Extract(
@@ -1800,7 +1800,7 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
                 tokenType);
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 
@@ -1884,7 +1884,7 @@ void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedV
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     writer.Flush();

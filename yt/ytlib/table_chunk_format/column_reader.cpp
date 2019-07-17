@@ -40,7 +40,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -89,7 +89,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 static_cast<bool>(schema.Aggregate()));
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

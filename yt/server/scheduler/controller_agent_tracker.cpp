@@ -69,7 +69,7 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
             agent->GetId(),
             operationId);
         if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
-            YCHECK(rspOrError.InnerErrors().size() == 1);
+            YT_VERIFY(rspOrError.InnerErrors().size() == 1);
             THROW_ERROR rspOrError.InnerErrors()[0];
         } else if (IsChannelFailureError(rspOrError)) {
             const auto& agentTracker = bootstrap->GetControllerAgentTracker();
@@ -104,7 +104,7 @@ public:
 
         auto guard = Guard(SpinLock_);
 
-        YCHECK(!IncarnationId_);
+        YT_VERIFY(!IncarnationId_);
         IncarnationId_ = agent->GetIncarnationId();
         Agent_ = agent;
 
@@ -135,7 +135,7 @@ public:
 
         IncarnationId_ = {};
         Agent_.Reset();
-        YCHECK(PostponedJobEvents_.empty());
+        YT_VERIFY(PostponedJobEvents_.empty());
     }
 
     virtual TControllerAgentPtr FindAgent() const override
@@ -149,7 +149,7 @@ public:
     virtual TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -184,7 +184,7 @@ public:
     virtual TFuture<TOperationControllerPrepareResult> Prepare() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto req = AgentProxy_->PrepareOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -200,7 +200,7 @@ public:
     virtual TFuture<TOperationControllerMaterializeResult> Materialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
         // Materialize can last infinitely long if input chunks are unavailable.
@@ -216,7 +216,7 @@ public:
     virtual TFuture<TOperationControllerReviveResult> Revive() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto agent = Agent_.Lock();
         if (!agent) {
@@ -258,7 +258,7 @@ public:
     virtual TFuture<void> Commit() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto req = AgentProxy_->CommitOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -285,7 +285,7 @@ public:
     virtual TFuture<void> Complete() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
 
         auto req = AgentProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -545,13 +545,13 @@ private:
 
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event)
     {
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
         OperationEventsOutbox_->Enqueue(std::move(event));
     }
 
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event)
     {
-        YCHECK(IncarnationId_);
+        YT_VERIFY(IncarnationId_);
         ScheduleJobRequestsOutbox_->Enqueue(std::move(event));
     }
 
@@ -710,7 +710,7 @@ public:
                 return pickedAgent;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -720,7 +720,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(agent->Operations().insert(operation).second);
+        YT_VERIFY(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
         YT_LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
@@ -789,7 +789,7 @@ public:
             return;
         }
 
-        YCHECK(agent->Operations().erase(operation) == 1);
+        YT_VERIFY(agent->Operations().erase(operation) == 1);
 
         YT_LOG_DEBUG("Operation unregistered from agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
@@ -972,7 +972,7 @@ public:
             }
 
             auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
-            YCHECK(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
+            YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
 
             if (protoOperation.has_suspicious_jobs()) {
                 operation->SetSuspiciousJobs(TYsonString(protoOperation.suspicious_jobs(), EYsonType::MapFragment));
@@ -1093,7 +1093,7 @@ public:
                         break;
                     }
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             });
         agent->GetOperationEventsInbox()->ReportStatus(
@@ -1140,7 +1140,7 @@ public:
                                 nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile);
                                 break;
                             default:
-                                Y_UNREACHABLE();
+                                YT_ABORT();
                         }
                     }
 
@@ -1176,7 +1176,7 @@ private:
 
     void RegisterAgent(const TControllerAgentPtr& agent)
     {
-        YCHECK(IdToAgent_.emplace(agent->GetId(), agent).second);
+        YT_VERIFY(IdToAgent_.emplace(agent->GetId(), agent).second);
     }
 
     void UnregisterAgent(const TControllerAgentPtr& agent)
@@ -1187,7 +1187,7 @@ private:
             return;
         }
 
-        YCHECK(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
+        YT_VERIFY(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {
@@ -1219,7 +1219,7 @@ private:
                     agent->GetIncarnationId());
 
                 agent->SetState(EControllerAgentState::Unregistered);
-                YCHECK(IdToAgent_.erase(agent->GetId()) == 1);
+                YT_VERIFY(IdToAgent_.erase(agent->GetId()) == 1);
             })
             .Via(GetCancelableControlInvoker()));
     }

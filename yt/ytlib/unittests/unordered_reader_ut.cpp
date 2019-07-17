@@ -74,17 +74,17 @@ TEST_F(TUnorderedReaderTest, Simple)
 
     std::vector<TUnversionedRow> rows;
 
-    YCHECK(mergingReader->Read(&rows));
+    YT_VERIFY(mergingReader->Read(&rows));
 
     reader1->ReadyEvent.Set(TError());
     reader2->ReadyEvent.Set(TError("Error"));
 
-    YCHECK(mergingReader->GetReadyEvent().IsSet());
-    YCHECK(mergingReader->GetReadyEvent().Get().IsOK());
+    YT_VERIFY(mergingReader->GetReadyEvent().IsSet());
+    YT_VERIFY(mergingReader->GetReadyEvent().Get().IsOK());
 
-    YCHECK(mergingReader->Read(&rows));
-    YCHECK(mergingReader->GetReadyEvent().IsSet());
-    YCHECK(mergingReader->GetReadyEvent().Get().GetMessage() == "Error");
+    YT_VERIFY(mergingReader->Read(&rows));
+    YT_VERIFY(mergingReader->GetReadyEvent().IsSet());
+    YT_VERIFY(mergingReader->GetReadyEvent().Get().GetMessage() == "Error");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

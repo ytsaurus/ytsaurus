@@ -64,7 +64,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(!IsRunning_);
+        YT_VERIFY(!IsRunning_);
         IsRunning_ = true;
 
         int uid = Options_->Uid.value_or(::getuid());

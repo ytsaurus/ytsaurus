@@ -27,13 +27,13 @@ TDataSliceDescriptor::TDataSliceDescriptor(
 
 const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
 {
-    YCHECK(ChunkSpecs.size() == 1);
+    YT_VERIFY(ChunkSpecs.size() == 1);
     return ChunkSpecs[0];
 }
 
 std::optional<i64> TDataSliceDescriptor::GetTag() const
 {
-    YCHECK(!ChunkSpecs.empty());
+    YT_VERIFY(!ChunkSpecs.empty());
     std::optional<i64> commonTag = ChunkSpecs.front().has_data_slice_tag()
         ? std::make_optional(ChunkSpecs.front().data_slice_tag())
         : std::nullopt;
@@ -41,7 +41,7 @@ std::optional<i64> TDataSliceDescriptor::GetTag() const
         std::optional<i64> tag = chunkSpec.has_data_slice_tag()
             ? std::make_optional(chunkSpec.data_slice_tag())
             : std::nullopt;
-        YCHECK(commonTag == tag);
+        YT_VERIFY(commonTag == tag);
     }
     return commonTag;
 }
@@ -70,7 +70,7 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
             TReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.lower_limit());
-            YCHECK(!readLimit.HasRowIndex());
+            YT_VERIFY(!readLimit.HasRowIndex());
 
             if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() > readLimit.GetKey())) {
                 result.SetKey(readLimit.GetKey());
@@ -102,7 +102,7 @@ TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, boo
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
             TReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.upper_limit());
-            YCHECK(!readLimit.HasRowIndex());
+            YT_VERIFY(!readLimit.HasRowIndex());
 
             if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() < readLimit.GetKey())) {
                 result.SetKey(readLimit.GetKey());

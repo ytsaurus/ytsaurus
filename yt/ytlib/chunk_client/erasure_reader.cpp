@@ -50,7 +50,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
-    YCHECK(IsErasureChunkId(chunkId));
+    YT_VERIFY(IsErasureChunkId(chunkId));
 
     auto sortedReplicas = replicas;
     std::sort(
@@ -94,7 +94,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             it = jt;
         }
     }
-    YCHECK(readers.size() == partCount);
+    YT_VERIFY(readers.size() == partCount);
 
     return readers;
 }

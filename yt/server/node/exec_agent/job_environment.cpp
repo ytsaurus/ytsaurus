@@ -741,7 +741,7 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstr
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

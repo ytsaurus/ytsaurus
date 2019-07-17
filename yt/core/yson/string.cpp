@@ -33,13 +33,13 @@ TYsonString::operator bool() const
 
 const TString& TYsonString::GetData() const
 {
-    YCHECK(!Null_);
+    YT_VERIFY(!Null_);
     return Data_;
 }
 
 EYsonType TYsonString::GetType() const
 {
-    YCHECK(!Null_);
+    YT_VERIFY(!Null_);
     return Type_;
 }
 

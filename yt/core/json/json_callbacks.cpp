@@ -174,7 +174,7 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeNode(INodePtr node)
             ConsumeNode(node->AsList());
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
             break;
     };
 }
@@ -260,7 +260,7 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeNode(IMapNodePtr map)
                         break;
                     }
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                         break;
                 }
             } else if (node->GetType() == ENodeType::Int64) {
@@ -282,7 +282,7 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeNode(IMapNodePtr map)
                             << TErrorAttribute("actual_type", node->GetType());
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                         break;
                 }
             } else {

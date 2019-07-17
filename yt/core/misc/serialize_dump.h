@@ -151,12 +151,12 @@ private:
 
 #define SERIALIZATION_DUMP_INDENT(context) \
     if (auto SERIALIZATION_DUMP_INDENT__Guard = NYT::TSerializeDumpIndentGuard(&(context).Dumper())) \
-        { Y_UNREACHABLE(); } \
+        { YT_ABORT(); } \
     else
 
 #define SERIALIZATION_DUMP_SUSPEND(context) \
     if (auto SERIALIZATION_DUMP_SUSPEND__Guard = NYT::TSerializeDumpSuspendGuard(&(context).Dumper())) \
-        { Y_UNREACHABLE(); } \
+        { YT_ABORT(); } \
     else
 
 inline TString DumpRangeToHex(TRef data)

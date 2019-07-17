@@ -149,4 +149,54 @@ std::array<T, 0> MakeArray()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// See https://stackoverflow.com/questions/23439221/variadic-template-function-to-concatenate-stdvector-containers.
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Nice syntax to allow in-order expansion of parameter packs.
+struct TDoInOrder
+{
+    template <class T>
+    TDoInOrder(std::initializer_list<T>&&) { }
+};
+
+// const& version.
+template <class TVector>
+void AppendVector(TVector& destination, const TVector& source)
+{
+    destination.insert(destination.end(), source.begin(), source.end());
+}
+
+// && version.
+template <class TVector>
+void AppendVector(TVector& destination, TVector&& source) 
+{
+    destination.insert(
+        destination.end(),
+        std::make_move_iterator(source.begin()),
+        std::make_move_iterator(source.end()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+template <class T, class... TArgs>
+std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest)
+{
+    // We need to put results somewhere; that's why we accept first parameter by value and use it as a resulting vector.
+    // First, calculate total size of the result.
+    std::size_t totalSize = first.size();
+    NDetail::TDoInOrder { totalSize += rest.size() ... };
+    first.reserve(totalSize);
+    // Then, append all remaining arguments to first. Note that depending on rvalue-ness of the argument,
+    // suitable overload of AppendVector will be used.
+    NDetail::TDoInOrder { (NDetail::AppendVector(first, std::forward<TArgs>(rest)), 0)... };
+    // Not quite sure why, but in the original article result is explicitly moved.
+    return std::move(first);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

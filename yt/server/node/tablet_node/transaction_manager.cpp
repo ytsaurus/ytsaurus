@@ -79,7 +79,7 @@ public:
         if (IdQueue_.size() > MaxSize_) {
             auto idToExpire = IdQueue_.front();
             IdQueue_.pop();
-            YCHECK(IdSet_.erase(idToExpire) == 1);
+            YT_VERIFY(IdSet_.erase(idToExpire) == 1);
         }
     }
 
@@ -284,16 +284,16 @@ public:
         }
 
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
-            YCHECK(!transaction->GetTransient());
+            YT_VERIFY(!transaction->GetTransient());
             return transaction;
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void DropTransaction(TTransaction* transaction)
     {
-        YCHECK(transaction->GetTransient());
+        YT_VERIFY(transaction->GetTransient());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -360,7 +360,7 @@ public:
         }
 
         if (state == ETransactionState::Active) {
-            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
+            YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
             transaction->SetPrepareTimestamp(prepareTimestamp);
             RegisterPrepareTimestamp(transaction);
             transaction->SetState(persistent
@@ -676,7 +676,7 @@ private:
 
         TTabletAutomatonPart::OnLeaderActive();
 
-        YCHECK(TransientTransactionMap_.GetSize() == 0);
+        YT_VERIFY(TransientTransactionMap_.GetSize() == 0);
 
         // Recreate leases for all active transactions.
         for (const auto& pair : PersistentTransactionMap_) {
@@ -994,7 +994,7 @@ private:
         if (prepareTimestamp == NullTimestamp) {
             return;
         }
-        YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
+        YT_VERIFY(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
     }
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
@@ -1008,7 +1008,7 @@ private:
         }
         auto pair = std::make_pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
-        YCHECK(it != PreparedTransactions_.end());
+        YT_VERIFY(it != PreparedTransactions_.end());
         PreparedTransactions_.erase(it);
         CheckBarrier();
     }
@@ -1019,10 +1019,10 @@ private:
         auto cellTag = transaction->GetCellTag();
 
         if (auto lastTimestampIt = LastSerializedCommitTimestamps_.find(cellTag)) {
-            YCHECK(commitTimestamp > lastTimestampIt->second);
+            YT_VERIFY(commitTimestamp > lastTimestampIt->second);
             lastTimestampIt->second = commitTimestamp;
         } else {
-            YCHECK(LastSerializedCommitTimestamps_.insert(std::make_pair(cellTag, commitTimestamp)).second);
+            YT_VERIFY(LastSerializedCommitTimestamps_.insert(std::make_pair(cellTag, commitTimestamp)).second);
         }
     }
 
@@ -1047,8 +1047,8 @@ private:
         const TTransaction* lhs,
         const TTransaction* rhs)
     {
-        Y_ASSERT(lhs->IsCommitted());
-        Y_ASSERT(rhs->IsCommitted());
+        YT_ASSERT(lhs->IsCommitted());
+        YT_ASSERT(rhs->IsCommitted());
         return lhs->GetCommitTimestamp() < rhs->GetCommitTimestamp();
     }
 };

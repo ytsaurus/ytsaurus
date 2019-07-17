@@ -148,7 +148,7 @@ TString CreateSha256Hmac(const TString& key, const TString& message)
         message.size(),
         reinterpret_cast<unsigned char*>(hmac.data()),
         &opensslIsInsane);
-    YCHECK(nullptr != result);
+    YT_VERIFY(nullptr != result);
     return to_lower(HexEncode(hmac.data(), hmac.size()));
 }
 

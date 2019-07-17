@@ -32,7 +32,7 @@ public:
         , Config_(std::move(config))
         , IsRetriableError_(isRetriableError)
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
     }
 
     virtual IClientRequestControlPtr Send(
@@ -40,8 +40,8 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        Y_ASSERT(request);
-        Y_ASSERT(responseHandler);
+        YT_ASSERT(request);
+        YT_ASSERT(responseHandler);
 
         return New<TRetryingRequest>(
             Config_,
@@ -77,10 +77,10 @@ private:
             , Options_(options)
             , IsRetriableError_(std::move(isRetriableError))
         {
-            Y_ASSERT(Config_);
-            Y_ASSERT(UnderlyingChannel_);
-            Y_ASSERT(Request_);
-            Y_ASSERT(ResponseHandler_);
+            YT_ASSERT(Config_);
+            YT_ASSERT(UnderlyingChannel_);
+            YT_ASSERT(Request_);
+            YT_ASSERT(ResponseHandler_);
 
             Deadline_ = Config_->RetryTimeout
                 ? TInstant::Now() + *Config_->RetryTimeout
@@ -218,12 +218,12 @@ private:
 
         virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
         {
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
         }
 
         virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
         {
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
         }
 
 

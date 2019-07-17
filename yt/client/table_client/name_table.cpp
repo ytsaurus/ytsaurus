@@ -77,14 +77,14 @@ int TNameTable::GetIdOrThrow(TStringBuf name) const
 int TNameTable::GetId(TStringBuf name) const
 {
     auto index = FindId(name);
-    YCHECK(index);
+    YT_VERIFY(index);
     return *index;
 }
 
 TStringBuf TNameTable::GetName(int id) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    YCHECK(id >= 0 && id < IdToName_.size());
+    YT_VERIFY(id >= 0 && id < IdToName_.size());
     return IdToName_[id];
 }
 
@@ -148,7 +148,7 @@ int TNameTable::DoRegisterName(TStringBuf name)
 
     IdToName_.emplace_back(name);
     const auto& savedName = IdToName_.back();
-    YCHECK(NameToId_.insert(std::make_pair(savedName, id)).second);
+    YT_VERIFY(NameToId_.insert(std::make_pair(savedName, id)).second);
     ByteSize_ += savedName.length();
     return id;
 }
@@ -182,12 +182,12 @@ bool TNameTableReader::TryGetName(int id, TStringBuf& name) const
 
 TStringBuf TNameTableReader::GetName(int id) const
 {
-    Y_ASSERT(id >= 0);
+    YT_ASSERT(id >= 0);
     if (id >= IdToNameCache_.size()) {
         Fill();
     }
 
-    Y_ASSERT(id < IdToNameCache_.size());
+    YT_ASSERT(id < IdToNameCache_.size());
     return IdToNameCache_[id];
 }
 
@@ -222,7 +222,7 @@ std::optional<int> TNameTableWriter::FindId(TStringBuf name) const
     auto optionalId = NameTable_->FindId(name);
     if (optionalId) {
         Names_.push_back(TString(name));
-        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *optionalId)).second);
+        YT_VERIFY(NameToId_.insert(std::make_pair(Names_.back(), *optionalId)).second);
     }
     return optionalId;
 }
@@ -245,7 +245,7 @@ int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)
 
     auto id = NameTable_->GetIdOrRegisterName(name);
     Names_.push_back(TString(name));
-    YCHECK(NameToId_.insert(std::make_pair(Names_.back(), id)).second);
+    YT_VERIFY(NameToId_.insert(std::make_pair(Names_.back(), id)).second);
     return id;
 }
 

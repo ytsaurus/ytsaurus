@@ -96,7 +96,7 @@ public:
 
     TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
     {
-        YCHECK(closure);
+        YT_VERIFY(closure);
         return Submit(
             BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             delay.ToDeadLine());
@@ -104,7 +104,7 @@ public:
 
     TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline)
     {
-        YCHECK(closure);
+        YT_VERIFY(closure);
         return Submit(
             BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             deadline);
@@ -112,13 +112,13 @@ public:
 
     TDelayedExecutorCookie Submit(TDelayedCallback callback, TDuration delay)
     {
-        YCHECK(callback);
+        YT_VERIFY(callback);
         return Submit(std::move(callback), delay.ToDeadLine());
     }
 
     TDelayedExecutorCookie Submit(TDelayedCallback callback, TInstant deadline)
     {
-        YCHECK(callback);
+        YT_VERIFY(callback);
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
         SubmitQueue_.Enqueue(entry);
         if (!EnsureStarted()) {
@@ -311,9 +311,9 @@ private:
                     entry->Deadline,
                     now);
             }
-            YCHECK(entry->Callback);
+            YT_VERIFY(entry->Callback);
             auto pair = ScheduledEntries_.insert(entry);
-            YCHECK(pair.second);
+            YT_VERIFY(pair.second);
             entry->Iterator = pair.first;
         });
 
@@ -340,7 +340,7 @@ private:
                     entry->Deadline,
                     now);
             }
-            YCHECK(entry->Callback);
+            YT_VERIFY(entry->Callback);
             DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
             entry->Iterator.reset();
             ScheduledEntries_.erase(it);

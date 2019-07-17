@@ -12,7 +12,7 @@ namespace NYT::NCodegen {
 
 static void InitializeCodegenImpl()
 {
-    YCHECK(llvm::llvm_is_multithreaded());
+    YT_VERIFY(llvm::llvm_is_multithreaded());
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmParser();
     llvm::InitializeNativeTargetAsmPrinter();

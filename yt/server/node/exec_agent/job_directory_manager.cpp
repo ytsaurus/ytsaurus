@@ -137,7 +137,7 @@ private:
 
         auto onVolumeCreated = BIND([this_ = MakeStrong(this)] (const TVolumeId& volumeId) {
             auto guard = Guard(this_->SpinLock_);
-            YCHECK(this_->ManagedVolumes_.insert(volumeId.Path).second);
+            YT_VERIFY(this_->ManagedVolumes_.insert(volumeId.Path).second);
         });
 
         return Executor_->CreateVolume(path, volumeProperties)
@@ -218,7 +218,7 @@ public:
 
         return BIND([=, this_ = MakeStrong(this)] () {
             RunTool<TMountTmpfsAsRootTool>(config);
-            YCHECK(Directories_.insert(path).second);
+            YT_VERIFY(Directories_.insert(path).second);
         })
         .AsyncVia(Invoker_)
         .Run();

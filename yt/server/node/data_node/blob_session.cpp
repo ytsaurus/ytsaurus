@@ -49,7 +49,7 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
     std::optional<int> blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(chunkMeta);
+    YT_VERIFY(chunkMeta);
 
     if (!blockCount) {
         THROW_ERROR_EXCEPTION("Attempt to finish a blob session %v without specifying block count",
@@ -176,7 +176,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     std::vector<TBlock> blocksToWrite;
 
     auto enqueueBlocks = [&] () {
-        YCHECK(blocksToWrite.size() == WindowIndex_ - beginBlockIndex);
+        YT_VERIFY(blocksToWrite.size() == WindowIndex_ - beginBlockIndex);
         if (beginBlockIndex == WindowIndex_) {
             return;
         }
@@ -205,7 +205,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         }
 
         auto& slot = GetSlot(WindowIndex_);
-        YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
+        YT_VERIFY(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
         if (slot.State == ESlotState::Empty) {
             enqueueBlocks();
             break;
@@ -292,7 +292,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
             if (!Writer_->WriteBlock(block)) {
                 auto result = Writer_->GetReadyEvent().Get();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         } catch (const TSystemError& ex) {
             if (ex.Status() == ENOSPC) {
@@ -350,7 +350,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
         auto& slot = GetSlot(blockIndex);
         slot.PendingIOGuard.Release();
         if (error.IsOK()) {
-            YCHECK(slot.State == ESlotState::Received);
+            YT_VERIFY(slot.State == ESlotState::Received);
             slot.State = ESlotState::Written;
             slot.WrittenPromise.Set(TError());
         }
@@ -568,11 +568,11 @@ IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(WindowStartBlockIndex_ <= flushedBlockIndex);
+    YT_VERIFY(WindowStartBlockIndex_ <= flushedBlockIndex);
 
     while (WindowStartBlockIndex_ <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartBlockIndex_);
-        YCHECK(slot.State == ESlotState::Written);
+        YT_VERIFY(slot.State == ESlotState::Written);
         slot.Block = TBlock();
         slot.MemoryTrackerGuard.Release();
         slot.PendingIOGuard.Release();
@@ -607,7 +607,7 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
 TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(IsInWindow(blockIndex));
+    YT_VERIFY(IsInWindow(blockIndex));
 
     while (Window_.size() <= blockIndex) {
         Window_.emplace_back();
@@ -679,7 +679,7 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
 
     if (fatal) {
         Location_->Disable(Error_);
-        Y_UNREACHABLE(); // Disable() exits the process.
+        YT_ABORT(); // Disable() exits the process.
     }
 }
 

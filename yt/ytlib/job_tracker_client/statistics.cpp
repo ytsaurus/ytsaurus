@@ -260,7 +260,7 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
             } else if (currentTokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
                 break;
             } else {
-                YCHECK(false && "Wrong token type in statistics key");
+                YT_VERIFY(false && "Wrong token type in statistics key");
             }
         }
         // Serialize summary.
@@ -468,7 +468,7 @@ private:
 
 void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistics>>* buildingConsumer, EYsonType ysonType)
 {
-    YCHECK(ysonType == EYsonType::Node);
+    YT_VERIFY(ysonType == EYsonType::Node);
     *buildingConsumer = std::make_unique<TStatisticsBuildingConsumer>();
 }
 
@@ -512,7 +512,7 @@ THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
     for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPipePrefix)) {
         const auto& path = pair.first;
         // Note that path should contain at least OutputPipePrefix + '/'.
-        YCHECK(path.size() >= OutputPipePrefix.size() + 1);
+        YT_VERIFY(path.size() >= OutputPipePrefix.size() + 1);
         if (path.substr(path.size() - IdleTimeSuffix.size()) != IdleTimeSuffix) {
             continue;
         }

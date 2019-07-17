@@ -99,7 +99,7 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
             break;
         }
         auto it = BlockIdToDistributionEntry_.find(blockId);
-        YCHECK(it != BlockIdToDistributionEntry_.end());
+        YT_VERIFY(it != BlockIdToDistributionEntry_.end());
         if (--it->second.RequestCount == 0) {
             BlockIdToDistributionEntry_.erase(it);
         }
@@ -187,7 +187,7 @@ void TPeerBlockDistributor::DistributeBlocks()
         BlockIdToDistributionEntry_[blockId].LastDistributionTime = now;
     }
 
-    YCHECK(blocks.size() == blockIds.size() && blocks.size() == reqTemplates.size());
+    YT_VERIFY(blocks.size() == blockIds.size() && blocks.size() == reqTemplates.size());
 
     const auto& channelFactory = Bootstrap_
         ->GetMasterClient()
@@ -282,7 +282,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     for (const auto& pair : BlockIdToDistributionEntry_) {
         const auto& blockId = pair.first;
         const auto& distributionEntry = pair.second;
-        YCHECK(distributionEntry.RequestCount > 0);
+        YT_VERIFY(distributionEntry.RequestCount > 0);
         if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
             distributionEntry.DistributionCount <= Config_->MaxDistributionCount &&
             distributionEntry.RequestCount >= Config_->MinRequestCount)

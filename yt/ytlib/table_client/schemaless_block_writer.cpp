@@ -24,7 +24,7 @@ THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(i64 reserveSi
 
 void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
 
     ++RowCount_;
 
@@ -48,7 +48,7 @@ void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
 
 TBlock THorizontalSchemalessBlockWriter::FlushBlock()
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
 
     TBlockMeta meta;
     meta.set_row_count(RowCount_);
@@ -72,19 +72,19 @@ TBlock THorizontalSchemalessBlockWriter::FlushBlock()
 
 i64 THorizontalSchemalessBlockWriter::GetBlockSize() const
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
     return Offsets_.GetSize() + Data_.GetSize();
 }
 
 i64 THorizontalSchemalessBlockWriter::GetRowCount() const
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
     return RowCount_;
 }
 
 i64 THorizontalSchemalessBlockWriter::GetCapacity() const
 {
-    YCHECK(!Closed_);
+    YT_VERIFY(!Closed_);
     return Offsets_.GetCapacity() + Data_.GetCapacity();
 }
 

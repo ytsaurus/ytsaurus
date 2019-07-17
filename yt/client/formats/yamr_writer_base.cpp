@@ -62,7 +62,7 @@ void TSchemalessWriterForYamrBase::WriteTableIndex(i64 tableIndex)
 
 void TSchemalessWriterForYamrBase::WriteRangeIndex(i64 rangeIndex)
 {
-    YCHECK(Config_->Lenval);
+    YT_VERIFY(Config_->Lenval);
 
     auto* stream = GetOutputStream();
     WritePod(*stream, static_cast<ui32>(-3));

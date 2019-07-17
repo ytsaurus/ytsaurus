@@ -31,7 +31,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public NSecurityServer::IUsersManager
+    : public NSecurityServer::ISecurityManager
     , public NSecurityServer::IResourceLimitsManager
 {
 public:
@@ -43,6 +43,10 @@ public:
     virtual void SetAuthenticatedUserByNameOrThrow(const TString& user) override;
     virtual void ResetAuthenticatedUser() override;
     virtual std::optional<TString> GetAuthenticatedUserName() override;
+
+    TFuture<void> CheckPermission(
+        const TString& path,
+        NYTree::EPermission permission);
 
     void ValidatePermission(
         const TString& path,

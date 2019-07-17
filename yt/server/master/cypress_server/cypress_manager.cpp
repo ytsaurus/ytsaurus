@@ -75,8 +75,8 @@ public:
         , Account_(account)
         , Options_(options)
     {
-        YCHECK(Bootstrap_);
-        YCHECK(Account_);
+        YT_VERIFY(Bootstrap_);
+        YT_VERIFY(Account_);
     }
 
     virtual ~TNodeFactory() override
@@ -366,7 +366,7 @@ private:
 
     void RegisterCreatedNode(TCypressNodeBase* trunkNode)
     {
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
         CreatedNodes_.push_back(trunkNode);
@@ -549,10 +549,10 @@ public:
     {
         // No thread affinity is given here.
         // This will be called during init-time only.
-        YCHECK(handler);
+        YT_VERIFY(handler);
 
         auto type = handler->GetObjectType();
-        YCHECK(!TypeToHandler_[type]);
+        YT_VERIFY(!TypeToHandler_[type]);
         TypeToHandler_[type] = handler;
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -575,7 +575,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& handler = FindHandler(type);
-        YCHECK(handler);
+        YT_VERIFY(handler);
         return handler;
     }
 
@@ -611,10 +611,10 @@ public:
         IAttributeDictionary* explicitAttributes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(handler);
-        YCHECK(account);
-        YCHECK(inheritedAttributes);
-        YCHECK(explicitAttributes);
+        YT_VERIFY(handler);
+        YT_VERIFY(account);
+        YT_VERIFY(inheritedAttributes);
+        YT_VERIFY(explicitAttributes);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
@@ -657,8 +657,8 @@ public:
         ENodeCloneMode mode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(sourceNode);
-        YCHECK(factory);
+        YT_VERIFY(sourceNode);
+        YT_VERIFY(factory);
 
         // Validate account access _before_ creating the actual copy.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -730,7 +730,7 @@ public:
                     break;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             currentNode = currentParentNode;
         }
@@ -785,7 +785,7 @@ public:
         NTransactionServer::TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         // Fast path -- no transaction.
         if (!transaction) {
@@ -801,7 +801,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         auto* currentTransaction = transaction;
         while (true) {
@@ -818,7 +818,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& handler = GetHandler(trunkNode);
         return handler->GetProxy(trunkNode, transaction);
@@ -833,9 +833,9 @@ public:
         bool dontLockForeign = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
-        YCHECK(!recursive || request.Key.Kind == ELockKeyKind::None);
+        YT_ASSERT(trunkNode->IsTrunk());
+        YT_VERIFY(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
 
         auto error = CheckLock(
             trunkNode,
@@ -857,7 +857,7 @@ public:
             }
         });
 
-        YCHECK(lockedNode);
+        YT_VERIFY(lockedNode);
         return lockedNode;
     }
 
@@ -868,7 +868,7 @@ public:
         bool explicitOnly)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(transaction->IsTrunk());
+        YT_ASSERT(transaction->IsTrunk());
 
         auto error = CheckUnlock(trunkNode, transaction, recursive, explicitOnly);
         error.ThrowOnError();
@@ -888,8 +888,8 @@ public:
         bool explicitOnly)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(transaction);
-        YCHECK(!transaction->Locks().empty());
+        YT_VERIFY(transaction);
+        YT_VERIFY(!transaction->Locks().empty());
 
         auto getStrongestLockMode = [&] () {
             auto result = ELockMode::None;
@@ -934,7 +934,7 @@ public:
         auto isLockRelevant = [&] (TLock* l) { return l->GetTransaction() == transaction; };
 
         auto maybeRemoveLock = [&] (TLock* lock) {
-            Y_ASSERT(lock->GetTrunkNode() == trunkNode);
+            YT_ASSERT(lock->GetTrunkNode() == trunkNode);
             if (isLockRelevant(lock) && (!explicitOnly || !lock->GetImplicit())) {
                 DoRemoveLock(lock, false /*resetEmptyLockingState*/);
             }
@@ -974,7 +974,7 @@ public:
     // affecting ancestors, and we want to avoid traversing the whole subtree.)
     ELockMode GetStrongestLockModeOfNestedTransactions(TCypressNodeBase* trunkNode, TTransaction* transaction)
     {
-        YCHECK(transaction);
+        YT_VERIFY(transaction);
 
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
@@ -984,7 +984,7 @@ public:
             }
 
             auto lockMode = versionedNode->GetLockMode();
-            YCHECK(lockMode != ELockMode::None);
+            YT_VERIFY(lockMode != ELockMode::None);
 
             if (result < lockMode) {
                 result = lockMode;
@@ -1029,7 +1029,7 @@ public:
         auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
 
         auto* branchedNode = GetNode(TVersionedNodeId{trunkNode->GetId(), transaction->GetId()});
-        YCHECK(branchedNode->GetLockMode() != ELockMode::None);
+        YT_VERIFY(branchedNode->GetLockMode() != ELockMode::None);
 
         auto newLockMode = strongestLockModeAfter;
         if (strongestLockModeBelow > ELockMode::Snapshot) {
@@ -1054,7 +1054,7 @@ public:
 
             auto& branchedNodes = transaction->BranchedNodes();
             auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
-            Y_ASSERT(std::distance(it, branchedNodes.end()) == 1);
+            YT_ASSERT(std::distance(it, branchedNodes.end()) == 1);
             branchedNodes.erase(it, branchedNodes.end());
         };
 
@@ -1062,7 +1062,7 @@ public:
             node->SetLockMode(newLockMode);
         };
 
-        YCHECK(!mustUnbranchThisNode || !mustUpdateThisNode);
+        YT_VERIFY(!mustUnbranchThisNode || !mustUpdateThisNode);
 
         if (mustUnbranchThisNode) {
             if (!transaction->NestedTransactions().empty()) {
@@ -1093,7 +1093,7 @@ public:
                         auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
                         auto* nodeOriginator = node->GetOriginator();
                         if (nodeOriginator == branchedNode) {
-                            Y_ASSERT(newOriginator != nodeOriginator);
+                            YT_ASSERT(newOriginator != nodeOriginator);
                             node->SetOriginator(newOriginator);
                             // NB: a branch holds a strong reference to its originator's trunk.
                             // New originator will have the same trunk, which means there's
@@ -1107,11 +1107,11 @@ public:
         }
 
         if (mustUpdateThisNode) {
-            YCHECK(!mustUnbranchThisNode);
+            YT_VERIFY(!mustUnbranchThisNode);
             updateNode(branchedNode);
         }
 
-        YCHECK(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
+        YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
             for (auto* t = transaction->GetParent(); t; t = t->GetParent()) {
@@ -1120,7 +1120,7 @@ public:
                 }
 
                 auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), t->GetId()});
-                Y_ASSERT(t == node->GetTransaction());
+                YT_ASSERT(t == node->GetTransaction());
 
                 if (mustUnbranchAboveNodes) {
                     unbranchNode(node);
@@ -1154,7 +1154,7 @@ public:
         }
 
         // Remove the node.
-        Y_ASSERT(branchedNode->GetTransaction() == transaction);
+        YT_ASSERT(branchedNode->GetTransaction() == transaction);
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
@@ -1168,9 +1168,9 @@ public:
         bool waitable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(transaction);
-        YCHECK(request.Mode != ELockMode::None);
+        YT_ASSERT(trunkNode->IsTrunk());
+        YT_VERIFY(transaction);
+        YT_VERIFY(request.Mode != ELockMode::None);
 
         if (waitable && !transaction) {
             THROW_ERROR_EXCEPTION("Waitable lock requires a transaction");
@@ -1210,7 +1210,7 @@ public:
         EModificationType modificationType)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         AccessTracker_->SetModified(trunkNode, transaction, modificationType);
     }
@@ -1218,7 +1218,7 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
@@ -1249,7 +1249,7 @@ public:
         bool includeRoot)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         TSubtreeNodes result;
         ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
@@ -1261,7 +1261,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         SmallVector<TTransaction*, 16> transactions;
 
@@ -1313,7 +1313,7 @@ public:
     bool IsOrphaned(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         auto* currentNode = trunkNode;
         while (true) {
@@ -1333,7 +1333,7 @@ public:
         TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         // Fast path.
         if (!transaction) {
@@ -1356,7 +1356,7 @@ public:
         TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         auto result = GetNodeOriginators(transaction, trunkNode);
         std::reverse(result.begin(), result.end());
@@ -1511,7 +1511,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
         }
@@ -1524,7 +1524,7 @@ private:
             // Reconstruct immediate ancestor sets.
             auto* parent = node->GetParent();
             if (parent) {
-                YCHECK(parent->ImmediateDescendants().insert(node).second);
+                YT_VERIFY(parent->ImmediateDescendants().insert(node).second);
             }
 
             // Reconstruct TrunkNode and Transaction.
@@ -1578,20 +1578,20 @@ private:
             auto* branchedNode = FindNode(branchedNodeId);
             auto* transaction = transactionManager->FindTransaction(transactionId);
 
-            YCHECK(!!trunkNode == !!branchedNode);
-            YCHECK(!!trunkNode == !!transaction);
+            YT_VERIFY(!!trunkNode == !!branchedNode);
+            YT_VERIFY(!!trunkNode == !!transaction);
 
             if (trunkNode) {
                 YT_LOG_ERROR("Found the unfortunate half-committed transaction 14b9d-127f8e-3fe0001-1c229f47. Scrubbing it and its immediate vicinity out. See YT-10852.");
 
-                YCHECK(trunkNode->GetType() == EObjectType::Table);
+                YT_VERIFY(trunkNode->GetType() == EObjectType::Table);
                 auto* tableTrunkNode = trunkNode->As<NTableServer::TTableNode>();
                 auto* chunkList = tableTrunkNode->GetChunkList();
-                YCHECK(chunkList);
-                YCHECK(chunkList->GetId() == TGuid::FromString("14b2-bf8cb-1f560065-bd3efb"));
-                YCHECK(chunkList->TrunkOwningNodes().Size() == 1);
-                YCHECK(chunkList->BranchedOwningNodes().Empty());
-                YCHECK(*chunkList->TrunkOwningNodes().Begin() == tableTrunkNode);
+                YT_VERIFY(chunkList);
+                YT_VERIFY(chunkList->GetId() == TGuid::FromString("14b2-bf8cb-1f560065-bd3efb"));
+                YT_VERIFY(chunkList->TrunkOwningNodes().Size() == 1);
+                YT_VERIFY(chunkList->BranchedOwningNodes().Empty());
+                YT_VERIFY(*chunkList->TrunkOwningNodes().Begin() == tableTrunkNode);
 
                 objectManager->UnrefObject(trunkNode);
                 NodeMap_.Remove(branchedNodeId);
@@ -1631,7 +1631,7 @@ private:
 
             RootNode_ = rootNodeHolder.get();
             NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
-            YCHECK(RootNode_->RefObject() == 1);
+            YT_VERIFY(RootNode_->RefObject() == 1);
         }
     }
 
@@ -1682,7 +1682,7 @@ private:
     TCypressNodeBase* RegisterNode(std::unique_ptr<TCypressNodeBase> trunkNodeHolder)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNodeHolder->IsTrunk());
+        YT_VERIFY(trunkNodeHolder->IsTrunk());
 
         const auto& nodeId = trunkNodeHolder->GetId();
         auto* node = NodeMap_.Insert(TVersionedNodeId(nodeId), std::move(trunkNodeHolder));
@@ -1712,7 +1712,7 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& lockingState = trunkNode->LockingState();
 
@@ -1728,7 +1728,7 @@ private:
                 lock->GetId());
             lock->SetTrunkNode(nullptr);
             auto* transaction = lock->GetTransaction();
-            YCHECK(transaction->Locks().erase(lock) == 1);
+            YT_VERIFY(transaction->Locks().erase(lock) == 1);
             lock->SetTransaction(nullptr);
             objectManager->UnrefObject(lock);
         }
@@ -1738,7 +1738,7 @@ private:
         ExpirationTracker_->OnNodeDestroyed(trunkNode);
 
         const auto& handler = GetHandler(trunkNode);
-        Y_ASSERT(!trunkNode->GetTransaction());
+        YT_ASSERT(!trunkNode->GetTransaction());
         handler->Destroy(trunkNode);
 
         // Remove the object from the map but keep it alive.
@@ -1758,7 +1758,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YCHECK(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedTransactions().empty());
 
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
@@ -1836,8 +1836,8 @@ private:
         TTransaction* transaction,
         const TLockRequest& request)
     {
-        Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(transaction || request.Mode != ELockMode::Snapshot);
+        YT_ASSERT(trunkNode->IsTrunk());
+        YT_VERIFY(transaction || request.Mode != ELockMode::Snapshot);
 
         const auto& lockingState = trunkNode->LockingState();
         const auto& transactionToSnapshotLocks = lockingState.TransactionToSnapshotLocks;
@@ -1955,7 +1955,7 @@ private:
                         << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         };
 
@@ -1990,7 +1990,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         return TError();
@@ -2015,8 +2015,8 @@ private:
         TTransaction* transaction,
         bool explicitOnly)
     {
-        Y_ASSERT(trunkNode->IsTrunk());
-        YCHECK(transaction);
+        YT_ASSERT(trunkNode->IsTrunk());
+        YT_VERIFY(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2051,8 +2051,8 @@ private:
         const TLockRequest& request,
         const TLock* lockToIgnore = nullptr)
     {
-        Y_ASSERT(trunkNode->IsTrunk());
-        Y_ASSERT(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        YT_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
 
         if (!transaction) {
             return true;
@@ -2085,7 +2085,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         return false;
@@ -2096,7 +2096,7 @@ private:
         TTransaction* transaction,
         bool explicitOnly)
     {
-        Y_ASSERT(transaction);
+        YT_ASSERT(transaction);
 
         auto isLockRelevant = [&] (TLock* lock) {
             return (lock->GetTransaction() == transaction) && (!explicitOnly || !lock->GetImplicit());
@@ -2149,7 +2149,7 @@ private:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %v)",
             lock->GetId());
 
-        YCHECK(lock->GetState() == ELockState::Pending);
+        YT_VERIFY(lock->GetState() == ELockState::Pending);
         lock->SetState(ELockState::Acquired);
 
         auto* lockingState = trunkNode->MutableLockingState();
@@ -2182,7 +2182,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
@@ -2221,8 +2221,8 @@ private:
             currentTransaction = currentTransaction->GetParent();
         }
 
-        YCHECK(originatingNode);
-        YCHECK(!intermediateTransactions.empty());
+        YT_VERIFY(originatingNode);
+        YT_VERIFY(!intermediateTransactions.empty());
 
         if (request.Mode == ELockMode::Snapshot) {
             // Branch at requested transaction only.
@@ -2259,7 +2259,7 @@ private:
         lockingState->PendingLocks.push_back(lock);
         lock->SetLockListIterator(--lockingState->PendingLocks.end());
 
-        YCHECK(transaction->Locks().insert(lock).second);
+        YT_VERIFY(transaction->Locks().insert(lock).second);
         objectManager->RefObject(lock);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
@@ -2312,7 +2312,7 @@ private:
     {
         auto* transaction = lock->GetTransaction();
         auto* parentTransaction = transaction->GetParent();
-        YCHECK(parentTransaction);
+        YT_VERIFY(parentTransaction);
         auto* trunkNode = lock->GetTrunkNode();
 
         lock->SetTransaction(parentTransaction);
@@ -2334,13 +2334,13 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             // NB: Node could be locked more than once.
             parentTransaction->LockedNodes().insert(trunkNode);
         }
-        YCHECK(parentTransaction->Locks().insert(lock).second);
+        YT_VERIFY(parentTransaction->Locks().insert(lock).second);
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
             lock->GetId(),
             transaction->GetId(),
@@ -2374,7 +2374,7 @@ private:
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
                 }
@@ -2384,7 +2384,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             if (resetEmptyLockingState) {
@@ -2471,7 +2471,7 @@ private:
         bool includeRoot,
         TSubtreeNodes* subtreeNodes)
     {
-        Y_ASSERT(trunkNode->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         if (includeRoot) {
             subtreeNodes->push_back(trunkNode);
@@ -2520,8 +2520,8 @@ private:
         TTransaction* transaction,
         const TLockRequest& request)
     {
-        YCHECK(originatingNode);
-        YCHECK(transaction);
+        YT_VERIFY(originatingNode);
+        YT_VERIFY(transaction);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2535,7 +2535,7 @@ private:
         TVersionedNodeId versionedId(id, transaction->GetId());
         auto* branchedNode = NodeMap_.Insert(versionedId, std::move(branchedNodeHolder));
 
-        YCHECK(branchedNode->GetLockMode() == request.Mode);
+        YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
         transaction->BranchedNodes().push_back(branchedNode);
@@ -2561,7 +2561,7 @@ private:
             auto* originatingNode = branchedNode->GetOriginator();
 
             // Merge changes back.
-            Y_ASSERT(branchedNode->GetTransaction() == transaction);
+            YT_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Merge(originatingNode, branchedNode);
 
             // The root needs a special handling.
@@ -2574,7 +2574,7 @@ private:
             }
         } else {
             // Destroy the branched copy.
-            Y_ASSERT(branchedNode->GetTransaction() == transaction);
+            YT_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Destroy(branchedNode);
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
@@ -2600,7 +2600,7 @@ private:
     //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        YCHECK(transaction->BranchedNodes().size() == transaction->LockedNodes().size());
+        YT_VERIFY(transaction->BranchedNodes().size() == transaction->LockedNodes().size());
 
         auto& branchedNodes = transaction->BranchedNodes();
         // The reverse order is for efficient removal.
@@ -2612,7 +2612,7 @@ private:
                 branchedNode->GetLockMode(),
                 ELockMode::None);
         }
-        YCHECK(branchedNodes.empty());
+        YT_VERIFY(branchedNodes.empty());
     }
 
 
@@ -2679,7 +2679,7 @@ private:
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -2732,7 +2732,7 @@ private:
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
@@ -2815,7 +2815,7 @@ private:
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -2868,7 +2868,7 @@ private:
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());

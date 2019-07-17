@@ -169,7 +169,7 @@ public:
 #undef CASE
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -280,7 +280,7 @@ public:
 #undef CASE
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -317,7 +317,7 @@ public:
 #undef CASE
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -352,7 +352,7 @@ public:
 #undef CASE
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -387,7 +387,7 @@ public:
 #undef CASE
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -460,7 +460,7 @@ ICodec* GetCodec(ECodec id)
 #undef CASE
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

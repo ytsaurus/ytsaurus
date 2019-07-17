@@ -11,8 +11,8 @@ using namespace NConcurrency;
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
     TWriterGuard guard(TreeLock_);
-    YCHECK(!element->Parent_);
-    YCHECK(element != parent);
+    YT_VERIFY(!element->Parent_);
+    YT_VERIFY(element != parent);
 
     element->Parent_ = parent;
 }
@@ -22,7 +22,7 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
     TWriterGuard guard(TreeLock_);
 
     TWriterGuard resourceUsageLock(element->ResourceUsageLock_);
-    YCHECK(element->Parent_);
+    YT_VERIFY(element->Parent_);
 
     CheckCycleAbsence(element, newParent);
 
@@ -38,13 +38,13 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
 void TResourceTree::DetachParent(const TResourceTreeElementPtr& element)
 {
     TWriterGuard guard(TreeLock_);
-    YCHECK(element->Parent_);
+    YT_VERIFY(element->Parent_);
     element->Parent_ = nullptr;
 }
 
 void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element)
 {
-    YCHECK(element->Parent_);
+    YT_VERIFY(element->Parent_);
 
     IncreaseHierarchicalResourceUsagePrecommit(element, -element->GetResourceUsagePrecommit());
     IncreaseHierarchicalResourceUsage(element, -element->GetResourceUsage());
@@ -54,7 +54,7 @@ void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, co
 {
     auto current = newParent.Get();
     while (current != nullptr) {
-        YCHECK(current != element);
+        YT_VERIFY(current != element);
         current = current->Parent_.Get();
     }
 }

@@ -133,7 +133,7 @@ bool TSortedStoreManager::ExecuteWrites(
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         if (!rowRef) {
@@ -172,7 +172,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
             lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     if (atomic &&
@@ -183,7 +183,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     }
 
     if (!atomic) {
-        Y_ASSERT(phase == EWritePhase::Commit);
+        YT_ASSERT(phase == EWritePhase::Commit);
         context->CommitTimestamp = GenerateMonotonicCommitTimestamp(context->CommitTimestamp);
     }
 
@@ -319,7 +319,7 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
             depth -= std::get<1>(boundary);
         }
 
-        YCHECK(Tablet_->PartitionList().size() == 1);
+        YT_VERIFY(Tablet_->PartitionList().size() == 1);
         DoSplitPartition(0, pivotKeys);
     }
 
@@ -407,7 +407,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto sortedDynamicStore = store->AsSortedDynamic();
     auto reader = sortedDynamicStore->CreateFlushReader();
     // NB: Memory store reader is always synchronous.
-    YCHECK(reader->Open().Get().IsOK());
+    YT_VERIFY(reader->Open().Get().IsOK());
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
@@ -623,7 +623,7 @@ void TSortedStoreManager::UpdatePartitionSampleKeys(
     TPartition* partition,
     const TSharedRange<TKey>& keys)
 {
-    YCHECK(keys.Empty() || keys[0] > partition->GetPivotKey());
+    YT_VERIFY(keys.Empty() || keys[0] > partition->GetPivotKey());
 
     auto keyList = New<TSampleKeyList>();
     keyList->Keys = keys;

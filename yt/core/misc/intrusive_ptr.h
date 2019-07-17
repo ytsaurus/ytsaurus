@@ -178,13 +178,13 @@ public:
 
     T& operator*() const noexcept
     {
-        Y_ASSERT(T_);
+        YT_ASSERT(T_);
         return *T_;
     }
 
     T* operator->() const noexcept
     {
-        Y_ASSERT(T_);
+        YT_ASSERT(T_);
         return  T_;
     }
 

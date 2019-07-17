@@ -107,9 +107,9 @@ public:
         , Reader_(reader)
     {
         if (Config_->EnableAutoRepair) {
-            YCHECK(Readers_.size() == Codec_->GetTotalPartCount());
+            YT_VERIFY(Readers_.size() == Codec_->GetTotalPartCount());
         } else {
-            YCHECK(Readers_.size() == Codec_->GetDataPartCount());
+            YT_VERIFY(Readers_.size() == Codec_->GetDataPartCount());
         }
     }
 
@@ -240,11 +240,11 @@ TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    YCHECK(!partitionTag);
+    YT_VERIFY(!partitionTag);
     if (extensionTags) {
         for (const auto& forbiddenTag : {TProtoExtensionTag<TBlocksExt>::Value}) {
             auto it = std::find(extensionTags->begin(), extensionTags->end(), forbiddenTag);
-            YCHECK(it == extensionTags->end());
+            YT_VERIFY(it == extensionTags->end());
         }
     }
 
@@ -286,7 +286,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     int blockCount,
     std::optional<i64> estimatedSize)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 bool TRepairingReader::IsValid() const

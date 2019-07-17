@@ -128,6 +128,7 @@ DEFINE_ENUM(EStoreType,
 );
 
 DEFINE_ENUM(EStoreState,
+    ((Undefined)           (-1)) // not initailized
     ((ActiveDynamic)        (0)) // dynamic, can receive updates
     ((PassiveDynamic)       (1)) // dynamic, rotated and cannot receive more updates
 

@@ -70,8 +70,8 @@ public:
             Bootstrap_->GetObjectManager(),
             EChunkScanKind::Seal))
     {
-        YCHECK(Config_);
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Bootstrap_);
     }
 
     void Start(TChunk* frontJournalChunk, int journalChunkCount)
@@ -99,8 +99,8 @@ public:
 
     void ScheduleSeal(TChunk* chunk)
     {
-        Y_ASSERT(chunk->IsAlive());
-        Y_ASSERT(chunk->IsJournal());
+        YT_ASSERT(chunk->IsAlive());
+        YT_ASSERT(chunk->IsJournal());
 
         if (IsSealNeeded(chunk)) {
             SealScanner_->EnqueueChunk(chunk);

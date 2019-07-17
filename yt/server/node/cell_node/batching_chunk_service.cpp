@@ -468,8 +468,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
-        YCHECK(request->create_chunk_lists_subrequests_size() == 0);
-        YCHECK(request->unstage_chunk_tree_subrequests_size() == 0);
+        YT_VERIFY(request->create_chunk_lists_subrequests_size() == 0);
+        YT_VERIFY(request->unstage_chunk_tree_subrequests_size() == 0);
         ExecuteBatchBatcher_->HandleRequest(context);
     }
 };

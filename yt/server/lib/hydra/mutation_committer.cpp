@@ -48,9 +48,9 @@ TCommitterBase::TCommitterBase(
         .AddTag("CellId: %v", CellManager_->GetCellId()))
     , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
 {
-    YCHECK(Config_);
-    YCHECK(DecoratedAutomaton_);
-    YCHECK(EpochContext_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(DecoratedAutomaton_);
+    YT_VERIFY(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 }
@@ -58,7 +58,7 @@ TCommitterBase::TCommitterBase(
 void TCommitterBase::SuspendLogging()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!LoggingSuspended_);
+    YT_VERIFY(!LoggingSuspended_);
 
     YT_LOG_DEBUG("Mutations logging suspended");
 
@@ -75,7 +75,7 @@ void TCommitterBase::SuspendLogging()
 void TCommitterBase::ResumeLogging()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(LoggingSuspended_);
+    YT_VERIFY(LoggingSuspended_);
 
     YT_LOG_DEBUG("Mutations logging resumed");
 
@@ -161,7 +161,7 @@ public:
             ETimerMode::Parallel);
 
         if (!BatchedRecordsData_.empty()) {
-            YCHECK(LocalFlushResult_);
+            YT_VERIFY(LocalFlushResult_);
             asyncResults.push_back(LocalFlushResult_.Apply(
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this))
                     .AsyncVia(owner->EpochContext_->EpochControlInvoker)));
@@ -391,8 +391,8 @@ TLeaderCommitter::TLeaderCommitter(
         BIND(&TLeaderCommitter::OnAutoSnapshotCheck, MakeWeak(this)),
         AutoSnapshotCheckPeriod))
 {
-    YCHECK(CellManager_);
-    YCHECK(ChangelogStore_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(ChangelogStore_);
 
     AutoSnapshotCheckExecutor_->Start();
 }
@@ -469,7 +469,7 @@ TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
 
 void TLeaderCommitter::DoSuspendLogging()
 {
-    YCHECK(PendingMutations_.empty());
+    YT_VERIFY(PendingMutations_.empty());
 }
 
 void TLeaderCommitter::DoResumeLogging()
@@ -550,7 +550,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
             BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_)
                 .Via(EpochContext_->EpochUserAutomatonInvoker));
 
-        YCHECK(!BatchTimeoutCookie_);
+        YT_VERIFY(!BatchTimeoutCookie_);
         BatchTimeoutCookie_ = TDelayedExecutor::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
                 .Via(EpochContext_->EpochControlInvoker),
@@ -665,7 +665,7 @@ TFuture<void> TFollowerCommitter::DoAcceptMutations(
 
 void TFollowerCommitter::DoSuspendLogging()
 {
-    YCHECK(PendingMutations_.empty());
+    YT_VERIFY(PendingMutations_.empty());
 }
 
 void TFollowerCommitter::DoResumeLogging()
@@ -682,7 +682,7 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
-    YCHECK(channel);
+    YT_VERIFY(channel);
 
     THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);

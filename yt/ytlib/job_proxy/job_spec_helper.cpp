@@ -105,7 +105,7 @@ public:
                 }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

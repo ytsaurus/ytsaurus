@@ -138,9 +138,9 @@ IChannelPtr CreateSchedulerChannel(
     IChannelPtr masterChannel,
     const TNetworkPreferenceList& networks)
 {
-    YCHECK(config);
-    YCHECK(channelFactory);
-    YCHECK(masterChannel);
+    YT_VERIFY(config);
+    YT_VERIFY(channelFactory);
+    YT_VERIFY(masterChannel);
 
     auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel, networks);
     auto channel = CreateRoamingChannel(channelProvider);

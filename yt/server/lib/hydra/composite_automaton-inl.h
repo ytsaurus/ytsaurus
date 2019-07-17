@@ -62,7 +62,7 @@ inline TEntitySerializationKey TLoadContext::RegisterEntity(void* entity)
 template <class T>
 T* TLoadContext::GetEntity(TEntitySerializationKey key) const
 {
-    Y_ASSERT(key.Index >= 0 && key.Index < Entities_.size());
+    YT_ASSERT(key.Index >= 0 && key.Index < Entities_.size());
     return static_cast<T*>(Entities_[key.Index]);
 }
 

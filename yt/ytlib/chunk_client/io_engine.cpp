@@ -138,9 +138,9 @@ public:
                 ReadThreadCount = (*ThreadCount + 1) / 2;
                 WriteThreadCount = *ThreadCount - ReadThreadCount;
 
-                YCHECK(ReadThreadCount > 0);
-                YCHECK(WriteThreadCount > 0);
-                YCHECK(ReadThreadCount + WriteThreadCount == *ThreadCount);
+                YT_VERIFY(ReadThreadCount > 0);
+                YT_VERIFY(WriteThreadCount > 0);
+                YT_VERIFY(ReadThreadCount + WriteThreadCount == *ThreadCount);
             }
         });
     }
@@ -174,7 +174,7 @@ protected:
             handle->SetDirect();
         }
         if (preallocateSize > 0) {
-            YCHECK(mode & WrOnly);
+            YT_VERIFY(mode & WrOnly);
             DoFallocate(handle, preallocateSize);
         }
         return handle;
@@ -303,9 +303,9 @@ public:
         TWallTimer timer;
 
         auto useDirectIO = UseDirectIO_ || IsDirectAligned(handle);
-        YCHECK(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
-        YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
-        YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
+        YT_VERIFY(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
+        YT_VERIFY(!useDirectIO || IsAligned(data.Size(), Alignment_));
+        YT_VERIFY(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), handle, data, offset, timer)
             .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
             .Run();
@@ -429,7 +429,7 @@ private:
         size_t result;
         ui8* buf = reinterpret_cast<ui8*>(data.Begin());
 
-        YCHECK(readPortion <= data.Size());
+        YT_VERIFY(readPortion <= data.Size());
 
         NFS::ExpectIOErrors([&]() {
             while (readPortion > 0) {
@@ -671,9 +671,9 @@ public:
         aio_offset = From_;
         aio_nbytes = To_ - From_;
 
-        YCHECK(IsAligned(aio_buf, alignment));
-        YCHECK(IsAligned(aio_nbytes, alignment));
-        YCHECK(IsAligned(aio_offset, alignment));
+        YT_VERIFY(IsAligned(aio_buf, alignment));
+        YT_VERIFY(IsAligned(aio_nbytes, alignment));
+        YT_VERIFY(IsAligned(aio_offset, alignment));
     }
 
     TFuture<TSharedMutableRef> Result()
@@ -729,9 +729,9 @@ public:
         aio_offset = offset;
         aio_nbytes = data.Size();
 
-        YCHECK(IsAligned(aio_buf, alignment));
-        YCHECK(IsAligned(aio_nbytes, alignment));
-        YCHECK(IsAligned(aio_offset, alignment));
+        YT_VERIFY(IsAligned(aio_buf, alignment));
+        YT_VERIFY(IsAligned(aio_nbytes, alignment));
+        YT_VERIFY(IsAligned(aio_offset, alignment));
     }
 
     TFuture<void> Result()
@@ -935,7 +935,7 @@ private:
         while ((ret = io_getevents(Ctx_, 1, MaxQueueSize_, events, nullptr)) < 0 && errno == EINTR)
         { }
 
-        YCHECK(ret >= 0 || errno == EINVAL);
+        YT_VERIFY(ret >= 0 || errno == EINVAL);
         if (ret > 0) {
             NSan::Unpoison(events, sizeof(*events) * ret);
         }
@@ -944,13 +944,13 @@ private:
 
     void Start()
     {
-        YCHECK(Alive_.load(std::memory_order_relaxed));
+        YT_VERIFY(Alive_.load(std::memory_order_relaxed));
         Thread_.Start();
     }
 
     void Stop()
     {
-        YCHECK(Alive_.load(std::memory_order_relaxed));
+        YT_VERIFY(Alive_.load(std::memory_order_relaxed));
         Alive_.store(false, std::memory_order_relaxed);
         Thread_.Join();
     }

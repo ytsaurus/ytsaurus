@@ -57,6 +57,9 @@ public:
     //! Destroys the singleton instance.
     static void StaticShutdown();
 
+    //! Configure profiling.
+    void Configure(const TProfileManagerConfigPtr& config);
+
     //! Starts profiling.
     /*!
      *  No samples are collected before this method is called.

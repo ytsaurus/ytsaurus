@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -54,9 +54,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         remove("//sys/scheduler/config", force=True)
 
         # Drain archive queue
-        self.Env.kill_schedulers()
-        remove("//sys/operations/*")
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove("//sys/operations/*")
 
     def _lookup_ordered_by_id_row(self, op_id):
         id_hi, id_lo = id_to_parts_new(op_id)
@@ -182,8 +181,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
 
         wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 

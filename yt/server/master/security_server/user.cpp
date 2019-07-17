@@ -112,7 +112,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 TUserStatistics& TUser::CellStatistics(NObjectClient::TCellTag cellTag)
 {
     auto it = MulticellStatistics_.find(cellTag);
-    YCHECK(it != MulticellStatistics_.end());
+    YT_VERIFY(it != MulticellStatistics_.end());
     return it->second;
 }
 
@@ -137,7 +137,7 @@ const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRate
         case EUserWorkloadType::Write:
             return WriteRequestRateThrottler_;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -153,7 +153,7 @@ void TUser::SetRequestRateThrottler(
             WriteRequestRateThrottler_ = std::move(throttler);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -165,7 +165,7 @@ int TUser::GetRequestRateLimit(EUserWorkloadType type)
         case EUserWorkloadType::Write:
             return WriteRequestRateLimit_;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -179,7 +179,7 @@ void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
             WriteRequestRateLimit_ = limit;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

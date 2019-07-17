@@ -144,7 +144,7 @@ void TTransaction::Detach()
                 return;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -154,12 +154,12 @@ void TTransaction::Detach()
 
 TFuture<TTransactionPrepareResult> TTransaction::Prepare()
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TFuture<TTransactionFlushResult> TTransaction::Flush()
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void TTransaction::SubscribeCommitted(const TCallback<void()>& handler)
@@ -216,7 +216,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -289,7 +289,7 @@ void TTransaction::ModifyRows(
 
     for (const auto& modification : modifications) {
         // TODO(sandello): handle versioned rows
-        YCHECK(
+        YT_VERIFY(
             modification.Type == ERowModificationType::Write ||
             modification.Type == ERowModificationType::Delete ||
             modification.Type == ERowModificationType::ReadLockWrite);
@@ -837,7 +837,7 @@ TApiServiceProxy::TReqBatchModifyRowsPtr TTransaction::CreateBatchModifyRowsRequ
 TFuture<void> TTransaction::InvokeBatchModifyRowsRequest()
 {
     VERIFY_SPINLOCK_AFFINITY(BatchModifyRowsRequestLock_);
-    YCHECK(BatchModifyRowsRequest_);
+    YT_VERIFY(BatchModifyRowsRequest_);
     TApiServiceProxy::TReqBatchModifyRowsPtr batchRequest;
     batchRequest.Swap(BatchModifyRowsRequest_);
     if (batchRequest->part_counts_size() == 0) {

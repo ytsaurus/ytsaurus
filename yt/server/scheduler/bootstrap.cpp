@@ -202,7 +202,7 @@ const NNative::IClientPtr& TBootstrap::GetRemoteMasterClient(TCellTag tag) const
         auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
         auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
         auto result = RemoteClients_.emplace(tag, client);
-        YCHECK(result.second);
+        YT_VERIFY(result.second);
         it = result.first;
     }
     return it->second;

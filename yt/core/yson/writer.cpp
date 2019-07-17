@@ -17,7 +17,7 @@ namespace NYT::NYson {
 namespace {
 
 static inline char HexDigit(char value) {
-    Y_ASSERT(value < 16);
+    YT_ASSERT(value < 16);
     if (value < 10)
         return '0' + value;
     else
@@ -25,7 +25,7 @@ static inline char HexDigit(char value) {
 }
 
 static inline char OctDigit(char value) {
-    Y_ASSERT(value < 8);
+    YT_ASSERT(value < 8);
     return '0' + value;
 }
 
@@ -128,7 +128,7 @@ size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
     } else {
         str = negativeInfLiteral;
     }
-    YCHECK(str.size() + 1 <= size);
+    YT_VERIFY(str.size() + 1 <= size);
     ::memcpy(buf, str.data(), str.size() + 1);
     return str.size();
 }
@@ -152,7 +152,7 @@ TYsonWriter::TYsonWriter(
     , BooleanAsString_(booleanAsString)
     , IndentSize_(indent)
 {
-    Y_ASSERT(Stream_);
+    YT_ASSERT(Stream_);
 }
 
 void TYsonWriter::WriteIndent()
@@ -371,7 +371,7 @@ TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
     , BufferEnd_(Buffer_ + BufferSize)
     , BufferCursor_(BufferStart_)
 {
-    Y_ASSERT(Stream_);
+    YT_ASSERT(Stream_);
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(TStringBuf value)
@@ -416,7 +416,7 @@ void TBufferedBinaryYsonWriter::Flush()
 {
     size_t length = BufferCursor_ - BufferStart_;
     if (length > 0) {
-        YCHECK(length <= BufferSize);
+        YT_VERIFY(length <= BufferSize);
         Stream_->Write(BufferStart_, length);
         BufferCursor_ = BufferStart_;
     }
@@ -433,7 +433,7 @@ Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
         return;
     }
 
-    YCHECK(space <= BufferSize);
+    YT_VERIFY(space <= BufferSize);
     Flush();
 }
 

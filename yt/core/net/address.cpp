@@ -114,7 +114,7 @@ TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
             Length = sizeof(sockaddr_in6);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -131,20 +131,20 @@ TNetworkAddress::TNetworkAddress(int family, const char* addr, size_t size)
     switch (Storage.ss_family) {
         case AF_INET: {
             auto* typedSockAddr = reinterpret_cast<sockaddr_in*>(&Storage);
-            Y_ASSERT(size <= sizeof(sockaddr_in));
+            YT_ASSERT(size <= sizeof(sockaddr_in));
             memcpy(&typedSockAddr->sin_addr, addr, size);
             Length = sizeof(sockaddr_in);
             break;
         }
         case AF_INET6: {
             auto* typedSockAddr = reinterpret_cast<sockaddr_in6*>(&Storage);
-            Y_ASSERT(size <= sizeof(sockaddr_in6));
+            YT_ASSERT(size <= sizeof(sockaddr_in6));
             memcpy(&typedSockAddr->sin6_addr, addr, size);
             Length = sizeof(sockaddr_in6);
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -324,7 +324,7 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
         sizeof (char) +
         name.length());
 #else
-    Y_UNREACHABLE();
+    YT_ABORT();
 #endif
 }
 
@@ -1069,13 +1069,13 @@ bool TAddressResolver::IsLocalAddress(const TNetworkAddress& address)
 
 void TAddressResolver::PurgeCache()
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 

@@ -45,7 +45,7 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreference
     if (config.Address) {
         result.reserve(networks.size() + 1);
         for (const auto& network : networks) {
-            YCHECK(result.emplace(network, *config.Address).second);
+            YT_VERIFY(result.emplace(network, *config.Address).second);
         }
         // Default network must always be present in address map.
         result.emplace(DefaultNetworkName, *config.Address);
@@ -172,7 +172,7 @@ public:
     IChannelPtr GetChannel(TCellId cellId, EPeerKind peerKind)
     {
         auto channel = FindChannel(cellId, peerKind);
-        YCHECK(channel);
+        YT_VERIFY(channel);
         return channel;
     }
 

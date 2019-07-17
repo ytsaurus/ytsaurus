@@ -54,7 +54,7 @@ const NApi::ITransactionPtr& TControllerAgent::GetIncarnationTransaction() const
 
 void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transaction)
 {
-    YCHECK(!IncarnationTransaction_);
+    YT_VERIFY(!IncarnationTransaction_);
     IncarnationTransaction_ = std::move(transaction);
 
     OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(

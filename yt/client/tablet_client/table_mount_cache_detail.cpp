@@ -45,7 +45,7 @@ TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
 
         it->second = MakeWeak(tabletInfo);
     } else {
-        YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
+        YT_VERIFY(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
     }
     return tabletInfo;
 }

@@ -63,7 +63,7 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
+        YT_VERIFY(!Finished);
 
         auto cookie = static_cast<int>(InputStripes.size());
 
@@ -79,12 +79,12 @@ public:
             ElementaryStripes.push_back(elementaryStripe);
 
             const auto* partitionsExt = chunkSpec->PartitionsExt().get();
-            YCHECK(partitionsExt);
-            YCHECK(partitionsExt->row_counts_size() == Outputs.size());
-            YCHECK(partitionsExt->uncompressed_data_sizes_size() == Outputs.size());
+            YT_VERIFY(partitionsExt);
+            YT_VERIFY(partitionsExt->row_counts_size() == Outputs.size());
+            YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
-                YCHECK(partitionsExt->row_counts(index) <= RowCountThreshold);
+                YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold);
                 Outputs[index]->AddStripe(
                     elementaryIndex,
                     // NB: currently uncompressed data size and data weight for partition chunks are roughly
@@ -214,7 +214,7 @@ private:
                 }
             }
 
-            YCHECK(elementaryIndex == run->ElementaryIndexEnd);
+            YT_VERIFY(elementaryIndex == run->ElementaryIndexEnd);
             run->ElementaryIndexEnd = elementaryIndex + 1;
             run->TotalDataWeight += dataWeight;
             run->TotalRowCount += rowCount;
@@ -238,7 +238,7 @@ private:
             auto* run = FindRun(elementaryIndex);
             if (run) {
                 --run->SuspendCount;
-                YCHECK(run->SuspendCount >= 0);
+                YT_VERIFY(run->SuspendCount >= 0);
                 UpdatePendingRunSet(*run);
             }
         }
@@ -257,8 +257,8 @@ private:
 
         virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
-            YCHECK(!Runs.empty());
-            YCHECK(GetPendingJobCount() > 0);
+            YT_VERIFY(!Runs.empty());
+            YT_VERIFY(GetPendingJobCount() > 0);
 
             TChunkStripeStatisticsVector result(1);
 
@@ -315,7 +315,7 @@ private:
             PendingRuns.erase(it);
 
             auto& run = Runs[cookie];
-            YCHECK(run.State == ERunState::Pending);
+            YT_VERIFY(run.State == ERunState::Pending);
             run.State = ERunState::Running;
 
             JobCounter->Start(1);
@@ -356,7 +356,7 @@ private:
         virtual void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
         {
             auto& run = Runs[cookie];
-            YCHECK(run.State == ERunState::Running);
+            YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Completed;
 
             JobCounter->Completed(1);
@@ -367,7 +367,7 @@ private:
         virtual void Failed(TCookie cookie) override
         {
             auto& run = Runs[cookie];
-            YCHECK(run.State == ERunState::Running);
+            YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Pending;
 
             UpdatePendingRunSet(run);
@@ -380,7 +380,7 @@ private:
         virtual void Aborted(TCookie cookie, EAbortReason reason) override
         {
             auto& run = Runs[cookie];
-            YCHECK(run.State == ERunState::Running);
+            YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Pending;
 
             UpdatePendingRunSet(run);
@@ -393,7 +393,7 @@ private:
         virtual void Lost(TCookie cookie) override
         {
             auto& run = Runs[cookie];
-            YCHECK(run.State == ERunState::Completed);
+            YT_VERIFY(run.State == ERunState::Completed);
             run.State = ERunState::Pending;
 
             UpdatePendingRunSet(run);
@@ -496,15 +496,15 @@ private:
             }
 
             auto& run = Runs[lo];
-            YCHECK(run.ElementaryIndexBegin <= elementaryIndex && run.ElementaryIndexEnd > elementaryIndex);
+            YT_VERIFY(run.ElementaryIndexBegin <= elementaryIndex && run.ElementaryIndexEnd > elementaryIndex);
             return &run;
         }
 
         void SealLastRun()
         {
             auto& run = Runs.back();
-            YCHECK(run.TotalDataWeight > 0);
-            YCHECK(run.State == ERunState::Initializing);
+            YT_VERIFY(run.TotalDataWeight > 0);
+            YT_VERIFY(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
             UpdatePendingRunSet(run);
             JobCounter->Increment(1);

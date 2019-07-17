@@ -155,7 +155,7 @@ private:
 
             virtual void Run(bool success, int /*cookie*/) override
             {
-                YCHECK(success);
+                YT_VERIFY(success);
                 Owner_->OnCallHandlerDestroyed();
                 delete this;
             }
@@ -200,7 +200,7 @@ private:
 
         virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual TTcpDispatcherStatistics GetStatistics() const override
@@ -257,7 +257,7 @@ private:
                 CompletionQueue_,
                 Owner_->CompletionQueue_,
                 GetTag());
-            YCHECK(result == GRPC_CALL_OK);
+            YT_VERIFY(result == GRPC_CALL_OK);
 
             Ref();
             Owner_->OnCallHandlerConstructed();
@@ -292,7 +292,7 @@ private:
                             break;
 
                         default:
-                            Y_UNREACHABLE();
+                            YT_ABORT();
                     }
                     break;
 
@@ -301,7 +301,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -355,7 +355,7 @@ private:
                 ops.size(),
                 GetTag(static_cast<int>(cookie)),
                 nullptr);
-            YCHECK(result == GRPC_CALL_OK);
+            YT_VERIFY(result == GRPC_CALL_OK);
         }
 
         void OnAccepted(bool success)
@@ -781,7 +781,7 @@ private:
         {
             auto guard = Guard(SpinLock_);
 
-            YCHECK(!ResponseMessage_);
+            YT_VERIFY(!ResponseMessage_);
             ResponseMessage_ = std::move(message);
 
             if (Stage_ == EServerCallStage::WaitingForService) {
@@ -798,7 +798,7 @@ private:
                 RequestId_);
 
             NRpc::NProto::TResponseHeader responseHeader;
-            YCHECK(ParseResponseHeader(ResponseMessage_, &responseHeader));
+            YT_VERIFY(ParseResponseHeader(ResponseMessage_, &responseHeader));
 
             SmallVector<grpc_op, 2> ops;
 
@@ -809,7 +809,7 @@ private:
                 ErrorMessageSlice_ = grpc_slice_from_static_string(ErrorMessage_.c_str());
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
-                YCHECK(ResponseMessage_.Size() >= 2);
+                YT_VERIFY(ResponseMessage_.Size() >= 2);
 
                 TMessageWithAttachments messageWithAttachments;
                 messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(ResponseMessage_[1]);

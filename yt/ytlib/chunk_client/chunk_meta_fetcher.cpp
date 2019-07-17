@@ -88,7 +88,7 @@ void TChunkMetaFetcher::OnResponse(
         if (ChunkMetas_.size() <= chunkIndex) {
             ChunkMetas_.resize(chunkIndex);
         }
-        YCHECK(!rsp->net_throttling());
+        YT_VERIFY(!rsp->net_throttling());
         ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
     }
 }

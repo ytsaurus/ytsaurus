@@ -18,8 +18,8 @@ TPersistentQueueIterator<T, ChunkSize>::TPersistentQueueIterator()
 template <class T, size_t ChunkSize>
 TPersistentQueueIterator<T, ChunkSize>& TPersistentQueueIterator<T, ChunkSize>::operator++()
 {
-    Y_ASSERT(CurrentChunk_);
-    Y_ASSERT(CurrentIndex_ >= 0 && CurrentIndex_ < ChunkSize);
+    YT_ASSERT(CurrentChunk_);
+    YT_ASSERT(CurrentIndex_ >= 0 && CurrentIndex_ < ChunkSize);
 
     ++CurrentIndex_;
     if (CurrentIndex_ == ChunkSize) {
@@ -147,7 +147,7 @@ T TPersistentQueue<T, ChunkSize>::Dequeue()
     auto& tail = this->Tail_;
     auto& size = this->Size_;
 
-    Y_ASSERT(size != 0);
+    YT_ASSERT(size != 0);
 
     auto result = std::move(tail.CurrentChunk_->Elements[tail.CurrentIndex_++]);
     --size;
@@ -183,7 +183,7 @@ template <class C>
 void TPersistentQueue<T, ChunkSize>::Load(C& context)
 {
     using NYT::Load;
-    YCHECK(this->Empty());
+    YT_VERIFY(this->Empty());
     auto size = TSizeSerializer::Load(context);
     for (size_t index = 0; index < size; ++index) {
         Enqueue(Load<T>(context));

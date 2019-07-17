@@ -61,7 +61,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
-    YCHECK(bounds.Size() > 0);
+    YT_VERIFY(bounds.Size() > 0);
     auto lowerBound = bounds[0].first;
     auto upperBound = bounds[bounds.Size() - 1].second;
 
@@ -141,7 +141,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
-            Y_ASSERT(index < stores.size());
+            YT_ASSERT(index < stores.size());
 
             return stores[index]->CreateReader(
                 tabletSnapshot,
@@ -171,8 +171,8 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
     // Deduce tablet index and row range from lower and upper bound.
-    YCHECK(lowerBound.GetCount() >= 1);
-    YCHECK(upperBound.GetCount() >= 1);
+    YT_VERIFY(lowerBound.GetCount() >= 1);
+    YT_VERIFY(upperBound.GetCount() >= 1);
 
     const i64 infinity = std::numeric_limits<i64>::max() / 2;
 
@@ -185,7 +185,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
             case EValueType::Max:
                 return +infinity;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     };
 
@@ -196,13 +196,13 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         if (lowerBound[0].Type == EValueType::Min) {
             tabletIndex = 0;
         } else {
-            YCHECK(lowerBound[0].Type == EValueType::Int64);
+            YT_VERIFY(lowerBound[0].Type == EValueType::Int64);
             tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
         }
 
-        YCHECK(upperBound[0].Type == EValueType::Int64 ||
+        YT_VERIFY(upperBound[0].Type == EValueType::Int64 ||
                upperBound[0].Type == EValueType::Max);
-        YCHECK(upperBound[0].Type != EValueType::Int64 ||
+        YT_VERIFY(upperBound[0].Type != EValueType::Int64 ||
                tabletIndex == upperBound[0].Data.Int64 ||
                tabletIndex + 1 == upperBound[0].Data.Int64);
 
@@ -400,7 +400,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey;
             });
-        YCHECK(nextPartitionIt != tabletSnapshot->PartitionList.begin());
+        YT_VERIFY(nextPartitionIt != tabletSnapshot->PartitionList.begin());
         auto nextIt = nextPartitionIt == tabletSnapshot->PartitionList.end()
             ? keys.End()
             : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey);
@@ -494,7 +494,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
-            Y_ASSERT(index < stores.size());
+            YT_ASSERT(index < stores.size());
             return stores[index]->CreateReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),

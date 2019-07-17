@@ -119,7 +119,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             fillBlock(remainingSize);
         }
 
-        YCHECK(remainingSize == 0);
+        YT_VERIFY(remainingSize == 0);
     }
     flushBlock();
 
@@ -167,7 +167,7 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
         ZSTD_isError(decompressedSize),
         ZSTD_getErrorName(decompressedSize));
 
-    YCHECK(decompressedSize == outputSize);
+    YT_VERIFY(decompressedSize == outputSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
