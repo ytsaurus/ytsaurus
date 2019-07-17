@@ -1366,7 +1366,7 @@ public:
             if (!IsObjectAlive(currentNode)) {
                 return true;
             }
-            if (currentNode == RootNode_) {
+            if (currentNode == RootNode_ || currentNode->GetType() == EObjectType::PortalExit) {
                 return false;
             }
             currentNode = currentNode->GetParent();
@@ -1697,10 +1697,7 @@ private:
 
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
-        // XXX(babenko): portals
-        if (Bootstrap_->IsPrimaryMaster()) {
-            ExpirationTracker_->Start();
-        }
+        ExpirationTracker_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -1710,11 +1707,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         AccessTracker_->Stop();
-
-        // XXX(babenko): portals
-        if (Bootstrap_->IsPrimaryMaster()) {
-            ExpirationTracker_->Stop();
-        }
+        ExpirationTracker_->Stop();
     }
 
     virtual void OnStopFollowing() override

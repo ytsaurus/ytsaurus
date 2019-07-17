@@ -5,6 +5,8 @@ from yt_commands import *
 
 from yt.common import YtError
 
+from dateutil.tz import tzlocal
+
 ##################################################################
 
 class TestPortals(YTEnvSetup):
@@ -131,3 +133,11 @@ class TestPortals(YTEnvSetup):
         assert get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started"
         remove("//tmp/p2/t")
         wait(lambda: not exists("//sys/accounts/a"))
+
+    def _now(self):
+        return datetime.now(tzlocal())
+    
+    def test_expiration_time(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t", attributes={"expiration_time": str(self._now())})
+        wait(lambda: not exists("//tmp/p/t"))
