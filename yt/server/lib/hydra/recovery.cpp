@@ -259,8 +259,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 
         YT_LOG_INFO("Quorum record count check failed; will retry");
 
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ChangelogQuorumCheckRetryPeriod))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(Config_->ChangelogQuorumCheckRetryPeriod);
     }
 
     while (true) {
@@ -343,8 +342,7 @@ void TLeaderRecovery::DoRun()
         YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
     } else if (elapsedTime < Config_->LeaderLeaseGraceDelay) {
         YT_LOG_INFO("Waiting for previous leader lease to expire");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->LeaderLeaseGraceDelay - elapsedTime))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(Config_->LeaderLeaseGraceDelay - elapsedTime);
     }
 }
 

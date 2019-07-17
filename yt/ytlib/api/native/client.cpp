@@ -990,8 +990,7 @@ private:
                 auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
                     config->TableMountCache->OnErrorSlackPeriod;
                 if (retryTime > now) {
-                    WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                        .ThrowOnError();
+                    TDelayedExecutor::WaitForDuration(retryTime - now);
                 }
                 continue;
             }

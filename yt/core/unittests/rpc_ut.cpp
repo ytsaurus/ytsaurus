@@ -228,8 +228,7 @@ public:
     {
         try {
             context->SetRequestInfo();
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
             context->Reply();
         } catch (const TFiberCanceledException&) {
             SlowCallCanceled_.Set();
@@ -275,7 +274,7 @@ public:
                     .ThrowOnError();
             }
         }
-        
+
         WaitFor(response->GetAttachmentsStream()->Close())
             .ThrowOnError();
 
@@ -322,8 +321,7 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
 
             WaitFor(context->GetRequestAttachmentsStream()->Read())
@@ -346,8 +344,7 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
 
             WaitFor(context->GetResponseAttachmentsStream()->Close())

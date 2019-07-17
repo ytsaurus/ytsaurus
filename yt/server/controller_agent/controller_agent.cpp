@@ -1132,7 +1132,7 @@ private:
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
-                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
+                TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
             } else {
                 Disconnect(rspOrError);
             }

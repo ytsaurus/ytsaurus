@@ -54,8 +54,7 @@ TEST_F(TTimerTest, CpuWallCompare)
         TFiberWallTimer cpuTimer;
         TWallTimer wallTimer;
 
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(SleepQuantum);
 
         cpu = cpuTimer.GetElapsedValue();
         wall = wallTimer.GetElapsedValue();
