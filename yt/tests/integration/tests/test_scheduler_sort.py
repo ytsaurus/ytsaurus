@@ -394,7 +394,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
         shuffled_rows = rows[::]
         shuffle(shuffled_rows)
-        write_table("//tmp/t_in", shuffled_rows)
+
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", shuffled_rows[50*i:50*(i+1)])
 
         create("table", "//tmp/t_out")
 
@@ -403,9 +405,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key",
              spec={"partition_count": 50,
                    "partition_job_count": 100,
-                   "data_size_per_sort_job": 1,
-                   "partition_job_io" : {"table_writer" :
-                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
+                   "data_size_per_sort_job": 1})
 
         output_rows = read_table("//tmp/t_out")
         assert sorted(output_rows) == output_rows
