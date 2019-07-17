@@ -2138,7 +2138,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     def test_default_tree_manipulations(self):
         assert get("//sys/pool_trees/@default_tree") == "default"
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools")
 
         remove("//sys/pool_trees/@default_tree")
         time.sleep(0.5)
@@ -2157,8 +2156,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool_trees": ["default"]})
 
-        # assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools")
-
         set("//sys/pool_trees/@default_tree", "unexisting")
         wait(lambda: get("//sys/scheduler/@alerts"))
         wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
@@ -2166,8 +2163,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         set("//sys/pool_trees/@default_tree", "default")
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
         assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools")
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/fair_share_info")
 
     def test_fair_share(self):
         create("table", "//tmp/t_in")
