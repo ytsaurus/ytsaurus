@@ -6,6 +6,7 @@
 
 #include <yt/client/table_client/schemaless_reader.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -59,6 +60,7 @@ private:
     TLogger Logger;
     DB::Block HeaderBlock_;
     std::vector<int> IdToColumnIndex_;
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     DB::Block readImpl() override
     {
@@ -87,10 +89,10 @@ private:
 
         for (const auto& row : rows) {
             for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-                const auto& value = row[index];
+                auto value = row[index];
                 auto id = value.Id;
                 int columnIndex = (id < IdToColumnIndex_.size()) ? IdToColumnIndex_[id] : -1;
-                Y_VERIFY(columnIndex != -1);
+                YT_VERIFY(columnIndex != -1);
                 switch (value.Type) {
                     case EValueType::Null:
                         // TODO(max42): consider transforming to Y_ASSERT.
@@ -106,6 +108,9 @@ private:
                     case EValueType::Uint64:
                     case EValueType::Double:
                     case EValueType::Boolean: {
+                        if (ReadSchema_.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
+                            ToAny(RowBuffer_.Get(), &value, &value);
+                        }
                         auto field = ConvertToField(value);
                         block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
                         break;
@@ -115,6 +120,9 @@ private:
                 }
             }
         }
+
+        // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
+        RowBuffer_->Clear();
 
         return block;
     }
