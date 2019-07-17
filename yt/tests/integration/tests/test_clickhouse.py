@@ -708,18 +708,18 @@ class TestCompositeTypes(ClickHouseTestBase):
 
     # CHYT-157.
     def test_int64_as_any(self):
-        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
-        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "any"}]})
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
         lst = [{"a": -2**63},
                {"a": -42},
                {"a": 123456789123456789},
                {"a": 2**63 - 1}]
-        write_table("//tmp/t1", lst)
-        merge(in_="//tmp/t1",
-              out="//tmp/t2")
+        write_table("//tmp/s1", lst)
+        merge(in_="//tmp/s1",
+              out="//tmp/s2")
 
         with Clique(1) as clique:
-            result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/t2\" order by i")
+            result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/s2\" order by i")
             assert result == [{"i": row["a"]} for row in lst]
 
 class TestYtDictionaries(ClickHouseTestBase):
