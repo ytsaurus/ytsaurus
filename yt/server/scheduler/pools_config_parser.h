@@ -102,7 +102,7 @@ private:
 
             if (parentId != RootElementId_) {
                 auto it = PoolConfigMap_.find(parentId);
-                YCHECK(it != PoolConfigMap_.end());
+                YT_VERIFY(it != PoolConfigMap_.end());
                 if (it->second.PoolConfig->Mode == ESchedulingMode::Fifo) {
                     Error_ = TError("Pool %Qv cannot have subpools since it is in fifo mode", parentId);
                     return false;

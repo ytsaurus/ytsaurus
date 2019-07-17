@@ -177,7 +177,7 @@ static WireFormatLite::WireType GetWireTypeForProtobufType(EProtobufType type)
         case EProtobufType::Message:
             return WireFormatLite::WIRETYPE_LENGTH_DELIMITED;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,7 +257,7 @@ private:
             case EState::InsideData:
                 return ConsumeData(begin, end);
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     const char* ConsumeInt32(const char* begin, const char* end)
@@ -421,7 +421,7 @@ private:
                 }
                 case EProtobufType::EnumString: {
                     i64 value = rowParser.ReadVarUint64();
-                    YCHECK(field.EnumerationDescription);
+                    YT_VERIFY(field.EnumerationDescription);
                     const auto& enumString = field.EnumerationDescription->GetValueName(value);
 
                     ValueConsumer_->OnValue(MakeUnversionedStringValue(enumString, columnId));

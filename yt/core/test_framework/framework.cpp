@@ -99,8 +99,8 @@ void RunAndTrackFiber(TClosure closure)
     promise.Reset();
     strongFiber.Reset();
 
-    Y_ASSERT(!promise);
-    Y_ASSERT(!strongFiber);
+    YT_ASSERT(!promise);
+    YT_ASSERT(!strongFiber);
 
     auto startedAt = TInstant::Now();
     while (weakFiber.Lock()) {

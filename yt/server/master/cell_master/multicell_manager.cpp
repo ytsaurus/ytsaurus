@@ -69,7 +69,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
         , Config_(config)
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
 
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
@@ -120,7 +120,7 @@ public:
         const TCrossCellMessage& message,
         bool reliable)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
         if (Bootstrap_->IsMulticell()) {
             PostToMasters(message, GetRegisteredMasterCellTags(), reliable);
         }
@@ -158,7 +158,7 @@ public:
 
     TCellTag PickSecondaryMasterCell(double bias)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         if (RegisteredMasterMap_.empty()) {
             return InvalidCellTag;
@@ -246,7 +246,7 @@ public:
         channel = CreateRetryingChannel(Config_->MasterConnection, channel, isRetryableError);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
-        YCHECK(MasterChannelCache_.emplace(key, channel).second);
+        YT_VERIFY(MasterChannelCache_.emplace(key, channel).second);
 
         return channel;
     }
@@ -315,7 +315,7 @@ private:
         }
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
-            YCHECK(!PrimaryMasterMailbox_);
+            YT_VERIFY(!PrimaryMasterMailbox_);
             const auto& hiveManager = Bootstrap_->GetHiveManager();
             PrimaryMasterMailbox_ = hiveManager->GetMailbox(Bootstrap_->GetPrimaryCellId());
         }
@@ -407,7 +407,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
         try {
@@ -454,7 +454,7 @@ private:
 
     void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         if (response->has_error()) {
             auto error = FromProto<TError>(response->error());
@@ -470,7 +470,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         auto cellTag = request->cell_tag();
         try {
@@ -488,7 +488,7 @@ private:
 
     void HydraStartSecondaryMasterRegistration(NProto::TReqStartSecondaryMasterRegistration* /*request*/)
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         if (RegisterState_ != EPrimaryRegisterState::None) {
             return;
@@ -510,7 +510,7 @@ private:
 
     void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
         YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
@@ -546,10 +546,10 @@ private:
 
     void RegisterMasterEntry(TCellTag cellTag)
     {
-        YCHECK(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
+        YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
         int index = static_cast<int>(RegisteredMasterMap_.size());
         auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
         auto& entry = pair.first->second;
         entry.Index = index;
         RegisteredMasterCellTags_.push_back(cellTag);
@@ -567,7 +567,7 @@ private:
     TMasterEntry* GetMasterEntry(TCellTag cellTag)
     {
         auto it = RegisteredMasterMap_.find(cellTag);
-        YCHECK(it != RegisteredMasterMap_.end());
+        YT_VERIFY(it != RegisteredMasterMap_.end());
         return &it->second;
     }
 
@@ -578,7 +578,7 @@ private:
             return PrimaryMasterMailbox_;
         }
 
-        YCHECK(cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag);
+        YT_VERIFY(cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag);
         auto it = MasterMailboxCache_.find(cellTag);
         if (it != MasterMailboxCache_.end()) {
             return it->second;
@@ -587,14 +587,14 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto cellId = Bootstrap_->GetCellId(cellTag);
         auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-        YCHECK(MasterMailboxCache_.emplace(cellTag, mailbox).second);
+        YT_VERIFY(MasterMailboxCache_.emplace(cellTag, mailbox).second);
         return mailbox;
     }
 
 
     void OnStartSecondaryMasterRegistration()
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
@@ -612,7 +612,7 @@ private:
 
     void OnCellStatisticsGossip()
     {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
         if (!IsLocalMasterCellRegistered()) {
             return;
@@ -654,7 +654,7 @@ private:
             SetRequestYPath(&requestHeader, updatedYPath);
             parts = SetRequestHeader(requestMessage, requestHeader);
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         for (const auto& part : parts) {
@@ -682,7 +682,7 @@ private:
             } else {
                 // Failure here indicates an attempt to send a reliable message to the primary master
                 // before registering.
-                YCHECK(!reliable);
+                YT_VERIFY(!reliable);
             }
         }
         hiveManager->PostMessage(mailboxes, std::move(message), reliable);

@@ -70,12 +70,12 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TFuture<void> Close() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override

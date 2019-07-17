@@ -174,7 +174,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             // This holds an extra reference to the promise state...
             auto promise = item->ValuePromise;
 
-            YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
             auto weight = PushToYounger(item);
@@ -221,7 +221,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             auto* item = new TItem();
             auto valuePromise = item->ValuePromise;
 
-            YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
             return TInsertCookie(
@@ -235,9 +235,9 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         if (value) {
             auto* item = new TItem(value);
             auto value = item->Value;
-            Y_ASSERT(value);
+            YT_ASSERT(value);
 
-            YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
             auto weight = PushToYounger(item);
@@ -266,7 +266,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
-    YCHECK(value);
+    YT_VERIFY(value);
     auto key = value->GetKey();
 
     NConcurrency::TWriterGuard guard(SpinLock_);
@@ -276,13 +276,13 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
     value->Cache_ = MakeWeak(this);
 
     auto it = ItemMap_.find(key);
-    YCHECK(it != ItemMap_.end());
+    YT_VERIFY(it != ItemMap_.end());
 
     auto* item = it->second;
     item->Value = value;
     auto promise = item->ValuePromise;
 
-    YCHECK(ValueMap_.insert(std::make_pair(key, value.Get())).second);
+    YT_VERIFY(ValueMap_.insert(std::make_pair(key, value.Get())).second);
 
     auto weight = PushToYounger(item);
     Profiler.Increment(MissedWeightCounter_, weight);
@@ -303,7 +303,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
     DrainTouchBuffer();
 
     auto it = ItemMap_.find(key);
-    YCHECK(it != ItemMap_.end());
+    YT_VERIFY(it != ItemMap_.end());
 
     auto* item = it->second;
     auto promise = item->ValuePromise;
@@ -325,8 +325,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 
     DrainTouchBuffer();
 
-    YCHECK(ItemMap_.find(key) == ItemMap_.end());
-    YCHECK(ValueMap_.erase(key) == 1);
+    YT_VERIFY(ItemMap_.find(key) == ItemMap_.end());
+    YT_VERIFY(ValueMap_.erase(key) == 1);
 }
 
 template <class TKey, class TValue, class THash>
@@ -351,7 +351,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     --ItemMapSize_;
 
     if (!IsResurrectionSupported()) {
-        YCHECK(ValueMap_.erase(key) == 1);
+        YT_VERIFY(ValueMap_.erase(key) == 1);
         value->Cache_.Reset();
     }
 
@@ -391,7 +391,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
         --ItemMapSize_;
 
         if (!IsResurrectionSupported()) {
-            YCHECK(ValueMap_.erase(value->GetKey()) == 1);
+            YT_VERIFY(ValueMap_.erase(value->GetKey()) == 1);
             value->Cache_.Reset();
         }
 
@@ -460,7 +460,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::IsResurrectionSupported() const
 template <class TKey, class TValue, class THash>
 i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
-    Y_ASSERT(item->Empty());
+    YT_ASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
     auto weight = GetWeight(item->Value);
     Profiler.Increment(YoungerWeightCounter_, +weight);
@@ -471,7 +471,7 @@ i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 {
-    Y_ASSERT(!item->Empty());
+    YT_ASSERT(!item->Empty());
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
@@ -485,7 +485,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 {
-    Y_ASSERT(!item->Empty());
+    YT_ASSERT(!item->Empty());
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
@@ -531,11 +531,11 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& 
 
         Pop(item);
 
-        YCHECK(ItemMap_.erase(value->GetKey()) == 1);
+        YT_VERIFY(ItemMap_.erase(value->GetKey()) == 1);
         --ItemMapSize_;
 
         if (!IsResurrectionSupported()) {
-            YCHECK(ValueMap_.erase(value->GetKey()) == 1);
+            YT_VERIFY(ValueMap_.erase(value->GetKey()) == 1);
             value->Cache_.Reset();
         }
 
@@ -601,7 +601,7 @@ template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
-    Y_ASSERT(ValueFuture_);
+    YT_ASSERT(ValueFuture_);
     return ValueFuture_;
 }
 

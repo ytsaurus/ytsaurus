@@ -101,7 +101,7 @@ protected:
         try {
             SafeCreateStderrFile("../executor_stderr");
         } catch (...) {
-            Exit(4);
+            Exit(3);
         }
 
         // Don't start any other singleton or parse config in executor mode.
@@ -163,7 +163,7 @@ protected:
 
         if (!executorError.IsOK()) {
             fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ToString(executorError).data());
-            Exit(3);
+            Exit(4);
         }
 
         if (Pty_ != -1) {
@@ -213,7 +213,7 @@ protected:
                 NotifyExecutorPrepared(GetConfig());
             } catch (const std::exception& ex) {
                 fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
-                Y_UNREACHABLE();
+                Exit(5);
             }
         }
 
@@ -223,7 +223,7 @@ protected:
             env.data());
 
         fprintf(stderr, "execve failed: %s", TError::FromSystem().GetMessage().data());
-        Exit(5);
+        Exit(6);
     }
 
 private:

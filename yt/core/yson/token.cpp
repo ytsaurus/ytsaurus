@@ -47,7 +47,7 @@ char TokenTypeToChar(ETokenType type)
         case ETokenType::Colon:             return ':';
         case ETokenType::Comma:             return ',';
         case ETokenType::Slash:             return '/';
-        default:                            Y_UNREACHABLE();
+        default:                            YT_ABORT();
     }
 }
 
@@ -81,7 +81,7 @@ TToken::TToken(ETokenType type)
         case ETokenType::Uint64:
         case ETokenType::Double:
         case ETokenType::Boolean:
-            Y_UNREACHABLE();
+            YT_ABORT();
         default:
             break;
     }

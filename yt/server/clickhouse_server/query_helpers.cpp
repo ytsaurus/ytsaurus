@@ -11,11 +11,11 @@ using namespace DB;
 
 ASTTableExpression* GetFirstTableExpression(ASTSelectQuery& select)
 {
-    if (!select.tables) {
+    if (!select.tables()) {
         return nullptr;
     }
 
-    const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables);
+    const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables());
     if (tablesInSelectQuery.children.size() != 1) {
         return nullptr;
     }
@@ -30,13 +30,13 @@ ASTTableExpression* GetFirstTableExpression(ASTSelectQuery& select)
 
 std::vector<ASTTableExpression*> GetAllTableExpressions(ASTSelectQuery& select)
 {
-    if (!select.tables) {
+    if (!select.tables()) {
         return {};
     }
 
     std::vector<ASTTableExpression*> result;
 
-    const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables);
+    const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables());
     for (const auto& tableInSelectQuery : tablesInSelectQuery.children) {
         const auto& tablesElement = static_cast<const ASTTablesInSelectQueryElement &>(*tableInSelectQuery);
         if (!tablesElement.table_expression) {

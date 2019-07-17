@@ -176,7 +176,7 @@ private:
         context->SetRequestInfo();
 
         auto* journal = GetThisImpl();
-        YCHECK(journal->IsTrunk());
+        YT_VERIFY(journal->IsTrunk());
 
         const auto& journalManager = Bootstrap_->GetJournalManager();
         journalManager->SealJournal(journal->GetTrunkNode(), &request->statistics());

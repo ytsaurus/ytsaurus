@@ -145,14 +145,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void SetEpochId(TEpochId epochId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(epochId);
+        YT_VERIFY(epochId);
         if (EpochId_ == epochId) {
             return;
         }
@@ -239,7 +239,7 @@ private:
                 return peerId;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     bool IsLeader()
@@ -441,7 +441,7 @@ public:
     void Initialize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(!Initialized_);
+        YT_VERIFY(!Initialized_);
 
         Options_ = ConvertTo<TTabletCellOptionsPtr>(OptionsString_);
 
@@ -468,7 +468,7 @@ public:
     void UpdateDynamicConfig(const TUpdateTabletSlotInfo& updateInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(CanConfigure());
+        YT_VERIFY(CanConfigure());
 
         auto updateVersion = updateInfo.dynamic_config_version();
 
@@ -512,7 +512,7 @@ public:
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(CanConfigure());
+        YT_VERIFY(CanConfigure());
 
         auto client = Bootstrap_->GetMasterClient();
 

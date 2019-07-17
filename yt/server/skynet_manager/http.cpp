@@ -91,7 +91,7 @@ public:
 
     virtual const TTableSchema& GetSchema() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override

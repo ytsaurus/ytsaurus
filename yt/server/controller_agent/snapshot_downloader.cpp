@@ -27,8 +27,8 @@ TSnapshotDownloader::TSnapshotDownloader(
     , Logger(NLogging::TLogger(ControllerAgentLogger)
         .AddTag("OperationId: %v", operationId))
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
 }
 
 std::vector<TSharedRef> TSnapshotDownloader::Run()

@@ -79,13 +79,13 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
             dataSource->Schema() = dictionary->GetTable(id);
         }
 
-        YCHECK(!protoDataSource.has_table_schema());
+        YT_VERIFY(!protoDataSource.has_table_schema());
     } else {
         if (protoDataSource.has_table_schema()) {
             dataSource->Schema() = FromProto<TTableSchema>(protoDataSource.table_schema());
         }
 
-        YCHECK(!protoDataSource.has_table_schema_id());
+        YT_VERIFY(!protoDataSource.has_table_schema_id());
     }
 
     if (protoDataSource.has_column_filter()) {

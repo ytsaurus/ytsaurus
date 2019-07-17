@@ -40,7 +40,7 @@ TEST(TVerifyDeathTest, DISABLED_NoCrashForTruthExpression)
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _)).Times(1);
 
-    YCHECK(callee.F(true, "This should be okay."));
+    YT_VERIFY(callee.F(true, "This should be okay."));
     SUCCEED();
 }
 
@@ -49,7 +49,7 @@ TEST(TVerifyDeathTest, DISABLED_CrashForFalseExpression)
     NiceMock<TMockCallee> callee;
 
     ASSERT_DEATH(
-        { YCHECK(callee.F(false, "Cheshire Cat")); },
+        { YT_VERIFY(callee.F(false, "Cheshire Cat")); },
         ".*Cheshire Cat.*"
     );
 }

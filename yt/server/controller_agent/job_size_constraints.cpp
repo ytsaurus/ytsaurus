@@ -59,13 +59,13 @@ public:
 
     virtual i64 GetSamplingDataWeightPerJob() const override
     {
-        YCHECK(SamplingDataWeightPerJob_);
+        YT_VERIFY(SamplingDataWeightPerJob_);
         return *SamplingDataWeightPerJob_;
     }
 
     virtual i64 GetSamplingPrimaryDataWeightPerJob() const override
     {
-        YCHECK(SamplingPrimaryDataWeightPerJob_);
+        YT_VERIFY(SamplingPrimaryDataWeightPerJob_);
         return *SamplingPrimaryDataWeightPerJob_;
     }
 
@@ -175,7 +175,7 @@ private:
 
     void InitializeSampling()
     {
-        YCHECK(SamplingConfig_->MaxTotalSliceCount);
+        YT_VERIFY(SamplingConfig_->MaxTotalSliceCount);
         // Replace input data weight and input row count with their expected values after the sampling.
         InputDataWeight_ *= *SamplingConfig_->SamplingRate;
         PrimaryInputDataWeight_ *= *SamplingConfig_->SamplingRate;
@@ -278,7 +278,7 @@ public:
             JobCount_ = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
         }
 
-        YCHECK(JobCount_ >= 0);
+        YT_VERIFY(JobCount_ >= 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -419,8 +419,8 @@ public:
         }
         JobCount_ = std::min(JobCount_, maxJobCount);
 
-        YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+        YT_VERIFY(JobCount_ >= 0);
+        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -497,8 +497,8 @@ public:
         , Options_(options)
     {
         JobCount_ = DivCeil(InputDataWeight_, Spec_->DataWeightPerShuffleJob);
-        YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+        YT_VERIFY(JobCount_ >= 0);
+        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -520,7 +520,7 @@ public:
 
     virtual i64 GetPrimaryDataWeightPerJob() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -604,8 +604,8 @@ public:
             JobCount_ = DivCeil(InputDataWeight_, static_cast<i64>(partitionJobDataWeight));
         }
 
-        YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+        YT_VERIFY(JobCount_ >= 0);
+        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
 
         if (JobCount_ > 0 && inputDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
             // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
@@ -637,7 +637,7 @@ public:
 
     virtual i64 GetPrimaryDataWeightPerJob() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -707,7 +707,7 @@ public:
         , MaxBuildRetryCount_(maxBuildRetryCount)
         , DataWeightPerJobRetryFactor_(dataWeightPerJobRetryFactor)
     {
-        // COMPAT(max42): remove this after YT-10666 (and put YCHECK about job having non-empty
+        // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
         // input somewhere in controller).
         MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);
         DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
@@ -771,13 +771,13 @@ public:
 
     virtual i64 GetSamplingDataWeightPerJob() const override
     {
-        YCHECK(SamplingRate_);
+        YT_VERIFY(SamplingRate_);
         return SamplingDataWeightPerJob_;
     }
 
     virtual i64 GetSamplingPrimaryDataWeightPerJob() const override
     {
-        YCHECK(SamplingRate_);
+        YT_VERIFY(SamplingRate_);
         return SamplingPrimaryDataWeightPerJob_;
     }
 
@@ -815,7 +815,7 @@ public:
         Persist(context, MaxBuildRetryCount_);
         Persist(context, DataWeightPerJobRetryFactor_);
 
-        // COMPAT(max42): remove this after YT-10666 (and put YCHECK about job having non-empty
+        // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
         // input somewhere in controller).
         if (context.IsLoad()) {
             MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);

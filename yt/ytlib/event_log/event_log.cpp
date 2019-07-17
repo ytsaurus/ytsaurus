@@ -20,13 +20,13 @@ using namespace NConcurrency;
 
 TFluentEventLogger::~TFluentEventLogger()
 {
-    YCHECK(!Consumer_);
+    YT_VERIFY(!Consumer_);
 }
 
 TFluentLogEvent TFluentEventLogger::LogEventFluently(IYsonConsumer* consumer)
 {
-    YCHECK(consumer);
-    YCHECK(!Consumer_);
+    YT_VERIFY(consumer);
+    YT_VERIFY(!Consumer_);
     Consumer_ = consumer;
     return TFluentLogEvent(this);
 }
@@ -116,7 +116,7 @@ public:
         : Config_(config)
         , Client_(client)
     {
-        YCHECK(Config_->Path);
+        YT_VERIFY(Config_->Path);
 
         auto nameTable = New<TNameTable>();
         auto options = New<NTableClient::TTableWriterOptions>();

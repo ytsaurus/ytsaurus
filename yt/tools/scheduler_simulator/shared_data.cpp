@@ -135,7 +135,7 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
         stats->FinishTime = finishTime;
 
         auto it = OperationDescriptionById_.find(operationId);
-        YCHECK(it != OperationDescriptionById_.end());
+        YT_VERIFY(it != OperationDescriptionById_.end());
 
         stats->RealDuration = it->second.Duration;
         stats->OperationType = it->second.Type;
@@ -150,7 +150,7 @@ const TOperationDescription& TSharedOperationStatistics::GetOperationDescription
 {
     // No synchronization needed.
     auto it = OperationDescriptionById_.find(operationId);
-    YCHECK(it != OperationDescriptionById_.end());
+    YT_VERIFY(it != OperationDescriptionById_.end());
     return it->second;
 }
 

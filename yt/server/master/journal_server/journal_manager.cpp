@@ -49,7 +49,7 @@ public:
         TJournalNode* trunkNode,
         const TDataStatistics* statistics)
     {
-        YCHECK(trunkNode->IsTrunk());
+        YT_VERIFY(trunkNode->IsTrunk());
 
         auto* chunkList = trunkNode->GetChunkList();
 

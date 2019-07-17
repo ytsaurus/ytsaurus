@@ -37,7 +37,7 @@ void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
 
 const IInvokerPtr& TFairShareInvokerQueue::GetInvoker(int index)
 {
-    Y_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
+    YT_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
     return Buckets_[index].Invoker;
 }
 
@@ -67,7 +67,7 @@ bool TFairShareInvokerQueue::IsRunning() const
 
 EBeginExecuteResult TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YCHECK(!CurrentBucket_);
+    YT_VERIFY(!CurrentBucket_);
 
     // Check if any callback is ready at all.
     CurrentBucket_ = GetStarvingBucket();
@@ -103,7 +103,7 @@ TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
     TBucket* minBucket = nullptr;
     for (auto& bucket : Buckets_) {
         const auto& queue = bucket.Queue;
-        Y_ASSERT(queue);
+        YT_ASSERT(queue);
         if (!queue->IsEmpty()) {
             if (bucket.ExcessTime < minExcessTime) {
                 minExcessTime = bucket.ExcessTime;

@@ -86,7 +86,7 @@ protected:
     const std::vector<TString> LockIndexToName_;
     const std::vector<int> ColumnIndexToLockIndex_;
 
-    EStoreState StoreState_;
+    EStoreState StoreState_ = EStoreState::Undefined;
 
     const NLogging::TLogger Logger;
 

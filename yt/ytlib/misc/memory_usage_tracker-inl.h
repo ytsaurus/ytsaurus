@@ -162,7 +162,7 @@ TError TMemoryUsageTracker<ECategory>::TryAcquire(ECategory category, i64 size)
 template <class ECategory>
 void TMemoryUsageTracker<ECategory>::DoAcquire(ECategory category, i64 size)
 {
-    YCHECK(size >= 0);
+    YT_VERIFY(size >= 0);
 
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     Profiler.Increment(TotalUsedCounter_, +size);
@@ -173,7 +173,7 @@ void TMemoryUsageTracker<ECategory>::DoAcquire(ECategory category, i64 size)
 template <class ECategory>
 void TMemoryUsageTracker<ECategory>::Release(ECategory category, i64 size)
 {
-    YCHECK(size >= 0);
+    YT_VERIFY(size >= 0);
 
     TGuard<TSpinLock> guard(SpinLock_);
     Profiler.Increment(TotalUsedCounter_, -size);
@@ -268,7 +268,7 @@ TMemoryUsageTrackerGuard<ECategory> TMemoryUsageTrackerGuard<ECategory>::Acquire
     i64 size,
     i64 granularity)
 {
-    YCHECK(size >= 0);
+    YT_VERIFY(size >= 0);
     TMemoryUsageTrackerGuard guard;
     guard.Tracker_ = tracker;
     guard.Category_ = category;
@@ -288,7 +288,7 @@ TErrorOr<TMemoryUsageTrackerGuard<ECategory>> TMemoryUsageTrackerGuard<ECategory
     i64 size,
     i64 granularity)
 {
-    YCHECK(size >= 0);
+    YT_VERIFY(size >= 0);
     auto error = tracker->TryAcquire(category, size);
     if (!error.IsOK()) {
         return error;
@@ -329,8 +329,8 @@ i64 TMemoryUsageTrackerGuard<ECategory>::GetSize() const
 template <class ECategory>
 void TMemoryUsageTrackerGuard<ECategory>::SetSize(i64 size)
 {
-    YCHECK(Tracker_);
-    YCHECK(size >= 0);
+    YT_VERIFY(Tracker_);
+    YT_VERIFY(size >= 0);
     Size_ = size;
     if (std::abs(Size_ - AcquiredSize_) >= Granularity_) {
         if (Size_ > AcquiredSize_) {

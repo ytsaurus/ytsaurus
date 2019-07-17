@@ -70,31 +70,31 @@ EYsonItemType TYsonItem::GetType() const
 
 bool TYsonItem::UncheckedAsBoolean() const
 {
-    Y_ASSERT(GetType() == EYsonItemType::BooleanValue);
+    YT_ASSERT(GetType() == EYsonItemType::BooleanValue);
     return Data_.Boolean;
 }
 
 i64 TYsonItem::UncheckedAsInt64() const
 {
-    Y_ASSERT(GetType() == EYsonItemType::Int64Value);
+    YT_ASSERT(GetType() == EYsonItemType::Int64Value);
     return Data_.Int64;
 }
 
 ui64 TYsonItem::UncheckedAsUint64() const
 {
-    Y_ASSERT(GetType() == EYsonItemType::Uint64Value);
+    YT_ASSERT(GetType() == EYsonItemType::Uint64Value);
     return Data_.Uint64;
 }
 
 double TYsonItem::UncheckedAsDouble() const
 {
-    Y_ASSERT(GetType() == EYsonItemType::DoubleValue);
+    YT_ASSERT(GetType() == EYsonItemType::DoubleValue);
     return Data_.Double;
 }
 
 TStringBuf TYsonItem::UncheckedAsString() const
 {
-    Y_ASSERT(GetType() == EYsonItemType::StringValue);
+    YT_ASSERT(GetType() == EYsonItemType::StringValue);
     return TStringBuf(Data_.String.Ptr, Data_.String.Size);
 }
 
@@ -462,7 +462,7 @@ void NDetail::TYsonSyntaxChecker::IncrementNestingLevel()
 
 void NDetail::TYsonSyntaxChecker::DecrementNestingLevel()
 {
-    Y_ASSERT(NestingLevel_ > 0);
+    YT_ASSERT(NestingLevel_ > 0);
     --NestingLevel_;
 }
 

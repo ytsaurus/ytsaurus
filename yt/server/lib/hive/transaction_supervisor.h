@@ -26,7 +26,7 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
-        NSecurityServer::IUsersManagerPtr securityManager,
+        NSecurityServer::ISecurityManagerPtr securityManager,
         TCellId selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders);

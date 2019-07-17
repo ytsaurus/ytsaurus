@@ -55,14 +55,14 @@ int TBloomFilterBase::Log2(int size)
 
 int TBloomFilterBase::HashCountFromRate(double falsePositiveRate)
 {
-    YCHECK(falsePositiveRate > 0 && falsePositiveRate <= 1);
+    YT_VERIFY(falsePositiveRate > 0 && falsePositiveRate <= 1);
     int hashCount = std::log2(1.0 / falsePositiveRate);
     return hashCount > 0 ? hashCount : 1;
 }
 
 double TBloomFilterBase::BitsPerItemFromRate(double falsePositiveRate)
 {
-    YCHECK(falsePositiveRate > 0 && falsePositiveRate <= 1);
+    YT_VERIFY(falsePositiveRate > 0 && falsePositiveRate <= 1);
     return 1.44 * std::log2(1.0 / falsePositiveRate);
 }
 
@@ -99,7 +99,7 @@ TSharedRef TBloomFilterBuilder::Bitmap() const
 
 void TBloomFilterBuilder::Insert(TFingerprint fingerprint)
 {
-    YCHECK(BitsPerItem_ > 0 && Size() > 0);
+    YT_VERIFY(BitsPerItem_ > 0 && Size() > 0);
 
     int hash1 = static_cast<int>(fingerprint >> 32);
     int hash2 = static_cast<int>(fingerprint);

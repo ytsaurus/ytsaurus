@@ -38,7 +38,7 @@ template <class TItem>
 void TFenwickTree<TItem>::PushBack(const TItem& item)
 {
     int newItemIndex = Size();
-    YCHECK(Size() <= MaxLength);
+    YT_VERIFY(Size() <= MaxLength);
     FenwickSums_.push_back(CalculateIncompleteFenwickSum(newItemIndex) + item);
 }
 
@@ -47,30 +47,30 @@ template <class... TArgs>
 void TFenwickTree<TItem>::EmplaceBack(TArgs&&... args)
 {
     int newItemIndex = Size();
-    YCHECK(Size() <= MaxLength);
+    YT_VERIFY(Size() <= MaxLength);
     FenwickSums_.push_back(CalculateIncompleteFenwickSum(newItemIndex) + TItem(std::forward<TArgs>(args)...));
 }
 
 template <class TItem>
 void TFenwickTree<TItem>::SetValue(int index, const TItem& item)
 {
-    YCHECK(index >= 0);
-    YCHECK(index < Size());
+    YT_VERIFY(index >= 0);
+    YT_VERIFY(index < Size());
     Increment(index, item - GetValue(index));
 }
 
 template <class TItem>
 void TFenwickTree<TItem>::PopBack()
 {
-    YCHECK(Size() > 0);
+    YT_VERIFY(Size() > 0);
     FenwickSums_.pop_back();
 }
 
 template <class TItem>
 TItem TFenwickTree<TItem>::GetCumulativeSum(int index) const
 {
-    YCHECK(index >= 0);
-    YCHECK(index <= Size());
+    YT_VERIFY(index >= 0);
+    YT_VERIFY(index <= Size());
 
     --index;
     TItem result{};
@@ -149,8 +149,8 @@ void TFenwickTree<TItem>::Increment(int index, const TItem& delta)
 template <class TItem>
 TItem TFenwickTree<TItem>::CalculateIncompleteFenwickSum(int index) const
 {
-    YCHECK(index >= 0);
-    YCHECK(index <= Size());
+    YT_VERIFY(index >= 0);
+    YT_VERIFY(index <= Size());
     TItem sum{};
     int bit = 1;
     while (index & bit) {
@@ -164,8 +164,8 @@ TItem TFenwickTree<TItem>::CalculateIncompleteFenwickSum(int index) const
 template <class TItem>
 TItem TFenwickTree<TItem>::GetValue(int index) const
 {
-    YCHECK(index >= 0);
-    YCHECK(index < Size());
+    YT_VERIFY(index >= 0);
+    YT_VERIFY(index < Size());
     return FenwickSums_[index] - CalculateIncompleteFenwickSum(index);
 }
 

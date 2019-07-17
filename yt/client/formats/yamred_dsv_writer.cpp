@@ -89,7 +89,7 @@ private:
         for (int index = 0; index < rowCount; index++) {
             auto row = rows[index];
             if (CheckKeySwitch(row, index + 1 == rowCount /* isLastRow */)) {
-                YCHECK(!Config_->Lenval);
+                YT_VERIFY(!Config_->Lenval);
                 WritePod(*stream, static_cast<ui32>(-2));
             }
 
@@ -100,7 +100,7 @@ private:
                     // Ignore null values and system columns.
                     continue;
                 }
-                YCHECK(item->Id < NameTableSize_);
+                YT_VERIFY(item->Id < NameTableSize_);
                 RowValues_[item->Id] = item;
             }
 

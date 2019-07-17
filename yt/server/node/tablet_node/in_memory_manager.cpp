@@ -112,7 +112,7 @@ EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode)
             return EBlockType::None;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -277,7 +277,7 @@ private:
 
         YT_LOG_INFO("Preloading in-memory store");
 
-        YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+        YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
         if (mode == EInMemoryMode::None) {
             // Mode has been changed while current action was waiting in action queue
@@ -314,7 +314,7 @@ private:
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
             VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
-            YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+            YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
@@ -388,7 +388,7 @@ private:
             TInMemoryChunkDataPtr data;
             if (it == ChunkIds_.end()) {
                 data = Owner_->CreateChunkData(id.ChunkId, Mode_);
-                YCHECK(ChunkIds_.insert(id.ChunkId).second);
+                YT_VERIFY(ChunkIds_.insert(id.ChunkId).second);
             } else {
                 data = Owner_->GetChunkData(id.ChunkId, Mode_);
             }
@@ -402,12 +402,12 @@ private:
                 data->Blocks.resize(id.BlockIndex + 1);
             }
 
-            YCHECK(!data->Blocks[id.BlockIndex].Data);
+            YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
             data->Blocks[id.BlockIndex] = block;
             if (data->MemoryTrackerGuard) {
                 data->MemoryTrackerGuard.UpdateSize(block.Size());
             }
-            YCHECK(!data->ChunkMeta);
+            YT_VERIFY(!data->ChunkMeta);
         }
 
         virtual TBlock Find(const TBlockId& /*id*/, EBlockType /*type*/) override
@@ -435,10 +435,10 @@ private:
         TReaderGuard guard(InterceptedDataSpinLock_);
 
         auto it = ChunkIdToData_.find(chunkId);
-        YCHECK(it != ChunkIdToData_.end());
+        YT_VERIFY(it != ChunkIdToData_.end());
 
         auto chunkData = it->second;
-        YCHECK(chunkData->InMemoryMode == mode);
+        YT_VERIFY(chunkData->InMemoryMode == mode);
 
         return chunkData;
     }
@@ -642,7 +642,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         for (const auto& cachedBlock : cachedBlocks) {

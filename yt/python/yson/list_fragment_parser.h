@@ -50,7 +50,7 @@ public:
 
     void OnRaw(TStringBuf yson, NYson::EYsonType type)
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void OnStringScalar(TStringBuf /*value*/)

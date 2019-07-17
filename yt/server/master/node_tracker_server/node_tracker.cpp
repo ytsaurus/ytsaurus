@@ -305,7 +305,7 @@ public:
             }
         }
 
-        YCHECK(PendingRegisterNodeAddreses_.insert(address).second);
+        YT_VERIFY(PendingRegisterNodeAddreses_.insert(address).second);
         for (auto* group : groups) {
             ++group->PendingRegisterNodeMutationCount;
         }
@@ -430,7 +430,7 @@ public:
     TNode* GetNodeByAddress(const TString& address)
     {
         auto* node = FindNodeByAddress(address);
-        YCHECK(node);
+        YT_VERIFY(node);
         return node;
     }
 
@@ -610,10 +610,10 @@ public:
         rackHolder->SetIndex(AllocateRackIndex());
 
         auto* rack = RackMap_.Insert(id, std::move(rackHolder));
-        YCHECK(NameToRackMap_.insert(std::make_pair(name, rack)).second);
+        YT_VERIFY(NameToRackMap_.insert(std::make_pair(name, rack)).second);
 
         // Make the fake reference.
-        YCHECK(rack->RefObject() == 1);
+        YT_VERIFY(rack->RefObject() == 1);
 
         return rack;
     }
@@ -626,7 +626,7 @@ public:
         }
 
         // Remove rack from maps.
-        YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
+        YT_VERIFY(NameToRackMap_.erase(rack->GetName()) == 1);
         FreeRackIndex(rack->GetIndex());
     }
 
@@ -643,8 +643,8 @@ public:
         }
 
         // Update name.
-        YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
-        YCHECK(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
+        YT_VERIFY(NameToRackMap_.erase(rack->GetName()) == 1);
+        YT_VERIFY(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
         rack->SetName(newName);
 
         // Rebuild node tags since they depend on rack name.
@@ -725,10 +725,10 @@ public:
         dcHolder->SetName(name);
 
         auto* dc = DataCenterMap_.Insert(id, std::move(dcHolder));
-        YCHECK(NameToDataCenterMap_.insert(std::make_pair(name, dc)).second);
+        YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(name, dc)).second);
 
         // Make the fake reference.
-        YCHECK(dc->RefObject() == 1);
+        YT_VERIFY(dc->RefObject() == 1);
 
         DataCenterCreated_.Fire(dc);
 
@@ -743,7 +743,7 @@ public:
         }
 
         // Remove DC from maps.
-        YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+        YT_VERIFY(NameToDataCenterMap_.erase(dc->GetName()) == 1);
 
         DataCenterDestroyed_.Fire(dc);
     }
@@ -761,8 +761,8 @@ public:
         }
 
         // Update name.
-        YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
-        YCHECK(NameToDataCenterMap_.insert(std::make_pair(newName, dc)).second);
+        YT_VERIFY(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+        YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(newName, dc)).second);
         dc->SetName(newName);
 
         // Rebuild node tags since they depend on DC name.
@@ -953,7 +953,7 @@ private:
         auto tags = FromProto<std::vector<TString>>(request->tags());
 
         if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
-            YCHECK(PendingRegisterNodeAddreses_.erase(address) == 1);
+            YT_VERIFY(PendingRegisterNodeAddreses_.erase(address) == 1);
             auto groups = GetGroupsForNode(address);
             for (auto* group : groups) {
                 --group->PendingRegisterNodeMutationCount;
@@ -963,7 +963,7 @@ private:
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (leaseTransactionId) {
-            YCHECK(Bootstrap_->IsPrimaryMaster());
+            YT_VERIFY(Bootstrap_->IsPrimaryMaster());
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
             if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
@@ -1180,7 +1180,7 @@ private:
 
     void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
 
@@ -1305,10 +1305,10 @@ private:
         for (const auto& pair : RackMap_) {
             auto* rack = pair.second;
 
-            YCHECK(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
+            YT_VERIFY(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
 
             auto rackIndex = rack->GetIndex();
-            YCHECK(!UsedRackIndexes_.test(rackIndex));
+            YT_VERIFY(!UsedRackIndexes_.test(rackIndex));
             UsedRackIndexes_.set(rackIndex);
             ++RackCount_;
         }
@@ -1316,7 +1316,7 @@ private:
         for (const auto& pair : DataCenterMap_) {
             auto* dc = pair.second;
 
-            YCHECK(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
+            YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
     }
 
@@ -1416,16 +1416,16 @@ private:
     void RegisterLeaseTransaction(TNode* node)
     {
         auto* transaction = node->GetLeaseTransaction();
-        YCHECK(transaction);
-        YCHECK(transaction->GetPersistentState() == ETransactionState::Active);
-        YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
+        YT_VERIFY(transaction);
+        YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
+        YT_VERIFY(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
         auto* transaction = node->GetLeaseTransaction();
         if (transaction) {
-            YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
+            YT_VERIFY(TransactionToNodeMap_.erase(transaction) == 1);
         }
         node->SetLeaseTransaction(nullptr);
         return transaction;
@@ -1467,7 +1467,7 @@ private:
         auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
         // Make the fake reference.
-        YCHECK(node->RefObject() == 1);
+        YT_VERIFY(node->RefObject() == 1);
 
         InitializeNodeStates(node);
 
@@ -1679,12 +1679,12 @@ private:
                 return index;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void FreeRackIndex(int index)
     {
-        YCHECK(UsedRackIndexes_.test(index));
+        YT_VERIFY(UsedRackIndexes_.test(index));
         UsedRackIndexes_.reset(index);
         --RackCount_;
     }
@@ -1756,7 +1756,7 @@ private:
 
     void InsertToAddressMaps(TNode* node)
     {
-        YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
+        YT_VERIFY(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
         for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             HostNameToNodeMap_.insert(std::make_pair(TString(GetServiceHostName(pair.second)), node));
         }
@@ -1764,7 +1764,7 @@ private:
 
     void RemoveFromAddressMaps(TNode* node)
     {
-        YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
         for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(pair.second)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
@@ -1827,7 +1827,7 @@ private:
     {
         auto* node = FindNodeByAddress(address);
         if (!IsObjectAlive(node)) {
-            YCHECK(DefaultNodeGroup_);
+            YT_VERIFY(DefaultNodeGroup_);
             return {DefaultNodeGroup_}; // default is the last one
         }
         return GetGroupsForNode(node);

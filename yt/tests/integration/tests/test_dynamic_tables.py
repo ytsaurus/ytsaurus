@@ -1,6 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend, parametrize_external
+from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend, parametrize_external,\
+    Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -934,8 +935,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         build_snapshot(cell_id=None)
-        self.Env.kill_master_cell()
-        self.Env.start_master_cell()
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            pass
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
@@ -1188,6 +1189,23 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 assert chunk_view.attributes["type"] == "chunk_view"
                 assert len(chunk_view) == 1
                 assert chunk_view[0] == table_chunks[0]
+
+    def test_select_rows_access_tracking(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1")
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+
+        t1_access_time = get("//tmp/t1/@access_time")
+        t2_access_time = get("//tmp/t2/@access_time")
+
+        select_rows("* from [//tmp/t1]", suppress_access_tracking=True)
+        select_rows("* from [//tmp/t2]")
+
+        # Wait for node heartbeat to arrive.
+        wait(lambda: get("//tmp/t2/@access_time") != t2_access_time)
+        assert get("//tmp/t1/@access_time") == t1_access_time
 
 
 ##################################################################
@@ -1585,11 +1603,10 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     def _do_test_transition(self, initial, first_command, second_command):
         expected = self._get_expected_state(initial, first_command, second_command)
         if expected == "error":
-            self.Env.kill_nodes()
-            self._get_callback(first_command)("//tmp/t")
-            with pytest.raises(YtError):
-                self._get_callback(second_command)("//tmp/t")
-            self.Env.start_nodes()
+            with Restarter(self.Env, NODES_SERVICE):
+                self._get_callback(first_command)("//tmp/t")
+                with pytest.raises(YtError):
+                    self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
             self._get_callback(second_command)("//tmp/t")

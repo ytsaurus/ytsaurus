@@ -165,7 +165,7 @@ struct TInExpression
     explicit TInExpression(EValueType type)
         : TExpression(type)
     {
-        YCHECK(type == EValueType::Boolean);
+        YT_VERIFY(type == EValueType::Boolean);
     }
 
     TInExpression(
@@ -186,7 +186,7 @@ struct TBetweenExpression
     explicit TBetweenExpression(EValueType type)
         : TExpression(type)
     {
-        YCHECK(type == EValueType::Boolean);
+        YT_VERIFY(type == EValueType::Boolean);
     }
 
     TBetweenExpression(
@@ -473,7 +473,7 @@ struct TBaseQuery
         if (Limit < std::numeric_limits<i64>::max()) {
             return !OrderClause && !GroupClause;
         } else {
-            YCHECK(!OrderClause);
+            YT_VERIFY(!OrderClause);
             return false;
         }
     }
@@ -641,7 +641,7 @@ struct TAbstractVisitor
         } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
             return Derived()->OnTransform(transformExpr, args...);
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 };

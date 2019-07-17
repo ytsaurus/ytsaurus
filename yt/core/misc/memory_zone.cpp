@@ -26,7 +26,7 @@ TMemoryZoneGuard::~TMemoryZoneGuard()
     if (Active_) {
         auto* scheduler = GetCurrentScheduler();
         auto* fiber = scheduler->GetCurrentFiber();
-        YCHECK(fiber);
+        YT_VERIFY(fiber);
         fiber->SetMemoryZone(PreviousZone_);
         SetCurrentMemoryZone(PreviousZone_);
     }

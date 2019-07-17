@@ -102,7 +102,7 @@ class KeyCondition;
 struct SelectQueryInfo;
 class Field;
 class StorageFactory;
-class IUsersManager;
+class ISecurityManager;
 class IExternalLoaderConfigRepository;
 class IRuntimeComponentsFactory;
 
@@ -117,5 +117,18 @@ void registerStorageMemory(StorageFactory & factory);
 
 // Why this class is outside of namespace DB? 0_o
 class IGeoDictionariesLoader;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace CurrentMetrics {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const size_t Revision;
+extern const size_t VersionInteger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace CurrentMetrics
 
 ////////////////////////////////////////////////////////////////////////////////

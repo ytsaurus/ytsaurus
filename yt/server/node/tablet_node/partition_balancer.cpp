@@ -240,7 +240,7 @@ private:
 
         YT_LOG_DEBUG("Splitting partition");
 
-        YCHECK(tablet == partition->GetTablet());
+        YT_VERIFY(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
 
         YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
@@ -373,7 +373,7 @@ private:
 
         YT_LOG_DEBUG("Sampling partition");
 
-        YCHECK(tablet == partition->GetTablet());
+        YT_VERIFY(tablet == partition->GetTablet());
         auto config = tablet->GetConfig();
 
         const auto& hydraManager = slot->GetHydraManager();
@@ -423,7 +423,7 @@ private:
         TPartition* partition,
         int maxSampleCount)
     {
-        YCHECK(!partition->IsEden());
+        YT_VERIFY(!partition->IsEden());
 
         if (maxSampleCount == 0) {
             return std::vector<TKey>();
@@ -476,7 +476,7 @@ private:
                     return;
 
                 const auto& chunkId = store->AsSortedChunk()->GetChunkId();
-                YCHECK(chunkId);
+                YT_VERIFY(chunkId);
                 if (storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second) {
                     ToProto(req->add_subrequests(), chunkId);
                 }
@@ -501,7 +501,7 @@ private:
             auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating partition chunks");
             const auto& rsp = rspOrError.Value();
-            YCHECK(req->subrequests_size() == rsp->subresponses_size());
+            YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
 
             YT_LOG_INFO("Partition chunks located");
 
@@ -514,7 +514,7 @@ private:
                 auto chunkId = FromProto<TChunkId>(subrequest);
 
                 auto storeIt = storeMap.find(chunkId);
-                YCHECK(storeIt != storeMap.end());
+                YT_VERIFY(storeIt != storeMap.end());
                 const auto& store = storeIt->second;
 
                 NChunkClient::NProto::TChunkSpec chunkSpec;
@@ -537,7 +537,7 @@ private:
 
         std::vector<TKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {
-            YCHECK(!sample.Incomplete);
+            YT_VERIFY(!sample.Incomplete);
             samples.push_back(sample.Key);
         }
 

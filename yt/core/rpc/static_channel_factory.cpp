@@ -8,7 +8,7 @@ using namespace NYT::NBus;
 
 TStaticChannelFactoryPtr TStaticChannelFactory::Add(const TString& address, IChannelPtr channel)
 {
-    YCHECK(ChannelMap.insert(std::make_pair(address, channel)).second);
+    YT_VERIFY(ChannelMap.insert(std::make_pair(address, channel)).second);
     return this;
 }
 

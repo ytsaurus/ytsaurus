@@ -422,6 +422,7 @@ struct TVersionedLookupRowsOptions
 
 struct TSelectRowsOptions
     : public TTabletReadOptions
+    , public TSuppressableAccessTrackingOptions
 {
     //! If null then connection defaults are used.
     std::optional<i64> InputRowLimit;
@@ -655,6 +656,9 @@ struct TTableReaderOptions
 {
     bool Unordered = false;
     bool OmitInaccessibleColumns = false;
+    bool EnableTableIndex = true;
+    bool EnableRowIndex = true;
+    bool EnableRangeIndex = true;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
@@ -832,7 +836,7 @@ struct TListJobsOptions
 
     EDataSource DataSource = EDataSource::Auto;
 
-    TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
+    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
 struct TStraceJobOptions

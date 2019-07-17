@@ -14,8 +14,8 @@ using namespace NProto;
 
 TFuture<void> TMemoryWriter::Open()
 {
-    YCHECK(!Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(!Open_);
+    YT_VERIFY(!Closed_);
 
     Open_ = true;
 
@@ -24,8 +24,8 @@ TFuture<void> TMemoryWriter::Open()
 
 bool TMemoryWriter::WriteBlock(const TBlock& block)
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     Blocks_.emplace_back(block);
     return true;
@@ -33,8 +33,8 @@ bool TMemoryWriter::WriteBlock(const TBlock& block)
 
 bool TMemoryWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     Blocks_.insert(Blocks_.end(), blocks.begin(), blocks.end());
     return true;
@@ -42,16 +42,16 @@ bool TMemoryWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 
 TFuture<void> TMemoryWriter::GetReadyEvent()
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     return VoidFuture;
 }
 
 TFuture<void> TMemoryWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     ChunkMeta_ = chunkMeta;
     Closed_ = true;
@@ -60,22 +60,22 @@ TFuture<void> TMemoryWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 const TDataStatistics& TMemoryWriter::GetDataStatistics() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TChunkReplicaWithMediumList TMemoryWriter::GetWrittenChunkReplicas() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 bool TMemoryWriter::HasSickReplicas() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TChunkId TMemoryWriter::GetChunkId() const
@@ -90,16 +90,16 @@ NErasure::ECodec TMemoryWriter::GetErasureCodecId() const
 
 std::vector<TBlock>& TMemoryWriter::GetBlocks()
 {
-    YCHECK(Open_);
-    YCHECK(Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(Closed_);
 
     return Blocks_;
 }
 
 TRefCountedChunkMetaPtr TMemoryWriter::GetChunkMeta()
 {
-    YCHECK(Open_);
-    YCHECK(Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(Closed_);
 
     return ChunkMeta_;
 }

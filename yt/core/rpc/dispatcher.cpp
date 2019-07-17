@@ -55,13 +55,18 @@ public:
             bandDescriptor.DefaultTosLevel = bandConfig ? bandConfig->TosLevel : DefaultTosLevel;
             bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
 
+            // Possible overwrite values for default network, filled in ctor.
+            for (int networkId = 0; networkId < NetworkNames_.size(); ++networkId) {
+                bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
+            }
+
             if (!bandConfig) {
                 continue;
             }
 
             for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
                 auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                YCHECK(it != NetworkNames_.end());
+                YT_VERIFY(it != NetworkNames_.end());
                 auto id = std::distance(NetworkNames_.begin(), it);
                 bandDescriptor.NetworkIdToTosLevel[id] = tosLevel;
             }

@@ -270,7 +270,7 @@ protected:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         YT_LOG_INFO(
@@ -336,7 +336,7 @@ protected:
 
         auto edgeDescriptors = GetStandardEdgeDescriptors();
         if (GetAutoMergeDirector()) {
-            YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+            YT_VERIFY(AutoMergeTasks.size() == edgeDescriptors.size());
             for (int index = 0; index < edgeDescriptors.size(); ++index) {
                 if (AutoMergeTasks[index]) {
                     edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
@@ -367,7 +367,7 @@ protected:
 
         auto teleportChunks = UnorderedTask_->GetChunkPoolOutput()->GetTeleportChunks();
         if (!teleportChunks.empty()) {
-            YCHECK(GetJobType() == EJobType::UnorderedMerge);
+            YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
             for (const auto& chunk : teleportChunks) {
                 RegisterTeleportChunk(chunk, 0 /* key */, 0 /* tableIndex */);
             }
@@ -401,8 +401,8 @@ protected:
     {
         auto mapperSpec = GetUserJobSpec();
         // We could get here only if this is an unordered map and auto-merge is enabled.
-        YCHECK(mapperSpec);
-        YCHECK(Spec->AutoMerge->Mode != EAutoMergeMode::Disabled);
+        YT_VERIFY(mapperSpec);
+        YT_VERIFY(Spec->AutoMerge->Mode != EAutoMergeMode::Disabled);
 
         if (Spec->AutoMerge->Mode != EAutoMergeMode::Relaxed && mapperSpec->Deterministic) {
             return EIntermediateChunkUnstageMode::OnJobCompleted;
@@ -769,7 +769,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

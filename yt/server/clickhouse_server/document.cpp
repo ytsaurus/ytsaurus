@@ -158,7 +158,7 @@ TValue TDocument::ToValue(const INodePtr& node)
                 << TErrorAttribute("path", node->GetPath());
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TValue TDocument::AsValue() const

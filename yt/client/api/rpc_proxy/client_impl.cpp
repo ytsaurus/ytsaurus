@@ -759,7 +759,7 @@ TFuture<TSharedRef> TClient::GetJobStderr(
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
-        YCHECK(rsp->Attachments().size() == 1);
+        YT_VERIFY(rsp->Attachments().size() == 1);
         return rsp->Attachments().front();
     }));
 }
@@ -778,7 +778,7 @@ TFuture<TSharedRef> TClient::GetJobFailContext(
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobFailContextPtr& rsp) {
-        YCHECK(rsp->Attachments().size() == 1);
+        YT_VERIFY(rsp->Attachments().size() == 1);
         return rsp->Attachments().front();
     }));
 }

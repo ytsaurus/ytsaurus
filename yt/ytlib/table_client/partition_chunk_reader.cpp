@@ -71,7 +71,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         extensionTags))
         .ValueOrThrow();
 
-    YCHECK(ChunkMeta_->version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+    YT_VERIFY(ChunkMeta_->version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_->extensions());
@@ -89,7 +89,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_->extensions());
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
-    YCHECK(chunkKeyColumns == KeyColumns_);
+    YT_VERIFY(chunkKeyColumns == KeyColumns_);
 
     BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_->extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
@@ -106,7 +106,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
 void TPartitionChunkReader::InitFirstBlock()
 {
-    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
+    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_ = new THorizontalSchemalessBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.blocks(CurrentBlockIndex_),
@@ -143,7 +143,7 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 void TPartitionMultiChunkReader::OnReaderSwitched()
 {
     CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.Reader.Get());
-    YCHECK(CurrentReader_);
+    YT_VERIFY(CurrentReader_);
 }
 
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
@@ -184,8 +184,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         bandwidthThrottler,
                         rpsThrottler);
 
-                    YCHECK(!chunkSpec.has_lower_limit());
-                    YCHECK(!chunkSpec.has_upper_limit());
+                    YT_VERIFY(!chunkSpec.has_lower_limit());
+                    YT_VERIFY(!chunkSpec.has_upper_limit());
 
                     TBlockFetcherConfigPtr sequentialReaderConfig = config;
 
@@ -207,7 +207,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 

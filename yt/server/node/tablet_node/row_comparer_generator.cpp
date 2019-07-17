@@ -170,13 +170,13 @@ public:
         : TValueBuilderBase(builder, keyPtr)
         , NullKeyMask_(nullKeyMask)
     {
-        YCHECK(nullKeyMask->getType() == Type::getInt32Ty(Builder_.Context_));
-        YCHECK((keyPtr->getType() == TypeBuilder<TDynamicValueData*, false>::get(Builder_.Context_)));
+        YT_VERIFY(nullKeyMask->getType() == Type::getInt32Ty(Builder_.Context_));
+        YT_VERIFY((keyPtr->getType() == TypeBuilder<TDynamicValueData*, false>::get(Builder_.Context_)));
     }
 
     Value* GetType(int index) override
     {
-        YCHECK(index < 32);
+        YT_VERIFY(index < 32);
         auto* nullKeyBit = Builder_.CreateAnd(
             Builder_.getInt32(1U << index),
             NullKeyMask_);
@@ -239,7 +239,7 @@ private:
             case EValueType::String:
                 return TypeBuilder<TDynamicValueData, false>::TStringType::get(Builder_.Context_);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -258,7 +258,7 @@ public:
     TUnversionedValueBuilder(TComparerBuilder& builder, Value* keyPtr)
         : TValueBuilderBase(builder, keyPtr)
     {
-        YCHECK((keyPtr->getType() == TypeBuilder<TUnversionedValue*, false>::get(Builder_.Context_)));
+        YT_VERIFY((keyPtr->getType() == TypeBuilder<TUnversionedValue*, false>::get(Builder_.Context_)));
     }
 
     Value* GetType(int index) override
@@ -309,7 +309,7 @@ private:
             case EValueType::String:
                 return TypeBuilder<TUnversionedValueData, false>::TStringType::get(Builder_.Context_);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -343,7 +343,7 @@ void TComparerBuilder::BuildDDComparer(TString& functionName)
     Value* lhsKeys = ConvertToPointer(++args);
     Value* rhsNullKeyMask = ConvertToPointer(++args);
     Value* rhsKeys = ConvertToPointer(++args);
-    YCHECK(++args == Function_->arg_end());
+    YT_VERIFY(++args == Function_->arg_end());
     auto lhsBuilder = TDynamicValueBuilder(*this, lhsNullKeyMask, lhsKeys);
     auto rhsBuilder = TDynamicValueBuilder(*this, rhsNullKeyMask, rhsKeys);
     BuildMainLoop(lhsBuilder, rhsBuilder);
@@ -363,7 +363,7 @@ void TComparerBuilder::BuildDUComparer(TString& functionName)
     Value* lhsKeys = ConvertToPointer(++args);
     Value* rhsKeys = ConvertToPointer(++args);
     Value* length = ConvertToPointer(++args);
-    YCHECK(++args == Function_->arg_end());
+    YT_VERIFY(++args == Function_->arg_end());
     auto lhsBuilder = TDynamicValueBuilder(*this, lhsNullKeyMask, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
     BuildMainLoop(lhsBuilder, rhsBuilder, length);
@@ -384,7 +384,7 @@ void TComparerBuilder::BuildUUComparer(TString& functionName)
     Value* lhsLength = ConvertToPointer(++args);
     Value* rhsKeys = ConvertToPointer(++args);
     Value* rhsLength = ConvertToPointer(++args);
-    YCHECK(++args == Function_->arg_end());
+    YT_VERIFY(++args == Function_->arg_end());
     auto length = CreateMin(lhsLength, rhsLength, EValueType::Int64);
     auto lhsBuilder = TUnversionedValueBuilder(*this, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
@@ -409,13 +409,13 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
         case EValueType::Double:
             return CreateFCmp(isLessThan ? CmpInst::FCMP_ULT : CmpInst::FCMP_UGT, lhs, rhs);
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 Value* TComparerBuilder::CreateMin(Value* lhs, Value* rhs, EValueType type)
 {
-    YCHECK(lhs->getType() == rhs->getType());
+    YT_VERIFY(lhs->getType() == rhs->getType());
     return CreateSelect(CreateCmp(lhs, rhs, type, true), lhs, rhs);
 }
 

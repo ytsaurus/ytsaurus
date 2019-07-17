@@ -38,7 +38,7 @@ void SerializeProtoToRefImpl(
 #endif
     auto* begin = reinterpret_cast<google::protobuf::uint8*>(ref.begin());
     auto* end = reinterpret_cast<google::protobuf::uint8*>(ref.end());
-    YCHECK(message.SerializeWithCachedSizesToArray(begin) == end);
+    YT_VERIFY(message.SerializeWithCachedSizesToArray(begin) == end);
 }
 
 } // namespace
@@ -82,7 +82,7 @@ bool TryDeserializeProto(google::protobuf::MessageLite* message, TRef data)
 
 void DeserializeProto(google::protobuf::MessageLite* message, TRef data)
 {
-    YCHECK(TryDeserializeProto(message, data));
+    YT_VERIFY(TryDeserializeProto(message, data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ TSharedRef SerializeProtoToRefWithEnvelope(
     char* targetMessage = targetHeader + fixedHeader.EnvelopeSize;
 
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
-    YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
+    YT_VERIFY(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
     memcpy(targetMessage, compressedMessage.Begin(), fixedHeader.MessageSize);
 
     return data;
@@ -151,7 +151,7 @@ TString SerializeProtoToStringWithEnvelope(
     ptr += sizeof (fixedHeader);
     ptr = reinterpret_cast<char*>(envelope.SerializeWithCachedSizesToArray(reinterpret_cast<ui8*>(ptr)));
     ptr = reinterpret_cast<char*>(message.SerializeWithCachedSizesToArray(reinterpret_cast<ui8*>(ptr)));
-    Y_ASSERT(ptr == data.end());
+    YT_ASSERT(ptr == data.end());
 
     return data;
 }
@@ -202,7 +202,7 @@ void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     TRef data)
 {
-    YCHECK(TryDeserializeProtoWithEnvelope(message, data));
+    YT_VERIFY(TryDeserializeProtoWithEnvelope(message, data));
 }
 
 TSharedRef SerializeProtoToRefWithCompression(
@@ -235,7 +235,7 @@ void DeserializeProtoWithCompression(
     TRef data,
     NCompression::ECodec codecId)
 {
-    YCHECK(TryDeserializeProtoWithCompression(message, data, codecId));
+    YT_VERIFY(TryDeserializeProtoWithCompression(message, data, codecId));
 }
 
 TSharedRef PopEnvelope(const TSharedRef& data)
@@ -281,7 +281,7 @@ TString DumpProto(::google::protobuf::Message& message)
     ::google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     TString result;
-    YCHECK(printer.PrintToString(message, &result));
+    YT_VERIFY(printer.PrintToString(message, &result));
     return result;
 }
 

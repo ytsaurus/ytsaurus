@@ -169,7 +169,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        YCHECK(req->subrequests_size() == rsp->subresponses_size());
+        YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
 
         YT_LOG_DEBUG("Chunks located (Count: %v, SampleChunkIds: %v)",
             req->subrequests_size(),

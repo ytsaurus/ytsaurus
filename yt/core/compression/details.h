@@ -65,7 +65,7 @@ private:
 
 inline void Read(StreamSource* source, char* buffer, size_t length)
 {
-    YCHECK(source->Available() >= length);
+    YT_VERIFY(source->Available() >= length);
     size_t offset = 0;
     do {
         size_t inputLength;

@@ -107,7 +107,7 @@ void TChunkBase::ReleaseReadLock()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         lockCount = --ReadLockCounter_;
-        YCHECK(lockCount >= 0);
+        YT_VERIFY(lockCount >= 0);
         if (ReadLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
             removing = Removing_ = true;
         }

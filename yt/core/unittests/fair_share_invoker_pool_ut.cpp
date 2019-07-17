@@ -48,14 +48,14 @@ public:
 
     virtual void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) override
     {
-        YCHECK(IsValidBucketIndex(bucketIndex));
+        YT_VERIFY(IsValidBucketIndex(bucketIndex));
         TotalCpuTime_[bucketIndex] += cpuTime;
         UnderlyingCallbackQueue_->AccountCpuTime(bucketIndex, cpuTime);
     }
 
     NProfiling::TCpuDuration GetTotalCpuTime(int bucketIndex) const
     {
-        YCHECK(IsValidBucketIndex(bucketIndex));
+        YT_VERIFY(IsValidBucketIndex(bucketIndex));
         return TotalCpuTime_[bucketIndex];
     }
 
@@ -101,7 +101,7 @@ protected:
     template <typename TInvokerPoolPtr>
     void InitializeInvokerToIndexMapping(const TInvokerPoolPtr& invokerPool, int invokerCount)
     {
-        YCHECK(invokerCount > 0);
+        YT_VERIFY(invokerCount > 0);
         InvokerToIndex_.clear();
         for (int i = 0; i < invokerCount; ++i) {
             auto invoker = invokerPool->GetInvoker(i);
@@ -112,7 +112,7 @@ protected:
     int GetInvokerIndex(IInvoker* invokerAddress) const
     {
         auto it = InvokerToIndex_.find(invokerAddress);
-        YCHECK(it != InvokerToIndex_.end());
+        YT_VERIFY(it != InvokerToIndex_.end());
         return it->second;
     }
 
@@ -146,7 +146,7 @@ protected:
             std::move(underlyingInvoker),
             invokerCount,
             [this] (int bucketCount) {
-                YCHECK(bucketCount > 0);
+                YT_VERIFY(bucketCount > 0);
                 MockCallbackQueue = New<TMockFairShareCallbackQueue>(bucketCount);
                 return MockCallbackQueue;
             });
@@ -178,7 +178,7 @@ protected:
 
     void DoTestFairness(IInvokerPoolPtr invokerPool, int invokerCount)
     {
-        YCHECK(1 < invokerCount && invokerCount < 5);
+        YT_VERIFY(1 < invokerCount && invokerCount < 5);
 
         // Each invoker executes some number of callbacks of the same duration |Quantum * (2 ^ #invokerIndex)|.
         // Individual duration of callback and number of callbacks chosen
@@ -214,7 +214,7 @@ protected:
         // is not greater than the threshold (see in the code below).
         std::vector<int> invocationCount(invokerCount);
         for (auto invokerIndex : invocationOrder) {
-            YCHECK(0 <= invokerIndex && invokerIndex < invokerCount);
+            YT_VERIFY(0 <= invokerIndex && invokerIndex < invokerCount);
 
             ++invocationCount[invokerIndex];
 
@@ -248,7 +248,7 @@ protected:
 
     void DoTestSwitchTo(int switchToCount)
     {
-        YCHECK(switchToCount > 0);
+        YT_VERIFY(switchToCount > 0);
 
         auto invokerPool = CreateInvokerPool(Queues_[0]->GetInvoker(), switchToCount + 1);
 
@@ -271,7 +271,7 @@ protected:
 
     void DoTestWaitFor(int waitForCount)
     {
-        YCHECK(waitForCount > 0);
+        YT_VERIFY(waitForCount > 0);
 
         auto invokerPool = CreateInvokerPool(Queues_[0]->GetInvoker(), 2);
 
@@ -428,7 +428,7 @@ TEST_F(TFairShareInvokerPoolTest, CpuTimeAccountingBetweenContextSwitchesIsNotSu
         EXPECT_TRUE(!invocationOrder.empty());
     }).AsyncVia(invokerPool->GetInvoker(0)).Run();
 
-    YCHECK(started.Wait(TInstant::Now() + Quantum * 100));
+    YT_VERIFY(started.Wait(TInstant::Now() + Quantum * 100));
 
     // After 10 quantums of time (see notification of the #started variable) we start Fairness test in the second thread.
     // In case of better implementation we expect to have non-fair cpu time distribution between first and second invokers,

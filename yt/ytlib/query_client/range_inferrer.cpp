@@ -60,7 +60,7 @@ public:
 
     TUnversionedValue Next()
     {
-        YCHECK(!Finished());
+        YT_VERIFY(!Finished());
         auto result = Value_;
         ++Value_.Data.Uint64;
         return result;
@@ -99,7 +99,7 @@ public:
 
     T Next()
     {
-        YCHECK(!Finished());
+        YT_VERIFY(!Finished());
 
         auto result = Current_;
 
@@ -271,7 +271,7 @@ std::unique_ptr<IGenerator> CreateQuotientEnumerationGenerator(
 
 ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partial)
 {
-    YCHECK(partial.empty() || lower.Type == upper.Type);
+    YT_VERIFY(partial.empty() || lower.Type == upper.Type);
 
     switch (lower.Type) {
         case EValueType::Int64: {
@@ -389,7 +389,7 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
     } else if (expr->As<TLiteralExpression>()) {
         return TDivisors();
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -433,11 +433,11 @@ void EnrichKeyRange(
     size_t prefixSize = 0;
     for (; prefixSize < std::min(range.first.GetCount(), range.second.GetCount()); ++prefixSize) {
         if (lower[prefixSize].Type == EValueType::TheBottom) {
-            YCHECK(upper[prefixSize].Type == EValueType::TheBottom);
+            YT_VERIFY(upper[prefixSize].Type == EValueType::TheBottom);
             continue;
         }
 
-        YCHECK(!IsSentinelType(lower[prefixSize].Type) && !IsSentinelType(upper[prefixSize].Type));
+        YT_VERIFY(!IsSentinelType(lower[prefixSize].Type) && !IsSentinelType(upper[prefixSize].Type));
 
         if (lower[prefixSize] != upper[prefixSize]) {
             if (IsIntegralType(lower[prefixSize].Type) && IsIntegralType(upper[prefixSize].Type)) {
@@ -446,7 +446,7 @@ void EnrichKeyRange(
             break;
         }
 
-        YCHECK(lower[prefixSize] == upper[prefixSize]);
+        YT_VERIFY(lower[prefixSize] == upper[prefixSize]);
     }
 
     // In prefix there are only Fixed, computed columns and Bottom (undefined).
@@ -568,7 +568,7 @@ void EnrichKeyRange(
             if (!generator || generator->Finished()) {
                 --evalIndex;
             } else {
-                Y_ASSERT(generator);
+                YT_ASSERT(generator);
                 prefixRow[columnIndex] = generator->Next();
                 while (evalIndex < computedColumns.size()) {
                     ++evalIndex;
@@ -634,7 +634,7 @@ void EnrichKeyRange(
     {
         auto lower = finalizeRow(lowerRow, lowerSize, std::nullopt, lowerSentinel);
         auto upper = finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
-        Y_ASSERT(lower <= upper);
+        YT_ASSERT(lower <= upper);
         if (lower < upper) {
             ranges.push_back(std::make_pair(lower, upper));
         }
@@ -654,7 +654,7 @@ void EnrichKeyRange(
         auto upperBound = upperRow[prefixSize];
 
         auto step = generator->Next();
-        YCHECK(step == lowerRow[prefixSize]);
+        YT_VERIFY(step == lowerRow[prefixSize]);
 
         while (!generator->Finished()) {
             prefixRow[prefixSize] = step;

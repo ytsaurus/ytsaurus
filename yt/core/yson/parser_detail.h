@@ -52,7 +52,7 @@ public:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             if (Stopped_) {

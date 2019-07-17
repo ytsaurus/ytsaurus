@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 import yt.packages.requests as requests
+import json
 
 ##################################################################
 
@@ -12,6 +13,8 @@ class TestHttpProxy(YTEnvSetup):
     ENABLE_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_HTTP_PROXIES = 1
+    NUM_RPC_PROXIES = 2
 
     DELTA_PROXY_CONFIG = {
         "coordination": {
@@ -95,3 +98,38 @@ class TestHttpProxy(YTEnvSetup):
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
+
+    def test_kill_nodes(self):
+        create("map_node", "//sys/proxies/test_http_proxy")
+        set("//sys/proxies/test_http_proxy/@liveness", {"updated_at" : "2010-06-24T11:23:30.156098Z"})
+        set("//sys/proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
+        set("//sys/proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
+        create("map_node", "//sys/rpc_proxies/test_rpc_proxy")
+        set("//sys/rpc_proxies/test_rpc_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
+        set("//sys/rpc_proxies/test_rpc_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
+
+        rsp = requests.get(self.proxy_address() + "/internal/discover_versions/v2")
+        rsp.raise_for_status()
+
+        status = rsp.json()
+        for proxy in status["details"]:
+            if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
+                assert proxy.get("state") == "offline"
+
+    def test_structured_logs(self):
+        client = self.Env.create_client()
+        client.list("//sys")
+
+        log_path = self.path_to_run + "/logs/http-proxy-0.json.log"
+        wait(lambda: os.path.exists(log_path), "Cannot find proxy's structured log")
+
+        def logs_updated():
+            flag = False
+            with open(log_path, "r") as fd:
+                for line in fd:
+                    line_json = json.loads(line)
+                    if line_json.get("path") == "//sys":
+                        flag |= line_json["command"] == "list"
+            return flag
+
+        wait(logs_updated)

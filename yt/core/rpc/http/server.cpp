@@ -46,7 +46,7 @@ TString ToHttpContentType(EMessageFormat format)
         case EMessageFormat::Yson:
             return "application/x-yson";
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -106,9 +106,9 @@ public:
             THROW_ERROR_EXCEPTION("Attachments are not supported in HTTP transport");
         }
 
-        YCHECK(message.Size() >= 1);
+        YT_VERIFY(message.Size() >= 1);
         NRpc::NProto::TResponseHeader responseHeader;
-        YCHECK(ParseResponseHeader(message, &responseHeader));
+        YT_VERIFY(ParseResponseHeader(message, &responseHeader));
 
         if (responseHeader.has_error() && responseHeader.error().code() != 0) {
             FillYTErrorHeaders(Rsp_, FromProto<TError>(responseHeader.error()));
@@ -120,7 +120,7 @@ public:
             return replySent;
         }
 
-        YCHECK(message.Size() >= 2);
+        YT_VERIFY(message.Size() >= 2);
         if (responseHeader.has_format()) {
             auto format = CheckedEnumCast<EMessageFormat>(responseHeader.format());
             Rsp_->GetHeaders()->Add("Content-Type", ToHttpContentType(format));
@@ -143,12 +143,12 @@ public:
 
     void SubscribeTerminated(const TCallback<void(const TError&)>& /* callback */)
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     void UnsubscribeTerminated(const TCallback<void(const TError&)>& /* callback */)
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     TFuture<void> ReplySent()
@@ -368,7 +368,7 @@ private:
 
     virtual void DoUnregisterService(const IServicePtr& /*service*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 };
 

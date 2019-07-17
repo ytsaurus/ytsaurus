@@ -47,7 +47,7 @@ private:
 
 IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const std::optional<TString>& user)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
     return New<TUserInjectingChannel>(std::move(underlyingChannel), user);
 }
 
@@ -83,7 +83,7 @@ IChannelPtr CreateTokenInjectingChannel(
     const std::optional<TString>& user,
     const TString& token)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
     return New<TTokenInjectingChannel>(
         std::move(underlyingChannel),
         user,
@@ -127,7 +127,7 @@ IChannelPtr CreateCookieInjectingChannel(
     const TString& sessionId,
     const TString& sslSessionId)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
     return New<TCookieInjectingChannel>(
         std::move(underlyingChannel),
         user,

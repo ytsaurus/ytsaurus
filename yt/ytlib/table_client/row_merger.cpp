@@ -58,9 +58,9 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-    Y_ASSERT(row.GetWriteTimestampCount() <= 1);
-    Y_ASSERT(row.GetDeleteTimestampCount() <= 1);
+    YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+    YT_ASSERT(row.GetWriteTimestampCount() <= 1);
+    YT_ASSERT(row.GetDeleteTimestampCount() <= 1);
 
     if (!Started_) {
         if (!MergedRow_) {
@@ -192,7 +192,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
 void TSchemafulRowMerger::Reset()
 {
-    Y_ASSERT(!Started_);
+    YT_ASSERT(!Started_);
     RowBuffer_->Clear();
     MergedRow_ = TMutableUnversionedRow();
 }
@@ -219,7 +219,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , ColumnEvaluator_(std::move(columnEvaluator))
     , ValidValues_(size_t(ColumnCount_) - KeyColumnCount_, false)
 {
-    YCHECK(KeyColumnCount_ <= ColumnCount_);
+    YT_VERIFY(KeyColumnCount_ <= ColumnCount_);
     MergedRow_ = TMutableUnversionedRow();
 }
 
@@ -240,16 +240,16 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 {
-    YCHECK(row);
+    YT_VERIFY(row);
 
     for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
         const auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
-        YCHECK(id >= KeyColumnCount_);
+        YT_VERIFY(id >= KeyColumnCount_);
         ValidValues_[id - KeyColumnCount_] = true;
 
         if (partialValue.Aggregate) {
-            YCHECK(ColumnEvaluator_->IsAggregate(id));
+            YT_VERIFY(ColumnEvaluator_->IsAggregate(id));
 
             bool isAggregate = MergedRow_[id].Aggregate;
             ColumnEvaluator_->MergeAggregate(id, &MergedRow_[id], partialValue, RowBuffer_);
@@ -299,7 +299,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         TUnversionedValue* it = MergedRow_.begin() + KeyColumnCount_;
         auto jt = std::copy(MergedRow_.begin(), it, mergedRow.begin());
 
-        YCHECK(MergedRow_.GetCount() == ColumnCount_);
+        YT_VERIFY(MergedRow_.GetCount() == ColumnCount_);
         for (bool isValid : ValidValues_) {
             if (isValid) {
                 *jt++ = *it;
@@ -345,7 +345,7 @@ TVersionedRowMerger::TVersionedRowMerger(
             }
             ColumnIds_.push_back(id);
         }
-        Y_ASSERT(mergedKeyColumnCount == keyColumnCount);
+        YT_ASSERT(mergedKeyColumnCount == keyColumnCount);
     } else {
         for (int id : columnFilter.GetIndexes()) {
             if (id < keyColumnCount) {
@@ -377,11 +377,11 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         Started_ = true;
-        Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+        YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
         for (int index = 0; index < ColumnIds_.size(); ++index) {
             int id = ColumnIds_[index];
             if (id < KeyColumnCount_) {
-                Y_ASSERT(index < Keys_.size());
+                YT_ASSERT(index < Keys_.size());
                 Keys_.data()[index] = row.BeginKeys()[id];
             }
         }
@@ -471,7 +471,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 #ifndef NDEBUG
         // Validate merged list.
         for (auto it = ColumnValues_.begin(); it != ColumnValues_.end() - 1; ++it) {
-            Y_ASSERT(it->Timestamp <= (it + 1)->Timestamp);
+            YT_ASSERT(it->Timestamp <= (it + 1)->Timestamp);
         }
 #endif
 
@@ -546,9 +546,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
                         const auto& value = *valueIt;
                         // Do no expect any thombstones.
-                        Y_ASSERT(value.Type != EValueType::TheBottom);
+                        YT_ASSERT(value.Type != EValueType::TheBottom);
                         // Only expect overwrites at the very beginning.
-                        Y_ASSERT(value.Aggregate || valueIt == aggregateBeginIt);
+                        YT_ASSERT(value.Aggregate || valueIt == aggregateBeginIt);
                         ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
                     }
 
@@ -631,7 +631,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
 void TVersionedRowMerger::Reset()
 {
-    Y_ASSERT(!Started_);
+    YT_ASSERT(!Started_);
     RowBuffer_->Clear();
 }
 
@@ -669,7 +669,7 @@ TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
     auto mergedRow = RowBuffer_->AllocateUnversioned(SampledColumnCount_);
 
-    YCHECK(row.GetKeyCount() == KeyColumnCount_);
+    YT_VERIFY(row.GetKeyCount() == KeyColumnCount_);
     for (int index = 0; index < row.GetKeyCount(); ++index) {
         mergedRow[index] = row.BeginKeys()[index];
     }

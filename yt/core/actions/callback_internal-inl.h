@@ -64,7 +64,7 @@ inline TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))
     , UntypedInvoke(nullptr)
 {
-    Y_ASSERT(!BindState || BindState->GetRefCount() == 1);
+    YT_ASSERT(!BindState || BindState->GetRefCount() == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -251,6 +251,7 @@ void TBootstrap::DoRun()
     StorageHeavyThreadPool_ = New<TThreadPool>(
         Config_->DataNode->StorageHeavyThreadCount,
         "StorageHeavy");
+    StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker());
     StorageLightThreadPool_ = New<TThreadPool>(
         Config_->DataNode->StorageLightThreadCount,
         "StorageLight");
@@ -673,9 +674,9 @@ const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
     return TransactionTrackerQueue_->GetInvoker();
 }
 
-const IInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
+const IPrioritizedInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
 {
-    return StorageHeavyThreadPool_->GetInvoker();
+    return StorageHeavyInvoker_;
 }
 
 const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const

@@ -5,6 +5,7 @@
 #include "table.h"
 
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeNullable.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -41,6 +42,11 @@ TClickHouseTableSchema TClickHouseTableSchema::From(const TClickHouseTable& tabl
 
     for (const auto& column: table.Columns) {
         auto dataType = dataTypes.get(GetTypeName(column));
+
+        if (column.IsNullable()) {
+            dataType = makeNullable(dataType);
+        }
+
         columns.emplace_back(column.Name, dataType);
 
         if (column.IsSorted()) {

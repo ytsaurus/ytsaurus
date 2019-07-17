@@ -104,9 +104,9 @@ protected:
             , UpperBound(upperBound)
             , ChunkCount(chunkCount)
         {
-            YCHECK(childIndex >= 0);
-            YCHECK(rowIndex >= 0);
-            YCHECK(chunkCount >= 0);
+            YT_VERIFY(childIndex >= 0);
+            YT_VERIFY(rowIndex >= 0);
+            YT_VERIFY(chunkCount >= 0);
         }
     };
 
@@ -188,7 +188,7 @@ protected:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
         }
@@ -318,7 +318,7 @@ protected:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -328,10 +328,10 @@ protected:
         auto* child = chunkList->Children()[entry->ChildIndex];
 
         // Row Index
-        YCHECK(!entry->LowerBound.HasRowIndex() && !entry->UpperBound.HasRowIndex());
+        YT_VERIFY(!entry->LowerBound.HasRowIndex() && !entry->UpperBound.HasRowIndex());
 
         // Offset
-        YCHECK(!entry->LowerBound.HasOffset() && !entry->UpperBound.HasOffset());
+        YT_VERIFY(!entry->LowerBound.HasOffset() && !entry->UpperBound.HasOffset());
 
         TReadLimit childLowerBound;
         TReadLimit childUpperBound;
@@ -400,10 +400,10 @@ protected:
         auto* child = chunkList->Children()[entry->ChildIndex];
 
         // Row Index
-        YCHECK(!entry->LowerBound.HasRowIndex() && !entry->UpperBound.HasRowIndex());
+        YT_VERIFY(!entry->LowerBound.HasRowIndex() && !entry->UpperBound.HasRowIndex());
 
         // Offset
-        YCHECK(!entry->LowerBound.HasOffset() && !entry->UpperBound.HasOffset());
+        YT_VERIFY(!entry->LowerBound.HasOffset() && !entry->UpperBound.HasOffset());
 
         TReadLimit childLowerBound;
         TReadLimit childUpperBound;
@@ -451,7 +451,7 @@ protected:
             &subtreeStartLimit,
             &subtreeEndLimit);
 
-        YCHECK(
+        YT_VERIFY(
             child->GetType() == EObjectType::Chunk ||
             child->GetType() == EObjectType::ErasureChunk ||
             child->GetType() == EObjectType::ChunkView);
@@ -503,7 +503,7 @@ protected:
                 return GetStartChildIndexTablet(chunkList, rowIndex, lowerBound, upperBound);
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -586,10 +586,10 @@ protected:
         int result = 0;
 
         // Row Index
-        YCHECK(!lowerBound.HasRowIndex());
+        YT_VERIFY(!lowerBound.HasRowIndex());
 
         // Offset
-        YCHECK(!lowerBound.HasOffset());
+        YT_VERIFY(!lowerBound.HasOffset());
 
         std::vector<int> childSizes;
         for (const auto* child : chunkList->Children()) {
@@ -643,10 +643,10 @@ protected:
         int result = 0;
 
         // Row Index
-        YCHECK(!lowerBound.HasRowIndex());
+        YT_VERIFY(!lowerBound.HasRowIndex());
 
         // Offset
-        YCHECK(!lowerBound.HasOffset());
+        YT_VERIFY(!lowerBound.HasOffset());
 
         // Chunk index
         if (lowerBound.HasChunkIndex()) {
@@ -681,7 +681,7 @@ protected:
             stackEntry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
-            Y_ASSERT(newUpperBound > 0);
+            YT_ASSERT(newUpperBound > 0);
             endLimit->SetRowIndex(newUpperBound);
         }
 
@@ -696,7 +696,7 @@ protected:
             stackEntry.UpperBound.GetChunkIndex() < childUpperBound.GetChunkIndex())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
-            YCHECK(newUpperBound > 0);
+            YT_VERIFY(newUpperBound > 0);
             endLimit->SetChunkIndex(newUpperBound);
         }
 
@@ -711,7 +711,7 @@ protected:
             stackEntry.UpperBound.GetOffset() < childUpperBound.GetOffset())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetOffset() - childLowerBound.GetOffset();
-            Y_ASSERT(newUpperBound > 0);
+            YT_ASSERT(newUpperBound > 0);
             endLimit->SetOffset(newUpperBound);
         }
 
@@ -946,7 +946,7 @@ public:
 
     virtual void OnFinish(const TError& error) override
     {
-        YCHECK(error.IsOK());
+        YT_VERIFY(error.IsOK());
     }
 
 private:
@@ -1014,7 +1014,7 @@ void EnumerateChunksAndChunkViewsInChunkTree(
 
         virtual void OnFinish(const TError& error) override
         {
-            YCHECK(error.IsOK());
+            YT_VERIFY(error.IsOK());
         }
 
     private:

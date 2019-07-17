@@ -145,7 +145,7 @@ public:
         const char* ptr = data.Begin();
         ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
         ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -167,7 +167,7 @@ public:
         const char* ptr = data.Begin();
         ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
         ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -189,7 +189,7 @@ public:
         const char* ptr = data.Begin();
         ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
         ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -211,7 +211,7 @@ public:
         const char* ptr = data.Begin();
         ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
         ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -255,7 +255,7 @@ private:
                 return DoCreateSegmentReader<TDictionarySparseReader>(meta);
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 };
@@ -295,7 +295,7 @@ public:
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         InitDirectReader(data.Begin());
-        YCHECK(ValueReader_.GetSize() == meta.row_count());
+        YT_VERIFY(ValueReader_.GetSize() == meta.row_count());
     }
 
 private:
@@ -315,7 +315,7 @@ public:
     {
         const char* ptr = data.Begin();
         ptr += TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -336,7 +336,7 @@ public:
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
 
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 
 private:
@@ -361,7 +361,7 @@ public:
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
 
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 
 private:
@@ -459,7 +459,7 @@ private:
                 }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 };

@@ -65,7 +65,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             AppendQueue_.push_back(std::move(data));
             ByteSize_ += data.Size();
-            YCHECK(FlushPromise_);
+            YT_VERIFY(FlushPromise_);
             result = FlushPromise_;
         }
 
@@ -161,7 +161,7 @@ public:
                     if (!needMore())
                         return;
                     int memoryIndex = currentRecordId - firstMemoryRecordId;
-                    YCHECK(memoryIndex >= 0);
+                    YT_VERIFY(memoryIndex >= 0);
                     while (memoryIndex < static_cast<int>(memoryRecords.size()) && needMore()) {
                         appendRecord(memoryRecords[memoryIndex++]);
                     }
@@ -237,11 +237,11 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
-            YCHECK(FlushQueue_.empty());
+            YT_VERIFY(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
             ByteSize_.store(0);
 
-            YCHECK(FlushPromise_);
+            YT_VERIFY(FlushPromise_);
             flushPromise = FlushPromise_;
             FlushPromise_ = NewPromise<void>();
             FlushForced_.store(false);
@@ -421,7 +421,7 @@ private:
 
     void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
     {
-        YCHECK(Queues_.insert(queue).second);
+        YT_VERIFY(Queues_.insert(queue).second);
         ProfileQueues();
         YT_LOG_DEBUG("Changelog queue registered (Path: %v)",
             queue->GetChangelog()->GetFileName());
@@ -432,8 +432,8 @@ private:
 
     void DoUnregisterQueue(const TFileChangelogQueuePtr& queue)
     {
-        YCHECK(!queue->HasUnflushedRecords());
-        YCHECK(Queues_.erase(queue) == 1);
+        YT_VERIFY(!queue->HasUnflushedRecords());
+        YT_VERIFY(Queues_.erase(queue) == 1);
         ShrinkHashTable(&Queues_);
         ProfileQueues();
         YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",
@@ -461,7 +461,7 @@ private:
         const TFileChangelogQueuePtr& queue,
         int recordCount)
     {
-        YCHECK(!queue->HasUnflushedRecords());
+        YT_VERIFY(!queue->HasUnflushedRecords());
         PROFILE_TIMING("/changelog_truncate_io_time") {
             const auto& changelog = queue->GetChangelog();
             changelog->Truncate(recordCount);
@@ -470,7 +470,7 @@ private:
 
     void DoClose(const TFileChangelogQueuePtr& queue)
     {
-        YCHECK(!queue->HasUnflushedRecords());
+        YT_VERIFY(!queue->HasUnflushedRecords());
         PROFILE_TIMING("/changelog_close_io_time") {
             const auto& changelog = queue->GetChangelog();
             changelog->Close();
@@ -479,7 +479,7 @@ private:
 
     void DoPreallocate(const TFileChangelogQueuePtr& queue, size_t size)
     {
-        YCHECK(!queue->HasUnflushedRecords());
+        YT_VERIFY(!queue->HasUnflushedRecords());
         PROFILE_TIMING("/changelog_preallocate_io_time") {
             const auto& changelog = queue->GetChangelog();
             changelog->Preallocate(size);
@@ -540,7 +540,7 @@ public:
 
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
-        YCHECK(!Closed_ && !Truncated_);
+        YT_VERIFY(!Closed_ && !Truncated_);
         RecordCount_ += 1;
         DataSize_ += data.Size();
         return DispatcherImpl_->Append(Queue_, data);
@@ -556,9 +556,9 @@ public:
         int maxRecords,
         i64 maxBytes) const override
     {
-        YCHECK(firstRecordId >= 0);
-        YCHECK(maxRecords >= 0);
-        YCHECK(maxBytes >= 0);
+        YT_VERIFY(firstRecordId >= 0);
+        YT_VERIFY(maxRecords >= 0);
+        YT_VERIFY(maxBytes >= 0);
         return DispatcherImpl_->Read(
             Queue_,
             firstRecordId,
@@ -568,7 +568,7 @@ public:
 
     virtual TFuture<void> Truncate(int recordCount) override
     {
-        YCHECK(recordCount <= RecordCount_);
+        YT_VERIFY(recordCount <= RecordCount_);
         RecordCount_ = recordCount;
         Truncated_ = true;
         // NB: Ignoring the result seems fine since TSyncFileChangelog

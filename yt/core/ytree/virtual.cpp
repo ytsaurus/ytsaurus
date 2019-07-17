@@ -63,7 +63,7 @@ void TVirtualMapBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    YT_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
@@ -287,12 +287,12 @@ public:
 
     void AddChild(const TString& key, IYPathServicePtr service)
     {
-        YCHECK(Services_.insert(std::make_pair(key, service)).second);
+        YT_VERIFY(Services_.insert(std::make_pair(key, service)).second);
     }
 
     void AddAttribute(TInternedAttributeKey key, TYsonCallback producer)
     {
-        YCHECK(Attributes_.insert(std::make_pair(key, producer)).second);
+        YT_VERIFY(Attributes_.insert(std::make_pair(key, producer)).second);
     }
 
 private:
@@ -368,7 +368,7 @@ public:
 
     virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
-        Y_ASSERT(Parent_);
+        YT_ASSERT(Parent_);
         return Parent_->CreateFactory();
     }
 
@@ -459,7 +459,7 @@ void TVirtualListBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    YT_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))

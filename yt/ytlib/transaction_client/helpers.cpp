@@ -40,7 +40,7 @@ std::pair<TTimestamp, TTimestamp> InstantToTimestamp(TInstant instant)
 
 std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, TTimestamp hiTimestamp)
 {
-    Y_ASSERT(loTimestamp <= hiTimestamp);
+    YT_ASSERT(loTimestamp <= hiTimestamp);
     auto loInstant = TimestampToInstant(loTimestamp);
     auto hiInstant = TimestampToInstant(hiTimestamp);
     return std::make_pair(
@@ -63,7 +63,7 @@ TTransactionId MakeTabletTransactionId(
             type = EObjectType::NonAtomicTabletTransaction;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     return MakeId(
@@ -89,7 +89,7 @@ EAtomicity AtomicityFromTransactionId(TTransactionId id)
             return EAtomicity::None;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

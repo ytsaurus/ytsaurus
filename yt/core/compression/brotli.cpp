@@ -84,7 +84,7 @@ void BrotliCompress(int level, StreamSource* source, TBlob* output)
             }
         }
     } catch (const std::exception&) {
-        YCHECK(false && "Brotli compression failed");
+        YT_VERIFY(false && "Brotli compression failed");
     }
 }
 
@@ -108,9 +108,9 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
             remainingSize -= read;
         }
 
-        YCHECK(remainingSize == 0);
+        YT_VERIFY(remainingSize == 0);
     } catch (const std::exception&) {
-        YCHECK(false && "Brotli decompression failed");
+        YT_VERIFY(false && "Brotli decompression failed");
     }
 }
 

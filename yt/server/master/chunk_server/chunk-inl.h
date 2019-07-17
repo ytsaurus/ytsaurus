@@ -87,7 +87,7 @@ inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex,
         case EChunkRepairQueue::Decommissioned:
             return GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex];
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -101,7 +101,7 @@ inline void TChunk::SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue qu
             GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex] = value;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -129,7 +129,7 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
         return;
     }
 
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
 
     for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
         const auto& data = ExportDataList_[i];
@@ -150,7 +150,7 @@ inline void TChunk::UnrefUsedRequisitions(
         return;
     }
 
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
 
     for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
         const auto& data = ExportDataList_[i];
@@ -179,9 +179,9 @@ inline void TChunk::SetLocalRequisitionIndex(
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
     const auto& data = ExportDataList_[cellIndex];
-    YCHECK(data.RefCounter != 0);
+    YT_VERIFY(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
 }
 
@@ -191,9 +191,9 @@ inline void TChunk::SetExternalRequisitionIndex(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
     auto& data = ExportDataList_[cellIndex];
-    YCHECK(data.RefCounter != 0);
+    YT_VERIFY(data.RefCounter != 0);
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
     data.ChunkRequisitionIndex = requisitionIndex;
     registry->Ref(data.ChunkRequisitionIndex);
@@ -230,7 +230,7 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
         return result;
     }
 
-    YCHECK(ExportDataList_);
+    YT_VERIFY(ExportDataList_);
 
     for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
         const auto& data = ExportDataList_[i];
@@ -243,13 +243,13 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
 
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    YCHECK(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
     return registry->GetRequisition(AggregatedRequisitionIndex_);
 }
 
 inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
-    YCHECK(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
     return registry->GetReplication(AggregatedRequisitionIndex_);
 }
 

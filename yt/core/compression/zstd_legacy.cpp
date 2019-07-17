@@ -124,7 +124,7 @@ void ZstdLegacyCompress(StreamSource* source, TBlob* output)
             fillBlock(remainingSize);
         }
 
-        YCHECK(remainingSize == 0);
+        YT_VERIFY(remainingSize == 0);
     }
     flushBlock();
 
@@ -170,7 +170,7 @@ void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
         ZSTD_LEGACY_isError(decompressedSize),
         ZSTD_LEGACY_getErrorName(decompressedSize));
 
-    YCHECK(decompressedSize == outputSize);
+    YT_VERIFY(decompressedSize == outputSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

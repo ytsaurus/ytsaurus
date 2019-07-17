@@ -25,7 +25,7 @@ bool TProgramPdeathsigMixin::HandlePdeathsigOptions()
         // More details can be found in
         // http://linux.die.net/man/2/prctl
         // http://www.isec.pl/vulnerabilities/isec-0024-death-signal.txt
-        YCHECK(prctl(PR_SET_PDEATHSIG, ParentDeathSignal_) == 0);
+        YT_VERIFY(prctl(PR_SET_PDEATHSIG, ParentDeathSignal_) == 0);
 #endif
     }
     return false;

@@ -77,15 +77,15 @@ public:
         const TBlock& /*block*/,
         const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
-        Y_ASSERT(type == EBlockType::UncompressedData);
-        Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+        YT_ASSERT(type == EBlockType::UncompressedData);
+        YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
         return Blocks_[id.BlockIndex];
     }
 
@@ -169,12 +169,12 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 protected:
@@ -214,8 +214,8 @@ protected:
     {
         // XXX(sandello): When called from |LookupWithHashTable|, we may randomly
         // jump between blocks due to hash collisions. This happens rarely, but
-        // makes YCHECK below invalid.
-        // YCHECK(blockIndex >= LastRetainedBlockIndex_);
+        // makes YT_VERIFY below invalid.
+        // YT_VERIFY(blockIndex >= LastRetainedBlockIndex_);
 
         if (LastRetainedBlockIndex_ != blockIndex) {
             auto uncompressedBlock = GetUncompressedBlockFromCache(blockIndex);
@@ -269,7 +269,7 @@ private:
         auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
             NCompression::ECodec codecId;
-            YCHECK(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
+            YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
             auto* codec = NCompression::GetCodec(codecId);
 
             NProfiling::TCpuTimer timer;
@@ -283,7 +283,7 @@ private:
         }
 
         YT_LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     static std::vector<TColumnIdMapping> BuildIdMapping(
@@ -445,7 +445,7 @@ private:
                 blockMeta,
                 false);
 
-            YCHECK(blockReader.SkipToRowIndex(index.second));
+            YT_VERIFY(blockReader.SkipToRowIndex(index.second));
 
             if (this->ChunkState_->KeyComparer(blockReader.GetKey(), key) == 0) {
                 return this->CaptureRow(&blockReader);
@@ -520,7 +520,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 return CreateEmptyVersionedReader(keys.Size());
             }
 
-            YCHECK(chunkState->ChunkMeta->Schema().GetUniqueKeys());
+            YT_VERIFY(chunkState->ChunkMeta->Schema().GetUniqueKeys());
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 keys,
@@ -542,7 +542,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return createGenericVersionedReader();
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -745,7 +745,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return createGenericVersionedReader();
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

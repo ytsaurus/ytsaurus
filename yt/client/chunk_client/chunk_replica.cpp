@@ -145,7 +145,7 @@ TChunkId ErasureChunkIdFromPartId(TChunkId id)
 int IndexFromErasurePartId(TChunkId id)
 {
     int index = static_cast<int>(TypeFromId(id)) - static_cast<int>(EObjectType::ErasureChunkPart_0);
-    YCHECK(index >= 0 && index <= 15);
+    YT_VERIFY(index >= 0 && index <= 15);
     return index;
 }
 

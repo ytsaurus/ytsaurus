@@ -92,7 +92,7 @@ public:
 
             result->MemoryTrackerGuard = std::move(guardOrError.ValueOrThrow());
         }
-        YCHECK(result->GetRef().Size() != 0);
+        YT_VERIFY(result->GetRef().Size() != 0);
 
         auto delta = result->GetRef().Size() - size;
         allocated = Allocated_.fetch_add(delta);

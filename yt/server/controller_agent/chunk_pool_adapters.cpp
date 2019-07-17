@@ -66,7 +66,7 @@ public:
 
     virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
-        YCHECK(!stripe->DataSlices.empty());
+        YT_VERIFY(!stripe->DataSlices.empty());
         for (const auto& dataSlice : stripe->DataSlices) {
             auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
             TaskHost_->AttachToIntermediateLivePreview(chunk->ChunkId());

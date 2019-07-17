@@ -19,7 +19,7 @@ namespace {
 
 void ResumeFiber(TFiberPtr fiber)
 {
-    YCHECK(fiber->GetState() == EFiberState::Sleeping);
+    YT_VERIFY(fiber->GetState() == EFiberState::Sleeping);
     fiber->SetSuspended();
 
     GetCurrentScheduler()->YieldTo(std::move(fiber));
@@ -182,11 +182,11 @@ void TSchedulerThread::ThreadMain()
 
 void TSchedulerThread::ThreadMainStep()
 {
-    Y_ASSERT(!CurrentFiber_);
+    YT_ASSERT(!CurrentFiber_);
 
     if (RunQueue_.empty()) {
         // Spawn a new idle fiber to run the loop.
-        YCHECK(!IdleFiber_);
+        YT_VERIFY(!IdleFiber_);
         IdleFiber_ = New<TFiber>(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TSchedulerThread::FiberMain,
             MakeStrong(this),
@@ -194,14 +194,14 @@ void TSchedulerThread::ThreadMainStep()
         RunQueue_.push_back(IdleFiber_);
     }
 
-    Y_ASSERT(!RunQueue_.empty());
+    YT_ASSERT(!RunQueue_.empty());
     SetCurrentFiber(std::move(RunQueue_.front()));
     RunQueue_.pop_front();
 
     NConcurrency::SetCurrentFiber(CurrentFiber_.Get());
     SetCurrentFiberId(CurrentFiber_->GetId());
 
-    YCHECK(CurrentFiber_->GetState() == EFiberState::Suspended);
+    YT_VERIFY(CurrentFiber_->GetState() == EFiberState::Suspended);
     CurrentFiber_->SetRunning();
 
     SchedulerContext_.SwitchTo(CurrentFiber_->GetContext());
@@ -217,7 +217,7 @@ void TSchedulerThread::ThreadMainStep()
         }
     };
 
-    YCHECK(CurrentFiber_);
+    YT_VERIFY(CurrentFiber_);
 
     auto savedFiberId = CurrentFiber_->GetId();
 
@@ -243,7 +243,7 @@ void TSchedulerThread::ThreadMainStep()
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     // Finish sync part of the execution.
@@ -256,9 +256,9 @@ void TSchedulerThread::ThreadMainStep()
     SetCurrentFiberId(InvalidFiberId);
 
     // Check for a clear scheduling state.
-    Y_ASSERT(!CurrentFiber_);
-    Y_ASSERT(!WaitForFuture_);
-    Y_ASSERT(!SwitchToInvoker_);
+    YT_ASSERT(!CurrentFiber_);
+    YT_ASSERT(!WaitForFuture_);
+    YT_ASSERT(!SwitchToInvoker_);
 }
 
 void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
@@ -338,7 +338,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
         case EBeginExecuteResult::Terminated:
             return false;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     // Reuse the fiber but regenerate its id.
@@ -396,11 +396,11 @@ void TSchedulerThread::Return()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    YCHECK(CurrentFiber_);
-    YCHECK(CurrentFiber_->IsTerminated());
+    YT_VERIFY(CurrentFiber_);
+    YT_VERIFY(CurrentFiber_->IsTerminated());
 
     CurrentFiber_->GetContext()->SwitchTo(&SchedulerContext_);
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TSchedulerThread::PushContextSwitchHandler(std::function<void()> out, std::function<void()> in)
@@ -418,7 +418,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     if (!CurrentFiber_) {
-        YCHECK(other->GetState() == EFiberState::Suspended);
+        YT_VERIFY(other->GetState() == EFiberState::Suspended);
         RunQueue_.emplace_back(std::move(other));
         return;
     }
@@ -426,8 +426,8 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     // Memoize raw pointers.
     auto* caller = CurrentFiber_.Get();
     auto* target = other.Get();
-    YCHECK(caller);
-    YCHECK(target);
+    YT_VERIFY(caller);
+    YT_VERIFY(target);
 
     // TODO(babenko): handle canceled caller
 
@@ -452,12 +452,12 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber_.Get();
-    YCHECK(fiber);
+    YT_VERIFY(fiber);
 
     fiber->UnwindIfCanceled();
 
     // Update scheduling state.
-    YCHECK(!SwitchToInvoker_);
+    YT_VERIFY(!SwitchToInvoker_);
     SwitchToInvoker_ = std::move(invoker);
 
     fiber->SetSleeping();
@@ -473,16 +473,16 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber_.Get();
-    YCHECK(fiber);
+    YT_VERIFY(fiber);
 
     // NB: This may throw TFiberCanceledException;
     // therefore this call must come first and succeed before we update our internal state.
     fiber->SetSleeping(future);
 
     // Update scheduling state.
-    YCHECK(!WaitForFuture_);
+    YT_VERIFY(!WaitForFuture_);
     WaitForFuture_ = std::move(future);
-    YCHECK(!SwitchToInvoker_);
+    YT_VERIFY(!SwitchToInvoker_);
     SwitchToInvoker_ = std::move(invoker);
 
     SwitchContextFrom(fiber);

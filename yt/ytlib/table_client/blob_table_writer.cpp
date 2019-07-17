@@ -17,8 +17,6 @@
 
 namespace NYT::NTableClient {
 
-static const auto& Logger = TableClientLogger;
-
 using namespace NYson;
 using namespace NConcurrency;
 
@@ -26,6 +24,7 @@ using NConcurrency::WaitFor;
 using NCypressClient::TTransactionId;
 using NChunkClient::TChunkListId;
 using NChunkClient::TTrafficMeterPtr;
+using NLogging::TLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +39,12 @@ TBlobTableWriter::TBlobTableWriter(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
+    , Logger(TLogger(TableClientLogger)
+        .AddTag("TransactionId: %v", transactionId)
+        .AddTag("ChunkListId: %v", chunkListId))
 {
-    YT_LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
-        transactionId,
-        chunkListId);
+
+    YT_LOG_INFO("Creating blob writer");
 
     Buffer_.Reserve(PartSize_);
 
@@ -57,7 +58,7 @@ TBlobTableWriter::TBlobTableWriter(
     TStatelessLexer lexer;
     TUnversionedOwningRowBuilder builder;
 
-    YCHECK(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
+    YT_VERIFY(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
     for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
         builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].GetData(), BlobIdColumnIds_[i], lexer));
     }
@@ -83,7 +84,13 @@ TBlobTableWriter::TBlobTableWriter(
 
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
 {
-    return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);
+    if (Failed_) {
+        NScheduler::NProto::TOutputResult boundaryKeys;
+        boundaryKeys.set_empty(true);
+        return boundaryKeys;
+    } else {
+        return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);
+    }
 }
 
 void TBlobTableWriter::DoWrite(const void* buf_, size_t size)
@@ -103,7 +110,7 @@ void TBlobTableWriter::DoWrite(const void* buf_, size_t size)
 
 void TBlobTableWriter::DoFlush()
 {
-    if (Buffer_.Size() == 0) {
+    if (Buffer_.Size() == 0 || Failed_) {
         return;
     }
 
@@ -121,21 +128,33 @@ void TBlobTableWriter::DoFlush()
     ++WrittenPartCount_;
 
     if (!MultiChunkWriter_->Write({builder.GetRow()})) {
-        WaitFor(MultiChunkWriter_->GetReadyEvent())
-            .ThrowOnError();
+        auto error = WaitFor(MultiChunkWriter_->GetReadyEvent());
+        if (!error.IsOK()) {
+            Failed_ = true;
+            YT_LOG_WARNING(error, "Blob table writer failed");
+            error.ThrowOnError();
+        }
     }
+
     Buffer_.Clear();
 }
 
 void TBlobTableWriter::DoFinish()
 {
-    if (Finished_) {
+    if (Finished_ || Failed_) {
         return;
     }
     Finished_ = true;
     Flush();
-    WaitFor(MultiChunkWriter_->Close())
-        .ThrowOnError();
+
+    auto error = WaitFor(MultiChunkWriter_->Close());
+    if (!error.IsOK()) {
+        Failed_ = true;
+        YT_LOG_WARNING(error, "Blob table writer failed");
+        error.ThrowOnError();
+    }
+
+    YT_LOG_DEBUG("Blob table writer finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

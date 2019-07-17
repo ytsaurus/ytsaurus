@@ -79,7 +79,7 @@ void TTransaction::Save(TSaveContext& context) const
 
     using NYT::Save;
 
-    YCHECK(!Transient_);
+    YT_VERIFY(!Transient_);
     Save(context, Foreign_);
     Save(context, Timeout_);
     Save(context, GetPersistentState());

@@ -103,7 +103,7 @@ void TResourceTracker::EnqueueCpuUsage()
         }
 
         // Get rid of parentheses in process title.
-        YCHECK(fields[1].size() >= 2);
+        YT_VERIFY(fields[1].size() >= 2);
 
         auto threadName = fields[1].substr(1, fields[1].size() - 2);
         i64 userJiffies = FromString<i64>(fields[13]); // In jiffies

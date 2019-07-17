@@ -160,7 +160,7 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
     _exit(100);
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TStreamLogWriterBase::SetRateLimit(std::optional<size_t> limit)
@@ -314,7 +314,7 @@ void TFileLogWriter::Open()
 
         Close();
     } catch (...) {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -339,7 +339,7 @@ void TFileLogWriter::Close()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to close log file; ignored (FileName: %v)", FileName_);
     } catch (...) {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 

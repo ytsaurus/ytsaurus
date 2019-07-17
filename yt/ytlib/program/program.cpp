@@ -104,7 +104,7 @@ int TProgram::Exit(int code) const noexcept
     // No graceful shutdown at the moment.
     _exit(code);
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TProgram::OnError(const TString& message) const noexcept
@@ -166,22 +166,22 @@ void ConfigureUids()
     uid_t ruid, euid;
 #ifdef _linux_
     uid_t suid;
-    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+    YT_VERIFY(getresuid(&ruid, &euid, &suid) == 0);
 #else
     ruid = getuid();
     euid = geteuid();
 #endif
     if (euid == 0) {
-        YCHECK(setgroups(0, nullptr) == 0);
+        YT_VERIFY(setgroups(0, nullptr) == 0);
         // if effective uid == 0 (e. g. set-uid-root), alter saved = effective, effective = real.
 #ifdef _linux_
-        YCHECK(setresuid(ruid, ruid, euid) == 0);
+        YT_VERIFY(setresuid(ruid, ruid, euid) == 0);
         // Make server suid_dumpable = 1.
-        YCHECK(prctl(PR_SET_DUMPABLE, 1)  == 0);
+        YT_VERIFY(prctl(PR_SET_DUMPABLE, 1)  == 0);
 #else
-        YCHECK(setuid(euid) == 0);
-        YCHECK(seteuid(ruid) == 0);
-        YCHECK(setruid(ruid) == 0);
+        YT_VERIFY(setuid(euid) == 0);
+        YT_VERIFY(seteuid(ruid) == 0);
+        YT_VERIFY(setruid(ruid) == 0);
 #endif
     }
     umask(0000);

@@ -17,7 +17,7 @@ TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
     : Id(FromProto<TJobId>(event->status().job_id()))
     , StartTime(FromProto<TInstant>(event->start_time()))
 {
-    YCHECK(event->has_start_time());
+    YT_VERIFY(event->has_start_time());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,10 +92,10 @@ TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgent
     , Abandoned(event->abandoned())
     , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
 {
-    YCHECK(event->has_abandoned());
-    YCHECK(event->has_interrupt_reason());
+    YT_VERIFY(event->has_abandoned());
+    YT_VERIFY(event->has_interrupt_reason());
     const auto& schedulerResultExt = Result.GetExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext);
-    YCHECK(
+    YT_VERIFY(
         (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
             (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
 }
@@ -111,7 +111,7 @@ void TCompletedJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     // TODO(max42): now we persist only those completed job summaries that correspond
     // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
     // lots of ugly template resolution errors. I wasn't able to fix it :(
-    YCHECK(InterruptReason == EInterruptReason::None);
+    YT_VERIFY(InterruptReason == EInterruptReason::None);
     Persist(context, SplitJobCount);
 }
 

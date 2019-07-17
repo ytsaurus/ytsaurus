@@ -31,8 +31,8 @@ public:
         , Logger(NLogging::TLogger(HydraLogger)
             .AddTag("CellId: %v", CellManager_->GetCellId()))
     {
-        YCHECK(Config_);
-        YCHECK(CellManager_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(CellManager_);
     }
 
     TFuture<TRemoteSnapshotParams> Run()

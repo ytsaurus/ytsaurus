@@ -35,9 +35,9 @@ Py::Object TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::iter()
 template <class TIteratorClass, class TConsumer, class TParser>
 PyObject* TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::iternext()
 {
-    YCHECK(InputStream_);
-    YCHECK(Consumer_);
-    YCHECK(Parser_);
+    YT_VERIFY(InputStream_);
+    YT_VERIFY(Consumer_);
+    YT_VERIFY(Parser_);
 
     try {
         // Read unless we have the whole row.

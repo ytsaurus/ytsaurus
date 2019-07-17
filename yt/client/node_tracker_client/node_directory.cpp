@@ -179,7 +179,7 @@ const TString& GetDefaultAddress(const TAddressMap& addresses)
         return NullAddress;
     }
     auto it = addresses.find(DefaultNetworkName);
-    YCHECK(it != addresses.end());
+    YT_VERIFY(it != addresses.end());
     return it->second;
 }
 
@@ -193,7 +193,7 @@ const TString& GetDefaultAddress(const NProto::TAddressMap& addresses)
             return entry.address();
         }
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second)
@@ -237,7 +237,7 @@ void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerCli
     addresses->clear();
     addresses->reserve(protoAddresses.entries_size());
     for (const auto& entry : protoAddresses.entries()) {
-        YCHECK(addresses->emplace(entry.network(), entry.address()).second);
+        YT_VERIFY(addresses->emplace(entry.network(), entry.address()).second);
     }
 }
 
@@ -258,7 +258,7 @@ void FromProto(NNodeTrackerClient::TNodeAddressMap* nodeAddresses, const NNodeTr
         NNodeTrackerClient::TAddressMap addresses;
         FromProto(&addresses, entry.addresses());
 
-        YCHECK(nodeAddresses->emplace(static_cast<EAddressType>(entry.address_type()), std::move(addresses)).second);
+        YT_VERIFY(nodeAddresses->emplace(static_cast<EAddressType>(entry.address_type()), std::move(addresses)).second);
     }
 }
 
@@ -456,7 +456,7 @@ const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(TNodeId id) const
 {
     const auto* result = FindDescriptor(id);
-    YCHECK(result);
+    YT_VERIFY(result);
     return *result;
 }
 
@@ -497,7 +497,7 @@ const TNodeDescriptor* TNodeDirectory::FindDescriptor(const TString& address)
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(const TString& address)
 {
     const auto* result = FindDescriptor(address);
-    YCHECK(result);
+    YT_VERIFY(result);
     return *result;
 }
 
@@ -507,7 +507,7 @@ void TNodeDirectory::Save(TStreamSaveContext& context) const
     {
         NConcurrency::TReaderGuard guard(SpinLock_);
         for (const auto& pair : IdToDescriptor_) {
-            YCHECK(idToDescriptor.emplace(pair.first, *pair.second).second);
+            YT_VERIFY(idToDescriptor.emplace(pair.first, *pair.second).second);
         }
     }
     using NYT::Save;

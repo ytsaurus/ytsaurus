@@ -95,7 +95,7 @@ TStoreBase::~TStoreBase()
 
 void TStoreBase::SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
 {
-    YCHECK(!MemoryTracker_);
+    YT_VERIFY(!MemoryTracker_);
     MemoryTracker_ = std::move(memoryTracker);
     DynamicMemoryTrackerGuard_ = NNodeTrackerClient::TNodeMemoryTrackerGuard::Acquire(
         MemoryTracker_,
@@ -169,7 +169,7 @@ bool TStoreBase::IsDynamic() const
 
 IDynamicStorePtr TStoreBase::AsDynamic()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TStoreBase::IsChunk() const
@@ -179,7 +179,7 @@ bool TStoreBase::IsChunk() const
 
 IChunkStorePtr TStoreBase::AsChunk()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TStoreBase::IsSorted() const
@@ -189,17 +189,17 @@ bool TStoreBase::IsSorted() const
 
 ISortedStorePtr TStoreBase::AsSorted()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TSortedDynamicStorePtr TStoreBase::AsSortedDynamic()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TSortedChunkStorePtr TStoreBase::AsSortedChunk()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TStoreBase::IsOrdered() const
@@ -209,17 +209,17 @@ bool TStoreBase::IsOrdered() const
 
 IOrderedStorePtr TStoreBase::AsOrdered()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TOrderedDynamicStorePtr TStoreBase::AsOrderedDynamic()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TStoreBase::SetDynamicMemoryUsage(i64 value)
@@ -285,7 +285,7 @@ i64 TDynamicStoreBase::GetLockCount() const
 
 i64 TDynamicStoreBase::Lock()
 {
-    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = ++StoreLockCount_;
     YT_LOG_TRACE("Store locked (Count: %v)",
@@ -295,8 +295,8 @@ i64 TDynamicStoreBase::Lock()
 
 i64 TDynamicStoreBase::Unlock()
 {
-    Y_ASSERT(Atomicity_ == EAtomicity::Full);
-    Y_ASSERT(StoreLockCount_ > 0);
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(StoreLockCount_ > 0);
 
     auto result = --StoreLockCount_;
     YT_LOG_TRACE("Store unlocked (Count: %v)",
@@ -433,8 +433,8 @@ public:
         EBlockType type) override
     {
         if (type == GetSupportedBlockTypes()) {
-            Y_ASSERT(id.ChunkId == ChunkId_);
-            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < ChunkData_->Blocks.size());
+            YT_ASSERT(id.ChunkId == ChunkId_);
+            YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < ChunkData_->Blocks.size());
             return ChunkData_->Blocks[id.BlockIndex];
         } else {
             return UnderlyingCache_->Find(id, type);
@@ -487,12 +487,12 @@ TChunkStoreBase::TChunkStoreBase(
      * at the moment of store creation and will be loaded separately.
      * Consider TTabletManagerImpl::DoCreateStore, TSortedChunkStore::Load.
      */
-    YCHECK(
+    YT_VERIFY(
         !ChunkId_ ||
         TypeFromId(ChunkId_) == EObjectType::Chunk ||
         TypeFromId(ChunkId_) == EObjectType::ErasureChunk);
 
-    YCHECK(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
+    YT_VERIFY(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
 
     SetStoreState(EStoreState::Persistent);
 }
@@ -840,7 +840,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
         PreloadState_ = EStorePreloadState::Scheduled;
     }
 
-    YCHECK((mode == EInMemoryMode::None) == (PreloadState_ == EStorePreloadState::None));
+    YT_VERIFY((mode == EInMemoryMode::None) == (PreloadState_ == EStorePreloadState::None));
 }
 
 void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
@@ -850,9 +850,9 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
     TWriterGuard guard(SpinLock_);
 
     // Otherwise action must be cancelled.
-    YCHECK(chunkData->InMemoryMode == InMemoryMode_);
-    YCHECK(chunkData->Finalized);
-    YCHECK(chunkData->ChunkMeta);
+    YT_VERIFY(chunkData->InMemoryMode == InMemoryMode_);
+    YT_VERIFY(chunkData->Finalized);
+    YT_VERIFY(chunkData->ChunkMeta);
 
     PreloadedBlockCache_ = New<TPreloadedBlockCache>(
         this,
@@ -968,7 +968,7 @@ i64 TOrderedStoreBase::GetStartingRowIndex() const
 
 void TOrderedStoreBase::SetStartingRowIndex(i64 value)
 {
-    YCHECK(value >= 0);
+    YT_VERIFY(value >= 0);
     StartingRowIndex_ = value;
 }
 

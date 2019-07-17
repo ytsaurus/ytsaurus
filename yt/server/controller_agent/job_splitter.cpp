@@ -34,19 +34,19 @@ public:
         : Config_(config)
         , JobTimeTracker_(std::move(config))
         , OperationId_(operationId)
-        , Logger(NLogging::TLogger(ControllerLogger)
+        , Logger(NLogging::TLogger("JobSplitter")
             .AddTag("OperationId: %v", OperationId_))
     {
-        YCHECK(Config_);
+        YT_VERIFY(Config_);
     }
 
     virtual EJobSplitterVerdict ExamineJob(TJobId jobId) override
     {
         auto it = RunningJobs_.find(jobId);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         auto& job = it->second;
 
-        auto minJobTime = std::max(
+        auto minJobExecTime = std::max(
             Config_->MinJobTime,
             job.GetPrepareWithoutDownloadDuration() * Config_->ExecToPrepareTimeRatio);
 
@@ -59,9 +59,9 @@ public:
             return EJobSplitterVerdict::LaunchSpeculative;
         }
 
-        if (job.GetExecDuration() > minJobTime) {
+        if (job.GetExecDuration() > minJobExecTime) {
             if (job.GetRowCount() > 0 &&
-                job.GetRemainingDuration() > minJobTime &&
+                job.GetRemainingDuration() > minJobExecTime &&
                 isLongAmongRunning)
             {
                 YT_LOG_DEBUG("Job splitter detected long job among running (JobId: %v)", jobId);
@@ -74,7 +74,7 @@ public:
             }
 
             if (job.GetRowCount() > 0 &&
-                job.GetRemainingDuration() > minJobTime &&
+                job.GetRemainingDuration() > minJobExecTime &&
                 isResidual)
             {
                 YT_LOG_DEBUG("Job splitter detected residual job (JobId: %v)", jobId);
@@ -85,16 +85,33 @@ public:
                     return EJobSplitterVerdict::LaunchSpeculative;
                 }
             }
+        }
 
-            auto noProgressJobExecTimeThreshold = MaxSuccessJobPrepareDuration_ * Config_->NoProgressJobExecToPrepareTimeRatio;
-            if (job.GetRowCount() == 0 &&
-                isResidual &&
-                noProgressJobExecTimeThreshold > TDuration::Zero() &&
-                job.GetExecDuration() > noProgressJobExecTimeThreshold)
-            {
-                YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
-                return EJobSplitterVerdict::LaunchSpeculative;
-            }
+        auto noProgressJobTotalTimeThreshold = MaxSuccessJobPrepareDuration_ * Config_->NoProgressJobTotalToPrepareTimeRatio;
+        auto minJobTotalTime = std::max(noProgressJobTotalTimeThreshold, Config_->MinJobTime);
+        TDuration totalDuration = job.GetPrepareDuration() + job.GetExecDuration();
+        if (totalDuration > minJobTotalTime &&
+            job.GetRowCount() == 0 &&
+            isResidual &&
+            MaxSuccessJobPrepareDuration_ > TDuration::Zero())
+        {
+            YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
+            return EJobSplitterVerdict::LaunchSpeculative;
+        }
+
+        if (!job.GetNextLoggingTime().has_value()) {
+            job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
+        }
+
+        if (job.GetNextLoggingTime() < now) {
+            job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
+            YT_LOG_DEBUG(
+                "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutDownloadDuration: %v, "
+                "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
+                "IsResidual: %v, IsSplittable: %v, SplitDeadline: %v, MaxSuccessJobPrepareDuration: %v)",
+                jobId, job.GetPrepareDuration(), job.GetPrepareWithoutDownloadDuration(), job.GetExecDuration(),
+                job.GetRemainingDuration(), job.GetTotalDataWeight(), job.GetRowCount(), isLongAmongRunning, isResidual,
+                job.GetIsSplittable(), job.GetSplitDeadline(), MaxSuccessJobPrepareDuration_);
         }
 
         return EJobSplitterVerdict::DoNothing;
@@ -112,7 +129,7 @@ public:
     void OnJobRunning(const TJobSummary& summary) override
     {
         auto it = RunningJobs_.find(summary.Id);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         auto& job = it->second;
         job.UpdateCompletionTime(&JobTimeTracker_, summary);
     }
@@ -141,7 +158,7 @@ public:
         i64 unreadRowCount) const override
     {
         double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
-        YCHECK(summary.Statistics);
+        YT_VERIFY(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
@@ -340,13 +357,17 @@ private:
 
         void UpdateCompletionTime(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
-            PrepareWithoutDownloadDuration_ = summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration());
+            PrepareDuration_ = summary.PrepareDuration.value_or(TDuration());
+            auto downloadDuration = summary.DownloadDuration.value_or(TDuration());
+            PrepareWithoutDownloadDuration_ = PrepareDuration_ >= downloadDuration
+                ? PrepareDuration_ - downloadDuration
+                : TDuration();
             if (!summary.ExecDuration) {
                 return;
             }
 
             ExecDuration_ = summary.ExecDuration.value_or(TDuration());
-            YCHECK(summary.Statistics);
+            YT_VERIFY(summary.Statistics);
 
             RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);
             if (RowCount_ == 0) {
@@ -396,6 +417,9 @@ private:
             Persist(context, SecondsPerRow_);
             Persist(context, IsSplittable_);
             Persist(context, SplitDeadline_);
+            if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobSplitterPrepareDuration)) {
+                Persist(context, PrepareDuration_);
+            }
         }
 
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0)
@@ -406,6 +430,8 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration)
         DEFINE_BYVAL_RO_PROPERTY(bool, IsSplittable)
         DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration)
+        DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextLoggingTime)
 
     private:
         TJobSplitter* Owner_ = nullptr;
@@ -428,7 +454,7 @@ private:
     void OnJobFinished(const TJobSummary& summary)
     {
         auto it = RunningJobs_.find(summary.Id);
-        YCHECK(it != RunningJobs_.end());
+        YT_VERIFY(it != RunningJobs_.end());
         JobTimeTracker_.RemoveSample(summary.Id);
         RunningJobs_.erase(it);
         JobTimeTracker_.Update();

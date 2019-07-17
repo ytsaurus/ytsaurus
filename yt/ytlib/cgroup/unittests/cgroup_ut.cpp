@@ -209,8 +209,8 @@ TEST(TCGroup, UsageInBytesWithoutLimit)
             data[i] = 0;
         }
 
-        YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
-        YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
+        YT_VERIFY(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+        YT_VERIFY(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
 
         delete[] data;
         _exit(1);
@@ -262,14 +262,14 @@ TEST(TCGroup, Bug)
 
         auto otherPid = fork();
         if (otherPid < 0) {
-            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+            YT_VERIFY(::write(initBarier, &num, sizeof(num)) == sizeof(num));
             _exit(3);
         }
 
         if (otherPid == 0) {
             num = 1;
-            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
-            YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
+            YT_VERIFY(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+            YT_VERIFY(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
             _exit(2);
         }
         waitpid(otherPid, nullptr, 0);

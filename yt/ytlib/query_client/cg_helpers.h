@@ -81,7 +81,7 @@ private:
         , StaticType_(staticType)
         , Name_(name.str())
     {
-        YCHECK(
+        YT_VERIFY(
             StaticType_ == EValueType::Int64 ||
             StaticType_ == EValueType::Uint64 ||
             StaticType_ == EValueType::Double ||
@@ -141,13 +141,13 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        YCHECK(
+        YT_VERIFY(
             isNull->getType() == builder->getInt1Ty() ||
             isNull->getType() == builder->getInt8Ty());
         if (IsStringLikeType(staticType)) {
-            YCHECK(length->getType() == TTypeBuilder::TLength::get(builder->getContext()));
+            YT_VERIFY(length->getType() == TTypeBuilder::TLength::get(builder->getContext()));
         }
-        YCHECK(
+        YT_VERIFY(
             data->getType() == GetLLVMType(builder->getContext(), staticType) ||
             data->getType() == TDataTypeBuilder::get(builder->getContext()));
         return TCGValue(isNull, length, data, staticType, name);
@@ -354,7 +354,7 @@ public:
             } else if (StaticType_ == EValueType::Double) {
                 result = builder->CreateFPToSI(value, destType);
             } else {
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         } else if (dest == EValueType::Uint64) {
             // signed/unsigned are equal to llvm
@@ -364,7 +364,7 @@ public:
             } else if (StaticType_ == EValueType::Double) {
                 result = builder->CreateFPToUI(value, destType);
             } else {
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         } else if (dest == EValueType::Double) {
             auto destType = TDataTypeBuilder::TDouble::get(builder->getContext());
@@ -373,10 +373,10 @@ public:
             } else if (StaticType_ == EValueType::Int64) {
                 result = builder->CreateSIToFP(value, destType);
             } else {
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         return CreateFromValue(
@@ -756,7 +756,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
         while (args != function->arg_end()) {
             argsArray[index++] = ConvertToPointer(args++);
         }
-        YCHECK(index == sizeof...(TArgs));
+        YT_VERIFY(index == sizeof...(TArgs));
 
         TCGIRBuilder baseBuilder(function, parentBuilder.GetBuilder(), closurePtr);
         TCGOperatorContext builder(
@@ -814,7 +814,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
         while (args != function->arg_end()) {
             argsArray[index++] = ConvertToPointer(args++);
         }
-        YCHECK(index == sizeof...(TArgs));
+        YT_VERIFY(index == sizeof...(TArgs));
 
         TCGIRBuilder builder(function);
         TCGBaseContext context(TCGIRBuilderPtr(&builder), module);

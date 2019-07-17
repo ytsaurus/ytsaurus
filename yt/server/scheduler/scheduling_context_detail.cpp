@@ -94,7 +94,7 @@ void TSchedulingContextBase::StartJob(
 
 void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
 {
-    YCHECK(job->GetNode() == Node_);
+    YT_VERIFY(job->GetNode() == Node_);
     PreemptedJobs_.push_back(job);
 }
 

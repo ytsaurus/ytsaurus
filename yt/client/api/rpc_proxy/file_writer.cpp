@@ -18,7 +18,7 @@ public:
         TApiServiceProxy::TReqWriteFilePtr request)
         : Request_(std::move(request))
     {
-        YCHECK(Request_);
+        YT_VERIFY(Request_);
     }
 
     virtual TFuture<void> Open() override

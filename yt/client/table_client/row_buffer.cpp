@@ -105,12 +105,12 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
 
     for (const auto& value : row) {
         ui16 originalId = value.Id;
-        YCHECK(originalId < idMapping.size());
+        YT_VERIFY(originalId < idMapping.size());
         int mappedId = idMapping[originalId];
         if (mappedId < 0) {
             continue;
         }
-        YCHECK(mappedId < tableSchema.Columns().size());
+        YT_VERIFY(mappedId < tableSchema.Columns().size());
         if (mappedId >= keyColumnCount) {
             ++columnCount;
         }
@@ -140,8 +140,8 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     std::vector<bool>* columnPresenceBuffer)
 {
     int keyColumnCount = tableSchema.GetKeyColumnCount();
-    YCHECK(keyColumnCount == row.GetKeyCount());
-    YCHECK(keyColumnCount <= idMapping.size());
+    YT_VERIFY(keyColumnCount == row.GetKeyCount());
+    YT_VERIFY(keyColumnCount <= idMapping.size());
 
     int valueCount = 0;
     int deleteTimestampCount = row.GetDeleteTimestampCount();
@@ -149,12 +149,12 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     SmallVector<TTimestamp, 64> writeTimestamps;
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
         ui16 originalId = value->Id;
-        YCHECK(originalId < idMapping.size());
+        YT_VERIFY(originalId < idMapping.size());
         int mappedId = idMapping[originalId];
         if (mappedId < 0) {
             continue;
         }
-        YCHECK(mappedId < tableSchema.Columns().size());
+        YT_VERIFY(mappedId < tableSchema.Columns().size());
         ++valueCount;
         writeTimestamps.push_back(value->Timestamp);
     }
@@ -187,7 +187,7 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         int index = 0;
         auto* dstValue = capturedRow.BeginKeys();
         for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue, ++index) {
-            YCHECK(idMapping[index] == index);
+            YT_VERIFY(idMapping[index] == index);
             *dstValue++ = *srcValue;
         }
     }

@@ -5,6 +5,8 @@
 #include "objects.h"
 #include "query_context.h"
 
+#include <yt/client/api/client.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
@@ -28,7 +30,7 @@ bool TRevisionTracker::HasRevisionChanged() const
         // We do not want to lose state of the dictionary for as long as possible.
         return false;
     }
-    YCHECK(*currentRevision >= *Revision_);
+    YT_VERIFY(*currentRevision >= *Revision_);
     return *currentRevision != *Revision_;
 }
 

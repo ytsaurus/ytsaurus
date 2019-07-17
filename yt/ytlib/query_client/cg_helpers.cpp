@@ -163,7 +163,7 @@ TCGValue MakePhi(
     TCGValue elseValue,
     Twine name)
 {
-    YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
+    YT_VERIFY(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
 
     builder->SetInsertPoint(thenBB);
@@ -213,7 +213,7 @@ TCGValue MakePhi(
         builder->SetInsertPoint(endBB);
     }
 
-    YCHECK(thenData->getType() == elseData->getType());
+    YT_VERIFY(thenData->getType() == elseData->getType());
 
     PHINode* phiData = builder->CreatePHI(thenData->getType(), 2, name + ".phiData");
     phiData->addIncoming(thenData, thenBB);
@@ -228,7 +228,7 @@ TCGValue MakePhi(
 
         builder->SetInsertPoint(endBB);
 
-        YCHECK(thenLength->getType() == elseLength->getType());
+        YT_VERIFY(thenLength->getType() == elseLength->getType());
 
         phiLength = builder->CreatePHI(thenLength->getType(), 2, name + ".phiLength");
         phiLength->addIncoming(thenLength, thenBB);

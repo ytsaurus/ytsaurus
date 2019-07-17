@@ -179,7 +179,7 @@ inline void LogStructuredEvent(
     NYson::TYsonString message,
     ELogLevel level)
 {
-    YCHECK(message.GetType() == NYson::EYsonType::MapFragment);
+    YT_VERIFY(message.GetType() == NYson::EYsonType::MapFragment);
     TLogEvent event = NDetail::CreateLogEvent(logger, level);
     event.StructuredMessage = std::move(message);
     event.MessageFormat = ELogMessageFormat::Structured;

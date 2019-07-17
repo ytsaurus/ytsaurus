@@ -3,7 +3,7 @@ import __builtin__
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external
+from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity, loads, dumps
 
@@ -1566,10 +1566,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
         assert len(snapshots) == 1
 
-        self.Env.kill_nodes()
-        # Wait to make sure all leases have expired
-        time.sleep(3.0)
-        self.Env.start_nodes()
+        with Restarter(self.Env, NODES_SERVICE):
+            # Wait to make sure all leases have expired
+            time.sleep(3.0)
 
         wait_for_cells()
 

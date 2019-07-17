@@ -92,7 +92,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
             "IO error occurred during subprocess call");
 
         const auto& outputs = outputsOrError.Value();
-        YCHECK(outputs.size() == 3);
+        YT_VERIFY(outputs.size() == 3);
 
         // This can block indefinitely.
         auto exitCode = WaitFor(finished);

@@ -663,7 +663,7 @@ private:
                     asyncReplicas += 1;
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             auto connection = ClusterDirectory_->FindConnection(replica->GetClusterName());

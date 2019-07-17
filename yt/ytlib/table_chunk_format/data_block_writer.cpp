@@ -36,7 +36,7 @@ TBlock TDataBlockWriter::DumpBlock(int blockIndex, i64 currentRowCount)
     for (const auto& part : Data_) {
         size += part.Size();
     }
-    YCHECK(size > 0);
+    YT_VERIFY(size > 0);
 
     TBlock block;
     block.Data.swap(Data_);

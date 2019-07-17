@@ -169,8 +169,8 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
     {
-        YCHECK(config);
-        YCHECK(bootstrap);
+        YT_VERIFY(config);
+        YT_VERIFY(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
 
         for (int index = 0; index < Config_->NodeShardCount; ++index) {
@@ -320,7 +320,7 @@ public:
                 OrchidWorkerPool_->GetInvoker(),
                 Profiler.AppendPath("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
-        YCHECK(StaticOrchidService_);
+        YT_VERIFY(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
@@ -332,7 +332,7 @@ public:
             },
             Config_->OrchidKeysUpdatePeriod);
         CombinedOrchidService_.Reset(combinedOrchidService.Get());
-        YCHECK(CombinedOrchidService_);
+        YT_VERIFY(CombinedOrchidService_);
         return combinedOrchidService;
     }
 
@@ -425,7 +425,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(idOrAlias);
-        YCHECK(operation);
+        YT_VERIFY(operation);
         return operation;
     }
 
@@ -1057,7 +1057,7 @@ public:
                 Strategy_->EnableOperation(operation.Get());
                 if (asyncMaterializeResult) {
                     // Async materialize result is ready here as the combined future already has finished.
-                    YCHECK(asyncMaterializeResult.IsSet());
+                    YT_VERIFY(asyncMaterializeResult.IsSet());
                     auto materializeResult = asyncMaterializeResult
                         .Get()
                         .ValueOrThrow();
@@ -1096,7 +1096,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto it = NodeIdToInfo_.find(nodeId);
-        YCHECK(it != NodeIdToInfo_.end());
+        YT_VERIFY(it != NodeIdToInfo_.end());
         return it->second.Address;
     }
 
@@ -1166,7 +1166,7 @@ public:
 
         auto it = NodeIdToInfo_.find(nodeId);
         if (it == NodeIdToInfo_.end()) {
-            YCHECK(NodeIdToInfo_.emplace(nodeId, TExecNodeInfo{tags, nodeAddress}).second);
+            YT_VERIFY(NodeIdToInfo_.emplace(nodeId, TExecNodeInfo{tags, nodeAddress}).second);
             YT_LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
                 nodeAddress,
                 tags);
@@ -1227,7 +1227,7 @@ public:
 
     TSerializableAccessControlList GetBaseOperationAcl() const
     {
-        YCHECK(BaseOperationAcl_.has_value());
+        YT_VERIFY(BaseOperationAcl_.has_value());
         return *BaseOperationAcl_;
     }
 
@@ -1974,7 +1974,7 @@ private:
         auto result = New<TRefCountedExecNodeDescriptorMap>();
         for (const auto& descriptors : shardDescriptors) {
             for (const auto& pair : *descriptors) {
-                YCHECK(result->insert(pair).second);
+                YT_VERIFY(result->insert(pair).second);
             }
         }
 
@@ -2048,7 +2048,7 @@ private:
         for (const auto& pair : *descriptors) {
             const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                YCHECK(result->emplace(descriptor.Id, descriptor).second);
+                YT_VERIFY(result->emplace(descriptor.Id, descriptor).second);
             }
         }
         return result;
@@ -2096,8 +2096,8 @@ private:
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
-                YCHECK(it != OperationAliases_.end());
-                YCHECK(it->second.Operation == operation);
+                YT_VERIFY(it != OperationAliases_.end());
+                YT_VERIFY(it->second.Operation == operation);
                 OperationAliases_.erase(it);
             }
 
@@ -2239,7 +2239,7 @@ private:
             const auto& controller = operation->GetController();
 
             {
-                YCHECK(operation->RevivalDescriptor());
+                YT_VERIFY(operation->RevivalDescriptor());
                 auto result = WaitFor(controller->Initialize(operation->Transactions()))
                     .ValueOrThrow();
 
@@ -2350,7 +2350,7 @@ private:
 
     void RegisterOperationAlias(const TOperationPtr& operation)
     {
-        YCHECK(operation->Alias());
+        YT_VERIFY(operation->Alias());
 
         TOperationAlias alias{operation->GetId(), operation};
         auto it = OperationAliases_.find(*operation->Alias());
@@ -2375,7 +2375,7 @@ private:
 
     void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
     {
-        YCHECK(IdToOperation_.emplace(operation->GetId(), operation).second);
+        YT_VERIFY(IdToOperation_.emplace(operation->GetId(), operation).second);
 
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         auto controller = agentTracker->CreateController(operation);
@@ -2396,7 +2396,7 @@ private:
         MasterConnector_->RegisterOperation(operation);
 
         auto service = CreateOperationOrchidService(operation);
-        YCHECK(IdToOperationService_.emplace(operation->GetId(), service).second);
+        YT_VERIFY(IdToOperationService_.emplace(operation->GetId(), service).second);
 
         YT_LOG_DEBUG("Operation registered (OperationId: %v, OperationAlias: %v, JobsReady: %v)",
             operation->GetId(),
@@ -2417,15 +2417,15 @@ private:
 
     void UnregisterOperation(const TOperationPtr& operation)
     {
-        YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
-        YCHECK(IdToOperationService_.erase(operation->GetId()) == 1);
+        YT_VERIFY(IdToOperation_.erase(operation->GetId()) == 1);
+        YT_VERIFY(IdToOperationService_.erase(operation->GetId()) == 1);
         if (operation->Alias()) {
             auto it = OperationAliases_.find(*operation->Alias());
-            YCHECK(it != OperationAliases_.end());
+            YT_VERIFY(it != OperationAliases_.end());
             YT_LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
                 *operation->Alias(),
                 operation->GetId());
-            YCHECK(it->second.Operation == operation);
+            YT_VERIFY(it->second.Operation == operation);
             it->second.Operation = nullptr;
         }
 
@@ -2549,7 +2549,7 @@ private:
                 }
             }
 
-            YCHECK(operation->GetState() == EOperationState::Completing);
+            YT_VERIFY(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
 
             SubmitOperationToCleaner(operation, operationProgress);
@@ -2559,7 +2559,7 @@ private:
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 WaitFor(asyncResult)
                     .ThrowOnError();
-                YCHECK(operation->GetState() == EOperationState::Completed);
+                YT_VERIFY(operation->GetState() == EOperationState::Completed);
             }
 
             // Notify controller that it is going to be disposed.
@@ -2915,7 +2915,7 @@ private:
         }
 
         for (const auto& filter : toRemove) {
-            YCHECK(CachedResourceLimitsByTags_.erase(filter) == 1);
+            YT_VERIFY(CachedResourceLimitsByTags_.erase(filter) == 1);
         }
     }
 
@@ -3114,7 +3114,7 @@ private:
         try {
             ValidateOperationState(operation, EOperationState::Orphaned);
 
-            YCHECK(operation->RevivalDescriptor());
+            YT_VERIFY(operation->RevivalDescriptor());
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
             if (revivalDescriptor.OperationCommitted) {
@@ -3226,7 +3226,7 @@ private:
                         request.Id);
                 } else if (it->second.OperationId == request.Id) {
                     // We should have already dropped the pointer to the operation. Let's assert that.
-                    YCHECK(!it->second.Operation);
+                    YT_VERIFY(!it->second.Operation);
                     YT_LOG_DEBUG("Operation alias is still assigned to an operation, removing it (Alias: %v, OperationId: %v)",
                         request.Alias,
                         request.Id);
@@ -3337,12 +3337,12 @@ private:
 
         virtual i64 GetSize() const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual std::vector<TString> GetKeys(i64 limit) const override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override

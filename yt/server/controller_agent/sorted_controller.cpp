@@ -323,7 +323,7 @@ protected:
         const TKeyColumns& keyColumns,
         std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /* table */) { return true; })
     {
-        YCHECK(!InputTables_.empty());
+        YT_VERIFY(!InputTables_.empty());
 
         for (const auto& columnName : keyColumns) {
             const TColumnSchema* referenceColumn = nullptr;
@@ -342,7 +342,7 @@ protected:
                     continue;
                 }
                 if (referenceColumn) {
-                    YCHECK(referenceColumn->SimplifiedLogicalType());
+                    YT_VERIFY(referenceColumn->SimplifiedLogicalType());
                     if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
                         THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
                             << TErrorAttribute("column_name", columnName)
@@ -603,8 +603,8 @@ protected:
     {
         auto reducerSpec = GetUserJobSpec();
         // We could get here only if this is a sorted reduce and auto-merge is enabled.
-        YCHECK(reducerSpec);
-        YCHECK(Spec_->AutoMerge->Mode != EAutoMergeMode::Disabled);
+        YT_VERIFY(reducerSpec);
+        YT_VERIFY(Spec_->AutoMerge->Mode != EAutoMergeMode::Disabled);
 
         if (Spec_->AutoMerge->Mode != EAutoMergeMode::Relaxed && reducerSpec->Deterministic) {
             return EIntermediateChunkUnstageMode::OnJobCompleted;
@@ -782,7 +782,7 @@ public:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -900,7 +900,7 @@ public:
 
     virtual void InitJobSpecTemplate() override
     {
-        YCHECK(!PrimaryKeyColumns_.empty());
+        YT_VERIFY(!PrimaryKeyColumns_.empty());
 
         JobSpecTemplate_.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);

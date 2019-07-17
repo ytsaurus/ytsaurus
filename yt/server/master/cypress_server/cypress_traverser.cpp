@@ -212,7 +212,7 @@ void TraverseCypress(
     TTransaction* transaction,
     ICypressNodeVisitorPtr visitor)
 {
-    YCHECK(trunkRootNode->IsTrunk());
+    YT_VERIFY(trunkRootNode->IsTrunk());
 
     New<TCypressTraverser>(
         std::move(cypressManager),

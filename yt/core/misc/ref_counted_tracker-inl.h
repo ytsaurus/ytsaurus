@@ -115,7 +115,7 @@ Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
 }
 
 #define INCREMENT_COUNTER(fallback, name, delta) \
-    Y_ASSERT(cookie >= 0); \
+    YT_ASSERT(cookie >= 0); \
     if (Y_UNLIKELY(cookie >= LocalSlotsSize)) { \
         Get()->fallback; \
     } else { \

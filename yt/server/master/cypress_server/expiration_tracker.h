@@ -45,7 +45,7 @@ private:
 
     void OnCheck();
 
-    bool IsRecovery();
+    bool IsRecovery() const;
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();

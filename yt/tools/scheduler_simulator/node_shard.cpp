@@ -164,7 +164,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     for (const auto& job : context->StartedJobs()) {
         const auto& durations = context->GetStartedJobsDurations();
         auto it = durations.find(job->GetId());
-        YCHECK(it != durations.end());
+        YT_VERIFY(it != durations.end());
         const auto& duration = it->second;
 
         // Notify scheduler.
@@ -188,7 +188,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         // Update stats.
         OperationStatistics_->OnJobStarted(job->GetOperationId(), duration);
 
-        YCHECK(node->Jobs().insert(job).second);
+        YT_VERIFY(node->Jobs().insert(job).second);
         JobAndOperationCounter_->OnJobStarted();
     }
 
@@ -247,7 +247,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
         return;
     }
 
-    YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
 
     YT_LOG_DEBUG(
         "Job finished (VirtualTimestamp: %v, JobId: %v, OperationId: %v, NodeId: %v)",
@@ -286,8 +286,8 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
             jobUpdates,
             &jobsToRemove,
             &jobsToAbort);
-        YCHECK(jobsToRemove.size() == 1);
-        YCHECK(jobsToAbort.empty());
+        YT_VERIFY(jobsToRemove.size() == 1);
+        YT_VERIFY(jobsToAbort.empty());
     }
 
     // Schedule out of band heartbeat.
@@ -297,7 +297,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
     OperationStatistics_->OnJobFinished(operation->GetId(), event.Time - job->GetStartTime());
 
     const auto& node = IdToNode_[event.NodeId];
-    YCHECK(node == event.JobNode);
+    YT_VERIFY(node == event.JobNode);
     node->SetResourceUsage(node->GetResourceUsage() - job->ResourceUsage());
 
     if (operation->GetState() == EOperationState::Completed && operation->SetCompleting()) {
@@ -323,9 +323,9 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
-        .Do([&] (TFluentMap fluent) {
-            BuildExecNodeAttributes(node, fluent);
-        })
+            .Do([&] (TFluentMap fluent) {
+                node->BuildAttributes(fluent);
+            })
         .EndMap();
 }
 

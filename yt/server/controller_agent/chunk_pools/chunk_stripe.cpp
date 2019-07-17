@@ -81,14 +81,14 @@ int TChunkStripe::GetChunkCount() const
 
 int TChunkStripe::GetTableIndex() const
 {
-    YCHECK(!DataSlices.empty());
-    YCHECK(!DataSlices.front()->ChunkSlices.empty());
+    YT_VERIFY(!DataSlices.empty());
+    YT_VERIFY(!DataSlices.front()->ChunkSlices.empty());
     return DataSlices.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
 }
 
 int TChunkStripe::GetInputStreamIndex() const
 {
-    YCHECK(!DataSlices.empty());
+    YT_VERIFY(!DataSlices.empty());
     return DataSlices.front()->InputStreamIndex;
 }
 

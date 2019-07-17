@@ -89,7 +89,7 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("no_progress_job_exec_to_prepare_time_ratio", NoProgressJobExecToPrepareTimeRatio)
+    RegisterParameter("no_progress_job_total_to_prepare_time_ratio", NoProgressJobTotalToPrepareTimeRatio)
         .Default(20.0);
 
     RegisterParameter("min_total_data_weight", MinTotalDataWeight)
@@ -128,6 +128,9 @@ TJobSplitterConfig::TJobSplitterConfig()
 
     RegisterParameter("split_timeout_before_speculate", SplitTimeoutBeforeSpeculate)
         .Default(TDuration::Minutes(5));
+
+    RegisterParameter("job_logging_period", JobLoggingPeriod)
+        .Default(TDuration::Minutes(3));
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()
@@ -336,9 +339,6 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("scheudler_failure_backoff", SchedulerHandshakeFailureBackoff)
-        .Default(TDuration::Seconds(1));
-
     RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
     RegisterParameter("scheduler_failure_backoff", SchedulerHeartbeatFailureBackoff)

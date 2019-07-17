@@ -133,7 +133,7 @@ void LogStructuredEvent(const TLogger& logger,
 #define YT_LOG_FATAL(...) \
     do { \
         YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Fatal, __VA_ARGS__); \
-        BUILTIN_UNREACHABLE(); \
+        YT_ABORT(); \
     } while(false)
 #define YT_LOG_FATAL_IF(condition, ...)        if (Y_UNLIKELY(condition)) YT_LOG_FATAL(__VA_ARGS__)
 #define YT_LOG_FATAL_UNLESS(condition, ...)    if (!Y_LIKELY(condition)) YT_LOG_FATAL(__VA_ARGS__)

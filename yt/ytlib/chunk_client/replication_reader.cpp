@@ -260,8 +260,8 @@ private:
 
     void DiscardSeeds(TFuture<TChunkReplicaList> result)
     {
-        YCHECK(result);
-        YCHECK(result.IsSet());
+        YT_VERIFY(result);
+        YT_VERIFY(result.IsSet());
 
         TGuard<TSpinLock> guard(SeedsSpinLock_);
 
@@ -275,7 +275,7 @@ private:
             return;
         }
 
-        YCHECK(SeedsPromise_.IsSet());
+        YT_VERIFY(SeedsPromise_.IsSet());
         SeedsPromise_.Reset();
     }
 
@@ -425,7 +425,7 @@ private:
     void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(Reader_->SeedsPromise_);
+        YT_VERIFY(Reader_->SeedsPromise_);
 
         {
             TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
@@ -433,16 +433,16 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YCHECK(!Reader_->SeedsPromise_.IsSet());
+            YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
             Reader_->SeedsPromise_.Set(TError(rspOrError));
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        YCHECK(rsp->subresponses_size() == 1);
+        YT_VERIFY(rsp->subresponses_size() == 1);
         const auto& subresponse = rsp->subresponses(0);
         if (subresponse.missing()) {
-            YCHECK(!Reader_->SeedsPromise_.IsSet());
+            YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
             Reader_->SeedsPromise_.Set(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "No such chunk %v",
@@ -457,7 +457,7 @@ private:
         YT_LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
             MakeFormattableView(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
-        YCHECK(!Reader_->SeedsPromise_.IsSet());
+        YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
         Reader_->SeedsPromise_.Set(seedReplicas);
     }
 };
@@ -579,7 +579,7 @@ protected:
     const TNodeDescriptor& GetPeerDescriptor(const TString& address)
     {
         auto it = Peers_.find(address);
-        YCHECK(it != Peers_.end());
+        YT_VERIFY(it != Peers_.end());
         return it->second.NodeDescriptor;
     }
 
@@ -616,7 +616,7 @@ protected:
         }
 
         auto it = Peers_.find(address);
-        YCHECK(it != Peers_.end());
+        YT_VERIFY(it != Peers_.end());
 
         YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
         PeerQueue_.push(TPeerQueueEntry(it->second, reader->GetBanCount(address)));
@@ -625,7 +625,7 @@ protected:
     bool IsSeed(const TString& address)
     {
         auto it = Peers_.find(address);
-        YCHECK(it != Peers_.end());
+        YT_VERIFY(it != Peers_.end());
 
         return it->second.Type == EPeerType::Seed;
     }
@@ -726,7 +726,7 @@ protected:
             return;
         }
 
-        YCHECK(!SeedsFuture_);
+        YT_VERIFY(!SeedsFuture_);
 
         YT_LOG_DEBUG("Retry started: %v of %v",
             RetryIndex_ + 1,
@@ -772,7 +772,7 @@ protected:
             return;
         }
 
-        YCHECK(SeedsFuture_);
+        YT_VERIFY(SeedsFuture_);
         reader->DiscardSeeds(SeedsFuture_);
         SeedsFuture_.Reset();
     }
@@ -935,7 +935,7 @@ private:
             if (lhs.Peer.Type == EPeerType::Peer) {
                 return 1;
             } else {
-                YCHECK(lhs.Peer.Type == EPeerType::Seed);
+                YT_VERIFY(lhs.Peer.Type == EPeerType::Seed);
                 return -1;
             }
         }
@@ -1103,7 +1103,7 @@ private:
     bool HasUnfetchedBlocks(const TString& address, const std::vector<int>& indexesToFetch) const
     {
         auto it = PeerBlocksMap_.find(address);
-        YCHECK(it != PeerBlocksMap_.end());
+        YT_VERIFY(it != PeerBlocksMap_.end());
         const auto& peerBlockIndexes = it->second;
 
         for (int blockIndex : indexesToFetch) {
@@ -1123,7 +1123,7 @@ private:
                 auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
                 if (block) {
                     YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
-                    YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
+                    YT_VERIFY(Blocks_.insert(std::make_pair(blockIndex, block)).second);
                 }
             }
         }
@@ -1441,7 +1441,7 @@ private:
 
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
-            YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
+            YT_VERIFY(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             bytesReceived += block.Size();
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
@@ -1487,7 +1487,7 @@ private:
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
             const auto& block = Blocks_[blockIndex];
-            YCHECK(block.Data);
+            YT_VERIFY(block.Data);
             blocks.push_back(block);
         }
         Promise_.TrySet(std::vector<TBlock>(blocks));
@@ -1597,7 +1597,7 @@ private:
         if (!reader || IsCanceled())
             return;
 
-        YCHECK(FetchedBlocks_.empty());
+        YT_VERIFY(FetchedBlocks_.empty());
 
         auto candidates = PickPeerCandidates(
             1,
@@ -1961,10 +1961,10 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
-    YCHECK(config);
-    YCHECK(blockCache);
-    YCHECK(client);
-    YCHECK(nodeDirectory);
+    YT_VERIFY(config);
+    YT_VERIFY(blockCache);
+    YT_VERIFY(client);
+    YT_VERIFY(nodeDirectory);
 
     auto reader = New<TReplicationReader>(
         std::move(config),

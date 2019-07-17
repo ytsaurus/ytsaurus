@@ -92,7 +92,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
         }
     }
 
-    YCHECK(!EmptyBufferIds_.empty());
+    YT_VERIFY(!EmptyBufferIds_.empty());
 
     auto bufferId = EmptyBufferIds_.back();
     auto buffer = Buffers_[bufferId];
@@ -286,7 +286,7 @@ void TCGVariables::Clear()
 
 int TCGVariables::AddLiteralValue(TOwningValue value)
 {
-    Y_ASSERT(!LiteralValues_);
+    YT_ASSERT(!LiteralValues_);
     int index = static_cast<int>(OwningLiteralValues_.size());
     OwningLiteralValues_.emplace_back(std::move(value));
     return index;

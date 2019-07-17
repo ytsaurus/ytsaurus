@@ -55,7 +55,7 @@ TClientRequest::TClientRequest(
     : Channel_(std::move(channel))
     , StreamingEnabled_(methodDescriptor.StreamingEnabled)
 {
-    Y_ASSERT(Channel_);
+    YT_ASSERT(Channel_);
 
     Header_.set_service(serviceDescriptor.ServiceName);
     Header_.set_method(methodDescriptor.MethodName);
@@ -415,13 +415,13 @@ const NProto::TResponseHeader& TClientResponse::Header() const
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
 {
-    Y_ASSERT(ResponseMessage_);
+    YT_ASSERT(ResponseMessage_);
     return ResponseMessage_;
 }
 
 size_t TClientResponse::GetTotalSize() const
 {
-    Y_ASSERT(ResponseMessage_);
+    YT_ASSERT(ResponseMessage_);
     auto result = ResponseMessage_.ByteSize();
 
     for (const auto& attachment : Attachments_) {
@@ -483,14 +483,14 @@ const IInvokerPtr& TClientResponse::GetInvoker()
 
 void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
-    Y_ASSERT(responseMessage);
-    Y_ASSERT(!ResponseMessage_);
+    YT_ASSERT(responseMessage);
+    YT_ASSERT(!ResponseMessage_);
 
     ResponseMessage_ = std::move(responseMessage);
 
-    Y_ASSERT(ResponseMessage_.Size() >= 2);
+    YT_ASSERT(ResponseMessage_.Size() >= 2);
 
-    YCHECK(ParseResponseHeader(ResponseMessage_, &Header_));
+    YT_VERIFY(ParseResponseHeader(ResponseMessage_, &Header_));
 
     // COMPAT(kiselyovp): legacy RPC codecs
     std::optional<NCompression::ECodec> bodyCodecId;
@@ -531,7 +531,7 @@ void TClientResponse::HandleAcknowledgement()
 void TClientResponse::HandleResponse(TSharedRefArray message)
 {
     auto prevState = State_.exchange(EState::Done);
-    Y_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
+    YT_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
     GetInvoker()->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
@@ -623,7 +623,7 @@ TProxyBase::TProxyBase(
     : Channel_(std::move(channel))
     , ServiceDescriptor_(descriptor)
 {
-    Y_ASSERT(Channel_);
+    YT_ASSERT(Channel_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

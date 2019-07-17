@@ -112,9 +112,9 @@ extern "C" YTALLOC_WEAK void* valloc(size_t size)
 extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
 {
     // Alignment must be a power of two.
-    YCHECK((alignment & (alignment - 1)) == 0);
+    YT_VERIFY((alignment & (alignment - 1)) == 0);
     // Alignment must be exceeed page size.
-    YCHECK(alignment <= PageSize);
+    YT_VERIFY(alignment <= PageSize);
     if (alignment <= 16) {
         // Proper alignment here is automatic.
         return Allocate(size);

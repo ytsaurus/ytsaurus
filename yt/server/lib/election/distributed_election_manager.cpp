@@ -180,7 +180,7 @@ private:
     void OnPingResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-        YCHECK(Owner->State == EPeerState::Leading);
+        YT_VERIFY(Owner->State == EPeerState::Leading);
 
         if (rspOrError.IsOK()) {
             OnPingResponseSuccess(id, rspOrError.Value());
@@ -199,20 +199,20 @@ private:
             YT_LOG_INFO("%v is up, first success (PeerId: %v)",
                 votingPeer ? "Follower" : "Observer",
                 id);
-            YCHECK(Owner->PotentialPeers.erase(id) == 1);
+            YT_VERIFY(Owner->PotentialPeers.erase(id) == 1);
         } else {
             if (votingPeer) {
                 if (!Owner->AliveFollowers.contains(id)) {
                     YT_LOG_INFO("Follower is up (PeerId: %v)", id);
-                    YCHECK(Owner->AliveFollowers.insert(id).second);
+                    YT_VERIFY(Owner->AliveFollowers.insert(id).second);
                     // Peers are a superset of followers.
-                    YCHECK(Owner->AlivePeers.insert(id).second);
+                    YT_VERIFY(Owner->AlivePeers.insert(id).second);
                     Owner->FireAlivePeerSetChanged();
                 }
             } else {
                 if (!Owner->AlivePeers.contains(id)) {
                     YT_LOG_INFO("Observer is up (PeerId: %v)", id);
-                    YCHECK(Owner->AlivePeers.insert(id).second);
+                    YT_VERIFY(Owner->AlivePeers.insert(id).second);
                     Owner->FireAlivePeerSetChanged();
                 }
             }
@@ -251,7 +251,7 @@ private:
                     if (Owner->AliveFollowers.erase(id) > 0) {
                         YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
                             id);
-                        YCHECK(Owner->AlivePeers.erase(id));
+                        YT_VERIFY(Owner->AlivePeers.erase(id));
                         Owner->FireAlivePeerSetChanged();
                     }
                 } else {
@@ -268,7 +268,7 @@ private:
                     YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
                         id);
                     Owner->PotentialPeers.erase(id);
-                    YCHECK(Owner->AlivePeers.erase(id) > 0);
+                    YT_VERIFY(Owner->AlivePeers.erase(id) > 0);
                     Owner->FireAlivePeerSetChanged();
                 }
             } else {
@@ -312,7 +312,7 @@ public:
     void Run()
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-        YCHECK(Owner->State == EPeerState::Voting);
+        YT_VERIFY(Owner->State == EPeerState::Voting);
 
         auto cellManager = Owner->CellManager;
 
@@ -394,7 +394,7 @@ private:
             status.VoteId,
             Owner->ElectionCallbacks->FormatPriority(status.Priority));
 
-        YCHECK(id != InvalidPeerId);
+        YT_VERIFY(id != InvalidPeerId);
         StatusTable[id] = status;
 
         for (const auto& pair : StatusTable) {
@@ -491,7 +491,7 @@ private:
 
         if (candidateId == Owner->CellManager->GetSelfPeerId()) {
             // Check that we're voting.
-            YCHECK(candidateStatus.State == EPeerState::Voting);
+            YT_VERIFY(candidateStatus.State == EPeerState::Voting);
             return true;
         } else {
             // The candidate must be aware of his leadership.
@@ -567,10 +567,10 @@ TDistributedElectionManager::TDistributedElectionManager(
     , ElectionCallbacks(electionCallbacks)
     , RpcServer_(rpcServer)
 {
-    YCHECK(Config);
-    YCHECK(CellManager);
-    YCHECK(ControlInvoker);
-    YCHECK(ElectionCallbacks);
+    YT_VERIFY(Config);
+    YT_VERIFY(CellManager);
+    YT_VERIFY(ControlInvoker);
+    YT_VERIFY(ElectionCallbacks);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
 
     Reset();
@@ -652,7 +652,7 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 
     YT_LOG_INFO("No recurrent ping from leader within timeout");
 
-    YCHECK(State == EPeerState::Following);
+    YT_VERIFY(State == EPeerState::Following);
     StopFollowing();
 }
 
@@ -681,7 +681,7 @@ void TDistributedElectionManager::DoParticipate()
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -703,7 +703,7 @@ void TDistributedElectionManager::DoAdandon()
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     Reset();
@@ -781,7 +781,7 @@ void TDistributedElectionManager::StartVoting()
 void TDistributedElectionManager::StartVotingRound()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(State == EPeerState::Voting);
+    YT_VERIFY(State == EPeerState::Voting);
 
     auto round = New<TVotingRound>(this);
     TDelayedExecutor::Submit(
@@ -795,7 +795,7 @@ void TDistributedElectionManager::StartLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Leading);
-    YCHECK(VoteId == CellManager->GetSelfPeerId());
+    YT_VERIFY(VoteId == CellManager->GetSelfPeerId());
 
     // Initialize followers state.
     for (TPeerId id = 0; id < CellManager->GetTotalPeerCount(); ++id) {
@@ -809,7 +809,7 @@ void TDistributedElectionManager::StartLeading()
     InitEpochContext(CellManager->GetSelfPeerId(), VoteEpochId);
 
     // Send initial pings.
-    YCHECK(!FollowerPinger);
+    YT_VERIFY(!FollowerPinger);
     FollowerPinger = New<TFollowerPinger>(this);
     FollowerPinger->Run();
 
@@ -846,14 +846,14 @@ void TDistributedElectionManager::StartFollowing(
 void TDistributedElectionManager::StopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(State == EPeerState::Leading);
+    YT_VERIFY(State == EPeerState::Leading);
 
     YT_LOG_INFO("Stopped leading (EpochId: %v)",
         EpochContext->EpochId);
 
     ElectionCallbacks->OnStopLeading();
 
-    YCHECK(FollowerPinger);
+    YT_VERIFY(FollowerPinger);
     FollowerPinger.Reset();
 
     Reset();
@@ -862,7 +862,7 @@ void TDistributedElectionManager::StopLeading()
 void TDistributedElectionManager::StopFollowing()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(State == EPeerState::Following);
+    YT_VERIFY(State == EPeerState::Following);
 
     YT_LOG_INFO("Stopped following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,

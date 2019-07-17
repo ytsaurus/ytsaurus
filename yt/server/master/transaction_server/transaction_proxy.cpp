@@ -324,7 +324,7 @@ private:
         return Combine(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
             TMulticellAccountResourcesMap multicellMap;
             for (const auto& pair : results) {
-                YCHECK(multicellMap.insert(pair).second);
+                YT_VERIFY(multicellMap.insert(pair).second);
             }
             return multicellMap;
         }));
@@ -348,7 +348,7 @@ private:
         const auto* transaction = GetThisImpl();
         TAccountResourcesMap result;
         for (const auto& pair : transaction->AccountResourceUsage()) {
-            YCHECK(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
+            YT_VERIFY(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
         }
         return MakeFuture(std::make_pair(cellTag, result));
     }

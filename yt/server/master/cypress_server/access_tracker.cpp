@@ -36,7 +36,7 @@ void TAccessTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(!FlushExecutor_);
+    YT_VERIFY(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)));
@@ -65,8 +65,8 @@ void TAccessTracker::SetModified(
     EModificationType modificationType)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(trunkNode->IsTrunk());
-    YCHECK(trunkNode->IsAlive());
+    YT_VERIFY(trunkNode->IsTrunk());
+    YT_VERIFY(trunkNode->IsAlive());
 
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
@@ -84,16 +84,16 @@ void TAccessTracker::SetModified(
             node->SetContentRevision(mutationContext->GetVersion().ToRevision());
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(FlushExecutor_);
-    YCHECK(trunkNode->IsTrunk());
-    YCHECK(trunkNode->IsAlive());
+    YT_VERIFY(FlushExecutor_);
+    YT_VERIFY(trunkNode->IsTrunk());
+    YT_VERIFY(trunkNode->IsAlive());
 
     int index = trunkNode->GetAccessStatisticsUpdateIndex();
     if (index < 0) {

@@ -180,7 +180,7 @@ TDnsResolver::TImpl::TImpl(
 {
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
     EpollFD_ = HandleEintr(epoll_create1, EPOLL_CLOEXEC);
-    YCHECK(EpollFD_ >= 0);
+    YT_VERIFY(EpollFD_ >= 0);
 #endif
 
     int wakeupFD = WakeupHandle_.GetFD();
@@ -190,7 +190,7 @@ TDnsResolver::TImpl::TImpl(
     // Init library globals.
     // c-ares 1.10+ provides recursive behaviour of init/cleanup.
     while (LibraryLock_.test_and_set(std::memory_order_acquire));
-    YCHECK(ares_library_init(ARES_LIB_INIT_ALL) == ARES_SUCCESS);
+    YT_VERIFY(ares_library_init(ARES_LIB_INIT_ALL) == ARES_SUCCESS);
     LibraryLock_.clear(std::memory_order_release);
 
     memset(&Channel_, 0, sizeof(Channel_));
@@ -212,7 +212,7 @@ TDnsResolver::TImpl::TImpl(
     Options_.sock_state_cb_data = this;
     mask |= ARES_OPT_SOCK_STATE_CB;
 
-    YCHECK(ares_init_options(&Channel_, &Options_, mask) == ARES_SUCCESS);
+    YT_VERIFY(ares_init_options(&Channel_, &Options_, mask) == ARES_SUCCESS);
 
     ares_set_socket_callback(Channel_, &TDnsResolver::TImpl::OnSocketCreated, this);
 }
@@ -232,19 +232,19 @@ TDnsResolver::TImpl::~TImpl()
     LibraryLock_.clear(std::memory_order_release);
 
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
-    YCHECK(HandleEintr(close, EpollFD_) == 0);
+    YT_VERIFY(HandleEintr(close, EpollFD_) == 0);
 #endif
 }
 
 void TDnsResolver::TImpl::Start()
 {
-    YCHECK(Alive_.load(std::memory_order_relaxed));
+    YT_VERIFY(Alive_.load(std::memory_order_relaxed));
     ResolverThread_.Start();
 }
 
 void TDnsResolver::TImpl::Stop()
 {
-    YCHECK(Alive_.load(std::memory_order_relaxed));
+    YT_VERIFY(Alive_.load(std::memory_order_relaxed));
     Alive_.store(false, std::memory_order_relaxed);
     WakeupHandle_.Raise();
     ResolverThread_.Join();
@@ -344,7 +344,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
         constexpr size_t MaxEventsPerPoll = 10;
         struct epoll_event events[MaxEventsPerPoll];
         int count = HandleEintr(epoll_wait, EpollFD_, events, MaxEventsPerPoll, PollTimeoutMs);
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
 
         if (count == 0) {
             ares_process_fd(Channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
@@ -372,14 +372,14 @@ void TDnsResolver::TImpl::ResolverThreadMain()
         nFDs = std::max(nFDs, 1 + wakeupFD);
         FD_SET(wakeupFD, &readFDs);
 
-        YCHECK(nFDs <= FD_SETSIZE); // This is inherent limitation by select().
+        YT_VERIFY(nFDs <= FD_SETSIZE); // This is inherent limitation by select().
 
         timeval timeout;
         timeout.tv_sec = PollTimeoutMs / 1000;
         timeout.tv_usec = (PollTimeoutMs % 1000) * 1000;
 
         int result = select(nFDs, &readFDs, &writeFDs, nullptr, &timeout);
-        YCHECK(result >= 0);
+        YT_VERIFY(result >= 0);
 
         ares_process(Channel_, &readFDs, &writeFDs);
 
@@ -448,9 +448,9 @@ void TDnsResolver::TImpl::OnSocketStateChanged(
     if (!readable && !writable) {
         op = EPOLL_CTL_DEL;
     }
-    YCHECK(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
+    YT_VERIFY(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
 #else
-    YCHECK(socket < FD_SETSIZE);
+    YT_VERIFY(socket < FD_SETSIZE);
 #endif
 }
 
@@ -484,8 +484,8 @@ void TDnsResolver::TImpl::OnNameResolution(
         return;
     }
 
-    YCHECK(hostent->h_addrtype == AF_INET || hostent->h_addrtype == AF_INET6);
-    YCHECK(hostent->h_addr_list && hostent->h_addr_list[0]);
+    YT_VERIFY(hostent->h_addrtype == AF_INET || hostent->h_addrtype == AF_INET6);
+    YT_VERIFY(hostent->h_addr_list && hostent->h_addr_list[0]);
 
     TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
     YT_LOG_DEBUG("Host name resolved (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",

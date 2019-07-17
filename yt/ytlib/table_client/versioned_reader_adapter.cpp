@@ -49,7 +49,7 @@ public:
             return hasMore;
         }
 
-        YCHECK(hasMore);
+        YT_VERIFY(hasMore);
 
         for (auto row : Rows_) {
             rows->push_back(MakeVersionedRow(row));
@@ -75,12 +75,12 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:
@@ -97,7 +97,7 @@ private:
         }
 
         for (int index = 0; index < KeyColumnCount_; ++index) {
-            Y_ASSERT(row[index].Id == index);
+            YT_ASSERT(row[index].Id == index);
         }
 
         auto versionedRow = TMutableVersionedRow::Allocate(
@@ -111,7 +111,7 @@ private:
 
         TVersionedValue* currentValue = versionedRow.BeginValues();
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
-            YCHECK(row[index].Id >= KeyColumnCount_);
+            YT_VERIFY(row[index].Id >= KeyColumnCount_);
             *currentValue = MakeVersionedValue(row[index], Timestamp_);
             ++currentValue;
         }

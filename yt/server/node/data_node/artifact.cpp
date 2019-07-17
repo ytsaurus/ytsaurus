@@ -54,7 +54,7 @@ TArtifactKey::operator size_t() const
         HashCombine(result, data_source().timestamp());
     }
 
-    YCHECK(!data_source().has_table_schema_id());
+    YT_VERIFY(!data_source().has_table_schema_id());
 
     if (data_source().has_table_schema()) {
         for (const auto& column : data_source().table_schema().columns()) {

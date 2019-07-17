@@ -53,7 +53,7 @@ public:
         bool alwaysCreateAttributes,
         const std::optional<TString>& encoding)
     {
-        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+        YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
         InputStream_ = inputStream;
         InputStreamHolder_ = std::move(inputStreamHolder);
@@ -157,7 +157,7 @@ public:
         const std::optional<TString>& encoding,
         bool alwaysCreateAttributes)
     {
-        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+        YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
         InputStreamHolder_ = std::move(inputStreamHolder);
         KeyCache_ = TPythonStringCache(/* enable */ true, encoding);
@@ -547,6 +547,12 @@ private:
             }
         }
 
+        bool sortKeys = false;
+        if (HasArgument(args, kwargs, "sort_keys")) {
+            auto arg = ExtractArgument(args, kwargs, "sort_keys");
+            sortKeys = Py::Boolean(arg);
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         auto writer = NYson::CreateYsonWriter(
@@ -560,7 +566,7 @@ private:
         switch (ysonType) {
             case NYson::EYsonType::Node:
             case NYson::EYsonType::MapFragment:
-                Serialize(obj, writer.get(), encoding, ignoreInnerAttributes, ysonType);
+                Serialize(obj, writer.get(), encoding, ignoreInnerAttributes, ysonType, sortKeys);
                 break;
 
             case NYson::EYsonType::ListFragment: {
@@ -569,7 +575,7 @@ private:
                 TContext context;
                 while (auto* item = PyIter_Next(*iterator)) {
                     context.RowIndex = rowIndex;
-                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, 0, &context);
+                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, sortKeys, 0, &context);
                     ++rowIndex;
                 }
                 if (PyErr_Occurred()) {
@@ -606,7 +612,7 @@ private:
         fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size());
 
         auto result = GetDescriptorPool()->BuildFile(fileDescriptorProto);
-        YCHECK(result);
+        YT_VERIFY(result);
     }
 
     Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat, std::optional<i64> outputLimit)
@@ -658,11 +664,9 @@ private:
         ::google::protobuf::io::StringOutputStream outputStream(&result);
 
         TProtobufWriterOptions options;
-        if (skipUnknownFields) {
-            options.SkipUnknownFields = *skipUnknownFields;
-        } else {
-            options.SkipUnknownFields = true;
-        }
+        options.UnknownYsonFieldsMode = skipUnknownFields.value_or(false)
+            ? EUnknownYsonFieldsMode::Skip
+            : EUnknownYsonFieldsMode::Fail;
         auto writer = CreateProtobufWriter(&outputStream, messageType, options);
 
         ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());

@@ -650,7 +650,7 @@ public:
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 };
 

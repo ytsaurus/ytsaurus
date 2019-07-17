@@ -24,12 +24,12 @@ template <class T>
 void TRegistry::Register(ui32 tag)
 {
     auto pair = TagToEntry_.emplace(tag, TEntry());
-    YCHECK(pair.second);
+    YT_VERIFY(pair.second);
     auto& entry = pair.first->second;
     entry.Tag = tag;
     entry.TypeInfo = &typeid (T);
     entry.Factory = std::bind(&DoInstantiate<T>);
-    YCHECK(TypeInfoToEntry_.insert(std::make_pair(entry.TypeInfo, &entry)).second);
+    YT_VERIFY(TypeInfoToEntry_.insert(std::make_pair(entry.TypeInfo, &entry)).second);
 }
 
 template <class T>
@@ -176,7 +176,7 @@ struct TSerializer
         ui32 id = Load<ui32>(context);
         if (id & InlineObjectIdMask) {
             if (inplace) {
-                YCHECK(rawPtr);
+                YT_VERIFY(rawPtr);
                 TInstantiator<T, C, TPolymorphicTraits<T>::Dynamic>::ValidateTag(context, rawPtr);
             } else {
                 rawPtr = TInstantiator<T, C, TPolymorphicTraits<T>::Dynamic>::Instantiate(context);
@@ -217,7 +217,7 @@ struct TSerializer
             using NYT::Load;
             ui32 streamTag = Load<ui32>(context);
             ui32 runtimeTag = TRegistry::Get()->GetTag(typeid (*rawPtr));
-            YCHECK(streamTag == runtimeTag);
+            YT_VERIFY(streamTag == runtimeTag);
         }
     };
 

@@ -442,7 +442,7 @@ private:
 
     void OnForwardingFinished()
     {
-        YCHECK(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
+        YT_VERIFY(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
         ItemKey_.clear();
     }
 
@@ -523,8 +523,8 @@ void SetNodeFromProducer(
     NYson::TYsonProducer producer,
     ITreeBuilder* builder)
 {
-    YCHECK(node);
-    YCHECK(builder);
+    YT_VERIFY(node);
+    YT_VERIFY(builder);
 
     TNodeSetter<TNode> setter(node, builder);
     producer.Run(&setter);

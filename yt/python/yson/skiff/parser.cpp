@@ -26,7 +26,7 @@ void TSkiffIterator::Initialize(
     const TString& rowIndexColumnName,
     const std::optional<TString>& encoding)
 {
-    YCHECK(inputStreamHolder.get() == inputStream);
+    YT_VERIFY(inputStreamHolder.get() == inputStream);
     InputStream_ = inputStream;
     Consumer_ = std::make_unique<TPythonSkiffRecordBuilder>(pythonSkiffschemaList, encoding);
     InputStreamHolder_ = std::move(inputStreamHolder);

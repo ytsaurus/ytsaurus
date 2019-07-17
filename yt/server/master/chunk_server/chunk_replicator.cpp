@@ -134,9 +134,9 @@ TChunkReplicator::TChunkReplicator(
         ChunkServerLogger,
         ChunkServerProfiler.AppendPath("/job_throttler")))
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
-    YCHECK(ChunkPlacement_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
+    YT_VERIFY(ChunkPlacement_);
 
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
@@ -243,7 +243,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChu
         case EObjectType::JournalChunk:
             return ComputeJournalChunkStatistics(chunk);
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -287,7 +287,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     for (auto& entry : replication) {
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
 
         if (medium->GetCache()) {
             continue;
@@ -478,7 +478,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     for (const auto& entry : chunkReplication) {
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
 
         if (medium->GetCache()) {
             continue;
@@ -534,7 +534,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     NErasure::TPartIndexSet& erasedIndexes,
     bool dataPartsOnly)
 {
-    Y_ASSERT(0 <= replicationFactor && replicationFactor <= 1);
+    YT_ASSERT(0 <= replicationFactor && replicationFactor <= 1);
 
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
@@ -782,7 +782,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     for (const auto& entry : replication) {
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
 
         if (medium->GetCache()) {
             continue;
@@ -987,11 +987,11 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
-    YCHECK(node->IdToJob().empty());
-    YCHECK(node->ChunkSealQueue().empty());
-    YCHECK(node->ChunkRemovalQueue().empty());
+    YT_VERIFY(node->IdToJob().empty());
+    YT_VERIFY(node->ChunkSealQueue().empty());
+    YT_VERIFY(node->ChunkRemovalQueue().empty());
     for (const auto& queue : node->ChunkReplicationQueues()) {
-        YCHECK(queue.empty());
+        YT_VERIFY(queue.empty());
     }
 }
 
@@ -1051,8 +1051,8 @@ void TChunkReplicator::ProcessExistingJobs(
 
     for (const auto& job : currentJobs) {
         const auto& jobId = job->GetJobId();
-        YCHECK(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
-        YCHECK(TypeFromId(jobId) == EObjectType::MasterJob);
+        YT_VERIFY(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
         switch (job->GetState()) {
             case EJobState::Running:
             case EJobState::Waiting: {
@@ -1079,7 +1079,7 @@ void TChunkReplicator::ProcessExistingJobs(
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
                 break;
             }
@@ -1108,14 +1108,14 @@ void TChunkReplicator::ProcessExistingJobs(
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
                 UnregisterJob(job);
                 break;
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1314,7 +1314,7 @@ bool TChunkReplicator::CreateRepairJob(
     TChunkPtrWithIndexes chunkWithIndexes,
     TJobPtr* job)
 {
-    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
@@ -1322,7 +1322,7 @@ bool TChunkReplicator::CreateRepairJob(
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
 
-    YCHECK(chunk->IsErasure());
+    YT_VERIFY(chunk->IsErasure());
 
     if (!IsObjectAlive(chunk)) {
         return true;
@@ -1358,7 +1358,7 @@ bool TChunkReplicator::CreateRepairJob(
     if (!codec->CanRepair(erasedPartIndexes)) {
         // Can't repair without decommissioned replicas. Use them.
         auto guaranteedRepairablePartCount = codec->GetGuaranteedRepairablePartCount();
-        YCHECK(guaranteedRepairablePartCount < static_cast<int>(erasedPartIndexes.size()));
+        YT_VERIFY(guaranteedRepairablePartCount < static_cast<int>(erasedPartIndexes.size()));
 
         // Reorder the parts so that the actually erased ones go first and then the decommissioned ones.
         std::partition(
@@ -1395,7 +1395,7 @@ bool TChunkReplicator::CreateRepairJob(
         return false;
     }
 
-    YCHECK(targetNodes.size() == erasedPartCount);
+    YT_VERIFY(targetNodes.size() == erasedPartCount);
 
     TNodePtrWithIndexesList targetReplicas;
     int targetIndex = 0;
@@ -1426,11 +1426,11 @@ bool TChunkReplicator::CreateSealJob(
     TChunkPtrWithIndexes chunkWithIndexes,
     TJobPtr* job)
 {
-    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
     auto* chunk = chunkWithIndexes.GetPtr();
-    YCHECK(chunk->IsJournal());
-    YCHECK(chunk->IsSealed());
+    YT_VERIFY(chunk->IsJournal());
+    YT_VERIFY(chunk->IsSealed());
 
     if (!IsObjectAlive(chunk)) {
         return true;
@@ -1723,7 +1723,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     for (const auto& entry : replication) {
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
 
         // For now, chunk cache-as-medium support is rudimentary, and replicator
         // ignores chunk cache to preserve original behavior.
@@ -1760,7 +1760,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 None(allMediaStatistics.Status & (ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::MediumWiseLost)))
             {
                 for (auto nodeWithIndexes : statistics.DecommissionedRemovalReplicas) {
-                    Y_ASSERT(mediumIndex == nodeWithIndexes.GetMediumIndex());
+                    YT_ASSERT(mediumIndex == nodeWithIndexes.GetMediumIndex());
                     int replicaIndex = nodeWithIndexes.GetReplicaIndex();
                     TChunkIdWithIndexes chunkIdWithIndexes(chunk->GetId(), replicaIndex, mediumIndex);
                     auto* node = nodeWithIndexes.GetPtr();
@@ -1810,7 +1810,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             }
 
             if (Any(statistics.Status & EChunkStatus::Sealed)) {
-                Y_ASSERT(chunk->IsJournal());
+                YT_ASSERT(chunk->IsJournal());
                 for (auto replica : chunk->StoredReplicas()) {
                     if (replica.GetMediumIndex() == mediumIndex &&
                         replica.GetReplicaIndex() == UnsealedChunkReplicaIndex)
@@ -1837,31 +1837,31 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost)) {
-        YCHECK(LostChunks_.insert(chunk).second);
+        YT_VERIFY(LostChunks_.insert(chunk).second);
         if (durabilityRequired) {
-            YCHECK(LostVitalChunks_.insert(chunk).second);
+            YT_VERIFY(LostVitalChunks_.insert(chunk).second);
         }
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::DataMissing)) {
-        Y_ASSERT(chunk->IsErasure());
-        YCHECK(DataMissingChunks_.insert(chunk).second);
+        YT_ASSERT(chunk->IsErasure());
+        YT_VERIFY(DataMissingChunks_.insert(chunk).second);
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::ParityMissing)) {
-        Y_ASSERT(chunk->IsErasure());
-        YCHECK(ParityMissingChunks_.insert(chunk).second);
+        YT_ASSERT(chunk->IsErasure());
+        YT_VERIFY(ParityMissingChunks_.insert(chunk).second);
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::QuorumMissing)) {
-        Y_ASSERT(chunk->IsJournal());
-        YCHECK(QuorumMissingChunks_.insert(chunk).second);
+        YT_ASSERT(chunk->IsJournal());
+        YT_VERIFY(QuorumMissingChunks_.insert(chunk).second);
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Precarious)) {
-        YCHECK(PrecariousChunks_.insert(chunk).second);
+        YT_VERIFY(PrecariousChunks_.insert(chunk).second);
         if (durabilityRequired) {
-            YCHECK(PrecariousVitalChunks_.insert(chunk).second);
+            YT_VERIFY(PrecariousVitalChunks_.insert(chunk).second);
         }
     }
 }
@@ -1964,10 +1964,10 @@ TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
     for (auto& entry : result) {
-        YCHECK(entry.Policy());
+        YT_VERIFY(entry.Policy());
 
         auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
         auto cap = medium->Config()->MaxReplicationFactor;
 
         entry.Policy().SetReplicationFactor(std::min(cap, entry.Policy().GetReplicationFactor()));
@@ -1992,7 +1992,7 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
     auto result = chunk->GetAggregatedReplicationFactor(mediumIndex, GetChunkRequisitionRegistry());
 
     auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
-    YCHECK(IsObjectAlive(medium));
+    YT_VERIFY(IsObjectAlive(medium));
     auto cap = medium->Config()->MaxReplicationFactor;
 
     return std::min(cap, result);
@@ -2209,7 +2209,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            YCHECK(IsObjectAlive(Root_));
+            YT_VERIFY(IsObjectAlive(Root_));
             auto callbacks = CreatePreemptableChunkTraverserCallbacks(
                 Bootstrap_,
                 NCellMaster::EAutomatonThreadQueue::ChunkRequisitionUpdateTraverser);
@@ -2391,7 +2391,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     }
 
     if (found) {
-        Y_ASSERT(requisition.ToReplication().IsValid());
+        YT_ASSERT(requisition.ToReplication().IsValid());
     } else {
         // Chunks that aren't linked to any trunk owner are assigned empty requisition.
         // This doesn't mean the replicator will act upon it, though, as the chunk will
@@ -2536,13 +2536,13 @@ void TChunkReplicator::UpdateJobCountGauge(EJobType jobType, int delta)
             JobCounters_[jobType] += delta;
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
 void TChunkReplicator::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
 {
-    Y_ASSERT(node->GetDataCenter() != oldDataCenter);
+    YT_ASSERT(node->GetDataCenter() != oldDataCenter);
 
     for (const auto& pair : node->IdToJob()) {
         const auto& job = pair.second;
@@ -2553,10 +2553,10 @@ void TChunkReplicator::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldData
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue)
 {
-    Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    YT_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
-    YCHECK(chunk->GetRepairQueueIterator(mediumIndex, queue) == TChunkRepairQueueIterator());
+    YT_VERIFY(chunk->GetRepairQueueIterator(mediumIndex, queue) == TChunkRepairQueueIterator());
     auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
     auto it = chunkRepairQueue.insert(chunkRepairQueue.end(), chunkWithIndexes);
     chunk->SetRepairQueueIterator(mediumIndex, queue, it);
@@ -2564,7 +2564,7 @@ void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndex
 
 void TChunkReplicator::RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    YT_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
@@ -2699,7 +2699,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
                 chunkPartSize = job->ResourceUsage().repair_data_size();
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         auto& consumption = interDCEdgeConsumption[dstDataCenter];
@@ -2786,7 +2786,7 @@ std::array<TChunkRepairQueue, MaxMediumCount>& TChunkReplicator::ChunkRepairQueu
         case EChunkRepairQueue::Decommissioned:
             return DecommissionedPartChunkRepairQueues_;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -2798,7 +2798,7 @@ TDecayingMaxMinBalancer<int, double>& TChunkReplicator::ChunkRepairQueueBalancer
         case EChunkRepairQueue::Decommissioned:
             return DecommissionedPartChunkRepairQueueBalancer_;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

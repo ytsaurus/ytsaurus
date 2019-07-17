@@ -140,7 +140,7 @@ public:
 
     virtual void Suspend(IChunkPoolInput::TCookie inputCookie) override
     {
-        YCHECK(!InputCookieIsSuspended_[inputCookie]);
+        YT_VERIFY(!InputCookieIsSuspended_[inputCookie]);
         InputCookieIsSuspended_[inputCookie] = true;
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
             DoSuspend(cookie);
@@ -160,7 +160,7 @@ public:
             SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
         } else {
             auto it = ExtractedLists.find(outputCookie);
-            YCHECK(it != ExtractedLists.end());
+            YT_VERIFY(it != ExtractedLists.end());
             const auto& extractedStripeList = it->second;
 
             if (LostCookies.find(outputCookie) != LostCookies.end() &&
@@ -174,7 +174,7 @@ public:
 
     virtual void Resume(IChunkPoolInput::TCookie inputCookie) override
     {
-        YCHECK(InputCookieIsSuspended_[inputCookie]);
+        YT_VERIFY(InputCookieIsSuspended_[inputCookie]);
         InputCookieIsSuspended_[inputCookie] = false;
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
             DoResume(cookie);
@@ -192,10 +192,10 @@ public:
         if (outputCookie == IChunkPoolOutput::NullCookie) {
             Register(cookie);
             SuspendedDataWeight -= suspendableStripe.GetStatistics().DataWeight;
-            YCHECK(SuspendedDataWeight >= 0);
+            YT_VERIFY(SuspendedDataWeight >= 0);
         } else {
             auto it = ExtractedLists.find(outputCookie);
-            YCHECK(it != ExtractedLists.end());
+            YT_VERIFY(it != ExtractedLists.end());
             const auto& extractedStripeList = it->second;
             --extractedStripeList->UnavailableStripeCount;
 
@@ -241,8 +241,8 @@ public:
             }
 
             int freePendingJobCount = GetFreePendingJobCount();
-            YCHECK(freePendingJobCount >= 0);
-            YCHECK(Mode == EUnorderedChunkPoolMode::AutoMerge ||
+            YT_VERIFY(freePendingJobCount >= 0);
+            YT_VERIFY(Mode == EUnorderedChunkPoolMode::AutoMerge ||
                    !(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter->GetInterruptedTotal() == 0));
 
             if (freePendingJobCount == 0) {
@@ -337,14 +337,14 @@ public:
             while (true) {
                 cookie = *lostIt;
                 auto it = ExtractedLists.find(cookie);
-                YCHECK(it != ExtractedLists.end());
+                YT_VERIFY(it != ExtractedLists.end());
                 if (it->second->UnavailableStripeCount == 0) {
                     LostCookies.erase(lostIt);
-                    YCHECK(ReplayCookies.insert(cookie).second);
+                    YT_VERIFY(ReplayCookies.insert(cookie).second);
                     list = GetStripeList(cookie);
                     break;
                 }
-                YCHECK(++lostIt != LostCookies.end());
+                YT_VERIFY(++lostIt != LostCookies.end());
             }
         }
 
@@ -363,7 +363,7 @@ public:
     TExtractedStripeListPtr GetExtractedStripeList(IChunkPoolOutput::TCookie cookie) const
     {
         auto it = ExtractedLists.find(cookie);
-        YCHECK(it != ExtractedLists.end());
+        YT_VERIFY(it != ExtractedLists.end());
         return it->second;
     }
 
@@ -372,7 +372,7 @@ public:
         const auto& stripeList = GetExtractedStripeList(cookie)->StripeList;
         for (const auto& stripe : stripeList->Stripes) {
             for (const auto& dataSlice : stripe->DataSlices) {
-                YCHECK(dataSlice->Tag);
+                YT_VERIFY(dataSlice->Tag);
             }
         }
         return stripeList;
@@ -487,7 +487,7 @@ public:
         DataWeightCounter->Lost(list->TotalDataWeight);
         RowCounter->Lost(list->TotalRowCount);
 
-        YCHECK(LostCookies.insert(cookie).second);
+        YT_VERIFY(LostCookies.insert(cookie).second);
         if (extractedStripeList->UnavailableStripeCount > 0) {
             ++UnavailableLostCookieCount;
         }
@@ -707,7 +707,7 @@ private:
         }
 
         for (const auto& dataSlice : stripe->DataSlices) {
-            YCHECK(dataSlice->Tag);
+            YT_VERIFY(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
 
             InputCookieToInternalCookies_[inputCookie].push_back(internalCookie);
@@ -728,7 +728,7 @@ private:
             return JobSizeConstraints_->GetDataWeightPerJob();
         }
         int freePendingJobCount = GetFreePendingJobCount();
-        YCHECK(freePendingJobCount > 0);
+        YT_VERIFY(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
             DivCeil<i64>(FreePendingDataWeight + SuspendedDataWeight, freePendingJobCount));
@@ -771,7 +771,7 @@ private:
     void Register(int stripeIndex)
     {
         auto& suspendableStripe = Stripes[stripeIndex];
-        YCHECK(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
+        YT_VERIFY(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -790,14 +790,14 @@ private:
         }
 
         FreePendingDataWeight += suspendableStripe.GetStatistics().DataWeight;
-        YCHECK(PendingGlobalStripes.insert(stripeIndex).second);
+        YT_VERIFY(PendingGlobalStripes.insert(stripeIndex).second);
     }
 
     TExtractedStripeListPtr CreateAndRegisterExtractedStripeList()
     {
         auto cookie = OutputCookieGenerator.Next();
         auto pair = ExtractedLists.emplace(cookie, New<TExtractedStripeList>(cookie));
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
         const auto& extractedStripeList = pair.first->second;
 
         return extractedStripeList;
@@ -806,8 +806,8 @@ private:
     void AddSolid(int stripeIndex)
     {
         auto& suspendableStripe = Stripes[stripeIndex];
-        YCHECK(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
-        YCHECK(suspendableStripe.GetStripe()->Solid);
+        YT_VERIFY(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
+        YT_VERIFY(suspendableStripe.GetStripe()->Solid);
 
         auto extractedStripeList = CreateAndRegisterExtractedStripeList();
 
@@ -822,7 +822,7 @@ private:
 
         JobCounter->Increment(1);
 
-        YCHECK(LostCookies.insert(extractedStripeList->Cookie).second);
+        YT_VERIFY(LostCookies.insert(extractedStripeList->Cookie).second);
     }
 
     void Unregister(int stripeIndex)
@@ -847,7 +847,7 @@ private:
         }
 
         FreePendingDataWeight -= suspendableStripe.GetStatistics().DataWeight;
-        YCHECK(PendingGlobalStripes.erase(stripeIndex) == 1);
+        YT_VERIFY(PendingGlobalStripes.erase(stripeIndex) == 1);
     }
 
     template <class TIterator>
@@ -921,10 +921,10 @@ private:
                     Register(stripeIndex);
                 }
             }
-            YCHECK(ExtractedLists.erase(cookie) == 1);
+            YT_VERIFY(ExtractedLists.erase(cookie) == 1);
         } else {
             ReplayCookies.erase(replayIt);
-            YCHECK(LostCookies.insert(cookie).second);
+            YT_VERIFY(LostCookies.insert(cookie).second);
             if (extractedStripeList->UnavailableStripeCount > 0) {
                 ++UnavailableLostCookieCount;
             }

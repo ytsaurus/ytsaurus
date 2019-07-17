@@ -42,7 +42,7 @@ TServiceContextBase::TServiceContextBase(
     , Logger(std::move(logger))
     , LogLevel_(logLevel)
 {
-    YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
+    YT_VERIFY(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
     Initialize();
 }
 
@@ -54,7 +54,7 @@ void TServiceContextBase::Initialize()
         ? RequestHeader_->user()
         : RootUserName;
 
-    Y_ASSERT(RequestMessage_.Size() >= 2);
+    YT_ASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
     RequestAttachments_ = std::vector<TSharedRef>(
         RequestMessage_.Begin() + 2,
@@ -63,7 +63,7 @@ void TServiceContextBase::Initialize()
 
 void TServiceContextBase::Reply(const TError& error)
 {
-    Y_ASSERT(!Replied_);
+    YT_ASSERT(!Replied_);
 
     Error_ = error;
 
@@ -72,19 +72,19 @@ void TServiceContextBase::Reply(const TError& error)
 
 void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 {
-    Y_ASSERT(!Replied_);
-    Y_ASSERT(responseMessage.Size() >= 1);
+    YT_ASSERT(!Replied_);
+    YT_ASSERT(responseMessage.Size() >= 1);
 
     // NB: One must parse responseMessage and only use its content since,
     // e.g., responseMessage may contain invalid request id.
     TResponseHeader header;
-    YCHECK(ParseResponseHeader(responseMessage, &header));
+    YT_VERIFY(ParseResponseHeader(responseMessage, &header));
 
     if (header.has_error()) {
         Error_ = FromProto<TError>(header.error());
     }
     if (Error_.IsOK()) {
-        Y_ASSERT(responseMessage.Size() >= 2);
+        YT_ASSERT(responseMessage.Size() >= 2);
         ResponseBody_ = responseMessage[1];
         ResponseAttachments_ = std::vector<TSharedRef>(
             responseMessage.Begin() + 2,
@@ -131,13 +131,13 @@ TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 
 const TSharedRefArray& TServiceContextBase::GetResponseMessage() const
 {
-    Y_ASSERT(ResponseMessage_);
+    YT_ASSERT(ResponseMessage_);
     return ResponseMessage_;
 }
 
 void TServiceContextBase::BuildResponseMessage()
 {
-    Y_ASSERT(!ResponseMessage_);
+    YT_ASSERT(!ResponseMessage_);
 
     NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), RequestId_);
@@ -190,7 +190,7 @@ void TServiceContextBase::Cancel()
 
 const TError& TServiceContextBase::GetError() const
 {
-    Y_ASSERT(Replied_);
+    YT_ASSERT(Replied_);
 
     return Error_;
 }
@@ -217,7 +217,7 @@ TSharedRef TServiceContextBase::GetResponseBody()
 
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
-    Y_ASSERT(!Replied_);
+    YT_ASSERT(!Replied_);
 
     ResponseBody_ = responseBody;
 }
@@ -313,7 +313,7 @@ TRequestHeader& TServiceContextBase::RequestHeader()
 
 void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 {
-    Y_ASSERT(!Replied_);
+    YT_ASSERT(!Replied_);
 
     if (!Logger.IsLevelEnabled(LogLevel_)) {
         return;
@@ -329,7 +329,7 @@ void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 
 void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
-    Y_ASSERT(!Replied_);
+    YT_ASSERT(!Replied_);
 
     if (!Logger.IsLevelEnabled(LogLevel_)) {
         return;
@@ -576,13 +576,13 @@ void TServiceContextWrapper::SetResponseCodec(NCompression::ECodec codec)
 
 void TServerBase::RegisterService(IServicePtr service)
 {
-    YCHECK(service);
+    YT_VERIFY(service);
 
     auto serviceId = service->GetServiceId();
 
     {
         TWriterGuard guard(ServicesLock_);
-        YCHECK(ServiceMap_.insert(std::make_pair(serviceId, service)).second);
+        YT_VERIFY(ServiceMap_.insert(std::make_pair(serviceId, service)).second);
         if (Config_) {
             auto it = Config_->Services.find(serviceId.ServiceName);
             if (it != Config_->Services.end()) {
@@ -599,7 +599,7 @@ void TServerBase::RegisterService(IServicePtr service)
 
 bool TServerBase::UnregisterService(IServicePtr service)
 {
-    YCHECK(service);
+    YT_VERIFY(service);
 
     auto serviceId = service->GetServiceId();
 
@@ -646,7 +646,7 @@ void TServerBase::Configure(TServerConfigPtr config)
 
 void TServerBase::Start()
 {
-    YCHECK(!Started_);
+    YT_VERIFY(!Started_);
 
     DoStart();
 

@@ -177,8 +177,8 @@ TSerializableChunkReplication::TSerializableChunkReplication(
     for (const auto& entry : replication) {
         if (entry.Policy()) {
             auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
-            YCHECK(IsObjectAlive(medium));
-            YCHECK(Entries_.emplace(medium->GetName(), entry.Policy()).second);
+            YT_VERIFY(IsObjectAlive(medium));
+            YT_VERIFY(Entries_.emplace(medium->GetName(), entry.Policy()).second);
         }
     }
 }
@@ -204,7 +204,7 @@ void TSerializableChunkReplication::Serialize(NYson::IYsonConsumer* consumer) co
 
 void TSerializableChunkReplication::Deserialize(INodePtr node)
 {
-    YCHECK(node);
+    YT_VERIFY(node);
 
     Entries_ = ConvertTo<std::map<TString, TReplicationPolicy>>(node);
 }
@@ -247,7 +247,7 @@ void ValidateChunkReplication(
 
     for (const auto& entry : replication) {
         auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
-        YCHECK(IsObjectAlive(medium));
+        YT_VERIFY(IsObjectAlive(medium));
 
         if (entry.Policy() && medium->GetCache()) {
             THROW_ERROR_EXCEPTION("Cache medium %Qv cannot be configured explicitly",
@@ -348,7 +348,7 @@ void TChunkRequisition::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
-    Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
+    YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
     Save(context, Entries_);
 
     Save(context, Vital_);
@@ -359,18 +359,18 @@ void TChunkRequisition::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Entries_);
-    Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
+    YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
 
     Load(context, Vital_);
 }
 
 void TChunkRequisition::ForceReplicationFactor(int replicationFactor)
 {
-    Y_ASSERT(replicationFactor > 0);
+    YT_ASSERT(replicationFactor > 0);
 
     for (auto& entry : Entries_) {
         auto& replicationPolicy = entry.ReplicationPolicy;
-        YCHECK(replicationPolicy);
+        YT_VERIFY(replicationPolicy);
         replicationPolicy.SetReplicationFactor(replicationFactor);
     }
 }
@@ -392,7 +392,7 @@ void TChunkRequisition::AggregateWith(
     NSecurityServer::TAccount* account,
     bool committed)
 {
-    Y_ASSERT(account);
+    YT_ASSERT(account);
 
     Vital_ = Vital_ || replication.GetVital();
 
@@ -458,7 +458,7 @@ void TChunkRequisition::NormalizeEntries()
     // Second, merge entries by "account, medium, committed" triplets.
     auto mergeRangeBegin = Entries_.begin();
     for (auto mergeRangeIt = mergeRangeBegin + 1; mergeRangeIt != Entries_.end(); ++mergeRangeIt) {
-        Y_ASSERT(
+        YT_ASSERT(
             (mergeRangeBegin->Account == mergeRangeIt->Account) ==
             (mergeRangeBegin->Account->GetId() == mergeRangeIt->Account->GetId()));
 
@@ -477,7 +477,7 @@ void TChunkRequisition::NormalizeEntries()
     }
     Entries_.erase(mergeRangeBegin + 1, Entries_.end());
 
-    Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
+    YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
 }
 
 void TChunkRequisition::AddEntry(
@@ -486,7 +486,7 @@ void TChunkRequisition::AddEntry(
     TReplicationPolicy replicationPolicy,
     bool committed)
 {
-    Y_ASSERT(account);
+    YT_ASSERT(account);
     Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
@@ -535,7 +535,7 @@ void TSerializableChunkRequisition::Serialize(NYson::IYsonConsumer* consumer) co
 
 void TSerializableChunkRequisition::Deserialize(NYTree::INodePtr node)
 {
-    YCHECK(node);
+    YT_VERIFY(node);
 
     Entries_ = ConvertTo<std::vector<TEntry>>(node);
 }
@@ -603,14 +603,14 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
     if (IndexToItem_.contains(EmptyChunkRequisitionIndex)) {
-        YCHECK(IndexToItem_.contains(MigrationChunkRequisitionIndex));
-        YCHECK(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
-        YCHECK(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
+        YT_VERIFY(IndexToItem_.contains(MigrationChunkRequisitionIndex));
+        YT_VERIFY(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
+        YT_VERIFY(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
 
         return;
     }
 
-    YCHECK(Insert(TChunkRequisition(), objectManager) == EmptyChunkRequisitionIndex);
+    YT_VERIFY(Insert(TChunkRequisition(), objectManager) == EmptyChunkRequisitionIndex);
 
     // When migrating to chunk-wise accounting, assume all chunks belong to a
     // special migration account.
@@ -619,21 +619,21 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         DefaultStoreMediumIndex,
         TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
         true /* committed */);
-    YCHECK(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
+    YT_VERIFY(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
 
     TChunkRequisition rf2Requisition(
         chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
         TReplicationPolicy(2 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
-    YCHECK(Insert(rf2Requisition, objectManager) == MigrationRF2ChunkRequisitionIndex);
+    YT_VERIFY(Insert(rf2Requisition, objectManager) == MigrationRF2ChunkRequisitionIndex);
 
     TChunkRequisition defaultErasureRequisition(
         chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
         TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
-    YCHECK(Insert(defaultErasureRequisition, objectManager) == MigrationErasureChunkRequisitionIndex);
+    YT_VERIFY(Insert(defaultErasureRequisition, objectManager) == MigrationErasureChunkRequisitionIndex);
 
     FakeRefBuiltinRequisitions();
 }
@@ -677,14 +677,14 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
         RequisitionToIndex_.emplace(pair.second.Requisition, pair.first);
     }
 
-    YCHECK(IndexToItem_.contains(EmptyChunkRequisitionIndex));
-    YCHECK(IndexToItem_.contains(MigrationChunkRequisitionIndex));
-    YCHECK(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
-    YCHECK(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
+    YT_VERIFY(IndexToItem_.contains(EmptyChunkRequisitionIndex));
+    YT_VERIFY(IndexToItem_.contains(MigrationChunkRequisitionIndex));
+    YT_VERIFY(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
+    YT_VERIFY(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
 
     Load(context, NextIndex_);
 
-    YCHECK(!IndexToItem_.contains(NextIndex_));
+    YT_VERIFY(!IndexToItem_.contains(NextIndex_));
 }
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
@@ -693,7 +693,7 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
 {
     auto it = RequisitionToIndex_.find(requisition);
     if (it != RequisitionToIndex_.end()) {
-        Y_ASSERT(IndexToItem_.find(it->second) != IndexToItem_.end());
+        YT_ASSERT(IndexToItem_.find(it->second) != IndexToItem_.end());
         return it->second;
     }
 
@@ -718,8 +718,8 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     item.Requisition = requisition;
     item.Replication = requisition.ToReplication();
     item.RefCount = 0; // This is ok, Ref()/Unref() will be called soon.
-    YCHECK(IndexToItem_.emplace(index, item).second);
-    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
+    YT_VERIFY(IndexToItem_.emplace(index, item).second);
+    YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);
 
     for (const auto& entry : requisition) {
         objectManager->WeakRefObject(entry.Account);
@@ -745,7 +745,7 @@ void TChunkRequisitionRegistry::Erase(
         index,
         requisition);
 
-    YCHECK(RequisitionToIndex_.erase(requisition) == 1);
+    YT_VERIFY(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
 
     for (const auto& entry : requisition) {
@@ -756,7 +756,7 @@ void TChunkRequisitionRegistry::Erase(
 void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
     auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
+    YT_VERIFY(it != IndexToItem_.end());
     ++it->second.RefCount;
     YT_LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
         index,
@@ -768,8 +768,8 @@ void TChunkRequisitionRegistry::Unref(
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
     auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
-    YCHECK(it->second.RefCount != 0);
+    YT_VERIFY(it != IndexToItem_.end());
+    YT_VERIFY(it->second.RefCount != 0);
     --it->second.RefCount;
 
     YT_LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
@@ -835,7 +835,7 @@ void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::I
 const TChunkRequisition& TEphemeralRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
 {
     auto it = IndexToRequisition_.find(index);
-    YCHECK(it != IndexToRequisition_.end());
+    YT_VERIFY(it != IndexToRequisition_.end());
     return it->second;
 }
 
@@ -843,7 +843,7 @@ TChunkRequisitionIndex TEphemeralRequisitionRegistry::GetOrCreateIndex(const TCh
 {
     auto it = RequisitionToIndex_.find(requisition);
     if (it != RequisitionToIndex_.end()) {
-        Y_ASSERT(IndexToRequisition_.find(it->second) != IndexToRequisition_.end());
+        YT_ASSERT(IndexToRequisition_.find(it->second) != IndexToRequisition_.end());
         return it->second;
     }
 

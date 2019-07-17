@@ -69,7 +69,7 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -141,7 +141,7 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Double = int64Value;
         } else {
-            YCHECK(targetType == EValueType::Uint64);
+            YT_VERIFY(targetType == EValueType::Uint64);
         }
     } else if (value.Type == EValueType::Uint64) {
         if (targetType == EValueType::Int64) {
@@ -156,7 +156,7 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Double = uint64Value;
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     } else if (value.Type == EValueType::Double) {
         auto doubleValue = value.Data.Double;
@@ -171,10 +171,10 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Int64 = doubleValue;
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     value.Type = targetType;
@@ -197,7 +197,7 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
         case VariantIndexV<TString, NAst::TLiteralValue>:
             return EValueType::String;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -232,7 +232,7 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
             return TTypeSet({
                 EValueType::String});
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -255,7 +255,7 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -386,7 +386,7 @@ std::optional<TUnversionedValue> FoldConstants(
                     value.Data.Double = -value.Data.Double;
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             return value;
         } else if (opcode == EUnaryOp::BitNot) {
@@ -399,7 +399,7 @@ std::optional<TUnversionedValue> FoldConstants(
                     value.Data.Uint64 = ~value.Data.Uint64;
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
             return value;
         }
@@ -446,8 +446,8 @@ std::optional<TUnversionedValue> FoldConstants(
             checkType();
 
         auto evaluateLogicalOp = [&] (bool parameter) {
-            YCHECK(lhs.Type == EValueType::Null || lhs.Type == EValueType::Boolean);
-            YCHECK(rhs.Type == EValueType::Null || rhs.Type == EValueType::Boolean);
+            YT_VERIFY(lhs.Type == EValueType::Null || lhs.Type == EValueType::Boolean);
+            YT_VERIFY(rhs.Type == EValueType::Null || rhs.Type == EValueType::Boolean);
 
             if (lhs.Type == EValueType::Null) {
                 if (rhs.Type != EValueType::Null && rhs.Data.Boolean == parameter) {
@@ -707,7 +707,7 @@ struct TCastEliminator
     TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
     {
         if (IsUserCastFunction(functionExpr->FunctionName)) {
-            YCHECK(functionExpr->Arguments.size() == 1);
+            YT_VERIFY(functionExpr->Arguments.size() == 1);
 
             if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
                 return Visit(functionExpr->Arguments[0]);
@@ -1100,7 +1100,7 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     if (binaryOperators[opCode].ResultType) {
         argType = GetFrontWithCheck(*genericAssignments, source);
     } else {
-        YCHECK(genericAssignments->Get(resultType));
+        YT_VERIFY(genericAssignments->Get(resultType));
         argType = resultType;
     }
 
@@ -1147,7 +1147,7 @@ EValueType RefineUnaryExprTypes(
     if (unaryOperators[opCode].ResultType) {
         argType = GetFrontWithCheck(*genericAssignments, opSource);
     } else {
-        YCHECK(genericAssignments->Get(resultType));
+        YT_VERIFY(genericAssignments->Get(resultType));
         argType = resultType;
     }
 
@@ -1253,7 +1253,7 @@ struct TTypedExpressionBuilder
             return DoBuildUntypedTransformExpression(transformExpr, schema);
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     TUntypedExpression BuildUntypedExpression(
@@ -1268,7 +1268,7 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema) const
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
-        YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
+        YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
 
         auto result = expressionTyper.Generator(
             GetFrontWithCheck(expressionTyper.FeasibleTypes, expr->GetSource(Source)));
@@ -1402,7 +1402,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
 
         return TUntypedExpression{resultTypes, std::move(generator), false};
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 }
 
@@ -1524,7 +1524,7 @@ struct TGenerator
 
     TUntypedExpression Do(size_t keySize, EBinaryOp op)
     {
-        YCHECK(keySize > 0);
+        YT_VERIFY(keySize > 0);
         size_t offset = keySize - 1;
 
         auto untypedLhs = Builder.DoBuildUntypedExpression(
@@ -1810,7 +1810,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
 
         const auto& resultTuple = transformExpr->To[index];
 
-        YCHECK(resultTuple.size() == 1);
+        YT_VERIFY(resultTuple.size() == 1);
         auto value = CastValueWithCheck(GetValue(resultTuple.front()), resultType);
         rowBuilder.AddValue(value);
 
@@ -1850,7 +1850,7 @@ public:
         if (found != Lookup_.end()) {
             return found->second;
         } else if (auto column = ProvideColumn(reference)) {
-            YCHECK(Lookup_.emplace(reference, *column).second);
+            YT_VERIFY(Lookup_.emplace(reference, *column).second);
             return column;
         } else {
             return std::nullopt;
@@ -1878,7 +1878,7 @@ public:
                 return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
             } else {
                 TBaseColumn columnInfo = typer.second(type);
-                YCHECK(AggregateLookup_.emplace(std::make_pair(subexprName, type), columnInfo).second);
+                YT_VERIFY(AggregateLookup_.emplace(std::make_pair(subexprName, type), columnInfo).second);
                 return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
             }
         };
@@ -2074,7 +2074,7 @@ public:
         const TString& subexprName,
         const TTypedExpressionBuilder& builder) override
     {
-        YCHECK(builder.AfterGroupBy);
+        YT_VERIFY(builder.AfterGroupBy);
 
         builder.AfterGroupBy = false;
         auto untypedOperand = builder.BuildUntypedExpression(
@@ -2108,7 +2108,7 @@ public:
         return std::make_pair(resultTypes, [=] (EValueType type) {
             EValueType argType;
             if (resultType) {
-                YCHECK(!genericAssignments.IsEmpty());
+                YT_VERIFY(!genericAssignments.IsEmpty());
                 argType = GetFrontWithCheck(genericAssignments, argument->GetSource(builder.Source));
             } else {
                 argType = type;
@@ -2312,7 +2312,7 @@ NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
         case EParseMode::Query:      return NAst::TParser::token::StrayWillParseQuery;
         case EParseMode::JobQuery:   return NAst::TParser::token::StrayWillParseJobQuery;
         case EParseMode::Expression: return NAst::TParser::token::StrayWillParseExpression;
-        default:                     Y_UNREACHABLE();
+        default:                     YT_ABORT();
     }
 }
 
@@ -2322,7 +2322,7 @@ NAst::TAstHead MakeAstHead(EParseMode mode)
         case EParseMode::Query:
         case EParseMode::JobQuery:   return NAst::TAstHead::MakeQuery();
         case EParseMode::Expression: return NAst::TAstHead::MakeExpression();
-        default:                     Y_UNREACHABLE();
+        default:                     YT_ABORT();
     }
 }
 
@@ -2522,7 +2522,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         size_t keyPrefix = 0;
         for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (keyForeignEquations[keyPrefix]) {
-                YCHECK(keySelfEquations[keyPrefix].first);
+                YT_VERIFY(keySelfEquations[keyPrefix].first);
 
                 if (const auto* referenceExpr = keySelfEquations[keyPrefix].first->As<TReferenceExpression>()) {
                     if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName) != keyPrefix) {
@@ -2552,7 +2552,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             for (const auto& reference : references) {
                 int referenceIndex = foreignTableSchema.GetColumnIndexOrThrow(reference);
                 if (!keySelfEquations[referenceIndex].first) {
-                    YCHECK(!keyForeignEquations[referenceIndex]);
+                    YT_VERIFY(!keyForeignEquations[referenceIndex]);
                     canEvaluate = false;
                 }
             }
@@ -2601,12 +2601,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        YCHECK(keyForeignEquations.size() == keySelfEquations.size());
+        YT_VERIFY(keyForeignEquations.size() == keySelfEquations.size());
 
         size_t lastEmptyIndex = keyPrefix;
         for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
             if (keyForeignEquations[index]) {
-                YCHECK(keySelfEquations[index].first);
+                YT_VERIFY(keySelfEquations[index].first);
                 keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
                 keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
                 ++lastEmptyIndex;

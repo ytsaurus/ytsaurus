@@ -91,7 +91,7 @@ TString TSchedulerStrategyHost::GetExecNodeAddress(NNodeTrackerClient::TNodeId n
         }
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDescriptors(
@@ -101,7 +101,7 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
 
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
-            YCHECK(result->emplace(execNode->GetId(), execNode->BuildExecDescriptor()).second);
+            YT_VERIFY(result->emplace(execNode->GetId(), execNode->BuildExecDescriptor()).second);
         }
     }
 
@@ -121,12 +121,12 @@ void TSchedulerStrategyHost::ActivateOperation(TOperationId operationId)
 
 void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TError& error)
 {
-    YCHECK(false);
+    YT_VERIFY(false);
 }
 
 void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
 {
-    YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
     job->SetState(NJobTrackerClient::EJobState::Aborted);
 
     if (shouldLogEvent) {

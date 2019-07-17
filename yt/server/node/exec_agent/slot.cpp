@@ -163,7 +163,7 @@ public:
 
     virtual IJobProbePtr GetJobProberClient() override
     {
-        YCHECK(JobProberClient_);
+        YT_VERIFY(JobProberClient_);
         return JobProberClient_;
     }
 

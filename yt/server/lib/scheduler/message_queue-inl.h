@@ -72,7 +72,7 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
     VERIFY_THREAD_AFFINITY(Consumer);
 
     auto nextExpectedItemId = message.next_expected_item_id();
-    YCHECK(nextExpectedItemId <= NextItemId_);
+    YT_VERIFY(nextExpectedItemId <= NextItemId_);
     if (nextExpectedItemId == FirstItemId_) {
         return;
     }

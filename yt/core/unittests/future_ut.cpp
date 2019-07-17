@@ -104,7 +104,7 @@ TEST_F(TFutureTest, DISABLED_DoubleSet)
     auto promise = NewPromise<int>();
 
     promise.Set(17);
-    ASSERT_DEATH({ promise.Set(42); }, "YCHECK\\(!Set_\\).*");
+    ASSERT_DEATH({ promise.Set(42); }, "YT_VERIFY\\(!Set_\\).*");
 }
 #endif
 

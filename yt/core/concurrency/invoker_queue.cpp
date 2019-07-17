@@ -144,7 +144,7 @@ public:
 
     bool Dequeue(T* val, int index)
     {
-        Y_ASSERT(val);
+        YT_ASSERT(val);
 
         return TryQueue(
             index,
@@ -207,7 +207,7 @@ std::unique_ptr<IActionQueue> CreateActionQueue(EInvokerQueueType type)
         case EInvokerQueueType::MultiLockQueue:
             return std::make_unique<TMultiLockActionQueue>();
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -249,7 +249,7 @@ void TInvokerQueue::Configure(int threadCount)
 
 void TInvokerQueue::Invoke(TClosure callback)
 {
-    Y_ASSERT(callback);
+    YT_ASSERT(callback);
 
     if (!Running.load(std::memory_order_relaxed)) {
         YT_LOG_TRACE_IF(
@@ -299,7 +299,7 @@ void TInvokerQueue::Shutdown()
 
 void TInvokerQueue::Drain()
 {
-    YCHECK(!Running.load(std::memory_order_relaxed));
+    YT_VERIFY(!Running.load(std::memory_order_relaxed));
 
     Queue.reset();
     QueueSize = 0;
@@ -307,8 +307,8 @@ void TInvokerQueue::Drain()
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action, int index)
 {
-    Y_ASSERT(action && action->Finished);
-    Y_ASSERT(Queue);
+    YT_ASSERT(action && action->Finished);
+    YT_ASSERT(Queue);
 
     if (!Queue->Dequeue(action, index)) {
         return EBeginExecuteResult::QueueEmpty;
@@ -337,7 +337,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action, int ind
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    Y_ASSERT(action);
+    YT_ASSERT(action);
 
     if (action->Finished) {
         return;

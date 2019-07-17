@@ -8,6 +8,8 @@
 
 #include <util/generic/hash.h>
 
+#include <DataTypes/DataTypeNullable.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
@@ -73,7 +75,8 @@ EClickHouseColumnType RepresentYtType(EValueType valueType)
 
 EValueType RepresentClickHouseType(const DB::DataTypePtr& type)
 {
-    switch (type->getTypeId()) {
+    auto physicalType = DB::removeNullable(type);
+    switch (physicalType->getTypeId()) {
         case DB::TypeIndex::Int64:
         case DB::TypeIndex::Int32:
         case DB::TypeIndex::Int16:

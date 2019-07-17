@@ -27,7 +27,7 @@ public:
 
         {
             NConcurrency::TWriterGuard guard(StickyTransactionLock_);
-            YCHECK(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
+            YT_VERIFY(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
         }
 
         transaction->SubscribeCommitted(

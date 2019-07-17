@@ -24,7 +24,7 @@ public:
     TGuid Push()
     {
         auto guid = TGuid::Create();
-        YCHECK(InQueue_.insert(guid).second);
+        YT_VERIFY(InQueue_.insert(guid).second);
         Queue_->Push(guid);
         return guid;
     }

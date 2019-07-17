@@ -72,8 +72,8 @@ TTabletTracker::TImpl::TImpl(
     , Bootstrap_(bootstrap)
     , Profiler("/tablet_server/cell_balancer")
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 
@@ -85,7 +85,7 @@ void TTabletTracker::TImpl::Start()
 
     TabletTrackerImpl_ = std::make_unique<TTabletTrackerImpl>(Config_, Bootstrap_, StartTime_);
 
-    YCHECK(!PeriodicExecutor_);
+    YT_VERIFY(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletTracker),
         BIND(&TTabletTracker::TImpl::ScanCells, MakeWeak(this)),

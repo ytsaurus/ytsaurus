@@ -200,7 +200,7 @@ public:
                         *token = TToken(TBase::template ReadNanOrInf<true>());
                     }
                 } else { // None
-                    Y_ASSERT(state == EReadStartCase::None);
+                    YT_ASSERT(state == EReadStartCase::None);
                     THROW_ERROR_EXCEPTION("Unexpected %Qv",
                         ch);
                 }
@@ -223,16 +223,16 @@ public:
                 } else if (state == EReadStartCase::BinaryTrue) {
                     *token = TToken(true);
                 } else {
-                    Y_UNREACHABLE();
+                    YT_ABORT();
                 }
             }
         } else { // BinaryStringOrOtherSpecialToken = x0b
             TBase::Advance(1);
             if (stateBits & 1 << 1) { // OtherSpecialToken = 10b
-                Y_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::OtherSpecialToken));
+                YT_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::OtherSpecialToken));
                 *token = TToken(ETokenType(stateBits >> 2));
             } else { // BinaryString = 00b
-                Y_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::BinaryString));
+                YT_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::BinaryString));
                 TStringBuf value;
                 TBase::ReadBinaryString(&value);
                 *token = TToken(value);

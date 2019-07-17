@@ -754,7 +754,7 @@ private:
                 return;
             }
             auto typedStore = store->AsSortedChunk();
-            YCHECK(typedStore);
+            YT_VERIFY(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
                 YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
                     storeId,
@@ -769,7 +769,7 @@ private:
             pivotKeys.push_back(partition->GetPivotKey());
         }
 
-        YCHECK(tablet->GetPivotKey() == pivotKeys[0]);
+        YT_VERIFY(tablet->GetPivotKey() == pivotKeys[0]);
 
         eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
 
@@ -1091,7 +1091,7 @@ private:
                 }
 
                 // NB: pivot keys can be of arbitrary schema and length.
-                YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
+                YT_VERIFY(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
 
                 if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0) {
                     break;
@@ -1104,7 +1104,7 @@ private:
             flushPartition();
         }
 
-        YCHECK(readRowCount == writeRowCount);
+        YT_VERIFY(readRowCount == writeRowCount);
 
         WaitFor(Combine(asyncCloseResults))
             .ThrowOnError();
@@ -1180,7 +1180,7 @@ private:
                 return;
             }
             auto typedStore = store->AsSortedChunk();
-            YCHECK(typedStore);
+            YT_VERIFY(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
                 YT_LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
                     storeId,
@@ -1458,7 +1458,7 @@ private:
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
-        YCHECK(readRowCount == writeRowCount);
+        YT_VERIFY(readRowCount == writeRowCount);
 
         i64 dataSize = writer->GetDataStatistics().compressed_data_size();
         return std::make_tuple(writer, readRowCount, dataSize);

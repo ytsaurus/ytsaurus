@@ -297,7 +297,7 @@ private:
 
         virtual TFuture<void> Truncate(int /*recordCount*/) override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         virtual TFuture<void> Close() override
@@ -307,7 +307,7 @@ private:
 
         virtual TFuture<void> Preallocate(size_t size) override
         {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
     private:

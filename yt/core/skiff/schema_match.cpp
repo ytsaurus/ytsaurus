@@ -98,7 +98,7 @@ static TSkiffTableDescription CreateTableDescription(
 
     auto children = skiffSchema->GetChildren();
 
-    YCHECK(!children.empty());
+    YT_VERIFY(!children.empty());
 
     if (children.back()->GetName() == OtherColumnsName) {
         otherColumnsField = children.back();
@@ -303,7 +303,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
                 case EWireType::Tuple:
                     return CreateTupleSchema(childSchemaList)->SetName(schemaRepresentation->Name);
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     } else {

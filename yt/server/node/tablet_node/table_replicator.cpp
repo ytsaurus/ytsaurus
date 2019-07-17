@@ -248,7 +248,7 @@ private:
                 foreignTransaction = WaitFor(localTransaction->StartForeignTransaction(foreignClient, transactionStartOptions))
                     .ValueOrThrow();
 
-                YCHECK(localTransaction->GetId() == foreignTransaction->GetId());
+                YT_VERIFY(localTransaction->GetId() == foreignTransaction->GetId());
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
             }
@@ -287,7 +287,7 @@ private:
                         tabletSnapshot,
                         replicaSnapshot,
                         blockReadOptions);
-                    YCHECK(readReplicationBatch());
+                    YT_VERIFY(readReplicationBatch());
                 }
             }
 
@@ -385,11 +385,11 @@ private:
             break;
         }
 
-        YCHECK(readerRows.size() == 1);
+        YT_VERIFY(readerRows.size() == 1);
 
         i64 actualRowIndex = GetRowIndex(readerRows[0]);
         TTimestamp timestamp = GetTimestamp(readerRows[0]);
-        YCHECK(actualRowIndex == rowIndex);
+        YT_VERIFY(actualRowIndex == rowIndex);
 
         YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
             rowIndex,
@@ -538,7 +538,7 @@ private:
                     isVersioned);
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
-                    YCHECK(row.GetHeader() == readerRows[0].GetHeader());
+                    YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
                     YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
@@ -611,13 +611,13 @@ private:
 
     i64 GetRowIndex(const TUnversionedRow& logRow)
     {
-        Y_ASSERT(logRow[1].Type == EValueType::Int64);
+        YT_ASSERT(logRow[1].Type == EValueType::Int64);
         return logRow[1].Data.Int64;
     }
 
     TTimestamp GetTimestamp(const TUnversionedRow& logRow)
     {
-        Y_ASSERT(logRow[2].Type == EValueType::Uint64);
+        YT_ASSERT(logRow[2].Type == EValueType::Uint64);
         return logRow[2].Data.Uint64;
     }
 
@@ -674,7 +674,7 @@ private:
         ERowModificationType* modificationType)
     {
         int headerRows = 3;
-        YCHECK(logRow.GetCount() >= headerRows);
+        YT_VERIFY(logRow.GetCount() >= headerRows);
 
         auto mutableReplicationRow = rowBuffer->AllocateUnversioned(logRow.GetCount() - headerRows);
         int columnCount = 0;
@@ -706,17 +706,17 @@ private:
     {
         TVersionedRow replicationRow;
 
-        Y_ASSERT(logRow[3].Type == EValueType::Int64);
+        YT_ASSERT(logRow[3].Type == EValueType::Int64);
         auto changeType = ERowModificationType(logRow[3].Data.Int64);
 
         int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
 
-        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                Y_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
+                YT_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
@@ -736,7 +736,7 @@ private:
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
-                    Y_ASSERT(flagsValue.Type == EValueType::Uint64);
+                    YT_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TVersionedValue value;
@@ -747,7 +747,7 @@ private:
                         mutableReplicationRow.BeginValues()[replicationValueIndex++] = value;
                     }
                 }
-                YCHECK(replicationValueIndex == replicationValueCount);
+                YT_VERIFY(replicationValueIndex == replicationValueCount);
                 mutableReplicationRow.BeginWriteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
                 YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
@@ -770,7 +770,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         *modificationType = ERowModificationType::VersionedWrite;
@@ -788,19 +788,19 @@ private:
     {
         TUnversionedRow replicationRow;
 
-        Y_ASSERT(logRow[3].Type == EValueType::Int64);
+        YT_ASSERT(logRow[3].Type == EValueType::Int64);
         auto changeType = ERowModificationType(logRow[3].Data.Int64);
 
         int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
 
-        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
         *modificationType = ERowModificationType::Write;
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                Y_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
+                YT_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
@@ -818,7 +818,7 @@ private:
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
-                    Y_ASSERT(flagsValue.Type == EValueType::Uint64);
+                    YT_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TUnversionedValue value;
@@ -828,7 +828,7 @@ private:
                         mutableReplicationRow.Begin()[keyColumnCount + replicationValueIndex++] = value;
                     }
                 }
-                YCHECK(replicationValueIndex == replicationValueCount);
+                YT_VERIFY(replicationValueIndex == replicationValueCount);
                 replicationRow = mutableReplicationRow;
                 YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
                 break;
@@ -848,7 +848,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         *result = replicationRow.ToTypeErasedRow();

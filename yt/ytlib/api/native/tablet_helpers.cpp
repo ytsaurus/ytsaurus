@@ -81,7 +81,7 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -91,7 +91,7 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
 {
     auto peers = GetValidPeers(cellDescriptor);
 
-    Y_ASSERT(peers.size() > 1);
+    YT_ASSERT(peers.size() > 1);
 
     int primaryPeerIndex = -1;
     for (int index = 0; index < peers.size(); ++index) {
@@ -101,7 +101,7 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
         }
     }
 
-    Y_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < peers.size());
+    YT_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < peers.size());
 
     int randomIndex = RandomNumber(peers.size() - 1);
     if (randomIndex >= primaryPeerIndex) {
@@ -204,7 +204,7 @@ TTabletInfoPtr GetSortedTabletForRowImpl(
     TRow row,
     bool validateWrite)
 {
-    Y_ASSERT(tableInfo->IsSorted());
+    YT_ASSERT(tableInfo->IsSorted());
 
     auto tabletInfo = tableInfo->GetTabletForRow(row);
     ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
@@ -236,7 +236,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
     TUnversionedRow row,
     bool validateWrite)
 {
-    Y_ASSERT(!tableInfo->IsSorted());
+    YT_ASSERT(!tableInfo->IsSorted());
 
     i64 tabletIndex = -1;
     for (const auto& value : row) {

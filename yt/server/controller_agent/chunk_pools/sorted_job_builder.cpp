@@ -489,7 +489,7 @@ private:
 
                 // The contrary would mean that teleport chunk was chosen incorrectly, because teleport chunks
                 // should not normally intersect the other data slices.
-                YCHECK(!(beforeTeleportChunk && !canEndHere));
+                YT_VERIFY(!(beforeTeleportChunk && !canEndHere));
 
                 endHere = canEndHere && (beforeTeleportChunk || jobIsLargeEnough);
                 addBarrierHere = beforeTeleportChunk;

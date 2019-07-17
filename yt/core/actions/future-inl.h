@@ -87,9 +87,9 @@ private:
         bool canceled;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            Y_ASSERT(!AbandonedUnset_);
+            YT_ASSERT(!AbandonedUnset_);
             if (MustSet) {
-                YCHECK(!Set_);
+                YT_VERIFY(!Set_);
             } else {
                 if (Set_) {
                     return false;
@@ -132,7 +132,7 @@ private:
         {
             auto guard = Guard(SpinLock_);
             if (ResultHandlers_.empty() && CancelHandlers_.empty()) {
-                Y_ASSERT(!AbandonedUnset_);
+                YT_ASSERT(!AbandonedUnset_);
                 AbandonedUnset_ = true;
                 // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
                 guard.Release();
@@ -203,7 +203,7 @@ public:
             return;
         }
         auto oldWeakCount = WeakRefCount_++;
-        Y_ASSERT(oldWeakCount > 0);
+        YT_ASSERT(oldWeakCount > 0);
     }
 
     void UnrefFuture()
@@ -212,7 +212,7 @@ public:
             return;
         }
         auto oldWeakCount = WeakRefCount_--;
-        Y_ASSERT(oldWeakCount > 0);
+        YT_ASSERT(oldWeakCount > 0);
         if (oldWeakCount == 1) {
             Destroy();
         }
@@ -220,16 +220,16 @@ public:
 
     void RefPromise()
     {
-        Y_ASSERT(!WellKnown_);
+        YT_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_++;
-        Y_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
+        YT_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
     }
 
     void UnrefPromise()
     {
-        Y_ASSERT(!WellKnown_);
+        YT_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_--;
-        Y_ASSERT(oldStrongCount > 0);
+        YT_ASSERT(oldStrongCount > 0);
         if (oldStrongCount == 1) {
             Dispose();
         }
@@ -557,13 +557,13 @@ void ApplyHelperHandler(TPromise<T>& promise, const TCallback<R(const TErrorOr<U
 }
 
 template <class R, class T, class S>
-TFuture<R> ApplyHelper(TFutureBase<T> this_, const TCallback<S>& callback)
+TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 {
-    Y_ASSERT(this_);
+    YT_ASSERT(this_);
 
     auto promise = NewPromise<R>();
 
-    this_.Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) mutable {
         ApplyHelperHandler(promise, callback, value);
     }));
 
@@ -673,42 +673,42 @@ void TFutureBase<T>::Reset()
 template <class T>
 bool TFutureBase<T>::IsSet() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->IsSet();
 }
 
 template <class T>
 const TErrorOr<T>& TFutureBase<T>::Get() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->Get();
 }
 
 template <class T>
 bool TFutureBase<T>::TimedWait(TDuration timeout) const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->TimedWait(timeout);
 }
 
 template <class T>
 std::optional<TErrorOr<T>> TFutureBase<T>::TryGet() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->TryGet();
 }
 
 template <class T>
 void TFutureBase<T>::Subscribe(TCallback<void(const TErrorOr<T>&)> handler)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->Subscribe(std::move(handler));
 }
 
 template <class T>
 bool TFutureBase<T>::Cancel()
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->Cancel();
 }
 
@@ -752,7 +752,7 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable()
 template <class T>
 TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
 
     if (IsSet()) {
         return TFuture<T>(Impl_);
@@ -798,28 +798,28 @@ template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<R(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<R>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
@@ -926,21 +926,21 @@ void TPromiseBase<T>::Reset()
 template <class T>
 bool TPromiseBase<T>::IsSet() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->IsSet();
 }
 
 template <class T>
 void TPromiseBase<T>::Set(const TErrorOr<T>& value)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     Impl_->Set(value);
 }
 
 template <class T>
 void TPromiseBase<T>::Set(TErrorOr<T>&& value)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     Impl_->Set(std::move(value));
 }
 
@@ -948,7 +948,7 @@ template <class T>
 template <class U>
 void TPromiseBase<T>::SetFrom(TFuture<U> another)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
 
     auto this_ = *this;
 
@@ -964,14 +964,14 @@ void TPromiseBase<T>::SetFrom(TFuture<U> another)
 template <class T>
 bool TPromiseBase<T>::TrySet(const TErrorOr<T>& value)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->TrySet(value);
 }
 
 template <class T>
 bool TPromiseBase<T>::TrySet(TErrorOr<T>&& value)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->TrySet(std::move(value));
 }
 
@@ -979,7 +979,7 @@ template <class T>
 template <class U>
 inline void TPromiseBase<T>::TrySetFrom(TFuture<U> another)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
 
     auto this_ = *this;
 
@@ -995,14 +995,14 @@ inline void TPromiseBase<T>::TrySetFrom(TFuture<U> another)
 template <class T>
 const TErrorOr<T>& TPromiseBase<T>::Get() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->Get();
 }
 
 template <class T>
 std::optional<TErrorOr<T>> TPromiseBase<T>::TryGet() const
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     return Impl_->TryGet();
 }
 
@@ -1015,7 +1015,7 @@ bool TPromiseBase<T>::IsCanceled() const
 template <class T>
 void TPromiseBase<T>::OnCanceled(TClosure handler)
 {
-    Y_ASSERT(Impl_);
+    YT_ASSERT(Impl_);
     Impl_->OnCanceled(std::move(handler));
 }
 
@@ -1045,14 +1045,14 @@ TPromise<T>::TPromise(std::nullopt_t)
 template <class T>
 void TPromise<T>::Set(const T& value)
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     this->Impl_->Set(value);
 }
 
 template <class T>
 void TPromise<T>::Set(T&& value)
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     this->Impl_->Set(std::move(value));
 }
 
@@ -1071,14 +1071,14 @@ void TPromise<T>::Set(TError&& error)
 template <class T>
 bool TPromise<T>::TrySet(const T& value)
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     return this->Impl_->TrySet(value);
 }
 
 template <class T>
 bool TPromise<T>::TrySet(T&& value)
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     return this->Impl_->TrySet(std::move(value));
 }
 
@@ -1106,13 +1106,13 @@ inline TPromise<void>::TPromise(std::nullopt_t)
 
 inline void TPromise<void>::Set()
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     this->Impl_->Set(TError());
 }
 
 inline bool TPromise<void>::TrySet()
 {
-    Y_ASSERT(this->Impl_);
+    YT_ASSERT(this->Impl_);
     return this->Impl_->TrySet(TError());
 }
 
@@ -1535,7 +1535,7 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> CombineQuorum(
     std::vector<TFuture<T>> futures,
     int quorum)
 {
-    YCHECK(quorum >= 0);
+    YT_VERIFY(quorum >= 0);
     return New<NDetail::TQuorumFutureCombiner<T>>(std::move(futures), quorum)
         ->Run();
 }
@@ -1628,7 +1628,7 @@ TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
     std::vector<TCallback<TFuture<T>()>> callbacks,
     int concurrencyLimit)
 {
-    YCHECK(concurrencyLimit >= 0);
+    YT_VERIFY(concurrencyLimit >= 0);
     return New<NDetail::TBoundedConcurrencyRunner<T>>(std::move(callbacks), concurrencyLimit)
         ->Run();
 }
