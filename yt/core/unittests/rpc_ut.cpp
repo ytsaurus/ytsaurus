@@ -750,7 +750,7 @@ TYPED_TEST(TNotGrpcTest, SendSimple)
     EXPECT_EQ(true, rsp->retry());
 }
 
-TYPED_TEST(TNotGrpcTest, StreamingEcho)
+TYPED_TEST(TNotGrpcTest, DISABLED_StreamingEcho)
 {
     TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultRequestCodec(NCompression::ECodec::Lz4);
