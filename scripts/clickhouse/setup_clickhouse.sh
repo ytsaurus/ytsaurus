@@ -9,17 +9,17 @@ if [[ "$cluster" == "" ]] ; then
 fi
 
 export YT_PROXY=$cluster
-yt create map_node //sys/clickhouse
-yt create map_node //sys/clickhouse/geodata
-yt create document //sys/clickhouse/config --attributes "{value={}}"
+yt create map_node //sys/clickhouse --ignore-existing
+yt create map_node //sys/clickhouse/geodata --ignore-existing
+yt create document //sys/clickhouse/config --attributes "{value={}}" --ignore-existing
 yt set //sys/clickhouse/config <config.yson
 if [[ "$(yt exists //sys/@cluster_connection)" == "true" ]] ; then
     yt get //sys/@cluster_connection | yt set //sys/clickhouse/config/cluster_connection
 else
     echo "!!! //sys/@cluster_connection is missing; make sure to specify //sys/clichouse/config/cluster_connection by yourself."
 fi
-yt create map_node //sys/clickhouse/bin
-yt create map_node //sys/clickhouse/cliques
+yt create map_node //sys/clickhouse/bin --ignore-existing
+yt create map_node //sys/clickhouse/cliques --ignore-existing
 
 if [[ "$(yt exists //sys/users/yt-clickhouse)" == "false" ]] ; then
     yt create user --attribute "{name=yt-clickhouse}"
