@@ -296,7 +296,11 @@ char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
         ->AllocateAligned(byteCount);
 }
 
-typedef std::pair<size_t, size_t> TSlot;
+struct TSlot
+{
+    size_t Offset;
+    size_t Count;
+};
 
 TValue* AllocateJoinKeys(
     TExecutionContext* context,
@@ -344,7 +348,7 @@ void StorePrimaryRow(
             // Key will be reallocated further.
         }
 
-        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot(0, 0);
+        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot{0, 0};
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
@@ -935,10 +939,10 @@ void MultiJoinOpHelper(
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
                         TSlot* slot = reinterpret_cast<TSlot*>(*currentKey + keySize);
-                        if (slot->second == 0) {
-                            slot->first = index;
+                        if (slot->Count == 0) {
+                            slot->Offset = index;
                         }
-                        ++slot->second;
+                        ++slot->Count;
                         ++index;
                     } else if (cmpResult < 0) {
                         ++currentKey;
@@ -1060,13 +1064,13 @@ void MultiJoinOpHelper(
                     TSlot slot = *(reinterpret_cast<TSlot**>(rowValues + closure.PrimaryRowSize)[joinId]);
                     const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
 
-                    if (slot.second != 0) {
-                        YT_VERIFY(indexes[joinId] < slot.second);
-                        TValue* foreignRow = sortedForeignSequences[joinId][slot.first + indexes[joinId]];
+                    if (slot.Count != 0) {
+                        YT_VERIFY(indexes[joinId] < slot.Count);
+                        TValue* foreignRow = sortedForeignSequences[joinId][slot.Offset + indexes[joinId]];
 
                         if (incrementIndex == joinId) {
                             ++indexes[joinId];
-                            if (indexes[joinId] == slot.second) {
+                            if (indexes[joinId] == slot.Count) {
                                 indexes[joinId] = 0;
                                 ++incrementIndex;
                             } else {
