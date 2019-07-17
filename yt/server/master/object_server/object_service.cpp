@@ -711,28 +711,6 @@ private:
         TWallTimer timer;
 
         const auto& context = subrequest->RpcContext;
-
-//        try {
-//            auto transactionId = GetTransactionId(context);
-//            const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
-//            auto* transaction = transactionId
-//                ? transactionManager->GetTransactionOrThrow(transactionId)
-//                : nullptr;
-//
-//            const auto& path = GetRequestYPath(context->GetRequestHeader());
-//
-//            TPathResolver resolver(Owner_->Bootstrap_);
-//            auto resolveResult = resolver.Resolve(
-//                context->GetService(),
-//                context->GetMethod(),
-//                path,
-//                transaction);
-//
-//            // XXX
-//        } catch (const std::exception& ex) {
-//            context->Reply(TError(ex));
-//        }
-
         try {
             auto rootService = ObjectManager_->GetRootService();
             ExecuteVerb(rootService, context);
