@@ -2579,9 +2579,7 @@ private:
         YT_VERIFY(transaction);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        const auto& id = originatingNode->GetId();
+        auto id = originatingNode->GetId();
 
         // Create a branched node and initialize its state.
         const auto& handler = GetHandler(originatingNode);
@@ -2596,6 +2594,7 @@ private:
         transaction->BranchedNodes().push_back(branchedNode);
 
         // The branched node holds an implicit reference to its trunk.
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(originatingNode->GetTrunkNode());
 
         return branchedNode;

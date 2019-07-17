@@ -791,6 +791,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto name = ConvertTo<TString>(value);
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+            cellBundle->ValidateCreationCommitted();
 
             auto* lockedTable = LockThisImpl();
             tabletManager->SetTabletCellBundle(lockedTable, cellBundle);

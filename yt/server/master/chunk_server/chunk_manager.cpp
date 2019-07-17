@@ -2274,6 +2274,8 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
+        account->ValidateCreationCommitted();
+
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
                 .SetChunkCount(1)

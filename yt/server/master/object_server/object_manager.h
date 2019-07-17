@@ -105,6 +105,10 @@ public:
     //! Find weak ghost object by id, fails if nothing is found.
     TObjectBase* GetWeakGhostObject(TObjectId id);
 
+    //! For object types requiring two-phase removal, initiates the removal protocol.
+    //! For others, checks for the local reference counter and if it's 1, drops the last reference.
+    void RemoveObject(TObjectBase* object);
+
     //! Creates a cross-cell read-only proxy for the object with the given #id.
     NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id);
 
@@ -287,6 +291,10 @@ private:
     void HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept;
     void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
     void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
+
+    void DoRemoveObject(TObjectBase* object);
+    void CheckRemovingObjectRefCounter(TObjectBase* object);
+    void CheckObjectLifeStageVoteCount(TObjectBase* object);
 
     void OnProfiling();
 

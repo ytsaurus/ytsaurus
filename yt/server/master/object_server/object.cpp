@@ -53,6 +53,16 @@ bool TObjectBase::IsBuiltin() const
     return IsWellKnownId(Id_);
 }
 
+int TObjectBase::GetLifeStageVoteCount() const
+{
+    return LifeStageVoteCount_;
+}
+
+void TObjectBase::ResetLifeStageVoteCount()
+{
+    LifeStageVoteCount_ = 0;
+}
+
 int TObjectBase::IncrementLifeStageVoteCount()
 {
     return ++LifeStageVoteCount_;
@@ -112,6 +122,24 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
     }
     if (Load<bool>(context)) {
         SetForeign();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString TNonversionedObjectBase::GetObjectName() const
+{
+    return Format("Object %v", Id_);
+}
+
+void TNonversionedObjectBase::ValidateCreationCommitted() const
+{
+    if (LifeStage_ != EObjectLifeStage::CreationCommitted) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InvalidObjectLifeStage,
+            "%v cannot be used since it is in %Qlv life stage",
+            GetObjectName(),
+            LifeStage_);
     }
 }
 

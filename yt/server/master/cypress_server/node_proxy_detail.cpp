@@ -376,6 +376,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             auto name = ConvertTo<TString>(value);
             auto* account = securityManager->GetAccountByNameOrThrow(name);
+            account->ValidateCreationCommitted();
 
             ValidateStorageParametersUpdate();
             ValidatePermission(account, EPermission::Use);
@@ -1318,6 +1319,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
+            account->ValidateCreationCommitted();
         }
 
         if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
@@ -1743,22 +1745,11 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             auto name = ConvertTo<TString>(value);
 
-            auto* oldBundle = node->GetTabletCellBundle();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+            newBundle->ValidateCreationCommitted();
 
-            if (oldBundle == newBundle) {
-                return true;
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            if (oldBundle) {
-                objectManager->UnrefObject(oldBundle);
-            }
-
-            node->SetTabletCellBundle(newBundle);
-            objectManager->RefObject(newBundle);
+            tabletManager->SetTabletCellBundle(node, newBundle);
 
             return true;
         }
@@ -1931,7 +1922,6 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYs
         TChunkReplication replication;
         replication.SetVital(true);
         serializableReplication.ToChunkReplication(&replication, chunkManager);
-
         InheritedAttributes_.Media = replication;
         return;
     }
@@ -1940,6 +1930,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYs
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName);
+        bundle->ValidateCreationCommitted();
         InheritedAttributes_.TabletCellBundle = bundle;
         return;
     }

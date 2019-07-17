@@ -868,11 +868,7 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
     ValidateRemoval();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (objectManager->GetObjectRefCounter(Object_) != 1) {
-        THROW_ERROR_EXCEPTION("Object is in use");
-    }
-
-    objectManager->UnrefObject(Object_);
+    objectManager->RemoveObject(Object_);
 
     context->Reply();
 }

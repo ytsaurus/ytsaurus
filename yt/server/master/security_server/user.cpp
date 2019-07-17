@@ -74,6 +74,11 @@ TUser::TUser(TUserId id)
     : TSubject(id)
 { }
 
+TString TUser::GetObjectName() const
+{
+    return Format("User %Qv", Name_);
+}
+
 void TUser::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
@@ -180,7 +185,6 @@ void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
             YT_ABORT();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

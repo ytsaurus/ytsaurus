@@ -143,23 +143,19 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         with pytest.raises(YtError): set("//tmp/a/@account", "max", tx=tx)
 
-    def test_remove1(self):
+    def test_remove_immediately(self):
         create_account("max")
         remove_account("max")
+        wait(lambda: not exists("//sys/accounts/max"))
 
-    def test_remove2(self):
+    def test_remove_delayed(self):
         create_account("max")
         set("//tmp/a", {})
         set("//tmp/a/@account", "max")
-        set("//tmp/a/@account", "sys")
-        sleep(self.REPLICATOR_REACTION_TIME)
         remove_account("max")
-
-    def test_remove3(self):
-        create_account("max")
-        set("//tmp/a", {})
-        set("//tmp/a/@account", "max")
-        with pytest.raises(YtError): remove_account("max")
+        assert get("//sys/accounts/max/@life_stage") == "removal_started"
+        remove("//tmp/a")
+        wait(lambda: not exists("//sys/accounts/max"))
 
     def test_file1(self):
         assert get_account_disk_space("tmp") == 0

@@ -466,19 +466,24 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 
         GarbageCollector_->RegisterZombie(object);
 
-        // XXX(babenko): move to ZombifyObject
-        if (Bootstrap_->IsPrimaryMaster()) {
-            auto flags = handler->GetFlags();
-            if (Any(flags & ETypeFlags::ReplicateDestroy)) {
-                NProto::TReqRemoveForeignObject request;
-                ToProto(request.mutable_object_id(), object->GetId());
+        auto flags = handler->GetFlags();
+        if (Any(flags & ETypeFlags::ReplicateDestroy) &&
+            None(flags & ETypeFlags::TwoPhaseRemoval) &&
+            Bootstrap_->IsPrimaryMaster())
+        {
+            NProto::TReqRemoveForeignObject request;
+            ToProto(request.mutable_object_id(), object->GetId());
 
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                auto replicationCellTags = handler->GetReplicationCellTags(object);
-                multicellManager->PostToMasters(request, replicationCellTags);
-            }
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto replicationCellTags = handler->GetReplicationCellTags(object);
+            multicellManager->PostToMasters(request, replicationCellTags);
         }
     }
+
+    if (object->GetLifeStage() == EObjectLifeStage::RemovalStarted) {
+        CheckRemovingObjectRefCounter(object);
+    }
+
     return refCounter;
 }
 
@@ -664,6 +669,49 @@ TObjectBase* TObjectManager::GetWeakGhostObject(TObjectId id)
     return GarbageCollector_->GetWeakGhostObject(id);
 }
 
+void TObjectManager::RemoveObject(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
+        THROW_ERROR_EXCEPTION("Object life stage is %Qlv",
+            object->GetLifeStage());
+    }
+
+    const auto& handler = GetHandler(object);
+    if (None(handler->GetFlags() & ETypeFlags::Removable)) {
+        THROW_ERROR_EXCEPTION("Object cannot be removed");
+    }
+
+    if (object->IsForeign()) {
+        THROW_ERROR_EXCEPTION("Object is foreign");
+    }
+
+    if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval) && Bootstrap_->IsPrimaryMaster()) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
+            object->GetId(),
+            object->GetObjectRefCounter());
+
+        object->SetLifeStage(EObjectLifeStage::RemovalStarted);
+        object->ResetLifeStageVoteCount();
+
+        NProto::TReqRemoveForeignObject request;
+        ToProto(request.mutable_object_id(), object->GetId());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
+
+        CheckRemovingObjectRefCounter(object);
+    } else {
+        if (object->GetObjectRefCounter() != 1) {
+            THROW_ERROR_EXCEPTION("Object is in use");
+        }
+
+        object->SetLifeStage(EObjectLifeStage::RemovalCommitted);
+        DoRemoveObject(object);
+    }
+}
+
 IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
 {
     return New<TRemoteProxy>(Bootstrap_, id);
@@ -836,6 +884,8 @@ TObjectBase* TObjectManager::CreateObject(
 
     if (Bootstrap_->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
+        object->ResetLifeStageVoteCount();
+        YT_VERIFY(object->IncrementLifeStageVoteCount() == 1);
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object creation started (ObjectId: %v)",
             object->GetId());
     } else {
@@ -1242,14 +1292,31 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
     auto objectId = FromProto<TObjectId>(request->object_id());
 
     auto* object = FindObject(objectId);
-    if (object) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
-            objectId,
-            object->GetObjectRefCounter());
-        UnrefObject(object);
-    } else {
+    if (!object) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
+        return;
+    }
+
+    if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
+        YT_LOG_ERROR_UNLESS(IsRecovery(),
+            "Unexpected error: requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
+            objectId,
+            object->GetLifeStage());
+        return;
+    }
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
+        objectId,
+        object->GetObjectRefCounter());
+
+    const auto& handler = GetHandler(object);
+    if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval)) {
+        object->SetLifeStage(EObjectLifeStage::RemovalStarted);
+        CheckRemovingObjectRefCounter(object);
+    } else {
+        object->SetLifeStage(EObjectLifeStage::RemovalCommitted);
+        DoRemoveObject(object);
     }
 }
 
@@ -1280,38 +1347,21 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
     auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by secondary cell (ObjectId: %v)",
             objectId);
         return;
     }
 
     auto voteCount = object->IncrementLifeStageVoteCount();
-    YT_VERIFY(voteCount <= Bootstrap_->GetSecondaryCellTags().size());
-
     auto oldLifeStage = object->GetLifeStage();
-
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object life stage confirmed by secondary master (ObjectId: %v, CellTag: %v, LifeStage: %v, VoteCount: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        "Object life stage confirmed by secondary cell (ObjectId: %v, CellTag: %v, LifeStage: %v, VoteCount: %v)",
         objectId,
         confirmRequest->cell_tag(),
         oldLifeStage,
         voteCount);
 
-    if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {
-        return;
-    }
-
-    auto newLifeStage = GetNextLifeStage(oldLifeStage);
-    object->SetLifeStage(newLifeStage);
-
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
-        objectId,
-        oldLifeStage,
-        newLifeStage);
-
-    NProto::TReqAdvanceObjectLifeStage advanceRequest;
-    ToProto(advanceRequest.mutable_object_id(), object->GetId());
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMasters(advanceRequest);
+    CheckObjectLifeStageVoteCount(object);
 }
 
 void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
@@ -1327,16 +1377,104 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
         return;
     }
 
+    if (!object->IsForeign()) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+            "Life stage advancement for a non-foreign object requested by primary cell (ObjectId: %v)",
+            objectId);
+        return;
+    }
+
     auto oldLifeStage = object->GetLifeStage();
     auto newLifeStage = GetNextLifeStage(oldLifeStage);
     object->SetLifeStage(newLifeStage);
 
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object life stage advanced by primary master (ObjectId: %v, LifeStage: %v -> %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        "Object life stage advanced by primary cell (ObjectId: %v, LifeStage: %v -> %v)",
         objectId,
         oldLifeStage,
         newLifeStage);
 
     ConfirmObjectLifeStageToPrimaryMaster(object);
+
+    if (newLifeStage == EObjectLifeStage::RemovalCommitted) {
+        DoRemoveObject(object);
+    }
+}
+
+void TObjectManager::DoRemoveObject(TObjectBase* object)
+{
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object removed (ObjectId: %v)",
+        object->GetId());
+    if (UnrefObject(object) != 0) {
+        YT_LOG_ERROR_UNLESS(IsRecovery(),
+            "Unexpected error: non-zero reference counter for after object removal (ObjectId: %v, RefCounter: %v)",
+            object->GetId(),
+            object->GetObjectRefCounter());
+    }
+}
+
+void TObjectManager::CheckRemovingObjectRefCounter(TObjectBase* object)
+{
+    if (object->GetObjectRefCounter() != 1) {
+        return;
+    }
+
+    auto oldLifeStage = object->GetLifeStage();
+    auto newLifeStage = GetNextLifeStage(oldLifeStage);
+
+    YT_VERIFY(oldLifeStage == EObjectLifeStage::RemovalStarted);
+    object->SetLifeStage(newLifeStage);
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object references released (ObjectId: %v, LifeStage: %v -> %v)",
+        object->GetId(),
+        oldLifeStage,
+        newLifeStage);
+
+    if (Bootstrap_->IsPrimaryMaster()) {
+        object->IncrementLifeStageVoteCount();
+        CheckObjectLifeStageVoteCount(object);
+    } else {
+        ConfirmObjectLifeStageToPrimaryMaster(object);
+    }
+}
+
+void TObjectManager::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObjectBase* object)
+{
+    while (true) {
+        auto voteCount = object->GetLifeStageVoteCount();
+        YT_VERIFY(voteCount <= Bootstrap_->GetSecondaryCellTags().size() + 1);
+        if (voteCount < Bootstrap_->GetSecondaryCellTags().size() + 1) {
+            break;
+        }
+
+        auto oldLifeStage = object->GetLifeStage();
+        auto newLifeStage = GetNextLifeStage(oldLifeStage);
+        object->SetLifeStage(newLifeStage);
+        object->ResetLifeStageVoteCount();
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object life stage votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
+            object->GetId(),
+            oldLifeStage,
+            newLifeStage);
+
+        NProto::TReqAdvanceObjectLifeStage advanceRequest;
+        ToProto(advanceRequest.mutable_object_id(), object->GetId());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(advanceRequest);
+
+        switch (newLifeStage) {
+            case EObjectLifeStage::CreationPreCommitted:
+                object->IncrementLifeStageVoteCount();
+                break;
+
+            case EObjectLifeStage::RemovalCommitted:
+                DoRemoveObject(object);
+                break;
+
+            default:
+                break;
+        }
+    }
 }
 
 const TProfiler& TObjectManager::GetProfiler()

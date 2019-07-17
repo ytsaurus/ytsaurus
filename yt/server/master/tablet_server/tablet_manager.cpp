@@ -884,7 +884,6 @@ public:
         TInstant expirationTime)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -920,6 +919,7 @@ public:
         action->SetCorrelationId(correlationId);
         action->SetExpirationTime(expirationTime);
         auto* bundle = action->Tablets()[0]->GetTable()->GetTabletCellBundle();
+        // XXX(babenko): validate life stage
         action->SetTabletCellBundle(bundle);
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
@@ -3320,11 +3320,12 @@ public:
         return GetBuiltin(DefaultTabletCellBundle_);
     }
 
-    void SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
+    void SetTabletCellBundle(TTableNode* table, TTabletCellBundle* newBundle)
     {
         YT_VERIFY(table->IsTrunk());
 
-        if (table->GetTabletCellBundle() == cellBundle) {
+        auto* oldBundle = table->GetTabletCellBundle();
+        if (oldBundle == newBundle) {
             return;
         }
 
@@ -3335,12 +3336,29 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (table->GetTabletCellBundle()) {
-            objectManager->UnrefObject(table->GetTabletCellBundle());
+        if (oldBundle) {
+            objectManager->UnrefObject(oldBundle);
         }
-        objectManager->RefObject(cellBundle);
 
-        table->SetTabletCellBundle(cellBundle);
+        table->SetTabletCellBundle(newBundle);
+        objectManager->RefObject(newBundle);
+    }
+
+    void SetTabletCellBundle(TCompositeNodeBase* node, TTabletCellBundle* newBundle)
+    {
+        auto* oldBundle = node->GetTabletCellBundle();
+        if (oldBundle == newBundle) {
+            return;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        if (oldBundle) {
+            objectManager->UnrefObject(oldBundle);
+        }
+
+        node->SetTabletCellBundle(newBundle);
+        objectManager->RefObject(newBundle);
     }
 
 
@@ -6580,6 +6598,11 @@ TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
 void TTabletManager::SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
 {
     Impl_->SetTabletCellBundle(table, cellBundle);
+}
+
+void TTabletManager::SetTabletCellBundle(TCompositeNodeBase* node, TTabletCellBundle* cellBundle)
+{
+    Impl_->SetTabletCellBundle(node, cellBundle);
 }
 
 void TTabletManager::DestroyTablet(TTablet* tablet)
