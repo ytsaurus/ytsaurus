@@ -5,7 +5,7 @@ namespace NYT::NSecurityServer {
 ///////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuardBase::TAuthenticatedUserGuardBase(
-    IUsersManagerPtr securityManager,
+    ISecurityManagerPtr securityManager,
     const std::optional<TString>& user)
 {
     if (user) {
