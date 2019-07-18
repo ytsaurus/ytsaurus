@@ -68,12 +68,9 @@ class TestPortals(YTEnvSetup):
         table_id = create("table", "//tmp/p/t")
 
         remove("//tmp/p")
-
-        gc_collect()
-
-        assert not exists("#{}".format(exit_id))
-        assert not exists("#{}".format(entrance_id), driver=get_driver(1))
-        assert not exists("#{}".format(table_id), driver=get_driver(1))
+        wait(lambda: not exists("#{}".format(exit_id)) and \
+                     not exists("#{}".format(entrance_id), driver=get_driver(1)) and \
+                     not exists("#{}".format(table_id), driver=get_driver(1)))
 
     def test_remove_all_portal_children(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
