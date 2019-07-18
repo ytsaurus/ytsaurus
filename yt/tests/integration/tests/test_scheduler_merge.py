@@ -1496,11 +1496,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t1")
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t2")
 
-        assert get("#" + chunk_id + "/@exports") == \
+        wait(lambda: get("#" + chunk_id + "/@exports") == \
             {
                 "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
-            }
+            })
 
     def test_teleporting_chunks_dont_disappear(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
