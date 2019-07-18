@@ -442,6 +442,11 @@ int TObjectManager::RefObject(TObjectBase* object)
 
     if (refCounter == 1) {
         GarbageCollector_->UnregisterZombie(object);
+        if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted || object->GetLifeStage() == EObjectLifeStage::RemovalCommitted) {
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: references to object reappeared  after removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
+                object->GetId(),
+                object->GetLifeStage());
+        }
     }
 
     return refCounter;
