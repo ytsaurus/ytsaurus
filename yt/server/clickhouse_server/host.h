@@ -29,13 +29,9 @@ public:
 
     void Start();
 
-    //! Change internal user -> query count mapping value, which is used in profiling.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta);
-
     const IInvokerPtr& GetControlInvoker() const;
+
+    DB::Context& GetContext() const;
 
     IClusterNodeTrackerPtr GetExecutionClusterNodeTracker() const;
 

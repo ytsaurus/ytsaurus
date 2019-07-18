@@ -32,10 +32,12 @@ DEFAULTS = {
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
 
+
 class Clique(object):
     base_config = None
     clique_index = 0
     path_to_run = None
+    core_dump_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
@@ -59,6 +61,7 @@ class Clique(object):
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
                                                           spec=spec,
+                                                          core_dump_destination=Clique.core_dump_path,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build():
@@ -166,10 +169,10 @@ class Clique(object):
         print >>sys.stderr, ""
         print >>sys.stderr, "Querying {0}:{1} with the following data:\n> {2}".format(host, port, query)
         print >>sys.stderr, "Query id: {}".format(query_id)
-        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0".format(host, port),
+        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0&query_id={}".format(host, port, query_id),
                                data=query,
                                headers={"X-ClickHouse-User": user,
-                                        "X-ClickHouse-Query-Id": query_id})
+                                        "X-Yt-Request-Id": query_id})
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
@@ -230,6 +233,11 @@ class ClickHouseTestBase(YTEnvSetup):
 
     def _setup(self):
         Clique.path_to_run = self.path_to_run
+        Clique.core_dump_path = os.path.join(self.path_to_run, "core_dumps")
+        if not os.path.exists(Clique.core_dump_path):
+            os.mkdir(Clique.core_dump_path)
+            os.chmod(Clique.core_dump_path, 0777)
+
         if YTSERVER_CLICKHOUSE_BINARY is None:
             pytest.skip("This test requires ytserver-clickhouse binary being built")
 
@@ -960,3 +968,21 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
                                                "name = 'query_log';")) >= 1)
             wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
+
+
+class TestQueryRegistry(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_codicils(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        # Normal footprint at start of clique should be around 1.5 Gb
+        s = 'x' * (4 * 1024**2)  # 4 Mb.
+        write_table("//tmp/t", [{"a": s}])
+        merge(in_=["//tmp/t"] * 200,
+              out="//tmp/t",
+              spec={"force_transform": True})  # 800 Mb.
+        with pytest.raises(YtError):
+            with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
+                clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+        assert "OOM" in str(clique.op.get_error())

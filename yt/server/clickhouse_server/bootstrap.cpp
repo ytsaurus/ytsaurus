@@ -7,6 +7,7 @@
 #include "config.h"
 #include "directory.h"
 #include "query_context.h"
+#include "query_registry.h"
 #include "security_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
@@ -116,10 +117,16 @@ void TBootstrap::DoRun()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
 
+    QueryRegistry_ = New<TQueryRegistry>(this);
+
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
+    SetNodeByYPath(
+        orchidRoot,
+        "/queries",
+        CreateVirtualNode(QueryRegistry_->GetOrchidService()->Via(GetControlInvoker())));
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     // TODO(max42): make configurable.
@@ -157,11 +164,11 @@ void TBootstrap::DoRun()
 
     RootClient_ = ClientCache_->GetClient(Config_->User);
 
-    CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
+    CoordinationService_ = CreateCoordinationService(RootClient_, CliqueId_);
 
-    ClickHouseHost_ = New<TClickHouseHost>(
+    Host_ = New<TClickHouseHost>(
         this,
-        CoordinationService,
+        CoordinationService_,
         Config_,
         CliqueId_,
         InstanceId_,
@@ -178,47 +185,12 @@ void TBootstrap::DoRun()
         RpcServer_->Start();
     }
 
-    ClickHouseHost_->Start();
-}
-
-const TClickHouseServerBootstrapConfigPtr& TBootstrap::GetConfig() const
-{
-    return Config_;
+    Host_->Start();
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
-}
-
-const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
-{
-    return WorkerInvoker_;
-}
-
-const IInvokerPtr& TBootstrap::GetSerializedWorkerInvoker() const
-{
-    return SerializedWorkerInvoker_;
-}
-
-const NApi::NNative::IConnectionPtr& TBootstrap::GetConnection() const
-{
-    return Connection_;
-}
-
-const NApi::NNative::TClientCachePtr& TBootstrap::GetClientCache() const
-{
-    return ClientCache_;
-}
-
-const NApi::NNative::IClientPtr& TBootstrap::GetRootClient() const
-{
-    return RootClient_;
-}
-
-const TClickHouseHostPtr& TBootstrap::GetHost() const
-{
-    return ClickHouseHost_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

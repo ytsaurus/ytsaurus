@@ -269,6 +269,36 @@ DEFINE_REFCOUNTED_TYPE(TEngineConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryWatchdogConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Memory limit for the job.
+    size_t MemoryLimit;
+
+    //! If remaining memory becomes less than `CodicilWatermark`, process dumps its query registry
+    //! to simplify the investigation of its inevitable^W possible death.
+    size_t CodicilWatermark;
+
+    //! Check period.
+    TDuration Period;
+
+    TMemoryWatchdogConfig()
+    {
+        // Default is effective infinity.
+        RegisterParameter("memory_limit", MemoryLimit)
+            .Default(1_TB);
+        RegisterParameter("codicil_watermark", CodicilWatermark)
+            .Default(0);
+        RegisterParameter("period", Period)
+            .Default(TDuration::Seconds(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClickHouseServerBootstrapConfig
     : public TServerConfig
 {
@@ -290,6 +320,8 @@ public:
 
     NTableClient::TTableWriterConfigPtr TableWriterConfig;
 
+    TMemoryWatchdogConfigPtr MemoryWatchdog;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -310,6 +342,9 @@ public:
 
         RegisterParameter("profiling_period", ProfilingPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("memory_watchdog", MemoryWatchdog)
+            .Default(New<TMemoryWatchdogConfig>());
 
         RegisterParameter("table_writer_config", TableWriterConfig)
             .DefaultNew();

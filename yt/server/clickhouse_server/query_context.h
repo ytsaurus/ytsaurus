@@ -18,6 +18,9 @@
 
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/ytree/public.h>
+
 #include <yt/core/logging/log.h>
 
 #include <Interpreters/Context.h>
@@ -38,6 +41,15 @@ public:
     const TQueryId QueryId;
     const EQueryKind QueryKind;
     TBootstrap* const Bootstrap;
+    TString Query;
+    TString CurrentUser;
+    TString CurrentAddress;
+    std::optional<TString> InitialUser;
+    std::optional<TString> InitialAddress;
+    std::optional<TQueryId> InitialQueryId;
+    EInterface Interface;
+    TString ClientHostName;
+    std::optional<TString> HttpUserAgent;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -46,6 +58,8 @@ public:
     ~TQueryContext();
 
     const NApi::NNative::IClientPtr& Client() const;
+
+    DB::QueryStatus* TryGetQueryStatus() const;
 
 private:
     TClickHouseHostPtr Host_;
@@ -57,9 +71,11 @@ private:
     mutable NApi::NNative::IClientPtr Client_;
 };
 
+void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId = TQueryId());
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 
