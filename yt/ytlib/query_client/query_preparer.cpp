@@ -2192,7 +2192,7 @@ TConstExpressionPtr BuildPredicate(
     return typedPredicate;
 }
 
-TConstGroupClausePtr BuildGroupClause(
+TGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
     TSchemaProxyPtr& schemaProxy,
@@ -2254,11 +2254,82 @@ void PrepareQuery(
     }
 
     if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(
+        auto groupClause = BuildGroupClause(
             ast.GroupExprs->first,
             ast.GroupExprs->second,
             schemaProxy,
             builder);
+
+        auto keyColumns = query->GetKeyColumns();
+
+
+        TNamedItemList groupItems = std::move(groupClause->GroupItems);
+
+        std::vector<int> touchedKeyColumns(keyColumns.size(), -1);
+        for (size_t index = 0; index < groupItems.size(); ++index) {
+            const auto& item = groupItems[index];
+            if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0) {
+                    touchedKeyColumns[keyPartIndex] = index;
+                }
+            }
+        }
+
+        size_t keyPrefix = 0;
+        for (; keyPrefix < touchedKeyColumns.size(); ++keyPrefix) {
+            if (touchedKeyColumns[keyPrefix] >= 0) {
+                continue;
+            }
+
+            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
+
+            if (!expression) {
+                break;
+            }
+
+            THashSet<TString> references;
+            auto evaluatedColumnExpression = PrepareExpression(
+                *expression,
+                query->OriginalSchema,
+                builder.Functions,
+                &references);
+
+            auto canEvaluate = true;
+            for (const auto& reference : references) {
+                int referenceIndex = query->OriginalSchema.GetColumnIndexOrThrow(reference);
+                if (touchedKeyColumns[referenceIndex] < 0) {
+                    canEvaluate = false;
+                }
+            }
+
+            if (!canEvaluate) {
+                break;
+            }
+        }
+
+        touchedKeyColumns.resize(keyPrefix);
+        for (int index : touchedKeyColumns) {
+            if (index >= 0) {
+                groupClause->GroupItems.push_back(std::move(groupItems[index]));
+            }
+        }
+
+        groupClause->CommonPrefixWithPrimaryKey = groupClause->GroupItems.size();
+
+        for (auto& item : groupItems) {
+            if (item.Expression) {
+                groupClause->GroupItems.push_back(std::move(item));
+            }
+        }
+
+        query->GroupClause = groupClause;
+
+        // not prefix, because of equal prefixes near borders
+        bool containsPrimaryKey = keyPrefix == query->GetKeyColumns().size();
+        // COMPAT(lukyan)
+        query->UseDisjointGroupBy = containsPrimaryKey;
+
         builder.AfterGroupBy = true;
     }
 
@@ -2680,60 +2751,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     PrepareQuery(query, ast, schemaProxy, builder);
 
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
-
-    if (auto groupClause = query->GroupClause) {
-        auto keyColumns = query->GetKeyColumns();
-
-        std::vector<bool> touchedKeyColumns(keyColumns.size(), false);
-        for (const auto& item : groupClause->GroupItems) {
-            if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
-                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                if (keyPartIndex >= 0) {
-                    touchedKeyColumns[keyPartIndex] = true;
-                }
-            }
-        }
-
-        size_t keyPrefix = 0;
-        for (; keyPrefix < touchedKeyColumns.size(); ++keyPrefix) {
-            if (touchedKeyColumns[keyPrefix]) {
-                continue;
-            }
-
-            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
-
-            if (!expression) {
-                break;
-            }
-
-            THashSet<TString> references;
-            auto evaluatedColumnExpression = PrepareExpression(
-                *expression,
-                query->OriginalSchema,
-                functions,
-                &references);
-
-            auto canEvaluate = true;
-            for (const auto& reference : references) {
-                int referenceIndex = query->OriginalSchema.GetColumnIndexOrThrow(reference);
-                if (!touchedKeyColumns[referenceIndex]) {
-                    canEvaluate = false;
-                }
-            }
-
-            if (!canEvaluate) {
-                break;
-            }
-        }
-
-        bool containsPrimaryKey = keyPrefix == keyColumns.size();
-        // not prefix, because of equal prefixes near borders
-
-        query->UseDisjointGroupBy = containsPrimaryKey;
-
-        YT_LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
-    }
-
 
     if (ast.Limit) {
         query->Limit = *ast.Limit;

@@ -1138,9 +1138,17 @@ const TValue* InsertGroupRow(
 {
     CHECK_STACK();
 
+    if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey)) {
+        closure->ProcessSegment();
+        closure->Lookup.clear();
+        closure->GroupedRows.clear();
+    }
+
     auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
+        closure->LastKey = *inserted.first;
+
         if (closure->GroupedRows.size() >= context->GroupRowLimit) {
             throw TInterruptedIncompleteException();
         }
@@ -1164,6 +1172,7 @@ const TValue* InsertGroupRow(
 
 void GroupOpHelper(
     TExecutionContext* context,
+    TComparerFunction* prefixEqComparer,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
@@ -1173,14 +1182,61 @@ void GroupOpHelper(
         void** closure,
         TGroupByClosure* groupByClosure,
         TExpressionContext* buffer),
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
+    void** boundaryConsumeRowsClosure,
+    void (*boundaryConsumeRows)(
+        void** closure,
+        TExpressionContext*,
+        const TValue** rows,
+        i64 size),
+    void** innerConsumeRowsClosure,
+    void (*innerConsumeRows)(
+        void** closure,
+        TExpressionContext*,
+        const TValue** rows,
+        i64 size))
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing group helper");
     });
 
-    TGroupByClosure closure(context->MemoryChunkProvider, groupHasher, groupComparer, keySize, checkNulls);
+    TGroupByClosure closure(
+        context->MemoryChunkProvider,
+        prefixEqComparer,
+        groupHasher,
+        groupComparer,
+        keySize,
+        checkNulls);
+
+    TYielder yielder;
+    size_t processedRows = 0;
+
+    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+
+    bool isBoundarySegment = true;
+
+    closure.ProcessSegment = [&] {
+        for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
+            auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
+            processedRows += size;
+            if (isBoundarySegment) {
+                boundaryConsumeRows(
+                    boundaryConsumeRowsClosure,
+                    intermediateBuffer.Get(),
+                    closure.GroupedRows.data() + index,
+                    size);
+            } else {
+                innerConsumeRows(
+                    innerConsumeRowsClosure,
+                    intermediateBuffer.Get(),
+                    closure.GroupedRows.data() + index,
+                    size);
+            }
+            intermediateBuffer->Clear();
+
+            yielder.Checkpoint(processedRows);
+        }
+        isBoundarySegment = false;
+    };
 
     try {
         collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
@@ -1189,22 +1245,11 @@ void GroupOpHelper(
         context->Statistics->IncompleteOutput = true;
     }
 
-    YT_LOG_DEBUG("Collected %v group rows",
-        closure.GroupedRows.size());
+    isBoundarySegment = true;
 
-    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+    closure.ProcessSegment();
 
-    TYielder yielder;
-    size_t processedRows = 0;
-
-    for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
-        auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
-        processedRows += size;
-        consumeRows(consumeRowsClosure, intermediateBuffer.Get(), closure.GroupedRows.data() + index, size);
-        intermediateBuffer->Clear();
-
-        yielder.Checkpoint(processedRows);
-    }
+    YT_LOG_DEBUG("Processed %v group rows", processedRows);
 }
 
 void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)

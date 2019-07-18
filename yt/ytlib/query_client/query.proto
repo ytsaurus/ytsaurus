@@ -156,6 +156,7 @@ message TGroupClause
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
     required uint32 totals_mode = 6;
+    optional uint32 common_prefix_with_primary_key = 7 [default = 0];
 }
 
 message TOrderItem

@@ -190,7 +190,7 @@ struct TMultiJoinClosure
 
         THashJoinLookup Lookup;
         std::vector<TValue*> OrderedKeys;  // + slot after row
-        TValue* LastKey = nullptr;
+        const TValue* LastKey = nullptr;
 
         TItem(
             IMemoryChunkProviderPtr chunkProvider,
@@ -211,17 +211,22 @@ struct TMultiJoinClosure
 struct TGroupByClosure
 {
     TRowBufferPtr Buffer;
+    TComparerFunction* PrefixEqComparer;
     TLookupRows Lookup;
+    const TValue* LastKey = nullptr;
     std::vector<const TValue*> GroupedRows;
     int KeySize;
     bool CheckNulls;
 
     TGroupByClosure(
         IMemoryChunkProviderPtr chunkProvider,
+        TComparerFunction* prefixEqComparer,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
         int keySize,
         bool checkNulls);
+
+    std::function<void()> ProcessSegment;
 };
 
 struct TWriteOpClosure
