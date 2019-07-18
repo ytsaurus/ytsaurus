@@ -152,10 +152,10 @@ public:
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
         SetupContext();
         WarmupDictionaries();
-        EnterExecutionCluster();
         SetupHandlers();
         SetupExecutionClusterNodeTracker();
-
+        EnterExecutionCluster();
+        
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
