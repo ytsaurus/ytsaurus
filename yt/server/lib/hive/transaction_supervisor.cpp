@@ -71,7 +71,7 @@ public:
         TCompositeAutomatonPtr automaton,
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
-        IUsersManagerPtr securityManager,
+        ISecurityManagerPtr securityManager,
         TCellId selfCellId,
         ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
@@ -181,7 +181,7 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
-    const IUsersManagerPtr SecurityManager_;
+    const ISecurityManagerPtr SecurityManager_;
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
@@ -1965,7 +1965,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     TCompositeAutomatonPtr automaton,
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
-    IUsersManagerPtr securityManager,
+    ISecurityManagerPtr securityManager,
     TCellId selfCellId,
     ITimestampProviderPtr timestampProvider,
     const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
