@@ -138,3 +138,11 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t", attributes={"expiration_time": str(self._now())})
         wait(lambda: not exists("//tmp/p/t"))
+
+    def test_remove_table_in_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        table_id = create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 2})
+        wait(lambda: exists("#{}".format(table_id), driver=get_driver(2)))
+        remove("//tmp/p/t")
+        wait(lambda: not exists("#{}".format(table_id), driver=get_driver(2)))
+ 

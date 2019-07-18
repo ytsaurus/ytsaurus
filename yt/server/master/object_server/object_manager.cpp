@@ -473,8 +473,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 
         auto flags = handler->GetFlags();
         if (Any(flags & ETypeFlags::ReplicateDestroy) &&
-            None(flags & ETypeFlags::TwoPhaseRemoval) &&
-            Bootstrap_->IsPrimaryMaster())
+            None(flags & ETypeFlags::TwoPhaseRemoval))
         {
             NProto::TReqRemoveForeignObject request;
             ToProto(request.mutable_object_id(), object->GetId());
