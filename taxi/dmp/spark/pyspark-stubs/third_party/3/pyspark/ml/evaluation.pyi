@@ -4,7 +4,7 @@
 from typing import Any, Dict, Optional
 from pyspark.ml.wrapper import JavaParams
 from pyspark.ml.param import Param, Params
-from pyspark.ml.param.shared import  HasFeaturesCol, HasLabelCol, HasPredictionCol, HasRawPredictionCol
+from pyspark.ml.param.shared import HasFeaturesCol, HasLabelCol, HasPredictionCol, HasRawPredictionCol, HasWeightCol
 from pyspark.ml.util import JavaMLReadable, JavaMLWritable
 
 ParamMap = Dict[Param, Any]
@@ -18,12 +18,12 @@ class JavaEvaluator(JavaParams, Evaluator):
     __metaclass__ = ...  # type: Any
     def isLargerBetter(self) -> bool: ...
 
-class BinaryClassificationEvaluator(JavaEvaluator, HasLabelCol, HasRawPredictionCol, JavaMLReadable, JavaMLWritable):
+class BinaryClassificationEvaluator(JavaEvaluator, HasLabelCol, HasRawPredictionCol, HasWeightCol, JavaMLReadable, JavaMLWritable):
     metricName = ...  # type: Param
-    def __init__(self, rawPredictionCol: str = ..., labelCol: str = ..., metricName: str = ...) -> None: ...
+    def __init__(self, rawPredictionCol: str = ..., labelCol: str = ..., metricName: str = ..., weightCol: Optional[str] = ...) -> None: ...
     def setMetricName(self, value: str) -> BinaryClassificationEvaluator: ...
     def getMetricName(self) -> str: ...
-    def setParams(self, rawPredictionCol: str = ..., labelCol: str = ..., metricName: str = ...) -> BinaryClassificationEvaluator: ...
+    def setParams(self, rawPredictionCol: str = ..., labelCol: str = ..., metricName: str = ..., weightCol: Optional[str] = ...) -> BinaryClassificationEvaluator: ...
 
 class RegressionEvaluator(JavaEvaluator, HasLabelCol, HasPredictionCol, JavaMLReadable, JavaMLWritable):
     metricName = ...  # type: Param
