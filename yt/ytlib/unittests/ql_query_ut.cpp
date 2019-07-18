@@ -540,6 +540,13 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
+
+    {
+        TString queryString = "* from [//t] group by a, v";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1);
+        EXPECT_FALSE(query->UseDisjointGroupBy);
+    }
 }
 
 TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)

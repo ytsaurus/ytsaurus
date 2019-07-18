@@ -201,7 +201,7 @@ size_t MakeCodegenMultiJoinOp(
     std::vector<std::pair<size_t, EValueType>> primaryColumns,
     TComparerManagerPtr comparerManager);
 
-size_t MakeCodegenGroupOp(
+std::pair<size_t, size_t> MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,
@@ -213,6 +213,7 @@ size_t MakeCodegenGroupOp(
     std::vector<EValueType> stateTypes,
     bool isMerge,
     bool checkNulls,
+    size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager);
 
 size_t MakeCodegenFinalizeOp(

@@ -360,6 +360,7 @@ struct TGroupClause
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
     ETotalsMode TotalsMode;
+    size_t CommonPrefixWithPrimaryKey = 0;
 
     void AddGroupItem(const TNamedItem& namedItem)
     {
