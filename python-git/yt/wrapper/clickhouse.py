@@ -65,6 +65,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        set_container_cpu_limit=None,
                                        cypress_geodata_path=None,
                                        core_table_path=None,
+                                       core_dump_destination=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -124,10 +125,21 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
-    run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID "\
-                             "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} "\
-                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;".format(executable_path, monitoring_port)
-    command = "{}\n{}".format(extract_geodata_command, run_clickhouse_command)
+    run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID " \
+                             "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
+                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ; ".format(executable_path, monitoring_port)
+
+    if core_dump_destination is not None:
+        copy_core_dumps_command = "exit_code=$? ;" \
+                                  "if compgen -G 'core*' >/dev/null ; then " \
+                                  "    echo 'Core dumps detected' >&2;" \
+                                  "    mv core* {} ; " \
+                                  "fi ;" \
+                                  "exit $exit_code ;".format(core_dump_destination)
+    else:
+        copy_core_dumps_command = ""
+
+    command = "\n".join([extract_geodata_command, run_clickhouse_command, copy_core_dumps_command])
 
     spec_builder = \
         VanillaSpecBuilder() \
