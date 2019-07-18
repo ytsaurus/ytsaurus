@@ -111,6 +111,10 @@ class IDF(JavaEstimator[IDFModel], HasInputCol, HasOutputCol, JavaMLReadable, Ja
 class IDFModel(JavaModel, JavaMLReadable, JavaMLWritable):
     @property
     def idf(self) -> Vector: ...
+    @property
+    def docFreq(self) -> List[int]: ...
+    @property
+    def numDocs(self) -> int: ...    
 
 class Imputer(JavaEstimator[ImputerModel], HasInputCols, JavaMLReadable, JavaMLWritable):
     outputCols = ...  # type: Param
