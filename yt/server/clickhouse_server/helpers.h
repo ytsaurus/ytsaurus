@@ -72,6 +72,8 @@ namespace DB {
 
 TString ToString(const ASTPtr& ast);
 
+void Serialize(const DB::QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
+
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB

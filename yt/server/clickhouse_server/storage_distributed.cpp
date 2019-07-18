@@ -244,8 +244,11 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
         processedStage);
 
     stream->setPoolMode(PoolMode::GET_MANY);
+    auto remoteQueryId = ToString(TQueryId::Create());
+    stream->setRemoteQueryId(remoteQueryId);
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
+        .AddTag("RemoteQueryId: %v", remoteQueryId)
         .AddTag("RemoteNode: %v", remoteNode->GetName().ToString())
         .AddTag("RemoteStreamId: %v", TGuid::Create()));
 }

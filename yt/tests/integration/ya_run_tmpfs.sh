@@ -23,7 +23,7 @@ ulimit -c unlimited
 exit_code=$?
 
 echo "==========================================================="
-cores=`find tests.sandbox/ -name "core*" -printf "%C+ %p\n" | sort -r`
+cores=`find tests.sandbox/ -name "core.*" -printf "%C+ %p\n" | sort -r`
 if [[ "$cores" != "" ]]; then
     echo "Core dumps in tests.sandbox (sorted by creation time)"
     echo "$cores"

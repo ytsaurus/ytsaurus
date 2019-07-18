@@ -17,10 +17,12 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/logging/log.h>
 
 #include <Interpreters/ExpressionActions.h>
+#include <Interpreters/ProcessList.h>
 #include <Storages/MergeTree/KeyCondition.h>
 #include <Storages/ColumnsDescription.h>
 #include <Parsers/IAST.h>
@@ -244,6 +246,25 @@ TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyC
     return TTableSchema(columnSchemas);
 }
 
+TString MaybeTruncateSubquery(TString query)
+{
+    // TODO(max42): rewrite properly.
+    auto begin = query.find("ytSubquery");
+    if (begin == TString::npos) {
+        return query;
+    }
+    begin += 10;
+    if (begin >= query.size() || query[begin] != '(') {
+        return query;
+    }
+    ++begin;
+    auto end = query.find(")", begin);
+    if (end == TString::npos) {
+        return query;
+    }
+    return query.substr(0, begin) + "..." + query.substr(end, query.size() - end);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
@@ -262,6 +283,22 @@ TString ToString(const ASTPtr& ast)
 TString ToString(const NameSet& nameSet)
 {
     return NYT::Format("%v", std::vector<TString>(nameSet.begin(), nameSet.end()));
+}
+
+void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer)
+{
+    NYT::NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("query").Value(NYT::NClickHouseServer::MaybeTruncateSubquery(TString(query.query)))
+            .Item("elapsed_seconds").Value(query.elapsed_seconds)
+            .Item("read_rows").Value(query.read_rows)
+            .Item("read_bytes").Value(query.read_bytes)
+            .Item("total_rows").Value(query.total_rows)
+            .Item("written_rows").Value(query.written_rows)
+            .Item("written_bytes").Value(query.written_bytes)
+            .Item("memory_usage").Value(query.memory_usage)
+            .Item("peak_memory_usage").Value(query.peak_memory_usage)
+        .EndMap();
 }
 
 /////////////////////////////////////////////////////////////////////////////
