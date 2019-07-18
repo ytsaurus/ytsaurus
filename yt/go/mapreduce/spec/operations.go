@@ -20,6 +20,15 @@ func enableControlAttributes(io **JobIO) {
 	}
 }
 
+// Set EnableXxxIndex ControlAttributes to false
+//
+// This function is required for reduce when we start MapReduce operation
+func disableIndexControlAttributes(ca *ControlAttributes) {
+	ca.EnableTableIndex = false
+	ca.EnableRowIndex = false
+	ca.EnableRangeIndex = false
+}
+
 func (base *Spec) Map() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationMap
@@ -49,6 +58,9 @@ func (base *Spec) MapReduce() *Spec {
 	s.Type = yt.OperationMapReduce
 	enableControlAttributes(&s.MapJobIO)
 	enableControlAttributes(&s.ReduceJobIO)
+	// Required for Reduce because this operation
+	// does not support indexes (table, row and range)
+	disableIndexControlAttributes(s.ReduceJobIO.ControlAttributes)
 	return s
 }
 
