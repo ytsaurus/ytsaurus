@@ -150,11 +150,11 @@ public:
         SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        SetupExecutionClusterNodeTracker();
         SetupContext();
         WarmupDictionaries();
         EnterExecutionCluster();
         SetupHandlers();
+        SetupExecutionClusterNodeTracker();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
