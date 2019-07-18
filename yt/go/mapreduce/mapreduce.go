@@ -40,7 +40,7 @@ func (mr *client) JoinReduce(reducer Job, s *spec.Spec) (Operation, error) {
 
 func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Mapper != nil {
+	if s.Mapper == nil {
 		s.Mapper = &spec.UserScript{}
 	}
 	s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
@@ -53,11 +53,11 @@ func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error
 
 func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Mapper != nil {
+	if s.Mapper == nil {
 		s.Mapper = &spec.UserScript{}
 	}
 	s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
-	if s.ReduceCombiner != nil {
+	if s.ReduceCombiner == nil {
 		s.ReduceCombiner = &spec.UserScript{}
 	}
 	s.ReduceCombiner.Command = jobCommand(combiner, 1)
