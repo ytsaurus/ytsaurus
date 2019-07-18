@@ -23,6 +23,9 @@ public class PeriodicDiscoveryExample {
                     new RpcOptions()
                             .setProxyUpdateTimeout(interval)
                             .setDefaultTimeout(interval.dividedBy(2)), new RpcCredentials(), new RpcCompression(), null);
+
+            pd.start();
+
             while (true) {
                 System.out.printf("current list: %s\n", pd.getAddresses().toString());
                 Thread.sleep(interval.toMillis());

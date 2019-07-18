@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 
-public class PeriodicDiscovery implements AutoCloseable {
+public class PeriodicDiscovery implements AutoCloseable, Closeable {
     private static final Logger logger = LoggerFactory.getLogger(PeriodicDiscovery.class);
 
     private final BusConnector connector;
@@ -75,7 +76,6 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.updatePeriod = options.getProxyUpdateTimeout();
         this.options = Objects.requireNonNull(options);
         this.rnd = new Random();
-        this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
         this.proxyRole = Option.ofNullable(proxyRole);
         this.clusterUrl = Option.ofNullable(clusterUrl);
         this.proxies = new HashMap<>();
@@ -84,10 +84,10 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.listenerOpt = Option.ofNullable(listener);
         this.httpClient = asyncHttpClient(
                 new DefaultAsyncHttpClientConfig.Builder()
+                    .setThreadPoolName("YtClient-PeriodicDiscovery")
                     .setEventLoopGroup(connector.eventLoopGroup())
                     .build()
         );
-
 
         if (clusterUrl != null) {
             this.discoverProxiesUrl = this.proxyRole.map(x ->
@@ -97,7 +97,17 @@ public class PeriodicDiscovery implements AutoCloseable {
             this.discoverProxiesUrl = null;
         }
 
-        addProxies(this.initialAddresses);
+        try {
+            this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
+            addProxies(this.initialAddresses);
+        } catch (Throwable e) {
+            logger.error("Error on construction periodic discovery", e);
+            IoUtils.closeQuietly(this);
+            throw e;
+        }
+    }
+
+    public void start() {
         updateProxies();
     }
 

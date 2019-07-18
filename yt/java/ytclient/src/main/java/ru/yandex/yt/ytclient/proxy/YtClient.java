@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Cf;
+import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
@@ -80,55 +81,71 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
         DataCenter localDataCenter = null;
 
-        for (YtCluster entry : clusters) {
-            final String dataCenterName = entry.name;
+        try {
+            for (YtCluster entry : clusters) {
+                final String dataCenterName = entry.name;
 
-            final DataCenter dc = new DataCenter(
-                    dataCenterName,
-                    new BalancingDestination[0],
-                    -1.0,
-                    options);
+                final DataCenter dc = new DataCenter(
+                        dataCenterName,
+                        new BalancingDestination[0],
+                        -1.0,
+                        options);
 
-            dataCenters[dataCenterIndex++] = dc;
+                dataCenters[dataCenterIndex++] = dc;
 
-            if (dataCenterName.equals(localDataCenterName)) {
-                localDataCenter = dc;
+                if (dataCenterName.equals(localDataCenterName)) {
+                    localDataCenter = dc;
+                }
+
+                final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
+                    @Override
+                    public void onProxiesAdded(Set<RpcClient> proxies) {
+                        dc.addProxies(proxies);
+                        wakeUp();
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        wakeUp(e);
+                    }
+
+                    @Override
+                    public void onProxiesRemoved(Set<RpcClient> proxies) {
+                        dc.removeProxies(proxies);
+                    }
+                };
+
+                discovery.add(
+                        new PeriodicDiscovery(
+                                dataCenterName,
+                                entry.addresses,
+                                entry.proxyRole.orElse(proxyRole),
+                                String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
+                                connector,
+                                options,
+                                credentials,
+                                compression,
+                                listener));
             }
 
-            final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
-                @Override
-                public void onProxiesAdded(Set<RpcClient> proxies) {
-                    dc.addProxies(proxies);
-                    wakeUp();
-                }
-
-                @Override
-                public void onError(Throwable e) {
-                    wakeUp(e);
-                }
-
-                @Override
-                public void onProxiesRemoved(Set<RpcClient> proxies) {
-                    dc.removeProxies(proxies);
-                }
-            };
-
-            discovery.add(
-                    new PeriodicDiscovery(
-                            dataCenterName,
-                            entry.addresses,
-                            entry.proxyRole.orElse(proxyRole),
-                            String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
-                            connector,
-                            options,
-                            credentials,
-                            compression,
-                            listener));
+            for (PeriodicDiscovery discovery : discovery) {
+                discovery.start();
+            }
+        } catch (Throwable e) {
+            logger.error("Cannot start periodic discovery", e);
+            IoUtils.closeQuietly(this);
+            throw e;
         }
 
         this.localDataCenter = localDataCenter;
 
-        schedulePing();
+        try {
+            schedulePing();
+        } catch (Throwable e) {
+            logger.error("Cannot schedule ping", e);
+            IoUtils.closeQuietly(this);
+            throw e;
+        }
     }
 
     public YtClient(
