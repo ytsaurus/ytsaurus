@@ -1006,6 +1006,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
         options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
+    env["PYTEST_LOG_FILENAME"] = os.path.join(sandbox_current, "pytest_runner.log")
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
