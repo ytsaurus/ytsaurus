@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/client/misc/workload.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/profiling/timing.h>
@@ -32,6 +34,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NProfiling;
 using namespace NYTAlloc;
+
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -606,11 +610,73 @@ TCachedBlobChunk::TCachedBlobChunk(
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
     , Destroyed_(destroyed)
+    , ValidationResult_(NewPromise<void>())
+    , ValidationLaunched_(false)
 { }
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
     Destroyed_.Run();
+}
+
+TFuture<void> TCachedBlobChunk::Validate()
+{
+    if (!ValidationLaunched_.test_and_set()) {
+        YT_VERIFY(!ValidationResult_.IsSet());
+        ValidationResult_.SetFrom(BIND(&TCachedBlobChunk::DoValidate, MakeStrong(this))
+            .AsyncVia(GetLocation()->GetWritePoolInvoker())
+            .Run());
+    }
+
+    return ValidationResult_.ToFuture();
+}
+
+void TCachedBlobChunk::DoValidate()
+{
+    // NB(psushin): cached chunks (non-artifacts) are not fsynced when written. This may result in truncated or even empty
+    // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
+
+    const auto& chunkId = GetId();
+    const auto& location = GetLocation();
+
+    YT_LOG_INFO("Begin chunk validation (ChunkId: %v)", chunkId);
+
+    auto dataFileName = location->GetChunkPath(chunkId);
+
+    auto chunkReader = New<TFileReader>(
+        location->GetIOEngine(),
+        chunkId,
+        dataFileName);
+
+    TClientBlockReadOptions blockReadOptions{
+        TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
+        New<TChunkReaderStatistics>(),
+        TReadSessionId::Create() };
+
+    auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
+
+    if (!metaOrError.IsOK()) {
+        YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta (ChunkId: %v)", chunkId);
+        metaOrError.ThrowOnError();
+    }
+
+    const auto& meta = *metaOrError.Value();
+    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+
+    try {
+        TFile dataFile(dataFileName, OpenExisting);
+        if (dataFile.GetLength() != miscExt.compressed_data_size()) {
+            THROW_ERROR_EXCEPTION("Failed to validate cached chunk size")
+                << TErrorAttribute("chunk_id", chunkId)
+                << TErrorAttribute("expected_size", miscExt.compressed_data_size())
+                << TErrorAttribute("actual_size", dataFile.GetLength());
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to validate cached chunk size (ChunkId: %v)", chunkId);
+        throw;
+    }
+
+    YT_LOG_INFO("Chunk has been successfully validated (ChunkId: %v)", chunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
