@@ -427,7 +427,7 @@ private:
         if (diskThrottling) {
             const auto& location = chunk->GetLocation();
             const auto& locationProfiler = location->GetProfiler();
-            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledWrites);
+            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
         }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
