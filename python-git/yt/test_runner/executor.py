@@ -11,9 +11,14 @@ logger = logging.getLogger("Executor")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
-handler = logging.StreamHandler()
+
+log_filename = os.environ.get("PYTEST_LOG_FILENAME", None)
+if log_filename is not None:
+    handler = logging.handlers.WatchedFileHandler(log_filename)
+else:
+    handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(log_pattern))
-logger.addHandler(handler)
+logger.handlers = [handler]
 
 def get_pytest_item_location_str(item):
     file_path, line_number, function_name = item.location
