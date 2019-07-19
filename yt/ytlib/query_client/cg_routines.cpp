@@ -1140,8 +1140,6 @@ const TValue* InsertGroupRow(
 
     if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey)) {
         closure->ProcessSegment();
-        closure->Lookup.clear();
-        closure->GroupedRows.clear();
     }
 
     auto inserted = closure->Lookup.insert(row);
@@ -1212,29 +1210,46 @@ void GroupOpHelper(
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
+    auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
+        while (begin < end) {
+            i64 size = std::min(begin + RowsetProcessingSize, end) - begin;
+            processedRows += size;
+
+            if (isBoundary) {
+                boundaryConsumeRows(boundaryConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+            } else {
+                innerConsumeRows(innerConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+            }
+
+            intermediateBuffer->Clear();
+            yielder.Checkpoint(processedRows);
+            begin += size;
+        }
+    };
+
     bool isBoundarySegment = true;
 
+    // When group key contains full primary key (used with joins) ProcessSegment will be called on each grouped
+    // row.
     closure.ProcessSegment = [&] {
-        for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
-            auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
-            processedRows += size;
-            if (isBoundarySegment) {
-                boundaryConsumeRows(
-                    boundaryConsumeRowsClosure,
-                    intermediateBuffer.Get(),
-                    closure.GroupedRows.data() + index,
-                    size);
-            } else {
-                innerConsumeRows(
-                    innerConsumeRowsClosure,
-                    intermediateBuffer.Get(),
-                    closure.GroupedRows.data() + index,
-                    size);
-            }
-            intermediateBuffer->Clear();
+        auto& groupedRows = closure.GroupedRows;
+        auto& lookup = closure.Lookup;
 
-            yielder.Checkpoint(processedRows);
+        if (Y_UNLIKELY(isBoundarySegment)) {
+            size_t innerCount = groupedRows.size() - lookup.size();
+
+            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
+            flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
+
+            closure.GroupedRows.clear();
+            closure.Buffer->Clear();
+        } else if(Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
+            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
+            closure.GroupedRows.clear();
+            closure.Buffer->Clear();
         }
+
+        lookup.clear();
         isBoundarySegment = false;
     };
 
@@ -1248,6 +1263,8 @@ void GroupOpHelper(
     isBoundarySegment = true;
 
     closure.ProcessSegment();
+
+    YT_VERIFY(closure.GroupedRows.empty());
 
     YT_LOG_DEBUG("Processed %v group rows", processedRows);
 }
