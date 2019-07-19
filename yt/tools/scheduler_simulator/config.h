@@ -55,7 +55,7 @@ public:
 };
 
 class TSchedulerSimulatorConfig
-    : public NYTree::TYsonSerializable
+    : public TServerConfig
 {
 public:
     int HeartbeatPeriod;
@@ -65,7 +65,6 @@ public:
     TString EventLogFilename;
     TString SchedulerConfigFilename;
 
-    NLogging::TLogConfigPtr Logging;
     bool EnableFullEventLog;
 
     int CyclesPerFlush;
@@ -87,8 +86,6 @@ public:
         RegisterParameter("event_log_file", EventLogFilename);
         RegisterParameter("scheduler_config_file", SchedulerConfigFilename);
 
-        RegisterParameter("logging", Logging)
-            .DefaultNew();
         RegisterParameter("enable_full_event_log", EnableFullEventLog)
             .Default(false);
 
