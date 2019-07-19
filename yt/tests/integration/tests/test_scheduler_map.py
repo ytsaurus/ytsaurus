@@ -491,36 +491,47 @@ print row + table_index
             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat",
                 spec={"mapper": {"memory_limit": 1000000000000}})
 
-    def test_check_input_fully_consumed(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"foo": "bar"})
+    def check_input_fully_consumed_statistics_base(self, cmd, throw_on_failure=False, expected_value=1, expected_output=None):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
 
-        command = 'python -c "import os; os.read(0, 5);"'
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(10000)])
 
-        # If all jobs failed then operation is also failed
-        with pytest.raises(YtError):
-            map(in_="//tmp/t1",
-                out="//tmp/t2",
-                command=command,
-                spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}})
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            dont_track=True,
+            command=cmd,
+            spec={
+                "mapper": {
+                    "input_format": "dsv",
+                    "output_format": "dsv",
+                    "max_failed_job_count": 1,
+                    "check_input_fully_consumed": throw_on_failure
+                }
+            }
+        )
 
-        assert read_table("//tmp/t2") == []
+        statistics_path = op.get_path() + "/@progress/job_statistics/data/input/not_fully_consumed/$/{}/map/max".format("failed" if throw_on_failure else "completed")
+        if throw_on_failure:
+            with pytest.raises(YtError):
+                op.track()
+        else:
+            op.track()
 
-    def test_check_input_not_fully_consumed(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
+        if expected_output is not None:
+            assert read_table("//tmp/t_out") == expected_output
+        assert get(statistics_path) == expected_value
 
-        data = [{"foo": "bar"} for _ in xrange(10000)]
-        write_table("//tmp/t1", data)
 
-        map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="head -1",
-            spec={"mapper": {"input_format": "dsv", "output_format": "dsv"}})
+    def test_check_input_fully_consumed_statistics_simple(self):
+        self.check_input_fully_consumed_statistics_base("python3 -c 'print(input())'", expected_output=[{"foo": "bar"}])
 
-        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+    def test_check_input_fully_consumed_statistics_all_consumed(self):
+        self.check_input_fully_consumed_statistics_base("cat", expected_value=0)
+
+    def test_check_input_fully_consumed_statistics_throw_on_failure(self):
+        self.check_input_fully_consumed_statistics_base("exit 0", throw_on_failure=True, expected_output=[])
 
     def test_live_preview(self):
         create_user("u")
