@@ -1357,12 +1357,10 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
     }
 
     auto voteCount = object->IncrementLifeStageVoteCount();
-    auto oldLifeStage = object->GetLifeStage();
     YT_LOG_DEBUG_UNLESS(IsRecovery(),
-        "Object life stage confirmed by secondary cell (ObjectId: %v, CellTag: %v, LifeStage: %v, VoteCount: %v)",
+        "Object life stage confirmed by secondary cell (ObjectId: %v, CellTag: %v, VoteCount: %v)",
         objectId,
         confirmRequest->cell_tag(),
-        oldLifeStage,
         voteCount);
 
     CheckObjectLifeStageVoteCount(object);
