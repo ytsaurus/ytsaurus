@@ -831,7 +831,13 @@ private:
             });
         };
 
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
+
         auto regroupAndProcessSplitsRanges = [&] (int beginIndex, int endIndex) {
+            if (!regroupByTablets) {
+                processSplitsRanges(beginIndex, endIndex);
+                return;
+            }
             size_t lastOffset = beginIndex;
             for (size_t index = beginIndex; index < endIndex; ++index) {
                 if (index > lastOffset && splits[index].Id != splits[lastOffset].Id) {
