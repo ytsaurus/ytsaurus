@@ -131,16 +131,18 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                 driver=driver)
 
         object_ids_to_remove = []
+        object_ids_to_check = []
         for index, type in enumerate(TYPES):
             objects = yt_commands.get_batch_output(list_objects_results[index])
             for object in objects:
                 if object.attributes["builtin"]:
                     continue
-                if object.attributes["life_stage"] == "removal_pre_committed":
-                    continue
                 if type == "users" and str(object) == "application_operations":
                     continue
-                object_ids_to_remove.append(object.attributes["id"])
+                id = object.attributes["id"]
+                object_ids_to_check.append(id)
+                if object.attributes["life_stage"] == "creation_committed":
+                    object_ids_to_remove.append(id)
 
         for result in yt_commands.execute_batch([
                 yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
@@ -149,7 +151,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
         def check_removed():
             results = yt_commands.execute_batch([
-                yt_commands.make_batch_request("exists", path="#" + id) for id in object_ids_to_remove
+                yt_commands.make_batch_request("exists", path="#" + id) for id in object_ids_to_check
             ], driver=driver)
             return all(not yt_commands.get_batch_output(result)["value"] for result in results)
         wait(check_removed)
