@@ -161,8 +161,8 @@ class _TestListOperationsBase(ListOperationsSetup):
     NUM_SCHEDULERS = 1
     SINGLE_SETUP_TEARDOWN = True
 
-    # The following tests expect five operations to be present
-    # in Cypress (and/or in the archive if |self.include_archive| is |True|):
+    # The following tests expect the following operations to be present
+    # in Cypress and/or in the archive (depending on |self.include_archive|):
     #     TYPE       -    STATE   - USER  -   POOLS          - FAILED JOBS - READ_ACCESS   - MANAGE_ACCESS   - ANNOTATIONS
     #  1. map        - completed  - user1 -  user1           - False       - []            - []              - {key=[annotation1;annotation2]}
     #  2. map        - completed  - user2 -  user2           - False       - [group1,      - [group1, user3] - {}
@@ -500,6 +500,13 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
     read_from_values=["follower"]
     check_failed_jobs_count = False
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+        }
+    }
+
     def test_time_range_missing(self):
         with pytest.raises(YtError):
             list_operations(include_archive=True, to_time=self.op5.finish_time)
@@ -526,6 +533,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
+            "watchers_update_period": 100,
         },
     }
 
