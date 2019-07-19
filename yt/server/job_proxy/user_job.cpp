@@ -478,6 +478,8 @@ private:
     std::optional<TString> FailContext_;
     std::optional<TString> Profile_;
 
+    std::atomic<bool> NotFullyConsumed_ = { false };
+
     void Prepare()
     {
         PreparePipes();
@@ -882,24 +884,29 @@ private:
         }));
 
         FinalizeActions_.push_back(BIND([=] () {
-            if (!UserJobSpec_.check_input_fully_consumed()) {
-                return;
-            }
-            auto buffer = TSharedMutableRef::Allocate(1, false);
-            auto future = reader->Read(buffer);
-            TErrorOr<size_t> result = WaitFor(future);
-            if (!result.IsOK()) {
+            bool throwOnFailure = UserJobSpec_.check_input_fully_consumed();
+
+            try {
+                auto buffer = TSharedMutableRef::Allocate(1, false);
+                auto future = reader->Read(buffer);
+                TErrorOr<size_t> result = WaitFor(future);
+                if (!result.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
+                        << TErrorAttribute("fd", jobDescriptor)
+                        << result;
+                }
+                // Try to read some data from the pipe.
+                if (result.Value() > 0) {
+                    THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
+                        << TErrorAttribute("fd", jobDescriptor);
+                }
+            } catch (...) {
                 reader->Abort();
-                THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
-                    << TErrorAttribute("fd", jobDescriptor)
-                    << result;
+                NotFullyConsumed_.store(true);
+                if (throwOnFailure) {
+                    throw;
+                }
             }
-            // Try to read some data from the pipe.
-            if (result.Value() > 0) {
-                THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
-                    << TErrorAttribute("fd", jobDescriptor);
-            }
-            reader->Abort();
         }));
     }
 
@@ -990,6 +997,8 @@ private:
         if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
             statistics.AddSample("/data/input", *dataStatistics);
         }
+
+        statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
 
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
             DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
