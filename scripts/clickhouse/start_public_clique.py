@@ -11,19 +11,23 @@ handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s  %(levelname).1s  %(module)s:%(lineno)d  %(message)s"))
 logger.addHandler(handler)
 
+def format_url(url):
+    return yson.to_yson_type(url, attributes={"_type_tag": "url"})
+
 def start_clique(bin_path, clique_type, prev_operation_id=None):
     alias = "*ch_" + clique_type
     
     attr_keys = yt.get(bin_path + "/@user_attribute_keys")
     description = yt.get(bin_path + "/@", attributes=attr_keys)
     description["previous_operation_id"] = prev_operation_id
-    description["previous_operation_url"] = yson.to_yson_type(yt.operation_commands.get_operation_url(prev_operation_id), attributes={"_type_tag": "url"})
+    description["previous_operation_url"] = format_url(yt.operation_commands.get_operation_url(prev_operation_id))
 
     proxy_url = yt.http_helpers.get_proxy_url(required=False)
     default_suffix = yt.config.get_config(None)["proxy"]["default_suffix"]
     if proxy_url is not None and proxy_url.endswith(default_suffix):
         cluster_name = proxy_url[:-len(default_suffix)]
-        description["monitoring_url"] = yson.to_yson_type("https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}".format(cluster_name, alias), attributes={"_type_tag": "url"})
+        description["monitoring_url"] = format_url("https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}".format(cluster_name, alias))
+        description["yql_url"] = format_url("https://yql.yandex-team.ru/?query=use%20chyt.{}/{}%3B%0A%0Aselect%201%3B&query_type=CLICKHOUSE".format(cluster_name, alias[1:]))
 
     yt.start_clickhouse_clique(
         16,
