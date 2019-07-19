@@ -378,7 +378,34 @@ public:
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
-        if (cookie.IsActive()) {
+
+        if (!cookie.IsActive()) {
+            YT_LOG_INFO("Artifact is already cached or will be soon");
+
+            if (!CanPrepareSingleChunk(key)) {
+                YT_LOG_DEBUG("Skip chunk validation for multi-chunk artifact");
+                return cookieValue.As<IChunkPtr>();
+            }
+
+            return cookieValue.Apply(BIND(
+                [Logger, cache = MakeStrong(this), key, options] (const TErrorOr<TCachedBlobChunkPtr>& chunkOrError) -> TFuture<IChunkPtr> {
+                    if (!chunkOrError.IsOK()) {
+                        YT_LOG_INFO(chunkOrError, "Failed to download chunk into cache");
+                        return MakeFuture(chunkOrError).As<IChunkPtr>();
+                    }
+
+                    return chunkOrError.Value()->Validate().Apply(BIND(
+                        [Logger, chunk = chunkOrError.Value(), cache, key, options] (const TError& validationStatus) -> TFuture<IChunkPtr> {
+                            if (validationStatus.IsOK()) {
+                                return MakeFuture(chunk).As<IChunkPtr>();
+                            } else {
+                                YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)", chunk->GetId());
+                                cache->TryRemove(chunk);
+                                return cache->DownloadArtifact(key, options);
+                            }
+                        }));
+                }));
+        } else {
             YT_LOG_INFO("Loading artifact into cache");
 
             auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
@@ -424,8 +451,6 @@ public:
                 Passed(std::move(cookie)),
                 options.TrafficMeter));
 
-        } else {
-            YT_LOG_INFO("Artifact is already cached");
         }
         return cookieValue.As<IChunkPtr>();
     }
@@ -1025,50 +1050,6 @@ private:
         TChunkId chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
-            // NB(psushin): cached chunks (non-artifacts) are not fsynced when written. This may result in truncated or even empty
-            // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
-
-            auto dataFileName = location->GetChunkPath(chunkId);
-
-            auto chunkReader = New<TFileReader>(
-                location->GetIOEngine(),
-                chunkId,
-                dataFileName);
-
-            TClientBlockReadOptions blockReadOptions{
-                Config_->ArtifactCacheReader->WorkloadDescriptor,
-                New<TChunkReaderStatistics>(),
-                TReadSessionId::Create() };
-
-            auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
-
-            if (!metaOrError.IsOK()) {
-                YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta (ChunkId: %v)",
-                    chunkId);
-                location->RemoveChunkFilesPermanently(chunkId);
-                return std::nullopt;
-            }
-
-            const auto& meta = *metaOrError.Value();
-            auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-
-            try {
-                TFile dataFile(dataFileName, OpenExisting);
-                if (dataFile.GetLength() != miscExt.compressed_data_size()) {
-                    YT_LOG_WARNING("Failed to validate cached chunk size (ChunkId: %v, ExpectedSize: %v, ActualSize: %v)",
-                        chunkId,
-                        miscExt.compressed_data_size(),
-                        dataFile.GetLength());
-                    location->RemoveChunkFilesPermanently(chunkId);
-                    return std::nullopt;
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to validate cached chunk size (ChunkId: %v)",
-                    chunkId);
-                location->RemoveChunkFilesPermanently(chunkId);
-                return std::nullopt;
-            }
-
             return TArtifactKey(chunkId);
         }
 
