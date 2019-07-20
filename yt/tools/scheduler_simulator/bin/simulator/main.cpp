@@ -47,6 +47,8 @@ using namespace NLogging;
 
 static const auto& Logger = SchedulerSimulatorLogger;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
@@ -175,6 +177,8 @@ INodePtr LoadPoolTrees(const TString& poolTreesFilename)
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
 {
     YT_LOG_INFO("Reading operations description");
@@ -244,25 +248,31 @@ protected:
         auto config = LoadConfig(/* configFilename */ parseResult.GetFreeArgs()[0]);
         ConfigureSingletons(config);
 
-        config->MonitoringServer->Port = config->MonitoringPort;
-        config->MonitoringServer->BindRetryCount = config->BusServer->BindRetryCount;
-        config->MonitoringServer->BindRetryBackoff = config->BusServer->BindRetryBackoff;
-        auto httpServer = NHttp::CreateServer(config->MonitoringServer);
+        {
+            config->MonitoringServer->Port = config->MonitoringPort;
+            config->MonitoringServer->BindRetryCount = config->BusServer->BindRetryCount;
+            config->MonitoringServer->BindRetryBackoff = config->BusServer->BindRetryBackoff;
+            auto httpServer = NHttp::CreateServer(config->MonitoringServer);
 
-        NMonitoring::TMonitoringManagerPtr monitoringManager;
-        NYTree::IMapNodePtr orchidRoot;
-        NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot);
+            NMonitoring::TMonitoringManagerPtr monitoringManager;
+            NYTree::IMapNodePtr orchidRoot;
+            NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot);
 
-        YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
-        httpServer->Start();
+            YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
+            httpServer->Start();
 
-        RunSimulation(config);
+            RunSimulation(config);
+
+            httpServer->Stop();
+        }
+
         NYT::Shutdown();
     }
 };
 
 } // namespace NYT
 
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, const char** argv)
 {
