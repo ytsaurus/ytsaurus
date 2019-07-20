@@ -4600,6 +4600,46 @@ private:
         return jobNodeDescriptor;
     }
 
+    IChannelPtr TryCreateChannelToJobNode(TOperationId operationId, TJobId jobId, EPermissionSet requiredPermissions)
+    {
+        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+        if (jobNodeDescriptorOrError.IsOK()) {
+            return ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+        }
+
+        if (!IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
+            THROW_ERROR_EXCEPTION("Failed to get job node descriptor from scheduler")
+                << jobNodeDescriptorOrError;
+        }
+
+        try {
+            TGetJobOptions options;
+            options.Attributes = {"address"};
+            // TODO(ignat): support structured return value in GetJob.
+            auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
+                .ValueOrThrow();
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChild("address")->GetValue<TString>();
+            auto nodeChannel = ChannelFactory_->CreateChannel(address);
+
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+            auto jobSpecOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+            if (!jobSpecOrError.IsOK()) {
+                return nullptr;
+            }
+
+            auto jobSpec = jobSpecOrError
+                .ValueOrThrow();
+
+            ValidateJobSpecVersion(jobId, jobSpec);
+            ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
+
+            return nodeChannel;
+        } catch (const TErrorException& ex) {
+            YT_LOG_DEBUG(ex, "Failed create node channel to job using address from archive (JobId: %v)", jobId);
+            return nullptr;
+        }
+    }
+
     TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
         TJobId jobId,
         NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy)
@@ -4940,18 +4980,13 @@ private:
         TOperationId operationId,
         TJobId jobId)
     {
-        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Read));
-        if (!jobNodeDescriptorOrError.IsOK() && IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
+        auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
+
+        if (!nodeChannel) {
             return TSharedRef();
         }
-        auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+
         NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-
-        auto specOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
-        if (!specOrError.IsOK()) {
-            return TSharedRef();
-        }
-
         auto req = jobProberServiceProxy.GetStderr();
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_job_id(), jobId);
