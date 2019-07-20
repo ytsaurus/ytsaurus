@@ -302,7 +302,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
         time.sleep(5)
 
-        event_log = read_table("//sys/scheduler/event_log")
+        event_log = read_table("//sys/scheduler/event_log", verbose=False)
         processed_rows = []
         for row in event_log:
             processed_rows.extend(list(process_event_log_row(row)))
