@@ -13,6 +13,10 @@ try:
 except ImportError:  # Python 3
     imap = map
 
+is_debian = "DEB" in os.environ
+is_python_egg = "EGG" in os.environ
+assert not (is_debian and is_python_egg)
+
 def recursive(path):
     prefix = path.strip("/").replace("/", ".")
     return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
@@ -33,9 +37,9 @@ def prepare_files(files, add_major_version_suffix=False):
         file_name_suffix = ""
         if add_major_version_suffix and not file.endswith(".py"):
             file_name_suffix = str(sys.version_info[0])
-        # In egg and debian cases strategy of binary distribution is different
-        if "DEB" in os.environ:
+        # In egg and debian cases strategy of binary distribution is different.
+        if is_debian:
             data_files.append(("/usr/bin", [file + file_name_suffix]))
         else:
-            scripts.append(file + file_name_suffix)
+            scripts.append(file)
     return scripts, data_files
