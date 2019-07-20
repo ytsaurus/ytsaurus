@@ -169,6 +169,7 @@ def prepare_clickhouse_config(instance_count,
                               clickhouse_config=None,
                               cpu_limit=None,
                               memory_limit=None,
+                              memory_footprint=None,
                               enable_query_log=None,
                               use_exact_thread_count=None,
                               client=None):
@@ -198,6 +199,9 @@ def prepare_clickhouse_config(instance_count,
     clickhouse_config["engine"] = clickhouse_config.get("engine", {})
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
     clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit
+
+    clickhouse_config["memory_watchdog"] = clickhouse_config.get("memory_watchdog", {})
+    clickhouse_config["memory_watchdog"]["memory_limit"] = clickhouse_config["memory_watchdog"].get("memory_limit", memory_limit + memory_footprint)
 
     if enable_query_log:
         clickhouse_config["engine"]["settings"]["log_queries"] = 1
