@@ -6,6 +6,7 @@
 #include "master_type_handler.h"
 #include "schema.h"
 #include "type_handler.h"
+#include "path_resolver.h"
 
 #include <yt/server/master/cypress_server/public.h>
 
@@ -26,7 +27,6 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
-#include <yt/server/master/cypress_server/path_resolver.h>
 
 #include <yt/server/lib/election/election_manager.h>
 

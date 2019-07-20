@@ -12,7 +12,7 @@
 
 #include <variant>
 
-namespace NYT::NCypressServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ public:
 
     struct TLocalObjectPayload
     {
-        NObjectServer::TObjectBase* Object;
+        TObjectBase* Object;
         NTransactionServer::TTransaction* Transaction;
     };
 
@@ -70,16 +70,16 @@ private:
 
     NTransactionServer::TTransaction* GetTransaction();
     TPathResolver::TResolvePayload ResolveRoot();
-    NObjectServer::TObjectBase* FindMapNodeChild(
-        NObjectServer::TObjectBase* map,
+    TObjectBase* FindMapNodeChild(
+        TObjectBase* map,
         NTransactionServer::TTransaction* transaction,
         TStringBuf key);
-    NObjectServer::TObjectBase* FindListNodeChild(
-        NObjectServer::TObjectBase* list,
+    TObjectBase* FindListNodeChild(
+        TObjectBase* list,
         TStringBuf key);
     static bool IsSpecialListKey(TStringBuf key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCypressServer
+} // namespace NYT::NObjectServer

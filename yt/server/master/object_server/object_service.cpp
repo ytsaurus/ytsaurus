@@ -8,7 +8,8 @@
 #include <yt/server/master/cell_master/master_hydra_service.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/path_resolver.h>
+
+#include <yt/server/master/object_server/path_resolver.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>

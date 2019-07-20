@@ -1,12 +1,12 @@
 #include "path_resolver.h"
-#include "cypress_manager.h"
-#include "node_detail.h"
-#include "portal_entrance_node.h"
-#include "helpers.h"
+#include "object_manager.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/portal_entrance_node.h>
+#include <yt/server/master/cypress_server/helpers.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
@@ -14,10 +14,10 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT::NCypressServer {
+namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
-using namespace NObjectServer;
+using namespace NCypressServer;
 using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NYPath;
@@ -262,4 +262,4 @@ bool TPathResolver::IsSpecialListKey(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCypressServer
+} // namespace NYT::NObjectServer
