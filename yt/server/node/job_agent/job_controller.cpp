@@ -84,6 +84,7 @@ public:
 
     IJobPtr FindJob(TJobId jobId) const;
     IJobPtr GetJobOrThrow(TJobId jobId) const;
+    IJobPtr FindRecentlyRemovedJob(TJobId jobId) const;
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
@@ -110,6 +111,14 @@ private:
 
     THashMap<EJobType, TJobFactory> Factories_;
     THashMap<TJobId, IJobPtr> Jobs_;
+
+    // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
+    struct TRecentlyRemovedJobRecord
+    {
+        IJobPtr Job;
+        TInstant RemovalTime;
+    };
+    THashMap<TJobId, TRecentlyRemovedJobRecord> RecentlyRemovedJobs_;
 
     //! Jobs that did not succeed in fetching spec are not getting
     //! their IJob structure, so we have to store job id alongside
@@ -138,6 +147,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
+    TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
 
     THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
@@ -217,6 +227,8 @@ private:
     i64 GetUserJobsFreeMemoryWatermark() const;
 
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
+
+    void CleanRecentlyRemovedJobs();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +282,12 @@ void TJobController::TImpl::Initialize()
         BIND(&TImpl::AdjustResources, MakeWeak(this)),
         Config_->ResourceAdjustmentPeriod);
     ResourceAdjustmentExecutor_->Start();
+
+    RecentlyRemovedJobCleaner_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TImpl::CleanRecentlyRemovedJobs, MakeWeak(this)),
+        Config_->RecentlyRemovedJobsCleanPeriod);
+    RecentlyRemovedJobCleaner_->Start();
 }
 
 void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
@@ -301,6 +319,12 @@ IJobPtr TJobController::TImpl::GetJobOrThrow(TJobId jobId) const
             jobId);
     }
     return job;
+}
+
+IJobPtr TJobController::TImpl::FindRecentlyRemovedJob(TJobId jobId) const
+{
+    auto it = RecentlyRemovedJobs_.find(jobId);
+    return it == RecentlyRemovedJobs_.end() ? nullptr : it->second.Job;
 }
 
 std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
@@ -442,6 +466,23 @@ void TJobController::TImpl::AdjustResources()
 
         UserMemoryOverdraftInstant_ = std::nullopt;
         CpuOverdraftInstant_ = std::nullopt;
+    }
+}
+
+void TJobController::TImpl::CleanRecentlyRemovedJobs()
+{
+    auto now = TInstant::Now();
+
+    std::vector<TJobId> jobIdsToRemove;
+    for (const auto& [jobId, jobRecord] : RecentlyRemovedJobs_) {
+        if (jobRecord.RemovalTime + Config_->RecentlyRemovedJobsStoreTimeout < now) {
+            jobIdsToRemove.push_back(jobId);
+        }
+    }
+
+    for (auto jobId : jobIdsToRemove) {
+        YT_LOG_INFO("Job is finally removed (JobId: %v)", jobId);
+        RecentlyRemovedJobs_.erase(jobId);
     }
 }
 
@@ -728,9 +769,15 @@ void TJobController::TImpl::RemoveJob(
         job->ReportProfile();
     }
 
+    bool shouldSave = archiveJobSpec || archiveStderr;
+    if (shouldSave) {
+        YT_LOG_INFO("Job saved to recently finished jobs (JobId: %v)", job->GetId());
+        RecentlyRemovedJobs_.emplace(job->GetId(), TRecentlyRemovedJobRecord{job, TInstant::Now()});
+    }
+
     YT_VERIFY(Jobs_.erase(job->GetId()) == 1);
 
-    YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
+    YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
 }
 
 void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
@@ -1312,6 +1359,11 @@ IJobPtr TJobController::FindJob(TJobId jobId) const
 IJobPtr TJobController::GetJobOrThrow(TJobId jobId) const
 {
     return Impl_->GetJobOrThrow(jobId);
+}
+
+IJobPtr TJobController::FindRecentlyRemovedJob(TJobId jobId) const
+{
+    return Impl_->FindRecentlyRemovedJob(jobId);
 }
 
 std::vector<IJobPtr> TJobController::GetJobs() const

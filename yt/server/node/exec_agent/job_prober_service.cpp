@@ -61,7 +61,11 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
+        if (!job) {
+            job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        }
+
         auto stderrData = job->GetStderr();
 
         response->set_stderr_data(stderrData);
@@ -73,7 +77,10 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
+        if (!job) {
+            job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        }
         response->mutable_spec()->CopyFrom(job->GetSpec());
 
         context->Reply();

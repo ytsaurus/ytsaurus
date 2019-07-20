@@ -110,6 +110,9 @@ public:
 
     TDuration ResourceAdjustmentPeriod;
 
+    TDuration RecentlyRemovedJobsCleanPeriod;
+    TDuration RecentlyRemovedJobsStoreTimeout;
+
     i64 FreeMemoryWatermark;
 
     double CpuPerTabletSlot;
@@ -148,8 +151,11 @@ public:
         RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
             .Default(TDuration::Minutes(10));
 
-        RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
+        RegisterParameter("recently_removed_jobs_clean_period", RecentlyRemovedJobsCleanPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("recently_removed_jobs_store_timeout", RecentlyRemovedJobsStoreTimeout)
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
             .Default(1.0);
