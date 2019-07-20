@@ -1,28 +1,16 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "type_handler.h"
 
-#include <yt/server/master/cell_master/automaton.h>
+#include <yt/server/master/cell_master/public.h>
 
 #include <yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
-
-#include <yt/server/master/object_server/proto/object_manager.pb.h>
-
-#include <yt/server/master/security_server/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
-
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
-
-#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/public.h>
 
 namespace NYT::NObjectServer {
 
@@ -34,7 +22,7 @@ namespace NYT::NObjectServer {
  *  Thread affinity: single-threaded
  */
 class TObjectManager
-    : public NCellMaster::TMasterAutomatonPart
+    : public TRefCounted
 {
 public:
     explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
@@ -210,101 +198,14 @@ public:
         TObjectBase* object,
         TCellTag cellTag);
 
-    void ConfirmObjectLifeStageToPrimaryMaster(TObjectBase* object);
-
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 
 private:
-    friend class TObjectProxyBase;
-
-    class TRootService;
-    typedef TIntrusivePtr<TRootService> TRootServicePtr;
-    class TRemoteProxy;
-    class TObjectResolver;
-
-    NProfiling::TProfiler Profiler;
-
-    struct TTypeEntry
-    {
-        IObjectTypeHandlerPtr Handler;
-        TSchemaObject* SchemaObject = nullptr;
-        IObjectProxyPtr SchemaProxy;
-    };
-
-    std::set<EObjectType> RegisteredTypes_;
-    THashMap<EObjectType, TTypeEntry> TypeToEntry_;
-
-    struct TMethodEntry
-    {
-        NProfiling::TMonotonicCounter CumulativeExecuteTimeCounter;
-    };
-
-    THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
-
-    TRootServicePtr RootService_;
-
-    TObjectId MasterObjectId_;
-    std::unique_ptr<TMasterObject> MasterObject_;
-
-    IObjectProxyPtr MasterProxy_;
-
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-
-    TGarbageCollectorPtr GarbageCollector_;
-
-    int CreatedObjects_ = 0;
-    int DestroyedObjects_ = 0;
-
-    //! Stores schemas (for serialization mostly).
-    NHydra::TEntityMap<TSchemaObject> SchemaMap_;
-
-    TEpoch CurrentEpoch_ = 0;
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-
-    void SaveKeys(NCellMaster::TSaveContext& context) const;
-    void SaveValues(NCellMaster::TSaveContext& context) const;
-
-    void LoadKeys(NCellMaster::TLoadContext& context);
-    void LoadValues(NCellMaster::TLoadContext& context);
-
-    virtual void OnRecoveryStarted() override;
-    virtual void OnRecoveryComplete() override;
-    virtual void Clear() override;
-    virtual void OnLeaderActive() override;
-    virtual void OnStopLeading() override;
-
-    static TString MakeCodicilData(const TString& userName);
-    void HydraExecuteLeader(
-        const TString& userName,
-        const TString& codicilData,
-        const NRpc::IServiceContextPtr& rpcContext,
-        NHydra::TMutationContext*);
-    void HydraExecuteFollower(NProto::TReqExecute* request);
-    void HydraDestroyObjects(NProto::TReqDestroyObjects* request);
-    void HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept;
-    void HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept;
-    void HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept;
-    void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
-    void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
-
-    void DoRemoveObject(TObjectBase* object);
-    void CheckRemovingObjectRefCounter(TObjectBase* object);
-    void CheckObjectLifeStageVoteCount(TObjectBase* object);
-
-    void OnProfiling();
-
-    std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(
-        TObjectBase* object,
-        bool mandatory);
-    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
-
-    void InitSchemas();
-
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectManager)
