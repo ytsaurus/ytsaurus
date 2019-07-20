@@ -1,7 +1,7 @@
 PACKAGE_NAME = "yandex-yt"
 
 def main():
-    from helpers import get_version, recursive
+    from helpers import get_version, recursive, is_debian, is_python_egg
 
     from setuptools import setup, find_packages
 
@@ -19,7 +19,7 @@ def main():
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
 
-    if "DEB" not in os.environ and version not in stable_versions:
+    if not is_debian and version not in stable_versions:
         version = version + "a1"
 
     binaries = [
@@ -30,12 +30,12 @@ def main():
         "yt/wrapper/bin/yt-job-tool"]
 
     data_files = []
-    scripts = [binary + str(sys.version_info[0]) for binary in binaries]
-
-    if "EGG" not in os.environ:
+    scripts = []
+    if is_debian:
+        scripts = [binary + str(sys.version_info[0]) for binary in binaries]
         data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion" + str(sys.version_info[0])]))
-    if "DEB" not in os.environ:
-        scripts.extend(binaries)
+    if is_python_egg:
+        scripts = binaries
 
     find_packages("yt/packages")
     setup(

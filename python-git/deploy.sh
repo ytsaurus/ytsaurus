@@ -137,8 +137,6 @@ fi
 if [ -z "$SKIP_WHEEL" ]; then
     PYPI_PACKAGE_NAME=$(python -c "import setup; import sys; sys.stdout.write(setup.PACKAGE_NAME)")
     if [ "$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
-        # TODO(ignat): ignore error code since new version of distutils. 
-        # For yandex-yt-python it would be fixed here: YT-10356.
         python setup.py bdist_wheel --universal upload -r yandex
     fi
 fi
