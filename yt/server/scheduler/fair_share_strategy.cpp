@@ -935,7 +935,7 @@ private:
             snapshots = TreeIdToSnapshot_;
         }
 
-        for (const auto& [treeId, snapshot] : TreeIdToSnapshot_) {
+        for (const auto& [treeId, snapshot] : snapshot) {
             if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
                 // NB: ValidateNodeTags does not guarantee that this check will not success,
                 // since node filters of snapshots updated asynchronously.
