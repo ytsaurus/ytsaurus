@@ -111,7 +111,7 @@ void TTransaction::RecomputeResourceUsage()
     }
 }
 
-void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged)
+void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged)
 {
     if (node->IsExternal()) {
         return;

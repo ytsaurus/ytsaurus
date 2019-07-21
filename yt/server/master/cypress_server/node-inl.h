@@ -9,34 +9,34 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TCypressNodeDynamicData* TCypressNodeBase::GetDynamicData() const
+inline TCypressNodeDynamicData* TCypressNode::GetDynamicData() const
 {
     return GetTypedDynamicData<TCypressNodeDynamicData>();
 }
 
-inline int TCypressNodeBase::GetAccessStatisticsUpdateIndex() const
+inline int TCypressNode::GetAccessStatisticsUpdateIndex() const
 {
     return GetDynamicData()->AccessStatisticsUpdateIndex;
 }
 
-inline void TCypressNodeBase::SetAccessStatisticsUpdateIndex(int value)
+inline void TCypressNode::SetAccessStatisticsUpdateIndex(int value)
 {
     GetDynamicData()->AccessStatisticsUpdateIndex = value;
 }
 
-inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNodeBase::GetExpirationIterator() const
+inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNode::GetExpirationIterator() const
 {
     return GetDynamicData()->ExpirationIterator;
 }
 
-inline void TCypressNodeBase::SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
+inline void TCypressNode::SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
 {
     GetDynamicData()->ExpirationIterator = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TCypressNodeRefComparer::Compare(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs)
+inline bool TCypressNodeRefComparer::Compare(const TCypressNode* lhs, const TCypressNode* rhs)
 {
     return lhs->GetVersionedId() < rhs->GetVersionedId();
 }

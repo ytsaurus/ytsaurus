@@ -54,13 +54,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObject*>, ImportedObjects);
 
     // Cypress stuff
-    typedef THashSet<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
+    typedef THashSet<NCypressServer::TCypressNode*> TLockedNodeSet;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
     typedef THashSet<NCypressServer::TLock*> TLockSet;
     DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
-    typedef std::vector<NCypressServer::TCypressNodeBase*> TBranchedNodeList;
+    typedef std::vector<NCypressServer::TCypressNode*> TBranchedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
-    typedef std::vector<NCypressServer::TCypressNodeBase*> TStagedNodeList;
+    typedef std::vector<NCypressServer::TCypressNode*> TStagedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
 
     // Security Manager stuff
@@ -86,7 +86,7 @@ public:
     bool IsDescendantOf(TTransaction* transaction) const;
 
 private:
-    void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
+    void AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged);
 
 };
 

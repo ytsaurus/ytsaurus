@@ -14,7 +14,7 @@ namespace NYT::NObjectServer {
 inline TObject::TObject(TObjectId id)
     : Id_(id)
 {
-    // This is reset to false in TCypressNodeBase ctor for non-trunk nodes.
+    // This is reset to false in TCypressNode ctor for non-trunk nodes.
     Flags_.Trunk = true;
 }
 

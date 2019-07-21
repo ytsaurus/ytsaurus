@@ -29,19 +29,19 @@ struct ICypressNodeFactory
     virtual bool ShouldPreserveExpirationTime() const  = 0;
     virtual bool ShouldPreserveCreationTime() const  = 0;
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
-    virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const = 0;
+    virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNode* sourceNode) const = 0;
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
-    virtual TCypressNodeBase* InstantiateNode(
+    virtual TCypressNode* InstantiateNode(
         TNodeId id,
         NObjectClient::TCellTag externalCellTag) = 0;
 
-    virtual TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode,
+    virtual TCypressNode* CloneNode(
+        TCypressNode* sourceNode,
         ENodeCloneMode mode) = 0;
 };
 
@@ -57,7 +57,7 @@ struct ICypressNodeProxy
     virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
 
     //! Returns the trunk node for which the proxy is created.
-    virtual TCypressNodeBase* GetTrunkNode() const = 0;
+    virtual TCypressNode* GetTrunkNode() const = 0;
 
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(

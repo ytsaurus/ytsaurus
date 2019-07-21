@@ -30,7 +30,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
-        TCypressNodeBase* trunkNode);
+        TCypressNode* trunkNode);
 
     virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
@@ -41,7 +41,7 @@ public:
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
-    virtual TCypressNodeBase* GetTrunkNode() const override;
+    virtual TCypressNode* GetTrunkNode() const override;
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
@@ -73,9 +73,9 @@ protected:
     class TResourceUsageVisitor;
 
     NTransactionServer::TTransaction* const Transaction;
-    TCypressNodeBase* const TrunkNode;
+    TCypressNode* const TrunkNode;
 
-    mutable TCypressNodeBase* CachedNode = nullptr;
+    mutable TCypressNode* CachedNode = nullptr;
 
     bool AccessTrackingSuppressed = false;
     bool ModificationTrackingSuppressed = false;
@@ -128,26 +128,26 @@ protected:
         TRspExists* response,
         const TCtxExistsPtr& context) override;
 
-    TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
+    TCypressNode* GetImpl(TCypressNode* trunkNode) const;
 
-    TCypressNodeBase* LockImpl(
-        TCypressNodeBase* trunkNode,
+    TCypressNode* LockImpl(
+        TCypressNode* trunkNode,
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false) const;
 
-    template <class TImpl = TCypressNodeBase>
+    template <class TImpl = TCypressNode>
     TImpl* GetThisImpl()
     {
         return DoGetThisImpl()->As<TImpl>();
     }
 
-    template <class TImpl = TCypressNodeBase>
+    template <class TImpl = TCypressNode>
     const TImpl* GetThisImpl() const
     {
         return const_cast<TNontemplateCypressNodeProxyBase*>(this)->GetThisImpl<TImpl>();
     }
 
-    template <class TImpl = TCypressNodeBase>
+    template <class TImpl = TCypressNode>
     TImpl* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
@@ -156,7 +156,7 @@ protected:
     }
 
 
-    ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
+    ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
     // TSupportsPermissions members
     virtual void ValidatePermission(
@@ -166,7 +166,7 @@ protected:
 
     // Cypress-specific overload.
     void ValidatePermission(
-        TCypressNodeBase* node,
+        TCypressNode* node,
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission);
 
@@ -213,12 +213,12 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
 private:
-    TCypressNodeBase* DoGetThisImpl();
-    TCypressNodeBase* DoLockThisImpl(
+    TCypressNode* DoGetThisImpl();
+    TCypressNode* DoLockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
 
-    void GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes);
+    void GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,7 +498,7 @@ private:
     void DoRemoveChild(
         TMapNode* impl,
         const TString& key,
-        TCypressNodeBase* childImpl);
+        TCypressNode* childImpl);
 
 };
 

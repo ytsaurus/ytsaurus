@@ -496,7 +496,7 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
+    void StageNode(TTransaction* transaction, TCypressNode* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1087,7 +1087,7 @@ void TTransactionManager::UnstageObject(
 
 void TTransactionManager::StageNode(
     TTransaction* transaction,
-    TCypressNodeBase* trunkNode)
+    TCypressNode* trunkNode)
 {
     Impl_->StageNode(transaction, trunkNode);
 }

@@ -150,7 +150,7 @@ struct TSerializerTraits<
         NMpl::TAndC<
             NMpl::TIsConvertible<T, const NObjectServer::TObject*>::Value,
             NMpl::TNotC<
-                NMpl::TIsConvertible<T, const NCypressServer::TCypressNodeBase*>::Value
+                NMpl::TIsConvertible<T, const NCypressServer::TCypressNode*>::Value
             >::Value
         >::Value
     >::TType
@@ -165,7 +165,7 @@ struct TSerializerTraits<
     T,
     C,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T, const NCypressServer::TCypressNodeBase*>
+        NMpl::TIsConvertible<T, const NCypressServer::TCypressNode*>
     >::TType
 >
 {

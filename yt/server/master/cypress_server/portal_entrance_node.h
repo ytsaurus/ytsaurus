@@ -9,13 +9,13 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortalEntranceNode
-    : public TCypressNodeBase
+    : public TCypressNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExitCellTag);
 
 public:
-    using TCypressNodeBase::TCypressNodeBase;
+    using TCypressNode::TCypressNode;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 

@@ -68,15 +68,15 @@ static const auto& Logger = CypressServerLogger;
 
 namespace {
 
-bool HasTrivialAcd(const TCypressNodeBase* node)
+bool HasTrivialAcd(const TCypressNode* node)
 {
     const auto& acd = node->Acd();
     return acd.GetInherit() && acd.Acl().Entries.empty();
 }
 
 bool CheckItemReadPermissions(
-    TCypressNodeBase* parent,
-    TCypressNodeBase* child,
+    TCypressNode* parent,
+    TCypressNode* child,
     const TSecurityManagerPtr& securityManager)
 {
     // Fast path.
@@ -204,7 +204,7 @@ private:
     TClusterResources ResourceUsage_;
 
 
-    virtual void OnNode(TCypressNodeBase* trunkNode, TTransaction* transaction) override
+    virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
@@ -231,7 +231,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TCypressNodeBase* trunkNode)
+    TCypressNode* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
     , CustomAttributesImpl_(this)
     , Transaction(transaction)
@@ -271,7 +271,7 @@ TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
     return Transaction;
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetTrunkNode() const
+TCypressNode* TNontemplateCypressNodeProxyBase::GetTrunkNode() const
 {
     return TrunkNode;
 }
@@ -742,7 +742,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             , AttributeKeys_(std::move(attributeKeys))
         { }
 
-        void Run(TCypressNodeBase* root)
+        void Run(TCypressNode* root)
         {
             VisitAny(nullptr, root);
         }
@@ -761,7 +761,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         TAsyncYsonWriter Writer_;
 
 
-        void VisitAny(TCypressNodeBase* trunkParent, TCypressNodeBase* trunkChild)
+        void VisitAny(TCypressNode* trunkParent, TCypressNode* trunkChild)
         {
             if (!CheckItemReadPermissions(trunkParent, trunkChild, SecurityManager_)) {
                 Writer_.OnEntity();
@@ -789,7 +789,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             }
         }
 
-        void VisitOther(TCypressNodeBase* trunkNode)
+        void VisitOther(TCypressNode* trunkNode)
         {
             auto* node = CypressManager_->GetVersionedNode(trunkNode, Transaction_);
             switch (node->GetType()) {
@@ -814,7 +814,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             }
         }
 
-        void VisitList(TCypressNodeBase* node)
+        void VisitList(TCypressNode* node)
         {
             Writer_.OnBeginList();
             const auto& childList = GetListNodeChildList(
@@ -828,10 +828,10 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             Writer_.OnEndList();
         }
 
-        void VisitMap(TCypressNodeBase* node)
+        void VisitMap(TCypressNode* node)
         {
             Writer_.OnBeginMap();
-            THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+            THashMap<TString, TCypressNode*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
                 node,
@@ -944,14 +944,14 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
     TObjectProxyBase::ExistsAttribute(path, request, response, context);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
+TCypressNode* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNode* trunkNode) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetVersionedNode(trunkNode, Transaction);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
-    TCypressNodeBase* trunkNode,
+TCypressNode* TNontemplateCypressNodeProxyBase::LockImpl(
+    TCypressNode* trunkNode,
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/) const
 {
@@ -959,7 +959,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     return cypressManager->LockNode(trunkNode, Transaction, request, recursive);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
+TCypressNode* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
 {
     if (CachedNode) {
         return CachedNode;
@@ -971,7 +971,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
     return node;
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
+TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
@@ -980,7 +980,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     return LockImpl(TrunkNode, request, recursive);
 }
 
-void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes)
+void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes)
 {
     for (auto* ancestor = parent; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent())
     {
@@ -1002,7 +1002,7 @@ void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNodeB
     }
 }
 
-ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
+ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNode* trunkNode) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
@@ -1024,7 +1024,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
-    TCypressNodeBase* node,
+    TCypressNode* node,
     EPermissionCheckScope scope,
     EPermission permission)
 {
@@ -1987,7 +1987,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1996,7 +1996,7 @@ void TMapNodeProxy::Clear()
     auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
-    typedef std::pair<TString, TCypressNodeBase*> TChild;
+    typedef std::pair<TString, TCypressNode*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& pair : keyToChildList) {
@@ -2034,7 +2034,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -2052,7 +2052,7 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<TString> TMapNodeProxy::GetKeys() const
 {
-    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -2235,7 +2235,7 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
 void TMapNodeProxy::DoRemoveChild(
     TMapNode* impl,
     const TString& key,
-    TCypressNodeBase* childImpl)
+    TCypressNode* childImpl)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* trunkChildImpl = childImpl->GetTrunkNode();
@@ -2283,7 +2283,7 @@ void TMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         TrunkNode,
@@ -2357,7 +2357,7 @@ void TListNodeProxy::Clear()
     auto* impl = LockThisImpl();
 
     // Lock children and collect impls.
-    std::vector<TCypressNodeBase*> children;
+    std::vector<TCypressNode*> children;
     for (auto* trunkChild : impl->IndexToChild()) {
         children.push_back(LockImpl(trunkChild));
     }

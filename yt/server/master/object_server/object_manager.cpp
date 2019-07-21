@@ -1253,7 +1253,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
             ? getPrerequisiteTransaction(transactionId)
             : nullptr;
 
-        TCypressNodeBase* trunkNode;
+        TCypressNode* trunkNode;
         try {
             trunkNode = cypressManager->ResolvePathToTrunkNode(path, transaction);
         } catch (const std::exception& ex) {

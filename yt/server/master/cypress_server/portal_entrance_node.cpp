@@ -13,7 +13,7 @@ ENodeType TPortalEntranceNode::GetNodeType() const
 
 void TPortalEntranceNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, ExitCellTag_);
@@ -21,7 +21,7 @@ void TPortalEntranceNode::Save(NCellMaster::TSaveContext& context) const
 
 void TPortalEntranceNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     Load(context, ExitCellTag_);
