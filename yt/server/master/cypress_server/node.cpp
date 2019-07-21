@@ -19,7 +19,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
-    : TObjectBase(id.ObjectId)
+    : TObject(id.ObjectId)
     , Acd_(this)
     , TransactionId_(id.TransactionId)
 {
@@ -136,7 +136,7 @@ bool TCypressNodeBase::IsBeingCreated() const
 
 void TCypressNodeBase::Save(TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
@@ -162,7 +162,7 @@ void TCypressNodeBase::Save(TSaveContext& context) const
 
 void TCypressNodeBase::Load(TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, ExternalCellTag_);

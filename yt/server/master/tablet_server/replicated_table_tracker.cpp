@@ -33,12 +33,10 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/public.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
@@ -46,6 +44,8 @@
 
 #include <yt/client/api/public.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NTabletServer {
 
@@ -700,7 +700,7 @@ private:
         table->SetReplicas(replicas);
     }
 
-    void OnNodeCreated(TObjectBase* object)
+    void OnNodeCreated(TObject* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

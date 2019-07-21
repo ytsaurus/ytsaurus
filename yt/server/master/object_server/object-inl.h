@@ -11,53 +11,53 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TObjectBase::TObjectBase(TObjectId id)
+inline TObject::TObject(TObjectId id)
     : Id_(id)
 {
     // This is reset to false in TCypressNodeBase ctor for non-trunk nodes.
     Flags_.Trunk = true;
 }
 
-inline TObjectBase::~TObjectBase()
+inline TObject::~TObject()
 {
     // To make debugging easier.
     Flags_.Disposed = true;
 }
 
-inline TObjectDynamicData* TObjectBase::GetDynamicData() const
+inline TObjectDynamicData* TObject::GetDynamicData() const
 {
     return GetTypedDynamicData<TObjectDynamicData>();
 }
 
-inline void TObjectBase::SetDestroyed()
+inline void TObject::SetDestroyed()
 {
     YT_ASSERT(RefCounter_ == 0);
     Flags_.Destroyed = true;
 }
 
-inline void TObjectBase::SetForeign()
+inline void TObject::SetForeign()
 {
     Flags_.Foreign = true;
 }
 
-inline TObjectId TObjectBase::GetId() const
+inline TObjectId TObject::GetId() const
 {
     return Id_;
 }
 
-inline int TObjectBase::RefObject()
+inline int TObject::RefObject()
 {
     YT_ASSERT(RefCounter_ >= 0);
     return ++RefCounter_;
 }
 
-inline int TObjectBase::UnrefObject(int count)
+inline int TObject::UnrefObject(int count)
 {
     YT_ASSERT(RefCounter_ >= count);
     return RefCounter_ -= count;
 }
 
-inline int TObjectBase::EphemeralRefObject(TEpoch epoch)
+inline int TObject::EphemeralRefObject(TEpoch epoch)
 {
     YT_VERIFY(IsAlive());
     YT_ASSERT(EphemeralRefCounter_ >= 0);
@@ -69,14 +69,14 @@ inline int TObjectBase::EphemeralRefObject(TEpoch epoch)
     return ++EphemeralRefCounter_;
 }
 
-inline int TObjectBase::EphemeralUnrefObject(TEpoch epoch)
+inline int TObject::EphemeralUnrefObject(TEpoch epoch)
 {
     YT_ASSERT(EphemeralRefCounter_ > 0);
     YT_ASSERT(EphemeralLockEpoch_ == epoch);
     return --EphemeralRefCounter_;
 }
 
-inline int TObjectBase::WeakRefObject()
+inline int TObject::WeakRefObject()
 {
     YT_VERIFY(IsAlive());
     YT_ASSERT(WeakRefCounter_ >= 0);
@@ -84,81 +84,81 @@ inline int TObjectBase::WeakRefObject()
     return ++WeakRefCounter_;
 }
 
-inline int TObjectBase::WeakUnrefObject()
+inline int TObject::WeakUnrefObject()
 {
     YT_ASSERT(WeakRefCounter_ > 0);
     return --WeakRefCounter_;
 }
 
-inline int TObjectBase::ImportRefObject()
+inline int TObject::ImportRefObject()
 {
     return ++ImportRefCounter_;
 }
 
-inline int TObjectBase::ImportUnrefObject()
+inline int TObject::ImportUnrefObject()
 {
     YT_ASSERT(ImportRefCounter_ > 0);
     return --ImportRefCounter_;
 }
 
-inline int TObjectBase::GetObjectRefCounter() const
+inline int TObject::GetObjectRefCounter() const
 {
     return RefCounter_;
 }
 
-inline int TObjectBase::GetObjectEphemeralRefCounter(TEpoch epoch) const
+inline int TObject::GetObjectEphemeralRefCounter(TEpoch epoch) const
 {
     return EphemeralLockEpoch_== epoch ? EphemeralRefCounter_ : 0;
 }
 
-inline int TObjectBase::GetObjectWeakRefCounter() const
+inline int TObject::GetObjectWeakRefCounter() const
 {
     return WeakRefCounter_;
 }
 
-inline int TObjectBase::GetImportRefCounter() const
+inline int TObject::GetImportRefCounter() const
 {
     return ImportRefCounter_;
 }
 
-inline EObjectLifeStage TObjectBase::GetLifeStage() const
+inline EObjectLifeStage TObject::GetLifeStage() const
 {
     return LifeStage_;
 }
 
-inline void TObjectBase::SetLifeStage(EObjectLifeStage lifeStage)
+inline void TObject::SetLifeStage(EObjectLifeStage lifeStage)
 {
     LifeStage_ = lifeStage;
 }
 
-inline bool TObjectBase::IsAlive() const
+inline bool TObject::IsAlive() const
 {
     return RefCounter_ > 0;
 }
 
-inline bool TObjectBase::IsDestroyed() const
+inline bool TObject::IsDestroyed() const
 {
     return Flags_.Destroyed;
 }
 
-inline bool TObjectBase::IsTrunk() const
+inline bool TObject::IsTrunk() const
 {
     return Flags_.Trunk;
 }
 
-inline bool TObjectBase::IsForeign() const
+inline bool TObject::IsForeign() const
 {
     return Flags_.Foreign;
 }
 
 template <class TDerived>
-TDerived* TObjectBase::As()
+TDerived* TObject::As()
 {
     return static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
-const TDerived* TObjectBase::As() const
+const TDerived* TObject::As() const
 {
     return static_cast<const TDerived*>(this);
 }
@@ -166,22 +166,22 @@ const TDerived* TObjectBase::As() const
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TNonversionedObjectBase::TNonversionedObjectBase(TObjectId id)
-    : TObjectBase(id)
+    : TObject(id)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TObjectRefComparer::Compare(const TObjectBase* lhs, const TObjectBase* rhs)
+inline bool TObjectRefComparer::Compare(const TObject* lhs, const TObject* rhs)
 {
     return lhs->GetId() < rhs->GetId();
 }
 
-inline TObjectId GetObjectId(const TObjectBase* object)
+inline TObjectId GetObjectId(const TObject* object)
 {
     return object ? object->GetId() : NullObjectId;
 }
 
-inline bool IsObjectAlive(const TObjectBase* object)
+inline bool IsObjectAlive(const TObject* object)
 {
     return object && object->IsAlive();
 }

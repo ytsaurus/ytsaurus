@@ -127,7 +127,7 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
+TAccessControlDescriptor::TAccessControlDescriptor(TObject* object)
     : Object_(object)
 { }
 

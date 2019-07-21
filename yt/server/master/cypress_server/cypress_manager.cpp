@@ -438,13 +438,13 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual TObjectBase* FindObject(TObjectId id) override
+    virtual TObject* FindObject(TObjectId id) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
     {
@@ -477,7 +477,7 @@ private:
         return &node->GetTrunkNode()->Acd();
     }
 
-    virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
+    virtual TObject* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
     }

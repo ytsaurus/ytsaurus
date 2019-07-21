@@ -473,7 +473,7 @@ public:
         }
     }
 
-    void StageObject(TTransaction* transaction, TObjectBase* object)
+    void StageObject(TTransaction* transaction, TObject* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -482,7 +482,7 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TTransaction* transaction, TObjectBase* object, bool recursive)
+    void UnstageObject(TTransaction* transaction, TObject* object, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -506,7 +506,7 @@ public:
         objectManager->RefObject(trunkNode);
     }
 
-    void ImportObject(TTransaction* transaction, TObjectBase* object)
+    void ImportObject(TTransaction* transaction, TObject* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -516,7 +516,7 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, TObjectBase* object, TCellTag destinationCellTag)
+    void ExportObject(TTransaction* transaction, TObject* object, TCellTag destinationCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1072,14 +1072,14 @@ void TTransactionManager::SetTransactionTimeout(
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObject* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
 void TTransactionManager::UnstageObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    TObject* object,
     bool recursive)
 {
     Impl_->UnstageObject(transaction, object, recursive);
@@ -1094,7 +1094,7 @@ void TTransactionManager::StageNode(
 
 void TTransactionManager::ExportObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    TObject* object,
     TCellTag destinationCellTag)
 {
     Impl_->ExportObject(transaction, object, destinationCellTag);
@@ -1102,7 +1102,7 @@ void TTransactionManager::ExportObject(
 
 void TTransactionManager::ImportObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObject* object)
 {
     Impl_->ImportObject(transaction, object);
 }

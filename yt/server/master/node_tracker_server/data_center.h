@@ -14,7 +14,7 @@ namespace NYT::NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataCenter
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TDataCenter>
 {
 public:

@@ -67,7 +67,7 @@ public:
         return SchemaTypeFromType(Type_);
     }
 
-    virtual TObjectBase* FindObject(TObjectId id) override
+    virtual TObject* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
@@ -106,7 +106,7 @@ private:
         return &object->Acd();
     }
 
-    virtual TObjectBase* DoGetParent(TSchemaObject* /*object*/) override
+    virtual TObject* DoGetParent(TSchemaObject* /*object*/) override
     {
         return nullptr;
     }

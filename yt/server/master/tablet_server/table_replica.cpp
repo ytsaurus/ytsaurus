@@ -15,12 +15,12 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReplica::TTableReplica(TTableReplicaId id)
-    : TObjectBase(id)
+    : TObject(id)
 { }
 
 void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, ClusterName_);
@@ -37,7 +37,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 
 void TTableReplica::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, ClusterName_);

@@ -56,7 +56,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
     static const auto AmpersandYPath = TYPath("&");
 
     // Nullptr indicates that one must resolve the root.
-    TObjectBase* currentObject = nullptr;
+    TObject* currentObject = nullptr;
 
     for (int resolveDepth = 0; ; ++resolveDepth) {
         ValidateYPathResolutionDepth(Path_, resolveDepth);
@@ -232,13 +232,13 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
     }
 }
 
-TObjectBase* TPathResolver::FindMapNodeChild(TObjectBase* map, TTransaction* transaction, TStringBuf key)
+TObject* TPathResolver::FindMapNodeChild(TObject* map, TTransaction* transaction, TStringBuf key)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return NCypressServer::FindMapNodeChild(cypressManager, map->As<TMapNode>()->GetTrunkNode(), transaction, key);
 }
 
-TObjectBase* TPathResolver::FindListNodeChild(TObjectBase* list, TStringBuf key)
+TObject* TPathResolver::FindListNodeChild(TObject* list, TStringBuf key)
 {
     auto& indexToChild = list->As<TListNode>()->IndexToChild();
     auto indexStr = ExtractListIndex(key);

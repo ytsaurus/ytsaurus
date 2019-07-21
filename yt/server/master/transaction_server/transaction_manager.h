@@ -81,7 +81,7 @@ public:
     //! The same object can only be staged once.
     void StageObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object);
+        NObjectServer::TObject* object);
 
     //! Unregisters the object from its staging transaction (which must be equal to #transaction),
     //! calls IObjectTypeHandler::UnstageObject and
@@ -91,7 +91,7 @@ public:
      */
     void UnstageObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         bool recursive);
 
     //! Registers (and references) the node with the transaction.
@@ -105,7 +105,7 @@ public:
     //! The same object as be exported more than once.
     void ExportObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         NObjectClient::TCellTag destinationCellTag);
 
     //! Registers and references the object with the transaction.
@@ -113,7 +113,7 @@ public:
     //! The same object as be exported more than once.
     void ImportObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object);
+        NObjectServer::TObject* object);
 
     void RegisterTransactionActionHandlers(
         const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,

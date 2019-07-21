@@ -257,7 +257,7 @@ private:
                 return FetchMergeableAttribute(
                     GetUninternedAttributeKey(key),
                     BIND([=, this_ = MakeStrong(this)] {
-                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
                     }));
@@ -274,7 +274,7 @@ private:
                 return FetchMergeableAttribute(
                     GetUninternedAttributeKey(key),
                     BIND([=, this_ = MakeStrong(this)] {
-                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
                     }));

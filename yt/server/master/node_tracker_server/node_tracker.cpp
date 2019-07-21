@@ -106,7 +106,7 @@ public:
         return EObjectType::ClusterNode;
     }
 
-    virtual TObjectBase* FindObject(TObjectId id) override;
+    virtual TObject* FindObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -149,7 +149,7 @@ public:
         return EObjectType::Rack;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -194,7 +194,7 @@ public:
         return EObjectType::DataCenter;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -2105,7 +2105,7 @@ TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TClusterNodeTypeHandler::FindObject(TObjectId id)
+TObject* TNodeTracker::TClusterNodeTypeHandler::FindObject(TObjectId id)
 {
     auto* node = Owner_->FindNode(NodeIdFromObjectId(id));
     if (!node) {
@@ -2139,7 +2139,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+TObject* TNodeTracker::TRackTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2168,7 +2168,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
+TObject* TNodeTracker::TDataCenterTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {

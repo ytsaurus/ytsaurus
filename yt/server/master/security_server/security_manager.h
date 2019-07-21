@@ -32,7 +32,7 @@ namespace NYT::NSecurityServer {
 //! was carried out.
 struct TPermissionCheckTarget
 {
-    NObjectServer::TObjectBase* Object;
+    NObjectServer::TObject* Object;
     std::optional<TString> Column;
 };
 
@@ -52,7 +52,7 @@ struct TPermissionCheckResult
 
     //! The object whose ACL contains the matching ACE.
     //! Can be |nullptr|.
-    NObjectServer::TObjectBase* Object = nullptr;
+    NObjectServer::TObject* Object = nullptr;
 
     //! Subject to which the decision applies.
     //! Can be |nullptr|.
@@ -208,14 +208,14 @@ public:
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    TAccessControlDescriptor* FindAcd(NObjectServer::TObjectBase* object);
+    TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object);
 
     //! Returns the object ACD. Fails if no ACD exists.
-    TAccessControlDescriptor* GetAcd(NObjectServer::TObjectBase* object);
+    TAccessControlDescriptor* GetAcd(NObjectServer::TObject* object);
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object);
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
 
 
     //! Sets the authenticated user.
@@ -236,7 +236,7 @@ public:
 
     //! Checks if #object ACL allows access with #permission.
     TPermissionCheckResponse CheckPermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
@@ -253,14 +253,14 @@ public:
      *  If NHiveServer::IsHiveMutation returns |true| then this check is suppressed.
      */
     void ValidatePermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
 
     //! Another overload that uses the current user.
     void ValidatePermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
 

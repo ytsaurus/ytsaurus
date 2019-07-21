@@ -36,17 +36,17 @@ public:
 
     TFuture<void> Collect();
 
-    int EphemeralRefObject(TObjectBase* object, TEpoch epoch);
-    int EphemeralUnrefObject(TObjectBase* object, TEpoch epoch);
+    int EphemeralRefObject(TObject* object, TEpoch epoch);
+    int EphemeralUnrefObject(TObject* object, TEpoch epoch);
 
-    int WeakRefObject(TObjectBase* object, TEpoch epoch);
-    int WeakUnrefObject(TObjectBase* object, TEpoch epoch);
+    int WeakRefObject(TObject* object, TEpoch epoch);
+    int WeakUnrefObject(TObject* object, TEpoch epoch);
 
-    void RegisterZombie(TObjectBase* object);
-    void UnregisterZombie(TObjectBase* object);
-    void DestroyZombie(TObjectBase* object);
+    void RegisterZombie(TObject* object);
+    void UnregisterZombie(TObject* object);
+    void DestroyZombie(TObject* object);
 
-    TObjectBase* GetWeakGhostObject(TObjectId id);
+    TObject* GetWeakGhostObject(TObjectId id);
 
     void Reset();
 
@@ -66,18 +66,18 @@ private:
 
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
-    THashSet<TObjectBase*> Zombies_;
+    THashSet<TObject*> Zombies_;
 
     //! Contains objects with zero ref counter, zero weak ref counter, and positive ephemeral ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
     //! Not persisted.
-    THashSet<TObjectBase*> EphemeralGhosts_;
+    THashSet<TObject*> EphemeralGhosts_;
 
     //! Contains objects with zero ref counter and positive weak ref counter
     //! (ephemeral ref counter may be zero or positive, it doesn't matter).
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
     //! NB: weak ghost objects are actually owned (and persisted) by the garbage collector.
-    THashMap<TObjectId, TObjectBase*> WeakGhosts_;
+    THashMap<TObjectId, TObject*> WeakGhosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

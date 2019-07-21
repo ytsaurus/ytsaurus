@@ -17,6 +17,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <util/random/shuffle.h>
 
 #include <queue>

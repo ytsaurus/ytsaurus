@@ -37,21 +37,21 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObject*>, StagedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
 
     struct TExportEntry
     {
-        NObjectServer::TObjectBase* Object;
+        NObjectServer::TObject* Object;
         NObjectClient::TCellTag DestinationCellTag;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectBase*>, ImportedObjects);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObject*>, ImportedObjects);
 
     // Cypress stuff
     typedef THashSet<NCypressServer::TCypressNodeBase*> TLockedNodeSet;

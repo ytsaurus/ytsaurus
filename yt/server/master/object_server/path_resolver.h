@@ -28,7 +28,7 @@ public:
 
     struct TLocalObjectPayload
     {
-        TObjectBase* Object;
+        TObject* Object;
         NTransactionServer::TTransaction* Transaction;
     };
 
@@ -70,12 +70,12 @@ private:
 
     NTransactionServer::TTransaction* GetTransaction();
     TPathResolver::TResolvePayload ResolveRoot();
-    TObjectBase* FindMapNodeChild(
-        TObjectBase* map,
+    TObject* FindMapNodeChild(
+        TObject* map,
         NTransactionServer::TTransaction* transaction,
         TStringBuf key);
-    TObjectBase* FindListNodeChild(
-        TObjectBase* list,
+    TObject* FindListNodeChild(
+        TObject* list,
         TStringBuf key);
     static bool IsSpecialListKey(TStringBuf key);
 };
