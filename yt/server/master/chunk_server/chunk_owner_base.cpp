@@ -26,7 +26,7 @@ using namespace NSecurityServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
+    : TCypressNode(id)
 {
     Replication_.SetVital(true);
     if (IsTrunk()) {
@@ -37,7 +37,7 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
 
 void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, ChunkList_);
@@ -54,7 +54,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     Load(context, ChunkList_);

@@ -35,11 +35,11 @@ DECLARE_REFCOUNTED_CLASS(TPortalTree)
 struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
 
-DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
+DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
 
-using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
-using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNodeBase*>;
+using TCypressNodeList = SmallVector<TCypressNode*, 8>;
+using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
 
 struct TLockRequest;
 

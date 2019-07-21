@@ -74,7 +74,7 @@ const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::G
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
+void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
 {
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
@@ -88,8 +88,8 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
-    TCypressNodeBase* originatingNode,
-    TCypressNodeBase* branchedNode,
+    TCypressNode* originatingNode,
+    TCypressNode* branchedNode,
     TTransaction* transaction,
     const TLockRequest& lockRequest)
 {
@@ -122,8 +122,8 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
-    TCypressNodeBase* originatingNode,
-    TCypressNodeBase* branchedNode)
+    TCypressNode* originatingNode,
+    TCypressNode* branchedNode)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -140,7 +140,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
 }
 
-TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
+TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactory* factory,
     TNodeId hintId,
     TCellTag externalCellTag)
@@ -154,8 +154,8 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
-    TCypressNodeBase* sourceNode,
-    TCypressNodeBase* clonedNode,
+    TCypressNode* sourceNode,
+    TCypressNode* clonedNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
@@ -240,7 +240,7 @@ bool TCompositeNodeBase::TAttributes::AreEmpty() const
 
 void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     TUniquePtrSerializer<>::Save(context, Attributes_);
@@ -248,7 +248,7 @@ void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 
 void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     TUniquePtrSerializer<>::Load(context, Attributes_);
@@ -504,7 +504,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
         } else {
             const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
-            THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+            THashMap<TString, TCypressNode*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
                 cypressManager,
                 originatingNode->GetTrunkNode(),
@@ -615,7 +615,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
 
     const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),
@@ -813,7 +813,7 @@ ENodeType TLinkNode::GetNodeType() const
 
 void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, TargetPath_);
@@ -821,7 +821,7 @@ void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 
 void TLinkNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     Load(context, TargetPath_);
@@ -929,7 +929,7 @@ bool TLinkNodeTypeHandler::HasBranchedChangesImpl(
 ////////////////////////////////////////////////////////////////////////////////
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
+    : TCypressNode(id)
     , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }
 
@@ -940,7 +940,7 @@ ENodeType TDocumentNode::GetNodeType() const
 
 void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     auto serializedValue = ConvertToYsonStringStable(Value_);
@@ -949,7 +949,7 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
 
 void TDocumentNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     auto serializedValue = Load<TString>(context);

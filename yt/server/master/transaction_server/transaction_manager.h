@@ -97,7 +97,7 @@ public:
     //! Registers (and references) the node with the transaction.
     void StageNode(
         TTransaction* transaction,
-        NCypressServer::TCypressNodeBase* trunkNode);
+        NCypressServer::TCypressNode* trunkNode);
 
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts

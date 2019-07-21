@@ -6,7 +6,7 @@ namespace NYT::NCypressServer {
 
 void TPortalExitNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, EntranceCellTag_);
@@ -15,7 +15,7 @@ void TPortalExitNode::Save(NCellMaster::TSaveContext& context) const
 
 void TPortalExitNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     Load(context, EntranceCellTag_);

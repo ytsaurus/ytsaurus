@@ -70,7 +70,7 @@ void TExpirationTracker::Clear()
     ExpiredNodes_.clear();
 }
 
-void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
@@ -94,7 +94,7 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
     }
 }
 
-void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
@@ -111,7 +111,7 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
     ExpiredNodes_.erase(trunkNode);
 }
 
-void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
@@ -135,7 +135,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
     RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
 }
 
-void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
+void TExpirationTracker::RegisterNodeExpiration(TCypressNode* trunkNode, TInstant expirationTime)
 {
     if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
         auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
@@ -143,7 +143,7 @@ void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TIn
     }
 }
 
-void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
+void TExpirationTracker::UnregisterNodeExpiration(TCypressNode* trunkNode)
 {
     ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
     trunkNode->SetExpirationIterator(std::nullopt);

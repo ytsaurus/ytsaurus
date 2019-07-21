@@ -81,7 +81,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
                 Tokenizer_.GetInput();
         };
         auto makeCurrentLocalObjectResult = [&] {
-            auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNodeBase>()->GetTrunkNode();
+            auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNode>()->GetTrunkNode();
             auto unresolvedPath = makeCurrentUnresolvedPath();
             return TResolveResult{
                 std::move(unresolvedPath),
@@ -96,7 +96,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             return makeCurrentLocalObjectResult();
         }
 
-        auto* currentNode = currentObject->As<TCypressNodeBase>();
+        auto* currentNode = currentObject->As<TCypressNode>();
         if (currentNode->GetNodeType() == ENodeType::Map || currentNode->GetNodeType() == ENodeType::List) {
             if (!slashSkipped) {
                 return makeCurrentLocalObjectResult();
