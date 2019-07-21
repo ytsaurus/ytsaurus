@@ -30,7 +30,10 @@ class _ParallelProgressReporter(object):
 
     def wrap_stream(self, stream):
         for substream in stream:
-            yield self._wrap_substream(substream)
+            if isinstance(substream, list):
+                yield list(self._wrap_substream(substream))
+            else:
+                yield self._wrap_substream(substream)
 
     def _wrap_substream(self, substream):
         for chunk in substream:
