@@ -20,7 +20,7 @@ struct IObjectProxy
     virtual TObjectId GetId() const = 0;
 
     //! Returns the corresponding object.
-    virtual TObjectBase* GetObject() const = 0;
+    virtual TObject* GetObject() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectProxy)

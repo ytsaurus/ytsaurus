@@ -121,7 +121,7 @@ struct TCypressNodeDynamicData
 
 //! Provides a common base for all versioned (aka Cypress) nodes.
 class TCypressNodeBase
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TCypressNodeBase>
 {
 public:

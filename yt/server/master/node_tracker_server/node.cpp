@@ -132,7 +132,7 @@ void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDes
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(TObjectId objectId)
-    : TObjectBase(objectId)
+    : TObject(objectId)
 {
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     ClearSessionHints();
@@ -317,7 +317,7 @@ ENodeState TNode::GetAggregatedState() const
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Banned_);
@@ -367,7 +367,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Banned_);

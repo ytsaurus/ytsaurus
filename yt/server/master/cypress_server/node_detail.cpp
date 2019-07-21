@@ -459,7 +459,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
 
 int TMapNode::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + KeyToChild().size();
+    return TObject::GetGCWeight() + KeyToChild().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -699,7 +699,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
 int TListNode::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + IndexToChild_.size();
+    return TObject::GetGCWeight() + IndexToChild_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,12 +41,12 @@ bool IsStableLifeStage(EObjectLifeStage lifeStage);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a base for all objects in YT master server.
-class TObjectBase
+class TObject
     : public NHydra::TEntityBase
 {
 public:
-    explicit TObjectBase(TObjectId id);
-    virtual ~TObjectBase();
+    explicit TObject(TObjectId id);
+    virtual ~TObject();
 
     TObjectDynamicData* GetDynamicData() const;
 
@@ -214,11 +214,11 @@ protected:
 
 struct TObjectRefComparer
 {
-    static bool Compare(const TObjectBase* lhs, const TObjectBase* rhs);
+    static bool Compare(const TObject* lhs, const TObject* rhs);
 };
 
-TObjectId GetObjectId(const TObjectBase* object);
-bool IsObjectAlive(const TObjectBase* object);
+TObjectId GetObjectId(const TObject* object);
+bool IsObjectAlive(const TObject* object);
 
 template <class T>
 std::vector<TObjectId> ToObjectIds(
@@ -237,7 +237,7 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNonversionedObjectBase
-    : public TObjectBase
+    : public TObject
 {
 public:
     explicit TNonversionedObjectBase(TObjectId id);
@@ -253,7 +253,7 @@ public:
 
 struct TObjectIdFormatter
 {
-    void operator()(TStringBuilderBase* builder, const TObjectBase* object) const;
+    void operator()(TStringBuilderBase* builder, const TObject* object) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

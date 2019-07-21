@@ -26,7 +26,7 @@ public:
     //! Transitive closure of the set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, RecursiveMemberOf);
 
-    typedef THashMap<TObjectBase*, int> TLinkedObjects;
+    typedef THashMap<TObject*, int> TLinkedObjects;
     //! Objects whose ACLs reference this particular subject, with counters.
     DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
 
@@ -45,9 +45,9 @@ public:
     TGroup* AsGroup();
 
     //! Adds #object to |LinkedObjects| or increments the counter if it is already there.
-    void LinkObject(TObjectBase* object);
+    void LinkObject(TObject* object);
     //! Decrements the counter and removes #object from |LinkedObjects| if the counter drops to zero.
-    void UnlinkObject(TObjectBase* object);
+    void UnlinkObject(TObject* object);
 
 };
 

@@ -73,7 +73,7 @@ TLoadContext::TLoadContext(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
-TObjectBase* TLoadContext::GetWeakGhostObject(TObjectId id) const
+TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     return objectManager->GetWeakGhostObject(id);

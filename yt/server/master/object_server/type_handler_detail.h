@@ -24,7 +24,7 @@ struct TObjectTypeMetadata
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TObject>
+template <class TImpl>
 class TObjectTypeHandlerBase
     : public IObjectTypeHandler
 {
@@ -40,73 +40,73 @@ public:
         return ETypeFlags::None;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) override
+    virtual TCellTagList GetReplicationCellTags(const TObject* object) override
     {
-        return DoGetReplicationCellTags(object->As<TObject>());
+        return DoGetReplicationCellTags(object->As<TImpl>());
     }
 
-    virtual TString GetName(const TObjectBase* object) override
+    virtual TString GetName(const TObject* object) override
     {
-        return DoGetName(object->As<TObject>());
+        return DoGetName(object->As<TImpl>());
     }
 
     virtual IObjectProxyPtr GetProxy(
-        TObjectBase* object,
+        TObject* object,
         NTransactionServer::TTransaction* transaction) override
     {
-        return DoGetProxy(object->As<TObject>(), transaction);
+        return DoGetProxy(object->As<TImpl>(), transaction);
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
         YT_ABORT();
     }
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId /*id*/) override
+    virtual std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
     {
         YT_ABORT();
     }
 
-    virtual void DestroyObject(TObjectBase* object) noexcept override
+    virtual void DestroyObject(TObject* object) noexcept override
     {
-        DoDestroyObject(object->As<TObject>());
+        DoDestroyObject(object->As<TImpl>());
     }
 
-    virtual void ZombifyObject(TObjectBase* object) noexcept override
+    virtual void ZombifyObject(TObject* object) noexcept override
     {
-        DoZombifyObject(object->As<TObject>());
+        DoZombifyObject(object->As<TImpl>());
     }
 
-    virtual void UnstageObject(TObjectBase* object, bool recursive) override
+    virtual void UnstageObject(TObject* object, bool recursive) override
     {
-        DoUnstageObject(object->As<TObject>(), recursive);
+        DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
+    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
     {
-        return DoFindAcd(object->As<TObject>());
+        return DoFindAcd(object->As<TImpl>());
     }
 
-    virtual TObjectBase* GetParent(TObjectBase* object) override
+    virtual TObject* GetParent(TObject* object) override
     {
-        return DoGetParent(object->As<TObject>());
+        return DoGetParent(object->As<TImpl>());
     }
 
     virtual void ExportObject(
-        TObjectBase* object,
+        TObject* object,
         NObjectClient::TCellTag destinationCellTag) override
     {
-        DoExportObject(object->As<TObject>(), destinationCellTag);
+        DoExportObject(object->As<TImpl>(), destinationCellTag);
     }
 
     virtual void UnexportObject(
-        TObjectBase* object,
+        TObject* object,
         NObjectClient::TCellTag destinationCellTag,
         int importRefCounter) override
     {
-        DoUnexportObject(object->As<TObject>(), destinationCellTag, importRefCounter);
+        DoUnexportObject(object->As<TImpl>(), destinationCellTag, importRefCounter);
     }
 
 protected:
@@ -115,18 +115,18 @@ protected:
     TObjectTypeMetadata Metadata_;
 
 
-    virtual TCellTagList DoGetReplicationCellTags(const TObject* /*object*/)
+    virtual TCellTagList DoGetReplicationCellTags(const TImpl* /*object*/)
     {
         return EmptyCellTags();
     }
 
-    virtual TString DoGetName(const TObject* object) = 0;
+    virtual TString DoGetName(const TImpl* object) = 0;
 
     virtual IObjectProxyPtr DoGetProxy(
-        TObject* object,
+        TImpl* object,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void DoDestroyObject(TObject* object)
+    virtual void DoDestroyObject(TImpl* object)
     {
         // Clear ACD, if any.
         auto* acd = FindAcd(object);
@@ -135,32 +135,32 @@ protected:
         }
     }
 
-    virtual void DoZombifyObject(TObject* /*object*/)
+    virtual void DoZombifyObject(TImpl* /*object*/)
     { }
 
-    virtual void DoUnstageObject(TObject* /*object*/, bool /*recursive*/)
+    virtual void DoUnstageObject(TImpl* /*object*/, bool /*recursive*/)
     { }
 
-    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* /*object*/)
+    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* /*object*/)
     {
         return nullptr;
     }
 
-    virtual TObjectBase* DoGetParent(TObject* /*object*/)
+    virtual TObject* DoGetParent(TImpl* /*object*/)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
 
     virtual void DoExportObject(
-        TObject* /*object*/,
+        TImpl* /*object*/,
         NObjectClient::TCellTag /*destinationCellTag*/)
     {
         YT_ABORT();
     }
 
     virtual void DoUnexportObject(
-        TObject* /*object*/,
+        TImpl* /*object*/,
         NObjectClient::TCellTag /*destinationCellTag*/,
         int /*importRefCounter*/)
     {
@@ -194,7 +194,7 @@ public:
         , Map_(map)
     { }
 
-    virtual NObjectServer::TObjectBase* FindObject(TObjectId id) override
+    virtual NObjectServer::TObject* FindObject(TObjectId id) override
     {
         return Map_->Find(id);
     }

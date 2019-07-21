@@ -51,7 +51,7 @@ public:
 public:
     explicit TLoadContext(TBootstrap* bootstrap);
 
-    NObjectServer::TObjectBase* GetWeakGhostObject(NObjectServer::TObjectId id) const;
+    NObjectServer::TObject* GetWeakGhostObject(NObjectServer::TObjectId id) const;
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;

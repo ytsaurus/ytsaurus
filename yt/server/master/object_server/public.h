@@ -38,7 +38,7 @@ DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 
-class TObjectBase;
+class TObject;
 class TNonversionedObjectBase;
 
 class TObjectProxyBase;

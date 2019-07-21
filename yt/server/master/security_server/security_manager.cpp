@@ -127,11 +127,11 @@ public:
         return EObjectType::Account;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId id) override;
+    virtual std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -174,7 +174,7 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const TObject* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -184,7 +184,7 @@ public:
         return EObjectType::User;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -228,7 +228,7 @@ public:
         return EObjectType::Group;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -868,21 +868,21 @@ public:
     }
 
 
-    TAccessControlDescriptor* FindAcd(TObjectBase* object)
+    TAccessControlDescriptor* FindAcd(TObject* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
-    TAccessControlDescriptor* GetAcd(TObjectBase* object)
+    TAccessControlDescriptor* GetAcd(TObject* object)
     {
         auto* acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -947,7 +947,7 @@ public:
 
 
     TPermissionCheckResponse CheckPermission(
-        TObjectBase* object,
+        TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
@@ -1048,7 +1048,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
@@ -1074,7 +1074,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        TObject* object,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
     {
@@ -2523,7 +2523,7 @@ private:
         void ProcessAce(
             const TAccessControlEntry& ace,
             TSubject* owner,
-            TObjectBase* object,
+            TObject* object,
             int depth)
         {
             if (!Proceed_) {
@@ -2716,7 +2716,7 @@ private:
             TPermissionCheckResult* result,
             const TAccessControlEntry& ace,
             TSubject* subject,
-            TObjectBase* object)
+            TObject* object)
         {
             if (result->Action == ESecurityAction::Deny) {
                 return;
@@ -2727,14 +2727,14 @@ private:
             result->Subject = subject;
         }
 
-        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObjectBase* object)
+        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObject* object)
         {
             result->Action = ESecurityAction::Deny;
             result->Subject = subject;
             result->Object = object;
         }
 
-        void SetDeny(TSubject* subject, TObjectBase* object)
+        void SetDeny(TSubject* subject, TObject* object)
         {
             SetDeny(&Response_, subject, object);
             if (Response_.Columns) {
@@ -2809,7 +2809,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2817,7 +2817,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     return Owner_->CreateAccount(name, hintId);
 }
 
-std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
+std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
     return std::make_unique<TAccount>(id);
 }
@@ -2842,7 +2842,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+TObject* TSecurityManager::TUserTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2871,7 +2871,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+TObject* TSecurityManager::TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -3041,17 +3041,17 @@ void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
     Impl_->RenameSubject(subject, newName);
 }
 
-TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::FindAcd(TObject* object)
 {
     return Impl_->FindAcd(object);
 }
 
-TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
 {
     return Impl_->GetAcd(object);
 }
 
-TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
+TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
 {
     return Impl_->GetEffectiveAcl(object);
 }
@@ -3082,7 +3082,7 @@ std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 }
 
 TPermissionCheckResponse TSecurityManager::CheckPermission(
-    TObjectBase* object,
+    TObject* object,
     TUser* user,
     EPermission permission,
     const TPermissionCheckOptions& options)
@@ -3108,7 +3108,7 @@ TPermissionCheckResponse TSecurityManager::CheckPermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    TObject* object,
     TUser* user,
     EPermission permission,
     const TPermissionCheckOptions& options)
@@ -3121,7 +3121,7 @@ void TSecurityManager::ValidatePermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    TObject* object,
     EPermission permission,
     const TPermissionCheckOptions& options)
 {

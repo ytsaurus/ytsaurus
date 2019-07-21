@@ -47,7 +47,7 @@ public:
             ETypeFlags::TwoPhaseRemoval;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {

@@ -4,7 +4,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase* IObjectTypeHandler::GetObject(TObjectId id)
+TObject* IObjectTypeHandler::GetObject(TObjectId id)
 {
     auto* object = FindObject(id);
     YT_VERIFY(object);

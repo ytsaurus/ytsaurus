@@ -50,7 +50,7 @@ void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescripto
 void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor);
 
 class TNode
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TNode>
 {
 public:

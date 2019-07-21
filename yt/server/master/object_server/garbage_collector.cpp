@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "object_manager.h"
+#include "type_handler.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -77,7 +78,7 @@ void TGarbageCollector::SaveKeys(NCellMaster::TSaveContext& context) const
     for (auto it : saveIterators) {
         Save(context, it->first);
         // Save only the base object part!
-        const auto& object = *static_cast<TObjectBase*>(it->second);
+        const auto& object = *static_cast<TObject*>(it->second);
         Save(context, object);
     }
 }
@@ -135,7 +136,7 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < EMasterSnapshotVersion::WeakGhostsSaveLoad ||
         (EMasterSnapshotVersion::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterSnapshotVersion::SameAsVer718ButIn19_4))
     {
-        THashSet<TObjectBase*> weakGhosts;
+        THashSet<TObject*> weakGhosts;
         for (const auto& pair : WeakGhosts_) {
             weakGhosts.insert(pair.second);
         }
@@ -166,7 +167,7 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-int TGarbageCollector::EphemeralRefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::EphemeralRefObject(TObject* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!IsRecovery());
@@ -180,7 +181,7 @@ int TGarbageCollector::EphemeralRefObject(TObjectBase* object, TEpoch epoch)
     return ephemeralRefCounter;
 }
 
-int TGarbageCollector::EphemeralUnrefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!IsRecovery());
@@ -202,7 +203,7 @@ int TGarbageCollector::EphemeralUnrefObject(TObjectBase* object, TEpoch epoch)
     return ephemeralRefCounter;
 }
 
-int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::WeakRefObject(TObject* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsAlive());
@@ -215,7 +216,7 @@ int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
     return weakRefCounter;
 }
 
-int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::WeakUnrefObject(TObject* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsTrunk());
@@ -248,7 +249,7 @@ int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
     return weakRefCounter;
 }
 
-void TGarbageCollector::RegisterZombie(TObjectBase* object)
+void TGarbageCollector::RegisterZombie(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!object->IsAlive());
@@ -262,7 +263,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
     YT_VERIFY(Zombies_.insert(object).second);
 }
 
-void TGarbageCollector::UnregisterZombie(TObjectBase* object)
+void TGarbageCollector::UnregisterZombie(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->GetObjectRefCounter() == 1);
@@ -274,7 +275,7 @@ void TGarbageCollector::UnregisterZombie(TObjectBase* object)
     }
 }
 
-void TGarbageCollector::DestroyZombie(TObjectBase* object)
+void TGarbageCollector::DestroyZombie(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -309,7 +310,7 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     }
 }
 
-TObjectBase* TGarbageCollector::GetWeakGhostObject(TObjectId id)
+TObject* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {
     auto it = WeakGhosts_.find(id);
     YT_VERIFY(it != WeakGhosts_.end());

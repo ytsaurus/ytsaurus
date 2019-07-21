@@ -48,7 +48,7 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {

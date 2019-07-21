@@ -43,37 +43,37 @@ bool IsStableLifeStage(EObjectLifeStage lifeStage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectType TObjectBase::GetType() const
+EObjectType TObject::GetType() const
 {
     return TypeFromId(Id_);
 }
 
-bool TObjectBase::IsBuiltin() const
+bool TObject::IsBuiltin() const
 {
     return IsWellKnownId(Id_);
 }
 
-int TObjectBase::GetLifeStageVoteCount() const
+int TObject::GetLifeStageVoteCount() const
 {
     return LifeStageVoteCount_;
 }
 
-void TObjectBase::ResetLifeStageVoteCount()
+void TObject::ResetLifeStageVoteCount()
 {
     LifeStageVoteCount_ = 0;
 }
 
-int TObjectBase::IncrementLifeStageVoteCount()
+int TObject::IncrementLifeStageVoteCount()
 {
     return ++LifeStageVoteCount_;
 }
 
-const TAttributeSet* TObjectBase::GetAttributes() const
+const TAttributeSet* TObject::GetAttributes() const
 {
     return Attributes_.get();
 }
 
-TAttributeSet* TObjectBase::GetMutableAttributes()
+TAttributeSet* TObject::GetMutableAttributes()
 {
     if (!Attributes_) {
         Attributes_ = std::make_unique<TAttributeSet>();
@@ -81,17 +81,17 @@ TAttributeSet* TObjectBase::GetMutableAttributes()
     return Attributes_.get();
 }
 
-void TObjectBase::ClearAttributes()
+void TObject::ClearAttributes()
 {
     Attributes_.reset();
 }
 
-int TObjectBase::GetGCWeight() const
+int TObject::GetGCWeight() const
 {
     return 10;
 }
 
-void TObjectBase::Save(NCellMaster::TSaveContext& context) const
+void TObject::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter_);
@@ -108,7 +108,7 @@ void TObjectBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, IsForeign());
 }
 
-void TObjectBase::Load(NCellMaster::TLoadContext& context)
+void TObject::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
@@ -145,7 +145,7 @@ void TNonversionedObjectBase::ValidateCreationCommitted() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObjectBase* object) const
+void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObject* object) const
 {
     FormatValue(builder, object->GetId(), TStringBuf());
 }

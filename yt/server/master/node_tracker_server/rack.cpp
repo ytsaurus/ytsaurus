@@ -8,13 +8,13 @@ namespace NYT::NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TRack::TRack(TRackId id)
-    : TObjectBase(id)
+    : TObject(id)
     , Index_(-1)
 { }
 
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -24,7 +24,7 @@ void TRack::Save(NCellMaster::TSaveContext& context) const
 
 void TRack::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);
