@@ -10,4 +10,6 @@ before_install:
 install:
   - pip install .
 
-script: ./tests/mypy_test.py
+script:
+  - ./tests/mypy_test.py
+  - MYPY_TEST_PREFIX=$PWD MYPYPATH=$PWD/third_party/3 pytest
