@@ -29,6 +29,8 @@ public:
     TQueryId InitialQueryId;
     DB::NamesAndTypesList Columns;
     NTableClient::TTableSchema ReadSchema;
+    // TODO(max42): CHYT-154.
+    NYson::TYsonString MembershipHint;
 
     void Validate() const;
 

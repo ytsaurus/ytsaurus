@@ -22,4 +22,6 @@ message TSubquerySpec
     optional NYT.NProto.TGuid initial_query_id = 4;
     repeated TNameAndTypePair columns = 5;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
+    // TODO(max42): CHYT-154.
+    optional string membership_hint = 7;
 };

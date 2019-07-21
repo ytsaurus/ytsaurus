@@ -986,3 +986,33 @@ class TestQueryRegistry(ClickHouseTestBase):
             with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
                 clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
         assert "OOM" in str(clique.op.get_error())
+
+
+class TestJoins(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_global_join(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "c", "type": "int64"}, {"name": "d", "type": "string"}]})
+        create("table", "//tmp/t3", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "e", "type": "double"}]})
+        write_table("//tmp/t1", [{"a": 42, "b": "qwe"}, {"a": 27, "b": "xyz"}])
+        write_table("//tmp/t2", [{"c": 42, "d": "asd"}, {"c": -1, "d": "xyz"}])
+        write_table("//tmp/t3", [{"a": 42, "e": 3.14}, {"a": 27, "e": 2.718}])
+        with Clique(1) as clique:
+            expected = [{"a": 42, "b": "qwe", "c": 42, "d": "asd"}]
+            assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on a = c") == expected
+            # TODO(max42): uncomment next line when https://github.com/yandex/ClickHouse/issues/5976 is fixed.
+            # assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on c = a") == expected
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t2\" t2 on t1.a = t2.c") == expected
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t2\" t2 on t2.c = t1.a") == expected
+
+            expected_on = [{"a": 27, "b": "xyz", "t3.a": 27, "e": 2.718},
+                           {"a": 42, "b": "qwe", "t3.a": 42, "e": 3.14}]
+            expected_using = [{"a": 27, "b": "xyz", "e": 2.718},
+                              {"a": 42, "b": "qwe", "e": 3.14}]
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 using a order by a") == expected_using
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by a") == expected_on
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by a") == expected_on
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by t1.a") == expected_on
+            assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
