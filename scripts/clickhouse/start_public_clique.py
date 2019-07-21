@@ -35,6 +35,7 @@ def start_clique(bin_path, clique_type, prev_operation_id=None):
         enable_monitoring=True,
         enable_query_log=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
+        core_table_path="//home/max42/core_table_" + clique_type,
         cypress_ytserver_clickhouse_path=bin_path,
         spec={
             "acl": [{
