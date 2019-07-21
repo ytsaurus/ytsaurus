@@ -70,7 +70,7 @@ namespace DB {
 
 /////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const ASTPtr& ast);
+TString ToString(const DB::IAST& ast);
 
 void Serialize(const DB::QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
 

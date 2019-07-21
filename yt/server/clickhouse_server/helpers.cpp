@@ -26,6 +26,7 @@
 #include <Storages/MergeTree/KeyCondition.h>
 #include <Storages/ColumnsDescription.h>
 #include <Parsers/IAST.h>
+#include <Parsers/formatAST.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -273,11 +274,9 @@ namespace DB {
 
 /////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const ASTPtr& ast)
+TString ToString(const IAST& ast)
 {
-    std::stringstream stream;
-    ast->format(IAST::FormatSettings(stream, true /* one_line */));
-    return TString(stream.str());
+    return TString(DB::serializeAST(ast, true));
 }
 
 TString ToString(const NameSet& nameSet)

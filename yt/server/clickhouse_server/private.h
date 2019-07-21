@@ -117,6 +117,7 @@ class IExternalLoaderConfigRepository;
 class IRuntimeComponentsFactory;
 struct ProcessListForUser;
 struct QueryStatusInfo;
+class IAST;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);

@@ -4,6 +4,8 @@
 #include "type_helpers.h"
 #include "subquery.h"
 #include "query_context.h"
+#include "subquery_spec.h"
+#include "join_workaround.h"
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
@@ -18,6 +20,8 @@
 #include <Storages/StorageMemory.h>
 #include <TableFunctions/ITableFunction.h>
 #include <TableFunctions/TableFunctionFactory.h>
+
+#include <library/string_utils/base64/base64.h>
 
 #include <string>
 
@@ -79,8 +83,10 @@ public:
         return name;
     }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
+    virtual StoragePtr execute(const ASTPtr& functionAst, const Context& context, IAST * queryAst) const override
     {
+        const auto& Logger = GetQueryContext(context)->Logger;
+
         const char* err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
 
         auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
@@ -95,13 +101,27 @@ public:
 
         args[0] = evaluateConstantExpressionAsLiteral(args[0], context);
 
-        auto subquerySpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+        auto base64EncodedSpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+        auto protoSpecString = Base64Decode(base64EncodedSpec);
+        NProto::TSubquerySpec protoSpec;
+        protoSpec.ParseFromString(protoSpecString);
+        auto subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
+
+        if (queryAst) {
+            try {
+                ApplyMembershipHint(*queryAst, subquerySpec.MembershipHint, Logger);
+            } catch (std::exception& ex) {
+                YT_LOG_ERROR(ex, "Error while applying membership hint");
+            }
+        } else {
+            YT_LOG_INFO("Query AST is not available, ignoring membership hint");
+        }
 
         return Execute(context, std::move(subquerySpec));
     }
 
 private:
-    StoragePtr Execute(const Context& context, std::string subquerySpec) const
+    StoragePtr Execute(const Context& context, TSubquerySpec subquerySpec) const
     {
         auto* queryContext = GetQueryContext(context);
 

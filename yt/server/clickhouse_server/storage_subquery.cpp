@@ -29,8 +29,6 @@
 #include <Interpreters/Context.h>
 #include <Storages/IStorage.h>
 
-#include <library/string_utils/base64/base64.h>
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -47,14 +45,10 @@ class TStorageSubquery
 public:
     TStorageSubquery(
         TQueryContext* queryContext,
-        std::string subquerySpec)
+        TSubquerySpec subquerySpec)
         : QueryContext_(queryContext)
+        , SubquerySpec_(std::move(subquerySpec))
     {
-        auto base64DecodedSpec = Base64Decode(subquerySpec);
-        NProto::TSubquerySpec protoSpec;
-        protoSpec.ParseFromString(base64DecodedSpec);
-        SubquerySpec_ = NYT::FromProto<TSubquerySpec>(protoSpec);
-
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
         }
@@ -211,7 +205,7 @@ private:
 
 StoragePtr CreateStorageSubquery(
     TQueryContext* queryContext,
-    std::string subquerySpec)
+    TSubquerySpec subquerySpec)
 {
     return std::make_shared<TStorageSubquery>(
         queryContext,

@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
+#include "join_workaround.h"
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
@@ -71,6 +72,9 @@ BlockInputStreams TStorageDistributedBase::read(
 
     BlockInputStreams streams;
 
+    // TODO(max42): CHYT-154.
+    SpecTemplate.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
+
     for (int index = 0; index < static_cast<int>(StripeList->Stripes.size()); ++index) {
         const auto& stripe = StripeList->Stripes[index];
         const auto& clusterNode = clusterNodes[index];
@@ -80,9 +84,9 @@ BlockInputStreams TStorageDistributedBase::read(
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
 
-        YT_LOG_DEBUG("Rewriting query (OriginalQuery: %v)", queryInfo.query);
+        YT_LOG_DEBUG("Rewriting query (OriginalQuery: %v)", *queryInfo.query);
         auto subqueryAst = RewriteSelectQueryForTablePart(queryInfo.query, encodedSpec);
-        YT_LOG_DEBUG("Query rewritten (Subquery: %v)", subqueryAst);
+        YT_LOG_DEBUG("Query rewritten (Subquery: %v)", *subqueryAst);
 
         bool isLocal = clusterNode->IsLocal();
         // XXX(max42): weird workaround.
