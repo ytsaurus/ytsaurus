@@ -200,7 +200,7 @@ public:
     public:
         static constexpr int MaxSingleSubbatchSize = 100;
 
-        //! Runs asynchronous invocation
+        //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
         TReqExecuteBatchPtr SetTimeout(std::optional<TDuration> timeout);
@@ -252,7 +252,7 @@ public:
         : public TReqExecuteBatchBase
     {
     public:
-        //! Runs asynchronous invocation
+        //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
         TReqExecuteBatchWithRetriesPtr SetTimeout(std::optional<TDuration> timeout);
@@ -284,6 +284,7 @@ public:
 
         void Initialize();
         void OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr);
+        void OnRetryDelayFinished();
         bool IsRetryNeeded(const TError& err);
         TDuration GetCurrentDelay();
 
@@ -368,7 +369,7 @@ public:
         const std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
         std::vector<std::pair<int, int>> PartRanges_;
-        std::vector<i64> Revisions_;
+        std::vector<ui64> Revisions_;
 
         explicit TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
