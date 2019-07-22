@@ -5,6 +5,7 @@ from .helpers import TEST_DIR, set_config_option, set_config_options, failing_he
 from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
 from yt.packages.six import PY3
+from yt.wrapper import heavy_commands
 
 import yt.wrapper as yt
 
@@ -143,7 +144,7 @@ class TestFileCommands(object):
         chunks_generator = (chunk for chunk in chunks)
 
         file_path = TEST_DIR + "/file"
-        with failing_heavy_request(n_fails=2, assert_exhausted=True):
+        with failing_heavy_request(heavy_commands, n_fails=2, assert_exhausted=True):
             yt.write_file(file_path, chunks_generator)
 
         assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
@@ -162,7 +163,7 @@ class TestFileCommands(object):
                 chunks_generator = (chunk for chunk in chunks)
 
                 file_path = TEST_DIR + "/file"
-                with failing_heavy_request(n_fails=2, assert_exhausted=True):
+                with failing_heavy_request(heavy_commands, n_fails=2, assert_exhausted=True):
                     yt.write_file(file_path, chunks_generator)
 
                 assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
