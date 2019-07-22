@@ -62,14 +62,6 @@ private:
         auto mutationId = context->GetMutationId();
         const auto& user = context->GetUser();
 
-        IMapNodePtr spec;
-        try {
-            spec = ConvertToNode(TYsonString(request->spec()))->AsMap();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
-
         context->SetRequestInfo("Type: %v, TransactionId: %v, User: %v",
             type,
             transactionId,
@@ -82,12 +74,15 @@ private:
             return;
         }
 
+        auto parseSpecResult = WaitFor(scheduler->ParseSpec(TYsonString(request->spec())))
+            .ValueOrThrow();
+
         auto asyncResult = scheduler->StartOperation(
             type,
             transactionId,
             mutationId,
-            spec,
-            user);
+            user,
+            std::move(parseSpecResult));
 
         auto operation = WaitFor(asyncResult)
             .ValueOrThrow();
