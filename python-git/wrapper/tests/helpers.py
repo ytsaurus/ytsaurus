@@ -11,6 +11,7 @@ import yt.subprocess_wrapper as subprocess
 
 from yt.wrapper.errors import YtRetriableError
 import yt.wrapper.heavy_commands as heavy_commands
+import yt.wrapper.transaction_commands as transaction_commands
 import yt.wrapper as yt
 
 try:
@@ -25,6 +26,7 @@ import shutil
 import sys
 import stat
 import tempfile
+import threading
 from contextlib import contextmanager
 from copy import deepcopy
 
@@ -239,24 +241,26 @@ def create_job_events():
     return JobEvents(tmpdir)
 
 @contextmanager
-def failing_heavy_request(n_fails, assert_exhausted=True):
-    make_transactional_request = heavy_commands._make_transactional_request
+def failing_heavy_request(module, n_fails, assert_exhausted=True):
+    make_transactional_request = module._make_transactional_request
     fail_state = dict(fails_left=n_fails, exhausted=False)
+    lock = threading.Lock()
 
     def failing_make_transactional_request(*args, **kwargs):
-        if fail_state["fails_left"] > 0:
-            list(kwargs["data"])  # exhaust data generator
-            fail_state["fails_left"] -= 1
-            raise YtRetriableError
-        else:
-            fail_state["exhausted"] = True
-            return make_transactional_request(*args, **kwargs)
+        with lock:
+            if fail_state["fails_left"] > 0:
+                list(kwargs["data"])  # exhaust data generator
+                fail_state["fails_left"] -= 1
+                raise YtRetriableError
+            else:
+                fail_state["exhausted"] = True
+        return make_transactional_request(*args, **kwargs)
 
-    heavy_commands._make_transactional_request = failing_make_transactional_request
+    module._make_transactional_request = failing_make_transactional_request
     try:
         yield
     finally:
-        heavy_commands._make_transactional_request = make_transactional_request
+        module._make_transactional_request = make_transactional_request
 
     if assert_exhausted:
         assert fail_state["exhausted"]
