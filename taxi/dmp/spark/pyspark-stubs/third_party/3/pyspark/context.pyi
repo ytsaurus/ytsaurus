@@ -9,6 +9,7 @@ from pyspark.accumulators import Accumulator, AccumulatorParam
 from pyspark.broadcast import Broadcast
 from pyspark.conf import SparkConf
 from pyspark.profiler import Profiler
+from pyspark.resourceinformation import ResourceInformation
 from pyspark.rdd import RDD
 from pyspark.serializers import Serializer
 from pyspark.status import StatusTracker
@@ -71,3 +72,5 @@ class SparkContext:
     def show_profiles(self) -> None: ...
     def dump_profiles(self, path: str) -> None: ...
     def getConf(self) -> SparkConf: ...
+    @property
+    def resources(self) -> Dict[str, ResourceInformation]: ...
