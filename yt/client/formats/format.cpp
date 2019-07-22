@@ -7,7 +7,7 @@
 #include "schemaful_dsv_parser.h"
 #include "schemaful_dsv_writer.h"
 #include "schemaful_writer.h"
-#include "schemaless_web_json_writer.h"
+#include "web_json_writer.h"
 #include "schemaless_writer_adapter.h"
 #include "skiff_parser.h"
 #include "skiff_writer.h"
@@ -262,14 +262,15 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, std::move(output));
         case EFormatType::WebJson: {
-            auto webJsonFormatConfig = ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&format.Attributes());
+            auto webJsonFormatConfig = ConvertTo<TWebJsonFormatConfigPtr>(&format.Attributes());
             webJsonFormatConfig->SkipSystemColumns = false;
 
-            return CreateSchemalessWriterForWebJson(
+            return CreateWriterForWebJson(
                 std::move(webJsonFormatConfig),
-                std::move(output),
                 // WebJson expects that columns are unique, SafeFromSchema checks this fact.
-                TNameTable::SafeFromSchema(schema));
+                TNameTable::SafeFromSchema(schema),
+                std::vector<TTableSchema>{schema},
+                std::move(output));
         }
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
@@ -348,10 +349,11 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
                 controlAttributesConfig,
                 keyColumnCount);
         case EFormatType::WebJson:
-            return CreateSchemalessWriterForWebJson(
+            return CreateWriterForWebJson(
                 format.Attributes(),
-                std::move(output),
-                nameTable);
+                nameTable,
+                tableSchemas,
+                std::move(output));
         case EFormatType::Skiff:
             return CreateWriterForSkiff(
                 format.Attributes(),
