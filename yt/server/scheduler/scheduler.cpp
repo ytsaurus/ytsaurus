@@ -527,12 +527,19 @@ public:
             .ThrowOnError();
     }
 
+    TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
+    {
+        return BIND(&TImpl::DoParseSpec, MakeStrong(this), Passed(std::move(specString)), SpecTemplate_)
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+    }
+
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         TTransactionId transactionId,
         TMutationId mutationId,
-        IMapNodePtr specNode,
-        const TString& user)
+        const TString& user,
+        TParseOperationSpecResult parseSpecResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -543,17 +550,8 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        if (Config_->SpecTemplate) {
-            specNode = PatchNode(Config_->SpecTemplate, specNode)->AsMap();
-        }
-
-        TOperationSpecBasePtr spec;
-        try {
-            spec = ConvertTo<TOperationSpecBasePtr>(specNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
+        auto spec = parseSpecResult.Spec;
+        auto specNode = parseSpecResult.SpecNode;
 
         auto secureVault = std::move(spec->SecureVault);
         specNode->RemoveChild("secure_vault");
@@ -1244,6 +1242,8 @@ private:
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
+    NYTree::INodePtr SpecTemplate_;
+
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
 
@@ -1324,6 +1324,32 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+
+    TParseOperationSpecResult DoParseSpec(TYsonString specString, INodePtr specTemplate) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TParseOperationSpecResult result;
+        try {
+            result.SpecNode = ConvertToNode(specString)->AsMap();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
+        }
+
+        if (specTemplate) {
+            result.SpecNode = PatchNode(specTemplate, result.SpecNode)->AsMap();
+        }
+
+        try {
+            result.Spec = ConvertTo<TOperationSpecBasePtr>(result.SpecNode);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
+        }
+
+        return result;
+    }
 
     void DoAttachJobContext(
         const NYTree::TYPath& path,
@@ -1916,6 +1942,8 @@ private:
 
             Config_ = newConfig;
             ValidateConfig();
+
+            SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
             for (const auto& nodeShard : NodeShards_) {
                 nodeShard->GetInvoker()->Invoke(
@@ -3489,19 +3517,24 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
     return Impl_->GetOperationOrThrow(idOrAlias);
 }
 
+TFuture<TParseOperationSpecResult> TScheduler::ParseSpec(TYsonString specString) const
+{
+    return Impl_->ParseSpec(std::move(specString));
+}
+
 TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     TTransactionId transactionId,
     TMutationId mutationId,
-    IMapNodePtr spec,
-    const TString& user)
+    const TString& user,
+    TParseOperationSpecResult parseSpecResult)
 {
     return Impl_->StartOperation(
         type,
         transactionId,
         mutationId,
-        spec,
-        user);
+        user,
+        std::move(parseSpecResult));
 }
 
 TFuture<void> TScheduler::AbortOperation(
