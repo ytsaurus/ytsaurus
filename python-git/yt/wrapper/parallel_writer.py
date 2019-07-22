@@ -30,15 +30,20 @@ class _ParallelProgressReporter(object):
 
     def wrap_stream(self, stream):
         for substream in stream:
-            if isinstance(substream, list):
-                yield list(self._wrap_substream(substream))
-            else:
-                yield self._wrap_substream(substream)
+            yield _SubstreamWrapper(substream, self._update)
 
-    def _wrap_substream(self, substream):
-        for chunk in substream:
-            with self._lock:
-                self._monitor.update(len(chunk))
+    def _update(self, size):
+        with self._lock:
+            self._monitor.update(size)
+
+class _SubstreamWrapper(object):
+    def __init__(self, substream, update):
+        self._substream = substream
+        self._update = update
+
+    def __iter__(self):
+        for chunk in self._substream:
+            self._update(len(chunk))
             yield chunk
 
 class ParallelWriter(object):

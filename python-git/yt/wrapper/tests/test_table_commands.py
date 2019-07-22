@@ -7,6 +7,7 @@ import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import MB
+from yt.wrapper import heavy_commands, parallel_writer
 
 from yt.yson import YsonMap
 
@@ -720,29 +721,37 @@ class TestTableCommands(object):
         table_path = TEST_DIR + "/table"
         yt.create("table", table_path)
 
-        with failing_heavy_request(n_fails=2, assert_exhausted=True):
+        with failing_heavy_request(heavy_commands, n_fails=2, assert_exhausted=True):
             yt.write_table(table_path, rows_generator)
 
         check(rows, yt.read_table(table_path))
 
-    def test_write_big_table_retries(self):
-        with set_config_option("write_retries/chunk_size", 3 * MB):
-            with set_config_option("proxy/content_encoding", "identity"):
-                string_length = 4 * MB
-                rows = [
-                    {"x": "1" * string_length},
-                    {"x": "2" * string_length},
-                    {"x": "3" * string_length},
-                    {"x": "4" * string_length},
-                    {"x": "5" * string_length},
-                ]
+    @pytest.mark.parametrize("parallel,progress_bar", [(False, False), (True, False), (False, True),
+                                                       (True, True)])
+    def test_write_big_table_retries(self, parallel, progress_bar):
+        with set_config_option("write_parallel/enable", parallel):
+            with set_config_option("write_progress_bar/enable", progress_bar):
+                with set_config_option("write_retries/chunk_size", 3 * MB):
+                    string_length = 4 * MB
+                    rows = [
+                        {"x": "1" * string_length},
+                        {"x": "2" * string_length},
+                        {"x": "3" * string_length},
+                        {"x": "4" * string_length},
+                        {"x": "5" * string_length},
+                    ]
 
-                rows_generator = (row for row in rows)
+                    rows_generator = (row for row in rows)
 
-                table_path = TEST_DIR + "/table"
-                yt.create("table", table_path)
+                    table_path = TEST_DIR + "/table"
+                    yt.create("table", table_path)
 
-                with failing_heavy_request(n_fails=2, assert_exhausted=True):
-                    yt.write_table(table_path, rows_generator)
+                    if parallel:
+                        module = parallel_writer
+                    else:
+                        module = heavy_commands
 
-                check(rows, yt.read_table(table_path))
+                    with failing_heavy_request(module, n_fails=2, assert_exhausted=True):
+                        yt.write_table(table_path, rows_generator)
+
+                    check(rows, yt.read_table(table_path))
