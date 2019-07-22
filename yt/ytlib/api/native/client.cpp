@@ -4614,7 +4614,7 @@ private:
 
         try {
             TGetJobOptions options;
-            options.Attributes = {"address"};
+            options.Attributes = {TString("address")};
             // TODO(ignat): support structured return value in GetJob.
             auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
                 .ValueOrThrow();
