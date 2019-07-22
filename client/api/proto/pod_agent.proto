@@ -302,6 +302,8 @@ message TVolume {
 // step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1) для workload stop и workload destroy
 // и max(0, ConsecutiveSuccessesCounter - 1) для всех остальных хуков: workload readiness, workload liveness, workload init
 message TTimeLimit {
+    // Если равен 0, то будет интерпретироваться как 5000 для workload readiness/liveness
+    // Для остальных контейнеров остается без изменений
     uint64 initial_delay_ms = 1;
     uint64 restart_period_scale_ms = 2;
     uint64 restart_period_back_off = 3;
