@@ -152,7 +152,6 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
 
-        YT_LOG_ERROR("XXX Memory watchdog period (Period: %v)", Config_->MemoryWatchdog->Period);
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::CheckMemoryUsage, MakeWeak(this)),
