@@ -100,7 +100,7 @@ bool IsSubtypeOf(const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs);
 // Function converts new type to old typesystem if possible.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType
 // if logicalType is either T or optional<T> and T is simple. Otherwise the first element of result is nullopt.
-// The second element of resut is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
+// The second element of result is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType);
 
 // Returns copy of the logical type with all tagged types replaces with its elements.
