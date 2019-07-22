@@ -13,7 +13,6 @@ namespace NYT::NObjectClient {
 
 using namespace NYTree;
 using namespace NRpc;
-using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,7 +204,7 @@ TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
     : TReqExecuteSubbatch(other)
 { }
 
-TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(NYT::NRpc::IChannelPtr channel)
+TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(IChannelPtr channel)
     : TReqExecuteSubbatch(std::move(channel))
 { }
 
@@ -257,7 +256,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
-    const NYT::NYTree::TYPathRequestPtr& innerRequest,
+    const TYPathRequestPtr& innerRequest,
     std::optional<TString> key,
     std::optional<size_t> hash)
 {
@@ -267,7 +266,7 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
-    NYT::TSharedRefArray innerRequestMessage,
+    TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     std::optional<TString> key,
     std::optional<size_t> hash)
@@ -405,7 +404,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr TObjectServiceProxy::TReqExe
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequest(
-    const NYT::NYTree::TYPathRequestPtr& innerRequest,
+    const TYPathRequestPtr& innerRequest,
     std::optional<TString> key,
     std::optional<size_t> hash)
 {
@@ -415,7 +414,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequest(
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequestMessage(
-    NYT::TSharedRefArray innerRequestMessage,
+    TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     std::optional<TString> key,
     std::optional<size_t> hash)
@@ -425,7 +424,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequestMessage(
 }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
-    NYT::NRpc::IChannelPtr channel,
+    IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config,
     TCallback<bool(int, const TError&)> needRetry)
     : TReqExecuteBatchBase(std::move(channel))
@@ -434,7 +433,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
 { }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
-    NYT::NRpc::IChannelPtr channel,
+    IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config)
     : TReqExecuteBatchBase(std::move(channel))
     , Config_(std::move(config))
@@ -475,8 +474,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::InvokeNextBatch()
     CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse, MakeStrong(this)));
 }
 
-void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(
-    const NYT::TErrorOr<NYT::NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> &batchRspOrErr)
+void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr)
 {
     if (!batchRspOrErr.IsOK()) {
         FullResponsePromise_.Set(batchRspOrErr);
@@ -490,7 +488,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
         const auto& rspOrErr = batchRsp->GetResponse(i);
         if (CurrentRetry_ < Config_->RetryCount && NeedRetry_(rspOrErr)) {
-            // Building new indexes vector in-place to avoid new allocations
+            // Building new indexes vector in-place to avoid new allocations.
             PendingIndexes_[retryCount++] = PendingIndexes_[i];
         } else {
             FullResponse_->Insert(batchRsp, i, PendingIndexes_[i]);
@@ -504,13 +502,18 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(
 
     PendingIndexes_.resize(retryCount);
 
-    ::Sleep(GetCurrentDelay());
-    ++CurrentRetry_;
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished, MakeStrong(this)),
+        GetCurrentDelay());
+}
 
+void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished()
+{
+    ++CurrentRetry_;
     InvokeNextBatch();
 }
 
-TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationId(const NYT::TSharedRefArray& message)
+TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationId(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(ParseRequestHeader(message, &header));
@@ -518,7 +521,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationI
     return SetRequestHeader(message, header);
 }
 
-bool TObjectServiceProxy::TReqExecuteBatchWithRetries::IsRetryNeeded(const NYT::TError& error)
+bool TObjectServiceProxy::TReqExecuteBatchWithRetries::IsRetryNeeded(const TError& error)
 {
     for (auto errorCode : Config_->RetriableErrorCodes) {
         if (error.FindMatching(errorCode)) {
@@ -655,7 +658,7 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(c
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
+std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -695,7 +698,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
-TObjectServiceProxy::ExecuteBatchWithRetries(NYT::NObjectClient::TReqExecuteBatchWithRetriesConfigPtr config)
+TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config)
 {
     return New<TReqExecuteBatchWithRetries>(Channel_, std::move(config))
         ->SetTimeout(DefaultTimeout_);
@@ -703,7 +706,7 @@ TObjectServiceProxy::ExecuteBatchWithRetries(NYT::NObjectClient::TReqExecuteBatc
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::ExecuteBatchWithRetries(
-    NYT::NObjectClient::TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchWithRetriesConfigPtr config,
     TCallback<bool(int, const TError&)> needRetry)
 {
     return New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry))
