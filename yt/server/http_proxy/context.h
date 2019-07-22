@@ -110,8 +110,6 @@ private:
     void ReplyFakeError(const TString& message);
 
     void OnOutputParameters();
-
-    void DetectMarketBugAndCrash();
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)
