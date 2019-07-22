@@ -694,6 +694,22 @@ int TCompositeSchedulerElement::EnumerateElements(int startIndex, TUpdateFairSha
     return startIndex;
 }
 
+void TCompositeSchedulerElement::DisableNonAliveElements()
+{
+    std::vector<TSchedulerElementPtr> childrenToDisable;
+    for (const auto& child : EnabledChildren_) {
+        if (!child->IsAlive()) {
+            childrenToDisable.push_back(child);
+        }
+    }
+    for (const auto& child : childrenToDisable) {
+        DisableChild(child);
+    }
+    for (const auto& child : EnabledChildren_) {
+        child->DisableNonAliveElements();
+    }
+}
+
 void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
@@ -2253,6 +2269,9 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
     return Spec_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
 }
 
+void TOperationElement::DisableNonAliveElements()
+{ }
+
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList)
 {
     YT_VERIFY(Mutable_);
@@ -3050,6 +3069,9 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
 {
     YT_VERIFY(Mutable_);
 
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
     TCompositeSchedulerElement::Update(dynamicAttributesList, context);

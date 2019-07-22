@@ -235,6 +235,8 @@ public:
     int GetTreeIndex() const;
     void SetTreeIndex(int treeIndex);
 
+    virtual void DisableNonAliveElements() = 0;
+
     virtual void MarkUnmutable();
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
@@ -406,7 +408,9 @@ public:
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-    virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context) override;
+	virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context) override;
+
+    virtual void DisableNonAliveElements() override;
 
     virtual void MarkUnmutable() override;
 
@@ -759,6 +763,8 @@ public:
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
+
+    virtual void DisableNonAliveElements() override;
 
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetMinSharePreemptionTimeout() const override;
