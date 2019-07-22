@@ -669,6 +669,9 @@ enum EBoxState {
 
     // Ждет пока заимпортятся статические ресурсы
     EBoxState_WAITING_FOR_STATIC_RESOURCES = 10 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_static_resources"];
+
+    // В процессе сборки root container
+    EBoxState_CREATING_ROOT_CONTAINER = 11 [(NYT.NYson.NProto.enum_value_name) = "creating_root_container"];
 }
 
 // Q: Почему нет DEBUG состояния, чтобы поотлаживать упавшую джобу
