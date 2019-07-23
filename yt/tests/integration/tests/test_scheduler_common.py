@@ -4331,6 +4331,7 @@ class TestContainerCpuLimit(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    @flaky(max_runs=3)
     def test_container_cpu_limit(self):
         op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
                                               "job_count": 1,
