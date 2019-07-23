@@ -474,7 +474,8 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
-    def start(self, use_proxy_from_package=True, use_new_proxy=False, start_secondary_master_cells=False, on_masters_started_func=None):
+    # COMPAT(ignat): remove use_new_proxy.
+    def start(self, use_proxy_from_package=True, use_new_proxy=True, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
 
@@ -1247,7 +1248,7 @@ class YTInstance(object):
                    "-c", self.config_paths["http_proxy"][0]],
                    "http_proxy")
 
-    def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
+    def start_proxy(self, use_proxy_from_package, use_new_proxy=True, sync=True):
         logger.info("Starting proxy")
         if use_new_proxy or which("ytserver-http-proxy"):
             for index in xrange(len(self.config_paths["http_proxy"])):

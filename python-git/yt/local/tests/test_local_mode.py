@@ -100,7 +100,6 @@ if yatest_common is not None:
 def local_yt(*args, **kwargs):
     environment = None
     try:
-        kwargs["use_new_proxy"] = True
         environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
     finally:
@@ -170,7 +169,7 @@ class TestLocalMode(object):
         scheduler_count = 4
 
         with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, start_proxy=True, use_new_proxy=True) as lyt:
+                      scheduler_count=scheduler_count, start_proxy=True) as lyt:
             path = lyt.path
             logs_path = lyt.logs_path
 
@@ -224,7 +223,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config, use_new_proxy=True) as environment:
+        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -318,7 +317,7 @@ class TestLocalMode(object):
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
     def test_use_context_manager(self):
-        with yt_local.LocalYt(id=_get_id("test_use_context_manager"), use_new_proxy=True) as client:
+        with yt_local.LocalYt(id=_get_id("test_use_context_manager")) as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -339,7 +338,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-        with yt_local.LocalYt(path="test_path", use_new_proxy=True):
+        with yt_local.LocalYt(path="test_path"):
             pass
 
     def test_local_cypress_synchronization(self):
