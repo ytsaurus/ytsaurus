@@ -617,9 +617,6 @@ void TObjectServiceProxy::TRspExecuteBatch::Insert(
     int batchSubresponseIndex,
     int resultSubpresponseIndex)
 {
-    YT_VERIFY(
-        PartRanges_.empty() && Attachments_.empty() ||
-        PartRanges_.back().second == Attachments_.size());
     YT_VERIFY(resultSubpresponseIndex < GetSize());
 
     auto range = batchResponse->PartRanges_[batchSubresponseIndex];
