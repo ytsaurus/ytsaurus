@@ -112,7 +112,7 @@ private:
     void Cleanup()
     {
         auto startTime = TInstant::Now();
-        YT_LOG_DEBUG("Running tracing cleanup interation");
+        YT_LOG_DEBUG("Running tracing cleanup iteration");
         auto batch = EventQueue_.DequeueAll();
 
         auto traceDir = GetEnv("YT_TRACE_DUMP_DIR", "");
@@ -124,13 +124,13 @@ private:
             for (const auto& traceContext : batch) {
                 ToProto(protoBatch.add_spans(), traceContext);
             }
-            
+
             YT_LOG_DEBUG("Dumping tracing to file (Filename: %Qv, BatchSize: %v)",
                 traceFileName,
                 batch.size());
             TString batchDump;
             protoBatch.SerializeToString(&batchDump);
-            
+
             TFileOutput output(TFile::ForAppend(traceFileName));
             output << batchDump;
             output.Finish();
@@ -143,7 +143,7 @@ private:
         YT_LOG_DEBUG("Collected %v traces", batch.size());
         auto duration = TInstant::Now() - startTime;
         if (duration > Config_->CleanupPeriod) {
-            YT_LOG_WARNING("Trace cleanup interation took %v; disabling trace collection",
+            YT_LOG_WARNING("Trace cleanup iteration took %v; disabling trace collection",
                 duration);
             Enabled_ = false;
         } else {
