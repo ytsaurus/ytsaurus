@@ -24,6 +24,7 @@ struct TParseOperationSpecResult
 {
     TOperationSpecBasePtr Spec;
     NYTree::IMapNodePtr SpecNode;
+    NYson::TYsonString SpecString;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

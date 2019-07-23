@@ -239,7 +239,7 @@ public:
         return Controller_;
     }
 
-    virtual NYTree::IMapNodePtr GetSpec() const override
+    virtual const NYson::TYsonString& GetSpec() const override
     {
         YT_ABORT();
     }
