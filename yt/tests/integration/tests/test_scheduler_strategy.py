@@ -255,9 +255,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait_breakpoint()
 
-        assert are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0)
-        assert are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0)
-        assert are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0)
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
 
         op3 = map(
             dont_track=True,
@@ -268,8 +268,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         time.sleep(1)
 
-        assert are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0)
-        assert are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0)
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
 
         release_breakpoint()
         op1.track()
@@ -307,7 +307,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait_breakpoint()
 
         resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage".format(op.id))
-        assert are_almost_equal(resource_usage["cpu"], 3 * 0.87)
+        wait(lambda: are_almost_equal(resource_usage["cpu"], 3 * 0.87))
 
         release_breakpoint()
         op.track()
