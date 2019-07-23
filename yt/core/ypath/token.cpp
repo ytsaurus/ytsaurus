@@ -30,7 +30,7 @@ int ParseListIndex(TStringBuf token)
     try {
         return FromString<int>(token);
     } catch (const std::exception&) {
-        THROW_ERROR_EXCEPTION("Invalid list index: %v",
+        THROW_ERROR_EXCEPTION("Invalid list index %Qv",
             token);
     }
 }
