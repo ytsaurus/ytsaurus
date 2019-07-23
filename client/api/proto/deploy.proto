@@ -3,8 +3,10 @@ syntax = "proto3";
 package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
 
 import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/data_model.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
@@ -44,4 +46,10 @@ message TClusterDeployStatus
 {
     TDeployStatusDetails details = 1;
     string pod_set_id = 2;
+}
+
+message TPodTemplateSpec
+{
+    TPodSpec spec = 1;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 2;
 }

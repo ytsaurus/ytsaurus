@@ -3,7 +3,6 @@ syntax = "proto3";
 package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt/core/ytree/proto/attributes.proto";
 
 import "yp/client/api/proto/conditions.proto";
 import "yp/client/api/proto/data_model.proto";
@@ -29,12 +28,6 @@ message TReplicaSetSpec
 {
     string revision_id = 1 [(NYP.NClient.NApi.NProto.etc) = true];
     uint32 replica_count = 2 [(NYP.NClient.NApi.NProto.etc) = true];
-
-    message TPodTemplateSpec
-    {
-        TPodSpec spec = 1;
-        NYT.NYTree.NProto.TAttributeDictionary labels = 2;
-    }
 
     TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.etc) = true];
 
