@@ -1242,11 +1242,9 @@ void GroupOpHelper(
             flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
 
             closure.GroupedRows.clear();
-            closure.Buffer->Clear();
         } else if(Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
             closure.GroupedRows.clear();
-            closure.Buffer->Clear();
         }
 
         lookup.clear();
