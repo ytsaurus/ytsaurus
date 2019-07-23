@@ -5,6 +5,7 @@ from yp.local import ACTUAL_DB_VERSION, INITIAL_DB_VERSION
 from yp.common import YtError
 
 from yt.wrapper import ypath_join
+from yt.wrapper.errors import YtTabletNotMounted
 
 import pytest
 
@@ -130,6 +131,78 @@ class TestAdminCli(object):
 
         tables = os.listdir(os.path.join(dump_dir_path, "tables"))
         assert all(x in tables for x in ("pods", "resources", "groups"))
+
+
+@pytest.mark.usefixtures("yp_env_unfreezenable")
+class TestAdminCliFreezeUnfreeze(object):
+    LOCAL_YT_OPTIONS = ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS
+
+    def test_freeze_unfreeze(self, yp_env_unfreezenable):
+        yp_client = yp_env_unfreezenable.yp_client
+        cli = YpAdminCli()
+
+        pod_set_id = yp_client.create_object("pod_set")
+        output = cli.check_output([
+            "freeze-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_unfreezenable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        with pytest.raises(YtTabletNotMounted):
+            yp_client.create_object("pod_set")
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/meta/id"])[0] == pod_set_id
+
+        output = cli.check_output([
+            "unfreeze-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_unfreezenable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/meta/id"])[0] == pod_set_id
+        # Verify that write request after unfreeze-db is working
+        yp_client.create_object("pod_set")
+
+    def test_mount_freeze(self, yp_env_unfreezenable):
+        yp_client = yp_env_unfreezenable.yp_client
+        cli = YpAdminCli()
+
+        pod_set_id = yp_client.create_object("pod_set")
+        output = cli.check_output([
+            "unmount-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_unfreezenable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        with pytest.raises(YtTabletNotMounted):
+            yp_client.create_object("pod_set")
+        with pytest.raises(YtTabletNotMounted):
+            yp_client.get_object("pod_set", pod_set_id, selectors=["/meta/id"])[0]
+
+        output = cli.check_output([
+            "mount-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_unfreezenable),
+            "--yp-path", "//yp",
+            "--freeze"
+        ])
+        assert output == ""
+
+        with pytest.raises(YtTabletNotMounted):
+            yp_client.create_object("pod_set")
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/meta/id"])[0] == pod_set_id
+
+        output = cli.check_output([
+            "unfreeze-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_unfreezenable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/meta/id"])[0] == pod_set_id
+        # Verify that write request after unfreeze-db is working
+        yp_client.create_object("pod_set")
 
 
 @pytest.mark.usefixtures("yp_env_configurable")

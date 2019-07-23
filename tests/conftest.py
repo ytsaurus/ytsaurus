@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yp.common import YtResponseError, wait
-from yp.local import YpInstance, ACTUAL_DB_VERSION, reset_yp
+from yp.local import YpInstance, ACTUAL_DB_VERSION, reset_yp, unfreeze_yp
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
@@ -234,8 +234,11 @@ class Cli(object):
         )
 
     def check_output(self, args):
+        subprocess_args = self.get_args(args)
+        logging.info("Running {}".format(subprocess_args))
+
         return subprocess.check_output(
-            self.get_args(args),
+            subprocess_args,
             env=self._get_env(),
             stderr=sys.stderr
         ).strip()
@@ -424,6 +427,13 @@ def test_method_teardown(yp_env):
         logger.exception("test_method_teardown failed")
         raise
 
+def test_method_unfreeze(yp_env):
+    try:
+        # Unfreeze database.
+        unfreeze_yp(yp_env.yt_client, "//yp")
+    except:
+        logger.exception("test_method_unfreeze failed")
+        raise
 
 @pytest.fixture(scope="session")
 def test_environment(request):
@@ -453,3 +463,8 @@ def yp_env_configurable(request, test_environment_configurable):
     test_method_setup(test_environment_configurable)
     request.addfinalizer(lambda: test_method_teardown(test_environment_configurable))
     return test_environment_configurable
+
+@pytest.fixture(scope="function")
+def yp_env_unfreezenable(request, yp_env_configurable):
+    request.addfinalizer(lambda: test_method_unfreeze(yp_env_configurable))
+    return yp_env_configurable
