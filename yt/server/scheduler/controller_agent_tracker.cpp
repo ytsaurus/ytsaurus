@@ -293,18 +293,21 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Unregister() override
+    virtual TFuture<TOperationControllerUnregisterResult> Unregister() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!IncarnationId_) {
-            return VoidFuture;
+            return MakeFuture<TOperationControllerUnregisterResult>({});
         }
 
         auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).Apply(
+            BIND([] (const TControllerAgentServiceProxy::TRspUnregisterOperationPtr& rsp){
+                return TOperationControllerUnregisterResult{FromProto<TOperationJobMetrics>(rsp->residual_job_metrics())};
+            }));
     }
 
     virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override

@@ -115,7 +115,7 @@ public:
     const TOperationIdToOperationMap& GetOperations();
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
-    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId);
+    TFuture<TOperationControllerUnregisterResult> DisposeAndUnregisterOperation(TOperationId operationId);
     TFuture<void> UpdateOperationRuntimeParameters(
         TOperationId operationId,
         NScheduler::TOperationRuntimeParametersUpdatePtr update);

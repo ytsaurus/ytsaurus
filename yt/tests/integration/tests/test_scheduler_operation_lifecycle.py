@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, wait, Restarter,\
-    SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE, require_ytserver_root_privileges
+    SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE, require_ytserver_root_privileges, unix_only
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -820,6 +820,110 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_new_jobs_with_state("completed") == 1)
 
         assert op.get_state() == "completed"
+
+
+##################################################################
+
+class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_metrics_report_period": 100,
+            "operation_time_limit_check_period": 100,
+            "operation_controller_fail_timeout": 3000,
+            "operations_job_metrics_push_period": 1000000000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                },
+
+            },
+            "scheduler_connector": {
+                "heartbeat_period": 100,  # 100 msec
+            },
+        }
+    }
+
+    def _get_pool_metrics(self, metric_key, start_time):
+        result = {}
+        for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
+                                  options={"from_time": int(start_time) * 1000000}, verbose=False)):
+            pool = entry["tags"]["pool"]
+            if pool not in result:
+                result[pool] = entry["value"]
+        print >>sys.stderr, "Pool metrics: ", result
+        return result
+
+    def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
+        statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+        return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+
+    @unix_only
+    @require_ytserver_root_privileges
+    def test_operation_completed(self):
+        self._prepare_tables()
+        create("map_node", "//sys/pools/unique_pool")
+        time.sleep(1)
+
+        metric_name = "user_job_bytes_written"
+        statistics_name = "user_job.block_io.bytes_written"
+
+        start_time = time.time()
+        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
+
+        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
+        op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
+
+        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] > 0)
+        pool_metrics = self._get_pool_metrics(metric_name, start_time)
+        op_writes = self._get_cypress_metrics(op.id, statistics_name)
+
+        assert pool_metrics["unique_pool"] - start_pool_metrics["unique_pool"] == op_writes > 0
+
+    @unix_only
+    @require_ytserver_root_privileges
+    def test_operation_failed(self):
+        self._prepare_tables()
+        create("map_node", "//sys/pools/unique_pool")
+        time.sleep(1)
+
+        metric_name = "user_job_bytes_written"
+        statistics_name = "user_job.block_io.bytes_written"
+
+        start_time = time.time()
+        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
+
+        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; exit 1"""
+
+        op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
+                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
+        with pytest.raises(YtError):
+            op.track()
+
+        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] > 0)
+        pool_metrics = self._get_pool_metrics(metric_name, start_time)
+        op_writes = self._get_cypress_metrics(op.id, statistics_name, job_state="failed")
+
+        assert pool_metrics["unique_pool"] - start_pool_metrics["unique_pool"] == op_writes > 0
 
 
 ##################################################################

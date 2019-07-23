@@ -502,6 +502,9 @@ public:
     TDuration OperationsPushPeriod;
 
     //! Period for pushing operation alerts from agent to scheduler.
+    TDuration OperationJobMetricsPushPeriod;
+
+    //! Period for pushing operation alerts from agent to scheduler.
     TDuration OperationAlertsPushPeriod;
 
     //! Period for pushing suspicious jobs from agent to scheduler.

@@ -89,6 +89,11 @@ struct TOperationControllerReviveResult
     std::vector<TRevivedJob> RevivedJobs;
 };
 
+struct TOperationControllerUnregisterResult
+{
+    NScheduler::TOperationJobMetrics ResidualJobMetrics;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotCookie
