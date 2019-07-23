@@ -65,7 +65,7 @@ NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrateg
     return Controller_;
 }
 
-NYTree::IMapNodePtr TOperation::GetSpec() const
+const NYson::TYsonString& TOperation::GetSpec() const
 {
     return Spec_;
 }

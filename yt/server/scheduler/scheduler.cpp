@@ -167,6 +167,7 @@ public:
         : Config_(config)
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
+        , SpecTemplate_(Config_->SpecTemplate)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
     {
@@ -551,10 +552,7 @@ public:
         }
 
         auto spec = parseSpecResult.Spec;
-        auto specNode = parseSpecResult.SpecNode;
-
         auto secureVault = std::move(spec->SecureVault);
-        specNode->RemoveChild("secure_vault");
 
         auto baseAcl = GetBaseOperationAcl();
         if (spec->AddAuthenticatedUserToAcl) {
@@ -571,14 +569,14 @@ public:
         auto runtimeParams = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, baseAcl, user, type);
 
-        auto annotations = specNode->FindChild("annotations");
+        auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
 
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
-            specNode,
+            std::move(parseSpecResult.SpecString),
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
@@ -1329,24 +1327,29 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TParseOperationSpecResult result;
+        IMapNodePtr specNode;
         try {
-            result.SpecNode = ConvertToNode(specString)->AsMap();
+            specNode = ConvertToNode(specString)->AsMap();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing operation spec")
                 << ex;
         }
 
         if (specTemplate) {
-            result.SpecNode = PatchNode(specTemplate, result.SpecNode)->AsMap();
+            specNode = PatchNode(specTemplate, specNode)->AsMap();
         }
 
+        TParseOperationSpecResult result;
         try {
-            result.Spec = ConvertTo<TOperationSpecBasePtr>(result.SpecNode);
+            result.Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing operation spec")
                 << ex;
         }
+
+        specNode->RemoveChild("secure_vault");
+        result.SpecNode = specNode;
+        result.SpecString = ConvertToYsonString(specNode);
 
         return result;
     }

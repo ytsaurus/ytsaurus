@@ -119,7 +119,7 @@ struct IOperationStrategyHost
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
-    virtual NYTree::IMapNodePtr GetSpec() const = 0;
+    virtual const NYson::TYsonString& GetSpec() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
@@ -251,7 +251,7 @@ public:
     TString GetAuthenticatedUser() const override;
 
     //! Returns operation spec.
-    NYTree::IMapNodePtr GetSpec() const override;
+    const NYson::TYsonString& GetSpec() const override;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -318,7 +318,7 @@ public:
         EOperationType type,
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
-        NYTree::IMapNodePtr spec,
+        NYson::TYsonString spec,
         NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,
@@ -336,7 +336,7 @@ private:
     const EOperationType Type_;
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
-    const NYTree::IMapNodePtr Spec_;
+    const NYson::TYsonString Spec_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
     bool Activated_ = false;

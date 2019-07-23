@@ -901,11 +901,11 @@ private:
             const IAttributeDictionary& attributes,
             const IMapNodePtr& secureVault)
         {
-            auto specNode = attributes.Get<INodePtr>("spec")->AsMap();
+            auto specString = attributes.GetYson("spec");
 
             TOperationSpecBasePtr spec;
             try {
-                spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+                spec = ConvertTo<TOperationSpecBasePtr>(specString);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error parsing operation spec")
                     << ex;
@@ -931,7 +931,7 @@ private:
                 attributes.Get<EOperationType>("operation_type"),
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
-                specNode,
+                specString,
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParams,

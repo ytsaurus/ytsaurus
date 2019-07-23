@@ -110,7 +110,7 @@ TOperation::TOperation(
     EOperationType type,
     TMutationId mutationId,
     TTransactionId userTransactionId,
-    IMapNodePtr spec,
+    TYsonString spec,
     IMapNodePtr annotations,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,
@@ -166,7 +166,7 @@ TString TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
-NYTree::IMapNodePtr TOperation::GetSpec() const
+const TYsonString& TOperation::GetSpec() const
 {
     return Spec_;
 }

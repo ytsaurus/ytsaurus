@@ -35,7 +35,7 @@ public:
 
     virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
-    virtual NYTree::IMapNodePtr GetSpec() const override;
+    virtual const NYson::TYsonString& GetSpec() const override;
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
@@ -48,7 +48,7 @@ private:
 
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
-    const NYTree::IMapNodePtr Spec_;
+    const NYson::TYsonString Spec_;
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParams_;

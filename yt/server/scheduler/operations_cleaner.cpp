@@ -65,7 +65,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     State = operation->GetState();
     AuthenticatedUser = operation->GetAuthenticatedUser();
     OperationType = operation->GetType();
-    Spec = ConvertToYsonString(operation->GetSpec());
+    Spec = operation->GetSpec();
     Result = operation->BuildResultString();
     Events = ConvertToYsonString(operation->Events());
     Alerts = operation->BuildAlertsString();
