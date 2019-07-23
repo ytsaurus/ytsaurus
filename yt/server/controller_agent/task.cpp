@@ -950,6 +950,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
     schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
     schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
 
+    if (TaskHost_->GetSpec()->WaitingJobTimeout) {
+        schedulerJobSpecExt->set_waiting_job_timeout(ToProto<i64>(*TaskHost_->GetSpec()->WaitingJobTimeout));
+    }
+
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate) {
         schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(

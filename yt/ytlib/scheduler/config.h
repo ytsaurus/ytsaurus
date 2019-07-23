@@ -564,6 +564,9 @@ public:
     //! These tags are propagated to all operation outputs (unless overridden).
     std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
+    //! Timeout of waiting job start on the host.
+    std::optional<TDuration> WaitingJobTimeout;
+
     TOperationSpecBase();
 
 private:
