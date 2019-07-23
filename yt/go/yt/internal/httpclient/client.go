@@ -90,7 +90,7 @@ func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 	return best, nil
 }
 
-func (c *httpClient) writeParams(h http.Header, call *internal.Call) error {
+func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	var params bytes.Buffer
 
 	w := yson.NewWriter(&params)
@@ -101,8 +101,17 @@ func (c *httpClient) writeParams(h http.Header, call *internal.Call) error {
 		return err
 	}
 
+	h := req.Header
 	h.Add("X-YT-Header-Format", "yson")
-	h.Add("X-YT-Parameters", params.String())
+	if req.Method == http.MethodPost && req.Body == http.NoBody {
+		req.Body = ioutil.NopCloser(&params)
+		req.ContentLength = int64(params.Len())
+		req.GetBody = func() (body io.ReadCloser, e error) {
+			return ioutil.NopCloser(&params), nil
+		}
+	} else {
+		h.Add("X-YT-Parameters", params.String())
+	}
 	h.Add("X-YT-Correlation-ID", call.CallID.String())
 	h.Set("User-Agent", "go-yt-client")
 
@@ -132,7 +141,7 @@ func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, 
 		return
 	}
 
-	if err = c.writeParams(req.Header, call); err != nil {
+	if err = c.writeParams(req, call); err != nil {
 		return
 	}
 
