@@ -650,7 +650,7 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True, use_new_proxy=True)
+            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]
