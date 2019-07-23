@@ -46,8 +46,8 @@ extern const TTagIdList EmptyTagIds;
  *  like the number of running goroutines.
  */
 DEFINE_ENUM(EMetricType,
-    (Counter)
-    (Gauge)
+    ((Counter) (0))
+    ((Gauge) (1))
 );
 
 DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)
