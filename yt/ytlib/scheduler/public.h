@@ -15,8 +15,6 @@ class TSchedulerJobResultExt;
 class TTableInputSpec;
 class TJobResources;
 class TJobResourcesWithQuota;
-class TJobMetrics;
-class TTreeTaggedJobMetrics;
 class TOperationJobMetrics;
 class TReqHeartbeat;
 class TRspHeartbeat;

@@ -359,6 +359,8 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(10));
     RegisterParameter("operations_push_period", OperationsPushPeriod)
         .Default(TDuration::Seconds(1));
+    RegisterParameter("operation_job_metrics_push_period", OperationJobMetricsPushPeriod)
+        .Default(TDuration::Seconds(1));
     RegisterParameter("operation_alerts_push_period", OperationAlertsPushPeriod)
         .Default(TDuration::Seconds(3));
     RegisterParameter("suspicious_jobs_push_period", SuspiciousJobsPushPeriod)

@@ -414,13 +414,14 @@ public:
         YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void DoDisposeAndUnregisterOperation(TOperationId operationId)
+    TOperationControllerUnregisterResult DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
+        TOperationControllerUnregisterResult result;
         if (controller) {
             WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
                 // It is called in regular invoker since controller is canceled
@@ -428,12 +429,16 @@ public:
                 .AsyncVia(controller->GetInvoker())
                 .Run())
                 .ThrowOnError();
+
+            result.ResidualJobMetrics = controller->PullJobMetricsDelta();
         }
 
         UnregisterOperation(operationId);
+
+        return result;
     }
 
-    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId)
+    TFuture<TOperationControllerUnregisterResult> DisposeAndUnregisterOperation(TOperationId operationId)
     {
         return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
@@ -734,6 +739,7 @@ private:
 
     TInstant LastExecNodesUpdateTime_;
     TInstant LastOperationsSendTime_;
+    TInstant LastOperationJobMetricsSendTime_;
     TInstant LastOperationAlertsSendTime_;
     TInstant LastSuspiciousJobsSendTime_;
 
@@ -958,6 +964,7 @@ private:
         TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr RpcRequest;
         bool ExecNodesRequested = false;
         bool OperationsSent = false;
+        bool OperationJobMetricsSent = false;
         bool OperationAlertsSent = false;
         bool SuspiciousJobsSent = false;
     };
@@ -1049,6 +1056,7 @@ private:
         auto now = TInstant::Now();
         preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
         preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
+        preparedRequest.OperationJobMetricsSent = LastOperationJobMetricsSendTime_ + Config_->OperationJobMetricsPushPeriod < now;
         preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
         preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
@@ -1061,7 +1069,7 @@ private:
                 auto* protoOperation = request->add_operations();
                 ToProto(protoOperation->mutable_operation_id(), operationId);
 
-                {
+                if (preparedRequest.OperationJobMetricsSent) {
                     auto jobMetricsDelta = controller->PullJobMetricsDelta();
                     ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
                 }
@@ -1105,6 +1113,9 @@ private:
         }
         if (preparedRequest.OperationsSent) {
             LastOperationsSendTime_ = now;
+        }
+        if (preparedRequest.OperationJobMetricsSent) {
+            LastOperationJobMetricsSendTime_ = now;
         }
         if (preparedRequest.OperationAlertsSent) {
             LastOperationAlertsSendTime_ = now;
@@ -1591,7 +1602,7 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
+TFuture<TOperationControllerUnregisterResult> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }

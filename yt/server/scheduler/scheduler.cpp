@@ -2544,6 +2544,13 @@ private:
         operation->Cancel();
     }
 
+    void ProcessUnregisterOperationResult(const TOperationPtr &operation, const TOperationControllerUnregisterResult &result) const
+    {
+        if (!result.ResidualJobMetrics.empty()) {
+            GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
+        }
+    }
+
     void DoCompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2608,8 +2615,13 @@ private:
             }
 
             // Notify controller that it is going to be disposed.
-            const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Unregister()));
+            {
+                const auto &controller = operation->GetController();
+                auto resultOrError = WaitFor(controller->Unregister());
+                if (resultOrError.IsOK()) {
+                    ProcessUnregisterOperationResult(operation, resultOrError.Value());
+                }
+            }
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
@@ -2812,6 +2824,7 @@ private:
             .Run())
             .ValueOrThrow();
 
+        // TODO(eshcherbin): move this line inside if statement
         const auto& controller = operation->GetController();
         if (controller) {
             try {
@@ -2866,8 +2879,12 @@ private:
 
         if (controller) {
             // Notify controller that it is going to be disposed.
+            // TODO(eshcherbin): refactor this hellish construction.
             const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Unregister()));
+            auto resultOrError = WaitFor(controller->Unregister());
+            if (resultOrError.IsOK()) {
+                ProcessUnregisterOperationResult(operation, resultOrError.Value());
+            }
         }
 
         LogOperationFinished(operation, logEventType, error, operationProgress.Progress);

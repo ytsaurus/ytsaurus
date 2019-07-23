@@ -349,9 +349,11 @@ private:
         controllerAgent->ValidateIncarnation(incarnationId);
 
         WrapAgentException([&] {
-            context->ReplyFrom(
-                controllerAgent->DisposeAndUnregisterOperation(operationId)
-            );
+            auto result = WaitFor(controllerAgent->DisposeAndUnregisterOperation(operationId))
+                .ValueOrThrow();
+            ToProto(response->mutable_residual_job_metrics(), result.ResidualJobMetrics);
+
+            context->Reply();
         });
     }
 

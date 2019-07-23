@@ -10,6 +10,8 @@ namespace NYT::NControllerAgent {
 
 namespace NProto {
 
+class TJobMetrics;
+class TTreeTaggedJobMetrics;
 class TPoolTreeSchedulingTagFilter;
 class TPoolTreeSchedulingTagFilters;
 class TOperationDescriptor;
