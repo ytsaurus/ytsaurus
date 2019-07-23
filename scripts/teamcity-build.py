@@ -948,7 +948,9 @@ def run_ya_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping ya make tests since tests are disabled")
 
-    _, sandbox_storage = get_sandbox_dirs(options, "ya_tests")
+    suite_name = "ya_integration"
+
+    _, sandbox_storage = get_sandbox_dirs(options, suite_name)
     junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
 
     env = ya_make_env(options)
@@ -969,6 +971,8 @@ def run_ya_tests(options, build_context):
     try:
         run(args, env=env, cwd=options.checkout_directory)
     except ChildHasNonZeroExitCode as err:
+        # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
+        save_failed_test(options, suite_name, save_artifacts=False)
         raise StepFailedWithNonCriticalError(str(err))
 
 
@@ -1061,7 +1065,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
 
     try:
         if failed or cores_found:
-            save_failed_test(options, suite_name, suite_path)
+            save_failed_test(options, suite_name)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         # Note: ytserver tests may create files with that cannot be deleted by teamcity user.
