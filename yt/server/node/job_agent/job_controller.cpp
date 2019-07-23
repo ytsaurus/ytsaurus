@@ -658,6 +658,15 @@ IJobPtr TJobController::TImpl::CreateJob(
 
     auto factory = GetFactory(type);
 
+    auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
+    if (jobSpec.HasExtension(extensionId)) {
+        const auto& extension = jobSpec.GetExtension(extensionId);
+        if (extension.has_waiting_job_timeout()) {
+            waitingJobTimeout = FromProto<TDuration>(extension.waiting_job_timeout());
+        }
+    }
+
     auto job = factory.Run(
         jobId,
         operationId,
@@ -673,7 +682,7 @@ IJobPtr TJobController::TImpl::CreateJob(
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
-    TDelayedExecutor::MakeDelayed(Config_->WaitingJobsTimeout)
+    TDelayedExecutor::MakeDelayed(waitingJobTimeout)
         .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job))
         .Via(Bootstrap_->GetControlInvoker()));
 

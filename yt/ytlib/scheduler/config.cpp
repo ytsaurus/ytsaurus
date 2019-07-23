@@ -416,6 +416,11 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("additional_security_tags", AdditionalSecurityTags)
         .Default();
 
+    RegisterParameter("waiting_job_timeout", WaitingJobTimeout)
+        .Default(std::nullopt)
+        .GreaterThanOrEqual(TDuration::Seconds(10))
+        .LessThanOrEqual(TDuration::Minutes(10));
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
