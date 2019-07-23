@@ -6,8 +6,8 @@ namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMonitoringManager;
-typedef TIntrusivePtr<TMonitoringManager> TMonitoringManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TMonitoringManager)
+DECLARE_REFCOUNTED_CLASS(TMonitoringHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
