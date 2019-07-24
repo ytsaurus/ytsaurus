@@ -48,27 +48,29 @@ public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
-        IInvokerPtr controlInvoker,
         const std::vector<IInvokerPtr>& feasibleInvokers)
         : Config(config)
         , Host(host)
-        , ControlInvoker(controlInvoker)
         , FeasibleInvokers(feasibleInvokers)
         , Logger(SchedulerLogger)
-        , LastProfilingTime_(TInstant::Zero())
     {
+        FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
+            Host->GetControlInvoker(EControlQueue::CollectProfiling),
+            BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
+            Config->FairShareProfilingPeriod);
+
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
             Config->MinNeededResourcesUpdatePeriod);
     }
@@ -77,6 +79,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        FairShareProfilingExecutor_->Start();
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
@@ -86,6 +89,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        FairShareProfilingExecutor_->Stop();
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
@@ -99,6 +103,11 @@ public:
             TWriterGuard guard(TreeIdToSnapshotLock_);
             TreeIdToSnapshot_.clear();
         }
+    }
+
+    void OnFairShareProfiling()
+    {
+        OnFairShareProfilingAt(TInstant::Now());
     }
 
     void OnFairShareUpdate()
@@ -396,6 +405,7 @@ public:
             tree->UpdateControllerConfig(config);
         }
 
+        FairShareProfilingExecutor_->SetPeriod(Config->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
@@ -617,6 +627,26 @@ public:
         }
     }
 
+    virtual void OnFairShareProfilingAt(TInstant now) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        if (!ProfilingCompleted_.IsSet()) {
+            return;
+        }
+
+        TMetricsAccumulator accumulator;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            tree->ProfileFairShare(accumulator);
+        }
+
+        ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
+                accumulator.BuildAndPublish(&profiler);
+            })
+            .AsyncVia(Host->GetProfilingInvoker())
+            .Run();
+    }
+
     // NB: This function is public for testing purposes.
     virtual void OnFairShareUpdateAt(TInstant now) override
     {
@@ -652,23 +682,6 @@ public:
             TWriterGuard guard(TreeIdToSnapshotLock_);
             std::swap(TreeIdToSnapshot_, snapshots);
             ++SnapshotRevision_;
-        }
-
-        // TODO(ignat): move this to separate periodic invoker.
-        if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now && ProfilingCompleted_.IsSet()) {
-            LastProfilingTime_ = now;
-
-            TMetricsAccumulator accumulator;
-            for (const auto& pair : IdToTree_) {
-                const auto& tree = pair.second;
-                tree->ProfileFairShare(accumulator);
-            }
-
-            ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
-                    accumulator.BuildAndPublish(&profiler);
-                })
-                .AsyncVia(Host->GetProfilingInvoker())
-                .Run();
         }
 
         if (!errors.empty()) {
@@ -822,18 +835,17 @@ private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
-    const IInvokerPtr ControlInvoker;
     const std::vector<IInvokerPtr> FeasibleInvokers;
 
     mutable NLogging::TLogger Logger;
 
+    TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    TInstant LastProfilingTime_;
     TFuture<void> ProfilingCompleted_ = VoidFuture;
 
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
@@ -1260,10 +1272,9 @@ private:
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const IInvokerPtr& controlInvoker,
     const std::vector<IInvokerPtr>& feasibleInvokers)
 {
-    return New<TFairShareStrategy>(config, host, controlInvoker, feasibleInvokers);
+    return New<TFairShareStrategy>(config, host, feasibleInvokers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
