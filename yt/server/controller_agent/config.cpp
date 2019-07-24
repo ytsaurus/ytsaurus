@@ -629,6 +629,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("custom_job_metrics", CustomJobMetrics)
         .Default();
 
+    RegisterParameter("lock_input_tables_retries", LockInputTablesRetries)
+        .Default(nullptr);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
@@ -668,6 +671,12 @@ TControllerAgentConfig::TControllerAgentConfig()
                          customJobMetricDescription.ProfilingName);
                 }
             }
+        }
+
+        if (!LockInputTablesRetries) {
+            LockInputTablesRetries = New<NObjectClient::TReqExecuteBatchWithRetriesConfig>();
+            LockInputTablesRetries->RetriableErrorCodes.push_back(
+                static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
         }
     });
 }
