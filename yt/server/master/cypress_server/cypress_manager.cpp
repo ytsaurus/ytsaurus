@@ -237,25 +237,16 @@ public:
 
         auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
 
-        if (external && optionalExternalCellTag &&  *optionalExternalCellTag == Bootstrap_->GetCellTag()) {
-            external = false;
-            optionalExternalCellTag = std::nullopt;
-        }
-
         auto externalCellTag = NotReplicatedCellTag;
         if (external) {
             if (None(handler->GetFlags() & ETypeFlags::Externalizable)) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
                     handler->GetObjectType());
             }
-
             if (optionalExternalCellTag) {
                 externalCellTag = *optionalExternalCellTag;
                 if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
-                }
-                if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
-                    THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
                 }
             } else {
                 externalCellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
@@ -263,6 +254,15 @@ public:
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
             }
+        }
+
+        if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
+            THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
+        }
+
+        if (externalCellTag == Bootstrap_->GetCellTag()) {
+            external = false;
+            externalCellTag = NotReplicatedCellTag;
         }
 
         // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.
