@@ -422,10 +422,12 @@ private:
 
     TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
     {
+        static const TString NullService;
+        static const TString NullMethod;
         TPathResolver resolver(
             Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
+            NullService,
+            NullService,
             path,
             GetTransactionId(context));
         auto result = resolver.Resolve();
