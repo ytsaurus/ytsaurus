@@ -14,20 +14,21 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
     TTransaction* transaction,
     THashMap<TString, TCypressNode*>* storage)
 {
-    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+    YT_ASSERT(trunkNode->IsTrunk());
 
     if (!transaction) {
         // Fast path.
-        return trunkNode->As<TMapNode>()->KeyToChild();
+        return trunkNode->KeyToChild();
     }
 
     // Slow path.
@@ -61,10 +62,10 @@ const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
 
 std::vector<TCypressNode*> GetMapNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
     TTransaction* transaction)
 {
-    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+    YT_ASSERT(trunkNode->IsTrunk());
 
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -77,10 +78,10 @@ std::vector<TCypressNode*> GetMapNodeChildList(
 
 const std::vector<TCypressNode*>& GetListNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction)
 {
-    YT_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
+    YT_ASSERT(trunkNode->IsTrunk());
 
     auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
     auto* listNode = node->As<TListNode>();
@@ -104,12 +105,13 @@ std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
 
 TCypressNode* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
     TTransaction* transaction,
     TStringBuf key)
 {
-    auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
+    YT_ASSERT(trunkNode->IsTrunk());
 
+    auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
         const auto* mapNode = node->As<TMapNode>();
         auto it = mapNode->KeyToChild().find(key);
@@ -121,8 +123,26 @@ TCypressNode* FindMapNodeChild(
             break;
         }
     }
-
     return nullptr;
+}
+
+TCypressNode* GetMapNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TMapNode* trunkNode,
+    TTransaction* transaction,
+    TStringBuf key)
+{
+    YT_ASSERT(trunkNode->IsTrunk());
+
+    auto* child = FindMapNodeChild(cypressManager, trunkNode, transaction, key);
+    if (!child) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "%v has no child with key %Qv",
+            cypressManager->GetNodePath(trunkNode, transaction),
+            ToYPathLiteral(key));
+    }
+    return child;
 }
 
 TStringBuf FindMapNodeChildKey(
@@ -173,6 +193,44 @@ TStringBuf FindMapNodeChildKey(
     }
 
     return key;
+}
+
+TCypressNode* FindListNodeChild(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    TTransaction* /*transaction*/,
+    TStringBuf key)
+{
+    YT_ASSERT(trunkNode->IsTrunk());
+
+    const auto& indexToChild = trunkNode->IndexToChild();
+    int index = ParseListIndex(key);
+    auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
+    if (!adjustedIndex) {
+        return nullptr;
+    }
+    return indexToChild[*adjustedIndex];
+}
+
+TCypressNode* GetListNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    TTransaction* transaction,
+    TStringBuf key)
+{
+    YT_ASSERT(trunkNode->IsTrunk());
+
+    const auto& indexToChild = trunkNode->IndexToChild();
+    int index = ParseListIndex(key);
+    auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
+    if (!adjustedIndex) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "%v has no child with index %v",
+            cypressManager->GetNodePath(trunkNode, transaction),
+            index);
+    }
+    return indexToChild[*adjustedIndex];
 }
 
 int FindListNodeChildIndex(

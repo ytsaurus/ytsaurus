@@ -16,18 +16,18 @@ namespace NYT::NCypressServer {
 
 const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     THashMap<TString, TCypressNode*>* storage);
 
 std::vector<TCypressNode*> GetMapNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 const std::vector<TCypressNode*>& GetListNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
@@ -35,13 +35,31 @@ std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
 
 TCypressNode* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
-    TCypressNode* trunkNode,
+    TMapNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
+
+TCypressNode* GetMapNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     TStringBuf key);
 
 TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
     TCypressNode* trunkChildNode);
+
+TCypressNode* FindListNodeChild(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
+
+TCypressNode* GetListNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
 
 int FindListNodeChildIndex(
     TListNode* parentNode,

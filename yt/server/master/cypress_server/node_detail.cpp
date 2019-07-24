@@ -522,7 +522,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
             THashMap<TString, TCypressNode*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
                 cypressManager,
-                originatingNode->GetTrunkNode(),
+                originatingNode->GetTrunkNode()->template As<TMapNode>(),
                 originatingNode->GetTransaction(),
                 &keyToChildStorage);
 
@@ -633,7 +633,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        sourceNode->GetTrunkNode(),
+        sourceNode->GetTrunkNode()->template As<TMapNode>(),
         transaction,
         &keyToChildMapStorage);
     auto keyToChildList = SortKeyToChild(keyToChildMap);

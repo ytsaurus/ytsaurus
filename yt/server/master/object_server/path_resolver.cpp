@@ -25,18 +25,47 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TTransactionId GetTransactionIdFromToken(TPathResolver::TTransactionToken token)
+{
+   return Visit(token,
+       [] (TTransactionId id) {
+           return id;
+       },
+       [] (TTransaction* transaction) {
+           return GetObjectId(transaction);
+       });
+}
+
+std::optional<TTransaction*> GetTransactionFromToken(TPathResolver::TTransactionToken token)
+{
+   return Visit(token,
+       [] (TTransactionId id) -> std::optional<TTransaction*> {
+           return std::nullopt;
+       },
+       [] (TTransaction* transaction) -> std::optional<TTransaction*> {
+           return transaction;
+       });
+}
+
+} // namespace
+
 TPathResolver::TPathResolver(
     TBootstrap* bootstrap,
     const TString& service,
     const TString& method,
     const NYPath::TYPath& path,
-    TTransactionId transactionId)
+    TTransactionToken transactionToken,
+    const TPathResolverOptions& options)
     : Bootstrap_(bootstrap)
     , Service_(service)
     , Method_(method)
     , Path_(path)
-    , TransactionId_(transactionId)
+    , TransactionId_(GetTransactionIdFromToken(transactionToken))
+    , Options_(options)
     , Tokenizer_(path)
+    , Transaction_(GetTransactionFromToken(transactionToken))
 { }
 
 TPathResolver::TResolveResult TPathResolver::Resolve()
@@ -96,6 +125,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             return makeCurrentLocalObjectResult();
         }
 
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* currentNode = currentObject->As<TCypressNode>();
         if (currentNode->GetNodeType() == ENodeType::Map || currentNode->GetNodeType() == ENodeType::List) {
             if (!slashSkipped) {
@@ -111,12 +141,22 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             if (currentNode->GetNodeType() == ENodeType::List &&
                 IsSpecialListKey(token))
             {
+                if (!Options_.EnablePartialResolve) {
+                    Tokenizer_.ThrowUnexpected();
+                }
                 return makeCurrentLocalObjectResult();
             }
 
-            auto* child = currentNode->GetNodeType() == ENodeType::Map
-                ? FindMapNodeChild(currentNode, GetTransaction(), token)
-                : FindListNodeChild(currentNode, token);
+            TObject* child;
+            if (Options_.EnablePartialResolve) {
+                child = currentNode->GetNodeType() == ENodeType::Map
+                    ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
+                    : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
+            } else {
+                child = currentNode->GetNodeType() == ENodeType::Map
+                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
+                    : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
+            }
 
             if (!IsObjectAlive(child)) {
                 return makeCurrentLocalObjectResult();
@@ -230,25 +270,6 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             Tokenizer_.ThrowUnexpected();
             YT_ABORT();
     }
-}
-
-TObject* TPathResolver::FindMapNodeChild(TObject* map, TTransaction* transaction, TStringBuf key)
-{
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    return NCypressServer::FindMapNodeChild(cypressManager, map->As<TMapNode>()->GetTrunkNode(), transaction, key);
-}
-
-TObject* TPathResolver::FindListNodeChild(TObject* list, TStringBuf key)
-{
-    auto& indexToChild = list->As<TListNode>()->IndexToChild();
-    auto indexStr = ExtractListIndex(key);
-    int index = ParseListIndex(indexStr);
-    auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
-    if (!adjustedIndex) {
-        return nullptr;
-    }
-    return indexToChild[*adjustedIndex];
-
 }
 
 bool TPathResolver::IsSpecialListKey(TStringBuf key)

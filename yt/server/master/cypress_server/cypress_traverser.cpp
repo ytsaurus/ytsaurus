@@ -120,11 +120,11 @@ private:
 
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map:
-                addChildren(GetMapNodeChildList(CypressManager_, trunkNode, Transaction_));
+                addChildren(GetMapNodeChildList(CypressManager_, trunkNode->As<TMapNode>(), Transaction_));
                 break;
 
             case ENodeType::List:
-                addChildren(GetListNodeChildList(CypressManager_, trunkNode, Transaction_));
+                addChildren(GetListNodeChildList(CypressManager_, trunkNode->As<TListNode>(), Transaction_));
                 break;
 
             default:

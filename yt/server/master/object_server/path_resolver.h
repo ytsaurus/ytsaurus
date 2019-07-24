@@ -16,15 +16,24 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPathResolverOptions
+{
+    bool EnablePartialResolve = true;
+};
+
 class TPathResolver
 {
 public:
+    using TTransactionToken = std::variant<
+        NTransactionClient::TTransactionId,
+        NTransactionServer::TTransaction*>;
     TPathResolver(
         NCellMaster::TBootstrap* bootstrap,
         const TString& service,
         const TString& method,
         const NYPath::TYPath& path,
-        NTransactionClient::TTransactionId transactionId);
+        TTransactionToken transactionToken,
+        const TPathResolverOptions& options = {});
 
     struct TLocalObjectPayload
     {
@@ -60,6 +69,7 @@ private:
     const TString& Method_;
     const NYPath::TYPath& Path_;
     const NTransactionClient::TTransactionId TransactionId_;
+    const TPathResolverOptions Options_;
 
     NYPath::TTokenizer Tokenizer_;
 
@@ -70,13 +80,6 @@ private:
 
     NTransactionServer::TTransaction* GetTransaction();
     TPathResolver::TResolvePayload ResolveRoot();
-    TObject* FindMapNodeChild(
-        TObject* map,
-        NTransactionServer::TTransaction* transaction,
-        TStringBuf key);
-    TObject* FindListNodeChild(
-        TObject* list,
-        TStringBuf key);
     static bool IsSpecialListKey(TStringBuf key);
 };
 

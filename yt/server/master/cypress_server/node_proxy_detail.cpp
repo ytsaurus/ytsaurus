@@ -831,7 +831,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             Writer_.OnBeginList();
             const auto& childList = GetListNodeChildList(
                 CypressManager_,
-                node,
+                node->As<TListNode>(),
                 Transaction_);
             for (auto* child : childList) {
                 Writer_.OnListItem();
@@ -846,7 +846,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             THashMap<TString, TCypressNode*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
-                node,
+                node->As<TMapNode>(),
                 Transaction_,
                 &keyToChildMapStorage);
             for (const auto& pair : keyToChildMap) {
@@ -2002,7 +2002,7 @@ void TMapNodeProxy::Clear()
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildMapStorage);
     auto keyToChildList = SortKeyToChild(keyToChildMap);
@@ -2049,7 +2049,7 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildStorage);
 
@@ -2067,7 +2067,7 @@ std::vector<TString> TMapNodeProxy::GetKeys() const
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildStorage);
 
@@ -2083,7 +2083,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
 {
     auto* childTrunkNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         key);
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
@@ -2121,7 +2121,7 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         key);
     if (!trunkChildImpl) {
@@ -2298,7 +2298,7 @@ void TMapNodeProxy::ListSelf(
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildMapStorage);
 
