@@ -2827,9 +2827,7 @@ private:
             .Run())
             .ValueOrThrow();
 
-        // TODO(eshcherbin): move this line inside if statement
-        const auto& controller = operation->GetController();
-        if (controller) {
+        if (const auto& controller = operation->GetController()) {
             try {
                 WaitFor(controller->Abort())
                     .ThrowOnError();
@@ -2880,10 +2878,8 @@ private:
 
         SubmitOperationToCleaner(operation, operationProgress);
 
-        if (controller) {
+        if (const auto& controller = operation->GetController()) {
             // Notify controller that it is going to be disposed.
-            // TODO(eshcherbin): refactor this hellish construction.
-            const auto& controller = operation->GetController();
             auto resultOrError = WaitFor(controller->Unregister());
             if (resultOrError.IsOK()) {
                 ProcessUnregisterOperationResult(operation, resultOrError.Value());
