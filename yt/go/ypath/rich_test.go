@@ -3,6 +3,8 @@ package ypath
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -152,5 +154,20 @@ func TestParseInvalid(t *testing.T) {
 		_, err := Parse(testCase)
 		t.Logf("got error: %v", err)
 		assert.Error(t, err, "%q", testCase)
+	}
+}
+
+func TestPathSplit(t *testing.T) {
+	for _, testCase := range []struct {
+		path  string
+		parts []string
+	}{
+		{"/", []string{"/"}},
+		{"//@", []string{"/", "/@"}},
+		{"#bc67d12a-e1971bb1-3066dfe2-a94c59a8/foo", []string{"#bc67d12a-e1971bb1-3066dfe2-a94c59a8", "/foo"}},
+	} {
+		parts, err := Split(testCase.path)
+		require.NoError(t, err)
+		require.Equal(t, testCase.parts, parts)
 	}
 }

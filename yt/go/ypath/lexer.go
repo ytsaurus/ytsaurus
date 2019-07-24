@@ -370,6 +370,19 @@ func stateSkipSpace(l *lexer) stateFn {
 	return nil
 }
 
+func Split(path string) (tokens []string, err error) {
+	var l lexer
+	if err = l.run([]byte(path)); err != nil {
+		return
+	}
+
+	for _, t := range l.tokens {
+		tokens = append(tokens, string(t))
+	}
+
+	return
+}
+
 // Parse parses prefix and suffix of the path in simple form.
 func Parse(path string) (p *Rich, err error) {
 	var l lexer
