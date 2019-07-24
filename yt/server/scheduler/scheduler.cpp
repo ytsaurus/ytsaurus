@@ -2547,7 +2547,9 @@ private:
         operation->Cancel();
     }
 
-    void ProcessUnregisterOperationResult(const TOperationPtr &operation, const TOperationControllerUnregisterResult &result) const
+    void ProcessUnregisterOperationResult(
+        const TOperationPtr& operation,
+        const TOperationControllerUnregisterResult& result) const
     {
         if (!result.ResidualJobMetrics.empty()) {
             GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
@@ -2619,7 +2621,7 @@ private:
 
             // Notify controller that it is going to be disposed.
             {
-                const auto &controller = operation->GetController();
+                const auto& controller = operation->GetController();
                 auto resultOrError = WaitFor(controller->Unregister());
                 if (resultOrError.IsOK()) {
                     ProcessUnregisterOperationResult(operation, resultOrError.Value());
