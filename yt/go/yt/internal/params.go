@@ -84,16 +84,24 @@ func writeCreateNodeOptions(w *yson.Writer, o *yt.CreateNodeOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
 func writeCreateObjectOptions(w *yson.Writer, o *yt.CreateObjectOptions) {
 	if o == nil {
 		return
 	}
+	w.MapKeyString("recursive")
+	w.Any(o.Recursive)
+	w.MapKeyString("ignore_existing")
+	w.Any(o.IgnoreExisting)
+	w.MapKeyString("force")
+	w.Any(o.Force)
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
 	}
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 }
@@ -116,9 +124,21 @@ func writeRemoveNodeOptions(w *yson.Writer, o *yt.RemoveNodeOptions) {
 	w.Any(o.Recursive)
 	w.MapKeyString("force")
 	w.Any(o.Force)
+	if o.PreserveAccount != nil {
+		w.MapKeyString("preserve_account")
+		w.Any(o.PreserveAccount)
+	}
+	if o.PreserveExpirationTime != nil {
+		w.MapKeyString("preserve_expiration_time")
+		w.Any(o.PreserveExpirationTime)
+	}
+	if o.PessimisticQuotaCheck != nil {
+		w.MapKeyString("pessimistic_quota_check")
+		w.Any(o.PessimisticQuotaCheck)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
-	writeMoveNodeOptions(w, o.MoveNodeOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
@@ -472,12 +492,16 @@ func writeAddMemberOptions(w *yson.Writer, o *yt.AddMemberOptions) {
 	if o == nil {
 		return
 	}
+	writeMutatingOptions(w, o.MutatingOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
 func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	if o == nil {
 		return
 	}
+	writeMutatingOptions(w, o.MutatingOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
@@ -689,6 +713,10 @@ func (p *CreateNodeParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
 }
 
+func (p *CreateNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
+}
+
 type CreateObjectParams struct {
 	verb    Verb
 	typ     yt.NodeType
@@ -722,6 +750,10 @@ func (p *CreateObjectParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("type")
 	w.Any(p.typ)
 	writeCreateObjectOptions(w, p.options)
+}
+
+func (p *CreateObjectParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
 }
 
 func (p *CreateObjectParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
@@ -826,8 +858,8 @@ func (p *RemoveNodeParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 	return &p.options.AccessTrackingOptions
 }
 
-func (p *RemoveNodeParams) MoveNodeOptions() **yt.MoveNodeOptions {
-	return &p.options.MoveNodeOptions
+func (p *RemoveNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
 }
 
 func (p *RemoveNodeParams) MutatingOptions() **yt.MutatingOptions {
@@ -1936,6 +1968,14 @@ func (p *AddMemberParams) MarshalHTTP(w *yson.Writer) {
 	writeAddMemberOptions(w, p.options)
 }
 
+func (p *AddMemberParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+func (p *AddMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
+}
+
 type RemoveMemberParams struct {
 	verb    Verb
 	group   string
@@ -1975,6 +2015,14 @@ func (p *RemoveMemberParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("member")
 	w.Any(p.member)
 	writeRemoveMemberOptions(w, p.options)
+}
+
+func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
 }
 
 type LockNodeParams struct {

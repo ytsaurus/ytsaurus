@@ -111,11 +111,17 @@ type CreateNodeOptions struct {
 	*TransactionOptions
 	*AccessTrackingOptions
 	*MutatingOptions
+	*PrerequisiteOptions
 }
 
 type CreateObjectOptions struct {
+	Recursive      bool `http:"recursive"`
+	IgnoreExisting bool `http:"ignore_existing"`
+	Force          bool `http:"force"`
+
 	Attributes map[string]interface{} `http:"attributes,omitnil"`
 
+	*PrerequisiteOptions
 	*AccessTrackingOptions
 	*MutatingOptions
 }
@@ -131,9 +137,13 @@ type RemoveNodeOptions struct {
 	Recursive bool `http:"recursive"`
 	Force     bool `http:"force"`
 
+	PreserveAccount        *bool `http:"preserve_account,omitnil"`
+	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
+	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
+
 	*TransactionOptions
 	*AccessTrackingOptions
-	*MoveNodeOptions
+	*PrerequisiteOptions
 	*MutatingOptions
 }
 
@@ -602,9 +612,15 @@ type LowLevelSchedulerClient interface {
 	) (operations []*OperationStatus, err error)
 }
 
-type AddMemberOptions struct{}
+type AddMemberOptions struct {
+	*MutatingOptions
+	*PrerequisiteOptions
+}
 
-type RemoveMemberOptions struct{}
+type RemoveMemberOptions struct {
+	*MutatingOptions
+	*PrerequisiteOptions
+}
 
 type AdminClient interface {
 	// http:verb:"add_member"

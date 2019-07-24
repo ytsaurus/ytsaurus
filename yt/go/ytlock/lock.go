@@ -41,6 +41,7 @@ type Options struct {
 	// Create map node if path is missing.
 	CreateIfMissing bool
 	LockMode        yt.LockMode
+	LockChild       string
 }
 
 // NewLock creates Lock object using default Options.
@@ -126,6 +127,15 @@ func (l *Lock) startAbort() yt.Tx {
 //
 // Lock is automatically released when provided ctx is canceled.
 func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
+	tx, err := l.AcquireTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return tx.Finished(), nil
+}
+
+// AcquireTx is the same as Acquire, but returns new tx that is holding the lock.
+func (l *Lock) AcquireTx(ctx context.Context) (lockTx yt.Tx, err error) {
 	if err = l.startAcquire(); err != nil {
 		return
 	}
@@ -136,7 +146,7 @@ func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
 		l.abortAcquire()
 		return
 	}
-	lost = tx.Finished()
+	lockTx = tx
 
 	defer func() {
 		if tx != nil {
@@ -145,7 +155,12 @@ func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
 		}
 	}()
 
-	_, err = tx.LockNode(ctx, l.Path, l.Options.LockMode, nil)
+	opts := &yt.LockNodeOptions{}
+	if l.Options.LockChild != "" {
+		opts.ChildKey = &l.Options.LockChild
+	}
+
+	_, err = tx.LockNode(ctx, l.Path, l.Options.LockMode, opts)
 	if yt.ContainsErrorCode(err, yt.CodeResolveError) && l.Options.CreateIfMissing {
 		_, err = l.Yc.CreateNode(ctx, l.Path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true})
 		if err != nil {
@@ -164,6 +179,23 @@ func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
 	tx = nil
 
 	return
+}
+
+// IsLocked returns true if lock is in acquired state.
+func (l *Lock) IsLocked() bool {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.tx == nil {
+		return false
+	}
+
+	select {
+	case <-l.tx.Finished():
+		return false
+	default:
+		return true
+	}
 }
 
 // Release releases distributed lock by aborting transaction.
