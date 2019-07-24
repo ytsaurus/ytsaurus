@@ -911,7 +911,7 @@ TEST(TProtobufFormat, TestContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, INodePtr> CreateSchemaConfigWithStructuredMessages()
+std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
 {
     TTableSchema schema({
         {"first", StructLogicalType({
@@ -942,6 +942,7 @@ std::pair<TTableSchema, INodePtr> CreateSchemaConfigWithStructuredMessages()
             {"two", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
             {"three", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
         })},
+        {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any, true)},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1096,6 +1097,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaConfigWithStructuredMessages()
                             .Item("proto_type").Value("int64")
                             .Item("repeated").Value(true)
                         .EndMap()
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "any".
+                            .Item("name").Value("any_field")
+                            .Item("field_number").Value(5)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1111,8 +1119,9 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto secondId = nameTable->RegisterName("second");
     auto repeatedMessageId = nameTable->RegisterName("repeated_message_field");
     auto repeatedInt64Id = nameTable->RegisterName("repeated_int64_field");
+    auto anyFieldId = nameTable->RegisterName("any_field");
 
-    auto [schema, config] = CreateSchemaConfigWithStructuredMessages();
+    auto [schema, config] = ScreateSchemaAndConfigWithStructuredMessage();
 
     TString result;
     TStringOutput resultStream(result);
@@ -1195,6 +1204,7 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     builder.AddValue(MakeUnversionedAnyValue(secondYson.GetData(), secondId));
     builder.AddValue(MakeUnversionedAnyValue(repeatedMessageYson.GetData(), repeatedMessageId));
     builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+    builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
     writer->Write({builder.GetRow()});
 
@@ -1214,7 +1224,9 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     const auto& first = message.first();
     EXPECT_EQ(first.enum_field(), NProtobufFormatTest::EEnum::two);
     EXPECT_EQ(first.int64_field(), 44);
-    std::vector<i64> firstRepeatedInt64Field(first.repeated_int64_field().begin(), first.repeated_int64_field().end());
+    std::vector<i64> firstRepeatedInt64Field(
+        first.repeated_int64_field().begin(),
+        first.repeated_int64_field().end());
     EXPECT_EQ(firstRepeatedInt64Field, (std::vector<i64>{55, 56, 57}));
     EXPECT_EQ(first.message_field().key(), "key");
     EXPECT_EQ(first.message_field().value(), "value");
@@ -1247,13 +1259,19 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     EXPECT_EQ(message.repeated_message_field(1).key(), "key21");
     EXPECT_EQ(message.repeated_message_field(1).value(), "value21");
 
-    std::vector<i64> repeatedInt64Field(message.repeated_int64_field().begin(), message.repeated_int64_field().end());
+    std::vector<i64> repeatedInt64Field(
+        message.repeated_int64_field().begin(),
+        message.repeated_int64_field().end());
     EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
+
+    EXPECT_EQ(message.int64_field(), 4321);
+
+    ASSERT_FALSE(lenvalParser.Next());
 }
 
 TEST(TProtobufFormat, ParseStructuredMessage)
 {
-    auto [schema, config] = CreateSchemaConfigWithStructuredMessages();
+    auto [schema, config] = ScreateSchemaAndConfigWithStructuredMessage();
 
     TCollectingValueConsumer rowCollector(schema);
 
@@ -1304,6 +1322,8 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     auto* subfield2 = message.add_repeated_message_field();
     subfield2->set_key("key21");
     subfield2->set_value("value21");
+
+    message.set_int64_field(4321);
 
     TString lenvalBytes;
     {
@@ -1384,9 +1404,315 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
     EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
 
-    auto repeatedInt64Node= GetAny(rowCollector.GetRowValue(0, "repeated_int64_field"));
-    ASSERT_EQ(repeatedInt64Node->GetType(), ENodeType::List);
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
+    auto anyValue = rowCollector.GetRowValue(0, "any_field");
+    ASSERT_EQ(anyValue.Type, EValueType::Int64);
+    EXPECT_EQ(anyValue.Data.Int64, 4321);
+}
+
+std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
+{
+    std::vector<TTableSchema> schemas = {
+        TTableSchema({
+            {"embedded", StructLogicalType({
+                {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+            })},
+            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
+            {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any, true)},
+        }),
+        TTableSchema({
+            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+        }),
+        // Empty schema.
+        TTableSchema(),
+    };
+
+    auto config = BuildYsonNodeFluently()
+        .BeginAttributes()
+            .Item("enumerations")
+            .BeginMap()
+                .Item("EEnum")
+                .BeginMap()
+                    .Item("One").Value(1)
+                    .Item("Two").Value(2)
+                    .Item("Three").Value(3)
+                    .Item("MinusFortyTwo").Value(-42)
+                .EndMap()
+            .EndMap()
+            .Item("tables")
+            .BeginList()
+                // Table #1.
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("embedded")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("structured_message")
+                            .Item("fields")
+                            .BeginList()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("int64_field")
+                                    .Item("field_number").Value(2)
+                                    .Item("proto_type").Value("int64")
+                                .EndMap()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("enum_field")
+                                    .Item("field_number").Value(1)
+                                    .Item("proto_type").Value("enum_string")
+                                    .Item("enumeration_name").Value("EEnum")
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("repeated_int64_field")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("int64")
+                            .Item("repeated").Value(true)
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "any".
+                            .Item("name").Value("any_field")
+                            .Item("field_number").Value(3)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+
+                // Table #2.
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("int64_field")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("enum_field")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("enumeration_name").Value("EEnum")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+
+                // Table #3.
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("string_field")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndAttributes()
+        .Value("protobuf");
+    return {std::move(schemas), std::move(config)};
+}
+
+TEST(TProtobufFormat, WriteSeveralTables)
+{
+    auto [schemas, configNode] = CreateSeveralTablesSchemasAndConfig();
+    auto config = ParseFormatConfigFromNode(configNode->Attributes().ToMap());
+
+    auto nameTable = New<TNameTable>();
+    auto embeddedId = nameTable->RegisterName("embedded");
+    auto anyFieldId = nameTable->RegisterName("any_field");
+    auto int64FieldId = nameTable->RegisterName("int64_field");
+    auto repeatedInt64Id = nameTable->RegisterName("repeated_int64_field");
+    auto enumFieldId = nameTable->RegisterName("enum_field");
+    auto stringFieldId = nameTable->RegisterName("string_field");
+    auto tableIndexId = nameTable->RegisterName(TableIndexColumnName);
+
+    TString result;
+    TStringOutput resultStream(result);
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
+    controlAttributesConfig->EnableTableIndex = true;
+    auto writer = CreateWriterForProtobuf(
+        std::move(config),
+        schemas,
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        std::move(controlAttributesConfig),
+        0);
+
+    auto embeddedYson = BuildYsonStringFluently()
+        .BeginList()
+            .Item().Value("Two")
+            .Item().Value(44)
+        .EndList();
+
+    auto repeatedInt64Yson = ConvertToYsonString(std::vector<i64>{31, 32, 33});
+
+    {
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedAnyValue(embeddedYson.GetData(), embeddedId));
+        builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+        builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
+        writer->Write({builder.GetRow()});
+    }
+    {
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue("Two", enumFieldId));
+        builder.AddValue(MakeUnversionedInt64Value(999, int64FieldId));
+        builder.AddValue(MakeUnversionedInt64Value(1, tableIndexId));
+        writer->Write({builder.GetRow()});
+    }
+    {
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue("blah", stringFieldId));
+        builder.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
+        writer->Write({builder.GetRow()});
+    }
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput input(result);
+    TLenvalParser lenvalParser(&input);
+
+    {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
+
+        NYT::NProtobufFormatTest::TSeveralTablesMessageFirst message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
+
+        const auto& embedded = message.embedded();
+        EXPECT_EQ(embedded.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(embedded.int64_field(), 44);
+
+        std::vector<i64> repeatedInt64Field(
+            message.repeated_int64_field().begin(),
+            message.repeated_int64_field().end());
+        EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
+        EXPECT_EQ(message.int64_field(), 4321);
+    }
+    {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
+
+        NYT::NProtobufFormatTest::TSeveralTablesMessageSecond message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
+
+        EXPECT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(message.int64_field(), 999);
+    }
+    {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
+
+        NYT::NProtobufFormatTest::TSeveralTablesMessageThird message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
+
+        EXPECT_EQ(message.string_field(), "blah");
+    }
+    ASSERT_FALSE(lenvalParser.Next());
+}
+
+TEST(TProtobufFormat, ParseSeveralTables)
+{
+    auto [schemas, configNode] = CreateSeveralTablesSchemasAndConfig();
+    auto config = ParseFormatConfigFromNode(configNode->Attributes().ToMap());
+
+    std::vector<TCollectingValueConsumer> rowCollectors;
+    std::vector<std::unique_ptr<IParser>> parsers;
+    for (const auto& schema : schemas) {
+        rowCollectors.emplace_back(schema);
+    }
+    for (int tableIndex = 0; tableIndex < static_cast<int>(schemas.size()); ++tableIndex) {
+        parsers.push_back(CreateParserForProtobuf(
+            &rowCollectors[tableIndex],
+            config,
+            tableIndex));
+    }
+
+    NYT::NProtobufFormatTest::TSeveralTablesMessageFirst firstMessage;
+    auto* embedded = firstMessage.mutable_embedded();
+    embedded->set_enum_field(NProtobufFormatTest::EEnum::two);
+    embedded->set_int64_field(44);
+
+    firstMessage.add_repeated_int64_field(55);
+    firstMessage.add_repeated_int64_field(56);
+    firstMessage.add_repeated_int64_field(57);
+
+    firstMessage.set_int64_field(4444);
+
+    NYT::NProtobufFormatTest::TSeveralTablesMessageSecond secondMessage;
+    secondMessage.set_enum_field(NProtobufFormatTest::EEnum::two);
+    secondMessage.set_int64_field(44);
+
+    NYT::NProtobufFormatTest::TSeveralTablesMessageThird thirdMessage;
+    thirdMessage.set_string_field("blah");
+
+    auto parse = [] (auto& parser, const auto& message) {
+        TString lenvalBytes;
+        {
+            TStringOutput out(lenvalBytes);
+            auto messageSize = static_cast<ui32>(message.ByteSize());
+            out.Write(&messageSize, sizeof(messageSize));
+            ASSERT_TRUE(message.SerializeToStream(&out));
+        }
+        parser->Read(lenvalBytes);
+        parser->Finish();
+    };
+
+    parse(parsers[0], firstMessage);
+    parse(parsers[1], secondMessage);
+    parse(parsers[2], thirdMessage);
+
+    {
+        const auto& rowCollector = rowCollectors[0];
+        ASSERT_EQ(rowCollector.Size(), 1);
+
+        auto embeddedNode = GetAny(rowCollector.GetRowValue(0, "embedded"));
+        ASSERT_EQ(embeddedNode->GetType(), ENodeType::List);
+        const auto& embeddedList = embeddedNode->AsList();
+        ASSERT_EQ(embeddedList->GetChildCount(), 2);
+
+        EXPECT_EQ(embeddedList->GetChild(0)->GetValue<TString>(), "Two");
+        EXPECT_EQ(embeddedList->GetChild(1)->GetValue<i64>(), 44);
+
+        auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "repeated_int64_field"));
+        ASSERT_EQ(repeatedInt64Node->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{55, 56, 57}));
+
+        auto int64Field = GetInt64(rowCollector.GetRowValue(0, "any_field"));
+        EXPECT_EQ(int64Field, 4444);
+    }
+
+    {
+        const auto& rowCollector = rowCollectors[1];
+        ASSERT_EQ(rowCollector.Size(), 1);
+
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_field")), "Two");
+        EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int64_field")), 44);
+    }
+
+    {
+        const auto& rowCollector = rowCollectors[2];
+        ASSERT_EQ(rowCollector.Size(), 1);
+
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "string_field")), "blah");
+    }
 }
 
 TEST(TProtobufFormat, SchemaConfigMismatch)

@@ -43,6 +43,30 @@ message TMessageWithStructuredEmbedded
     optional TSecondMessage second = 2;
     repeated TEmbeddedMessage repeated_message_field = 3;
     repeated int64 repeated_int64_field = 4;
+    optional int64 int64_field = 5;
+}
+
+message TSeveralTablesMessageFirst
+{
+    message TEmbedded
+    {
+        optional EEnum enum_field = 1;
+        optional int64 int64_field = 2;
+    }
+    optional TEmbedded embedded = 1;
+    repeated int64 repeated_int64_field = 2;
+    optional int64 int64_field = 3;
+}
+
+message TSeveralTablesMessageSecond
+{
+    optional EEnum enum_field = 1;
+    optional int64 int64_field = 2;
+}
+
+message TSeveralTablesMessageThird
+{
+    optional string string_field = 1;
 }
 
 message TMessage

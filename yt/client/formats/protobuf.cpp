@@ -233,6 +233,10 @@ void ValidateSimpleType(
     EProtobufType protobufType,
     NTableClient::ESimpleLogicalValueType logicalType)
 {
+    if (logicalType == ESimpleLogicalValueType::Any) {
+        return;
+    }
+
     auto validateType = [&] (ESimpleLogicalValueType expected) {
         if (logicalType != expected) {
             THROW_ERROR_EXCEPTION("Simple logical type mismatch for protobuf type %Qlv: "
