@@ -42,8 +42,10 @@ DEFINE_ENUM(EWorkloadCategory,
 );
 
 struct TWorkloadDescriptor;
+class TDiscovery;
 
 DECLARE_REFCOUNTED_CLASS(TWorkloadConfig)
+DECLARE_REFCOUNTED_CLASS(TDiscoveryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
