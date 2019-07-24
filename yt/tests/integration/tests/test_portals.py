@@ -119,8 +119,8 @@ class TestPortals(YTEnvSetup):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
-        create("table", "//tmp/p1/t", attributes={"account": "a"})
-        create("table", "//tmp/p2/t", attributes={"account": "a"})
+        create("table", "//tmp/p1/t", attributes={"account": "a", "external": True, "external_cell_tag": 1})
+        create("table", "//tmp/p2/t", attributes={"account": "a", "external": True, "external_cell_tag": 2})
         remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
         wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_started")
@@ -145,4 +145,39 @@ class TestPortals(YTEnvSetup):
         wait(lambda: exists("#{}".format(table_id), driver=get_driver(2)))
         remove("//tmp/p/t")
         wait(lambda: not exists("#{}".format(table_id), driver=get_driver(2)))
+
+    def test_root_shard(self):
+        shard_id = get("//@shard_id")
+        assert exists("//sys/cypress_shards/{}".format(shard_id))
+        assert get("//@id") == get("#{}/@root_node_id".format(shard_id))
+        assert get("#{}/@account_statistics/sys/node_count".format(shard_id)) > 0
  
+    def test_shard_statistics(self):
+        shard_id = get("//@shard_id")
+        create_account("a")
+        create_account("b")
+        assert not exists("#{}/@account_statistics/a".format(shard_id))
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        create("table", "//tmp/t2", attributes={"account": "a"})
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 2
+        set("//tmp/t2/@account", "b")
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
+        remove("//tmp/*")
+        wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
+
+    def test_portal_shard(self):
+        create_account("a")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        assert get("//tmp/p&/@shard_id") == get("//@shard_id")
+        shard_id = get("//tmp/p/@shard_id")
+        assert shard_id != get("//@shard_id")
+        assert get("#{}/@account_statistics/tmp/node_count".format(shard_id)) == 1
+        create("table", "//tmp/p/t", attributes={"account": "a"})
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        remove("//tmp/p/t")
+        wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
+        remove("//tmp/p")
+        wait(lambda: not exists("#{}".format(shard_id)))
+

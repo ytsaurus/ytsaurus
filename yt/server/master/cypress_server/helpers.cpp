@@ -322,6 +322,12 @@ TNodeId MakePortalEntranceNodeId(
     return ReplaceCellTagInId(ReplaceTypeInId(exitNodeId, EObjectType::PortalEntrance), entranceCellTag);
 }
 
+TCypressShardId MakeCypressShardId(
+    TNodeId rootNodeId)
+{
+    return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

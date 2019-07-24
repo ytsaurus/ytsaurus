@@ -300,7 +300,10 @@
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
     XX(WriteRequestTime, write_request_time) \
-    XX(SecurityTags, security_tags)
+    XX(SecurityTags, security_tags) \
+    XX(ShardId, shard_id) \
+    XX(RootNodeId, root_node_id) \
+    XX(AccountStatistics, account_statistics)
 
 namespace NYT {
 

@@ -1,4 +1,4 @@
-#include "virtual_portal_node_map.h"
+#include "portal_node_map_type_handler.h"
 #include "portal_manager.h"
 #include "cypress_manager.h"
 #include "virtual.h"

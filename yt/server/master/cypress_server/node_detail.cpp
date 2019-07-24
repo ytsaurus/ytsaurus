@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include "node_proxy_detail.h"
 #include "portal_exit_node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config.h>
@@ -83,6 +84,12 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
     node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
+    // Reset reference to shard.
+    if (node->IsTrunk()) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->ResetShard(node);
+    }
+
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
 }
@@ -143,14 +150,22 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactory* factory,
     TNodeId hintId,
-    TCellTag externalCellTag)
+    TCypressNode* sourceNode,
+    TAccount* account)
 {
     auto type = GetObjectType();
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto clonedId = hintId
         ? hintId
         : objectManager->GenerateId(type, NullObjectId);
-    return factory->InstantiateNode(clonedId, externalCellTag);
+
+    auto* clonedNode = factory->InstantiateNode(clonedId, sourceNode->GetExternalCellTag());
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* transaction = clonedNode->IsTrunk() ? nullptr : factory->GetTransaction();
+    securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
+
+    return clonedNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(

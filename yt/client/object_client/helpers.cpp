@@ -63,6 +63,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::PortalExit ||
         type == EObjectType::PortalEntranceMap ||
         type == EObjectType::PortalExitMap;
+        type == EObjectType::CypressShardMap;
 }
 
 bool IsUserType(EObjectType type)

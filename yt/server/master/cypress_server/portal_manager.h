@@ -18,8 +18,6 @@ class TPortalManager
 public:
     explicit TPortalManager(NCellMaster::TBootstrap* bootstrap);
 
-    void Initialize();
-
     void RegisterEntranceNode(
         TPortalEntranceNode* node,
         const NYTree::IAttributeDictionary& inheritedAttributes,

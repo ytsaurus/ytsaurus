@@ -9,6 +9,12 @@
 #include "portal_manager.h"
 #include "portal_entrance_node.h"
 #include "portal_exit_node.h"
+#include "shard.h"
+#include "portal_entrance_type_handler.h"
+#include "portal_exit_type_handler.h"
+#include "portal_node_map_type_handler.h"
+#include "shard_type_handler.h"
+#include "shard_map_type_handler.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -74,10 +80,12 @@ class TCypressManager::TNodeFactory
 public:
     TNodeFactory(
         NCellMaster::TBootstrap* bootstrap,
+        TCypressShard* shard,
         TTransaction* transaction,
         TAccount* account,
         const TNodeFactoryOptions& options)
         : Bootstrap_(bootstrap)
+        , Shard_(shard)
         , Transaction_(transaction)
         , Account_(account)
         , Options_(options)
@@ -217,10 +225,9 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
-            // XXX(babenko): portals
-            Bootstrap_->IsPrimaryMaster() &&
-            !multicellManager->GetRegisteredMasterCellTags().empty() &&
-            Any(handler->GetFlags() & ETypeFlags::Externalizable);
+            Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
+            (Bootstrap_->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
+            !multicellManager->GetRegisteredMasterCellTags().empty();
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
         double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", 1.0);
@@ -247,6 +254,9 @@ public:
                 if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
                 }
+                if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
+                    THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
+                }
             } else {
                 externalCellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
@@ -271,6 +281,10 @@ public:
             Transaction_,
             inheritedAttributes,
             explicitAttributes);
+
+        if (Shard_) {
+            cypressManager->SetShard(trunkNode, Shard_);
+        }
 
         RegisterCreatedNode(trunkNode);
 
@@ -376,6 +390,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    TCypressShard* const Shard_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
     const TNodeFactoryOptions Options_;
@@ -529,6 +544,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
+        RootShardId_ = MakeCypressShardId(RootNodeId_);
 
         RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap_));
@@ -539,6 +555,11 @@ public:
         RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
+        RegisterHandler(CreateShardMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreatePortalEntranceTypeHandler(Bootstrap_));
+        RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
+        RegisterHandler(CreatePortalEntranceMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreatePortalExitMapTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",
@@ -576,6 +597,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));
+        objectManager->RegisterHandler(CreateShardTypeHandler(Bootstrap_, &ShardMap_));
     }
 
 
@@ -621,7 +643,74 @@ public:
     }
 
 
+    TCypressShard* CreateShard(TCypressShardId shardId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto shardHolder = std::make_unique<TCypressShard>(shardId);
+        auto* shard = shardHolder.get();
+        ShardMap_.Insert(shardId, std::move(shardHolder));
+        return shard;
+    }
+
+    void SetShard(TCypressNode* node, TCypressShard* shard)
+    {
+        YT_ASSERT(node->IsTrunk());
+        YT_ASSERT(!node->GetShard());
+
+        node->SetShard(shard);
+
+        auto* account = node->GetAccount();
+        if (account) {
+            UpdateShardNodeCount(shard, account, +1);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(shard);
+    }
+
+    void ResetShard(TCypressNode* node)
+    {
+        YT_ASSERT(node->IsTrunk());
+
+        auto* shard = node->GetShard();
+        if (!shard) {
+            return;
+        }
+
+        node->SetShard(nullptr);
+
+        auto* account = node->GetAccount();
+        if (account) {
+            UpdateShardNodeCount(shard, account, -1);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(shard);
+    }
+
+    void UpdateShardNodeCount(
+        TCypressShard* shard,
+        TAccount* account,
+        int delta)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto it = shard->AccountStatistics().find(account);
+        if (it == shard->AccountStatistics().end()) {
+            it = shard->AccountStatistics().emplace(account, TCypressShardAccountStatistics()).first;
+            objectManager->RefObject(account);
+        }
+        auto& statistics = it->second;
+        statistics.NodeCount += delta;
+        if (statistics.IsZero()) {
+            shard->AccountStatistics().erase(it);
+            objectManager->UnrefObject(account);
+        }
+    }
+
+
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
+        TCypressShard* shard,
         TTransaction* transaction,
         TAccount* account,
         const TNodeFactoryOptions& options)
@@ -630,6 +719,7 @@ public:
 
         return std::make_unique<TNodeFactory>(
             Bootstrap_,
+            shard,
             transaction,
             account,
             options);
@@ -638,7 +728,7 @@ public:
     TCypressNode* CreateNode(
         TNodeId hintId,
         TCellTag externalCellTag,
-        INodeTypeHandlerPtr handler,
+        const INodeTypeHandlerPtr& handler,
         TAccount* account,
         TTransaction* transaction,
         IAttributeDictionary* inheritedAttributes,
@@ -672,7 +762,6 @@ public:
         return node;
     }
 
-
     TCypressNode* InstantiateNode(
         TNodeId id,
         TCellTag externalCellTag)
@@ -681,7 +770,9 @@ public:
 
         auto type = TypeFromId(id);
         const auto& handler = GetHandler(type);
-        auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
+        auto nodeHolder = handler->Instantiate(
+            TVersionedNodeId(id),
+            externalCellTag);
         return RegisterNode(std::move(nodeHolder));
     }
 
@@ -1412,6 +1503,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
+    DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
 
     DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
 
@@ -1438,14 +1530,20 @@ private:
 
     NHydra::TEntityMap<TCypressNode, TNodeMapTraits> NodeMap_;
     NHydra::TEntityMap<TLock> LockMap_;
+    NHydra::TEntityMap<TCypressShard> ShardMap_;
 
     TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler_;
 
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
+    TCypressShardId RootShardId_;
+    TCypressShard* RootShard_ = nullptr;
+
     // COMPAT(shakurov). See YT-10852.
     bool NeedCleanupHalfCommittedTransaction_ = false;
+    // COMPAT(babenko)
+    bool NeedBindNodesToRootShard_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1454,12 +1552,14 @@ private:
     {
         NodeMap_.SaveKeys(context);
         LockMap_.SaveKeys(context);
+        ShardMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         NodeMap_.SaveValues(context);
         LockMap_.SaveValues(context);
+        ShardMap_.SaveValues(context);
     }
 
 
@@ -1469,6 +1569,10 @@ private:
 
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+            ShardMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1477,9 +1581,15 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+            ShardMap_.LoadValues(context);
+        }
 
         // COMPAT(shakurov) see YT-10852
         NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterSnapshotVersion::YT_10852;
+        // COMPAT(babenko)
+        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterSnapshotVersion::CypressShards;
     }
 
     virtual void Clear() override
@@ -1492,9 +1602,11 @@ private:
 
         NodeMap_.Clear();
         LockMap_.Clear();
+        ShardMap_.Clear();
         SharedTableSchemaRegistry_->Clear();
 
         RootNode_ = nullptr;
+        RootShard_ = nullptr;
     }
 
     virtual void SetZeroState() override
@@ -1511,6 +1623,7 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedCleanupHalfCommittedTransaction_ = false;
+        NeedBindNodesToRootShard_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1522,8 +1635,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         YT_LOG_INFO("Started initializing locks");
-        for (const auto& pair : LockMap_) {
-            auto* lock = pair.second;
+        for (auto [lockId, lock] : LockMap_) {
             if (!IsObjectAlive(lock)) {
                 continue;
             }
@@ -1564,18 +1676,14 @@ private:
         YT_LOG_INFO("Finished initializing locks");
 
         YT_LOG_INFO("Started initializing nodes");
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-
+        for (auto [nodeId, node] : NodeMap_) {
             // Reconstruct immediate ancestor sets.
-            auto* parent = node->GetParent();
-            if (parent) {
+            if (auto* parent = node->GetParent()) {
                 YT_VERIFY(parent->ImmediateDescendants().insert(node).second);
             }
 
             // Reconstruct TrunkNode and Transaction.
-            auto transactionId = node->GetVersionedId().TransactionId;
-            if (transactionId) {
+            if (auto transactionId = node->GetVersionedId().TransactionId) {
                 node->SetTrunkNode(GetNode(TVersionedNodeId(node->GetId())));
                 node->SetTransaction(transactionManager->GetTransaction(transactionId));
             }
@@ -1611,8 +1719,7 @@ private:
         InitBuiltins();
 
         // COMPAT(shakurov)
-        if (NeedCleanupHalfCommittedTransaction_)
-        {
+        if (NeedCleanupHalfCommittedTransaction_) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -1653,17 +1760,25 @@ private:
                 YT_LOG_ERROR("The half-committed transaction 14b9d-127f8e-3fe0001-1c229f47 has been successfully scrubbed out.");
             }
         }
+
+        // COMPAT(babenko)
+        if (NeedBindNodesToRootShard_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->IsTrunk() && !node->IsForeign() && !node->GetShard()) {
+                    SetShard(node, RootShard_);
+                }
+            }
+        }
     }
 
 
     void InitBuiltins()
     {
-        auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_));
-        if (untypedRootNode) {
-            // Root already exists.
+        if (auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_))) {
+            // Root node already exists.
             RootNode_ = untypedRootNode->As<TMapNode>();
         } else {
-            // Create the root.
+            // Create the root node.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId_));
             rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
@@ -1678,6 +1793,18 @@ private:
             RootNode_ = rootNodeHolder.get();
             NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
             YT_VERIFY(RootNode_->RefObject() == 1);
+        }
+
+        RootShard_ = FindShard(RootShardId_);
+        if (!RootShard_) {
+            // Create the root shard.
+            auto rootShardHolder = std::make_unique<TCypressShard>(RootShardId_);
+            rootShardHolder->SetRoot(RootNode_);
+
+            RootShard_ = rootShardHolder.get();
+            ShardMap_.Insert(RootShardId_, std::move(rootShardHolder));
+
+            SetShard(RootNode_, RootShard_);
         }
     }
 
@@ -1736,7 +1863,7 @@ private:
         node->SetContentRevision(mutationContext->GetVersion().ToRevision());
 
         if (node->IsExternal()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %vExternalCellTag: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
                 node->GetId(),
                 node->GetType(),
                 node->GetExternalCellTag());
@@ -2791,6 +2918,7 @@ private:
         auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(
+            nullptr,
             clonedTransaction,
             account,
             TNodeFactoryOptions());
@@ -2944,6 +3072,7 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNode, NodeMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, LockMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Shard, TCypressShard, ShardMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3018,12 +3147,37 @@ const INodeTypeHandlerPtr& TCypressManager::GetHandler(const TCypressNode* node)
     return Impl_->GetHandler(node);
 }
 
+TCypressShard* TCypressManager::CreateShard(TCypressShardId shardId)
+{
+    return Impl_->CreateShard(shardId);
+}
+
+void TCypressManager::SetShard(TCypressNode* node, TCypressShard* shard)
+{
+    Impl_->SetShard(node, shard);
+}
+
+void TCypressManager::ResetShard(TCypressNode* node)
+{
+    Impl_->ResetShard(node);
+}
+
+void TCypressManager::UpdateShardNodeCount(
+    TCypressShard* shard,
+    TAccount* account,
+    int delta)
+{
+    Impl_->UpdateShardNodeCount(shard, account, delta);
+}
+
 std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
+    TCypressShard* shard,
     TTransaction* transaction,
     TAccount* account,
     const TNodeFactoryOptions& options)
 {
     return Impl_->CreateNodeFactory(
+        shard,
         transaction,
         account,
         options);
@@ -3032,7 +3186,7 @@ std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
 TCypressNode* TCypressManager::CreateNode(
     TNodeId hintId,
     TCellTag externalCellTag,
-    INodeTypeHandlerPtr handler,
+    const INodeTypeHandlerPtr& handler,
     TAccount* account,
     TTransaction* transaction,
     IAttributeDictionary* inheritedAttributes,
@@ -3204,6 +3358,7 @@ const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTab
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Shard, TCypressShard, *Impl_)
 
 DELEGATE_SIGNAL(TCypressManager, void(TCypressNode*), NodeCreated, *Impl_);
 

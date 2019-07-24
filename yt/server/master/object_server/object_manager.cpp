@@ -638,7 +638,7 @@ int TObjectManager::TImpl::RefObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         GetObjectEphemeralRefCounter(object),
@@ -664,7 +664,7 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         GetObjectEphemeralRefCounter(object),
