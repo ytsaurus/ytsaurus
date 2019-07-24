@@ -263,6 +263,8 @@ class TProtobufParser
 public:
     using EState = EProtobufParserState;
 
+    // NB(levysotsky): We expect the description to have only one table,
+    // the |tableIndex| parameter is for debugging purposes only.
     TProtobufParser(
         IValueConsumer* valueConsumer,
         TProtobufFormatDescriptionPtr description,
@@ -272,9 +274,11 @@ public:
         , TableIndex_(tableIndex)
         , OtherColumnsConsumer_(valueConsumer)
     {
-        ColumnConsumer_.SetValueConsumer(valueConsumer);
+        ColumnConsumer_.SetValueConsumer(ValueConsumer_);
 
-        const auto& columns = Description_->GetTableDescription(tableIndex).Columns;
+        YT_VERIFY(Description_->GetTableCount() == 1);
+        const auto& columns = Description_->GetTableDescription(0).Columns;
+
         auto nameTable = ValueConsumer_->GetNameTable();
 
         TProtobufFieldDescription rootDescription;
@@ -609,12 +613,17 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     int tableIndex)
 {
     auto formatDescription = New<TProtobufFormatDescription>();
-    formatDescription->Init(config, {consumer->GetSchema()}, /* validateMissingFieldsOptionality */ true);
-    return std::unique_ptr<IParser>(
-        new TProtobufParser(
-            consumer,
-            formatDescription,
-            tableIndex));
+    bool newFormat = !config->Tables.empty();
+    if (newFormat) {
+        // Retain only one table config, as we have only one schema here.
+        config = NYTree::CloneYsonSerializable(config);
+        config->Tables = {config->Tables[tableIndex]};
+    }
+    formatDescription->Init(
+        config,
+        {consumer->GetSchema()},
+        /* validateMissingFieldsOptionality */ true);
+    return std::make_unique<TProtobufParser>(consumer, formatDescription, tableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
