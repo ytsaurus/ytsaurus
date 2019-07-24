@@ -1155,67 +1155,24 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
 
 TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
 {
-    // XXX(babenko): replace with TPathResolver
-    // Shortcut.
-    if (path.empty()) {
-        return GetMasterObject();
+    TPathResolver resolver(
+        Bootstrap_,
+        TString(),
+        TString(),
+        path,
+        transaction,
+        TPathResolverOptions{
+            .EnablePartialResolve = false
+        });
+
+    auto result = resolver.Resolve();
+    const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
+    if (!payload) {
+        THROW_ERROR_EXCEPTION("%v is not a local object",
+            path);
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-
-    NYPath::TTokenizer tokenizer(path);
-
-    auto doResolve = [&] (IObjectProxy* proxy) {
-        // Shortcut.
-        auto suffixPath = tokenizer.GetSuffix();
-        if (suffixPath.empty()) {
-            return proxy->GetObject();
-        }
-
-        // Slow path.
-        auto req = TObjectYPathProxy::GetBasicAttributes(TYPath(suffixPath));
-        SetTransactionId(req, GetObjectId(transaction));
-        auto rsp = SyncExecuteVerb(proxy, req);
-        auto objectId = FromProto<TObjectId>(rsp->object_id());
-        return GetObjectOrThrow(objectId);
-    };
-
-    switch (tokenizer.Advance()) {
-        case NYPath::ETokenType::EndOfStream:
-            return GetMasterObject();
-
-        case NYPath::ETokenType::Slash: {
-            auto root = cypressManager->GetNodeProxy(
-                cypressManager->GetRootNode(),
-                transaction);
-            return doResolve(root.Get());
-        }
-
-        case NYPath::ETokenType::Literal: {
-            const auto& token = tokenizer.GetToken();
-            if (!token.StartsWith(ObjectIdPathPrefix)) {
-                tokenizer.ThrowUnexpected();
-            }
-
-            TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
-            TObjectId objectId;
-            if (!TObjectId::FromString(objectIdString, &objectId)) {
-                THROW_ERROR_EXCEPTION(
-                    NYTree::EErrorCode::ResolveError,
-                    "Error parsing object id %Qv",
-                    objectIdString);
-            }
-
-            auto* object = objectManager->GetObjectOrThrow(objectId);
-            auto proxy = objectManager->GetProxy(object, transaction);
-            return doResolve(proxy.Get());
-        }
-
-        default:
-            tokenizer.ThrowUnexpected();
-            YT_ABORT();
-    }
+    return payload->Object;
 }
 
 void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
