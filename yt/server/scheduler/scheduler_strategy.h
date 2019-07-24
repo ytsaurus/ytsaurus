@@ -26,6 +26,7 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const = 0;
     virtual IInvokerPtr GetProfilingInvoker() const = 0;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
 
@@ -88,6 +89,9 @@ struct ISchedulerStrategy
 
     //! Stops all activities, resets all state.
     virtual void OnMasterDisconnected() = 0;
+
+    //! Called periodically to collect the metrics of tree elements.
+    virtual void OnFairShareProfilingAt(TInstant now) = 0;
 
     //! Called periodically to build new tree snapshots.
     virtual void OnFairShareUpdateAt(TInstant now) = 0;

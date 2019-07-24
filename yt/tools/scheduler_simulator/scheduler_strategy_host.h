@@ -29,6 +29,7 @@ public:
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream);
 
+    virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
     virtual IInvokerPtr GetProfilingInvoker() const override;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
 

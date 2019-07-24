@@ -198,7 +198,7 @@ public:
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
 
-            Strategy_ = CreateFairShareStrategy(Config_, this, Bootstrap_->GetControlInvoker(EControlQueue::FairShareStrategy), feasibleInvokers);
+            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
         }
     }
 
@@ -253,7 +253,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::CollectProfiling),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();

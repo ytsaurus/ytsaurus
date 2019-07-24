@@ -21,6 +21,11 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue queue) const
+{
+    return GetCurrentInvoker();
+}
+
 IInvokerPtr TSchedulerStrategyHost::GetProfilingInvoker() const
 {
     return GetCurrentInvoker();

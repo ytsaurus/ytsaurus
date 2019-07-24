@@ -34,14 +34,19 @@ struct TSchedulerStrategyHostMock
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     virtual IInvokerPtr GetProfilingInvoker() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
-        Y_UNREACHABLE();
+        YT_UNIMPLEMENTED();
     }
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
