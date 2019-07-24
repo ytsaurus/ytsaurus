@@ -427,7 +427,7 @@ private:
         TPathResolver resolver(
             Bootstrap_,
             NullService,
-            NullService,
+            NullMethod,
             path,
             GetTransactionId(context));
         auto result = resolver.Resolve();
