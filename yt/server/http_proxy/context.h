@@ -91,6 +91,8 @@ private:
 
     std::optional<ui64> IfNoneMatch_;
 
+    bool PrepareFinished_ = false;
+
     TSharedRefOutputStreamPtr MemoryOutput_;
 
     TError Error_;

@@ -551,6 +551,9 @@ void TContext::LogRequest()
 }
 
 void TContext::LogStructuredRequest() {
+    if (!PrepareFinished_) {
+        return;
+    }
     std::optional<TString> correlationId;
     if (auto correlationHeader = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
         correlationId = *correlationHeader;
@@ -676,6 +679,7 @@ void TContext::FinishPrepare()
     SetupOutputParameters();
     SetupTracing();
     AddHeaders();
+    PrepareFinished_ = true;
 }
 
 void TContext::Run()
