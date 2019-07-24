@@ -34,7 +34,7 @@ def main():
     if is_debian:
         scripts = [binary + str(sys.version_info[0]) for binary in binaries]
         data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion" + str(sys.version_info[0])]))
-    if is_python_egg:
+    else:  # python egg or wheel
         scripts = binaries
 
     find_packages("yt/packages")
