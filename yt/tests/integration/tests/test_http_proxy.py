@@ -133,3 +133,6 @@ class TestHttpProxy(YTEnvSetup):
             return flag
 
         wait(logs_updated)
+
+    def test_fail_logging(self):
+        requests.get(self.proxy_address() + "/api/v2/get")
