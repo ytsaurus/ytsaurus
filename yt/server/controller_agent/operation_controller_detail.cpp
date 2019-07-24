@@ -6972,6 +6972,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
     }
 
     fluent
+        .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -7019,9 +7020,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
     if (IsPrepared() && DataFlowGraph_) {
-        fluent.Item("jobs").Do(BIND([&] (TFluentAny fluent) {
-            SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
-        }));
+        fluent
+            .Item("state").Value(State.load())
+            .Item("jobs").Do(BIND([&] (TFluentAny fluent) {
+                SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+            }))
+            .Item("build_time").Value(TInstant::Now());
     }
 }
 

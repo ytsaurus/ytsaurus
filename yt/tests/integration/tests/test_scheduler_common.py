@@ -2662,7 +2662,7 @@ class TestSchedulerConfig(YTEnvSetup):
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
 
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
-        assert list(get(op.get_path() + "/@brief_progress")) == ["jobs"]
+        assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
 
     @authors("ignat")
     def test_cypress_config(self):
