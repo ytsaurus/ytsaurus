@@ -392,7 +392,7 @@ private:
         return address;
     }
 
-    NNative::IClientPtr GetAuthenticatedClientOrAbortContext(
+    NNative::IClientPtr GetAuthenticatedClientOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
@@ -409,10 +409,18 @@ private:
                 request->ShortDebugString());
         }
 
-        return GetOrCreateClient(user);
+        auto client = GetOrCreateClient(user);
+
+        if (!client) {
+            THROW_ERROR_EXCEPTION(
+                "No client found for user %Qv",
+                user);
+        }
+
+        return client;
     }
 
-    ITransactionPtr GetTransactionOrAbortContext(
+    ITransactionPtr GetTransactionOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
         TTransactionId transactionId,
@@ -420,10 +428,7 @@ private:
         bool searchInPool = true,
         bool attach = true)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return nullptr;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         ITransactionPtr transaction;
         if (searchInPool) {
@@ -483,10 +488,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto count = request->count();
 
@@ -509,10 +511,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartTransaction)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         if (!request->sticky() && request->type() == NApi::NRpcProxy::NProto::ETransactionType::TT_TABLET) {
             THROW_ERROR_EXCEPTION("Tablet transactions must be sticky");
@@ -583,7 +582,7 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
@@ -608,7 +607,7 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
@@ -638,7 +637,7 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
@@ -652,10 +651,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTransaction)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransactionAttachOptions options;
@@ -672,7 +668,7 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
@@ -691,10 +687,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateObject)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto type = FromProto<EObjectType>(request->type());
         TCreateObjectOptions options;
@@ -717,10 +710,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTableMountInfo)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = FromProto<TYPath>(request->path());
 
@@ -763,10 +753,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExistsNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -802,10 +789,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -844,10 +828,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -886,10 +867,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
         auto type = CheckedEnumCast<NObjectClient::EObjectType>(request->type());
@@ -936,10 +914,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -971,10 +946,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
         auto value = TYsonString(request->value());
@@ -1007,10 +979,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
         auto mode = CheckedEnumCast<NCypressClient::ELockMode>(request->mode());
@@ -1056,10 +1025,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnlockNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1082,10 +1048,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& srcPath = request->src_path();
         const auto& dstPath = request->dst_path();
@@ -1141,10 +1104,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MoveNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& srcPath = request->src_path();
         const auto& dstPath = request->dst_path();
@@ -1194,10 +1154,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LinkNode)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& srcPath = request->src_path();
         const auto& dstPath = request->dst_path();
@@ -1244,10 +1201,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ConcatenateNodes)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto srcPaths = FromProto<std::vector<TRichYPath>>(request->src_paths());
         auto dstPath = FromProto<TRichYPath>(request->dst_path());
@@ -1276,10 +1230,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MountTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1310,10 +1261,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnmountTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1339,10 +1287,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemountTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1365,10 +1310,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FreezeTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1391,10 +1333,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnfreezeTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1417,10 +1356,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1465,10 +1401,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTableAutomatic)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1495,10 +1428,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TrimTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
         auto tabletIndex = request->tablet_index();
@@ -1523,10 +1453,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -1558,10 +1485,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTableReplica)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
 
@@ -1586,10 +1510,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BalanceTabletCells)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& bundle = request->bundle();
         auto tables = FromProto<std::vector<NYPath::TYPath>>(request->movable_tables());
@@ -1614,10 +1535,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
         auto type = NYT::NApi::NRpcProxy::NProto::ConvertOperationTypeFromProto(request->type());
         auto spec = TYsonString(request->spec());
 
@@ -1647,10 +1566,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1671,10 +1587,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1695,10 +1608,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1715,10 +1625,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CompleteOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1735,10 +1642,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UpdateOperationParameters)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1761,10 +1665,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetOperation)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
@@ -1795,10 +1696,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListOperations)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         TListOperationsOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1884,10 +1782,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListJobs)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
@@ -1958,10 +1853,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobContext)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto path = request->path();
@@ -1980,10 +1872,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInput)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -1999,10 +1888,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInputPaths)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -2022,10 +1908,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobStderr)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto jobId = FromProto<TJobId>(request->job_id());
@@ -2048,10 +1931,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobFailContext)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto jobId = FromProto<TJobId>(request->job_id());
@@ -2074,10 +1954,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJob)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto jobId = FromProto<TJobId>(request->job_id());
@@ -2104,10 +1981,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StraceJob)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         TStraceJobOptions options;
@@ -2126,10 +2000,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SignalJob)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto signalName = request->signal_name();
@@ -2148,10 +2019,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbandonJob)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         TAbandonJobOptions options;
@@ -2166,10 +2034,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PollJobShell)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
@@ -2192,10 +2057,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortJob)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -2277,10 +2139,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LookupRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -2316,10 +2175,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, VersionedLookupRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -2360,10 +2216,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SelectRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& query = request->query();
 
@@ -2432,10 +2285,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetInSyncReplicas)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -2474,10 +2324,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTabletInfos)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
         auto tabletIndexes = FromProto<std::vector<int>>(request->tablet_indexes());
@@ -2577,7 +2424,7 @@ private:
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
@@ -2600,7 +2447,7 @@ private:
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetTransactionOrThrow(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
@@ -2659,10 +2506,7 @@ private:
             return;
         }
 
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto connection = client->GetConnection();
         auto admin = connection->CreateAdmin();
@@ -2700,10 +2544,7 @@ private:
             return;
         }
 
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto connection = client->GetConnection();
         auto admin = connection->CreateAdmin();
@@ -2724,10 +2565,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto group = request->group();
         auto member = request->member();
@@ -2754,10 +2592,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto group = request->group();
         auto member = request->member();
@@ -2784,10 +2619,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermission)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& user = request->user();
         const auto& path = request->path();
@@ -2827,10 +2659,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermissionByAcl)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         std::optional<TString> user;
         if (request->has_user()) {
@@ -2869,10 +2698,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -2915,10 +2741,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
 
@@ -2957,10 +2780,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -3004,10 +2824,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
 
@@ -3050,10 +2867,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
 
@@ -3126,10 +2940,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
 
@@ -3186,10 +2997,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto md5 = request->md5();
 
@@ -3222,10 +3030,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto path = request->path();
         auto md5 = request->md5();
@@ -3266,10 +3071,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return;
-        }
+        auto client = GetAuthenticatedClientOrThrow(context, request);
 
         std::vector<NYPath::TRichYPath> path;
         for (const auto& protoSubPath: request->path()) {
