@@ -56,11 +56,21 @@ public:
     const INodeTypeHandlerPtr& GetHandler(NObjectClient::EObjectType type);
     const INodeTypeHandlerPtr& GetHandler(const TCypressNode* node);
 
-    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
+    //! Creates a new shard without any references to it.
+    TCypressShard* CreateShard(TCypressShardId shardId);
+
+    //! Assigns a given shard to the node. The node must not already be assigned any shard.
+    void SetShard(TCypressNode* node, TCypressShard* shard);
+
+    //! Resets the node's shard. This call is noop if no shard is assigned to the node.
+    void ResetShard(TCypressNode* node);
+
+    //! Increments the node counter of a given shard.
+    void UpdateShardNodeCount(TCypressShard* shard, NSecurityServer::TAccount* account, int delta);
 
     //! Creates a factory for creating nodes.
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
+        TCypressShard* shard,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options);
@@ -69,7 +79,7 @@ public:
     TCypressNode* CreateNode(
         TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
-        INodeTypeHandlerPtr handler,
+        const INodeTypeHandlerPtr& handler,
         NSecurityServer::TAccount* account,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* inheritedAttributes,
@@ -180,6 +190,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
+    DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
 
     DECLARE_SIGNAL(void(TCypressNode*), NodeCreated);
 

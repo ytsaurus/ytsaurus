@@ -82,6 +82,9 @@ TNodeId MakePortalEntranceNodeId(
     TNodeId exitNodeId,
     NObjectClient::TCellTag entranceCellTag);
 
+NObjectClient::TObjectId MakeCypressShardId(
+    TNodeId rootNodeId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

@@ -155,6 +155,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
 
+    //! The shard this node belongs to.
+    //! Always null for foreign and non-trunk nodes.
+    DEFINE_BYVAL_RW_PROPERTY(TCypressShard*, Shard);
+
     explicit TCypressNode(const TVersionedNodeId& id);
     virtual ~TCypressNode();
 

@@ -612,7 +612,6 @@ void TBootstrap::DoInitialize()
     TransactionManager_->Initialize();
     NodeTracker_->Initialize();
     CypressManager_->Initialize();
-    PortalManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();

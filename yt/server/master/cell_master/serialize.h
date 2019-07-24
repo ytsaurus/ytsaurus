@@ -80,6 +80,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (839))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
+    ((CypressShards)                                                 (901))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

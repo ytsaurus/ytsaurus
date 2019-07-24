@@ -499,6 +499,11 @@ private:
                 transactionId,
                 EObjectType::PortalExitMap);
 
+            ScheduleCreateNode(
+                "//sys/cypress_shards",
+                transactionId,
+                EObjectType::CypressShardMap);
+
             FlushScheduled();
 
             // Level 3

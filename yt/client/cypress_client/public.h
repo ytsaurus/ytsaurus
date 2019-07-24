@@ -17,6 +17,7 @@ using NObjectClient::TVersionedObjectId;
 
 using TNodeId = TObjectId;
 using TLockId = TObjectId;
+using TCypressShardId = TObjectId;
 using TVersionedNodeId = TVersionedObjectId;
 
 extern const TLockId NullLockId;

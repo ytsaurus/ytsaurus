@@ -2,6 +2,7 @@
 #include "private.h"
 #include "cypress_traverser.h"
 #include "helpers.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
@@ -255,6 +256,7 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->CreateNodeFactory(
+        GetThisImpl()->GetTrunkNode()->GetShard(),
         Transaction,
         account,
         options);
@@ -526,6 +528,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Opaque)
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardId)
+        .SetPresent(node->GetTrunkNode()->GetShard() != nullptr));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -674,6 +678,14 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetOpaque());
             return true;
+
+        case EInternedAttributeKey::ShardId:
+            if (node->GetTrunkNode()->GetShard()) {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetTrunkNode()->GetShard()->GetId());
+                return true;
+            }
+            break;
 
         default:
             break;

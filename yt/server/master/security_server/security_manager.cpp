@@ -458,14 +458,21 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (oldAccount) {
+            if (auto* shard = node->GetShard()) {
+                cypressManager->UpdateShardNodeCount(shard, oldAccount, -1);
+            }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
-        node->SetAccount(newAccount);
+        if (auto* shard = node->GetShard()) {
+            cypressManager->UpdateShardNodeCount(shard, newAccount, +1);
+        }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
+        node->SetAccount(newAccount);
         objectManager->RefObject(newAccount);
 
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);

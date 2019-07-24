@@ -17,6 +17,7 @@ using NCypressClient::TLockId;
 using NCypressClient::ELockMode;
 using NCypressClient::ELockState;
 using NCypressClient::TVersionedNodeId;
+using NCypressClient::TCypressShardId;
 
 using NObjectClient::TTransactionId;
 
@@ -37,6 +38,7 @@ struct ICypressNodeFactory;
 
 DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TDirectObjectIdHash)
 
 using TCypressNodeList = SmallVector<TCypressNode*, 8>;
 using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;

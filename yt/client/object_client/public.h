@@ -150,6 +150,8 @@ DEFINE_ENUM(EObjectType,
     ((PortalExit)                (11001))
     ((PortalEntranceMap)         (11002))
     ((PortalExitMap)             (11003))
+    ((CypressShard)              (11004))
+    ((CypressShardMap)           (11005))
 
     // Security Manager stuff
     ((Account)                    (500))

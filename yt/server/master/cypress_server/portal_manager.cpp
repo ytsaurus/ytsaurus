@@ -1,11 +1,9 @@
 #include "portal_manager.h"
 #include "cypress_manager.h"
 #include "portal_entrance_node.h"
-#include "portal_entrance_type_handler.h"
 #include "portal_exit_node.h"
-#include "portal_exit_type_handler.h"
-#include "virtual_portal_node_map.h"
 #include "helpers.h"
+#include "shard.h"
 #include "private.h"
 
 #include <yt/server/master/object_server/object_manager.h>
@@ -64,15 +62,6 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraCreatePortalExit, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemovePortalEntrance, Unretained(this)));
-}
-
-    void Initialize()
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->RegisterHandler(CreatePortalEntranceTypeHandler(Bootstrap_));
-        cypressManager->RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
-        cypressManager->RegisterHandler(CreatePortalEntranceMapTypeHandler(Bootstrap_));
-        cypressManager->RegisterHandler(CreatePortalExitMapTypeHandler(Bootstrap_));
     }
 
     void RegisterEntranceNode(
@@ -206,8 +195,11 @@ private:
         const auto& path = request->path();
 
         auto exitNodeId = MakePortalExitNodeId(entranceNodeId, Bootstrap_->GetCellTag());
+        auto shardId = MakeCypressShardId(exitNodeId);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* shard = cypressManager->CreateShard(shardId);
+
         const auto& handler = cypressManager->GetHandler(EObjectType::PortalExit);
         auto* node = cypressManager->CreateNode(
             exitNodeId,
@@ -217,6 +209,9 @@ private:
             nullptr,
             inheritedAttributes.get(),
             explicitAttributes.get())->As<TPortalExitNode>();
+
+        cypressManager->SetShard(node, shard);
+        shard->SetRoot(node);
 
         node->SetEntranceCellTag(CellTagFromId(entranceNodeId));
 
@@ -270,11 +265,6 @@ private:
 TPortalManager::TPortalManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
-
-void TPortalManager::Initialize()
-{
-    Impl_->Initialize();
-}
 
 void TPortalManager::RegisterEntranceNode(
     TPortalEntranceNode* node,

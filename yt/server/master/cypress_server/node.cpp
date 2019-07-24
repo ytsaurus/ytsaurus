@@ -1,4 +1,5 @@
 #include "node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/serialize.h>
 
@@ -158,6 +159,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, Opaque_);
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
+    Save(context, Shard_);
 }
 
 void TCypressNode::Load(TLoadContext& context)
@@ -199,6 +201,10 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, Opaque_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        Load(context, Shard_);
+    }
 }
 
 TVersionedObjectId GetObjectId(const TCypressNode* object)

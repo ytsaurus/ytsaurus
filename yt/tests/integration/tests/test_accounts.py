@@ -1047,7 +1047,7 @@ class TestAccounts(YTEnvSetup):
         set("//tmp/t/@account", "a")
         self._replicator_sleep()
         assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 1
-        assert get("//sys/accounts/a/@ref_counter") == 2
+        assert get("//sys/accounts/a/@ref_counter") == 3
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
         assert get("//sys/accounts/a/@resource_usage/node_count") == 1
         abort_transaction(tx)
@@ -1055,7 +1055,7 @@ class TestAccounts(YTEnvSetup):
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc
         assert get("//sys/accounts/a/@resource_usage/node_count") == 1
         assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc
-        assert get("//sys/accounts/a/@ref_counter") == 2
+        assert get("//sys/accounts/a/@ref_counter") == 3
 
 
     def test_regular_disk_usage(self):

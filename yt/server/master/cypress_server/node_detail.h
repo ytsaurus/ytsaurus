@@ -66,14 +66,14 @@ protected:
     TCypressNode* CloneCorePrologue(
         ICypressNodeFactory* factory,
         TNodeId hintId,
-        NObjectClient::TCellTag externalCellTag);
+        TCypressNode* sourceNode,
+        NSecurityServer::TAccount* account);
 
     void CloneCoreEpilogue(
         TCypressNode* sourceNode,
         TCypressNode* clonedNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +216,8 @@ public:
         auto* clonedNode = CloneCorePrologue(
             factory,
             hintId,
-            sourceNode->GetExternalCellTag());
+            sourceNode,
+            account);
 
         // Run custom stuff.
         auto* typedSourceNode = sourceNode->template As<TImpl>();
@@ -342,15 +343,11 @@ protected:
 
     virtual void DoClone(
         TImpl* /*sourceNode*/,
-        TImpl* clonedNode,
-        ICypressNodeFactory* factory,
+        TImpl* /*cloned*/Node,
+        ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
-        NSecurityServer::TAccount* account)
-    {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* transaction = clonedNode->IsTrunk() ? nullptr : factory->GetTransaction();
-        securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
-    }
+        NSecurityServer::TAccount* /*account*/)
+    { }
 
     virtual bool HasBranchedChangesImpl(
         TImpl* /*originatingNode*/,
@@ -505,7 +502,6 @@ protected:
 
         clonedNode->Value() = sourceNode->Value();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

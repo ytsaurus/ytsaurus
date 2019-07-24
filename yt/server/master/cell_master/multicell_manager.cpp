@@ -162,8 +162,8 @@ public:
         SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
         if (Bootstrap_->IsSecondaryMaster()) {
             candidates.emplace_back(
-                Bootstrap_->GetChunkManager()->Chunks().size(),
-                Bootstrap_->GetCellTag());
+                Bootstrap_->GetCellTag(),
+                Bootstrap_->GetChunkManager()->Chunks().size());
         }
         for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
             if (cellTag != Bootstrap_->GetPrimaryCellTag()) {
