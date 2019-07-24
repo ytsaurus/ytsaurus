@@ -79,6 +79,7 @@ class TestRuntimeParameters(YTEnvSetup):
     def test_running_operation_counts_on_change_pool(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
+        wait(lambda: exists(pools_path + "/changed_pool"))
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
 
