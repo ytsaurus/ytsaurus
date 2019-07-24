@@ -397,7 +397,7 @@ private:
         const google::protobuf::Message* request)
     {
         if (!Coordinator_->IsOperable(context)) {
-            return nullptr;
+            THROW_ERROR_EXCEPTION("Proxy coordinator is not operable");
         }
 
         const auto& user = context->GetUser();
