@@ -1,12 +1,13 @@
 #include "master_connector.h"
-#include "operation_controller.h"
-#include "snapshot_downloader.h"
-#include "snapshot_builder.h"
-#include "controller_agent.h"
-#include "operation.h"
-#include "helpers.h"
+
 #include "bootstrap.h"
 #include "config.h"
+#include "controller_agent.h"
+#include "helpers.h"
+#include "operation.h"
+#include "operation_controller.h"
+#include "snapshot_builder.h"
+#include "snapshot_downloader.h"
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -14,25 +15,32 @@
 
 #include <yt/server/lib/misc/update_executor.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/client/api/operation_archive_schema.h>
 #include <yt/client/api/transaction.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
-
 #include <yt/client/object_client/helpers.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/client/table_client/row_buffer.h>
+
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
-
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
+#include <yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/scheduler/helpers.h>
+
 #include <yt/ytlib/security_client/public.h>
+
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -98,7 +106,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
-        OperationNodesUpdateExecutor_->AddUpdate(
+        OperationNodesAndArchiveUpdateExecutor_->AddUpdate(
             operationId,
             TOperationNodeUpdate(operationId));
     }
@@ -108,7 +116,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
-        OperationNodesUpdateExecutor_->RemoveUpdate(operationId);
+        OperationNodesAndArchiveUpdateExecutor_->RemoveUpdate(operationId);
     }
 
     void CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
@@ -140,7 +148,7 @@ public:
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
             operationId);
 
-        return OperationNodesUpdateExecutor_->ExecuteUpdate(operationId);
+        return OperationNodesAndArchiveUpdateExecutor_->ExecuteUpdate(operationId);
     }
 
     TFuture<void> AttachToLivePreview(
@@ -205,6 +213,8 @@ private:
 
     TBootstrap* const Bootstrap_;
 
+    std::optional<bool> ArchiveExists_;
+
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
 
@@ -228,7 +238,7 @@ private:
         std::vector<TLivePreviewRequest> LivePreviewRequests;
     };
 
-    TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
+    TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesAndArchiveUpdateExecutor_;
 
     TPeriodicExecutorPtr TransactionRefreshExecutor_;
     TPeriodicExecutorPtr SnapshotExecutor_;
@@ -255,6 +265,17 @@ private:
         return Bootstrap_->GetControllerAgent()->IsConnected();
     }
 
+    // TODO: move this function and its copy from ytlib/api/native/client.cpp to common place
+    bool DoesOperationsArchiveExist()
+    {
+        if (!ArchiveExists_) {
+            ArchiveExists_ = WaitFor(
+                Bootstrap_->GetMasterClient()->NodeExists("//sys/operations_archive", TNodeExistsOptions()))
+                .ValueOrThrow();
+        }
+        return *ArchiveExists_;
+    }
+
     void OnSchedulerConnecting()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -274,15 +295,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(!OperationNodesUpdateExecutor_);
-        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+        YT_VERIFY(!OperationNodesAndArchiveUpdateExecutor_);
+        OperationNodesAndArchiveUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             CancelableControlInvoker_,
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::UpdateOperationNodeAndArchive, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
-        OperationNodesUpdateExecutor_->Start();
+        OperationNodesAndArchiveUpdateExecutor_->Start();
 
         YT_VERIFY(!TransactionRefreshExecutor_);
         TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
@@ -342,9 +363,9 @@ private:
 
         CancelableControlInvoker_.Reset();
 
-        if (OperationNodesUpdateExecutor_) {
-            OperationNodesUpdateExecutor_->Stop();
-            OperationNodesUpdateExecutor_.Reset();
+        if (OperationNodesAndArchiveUpdateExecutor_) {
+            OperationNodesAndArchiveUpdateExecutor_->Stop();
+            OperationNodesAndArchiveUpdateExecutor_.Reset();
         }
 
         if (TransactionRefreshExecutor_) {
@@ -578,7 +599,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
-    void DoUpdateOperationNode(const TOperationPtr& operation)
+    void DoUpdateOperationNodeAndArchive(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -588,7 +609,7 @@ private:
         std::vector<TLivePreviewRequest> livePreviewRequests;
         TTransactionId livePreviewTransactionId;
         {
-            auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+            auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
             if (!update) {
                 return;
             }
@@ -675,7 +696,7 @@ private:
         }
 
         try {
-            UpdateOperationNodeAttributes(operationId);
+            UpdateOperationProgress(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -686,7 +707,7 @@ private:
             operationId);
     }
 
-    TCallback<TFuture<void>()> UpdateOperationNode(TOperationId operationId, TOperationNodeUpdate* update)
+    TCallback<TFuture<void>()> UpdateOperationNodeAndArchive(TOperationId operationId, TOperationNodeUpdate* update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -705,11 +726,11 @@ private:
             return {};
         }
 
-        return BIND(&TImpl::DoUpdateOperationNode, MakeStrong(this), operation)
+        return BIND(&TImpl::DoUpdateOperationNodeAndArchive, MakeStrong(this), operation)
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodeAttributes(TOperationId operationId)
+    void UpdateOperationProgress(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -719,34 +740,88 @@ private:
             return;
         }
 
-        auto controller = operation->GetController();
-        if (!controller->HasProgress()) {
-            return;
+        TYsonString progress;
+        TYsonString briefProgress;
+
+        // Enclosing |controller| in a code block is needed to prevent lifetime prolongation due
+        // to strong pointer being kept in the stack while waiting for a batch request being invoked.
+        {
+            auto controller = operation->GetController();
+            if (!controller->HasProgress()) {
+                return;
+            }
+            controller->SetProgressUpdated();
+            progress = controller->GetProgress();
+            YT_VERIFY(progress);
+            briefProgress = controller->GetBriefProgress();
+            YT_VERIFY(briefProgress);
         }
 
-        controller->SetProgressUpdated();
+        bool archiveUpdated = false;
+        if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
+            archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
+        }
+        if (!archiveUpdated) {
+            UpdateOperationProgressInCypress(operationId, progress, briefProgress);
+        }
+    }
 
+    bool TryUpdateOperationProgressInArchive(
+        TOperationId operationId,
+        const TYsonString& progress,
+        const TYsonString& briefProgress)
+    {
+        const auto& client = Bootstrap_->GetMasterClient();
+        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+           .ValueOrThrow();
+        YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v)",
+           transaction->GetId());
+
+        TOrderedByIdTableDescriptor tableDescriptor;
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        builder.AddValue(MakeUnversionedAnyValue(progress.GetData(), tableDescriptor.Index.Progress));
+        builder.AddValue(MakeUnversionedAnyValue(briefProgress.GetData(), tableDescriptor.Index.BriefProgress));
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto row = rowBuffer->Capture(builder.GetRow());
+        i64 orderedByIdRowsDataWeight = GetDataWeight(row);
+
+        transaction->WriteRows(
+            GetOperationsArchiveOrderedByIdPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(SmallVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+
+        auto error = WaitFor(transaction->Commit()
+            .WithTimeout(Config_->OperationProgressArchivationTimeout));
+
+        if (!error.IsOK()) {
+            YT_LOG_WARNING("Operation progress update in Archive failed (TransactionId: %v)",
+                transaction->GetId());
+        } else {
+            YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v)",
+                transaction->GetId(),
+                orderedByIdRowsDataWeight);
+        }
+        return error.IsOK();
+    }
+
+    void UpdateOperationProgressInCypress(TOperationId operationId, const TYsonString& progress, const TYsonString& briefProgress)
+    {
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
-
-        auto progress = controller->GetProgress();
-        YT_VERIFY(progress);
-
-        auto briefProgress = controller->GetBriefProgress();
-        YT_VERIFY(briefProgress);
 
         auto operationPath = GetOperationPath(operationId);
 
         auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
 
-        // Set progress.
         {
             auto req = multisetReq->add_subrequests();
             req->set_key("progress");
             req->set_value(progress.GetData());
         }
 
-        // Set brief progress.
         {
             auto req = multisetReq->add_subrequests();
             req->set_key("brief_progress");
@@ -754,11 +829,6 @@ private:
         }
 
         batchReq->AddRequest(multisetReq, "update_op_node");
-
-        // This is needed to prevent controller lifetime prolongation due to strong pointer
-        // being kept in the stack while waiting for a batch request being invoked.
-        controller.Reset();
-
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
@@ -988,7 +1058,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
             YT_LOG_DEBUG("Trying to attach live preview to an unknown operation (OperationId: %v)",
                 operationId);
@@ -1062,7 +1132,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
             YT_LOG_DEBUG("Requested to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
                 operationId,
@@ -1203,8 +1273,8 @@ private:
 
         Config_ = config;
 
-        if (OperationNodesUpdateExecutor_) {
-            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
+        if (OperationNodesAndArchiveUpdateExecutor_) {
+            OperationNodesAndArchiveUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
         }
         if (TransactionRefreshExecutor_) {
             TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);

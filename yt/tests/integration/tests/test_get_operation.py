@@ -8,8 +8,6 @@ from yt.common import uuid_to_parts
 
 import pytest
 
-from copy import deepcopy
-
 def _get_orchid_operation_path(op_id):
     return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
 
@@ -21,6 +19,18 @@ def _get_operation_from_cypress(op_id):
     result["id"] = op_id
     return result
 
+def _get_operation_from_archive(op_id):
+    id_hi, id_lo = uuid_to_parts(op_id)
+    archive_table_path = "//sys/operations_archive/ordered_by_id"
+    rows = lookup_rows(archive_table_path, [{"id_hi": id_hi, "id_lo": id_lo}])
+    if rows:
+        return rows[0]
+    else:
+        return {}
+
+def get_running_job_count(op_id):
+    result = get_operation(op_id, attributes=["brief_progress"])
+    return result["brief_progress"]["jobs"]["running"]
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -51,6 +61,10 @@ class TestGetOperation(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
+    def clean_build_time(self, operation_result):
+        del operation_result["brief_progress"]["build_time"]
+        del operation_result["progress"]["build_time"]
+
     @authors("levysotsky", "babenko", "ignat")
     def test_get_operation(self):
         create("table", "//tmp/t1")
@@ -72,7 +86,8 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
+
+        wait(lambda: get_running_job_count(op.id) == 1)
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = _get_operation_from_cypress(op.id)
@@ -82,7 +97,6 @@ class TestGetOperation(YTEnvSetup):
             PROPER_ATTRS = [
                 "id",
                 "authenticated_user",
-                "brief_progress",
                 "brief_spec",
                 "runtime_parameters",
                 "finish_time",
@@ -118,8 +132,6 @@ class TestGetOperation(YTEnvSetup):
 
         res_get_operation_archive = get_operation(op.id)
 
-        del res_cypress_finished["progress"]["build_time"]
-        del res_get_operation_archive["progress"]["build_time"]
         for key in res_get_operation_archive.keys():
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
@@ -154,7 +166,7 @@ class TestGetOperation(YTEnvSetup):
             [{"id_hi": id_hi, "id_lo": id_lo, "brief_progress": brief_progress, "progress": progress}],
             update=True)
 
-        wait(lambda: lookup_rows(archive_table_path, [{"id_hi": id_hi, "id_lo": id_lo}]))
+        wait(lambda: _get_operation_from_archive(op.id))
 
         res_get_operation_new = get_operation(op.id)
         assert res_get_operation_new["brief_progress"] == {"ivan": "ivanov"}
@@ -198,7 +210,7 @@ class TestGetOperation(YTEnvSetup):
             res_cypress = get(op.get_path() + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
-            assert sorted(list(res_cypress)) == ["progress", "state"]
+            assert "state" in sorted(list(res_cypress))
             assert res_get_operation["state"] == res_cypress["state"]
             assert ("alerts" in res_get_operation) == ("alerts" in res_cypress)
             if "alerts" in res_get_operation and "alerts" in res_cypress:
@@ -252,6 +264,89 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
+    @authors("ilpauzner")
+    def test_archive_progress(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            dont_track=True,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+        wait_breakpoint()
+
+        wait(lambda: _get_operation_from_archive(op.id))
+
+        row = _get_operation_from_archive(op.id)
+        assert "progress" in row
+        assert "brief_progress" in row
+
+        release_breakpoint()
+        op.track()
+
+    @authors("ilpauzner")
+    def test_archive_failure(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        sync_unmount_table("//sys/operations_archive/ordered_by_id")
+        op = map(
+            dont_track=True,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+
+        wait_breakpoint()
+        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+
+        res_api = get_operation(op.id)
+        self.clean_build_time(res_api)
+        res_cypress = _get_operation_from_cypress(op.id)
+        self.clean_build_time(res_cypress)
+
+        assert res_api["brief_progress"] == res_cypress["brief_progress"]
+        assert res_api["progress"] == res_cypress["progress"]
+
+        sync_mount_table("//sys/operations_archive/ordered_by_id")
+
+        wait(lambda: _get_operation_from_archive(op.id))
+        assert _get_operation_from_archive(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1
+        release_breakpoint()
+        op.track()
+
+        res_api = get_operation(op.id)
+        res_cypress = _get_operation_from_cypress(op.id)
+
+        assert res_api["brief_progress"]["jobs"]["running"] == 0
+        assert res_cypress["brief_progress"]["jobs"]["running"] > 0
+
+        assert res_api["progress"]["jobs"]["running"] == 0
+        assert res_cypress["progress"]["jobs"]["running"] > 0
+
+        clean_operations()
+
+        res_api = get_operation(op.id)
+        res_archive = _get_operation_from_archive(op.id)
+
+        assert res_api["brief_progress"] == res_archive["brief_progress"]
+        assert res_api["progress"] == res_archive["progress"]
 
 ##################################################################
 

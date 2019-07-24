@@ -130,6 +130,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 #include <yt/core/misc/collection_helpers.h>
 
@@ -199,6 +200,24 @@ TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrder
     key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], Index.IdHi);
     key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], Index.IdLo);
     return key;
+}
+
+TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonString& archiveProgress)
+{
+    auto getBuildTime = [&] (const TYsonString& progress) {
+        if (!progress) {
+            return TInstant();
+        }
+        auto maybeTimeString = NYTree::TryGetString(progress.GetData(), "/build_time");
+        if (!maybeTimeString) {
+            return TInstant();
+        }
+        return ConvertTo<TInstant>(*maybeTimeString);
+    };
+
+    return getBuildTime(cypressProgress) > getBuildTime(archiveProgress)
+        ? cypressProgress
+        : archiveProgress;
 }
 
 TYsonString GetValueIgnoringTimeout(const TErrorOr<TYsonString>& resultOrError)
@@ -4559,15 +4578,26 @@ private:
         if (archiveResult && cypressResult) {
             // Merging goes here.
             auto cypressNode = ConvertToNode(cypressResult)->AsMap();
-            auto archiveNode = ConvertToNode(archiveResult)->AsMap();
 
             std::vector<TString> fieldNames = {"brief_progress", "progress"};
             for (const auto& fieldName : fieldNames) {
-                auto archiveField = archiveNode->FindChild(fieldName);
-                if (archiveField) {
-                    cypressNode->RemoveChild(fieldName);
-                    archiveNode->RemoveChild(fieldName);
-                    cypressNode->AddChild(fieldName, archiveField);
+                auto cypressFieldNode = cypressNode->FindChild(fieldName);
+                cypressNode->RemoveChild(fieldName);
+
+                auto archiveFieldString = NYTree::TryGetAny(archiveResult.GetData(), "/" + fieldName);
+
+                TYsonString archiveFieldYsonString;
+                if (archiveFieldString) {
+                    archiveFieldYsonString = TYsonString(*archiveFieldString);
+                }
+
+                TYsonString cypressFieldYsonString;
+                if (cypressFieldNode) {
+                    cypressFieldYsonString = ConvertToYsonString(cypressFieldNode);
+                }
+
+                if (auto result = GetLatestProgress(cypressFieldYsonString, archiveFieldYsonString)) {
+                    cypressNode->AddChild(fieldName, ConvertToNode(result));
                 }
             }
             return ConvertToYsonString(cypressNode);
@@ -5668,18 +5698,6 @@ private:
                     continue;
                 }
 
-                if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
-                    continue;
-                }
-
-                if (options.CursorTime) {
-                    if (options.CursorDirection == EOperationSortDirection::Past && *operation.StartTime >= *options.CursorTime) {
-                        continue;
-                    } else if (options.CursorDirection == EOperationSortDirection::Future && *operation.StartTime <= *options.CursorTime) {
-                        continue;
-                    }
-                }
-
                 if (areAllRequestedAttributesLight) {
                     filteredOperations.push_back(CreateOperationFromNode(operationNode, requestedAttributes));
                 } else {
@@ -5687,6 +5705,67 @@ private:
                 }
             }
         }
+
+        // Lookup all operations with certain ids, add their brief progress.
+        if (DoesOperationsArchiveExist()) {
+            std::vector<TUnversionedRow> keys;
+
+            TOrderedByIdTableDescriptor tableDescriptor;
+            auto rowBuffer = New<TRowBuffer>();
+            for (const auto& operation : filteredOperations) {
+                keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
+            }
+
+            std::vector<int> columnIndexes = {tableDescriptor.NameTable->GetIdOrThrow("brief_progress")};
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+            lookupOptions.Timeout = options.ArchiveFetchingTimeout;
+            lookupOptions.KeepMissingRows = true;
+            auto rowsetOrError = WaitFor(LookupRows(
+                GetOperationsArchiveOrderedByIdPath(),
+                tableDescriptor.NameTable,
+                MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+                lookupOptions));
+
+            if (!rowsetOrError.IsOK()) {
+                YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
+            } else {
+                const auto& rows = rowsetOrError.Value()->GetRows();
+
+                for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+                    const auto& row = rows[rowIndex];
+                    if (!row) {
+                        continue;
+                    }
+
+                    auto& operation = filteredOperations[rowIndex];
+                    if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
+                        auto briefProgressValue = row[*briefProgressPosition];
+                        if (briefProgressValue.Type != EValueType::Null) {
+                            auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
+                        }
+                    }
+                }
+            }
+        }
+
+        auto shouldRemove = [&] (const TOperation& operation) {
+            if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
+                return true;
+            }
+            return options.CursorTime &&
+                ((options.CursorDirection == EOperationSortDirection::Past && *operation.StartTime >= *options.CursorTime) ||
+                (options.CursorDirection == EOperationSortDirection::Future && *operation.StartTime <= *options.CursorTime));
+        };
+
+        filteredOperations.erase(
+            std::remove_if(
+                filteredOperations.begin(),
+                filteredOperations.end(),
+                shouldRemove),
+            filteredOperations.end());
 
         // Retain more operations than limit to track (in)completeness of the response.
         auto operationsToRetain = options.Limit + 1;
@@ -6160,7 +6239,7 @@ private:
         }
 
         // Fetching progress for operations with mentioned ids.
-        if (DoesOperationsArchiveExist() && !options.IncludeArchive) {
+        if (DoesOperationsArchiveExist()) {
             std::vector<TUnversionedRow> keys;
 
             TOrderedByIdTableDescriptor tableDescriptor;
@@ -6192,8 +6271,7 @@ private:
                 GetOperationsArchiveOrderedByIdPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-                lookupOptions)
-                .WithTimeout(options.ArchiveFetchingTimeout));
+                lookupOptions));
 
             if (!rowsetOrError.IsOK()) {
                 YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
@@ -6210,13 +6288,15 @@ private:
                     if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
                         auto briefProgressValue = row[*briefProgressPosition];
                         if (briefProgressValue.Type != EValueType::Null) {
-                            operation.BriefProgress = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
                         }
                     }
                     if (auto progressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.Progress)) {
                         auto progressValue = row[*progressPosition];
                         if (progressValue.Type != EValueType::Null) {
-                            operation.Progress = FromUnversionedValue<TYsonString>(progressValue);
+                            auto progressYsonString = FromUnversionedValue<TYsonString>(progressValue);
+                            operation.Progress = GetLatestProgress(operation.Progress, progressYsonString);
                         }
                     }
                 }

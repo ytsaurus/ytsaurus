@@ -631,6 +631,11 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("dynamic_table_lock_checking_interval_duration_max", DynamicTableLockCheckingIntervalDurationMax)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("enable_operation_progress_archivation", EnableOperationProgressArchivation)
+        .Default(true);
+    RegisterParameter("operation_progress_archivation_timeout", OperationProgressArchivationTimeout)
+        .Default(TDuration::Seconds(3));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

@@ -711,6 +711,9 @@ public:
     TDuration DynamicTableLockCheckingIntervalDurationMin;
     TDuration DynamicTableLockCheckingIntervalDurationMax;
 
+    bool EnableOperationProgressArchivation;
+    TDuration OperationProgressArchivationTimeout;
+
     TControllerAgentConfig();
 
 private:
