@@ -4621,7 +4621,8 @@ void TOperationControllerBase::LockInputTables()
     auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
+    YT_VERIFY(Config->LockInputTablesRetries);
+    auto batchReq = proxy.ExecuteBatchWithRetries(Config->LockInputTablesRetries);
 
     for (const auto& table : InputTables_) {
         auto req = TTableYPathProxy::Lock(table->GetPath());

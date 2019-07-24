@@ -33,6 +33,7 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/tablet_client/public.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
@@ -3034,7 +3035,12 @@ private:
         const TLockNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        auto batchReq = proxy->ExecuteBatch();
+
+        auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
+        batchReqConfig->RetriableErrorCodes.push_back(
+            static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
+        auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
+
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Lock(path);

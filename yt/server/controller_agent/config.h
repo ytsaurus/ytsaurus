@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/config.h>
@@ -715,6 +717,8 @@ public:
     bool AllowUsersGroupReadIntermediateData;
 
     std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
+
+    NObjectClient::TReqExecuteBatchWithRetriesConfigPtr LockInputTablesRetries;
 
     TControllerAgentConfig();
 
