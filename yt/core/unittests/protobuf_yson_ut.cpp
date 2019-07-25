@@ -1385,8 +1385,16 @@ TEST(TResolveProtobufElementByYPath, Map)
 TEST(TResolveProtobufElementByYPath, Failure)
 {
     DO("/repeated_int32_field/1/2", "/repeated_int32_field/1")
+    DO("/repeated_int32_field/ 1/2", "/repeated_int32_field/ 1")
+    DO("/repeated_int32_field/1 /2", "/repeated_int32_field/1 ")
+    DO("/repeated_int32_field/-1/2", "/repeated_int32_field/-1")
+    DO("/repeated_int32_field/abc/xyz", "/repeated_int32_field/abc")
     DO("/missing", "/missing")
     DO("/repeated_nested_message1/1/xyz/abc", "/repeated_nested_message1/1/xyz")
+    DO("/repeated_nested_message1/-1/xyz/abc", "/repeated_nested_message1/-1/xyz")
+    DO("/repeated_nested_message1/ 1/xyz/abc", "/repeated_nested_message1/ 1")
+    DO("/repeated_nested_message1/1 /xyz/abc", "/repeated_nested_message1/1 ")
+    DO("/repeated_nested_message1/xyz/abc", "/repeated_nested_message1/xyz")
 }
 
 #undef DO
