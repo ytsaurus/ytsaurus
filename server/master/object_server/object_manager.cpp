@@ -416,15 +416,6 @@ private:
 
     }
 
-    static bool IsSpecialListKey(TStringBuf key)
-    {
-        return
-            key == ListBeginToken ||
-            key == ListEndToken ||
-            key.StartsWith(ListBeforeToken) ||
-            key.StartsWith(ListAfterToken);
-    }
-
     void ForwardToLeader(const IServiceContextPtr& context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();

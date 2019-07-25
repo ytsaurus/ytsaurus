@@ -27,6 +27,7 @@ public:
     const TString& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
+    void ExpectListIndex();
     bool Skip(ETokenType expectedType);
     void ThrowUnexpected();
 
