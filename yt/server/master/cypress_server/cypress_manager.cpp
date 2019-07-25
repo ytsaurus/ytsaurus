@@ -245,9 +245,6 @@ public:
             }
             if (optionalExternalCellTag) {
                 externalCellTag = *optionalExternalCellTag;
-                if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
-                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
-                }
             } else {
                 externalCellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
@@ -256,13 +253,17 @@ public:
             }
         }
 
+        if (externalCellTag == Bootstrap_->GetCellTag()) {
+            external = false;
+            externalCellTag = NotReplicatedCellTag;
+        }
+
         if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
-        if (externalCellTag == Bootstrap_->GetCellTag()) {
-            external = false;
-            externalCellTag = NotReplicatedCellTag;
+        if (externalCellTag != NotReplicatedCellTag && !multicellManager->IsRegisteredMasterCell(externalCellTag)) {
+            THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
         }
 
         // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.
