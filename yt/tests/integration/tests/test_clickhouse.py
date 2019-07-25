@@ -988,7 +988,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         assert "OOM" in str(clique.op.get_error())
 
 
-class TestJoins(ClickHouseTestBase):
+class TestJoinAndIn(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -1016,3 +1016,19 @@ class TestJoins(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by t1.a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
+
+    def test_global_in(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
+        write_table("//tmp/t1", [{"a": 1}, {"a": 3}, {"a": -42}])
+        write_table("//tmp/t2", [{"a": 5}, {"a": 42}, {"a": 3}, {"a": 1}])
+        with Clique(1) as clique:
+            expected = [{"a": 1}, {"a": 3}]
+            assert clique.make_query("select a from \"//tmp/t1\" where a global in (select * from \"//tmp/t2\") order by a") == expected
+            assert clique.make_query("select a from \"//tmp/t2\" where a global in (select * from \"//tmp/t1\") order by a") == expected
+
+            assert clique.make_query("select toInt64(42) global in (select * from \"//tmp/t2\")")[0].values() == [1]
+            assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\")")[0].values() == [0]
+
+            assert clique.make_query("select toInt64(42) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [1]
+            assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]

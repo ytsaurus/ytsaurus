@@ -60,7 +60,12 @@ public:
 
     std::string getTableName() const override { return "Subquery"; }
 
-    bool isRemote() const override { return true; }
+    bool isRemote() const override
+    {
+        // NB: from CH point of view this is already a non-remote query.
+        // If we return here, GLOBAL IN stops working: CHYT-117.
+        return false;
+    }
 
     BlockInputStreams read(
         const Names& columnNames,
