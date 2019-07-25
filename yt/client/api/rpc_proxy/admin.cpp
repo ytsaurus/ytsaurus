@@ -22,6 +22,7 @@ TFuture<int> TAdmin::BuildSnapshot(const TBuildSnapshotOptions& options)
         ToProto(req->mutable_cell_id(), options.CellId);
     }
     req->set_set_read_only(options.SetReadOnly);
+    req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspBuildSnapshotPtr>& rspOrError) -> int {
         const auto& rsp = rspOrError.ValueOrThrow();
