@@ -484,6 +484,7 @@ class YTEnvSetup(object):
     DRIVER_BACKEND = "native"
     NUM_SKYNET_MANAGERS = 0
     NODE_PORT_SET_SIZE = None
+    DISABLE_MUTATIONS_IN_TEARDOWN = False
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -818,6 +819,9 @@ class YTEnvSetup(object):
                 _wait_for_jobs_to_vanish(driver=driver)
 
             _abort_transactions(driver=driver)
+
+            if cls.get_param("DISABLE_MUTATIONS_IN_TEARDOWN", cluster_index):
+                continue
 
             yt_commands.create("map_node", "//tmp",
                 attributes={
