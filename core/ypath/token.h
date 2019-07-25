@@ -27,6 +27,7 @@ TString ToYPathLiteral(i64 value);
 
 TStringBuf ExtractListIndex(TStringBuf token);
 int ParseListIndex(TStringBuf token);
+bool IsSpecialListKey(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
