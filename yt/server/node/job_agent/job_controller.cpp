@@ -566,7 +566,6 @@ void TJobController::TImpl::StartWaitingJobs()
         auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
             YT_LOG_DEBUG("Not enough resources to start waiting job (JobResources: %v, UsedResources: %v)",
-                job->GetId(),
                 FormatResources(jobResources),
                 FormatResourceUsage(usedResources, GetResourceLimits()));
             continue;
@@ -575,8 +574,7 @@ void TJobController::TImpl::StartWaitingJobs()
         if (jobResources.user_memory() > 0) {
             bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
             if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
-                   job->GetId());
+                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
                 continue;
             }
 
@@ -590,8 +588,7 @@ void TJobController::TImpl::StartWaitingJobs()
         if (jobResources.system_memory() > 0) {
             bool reachedWatermark = GetSystemMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
             if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
-                    job->GetId());
+                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
                 continue;
             }
 
