@@ -186,7 +186,7 @@ protected:
         const std::shared_ptr<TFileHandle>& handle,
         i64 newSize)
     {
-#ifdef _linux
+#ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
             YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
