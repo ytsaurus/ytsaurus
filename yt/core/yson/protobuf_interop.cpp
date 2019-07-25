@@ -2151,7 +2151,7 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
                 tokenizer.Expect(NYPath::ETokenType::Slash);
                 tokenizer.Advance();
-                tokenizer.Expect(NYPath::ETokenType::Literal);
+                tokenizer.ExpectListIndex();
 
                 return GetProtobufElementFromField(
                     field,
@@ -2192,7 +2192,7 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
             tokenizer.Expect(NYPath::ETokenType::Slash);
             tokenizer.Advance();
-            tokenizer.Expect(NYPath::ETokenType::Literal);
+            tokenizer.ExpectListIndex();
 
             if (!field->IsMessage()) {
                 return GetProtobufElementFromField(
