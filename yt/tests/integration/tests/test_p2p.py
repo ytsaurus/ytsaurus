@@ -57,8 +57,8 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         self.non_seeds = ls("//sys/cluster_nodes")
         self.non_seeds.remove(self.seed)
         assert len(self.non_seeds) == 3
-        print >>sys.stderr, "Seed: ", self.seed
-        print >>sys.stderr, "Non-seeds: ", self.non_seeds
+        print_debug("Seed: ", self.seed)
+        print_debug("Non-seeds: ", self.non_seeds)
 
     @classmethod
     def _access(cls):

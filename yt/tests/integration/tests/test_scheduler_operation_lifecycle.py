@@ -618,7 +618,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
                 continue
             results[value["tags"].get("custom")].append((value["value"], value["time"]))
         last_metric = sum(__builtin__.map(get_value, results.itervalues()))
-        print >>sys.stderr, "Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_key, pool, user, last_metric)
+        print_debug("Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_key, pool, user, last_metric))
         return last_metric
 
     def _get_operation_by_custom_tag_last_metric_value(self, metric_key, pool, custom_tag):
@@ -635,7 +635,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
                 continue
             results[value["tags"]["user_name"]].append((value["value"], value["time"]))
         last_metric = sum(__builtin__.map(get_value, results.itervalues()))
-        print >>sys.stderr, "Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric)
+        print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric))
         return last_metric
 
     @require_ytserver_root_privileges
@@ -870,7 +870,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             pool = entry["tags"]["pool"]
             if pool not in result:
                 result[pool] = entry["value"]
-        print >>sys.stderr, "Pool metrics: ", result
+        print_debug("Pool metrics: ", result)
         return result
 
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
@@ -1089,8 +1089,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         actual_events = [event["state"] for event in events]
 
-        print >>sys.stderr, "Expected: ", expected_events
-        print >>sys.stderr, "Actual:   ", actual_events
+        print_debug("Expected: ", expected_events)
+        print_debug("Actual:   ", actual_events)
         assert expected_events == actual_events
 
         assert op.get_state() == "completed"

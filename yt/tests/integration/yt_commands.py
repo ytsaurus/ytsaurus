@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from yt.environment.yt_env import set_environment_driver_logging_config
+from yt.environment import arcadia_interop
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
@@ -12,6 +13,7 @@ from yt.test_helpers.job_events import JobEvents, TimeoutError
 import __builtin__
 import contextlib
 import copy as pycopy
+import logging
 import os
 import random
 import stat
@@ -25,6 +27,8 @@ from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
 ###########################################################################
+
+root_logger = logging.getLogger()
 
 clusters_drivers = {}
 is_multicell = None
@@ -52,6 +56,13 @@ def raises_yt_error(code):
                 e,
                 code,
             ))
+
+def print_debug(*args):
+    if arcadia_interop.yatest_common is None:
+        print(*args, file=sys.stderr)
+    else:
+        if args:
+            root_logger.debug(" ".join(__builtin__.map(str, args)))
 
 def is_debug():
     try:
@@ -275,8 +286,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             if is_text_yson(pretty_parameters.get(key, None)):
                 pretty_parameters.pop(key)
 
-        print(file=sys.stderr)
-        print(str(datetime.now()), command_name, pretty_parameters, file=sys.stderr)
+        print_debug(str(datetime.now()), command_name, pretty_parameters)
 
     response = driver.execute(
         Request(command_name=command_name,
@@ -296,20 +306,20 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
     if response_parameters is not None:
         response_params = response.response_parameters()
-        print(response_params, file=sys.stderr)
+        print_debug(response_parameters)
         response_parameters.update(response_params)
 
     if not response.is_ok():
         # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
         error = YtResponseError(response.error())
         if verbose_error:
-            print(str(error), file=sys.stderr)
+            print_debug(str(error))
             # NB: we want to see inner errors in teamcity.
         raise error
     if isinstance(output_stream, OutputType):
         result = output_stream.getvalue()
         if verbose:
-            print(result, file=sys.stderr)
+            print_debug(result)
         if parse_yson:
             result = yson.loads(result)
             if unwrap_v4_result and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
@@ -774,7 +784,7 @@ class Operation(object):
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
-        print("Waiting for operation %s to become running" % self.id, file=sys.stderr)
+        print_debug("Waiting for operation %s to become running" % self.id)
 
         state = self.get_state(verbose=False)
         while state != "running" and timeout > 0:
@@ -873,12 +883,12 @@ class Operation(object):
             state = self.get_state(verbose=False)
             message = "Operation {0} {1}".format(self.id, state)
             if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
-                print(message, file=sys.stderr)
+                print_debug(message)
                 if state == "running":
-                    print(self.build_progress(), file=sys.stderr)
-                    print(file=sys.stderr)
+                    print_debug(self.build_progress())
+                    print_debug()
                 else:
-                    print(file=sys.stderr)
+                    print_debug()
             if state == "failed" and raise_on_failed:
                 raise self.get_error()
             if state == "aborted" and raise_on_aborted:
@@ -1460,20 +1470,20 @@ class PrepareTables(object):
 def set_node_banned(address, flag, driver=None):
     set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=driver)
     ban, state = ("banned", "offline") if flag else ("unbanned", "online")
-    print("Waiting for node %s to become %s..." % (address, ban), file=sys.stderr)
+    print_debug("Waiting for node %s to become %s..." % (address, ban))
     wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=driver) == state)
 
 def set_node_decommissioned(address, flag, driver=None):
     set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
-    print("Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned"), file=sys.stderr)
+    print_debug("Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned"))
 
 def wait_for_nodes(driver=None):
-    print("Waiting for nodes to become online...", file=sys.stderr)
+    print_debug("Waiting for nodes to become online...")
     wait(lambda: all(n.attributes["state"] == "online"
                      for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)))
 
 def wait_for_chunk_replicator(driver=None):
-    print("Waiting for chunk replicator to become enabled...", file=sys.stderr)
+    print_debug("Waiting for chunk replicator to become enabled...")
     wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
 
 def get_cluster_drivers(primary_driver=None):
@@ -1485,7 +1495,7 @@ def get_cluster_drivers(primary_driver=None):
     raise "Failed to get cluster drivers"
 
 def wait_for_cells(cell_ids=None, driver=None):
-    print("Waiting for tablet cells to become healthy...", file=sys.stderr)
+    print_debug("Waiting for tablet cells to become healthy...")
 
     def get_cells(driver):
         cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
@@ -1531,7 +1541,7 @@ def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
 def wait_for_tablet_state(path, state, **kwargs):
-    print("Waiting for tablets to become %s..." % (state), file=sys.stderr)
+    print_debug("Waiting for tablets to become %s..." % (state))
     driver = kwargs.pop("driver", None)
     if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
         wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
@@ -1588,10 +1598,10 @@ def sync_compact_table(path, driver=None):
     set(path + "/@forced_compaction_revision", 1, driver=driver)
     sync_mount_table(path, driver=driver)
 
-    print("Waiting for tablets to become compacted...", file=sys.stderr)
+    print_debug("Waiting for tablets to become compacted...")
     wait(lambda: len(chunk_ids.intersection(__builtin__.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
 
-    print("Waiting for tablets to become stable...", file=sys.stderr)
+    print_debug("Waiting for tablets to become stable...")
     def check_stable():
         chunk_ids1 = get(path + "/@chunk_ids", driver=driver)
         time.sleep(3.0)
@@ -1602,13 +1612,13 @@ def sync_compact_table(path, driver=None):
 def sync_enable_table_replica(replica_id, driver=None):
     alter_table_replica(replica_id, enabled=True, driver=driver)
 
-    print("Waiting for replica to become enabled...", file=sys.stderr)
+    print_debug("Waiting for replica to become enabled...")
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
 
 def sync_disable_table_replica(replica_id, driver=None):
     alter_table_replica(replica_id, enabled=False, driver=driver)
 
-    print("Waiting for replica to become disabled...", file=sys.stderr)
+    print_debug("Waiting for replica to become disabled...")
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
 def get_tablet_leader_address(tablet_id):
@@ -1620,7 +1630,7 @@ def get_tablet_leader_address(tablet_id):
 def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     alter_table_replica(replica_id, mode=mode, driver = driver)
 
-    print("Waiting for replica mode to become {}...".format(mode), file=sys.stderr)
+    print_debug("Waiting for replica mode to become {}...".format(mode))
     tablets = get("#{}/@tablets".format(replica_id), driver=driver)
     tablet_ids = [x["tablet_id"] for x in tablets]
     cell_ids = [get("#{}/@cell_id".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
@@ -1639,7 +1649,7 @@ def create_dynamic_table(path, **attributes):
     create("table", path, attributes=attributes)
 
 def sync_control_chunk_replicator(enabled):
-    print("Setting chunk replicator state to", enabled, file=sys.stderr)
+    print_debug("Setting chunk replicator state to", enabled)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
     wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=drivers_by_cell_tag[default_api_version]) == enabled
                      for drivers_by_cell_tag in clusters_drivers["primary"]))
@@ -1684,7 +1694,7 @@ def get_job_count_profiling():
     duration = (datetime.now() - start_time).total_seconds()
 
     # Enable it for debugging.
-    print("job_counters (take {} seconds to calculate): {}".format(duration, job_count), file=sys.stderr)
+    print_debug("job_counters (take {} seconds to calculate): {}".format(duration, job_count))
 
     return job_count
 

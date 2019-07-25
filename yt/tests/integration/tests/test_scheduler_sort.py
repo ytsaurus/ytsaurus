@@ -103,8 +103,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
                       "partition_count": 10,
                   })
 
-        print get(op.get_path() + "/@unrecognized_spec")
-
         result = read_table("//tmp/t_out")
 
         assert n * 0.5 - 100 <= len(result) <= n * 0.5 + 100

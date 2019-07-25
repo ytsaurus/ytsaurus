@@ -1153,7 +1153,7 @@ echo {v = 2} >&7
 
         for i in xrange(10):
             write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
-            print get("//tmp/input/@schema")
+            print_debug(get("//tmp/input/@schema"))
 
         reduce(
             in_="//tmp/input",

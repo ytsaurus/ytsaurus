@@ -1616,7 +1616,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             rows = [{"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)]
             for row in rows:
                 values[row["key"]] = row["value"]
-            print "Write rows ", rows
+            print_debug("Write rows ", rows)
             insert_rows("//tmp/t", rows)
 
             verify()
@@ -1627,7 +1627,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             verify()
 
             keys = sorted(list(values.keys()))[::(wave * 12345) % items]
-            print "Delete keys ", keys
+            print_debug("Delete keys ", keys)
             rows = [{"key": key} for key in keys]
             delete_rows("//tmp/t", rows)
             for key in keys:
@@ -1925,8 +1925,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_save_chunk_view_to_snapshot(self):
         [cell_id] = sync_create_cells(1)
-        print get("//sys/cluster_nodes", attributes=["tablet_slots"])
-        print get("//sys/tablet_cell_bundles/default/@options")
+        print_debug(get("//sys/cluster_nodes", attributes=["tablet_slots"]))
+        print_debug(get("//sys/tablet_cell_bundles/default/@options"))
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
 
@@ -1938,7 +1938,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        print get("//sys/tablet_cells/{}/@peers".format(cell_id))
+        print_debug(get("//sys/tablet_cells/{}/@peers".format(cell_id)))
         build_snapshot(cell_id=cell_id)
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
@@ -2871,12 +2871,12 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
     def _sync_mount_table(self, path, **kwargs):
         self._mount_table(path, **kwargs)
-        print "Waiting for tablets to become mounted..."
+        print_debug("Waiting for tablets to become mounted...")
         wait_for_tablet_state(path, "mounted", **kwargs)
 
     def _sync_unmount_table(self, path, **kwargs):
         self._unmount_table(path, **kwargs)
-        print "Waiting for tablets to become unmounted..."
+        print_debug("Waiting for tablets to become unmounted...")
         wait_for_tablet_state(path, "unmounted", **kwargs)
 
 
