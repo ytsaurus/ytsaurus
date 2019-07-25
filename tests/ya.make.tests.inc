@@ -46,6 +46,7 @@ SET(YP_TEST_SRCS
     test_retries.py
     test_scheduler.py
     test_schemas.py
+    test_scripts.py
     # test_secrets.py # TEMPORARY DISABLE
     test_ssl.py
     test_stages.py
@@ -66,6 +67,7 @@ DEPENDS(
     yp/python/yp/bin/yp_admin_make
     yp/python/yp/bin/yp_local_make
     yp/python/yp/bin/yp_make
+    yp/scripts/touch_pod_master_spec_timestamps
 )
 
 PEERDIR(

@@ -1209,6 +1209,12 @@ message TPodControl
         optional string message = 1;
     }
 
+    message TTouchMasterSpecTimestamp
+    {
+        // Comment for the touch.
+        optional string message = 1;
+    }
+
     // Acknowledges eviction of a pod.
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "acknowledged".
@@ -1224,6 +1230,9 @@ message TPodControl
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "none".
     optional TAbortEviction abort_eviction = 3;
+
+    // Updates master spec timestamp.
+    optional TTouchMasterSpecTimestamp touch_master_spec_timestamp = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

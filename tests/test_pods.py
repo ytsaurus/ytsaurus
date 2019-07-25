@@ -103,6 +103,59 @@ class TestPods(object):
         run_with_retries(lambda: pod_id.try_create(yp_client, pod_set_id, merged_spec), exceptions=(YtTabletTransactionLockConflict,))
         return pod_id.pod_id
 
+    def _create_node(self, yp_client, cpu_capacity=0, memory_capacity=0, hdd_capacity=0, hdd_volume_slots = 10, ssd_capacity=0, ssd_volume_slots=10):
+        node_id = "test.yandex.net"
+        assert yp_client.create_object("node", attributes={
+            "meta": {
+                "id": node_id
+            }
+        }) == node_id
+        yp_client.create_object("resource", attributes={
+            "meta": {
+                "node_id": node_id
+            },
+            "spec": {
+                "cpu": {"total_capacity": cpu_capacity}
+            }
+        })
+        yp_client.create_object("resource", attributes={
+            "meta": {
+                "node_id": node_id
+            },
+            "spec": {
+                "memory": {"total_capacity": memory_capacity}
+            }
+        })
+        yp_client.create_object("resource", attributes={
+            "meta": {
+                "node_id": node_id
+            },
+            "spec": {
+                "disk": {
+                    "total_capacity": hdd_capacity,
+                    "total_volume_slots": hdd_volume_slots,
+                    "supported_policies": ["quota", "exclusive"],
+                    "storage_class": "hdd",
+                    "device": "/dev/hdd"
+                }
+            }
+        })
+        yp_client.create_object("resource", attributes={
+            "meta": {
+                "node_id": node_id
+            },
+            "spec": {
+                "disk": {
+                    "total_capacity": ssd_capacity,
+                    "total_volume_slots": ssd_volume_slots,
+                    "supported_policies": ["quota", "exclusive"],
+                    "storage_class": "ssd",
+                    "device": "/dev/ssd"
+                }
+            }
+        })
+        return node_id
+
     def test_pod_set_required_on_create(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -194,59 +247,6 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
         assert yp_client.get_object("pod_set", pod_set_id, selectors=[]) == []
-
-    def _create_node(self, yp_client, cpu_capacity=0, memory_capacity=0, hdd_capacity=0, hdd_volume_slots = 10, ssd_capacity=0, ssd_volume_slots=10):
-        node_id = "test.yandex.net"
-        assert yp_client.create_object("node", attributes={
-                "meta": {
-                    "id": node_id
-                }
-            }) == node_id
-        yp_client.create_object("resource", attributes={
-                "meta": {
-                    "node_id": node_id
-                },
-                "spec": {
-                    "cpu": {"total_capacity": cpu_capacity}
-                }
-            })
-        yp_client.create_object("resource", attributes={
-                "meta": {
-                    "node_id": node_id
-                },
-                "spec": {
-                    "memory": {"total_capacity": memory_capacity}
-                }
-            })
-        yp_client.create_object("resource", attributes={
-                "meta": {
-                    "node_id": node_id
-                },
-                "spec": {
-                    "disk": {
-                      "total_capacity": hdd_capacity,
-                      "total_volume_slots": hdd_volume_slots,
-                      "supported_policies": ["quota", "exclusive"],
-                      "storage_class": "hdd",
-                      "device": "/dev/hdd"
-                    }
-                }
-            })
-        yp_client.create_object("resource", attributes={
-                "meta": {
-                    "node_id": node_id
-                },
-                "spec": {
-                    "disk": {
-                      "total_capacity": ssd_capacity,
-                      "total_volume_slots": ssd_volume_slots,
-                      "supported_policies": ["quota", "exclusive"],
-                      "storage_class": "ssd",
-                      "device": "/dev/ssd"
-                    }
-                }
-            })
-        return node_id
 
     def test_pod_assignment_cpu_memory_failure(self, yp_env):
         yp_client = yp_env.yp_client
@@ -708,6 +708,11 @@ class TestPods(object):
 
         assert ts1 < ts2
         assert ts2 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        yp_client.touch_master_spec_timestamps([pod_id])
+        ts3 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        assert ts2 < ts3
 
     def test_iss_spec(self, yp_env):
         yp_client = yp_env.yp_client

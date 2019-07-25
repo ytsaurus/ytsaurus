@@ -166,7 +166,10 @@ public:
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRequestEviction>(std::bind(&TPodTypeHandler::RequestEviction, this, _1, _2, _3)),
 
                 MakeAttributeSchema("abort_eviction")
-                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAbortEviction>(std::bind(&TPodTypeHandler::AbortEviction, this, _1, _2, _3))
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAbortEviction>(std::bind(&TPodTypeHandler::AbortEviction, this, _1, _2, _3)),
+
+                MakeAttributeSchema("touch_master_spec_timestamp")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TTouchMasterSpecTimestamp>(std::bind(&TPodTypeHandler::TouchMasterSpecTimestamp, this, _1, _2, _3))
             });
 
         LabelsAttributeSchema_
@@ -480,6 +483,26 @@ private:
             message);
 
         pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, message);
+    }
+
+    void TouchMasterSpecTimestamp(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TTouchMasterSpecTimestamp& control)
+    {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidateSuperuser("touch master spec timestamp");
+
+        auto message = control.message();
+        if (!message) {
+            message = "Pod master spec timestamp touched by client";
+        }
+
+        YT_LOG_DEBUG("Pod master spec timestamp touched (PodId: %v, Message: %v)",
+            pod->GetId(),
+            message);
+
+        pod->Spec().UpdateTimestamp().Touch();
     }
 
     static void ValidateDiskVolumeRequests(TPod* pod)
