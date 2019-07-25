@@ -77,15 +77,15 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(path) == "changed_pool")
 
     def test_running_operation_counts_on_change_pool(self):
+        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
+
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
         wait(lambda: exists(pools_path + "/changed_pool"))
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
-
         wait(lambda: op.get_state() == "running", iter=10)
 
-        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
         wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 1)
         wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 0)
 
