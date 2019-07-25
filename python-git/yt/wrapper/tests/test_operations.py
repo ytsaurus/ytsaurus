@@ -930,6 +930,59 @@ print(op.id)
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
 
+    def test_operations_tracker_multiple_instances(self):
+        tracker = yt.OperationsTracker()
+
+        test_name = "TrackOperationsFromMultipleClusters"
+        dir = os.path.join(get_tests_sandbox(), test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            clientA = yt
+            clientB = instance.create_client()
+            clientB.config["tabular_data_format"] = yt.format.JsonFormat()
+
+            table = TEST_DIR + "/table"
+            clientA.write_table(table, [{"x": 1, "y": 1}])
+
+            clientB.create("table", table, recursive=True, ignore_existing=True)
+            clientB.write_table(table, [{"x": 1, "y": 1}])
+
+            op1 = clientA.run_map("sleep 30; cat", table, TEST_DIR + "/out1", sync=False)
+            op2 = clientB.run_map("sleep 30; cat", table, TEST_DIR + "/out2", sync=False)
+
+            tracker.add(op1)
+            tracker.add(op2)
+            tracker.abort_all()
+
+            assert op1.get_state() == "aborted"
+            assert op2.get_state() == "aborted"
+
+            op1 = clientA.run_map("sleep 2; cat", table, TEST_DIR + "/out1", sync=False)
+            op2 = clientB.run_map("sleep 2; cat", table, TEST_DIR + "/out2", sync=False)
+            tracker.add_by_id(op1.id)
+            tracker.add_by_id(op2.id, client=clientB)
+            tracker.wait_all()
+
+            assert op1.get_state().is_finished()
+            assert op2.get_state().is_finished()
+
+            with pytest.raises(ZeroDivisionError):
+                with tracker:
+                    op1 = clientA.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
+                    tracker.add(op1)
+                    op2 = clientB.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
+                    tracker.add(op2)
+                    raise ZeroDivisionError
+
+            assert op2.get_state() == "aborted"
+            assert op1.get_state() == "aborted"
+
+        finally:
+            if instance is not None:
+                stop(instance.id, path=dir)
+
     def test_operations_tracker(self):
         tracker = yt.OperationsTracker()
 
@@ -978,15 +1031,102 @@ print(op.id)
                 tracker.add(op)
             assert op.get_state() == "completed"
 
-            with pytest.raises(RuntimeError):
+            with pytest.raises(ZeroDivisionError):
                 with tracker:
                     op = yt.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
                     tracker.add(op)
-                    raise RuntimeError("error")
+                    raise ZeroDivisionError
 
             assert op.get_state() == "aborted"
         finally:
             logger.LOGGER.setLevel(old_level)
+
+    def test_pool_tracker_multiple_instances(self):
+        def create_spec_builder(binary, source_table, destination_table):
+            return MapSpecBuilder() \
+                .input_table_paths(source_table) \
+                .output_table_paths(destination_table) \
+                .begin_mapper() \
+                .command(binary) \
+                .end_mapper()
+
+        tracker = yt.OperationsTrackerPool(pool_size=1)
+
+        test_name = "TrackPoolOperationsFromMultipleClusters"
+        dir = os.path.join(get_tests_sandbox(), test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
+
+        # To enable progress printing
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=2)
+            clientA = None
+            clientB = instance.create_client()
+            clientB.config["tabular_data_format"] = yt.format.JsonFormat()
+
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"x": 1, "y": 1}])
+            clientB.create("table", table, recursive=True, ignore_existing=True)
+            clientB.write_table(table, [{"x": 1, "y": 1}])
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out2")
+
+            tracker.add(spec_builder1, client=clientA)
+            tracker.add(spec_builder2, client=clientB)
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 30; cat", table, TEST_DIR + "/out2")
+
+            tracker.map([spec_builder1, spec_builder2], client=clientA)
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            tracker.map([spec_builder1, spec_builder2], client=clientB)
+
+            assert tracker.get_operation_count() == 2
+
+            tracker.abort_all()
+
+            assert tracker.get_operation_count() == 0
+
+            spec_builder1 = create_spec_builder("sleep 2; cat", table, TEST_DIR + "/out1")
+            spec_builder2 = create_spec_builder("sleep 2; cat", table, TEST_DIR + "/out2")
+            tracker.map([spec_builder1, spec_builder2], client=clientA)
+            tracker.map([spec_builder1, spec_builder2], client=clientB)
+
+            assert tracker.get_operation_count() == 4
+
+            tracker.wait_all()
+
+            assert tracker.get_operation_count() == 0
+
+            tracker.map([create_spec_builder("false", table, TEST_DIR + "/out")], client=clientB)
+            with pytest.raises(yt.YtError):
+                tracker.wait_all(check_result=True)
+
+            tracker.map([create_spec_builder("false", table, TEST_DIR + "/out")], client=clientA)
+            with pytest.raises(yt.YtError):
+                tracker.wait_all(check_result=True)
+
+        finally:
+            logger.LOGGER.setLevel(old_level)
+            if instance is not None:
+                stop(instance.id, path=dir)
 
     def test_pool_tracker(self):
         def create_spec_builder(binary, source_table, destination_table):
