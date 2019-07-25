@@ -7,15 +7,17 @@ import (
 )
 
 type tableWriter struct {
-	raw     io.WriteCloser
-	encoder *yson.Writer
-	err     error
+	raw        io.WriteCloser
+	encoder    *yson.Writer
+	cancelFunc func()
+	err        error
 }
 
-func newTableWriter(w io.WriteCloser) *tableWriter {
+func newTableWriter(w io.WriteCloser, cancelFunc func()) *tableWriter {
 	return &tableWriter{
-		raw:     w,
-		encoder: yson.NewWriterConfig(w, yson.WriterConfig{Format: yson.FormatBinary, Kind: yson.StreamListFragment}),
+		raw:        w,
+		encoder:    yson.NewWriterConfig(w, yson.WriterConfig{Format: yson.FormatBinary, Kind: yson.StreamListFragment}),
+		cancelFunc: cancelFunc,
 	}
 }
 
@@ -29,6 +31,17 @@ func (w *tableWriter) Write(value interface{}) error {
 	return w.err
 }
 
+func (w *tableWriter) Rollback() error {
+	// TODO(prime@): this cancellation is asynchronous, violating contract of the Rollback() method.
+	//
+	// But there is no way to provide synchronous cancellation over HTTP protocol, so we have no other choice.
+	//
+	// Synchronous Rollback() should be implemented by the high level table writer.
+
+	w.cancelFunc()
+	return nil
+}
+
 func (w *tableWriter) Commit() error {
 	if w.err != nil {
 		return w.err
@@ -39,5 +52,6 @@ func (w *tableWriter) Commit() error {
 	}
 
 	w.err = w.raw.Close()
+	w.cancelFunc()
 	return w.err
 }

@@ -121,4 +121,29 @@ func TestTables(t *testing.T) {
 			{"foo", 1},
 		}, result)
 	})
+
+	t.Run("Rollback", func(t *testing.T) {
+		name := tmpPath()
+
+		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
+		require.NoError(t, err)
+
+		w, err := env.YT.WriteTable(ctx, name, nil)
+		require.NoError(t, err)
+
+		go func() {
+			time.Sleep(time.Second * 5)
+			_ = w.Rollback()
+		}()
+
+		for {
+			if err := w.Write(exampleRow{"foo", 1}); err != nil {
+				break
+			}
+		}
+
+		var count int
+		require.NoError(t, env.YT.GetNode(ctx, name.Attr("row_count"), &count, nil))
+		require.Equal(t, 0, count)
+	})
 }
