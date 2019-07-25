@@ -480,7 +480,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert len(tablets) == 4
         for i in xrange(4):
             tablet = tablets[i]
-            print i, '->', tablet
+            print_debug(i, '->', tablet)
             if i == 2:
                 assert tablet["flushed_row_count"] == 4
                 assert tablet["trimmed_row_count"] == 0

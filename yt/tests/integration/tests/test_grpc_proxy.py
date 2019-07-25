@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, wait
 # NOTE(asaitgalin): No full yt_commands import here, only rpc api should be used! :)
-from yt_commands import discover_proxies
+from yt_commands import discover_proxies, print_debug
 
 from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
@@ -81,8 +81,8 @@ class TestGrpcProxy(YTEnvSetup):
             ("yt-protocol-version", "1.0")
         ]
 
-        print >>sys.stderr
-        print >>sys.stderr, str(datetime.now()), method, params
+        print_debug()
+        print_debug(str(datetime.now()), method, params)
 
         rsp = unary.future(loads_proto(dumps(params), req_msg_class), metadata=metadata)
         self._wait_response(rsp)
@@ -119,8 +119,8 @@ class TestGrpcProxy(YTEnvSetup):
         unary = self.channel.unary_unary("/ApiService/" + camel_case_method)
         rsp = unary.future(to_send, metadata=metadata)
 
-        print >>sys.stderr
-        print >>sys.stderr, str(datetime.now()), method, params
+        print_debug()
+        print_debug(str(datetime.now()), method, params)
 
         self._wait_response(rsp)
 
@@ -170,7 +170,7 @@ class TestGrpcProxy(YTEnvSetup):
     def _sync_create_cell(self):
         # 700 = "tablet_cell", see ytlib/object_client/public.h
         cell_id = self._create_object(type=700)
-        print >>sys.stderr, "Waiting for tablet cell", cell_id, "to become healthy..."
+        print_debug("Waiting for tablet cell", cell_id, "to become healthy...")
 
         def check_cell():
             cell = self._get_node(path="//sys/tablet_cells/" + cell_id, attributes={"columns": ["id", "health", "peers"]})
@@ -205,7 +205,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._sync_mount_table(table_path)
         # 1 = "tablet", see ETransactionType in proto
         tx = self._start_transaction(type=1, timeout=10000000, sticky=True)
-        print >>sys.stderr, tx
+        print_debug(tx)
 
         rows = [
             {"a": "Look", "b": 1},

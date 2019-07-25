@@ -126,8 +126,7 @@ def upload_testset(input_file_info, destination_directory):
     return testset_info
 
 def exit_with_error(error):
-    print >>sys.stderr, "ERROR:"
-    print >>sys.stderr, error
+    print_debug("ERROR:", error)
     exit(1)
 
 def main():

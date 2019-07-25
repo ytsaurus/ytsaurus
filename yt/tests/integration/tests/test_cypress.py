@@ -694,9 +694,7 @@ class TestCypress(YTEnvSetup):
         assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
 
     def test_get_with_attributes_objects(self):
-        print(get("//sys/accounts/tmp", attributes=["name"]))
         assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type(None, {"name" : "tmp"})
-        print(get("//sys/users/root", attributes=["name", "type"]))
         assert get("//sys/users/root", attributes=["name", "type"]) == to_yson_type(None, {"name" : "root", "type" : "user"})
 
     def test_get_with_attributes_virtual_maps(self):

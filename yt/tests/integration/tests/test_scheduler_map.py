@@ -995,7 +995,7 @@ print row + table_index
 
         result = read_table("//tmp/output", verbose=False)
         for row in result:
-            print "key:", row["key"], "value:", row["value"]
+            print_debug("key:", row["key"], "value:", row["value"])
         assert len(result) == 5
         if not ordered:
             result.sort()
@@ -1599,7 +1599,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert read_table("//tmp/t_out") == [row]
 
         # FIXME(savrus) investigate test flapping
-        print get("//tmp/t/@compression_statistics")
+        print_debug(get("//tmp/t/@compression_statistics"))
 
         for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
             op = map(

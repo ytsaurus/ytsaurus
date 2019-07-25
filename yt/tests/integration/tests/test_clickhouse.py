@@ -77,7 +77,7 @@ class Clique(object):
             return 0
 
     def _print_progress(self):
-        print >>sys.stderr, self.op.build_progress(), "(active instance count: {})".format(self._get_active_instance_count())
+        print_debug(self.op.build_progress(), "(active instance count: {})".format(self._get_active_instance_count()))
 
     def __enter__(self):
         self.op = start_op("vanilla",
@@ -88,8 +88,8 @@ class Clique(object):
                                                                   "clickhouse-{}".format(self.op.id)))
         os.symlink(self.log_root, self.log_root_alternative)
 
-        print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
-        print >>sys.stderr, "Logging roots:\n- {}\n- {}".format(self.log_root, self.log_root_alternative)
+        print_debug("Waiting for clique {} to become ready".format(self.op.id))
+        print_debug("Logging roots:\n- {}\n- {}".format(self.log_root, self.log_root_alternative))
 
         MAX_COUNTER_VALUE = 600
         counter = 0
@@ -168,9 +168,9 @@ class Clique(object):
 
         query_id = parts_to_uuid(random.randint(0, 2**64 - 1), random.randint(0, 2**64 - 1))
 
-        print >>sys.stderr, ""
-        print >>sys.stderr, "Querying {0}:{1} with the following data:\n> {2}".format(host, port, query)
-        print >>sys.stderr, "Query id: {}".format(query_id)
+        print_debug()
+        print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
+        print_debug("Query id: {}".format(query_id))
         result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0&query_id={}".format(host, port, query_id),
                                data=query,
                                headers={"X-ClickHouse-User": user,
@@ -191,7 +191,7 @@ class Clique(object):
             output += "Data:\n"
             output += result.text
 
-        print >>sys.stderr, output
+        print_debug(output)
 
         if result.status_code != 200:
             raise YtError("ClickHouse query failed\n" + output, attributes={"query": query, "query_id": query_id})

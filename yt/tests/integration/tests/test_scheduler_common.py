@@ -11,6 +11,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 import pytest
 from flaky import flaky
 
+import os
 import pprint
 import random
 import socket
@@ -62,7 +63,7 @@ def get_pool_metrics(metric_key, start_time):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
-    print >>sys.stderr, "Pool metrics: ", result
+    print_debug("Pool metrics: ", result)
     return result
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
@@ -802,8 +803,8 @@ class TestSchedulerCommon(YTEnvSetup):
             op.track()
 
         for job_desc in ls(op.get_path() + "/jobs", attributes=["error"]):
-            print >>sys.stderr, job_desc.attributes
-            print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
+            print_debug(job_desc.attributes)
+            print_debug(job_desc.attributes["error"]["inner_errors"][0]["message"])
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
     def test_job_progress(self):
@@ -1972,9 +1973,9 @@ class TestJobRevival(TestJobRevivalBase):
                 completed_job_count = get_total_job_count("completed/total")
                 aborted_job_count = get_total_job_count("aborted/total")
                 aborted_on_revival_job_count = get_total_job_count("aborted/scheduled/revival_confirmation_timeout")
-                print >>sys.stderr, "completed_job_count =", completed_job_count
-                print >>sys.stderr, "aborted_job_count =", aborted_job_count
-                print >>sys.stderr, "aborted_on_revival_job_count =", aborted_on_revival_job_count
+                print_debug("completed_job_count =", completed_job_count)
+                print_debug("aborted_job_count =", aborted_job_count)
+                print_debug("aborted_on_revival_job_count =", aborted_on_revival_job_count)
                 if completed_job_count >= switch_job_count:
                     if (switch_job_count // 40) % 2 == 0:
                         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -1992,7 +1993,7 @@ class TestJobRevival(TestJobRevivalBase):
             op.track()
 
         if aborted_job_count != aborted_on_revival_job_count:
-            print >>sys.stderr, "There were aborted jobs other than during the revival process:"
+            print_debug("There were aborted jobs other than during the revival process:")
             for op in ops:
                 pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=sys.stderr)
 
@@ -3083,8 +3084,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
 
         err = op.get_error()
-        print >>sys.stderr, "=== error ==="
-        print >>sys.stderr, err
+        print_debug("=== error ===")
+        print_debug(err)
 
         assert err.contains_code(212)  # NScheduler::EErrorCode::OperationControllerCrashed
 
@@ -3098,9 +3099,9 @@ class TestSafeAssertionsMode(YTEnvSetup):
         
         def check_core():
             if not os.path.exists(core_path):
-                print >>sys.stderr, "size = n/a"
+                print_debug("size = n/a")
             else:
-                print >>sys.stderr, "size =", os.stat(core_path).st_size
+                print_debug("size =", os.stat(core_path).st_size)
             return get("//sys/controller_agents/instances/{}/orchid/core_dumper/active_count".format(controller_agent_address)) == 0
 
         wait(check_core, iter=200, sleep_backoff=5)
@@ -3111,10 +3112,10 @@ class TestSafeAssertionsMode(YTEnvSetup):
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
         stdout, stderr = child.communicate()
-        print >>sys.stderr, "=== stderr ==="
-        print >>sys.stderr, stderr
-        print >>sys.stderr, "=== stdout ==="
-        print >>sys.stderr, stdout
+        print_debug("=== stderr ===")
+        print_debug(stderr)
+        print_debug("=== stdout ===")
+        print_debug(stdout)
         assert child.returncode == 0
         assert "OperationControllerBase" in stdout
 
@@ -3131,7 +3132,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             command="cat")
         with pytest.raises(YtError):
             op.track()
-        print >>sys.stderr, op.get_error()
+        print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
 
 ##################################################################
@@ -3770,7 +3771,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: exists(small_usage_path))
         usage = get(small_usage_path)
 
-        print >>sys.stderr, "small_usage =", usage
+        print_debug("small_usage =", usage)
         assert usage < 4 * 10**6
 
         wait(lambda: check("0", op_small, 0, 4 * 10**6))
@@ -3793,7 +3794,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: exists(large_usage_path))
         usage = get(large_usage_path)
 
-        print >>sys.stderr, "large_usage =", usage
+        print_debug("large_usage =", usage)
         assert usage > 10 * 10**6
         wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
@@ -3877,10 +3878,10 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
         operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
-        print >>sys.stderr, "BALANCE_RATIO", balance_ratio
+        print_debug("BALANCE_RATIO", balance_ratio)
         if not (0.5 <= balance_ratio <= 0.8):
             for op in ops:
-                print >>sys.stderr, op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False)
+                print_debug(op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False))
         assert 0.5 <= balance_ratio <= 0.8
 
 class TestPorts(YTEnvSetup):
@@ -4141,9 +4142,9 @@ class TestNewLivePreview(YTEnvSetup):
         position = 0
         for i, range_ in enumerate(expected_all_ranges_data):
             if all_ranges_data[position:position + len(range_)] != range_:
-                print >>sys.stderr, "position =", position, ", range =", all_ranges[i]
-                print >>sys.stderr, "expected:", range_
-                print >>sys.stderr, "actual:", all_ranges_data[position:position + len(range_)]
+                print_debug("position =", position, ", range =", all_ranges[i])
+                print_debug("expected:", range_)
+                print_debug("actual:", all_ranges_data[position:position + len(range_)])
                 assert all_ranges_data[position:position + len(range_)] == range_
             position += len(range_)
 

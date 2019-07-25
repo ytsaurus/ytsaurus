@@ -655,7 +655,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
         t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
-        print t2_id
+        print(t2_id)
         assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["#%s" % t2_id, "//tmp/t", to_yson_type("//tmp/t2", attributes = {"transaction_id" : tx})])
         assert read_table("//tmp/t2", tx=tx) == [{"a" : "b"}]
 
@@ -1215,7 +1215,7 @@ class TestTables(YTEnvSetup):
                     recursive(c, level + 1)
         recursive(chunk_list, 0)
         for r in result:
-            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
+            print_debug("%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4]))
 
     def test_cumulative_statistics(self):
         create("table", "//tmp/t")

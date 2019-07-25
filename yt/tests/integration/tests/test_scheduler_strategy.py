@@ -384,15 +384,15 @@ class TestStrategies(YTEnvSetup):
         node = self._get_table_chunk_node("//tmp/t_in")
         set_banned_flag(True, [node])
 
-        print >>sys.stderr,  "Fail strategy"
+        print_debug("Fail strategy")
         with pytest.raises(YtError):
             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
 
-        print >>sys.stderr,  "Skip strategy"
+        print_debug("Skip strategy")
         map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
-        print >>sys.stderr,  "Wait strategy"
+        print_debug("Wait strategy")
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
 
         set_banned_flag(False, [node])
@@ -416,15 +416,15 @@ class TestStrategies(YTEnvSetup):
 
         set_banned_flag(True)
 
-        print >>sys.stderr, "Fail strategy"
+        print_debug("Fail strategy")
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "fail"})
 
-        print >>sys.stderr, "Skip strategy"
+        print_debug("Skip strategy")
         sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
-        print >>sys.stderr, "Wait strategy"
+        print_debug("Wait strategy")
         op = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "wait"})
 
         # Give a chance to scraper to work
@@ -452,15 +452,15 @@ class TestStrategies(YTEnvSetup):
 
         set_banned_flag(True)
 
-        print >>sys.stderr, "Fail strategy"
+        print_debug("Fail strategy")
         with pytest.raises(YtError):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "fail"})
 
-        print >>sys.stderr, "Skip strategy"
+        print_debug("Skip strategy")
         merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
-        print >>sys.stderr, "Wait strategy"
+        print_debug("Wait strategy")
         op = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "wait"})
 
         # Give a chance for scraper to work
@@ -1749,7 +1749,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         for i in xrange(200):
             running_jobs1 = op1.get_running_jobs()
             running_jobs2 = op2.get_running_jobs()
-            print >>sys.stderr, "running_jobs1:", len(running_jobs1), "running_jobs2:", len(running_jobs2)
+            print_debug("running_jobs1:", len(running_jobs1), "running_jobs2:", len(running_jobs2))
             if not running_jobs1 or not running_jobs2:
                 time.sleep(0.1)
             else:
@@ -1769,14 +1769,14 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         suspicious2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job2_id))
 
         if suspicious1 or suspicious2:
-            print >>sys.stderr, "Some of jobs considered suspicious, their brief statistics are:"
+            print_debug("Some of jobs considered suspicious, their brief statistics are:")
             for i in range(50):
                 if suspicious1 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)):
-                    print >>sys.stderr, "job1 brief statistics:", \
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id))
+                    print_debug("job1 brief statistics:",
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)))
                 if suspicious2 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)):
-                    print >>sys.stderr, "job2 brief statistics:", \
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id))
+                    print_debug("job2 brief statistics:",
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)))
 
         assert not suspicious1
         assert not suspicious2
@@ -1807,7 +1807,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         running_jobs = None
         for i in xrange(200):
             running_jobs = op.get_running_jobs()
-            print >>sys.stderr, "running_jobs:", len(running_jobs)
+            print_debug("running_jobs:", len(running_jobs))
             if not running_jobs:
                 time.sleep(0.1)
             else:
@@ -1828,11 +1828,11 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             time.sleep(0.1)
 
         if not suspicious:
-            print >>sys.stderr, "Job is not considered suspicious, its brief statistics are:"
+            print_debug("Job is not considered suspicious, its brief statistics are:")
             for i in range(50):
                 if suspicious and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
-                    print >>sys.stderr, "job brief statistics:", \
-                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
+                    print_debug("job brief statistics:",
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)))
 
         assert suspicious
 
@@ -1887,7 +1887,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 time.sleep(1.0)
 
             if exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
-                print >>sys.stderr, get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
+                print_debug(get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)))
 
         assert suspicious
 

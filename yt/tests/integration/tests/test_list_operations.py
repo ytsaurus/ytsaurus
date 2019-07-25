@@ -485,8 +485,6 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
-        for x in res["operations"]:
-            print(x)
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
         res = list_operations(include_archive=self.include_archive, with_failed_jobs=False, read_from=read_from)
