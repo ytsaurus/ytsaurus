@@ -75,7 +75,7 @@ class TestPortals(YTEnvSetup):
     def test_remove_all_portal_children(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         remove("//tmp/p/*")
-
+al
     def test_portal_set(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         set("//tmp/p/key", "value", force=True)
@@ -108,12 +108,6 @@ class TestPortals(YTEnvSetup):
         assert len(chunk_ids) == 1
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/f"]
         assert read_file("//tmp/p/f") == PAYLOAD
-
-    def test_create_auto_external_table_in_portal(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/p/t", attributes={"external": True})
-        assert get("//tmp/p/t/@external")
-        assert get("//tmp/p/t/@external_cell_tag") in [1, 2]
 
     def test_account_lifetime(self):
         create_account("a")
