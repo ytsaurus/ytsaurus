@@ -254,7 +254,7 @@ ISchemafulReaderPtr CreateOrderedSchemafulReader(
         nextReaders.pop();
 
         if (createNextReaders) {
-            // Create two new readers
+            // Create two new readers.
             if (auto nextReader = getNextReader()) {
                 nextReaders.push(nextReader);
                 if (auto nextReader = getNextReader()) {
