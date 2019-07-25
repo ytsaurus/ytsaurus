@@ -3,8 +3,9 @@
 #error "Direct inclusion of this file is not allowed, include string.h"
 // For the sake of sane code completion.
 #include "string_builder.h"
-#include "assert.h"
 #endif
+
+#include "assert.h"
 
 namespace NYT {
 
