@@ -1,6 +1,7 @@
 #include "etc_commands.h"
 
 #include <yt/client/api/client.h>
+#include <yt/client/api/admin.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -370,6 +371,31 @@ void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
     auto tabletActions = WaitFor(asyncResult)
         .ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently().List(tabletActions));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBuildSnapshotCommand::TBuildSnapshotCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+
+    RegisterParameter("set_read_only", SetReadOnly_)
+        .Default(false);
+}
+
+void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
+{
+    if (!ValidateSuperuserPermissions(context)) {
+        THROW_ERROR_EXCEPTION("User not authorized");
+    }
+
+    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
+    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(TBuildSnapshotOptions{CellId_, SetReadOnly_, false}));
+    auto snapshotId = snapshotIdOrError.ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("snapshot_id").Value(snapshotId)
+        .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

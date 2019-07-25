@@ -2523,13 +2523,14 @@ private:
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
-        if (request->has_set_read_only()) {
-            options.SetReadOnly = request->set_read_only();
-        }
 
-        context->SetRequestInfo("CellId: %v, SetReadOnly: %v",
+        options.SetReadOnly = request->set_read_only();
+        options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
+
+        context->SetRequestInfo("CellId: %v, SetReadOnly: %v, WaitForSnapshotCompletion: %v",
             options.CellId,
-            options.SetReadOnly);
+            options.SetReadOnly,
+            options.WaitForSnapshotCompletion);
 
         CompleteCallWith(
             context,

@@ -196,6 +196,9 @@ public:
     TReign GetCurrentReign() const;
     EFinalRecoveryAction GetFinalRecoveryAction() const;
 
+    bool IsBuildingSnapshotNow() const;
+    int GetLastSuccessfulSnapshotId() const;
+
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -241,8 +244,9 @@ private:
     //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
-    std::atomic_flag BuildingSnapshot_ = ATOMIC_FLAG_INIT;
+    std::atomic<bool> BuildingSnapshot_ = false;
     TInstant LastSnapshotTime_;
+    std::atomic<int> LastSuccessfulSnapshotId_ = -1;
 
     struct TPendingMutation
     {
@@ -295,6 +299,8 @@ private:
     void MaybeStartSnapshotBuilder();
 
     bool IsRecovery();
+
+    void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
