@@ -422,12 +422,10 @@ private:
 
     TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
     {
-        static const TString NullService;
-        static const TString NullMethod;
         TPathResolver resolver(
             Bootstrap_,
-            NullService,
-            NullMethod,
+            context->GetService(),
+            context->GetMethod(),
             path,
             GetTransactionId(context));
         auto result = resolver.Resolve();
@@ -1157,10 +1155,12 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
 
 TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
 {
+    static const TString NullService;
+    static const TString NullMethod;
     TPathResolver resolver(
         Bootstrap_,
-        TString(),
-        TString(),
+        NullService,
+        NullMethod,
         path,
         transaction,
         TPathResolverOptions{
