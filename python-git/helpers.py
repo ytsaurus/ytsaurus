@@ -37,7 +37,7 @@ def prepare_files(files, add_major_version_suffix=False):
         file_name_suffix = ""
         if add_major_version_suffix and not file.endswith(".py"):
             file_name_suffix = str(sys.version_info[0])
-        # In egg and debian cases strategy of binary distribution is different.
+        # In egg/wheel and debian cases strategy of binary distribution is different.
         if is_debian:
             data_files.append(("/usr/bin", [file + file_name_suffix]))
         else:
