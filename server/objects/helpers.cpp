@@ -57,10 +57,15 @@ TResolveResult ResolveAttribute(
 
     auto* current = typeHandler->GetRootAttributeSchema();
     try {
+        NYson::TResolveProtobufElementByYPathOptions options;
+
         while (true) {
             addReadPermission(current);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 break;
+            }
+            if (current->IsExtensible()) {
+                options.AllowUnknownYsonFields = true;
             }
             if (!current->IsComposite()) {
                 break;
@@ -85,6 +90,8 @@ TResolveResult ResolveAttribute(
                 }
             }
         }
+        // Validate path in ProtoBuf schema.
+        NYson::ResolveProtobufElementByYPath(typeHandler->GetRootProtobufType(), path, options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing attribute path %v",
             path)

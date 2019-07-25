@@ -16,6 +16,23 @@ class TestObjectService(object):
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
         selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates"])
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
+        selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1"])
+        assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
+
+    def test_select_nonexistent_field(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object(object_type="pod_set")
+        yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+
+        with pytest.raises(YtResponseError):
+            yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1a"])
+        with pytest.raises(YtResponseError):
+            yp_client.select_objects("pod", selectors=["/status/agent/iss/nonexistentField"])
+        with pytest.raises(YtResponseError):
+            yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1/nonexistentField"])
+        with pytest.raises(YtResponseError):
+            yp_client.select_objects("pod", selectors=["/spec/ip6_address_requests/network_id/network_id"])
 
     def test_get_nonexistent(self, yp_env):
         yp_client = yp_env.yp_client
