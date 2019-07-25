@@ -116,6 +116,10 @@ message TDockerImageContents
     string user = 4;
     // Group name for start command
     string group = 5;
+    // Working dir for start command
+    string working_dir = 6;
+    // Environment variables
+    map<string, string> environment = 7 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TDeployUnitStatus
