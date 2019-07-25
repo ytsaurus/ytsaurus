@@ -100,14 +100,17 @@ public:
         rsp->GetHeaders()->Add("X-YT-Response-Start-Index", ToString(index));
         rsp->GetHeaders()->Add("X-YT-Process-Id", ToString(ProcessId_));
         rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(SerializeProtoToRef(msg))).ThrowOnError();
-        WaitFor(rsp->Close()).ThrowOnError();
+        WaitFor(rsp->WriteBody(SerializeProtoToRef(msg)))
+            .ThrowOnError();
+        WaitFor(rsp->Close())
+            .ThrowOnError();
     }
 
 private:
     const TGuid ProcessId_ = TGuid::Create();
 };
 
+DECLARE_REFCOUNTED_CLASS(TMonitoringHandler)
 DEFINE_REFCOUNTED_TYPE(TMonitoringHandler)
 
 ////////////////////////////////////////////////////////////////////////////////

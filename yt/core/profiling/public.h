@@ -47,7 +47,7 @@ extern const TTagIdList EmptyTagIds;
  */
 DEFINE_ENUM(EMetricType,
     ((Counter) (0))
-    ((Gauge) (1))
+    ((Gauge)   (1))
 );
 
 DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)
