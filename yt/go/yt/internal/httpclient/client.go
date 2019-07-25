@@ -265,12 +265,15 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 
 func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.TableWriter, err error) {
 	var ww io.WriteCloser
+
+	ctx, cancelFunc := context.WithCancel(ctx)
 	ww, err = c.doWrite(ctx, call)
 	if err != nil {
+		cancelFunc()
 		return
 	}
 
-	w = newTableWriter(ww)
+	w = newTableWriter(ww, cancelFunc)
 	return
 }
 

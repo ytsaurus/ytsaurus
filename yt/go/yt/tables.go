@@ -8,9 +8,22 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 )
 
+// TableWriter is interface for writing stream of rows.
 type TableWriter interface {
+	// Write writes single row.
 	Write(value interface{}) error
+
+	// Commit closes table writer.
 	Commit() error
+
+	// Rollback aborts table upload and frees associated resources.
+	//
+	// It is safe to call Rollback() concurrently with Write or Commit.
+	//
+	// Rollback blocks until upload transaction is aborted.
+	//
+	// If you need to cancel table writer without blocking, use context cancelFunc.
+	Rollback() error
 }
 
 type TableReader interface {
