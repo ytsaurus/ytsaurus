@@ -184,6 +184,17 @@ void TTokenizer::Expect(ETokenType expectedType)
     }
 }
 
+void TTokenizer::ExpectListIndex()
+{
+    Expect(NYPath::ETokenType::Literal);
+    i64 index;
+    const auto& token = GetLiteralValue();
+    if (!IsSpecialListKey(token) && !TryFromString(token, index)) {
+        THROW_ERROR_EXCEPTION("Expected special list key or integer for repeated field index, %Qv found", token)
+            << TErrorAttribute("ypath", GetPrefixPlusToken());
+    }
+}
+
 bool TTokenizer::Skip(ETokenType expectedType)
 {
     if (Type_ == expectedType) {
