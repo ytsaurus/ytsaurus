@@ -42,6 +42,9 @@ TEST_F(TAstFormatTest, Id)
     EXPECT_EQ("x0123456789_", FormatId("x0123456789_"));
     EXPECT_EQ("[]", FormatId(""));
     EXPECT_EQ("___", FormatId("___"));
+    EXPECT_EQ("[offset]", FormatId("offset"));
+    EXPECT_EQ("[JOIN]", FormatId("JOIN"));
+    EXPECT_EQ("[as]", FormatId("as"));
 }
 
 TEST_F(TAstFormatTest, Reference)
