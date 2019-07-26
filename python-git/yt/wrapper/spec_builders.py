@@ -711,6 +711,10 @@ class SpecBuilder(object):
     def max_stderr_count(self, count):
         return _set_spec_value(self, "max_stderr_count", count)
 
+    @spec_option("Operation alias")
+    def alias(self, alias):
+        return _set_spec_value(self, "alias", alias)
+
     @spec_option("An amount of failed jobs after which the operation is considered to be failed")
     def max_failed_job_count(self, count):
         return _set_spec_value(self, "max_failed_job_count", count)
@@ -762,6 +766,10 @@ class SpecBuilder(object):
     @spec_option("Whether to allow adaptive job splitting")
     def enable_job_splitting(self, flag=True):
         return _set_spec_value(self, "enable_job_splitting", flag)
+
+    @spec_option("Description which is visible at the operation page")
+    def description(self, description):
+        return _set_spec_value(self, "description", description)
 
     def spec(self, spec):
         self._user_spec = deepcopy(spec)
