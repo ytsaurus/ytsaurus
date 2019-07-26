@@ -65,7 +65,7 @@ class Clique(object):
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build():
-            self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
+            self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
     def _get_active_instance_count(self):
