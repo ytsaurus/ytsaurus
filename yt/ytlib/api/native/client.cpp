@@ -1677,6 +1677,10 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
     {
+        if (options.EnablePartialResult && options.KeepMissingRows) {
+            THROW_ERROR_EXCEPTION("Options \"enable_partial_result\" and \"keep_missing_rows\" cannot be used together");
+        }
+
         const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
@@ -1862,6 +1866,7 @@ private:
                 req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
                 req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
                 req->set_timestamp(options.Timestamp);
+                req->set_enable_partial_result(options.EnablePartialResult);
 
                 if (inMemory && *inMemory) {
                     req->Header().set_uncancelable(true);
@@ -1880,18 +1885,29 @@ private:
                 asyncResults[cellIndex] = req->Invoke();
             }
 
-            auto results = WaitFor(Combine(std::move(asyncResults)))
+            auto results = WaitFor(CombineAll(std::move(asyncResults)))
                 .ValueOrThrow();
 
-            uniqueResultRows.resize(currentResultIndex);
+            uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
 
             auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
 
             for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+                if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
+                    continue;
+                }
+
                 const auto& batches = batchesByCells[cellIndex];
+                const auto& result = results[cellIndex].ValueOrThrow();
 
                 for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
-                    auto responseData = responseCodec->Decompress(results[cellIndex]->Attachments()[batchIndex]);
+                    const auto& attachment = result->Attachments()[batchIndex];
+
+                    if (options.EnablePartialResult && attachment.Empty()) {
+                        continue;
+                    }
+
+                    auto responseData = responseCodec->Decompress(result->Attachments()[batchIndex]);
                     TWireProtocolReader reader(responseData, outputRowBuffer);
 
                     const auto& batch = batches[batchIndex];
@@ -1967,7 +1983,7 @@ private:
             resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
-        if (!options.KeepMissingRows) {
+        if (!options.KeepMissingRows && !options.EnablePartialResult) {
             resultRows.erase(
                 std::remove_if(
                     resultRows.begin(),

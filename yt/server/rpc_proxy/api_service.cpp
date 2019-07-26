@@ -2119,6 +2119,7 @@ private:
             : TColumnFilter(std::move(columnFilterIndexes));
         options->Timestamp = request->timestamp();
         options->KeepMissingRows = request->keep_missing_rows();
+        options->EnablePartialResult = request->enable_partial_result();
 
         context->SetRequestInfo("Path: %v, Rows: %v",
             request->path(),

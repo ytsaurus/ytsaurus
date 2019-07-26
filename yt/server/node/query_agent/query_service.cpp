@@ -343,7 +343,7 @@ private:
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
                         Logger,
-                        [&] () -> TSharedRef{
+                        [&] () -> TSharedRef {
                             auto requestData = requestCodec->Decompress(request->Attachments()[index]);
 
                             struct TLookupRowBufferTag { };
@@ -376,8 +376,13 @@ private:
         auto results = WaitFor(RunWithBoundedConcurrency(batchCallbacks, Config_->MaxSubqueries))
             .ValueOrThrow();
 
-        for (size_t index = 0; index < batchCount; ++index) {
-            response->Attachments().push_back(results[index].ValueOrThrow());
+        for (const auto& result : results) {
+            if (request->enable_partial_result() && !result.IsOK()) {
+                response->Attachments().emplace_back();
+                continue;
+            }
+
+            response->Attachments().push_back(result.ValueOrThrow());
         }
 
         context->Reply();
