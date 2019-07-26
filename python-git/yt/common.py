@@ -447,7 +447,12 @@ def update_inplace(object, patch):
     return object
 
 def update(object, patch):
-    return update_inplace(copy.deepcopy(object), patch)
+    if patch is None:
+        return copy.deepcopy(object)
+    elif object is None:
+        return copy.deepcopy(patch)
+    else:
+        return update_inplace(copy.deepcopy(object), patch)
 
 def flatten(obj, list_types=(list, tuple, set, frozenset, types.GeneratorType)):
     """Create flat list from all elements."""

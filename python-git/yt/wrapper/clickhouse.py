@@ -3,9 +3,13 @@ from .common import YtError, require, update
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
 from .cypress_commands import get, exists
+from .transaction_commands import _make_transactional_request
+from .operation_commands import get_operation_url, abort_operation
+from .http_helpers import get_proxy_url
 from .ypath import FilePath
 from .file_commands import smart_upload_file
-from .yson import dumps
+from .config import get_config
+from .yson import dumps, to_yson_type
 
 import yt.logger as logger
 
@@ -13,6 +17,8 @@ from yt.packages.six import iteritems
 
 from tempfile import NamedTemporaryFile
 from inspect import getargspec
+
+import json
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
@@ -22,19 +28,20 @@ BUNDLED_DEFAULTS = {
     "cpu_limit": 8,
     "enable_monitoring": False,
     "clickhouse_config": {},
+    "max_failed_job_count": 10 * 1000,
     "use_exact_thread_count": True,
 }
 
 
-def get_kwargs_names(fn):
+def _get_kwargs_names(fn):
     argspec = getargspec(fn)
     kwargs_len = len(argspec.defaults)
     kwargs_names = argspec.args[-kwargs_len:]
     return kwargs_names
 
 
-def patch_defaults(fn):
-    kwargs_names = get_kwargs_names(fn)
+def _patch_defaults(fn):
+    kwargs_names = _get_kwargs_names(fn)
 
     def wrapped_fn(*args, **kwargs):
         defaults_dict = kwargs.pop("defaults")
@@ -52,7 +59,63 @@ def patch_defaults(fn):
     return wrapped_fn
 
 
-@patch_defaults
+def _resolve_alias(operation_alias, client=None):
+    if operation_alias is None:
+        return None
+    try:
+        return json.loads(_make_transactional_request("get_operation", {
+            "operation_alias": operation_alias,
+            "include_runtime": True,
+            "attributes": ["id", "state"]
+        }, client=client))
+    except:
+        # TODO(max42): introduce error code.
+        return None
+
+
+def _determine_cluster(client=None):
+    proxy_url = get_proxy_url(required=False, client=client)
+    default_suffix = get_config(client)["proxy"]["default_suffix"]
+    if proxy_url is not None and proxy_url.endswith(default_suffix):
+        return proxy_url[:-len(default_suffix)]
+    return None
+
+
+def _format_url(url):
+    return to_yson_type(url, attributes={"_type_tag": "url"})
+
+
+def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=None, prev_operation_id=None, enable_monitoring=None, client=None):
+    # Inherit all custom attributes from the ytserver-clickhouse.
+    # TODO(max42): YT-11099.
+    description = {}
+    if cypress_ytserver_clickhouse_path is not None:
+        attr_keys = get(cypress_ytserver_clickhouse_path + "/@user_attribute_keys", client=client)
+        description = update(description, get(cypress_ytserver_clickhouse_path + "/@", attributes=attr_keys, client=client))
+
+    # Put information about previous incarnation of the operation by the given alias (if any).
+    if prev_operation_id is not None:
+        description["previous_operation_id"] = prev_operation_id
+        description["previous_operation_url"] = _format_url(get_operation_url(prev_operation_id, client=client))
+
+    cluster = _determine_cluster(client=client)
+    
+    # Put link to yql query. It is currently possible to add it only when alias is specified, otherwise we do not have access to operation id.
+    # TODO(max42): YT-11115.
+    if cluster is not None and operation_alias is not None:
+        description["yql_url"] = _format_url(
+            "https://yql.yandex-team.ru/?query=use%20chyt.{}/{}%3B%0A%0Aselect%201%3B&query_type=CLICKHOUSE"
+                .format(cluster, operation_alias[1:]))
+       
+    # Put link to monitoring.
+    if cluster is not None and operation_alias is not None and enable_monitoring:
+        description["monitoring_url"] = _format_url(
+            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
+                .format(cluster, operation_alias))
+
+    return description
+
+@_patch_defaults
 def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_ytserver_clickhouse_path=None,
                                        host_ytserver_clickhouse_path=None,
@@ -62,10 +125,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        memory_limit=None,
                                        memory_footprint=None,
                                        enable_monitoring=None,
-                                       set_container_cpu_limit=None,
                                        cypress_geodata_path=None,
-                                       core_table_path=None,
                                        core_dump_destination=None,
+                                       description=None,
+                                       operation_alias=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -91,11 +154,6 @@ def get_clickhouse_clique_spec_builder(instance_count,
             lambda: YtError("Cypress config.yson path should be specified; consider using "
                             "prepare_clickhouse_config helper"))
     file_paths = [FilePath(cypress_config_path, file_name="config.yson")]
-    if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
-        cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
-    require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None,
-            lambda: YtError("Cypress ytserver-clickhouse binary path and host ytserver-clickhouse path "
-                            "cannot be specified at the same time"))
 
     if cypress_ytserver_clickhouse_path is not None:
         executable_path = "./ytserver-clickhouse"
@@ -115,13 +173,13 @@ def get_clickhouse_clique_spec_builder(instance_count,
             "expose": True,
         },
         "tasks": {
-            "clickhouse_servers": {
+            "instances": {
                 "user_job_memory_digest_lower_bound": 1.0
             }
-        }
+        },
     }
 
-    spec = update(spec_base, spec) if spec is not None else spec_base
+    spec = update(spec_base, spec)
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
@@ -143,17 +201,19 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     spec_builder = \
         VanillaSpecBuilder() \
-            .begin_task("clickhouse_servers") \
+            .begin_task("instances") \
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
                 .command(command) \
                 .memory_limit(memory_limit + memory_footprint) \
                 .cpu_limit(cpu_limit) \
+                .max_stderr_size(1024 * 1024 * 1024) \
                 .port_count(4) \
-                .set_container_cpu_limit(set_container_cpu_limit) \
             .end_task() \
-            .core_table_path(core_table_path) \
             .max_failed_job_count(max_failed_job_count) \
+            .description(description) \
+            .max_stderr_count(150) \
+            .alias(operation_alias) \
             .spec(spec)
 
     if "pool" not in spec_builder.build():
@@ -163,17 +223,17 @@ def get_clickhouse_clique_spec_builder(instance_count,
     return spec_builder
 
 
-@patch_defaults
+@_patch_defaults
 def prepare_clickhouse_config(instance_count,
                               cypress_base_config_path=None,
                               clickhouse_config=None,
                               cpu_limit=None,
                               memory_limit=None,
                               memory_footprint=None,
-                              enable_query_log=None,
                               use_exact_thread_count=None,
+                              operation_alias=None,
                               client=None):
-    """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
+    """Merges a document pointed by `config_template_cypress_path`,  and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
     :param cypress_base_config_path: path to a document that will be taken as a base config; if None, no base config is used
@@ -182,8 +242,6 @@ def prepare_clickhouse_config(instance_count,
     :type clickhouse_config: dict or None
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool or None
-    :param enable_query_log: enable clickhouse query log.
-    :type enable_query_log: bool or None
     """
 
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
@@ -191,23 +249,25 @@ def prepare_clickhouse_config(instance_count,
 
     thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
 
-    clickhouse_config["engine"] = clickhouse_config.get("engine", {})
-    clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
-    clickhouse_config["engine"]["settings"]["max_threads"] = thread_count
-    clickhouse_config["engine"]["settings"]["max_distributed_connections"] = thread_count
+    clickhouse_config_base = {
+        "engine": {
+            "settings": {
+                "max_threads": thread_count,
+                "max_distributed_connections": thread_count,
+                "max_memory_usage_for_all_queries": memory_limit,
+                "log_queries": 1,
+            },
+        },
+        "memory_watchdog": {
+            "memory_limit": memory_limit + memory_footprint,
+        },
+        "profile_manager": {
+            "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},
+        },
+    }
 
-    clickhouse_config["engine"] = clickhouse_config.get("engine", {})
-    clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
-    clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit
-
-    clickhouse_config["memory_watchdog"] = clickhouse_config.get("memory_watchdog", {})
-    clickhouse_config["memory_watchdog"]["memory_limit"] = clickhouse_config["memory_watchdog"].get("memory_limit", memory_limit + memory_footprint)
-
-    if enable_query_log:
-        clickhouse_config["engine"]["settings"]["log_queries"] = 1
-
-    base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else {}
-    resulting_config = update(base_config, clickhouse_config)
+    clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
+    resulting_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
 
     with NamedTemporaryFile() as temp:
         temp.write(dumps(resulting_config, yson_format="pretty"))
@@ -219,14 +279,17 @@ def prepare_clickhouse_config(instance_count,
 
 def start_clickhouse_clique(instance_count,
                             cypress_base_config_path=None,
+                            cypress_ytserver_clickhouse_path=None,
+                            host_ytserver_clickhouse_path=None,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
                             memory_footprint=None,
                             enable_monitoring=None,
-                            enable_query_log=None,
                             cypress_geodata_path=None,
-                            core_table_path=None,
+                            description=None,
+                            abort_existing=None,
+                            operation_alias=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -243,8 +306,10 @@ def start_clickhouse_clique(instance_count,
     :type memory_footprint: int
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool
-    :param enable_query_log: enable clickhouse query log.
-    :type enable_query_log: bool
+    :param description: YSON document which will be placed in cooresponding operation description.
+    :type description: str or None
+    :param abort_existing: should we abort existing operation with the given alias?
+    :type abort_existing: bool or None
     :param cypress_geodata_path: path to archive with geodata in Cypress
     :type cypress_geodata_path str or None
     .. seealso::  :ref:`operation_parameters`.
@@ -252,14 +317,42 @@ def start_clickhouse_clique(instance_count,
 
     defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
 
+    if abort_existing is None:
+        abort_existing = False
+
+    if abort_existing and operation_alias is None:
+        logger.warning("Abort existing is meaningless without specifying operation alias")
+        abort_existing = False
+
+    prev_operation = _resolve_alias(operation_alias, client=client)
+    if abort_existing:
+        if prev_operation is not None and prev_operation["state"] == "running":
+            logger.info("Aborting previous operation with alias " + operation_alias)
+            abort_operation(prev_operation["id"], client=client)
+        else:
+            logger.info("There is no running operation with alias " + operation_alias)
+    prev_operation_id = prev_operation["id"] if prev_operation is not None else None
+
+    if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
+        cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
+    require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None,
+            lambda: YtError("Cypress ytserver-clickhouse binary path and host ytserver-clickhouse path "
+                            "cannot be specified at the same time"))
+
     cypress_config_path = prepare_clickhouse_config(instance_count,
                                                     cypress_base_config_path=cypress_base_config_path,
                                                     clickhouse_config=clickhouse_config,
                                                     cpu_limit=cpu_limit,
                                                     memory_limit=memory_limit,
-                                                    enable_query_log=enable_query_log,
                                                     defaults=defaults,
+                                                    operation_alias=operation_alias,
                                                     client=client)
+
+    description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                         operation_alias=operation_alias,
+                                                         prev_operation_id=prev_operation_id,
+                                                         enable_monitoring=enable_monitoring,
+                                                         client=client))
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
                                                           cypress_config_path=cypress_config_path,
@@ -267,8 +360,11 @@ def start_clickhouse_clique(instance_count,
                                                           memory_limit=memory_limit,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
+                                                          cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                          host_ytserver_clickhouse_path=host_ytserver_clickhouse_path,
                                                           cypress_geodata_path=cypress_geodata_path,
-                                                          core_table_path=core_table_path,
+                                                          operation_alias=operation_alias,
+                                                          description=description,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,
