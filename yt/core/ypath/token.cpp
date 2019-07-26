@@ -11,6 +11,15 @@ const TStringBuf ListEndToken("end");
 const TStringBuf ListBeforeToken("before:");
 const TStringBuf ListAfterToken("after:");
 
+bool IsSpecialListKey(TStringBuf key)
+{
+    return
+        key == ListBeginToken ||
+        key == ListEndToken ||
+        key.StartsWith(ListBeforeToken) ||
+        key.StartsWith(ListAfterToken);
+}
+
 TStringBuf ExtractListIndex(TStringBuf token)
 {
     if (token[0] >= '0' && token[0] <= '9') {
