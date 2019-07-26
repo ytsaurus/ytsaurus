@@ -75,7 +75,7 @@ class TestPortals(YTEnvSetup):
     def test_remove_all_portal_children(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         remove("//tmp/p/*")
-al
+
     def test_portal_set(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         set("//tmp/p/key", "value", force=True)
