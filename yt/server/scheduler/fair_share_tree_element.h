@@ -408,7 +408,7 @@ public:
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-	virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context) override;
+    virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context) override;
 
     virtual void DisableNonAliveElements() override;
 
