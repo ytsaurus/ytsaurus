@@ -317,6 +317,8 @@ message TReqLookupRows
     repeated string columns = 2;
     optional bool keep_missing_rows = 4 [default = true];
 
+    optional bool enable_partial_result = 7 [default = false];
+
     optional TTabletReadOptions tablet_read_options = 106;
 
     required TRowsetDescriptor rowset_descriptor = 200;
@@ -349,6 +351,8 @@ message TReqVersionedLookupRows
     optional bool keep_missing_rows = 4 [default = true];
 
     optional TRetentionConfig retention_config = 6;
+
+    optional bool enable_partial_result = 7 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
 

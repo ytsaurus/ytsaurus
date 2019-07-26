@@ -2133,7 +2133,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}, {"key": 2}]
         expect_rows = rows + [None]
         insert_rows("//tmp/t", rows)
-        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True);
+        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
         assert len(actual) == 2
         assert_items_equal(rows[0], actual[0])
         assert actual[1] == None
@@ -3018,6 +3018,10 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         self._wait_preload(LARGE)
         check_lookup(LARGE, *large_data)
 
+        for node in ls("//sys/nodes"):
+            get("//sys/nodes/{}/@".format(node))
+            get("//sys/nodes/{}/orchid/@".format(node))
+
         # mount small table, preload must fail
         sync_mount_table(SMALL)
         self._wait_preload_failed(SMALL)
@@ -3029,6 +3033,69 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         # cleanup
         sync_unmount_table(SMALL)
+
+    @authors("lukyan")
+    def test_enable_partial_result(self):
+        tablet_cell_attributes = {
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": 1,
+            "changelog_write_quorum": 1,
+            "changelog_account": "sys",
+            "snapshot_account": "sys"
+        }
+
+        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+
+        cells = sync_create_cells(2)
+
+        path = "//tmp/t"
+
+        self._create_simple_table(
+            path,
+            optimize_for="lookup",
+            in_memory_mode="uncompressed",
+            max_dynamic_store_row_count=10,
+            replication_factor=1,
+            read_quorum=1,
+            write_quorum=1,
+        )
+
+        sync_reshard_table(path, [[]] + [[i * 10] for i in xrange(3)])
+
+        sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
+        sync_mount_table(path, first_tablet_index=2, last_tablet_index=3, cell_id=cells[1])
+
+        def gen_rows(x, y, size=1500, value="x"):
+            return [{"key": i, "value": value * size} for i in xrange(x, y)]
+
+        insert_rows(path, gen_rows(0, 10))
+        insert_rows(path, gen_rows(10, 20))
+        insert_rows(path, gen_rows(20, 30))
+
+        sync_flush_table(path)
+
+        def is_preloaded(statistics):
+            return (
+                statistics["preload_completed_store_count"] > 0 and
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] == 0)
+
+        def wait_preload(table, tablet):
+            wait(lambda: is_preloaded(get("{}/@tablets/{}/statistics".format(table, tablet))))
+
+        sync_unmount_table(path)
+        sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
+        sync_mount_table(path, first_tablet_index=3, last_tablet_index=3, cell_id=cells[1])
+        wait_preload(path, 1)
+        wait_preload(path, 3)
+        sync_mount_table(path, first_tablet_index=2, last_tablet_index=2, cell_id=cells[1])
+
+        keys = [{"key": i} for i in xrange(0, 30)]
+
+        expected = gen_rows(0, 10) + [None for i in xrange(10, 20)] + gen_rows(20, 30)
+
+        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True)
+        assert_items_equal(actual, expected)
 
 ##################################################################
 
@@ -3172,6 +3239,11 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
 class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+

@@ -56,6 +56,7 @@ message TReqMultiread
     required uint64 timestamp = 4;
     repeated NYT.NProto.TGuid tablet_ids = 5;
     repeated int64 mount_revisions = 6;
+    optional bool enable_partial_result = 7 [default=false];
 
     // Attachment contains wire-encoded data.
 }
