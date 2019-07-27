@@ -4,9 +4,6 @@
 #include "private.h"
 #include "job_manager.h"
 
-#include <yt/server/controller_agent/public.h>
-#include <yt/server/controller_agent/serialize.h>
-
 #include <yt/ytlib/table_client/public.h>
 
 namespace NYT::NChunkPools {

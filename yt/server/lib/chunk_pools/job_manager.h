@@ -3,8 +3,6 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <yt/server/controller_agent/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/client/table_client/unversioned_row.h>

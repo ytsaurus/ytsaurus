@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/api/native/public.h>
 

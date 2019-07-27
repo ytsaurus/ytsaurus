@@ -2,7 +2,7 @@
 
 #include "job_manager.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/controller_agent/structs.h>
 
 #include <yt/core/misc/ref_tracked.h>
 

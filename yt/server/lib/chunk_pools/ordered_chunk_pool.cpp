@@ -4,9 +4,8 @@
 #include "job_manager.h"
 #include "output_order.h"
 
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/structs.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 

@@ -3,8 +3,6 @@
 #include "private.h"
 #include "chunk_stripe_key.h"
 
-#include <yt/server/controller_agent/serialize.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 namespace NYT::NChunkPools {

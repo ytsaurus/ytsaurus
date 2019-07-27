@@ -1,20 +1,10 @@
 #include "config.h"
 
+#include <yt/server/lib/chunk_pools/config.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TJobSizeAdjusterConfig::TJobSizeAdjusterConfig()
-{
-    RegisterParameter("min_job_time", MinJobTime)
-        .Default(TDuration::Seconds(60));
-
-    RegisterParameter("max_job_time", MaxJobTime)
-        .Default(TDuration::Minutes(10));
-
-    RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-        .Default(20.0);
-}
 
 TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
 {

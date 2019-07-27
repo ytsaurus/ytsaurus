@@ -2,18 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/misc/phoenix.h>
-
-#include <yt/client/table_client/serialize.h>
-
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NTableClient::TSaveContext;
-using NTableClient::TLoadContext;
-using NTableClient::TPersistenceContext;
-using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

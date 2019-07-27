@@ -1,6 +1,6 @@
 #include "job_manager.h"
 
-#include <yt/server/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 

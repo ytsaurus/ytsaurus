@@ -2,12 +2,10 @@
 
 #include "job_manager.h"
 #include "helpers.h"
+#include "input_chunk_mapping.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
-
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/input_chunk_mapping.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/structs.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

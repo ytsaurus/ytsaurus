@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/server/lib/chunk_pools/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -26,22 +28,6 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobSizeAdjusterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MinJobTime;
-    TDuration MaxJobTime;
-
-    double ExecToPrepareTimeRatio;
-
-    TJobSizeAdjusterConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,7 +244,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions, 0x5d08252b);
 
 public:
-    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     TMapOperationOptions();
 };
@@ -338,7 +324,7 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
-    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
 
     TSortOperationOptionsBase();

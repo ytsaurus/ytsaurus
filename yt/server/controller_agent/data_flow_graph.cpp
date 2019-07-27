@@ -1,13 +1,16 @@
 #include "data_flow_graph.h"
-#include "input_chunk_mapping.h"
 #include "serialize.h"
 #include "virtual.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>

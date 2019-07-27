@@ -1,10 +1,10 @@
 #include "unordered_chunk_pool.h"
 
 #include "helpers.h"
+#include "job_size_adjuster.h"
+#include "config.h"
 
-#include <yt/server/controller_agent/job_size_adjuster.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 

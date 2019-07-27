@@ -1,10 +1,8 @@
-#include "serialize.h"
+#include "private.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include "chunk_pool.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
-
-namespace NYT::NControllerAgent {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,4 +71,4 @@ extern TInputChunkMappingPtr IdentityChunkMapping;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NControllerAgent
+} // namespace NYT::NChunkPools

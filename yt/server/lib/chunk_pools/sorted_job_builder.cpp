@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 
-#include <yt/server/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 

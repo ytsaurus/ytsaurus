@@ -9,7 +9,7 @@
 #include "table.h"
 #include "block_input_stream.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/api/native/client.h>
 
