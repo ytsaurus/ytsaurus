@@ -19,7 +19,7 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestFileCommands(object):
     def test_file_commands(self):
         with pytest.raises(yt.YtError):
@@ -113,15 +113,15 @@ class TestFileCommands(object):
 
         with set_config_option("proxy/content_encoding", "gzip"):
             with open(filename, "rb") as f:
-                if yt.config["backend"] == "native":
-                    with pytest.raises(yt.YtError):  # not supported for native backend
+                if yt.config["backend"] in ("native", "rpc"):
+                    with pytest.raises(yt.YtError):  # supported only for http backend
                         yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
                 else:
                     yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
                     assert b"test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()
 
     def test_etag(self):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
         file_path = TEST_DIR + "/file"
