@@ -1,6 +1,6 @@
 from yt_commands import *
 
-from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
+from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build, is_gcc_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
@@ -19,7 +19,9 @@ import copy
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
+YTSERVER_CLICKHOUSE_BINARY = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
+if YTSERVER_CLICKHOUSE_BINARY is None:
+    YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
 
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,
@@ -992,6 +994,7 @@ class TestJoinAndIn(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_global_join(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "c", "type": "int64"}, {"name": "d", "type": "string"}]})
