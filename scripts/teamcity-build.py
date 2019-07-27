@@ -864,6 +864,7 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
     sandbox_ctx["build_number"] = options.build_number
+    sandbox_ctx["full_build_type"] = options.btid
     if "yp" in options.build_project:
         sandbox_ctx["build_project"] = "yp"
     else:
