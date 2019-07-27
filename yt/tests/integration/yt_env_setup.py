@@ -317,6 +317,15 @@ def is_asan_build():
     return "asan" in version
 
 
+def is_gcc_build():
+    if arcadia_interop.yatest_common is not None:
+        return False
+
+    binary = find_executable("ytserver-clickhouse")
+    svnrevision = subprocess.check_output([binary, "--svnrevision"])
+    return "GCC" in svnrevision
+
+
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
     def check_root_privileges():
