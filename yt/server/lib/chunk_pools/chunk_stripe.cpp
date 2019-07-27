@@ -1,11 +1,5 @@
 #include "chunk_stripe.h"
 
-
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/job_size_adjuster.h>
-#include <yt/server/controller_agent/progress_counter.h>
-#include <yt/server/controller_agent/private.h>
-
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -17,7 +11,6 @@
 namespace NYT::NChunkPools {
 
 using namespace NTableClient;
-using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 

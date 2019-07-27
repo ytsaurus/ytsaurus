@@ -1,6 +1,6 @@
 #include "input_chunk_mapping.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include "chunk_stripe.h"
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
@@ -8,9 +8,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NChunkPools {
 
-using namespace NChunkPools;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NYson;
@@ -204,5 +203,5 @@ void TInputChunkMapping::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NControllerAgent
+} // namespace NYT::NChunkPools
 

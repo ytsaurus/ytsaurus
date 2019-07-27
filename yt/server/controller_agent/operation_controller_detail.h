@@ -17,10 +17,10 @@
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/event_log.h>
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
-#include <yt/server/controller_agent/chunk_pools/public.h>
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/controller_agent/chunk_pools/input_stream.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/public.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/input_stream.h>
 
 #include <yt/server/lib/misc/release_queue.h>
 
@@ -1186,7 +1186,7 @@ private:
 
         virtual void Suspend(TCookie cookie) override;
         virtual void Resume(TCookie cookie) override;
-        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, TInputChunkMappingPtr chunkMapping) override;
+        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
         virtual void Finish() override;
 
         void Persist(const TPersistenceContext& context);

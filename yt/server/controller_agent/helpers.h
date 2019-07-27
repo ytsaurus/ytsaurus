@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "data_flow_graph.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 

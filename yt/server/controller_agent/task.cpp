@@ -9,7 +9,7 @@
 
 #include <yt/server/controller_agent/job_memory.h>
 
-#include <yt/server/controller_agent/chunk_pools/helpers.h>
+#include <yt/server/lib/chunk_pools/helpers.h>
 
 #include <yt/server/lib/scheduler/config.h>
 

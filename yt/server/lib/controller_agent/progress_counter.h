@@ -1,11 +1,8 @@
 #pragma once
 
-#include "public.h"
-#include "serialize.h"
+#include "private.h"
 
 #include <yt/core/yson/public.h>
-
-#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent {
 
@@ -69,7 +66,7 @@ TString ToString(const TProgressCounterPtr& counter);
 
 void Serialize(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
 
-void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAny fluent);
+void SerializeBriefVersion(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

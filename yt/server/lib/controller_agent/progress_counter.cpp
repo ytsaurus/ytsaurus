@@ -1,7 +1,5 @@
 #include "progress_counter.h"
 
-#include "private.h"
-
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -342,9 +340,9 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
         .EndMap();
 }
 
-void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAny fluent)
+void SerializeBriefVersion(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
 {
-    fluent
+    BuildYsonFluently(consumer)
         .BeginMap()
             .DoIf(counter->IsTotalEnabled(), [&] (TFluentMap fluent) {
                 fluent

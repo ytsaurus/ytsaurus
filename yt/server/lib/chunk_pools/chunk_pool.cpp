@@ -2,7 +2,7 @@
 
 #include "job_manager.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/controller_agent/structs.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
@@ -34,7 +34,7 @@ IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe,
     return Add(stripe);
 }
 
-void TChunkPoolInputBase::Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping)
+void TChunkPoolInputBase::Reset(TCookie /* cookie */, TChunkStripePtr /* stripe */, TInputChunkMappingPtr /* mapping */)
 {
     YT_ABORT();
 }
@@ -59,7 +59,7 @@ TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
     return nullptr;
 }
 
-i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId nodeId) const
+i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /* nodeId */) const
 {
     return 0;
 }

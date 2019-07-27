@@ -15,7 +15,7 @@
 
 #include <yt/server/lib/core_dump/helpers.h>
 
-#include <yt/server/controller_agent/chunk_pools/helpers.h>
+#include <yt/server/lib/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -6713,7 +6713,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
     if (IsPrepared() && DataFlowGraph_) {
-        fluent.Item("jobs").Do(BIND(&SerializeBriefVersion, DataFlowGraph_->GetTotalJobCounter()));
+        fluent.Item("jobs").Do(BIND([&] (TFluentAny fluent) {
+            SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+        }));
     }
 }
 

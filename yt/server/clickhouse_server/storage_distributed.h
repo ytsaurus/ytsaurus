@@ -6,7 +6,7 @@
 #include "table_schema.h"
 #include "subquery_spec.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>

@@ -4,10 +4,7 @@
 #include "chunk_stripe.h"
 #include "chunk_stripe_key.h"
 
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/progress_counter.h>
-#include <yt/server/controller_agent/serialize.h>
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -35,7 +32,7 @@ struct IChunkPoolInput
     //! When called, pool is forced to replace an input stripe corresponding
     //! to a given cookie with a given new stripe, to apply the given mapping
     //! to the rest of stripes and to form jobs once again.
-    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, NControllerAgent::TInputChunkMappingPtr mapping) = 0;
+    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) = 0;
 
     virtual void Finish() = 0;
 };
@@ -55,7 +52,7 @@ public:
     virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
 
     //! This implementation is not ready to go that far.
-    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, NControllerAgent::TInputChunkMappingPtr mapping) override;
+    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override;
 
     // IPersistent implementation.
     virtual void Persist(const TPersistenceContext& context) override;

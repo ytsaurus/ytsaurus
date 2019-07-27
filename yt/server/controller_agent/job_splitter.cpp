@@ -4,7 +4,7 @@
 #include "config.h"
 #include "serialize.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/server/lib/scheduler/config.h>
 

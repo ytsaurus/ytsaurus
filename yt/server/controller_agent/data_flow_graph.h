@@ -1,9 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "progress_counter.h"
 
-#include <yt/server/controller_agent/chunk_pools/public.h>
+#include <yt/server/lib/chunk_pools/public.h>
 
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/table_upload_options.h>
@@ -28,7 +27,7 @@ struct TEdgeDescriptor
     // Keep fields below in sync with operator =.
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     // May be null if recovery info is not required.
-    TInputChunkMappingPtr ChunkMapping;
+    NChunkPools::TInputChunkMappingPtr ChunkMapping;
     bool RequiresRecoveryInfo = false;
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
     NTableClient::TTableUploadOptions TableUploadOptions;

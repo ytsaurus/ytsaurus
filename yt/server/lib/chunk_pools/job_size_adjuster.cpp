@@ -1,10 +1,10 @@
 #include "job_size_adjuster.h"
-#include "operation_controller.h"
 #include "config.h"
 
-namespace NYT::NControllerAgent {
+namespace NYT::NChunkPools {
 
 using namespace NScheduler;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,5 +144,5 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NControllerAgent
+} // namespace NYT::NChunkPools
 
