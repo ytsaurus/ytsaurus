@@ -943,6 +943,11 @@ std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
             {"three", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
         })},
         {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any, true)},
+
+        {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+        {"uint64_field", SimpleLogicalType(ESimpleLogicalValueType::Uint64, true)},
+        {"int32_field", SimpleLogicalType(ESimpleLogicalValueType::Int32, true)},
+        {"uint32_field", SimpleLogicalType(ESimpleLogicalValueType::Uint32, true)},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1104,6 +1109,35 @@ std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
                             .Item("field_number").Value(5)
                             .Item("proto_type").Value("int64")
                         .EndMap()
+                        // The next fields are for type casting testing
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "int64".
+                            .Item("name").Value("int64_field")
+                            .Item("field_number").Value(6)
+                            .Item("proto_type").Value("int32")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "uint64".
+                            .Item("name").Value("uint64_field")
+                            .Item("field_number").Value(7)
+                            .Item("proto_type").Value("uint32")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "int32".
+                            .Item("name").Value("int32_field")
+                            .Item("field_number").Value(8)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            // In schema it is of type "uint32".
+                            .Item("name").Value("uint32_field")
+                            .Item("field_number").Value(9)
+                            .Item("proto_type").Value("uint64")
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1120,6 +1154,10 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto repeatedMessageId = nameTable->RegisterName("repeated_message_field");
     auto repeatedInt64Id = nameTable->RegisterName("repeated_int64_field");
     auto anyFieldId = nameTable->RegisterName("any_field");
+    auto int64FieldId = nameTable->RegisterName("int64_field");
+    auto uint64FieldId = nameTable->RegisterName("uint64_field");
+    auto int32FieldId = nameTable->RegisterName("int32_field");
+    auto uint32FieldId = nameTable->RegisterName("uint32_field");
 
     auto [schema, config] = ScreateSchemaAndConfigWithStructuredMessage();
 
@@ -1206,6 +1244,11 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
     builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
+    builder.AddValue(MakeUnversionedInt64Value(-64, int64FieldId));
+    builder.AddValue(MakeUnversionedUint64Value(64, uint64FieldId));
+    builder.AddValue(MakeUnversionedInt64Value(-32, int32FieldId));
+    builder.AddValue(MakeUnversionedUint64Value(32, uint32FieldId));
+
     writer->Write({builder.GetRow()});
 
     writer->Close()
@@ -1264,7 +1307,13 @@ TEST(TProtobufFormat, WriteStructuredMessage)
         message.repeated_int64_field().end());
     EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
 
-    EXPECT_EQ(message.int64_field(), 4321);
+    EXPECT_EQ(message.int64_any_field(), 4321);
+
+    // Note the reversal of 32 <-> 64.
+    EXPECT_EQ(message.int32_field(), -64);
+    EXPECT_EQ(message.uint32_field(), 64);
+    EXPECT_EQ(message.int64_field(), -32);
+    EXPECT_EQ(message.uint64_field(), 32);
 
     ASSERT_FALSE(lenvalParser.Next());
 }
@@ -1323,7 +1372,13 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     subfield2->set_key("key21");
     subfield2->set_value("value21");
 
-    message.set_int64_field(4321);
+    message.set_int64_any_field(4321);
+
+    // Note the reversal of 32 <-> 64.
+    message.set_int64_field(-32);
+    message.set_uint64_field(32);
+    message.set_int32_field(-64);
+    message.set_uint32_field(64);
 
     TString lenvalBytes;
     {
@@ -1407,6 +1462,11 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     auto anyValue = rowCollector.GetRowValue(0, "any_field");
     ASSERT_EQ(anyValue.Type, EValueType::Int64);
     EXPECT_EQ(anyValue.Data.Int64, 4321);
+
+    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int64_field")), -64);
+    EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint64_field")), 64);
+    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int32_field")), -32);
+    EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint32_field")), 32);
 }
 
 std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
@@ -1724,17 +1784,20 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
             ParseFormatConfigFromNode(configNode),
             0);
     };
-    auto createWriter = [] (const TTableSchema& schema, const INodePtr& configNode) {
+    auto createSeveralTableWriter = [] (const std::vector<TTableSchema>& schemas, const INodePtr& configNode) {
         TString result;
         TStringOutput resultStream(result);
         return CreateWriterForProtobuf(
             ParseFormatConfigFromNode(configNode),
-            {schema},
+            schemas,
             New<TNameTable>(),
             CreateAsyncAdapter(&resultStream),
             true,
             New<TControlAttributesConfig>(),
             0);
+    };
+    auto createWriter = [&] (const TTableSchema& schema, const INodePtr& configNode) {
+        createSeveralTableWriter({schema}, configNode);
     };
 
     auto schema_struct_with_int64 = TTableSchema({
@@ -1782,8 +1845,12 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createWriter(schema_struct_with_int64, config_struct_with_int64));
 
     // Types mismatch.
-    EXPECT_THROW_WITH_SUBSTRING(createParser(schema_struct_with_uint64, config_struct_with_int64), "Simple logical type mismatch");
-    EXPECT_THROW_WITH_SUBSTRING(createWriter(schema_struct_with_uint64, config_struct_with_int64), "Simple logical type mismatch");
+    EXPECT_THROW_WITH_SUBSTRING(
+        createParser(schema_struct_with_uint64, config_struct_with_int64),
+        "signedness of both types must be the same");
+    EXPECT_THROW_WITH_SUBSTRING(
+        createWriter(schema_struct_with_uint64, config_struct_with_int64),
+        "signedness of both types must be the same");
 
     // No schema for structured field.
     EXPECT_THROW_WITH_SUBSTRING(
@@ -2010,6 +2077,46 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(schema_struct_with_both, config_struct_with_unknown),
         "Fields [\"unknown_field\"] from protobuf config not found in schema");
+
+    auto schema_int64 = TTableSchema({
+        {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
+    });
+
+    auto config_two_tables = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("int64_field")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("int64_field")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    EXPECT_NO_THROW(createWriter(schema_int64, config_two_tables));
+    EXPECT_THROW_WITH_SUBSTRING(
+        createSeveralTableWriter({schema_int64, schema_int64, schema_int64}, config_two_tables),
+        "Number of schemas is greater than number of tables in protobuf config: 3 > 2");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

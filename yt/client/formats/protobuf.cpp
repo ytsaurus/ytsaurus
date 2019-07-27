@@ -229,6 +229,16 @@ ui32 TProtobufFieldDescriptionBase::GetFieldNumber() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+DEFINE_ENUM(EIntegerSignednessKind,
+    (SignedInteger)
+    (UnsignedInteger)
+    (Other)
+);
+
+} // namespace
+
 void ValidateSimpleType(
     EProtobufType protobufType,
     NTableClient::ESimpleLogicalValueType logicalType)
@@ -237,13 +247,57 @@ void ValidateSimpleType(
         return;
     }
 
-    auto validateType = [&] (ESimpleLogicalValueType expected) {
-        if (logicalType != expected) {
-            THROW_ERROR_EXCEPTION("Simple logical type mismatch for protobuf type %Qlv: "
-                "expected %Qlv, got %Qlv",
-                protobufType,
-                expected,
-                logicalType);
+    using EKind = EIntegerSignednessKind;
+
+    auto getLogicalTypeKind = [] (ESimpleLogicalValueType type) {
+        switch (type) {
+            case ESimpleLogicalValueType::Int8:
+            case ESimpleLogicalValueType::Int16:
+            case ESimpleLogicalValueType::Int32:
+            case ESimpleLogicalValueType::Int64:
+                return EKind::SignedInteger;
+            case ESimpleLogicalValueType::Uint8:
+            case ESimpleLogicalValueType::Uint16:
+            case ESimpleLogicalValueType::Uint32:
+            case ESimpleLogicalValueType::Uint64:
+                return EKind::UnsignedInteger;
+            default:
+                return EKind::Other;
+        }
+    };
+
+    auto getProtobufTypeKind = [] (EProtobufType type) {
+        switch (type) {
+            case EProtobufType::Fixed64:
+            case EProtobufType::Uint64:
+            case EProtobufType::Uint32:
+            case EProtobufType::Fixed32:
+                return EKind::UnsignedInteger;
+
+            case EProtobufType::Int64:
+            case EProtobufType::Sint64:
+            case EProtobufType::Sfixed64:
+            case EProtobufType::Sfixed32:
+            case EProtobufType::Sint32:
+            case EProtobufType::Int32:
+            case EProtobufType::EnumInt:
+                return EKind::SignedInteger;
+
+            default:
+                return EKind::Other;
+        }
+    };
+
+    auto throwMismatchError = [&] (TStringBuf message) {
+        THROW_ERROR_EXCEPTION("Simple logical type (%Qv) and protobuf type (%Qv) mismatch: %v",
+            FormatEnum(logicalType),
+            FormatEnum(protobufType),
+            message);
+    };
+
+    auto validateLogicalType = [&] (ESimpleLogicalValueType expected) {
+        if (Y_UNLIKELY(logicalType != expected)) {
+            throwMismatchError(Format("expected logical type %Qv", FormatEnum(expected)));
         }
     };
 
@@ -251,54 +305,41 @@ void ValidateSimpleType(
         case EProtobufType::String:
         case EProtobufType::Bytes:
         case EProtobufType::Message:
-            validateType(ESimpleLogicalValueType::String);
+            validateLogicalType(ESimpleLogicalValueType::String);
             return;
 
         case EProtobufType::Fixed64:
         case EProtobufType::Uint64:
-            validateType(ESimpleLogicalValueType::Uint64);
-            return;
-
         case EProtobufType::Uint32:
         case EProtobufType::Fixed32:
-            validateType(ESimpleLogicalValueType::Uint32);
-            return;
-
         case EProtobufType::Int64:
         case EProtobufType::Sint64:
         case EProtobufType::Sfixed64:
-            validateType(ESimpleLogicalValueType::Int64);
-            return;
-
         case EProtobufType::Sfixed32:
         case EProtobufType::Sint32:
-        case EProtobufType::Int32:
-            validateType(ESimpleLogicalValueType::Int32);
+        case EProtobufType::Int32: {
+            if (getLogicalTypeKind(logicalType) != getProtobufTypeKind(protobufType)) {
+                throwMismatchError("signedness of both types must be the same");
+            }
             return;
+        }
 
         case EProtobufType::Float:
         case EProtobufType::Double:
-            validateType(ESimpleLogicalValueType::Double);
+            validateLogicalType(ESimpleLogicalValueType::Double);
             return;
 
         case EProtobufType::Bool:
-            validateType(ESimpleLogicalValueType::Boolean);
+            validateLogicalType(ESimpleLogicalValueType::Boolean);
             return;
 
         case EProtobufType::EnumInt:
-        case EProtobufType::EnumString:
-            if (logicalType != ESimpleLogicalValueType::Uint64 &&
-                logicalType != ESimpleLogicalValueType::Int64 &&
-                logicalType != ESimpleLogicalValueType::String)
-            {
-                THROW_ERROR_EXCEPTION("Simple logical type mismatch for protobuf type %Qlv: expected "
-                    "one of [%Qlv, %Qlv, %Qlv], got %Qlv",
-                    protobufType,
-                    ESimpleLogicalValueType::Uint64,
-                    ESimpleLogicalValueType::Int64,
-                    ESimpleLogicalValueType::String,
-                    logicalType);
+            if (getLogicalTypeKind(logicalType) != EKind::SignedInteger) {
+                throwMismatchError("logical type must be signed integer type");
             }
+            return;
+        case EProtobufType::EnumString:
+            validateLogicalType(ESimpleLogicalValueType::String);
             return;
 
         case EProtobufType::Any:
@@ -307,8 +348,7 @@ void ValidateSimpleType(
 
         case EProtobufType::StructuredMessage:
         case EProtobufType::OtherColumns:
-            THROW_ERROR_EXCEPTION("Protobuf type %Qv doesn't match any simple type",
-                protobufType);
+            throwMismatchError("protobuf type cannot match any simple type");
     }
     YT_ABORT();
 }
@@ -463,18 +503,17 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
         }
     }
 
-    const auto& tableConfigList = config->Tables;
-    if (tableConfigList.size() != schemas.size()) {
-        THROW_ERROR_EXCEPTION("Number of schemas (%v) is not equal to number of tables in protobuf config (%v)",
+    const auto& tableConfigs = config->Tables;
+    if (tableConfigs.size() < schemas.size()) {
+        THROW_ERROR_EXCEPTION("Number of schemas is greater than number of tables in protobuf config: %v > %v",
             schemas.size(),
-            tableConfigList.size());
+            tableConfigs.size());
     }
 
-    for (size_t tableIndex = 0; tableIndex != tableConfigList.size(); ++tableIndex) {
-        const auto& tableConfig = tableConfigList[tableIndex];
+    for (size_t tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
+        const auto& tableConfig = tableConfigs[tableIndex];
         const auto& tableSchema = schemas[tableIndex];
-        Tables_.emplace_back();
-        auto& columns = Tables_.back().Columns;
+        auto& columns = Tables_.emplace_back().Columns;
         for (const auto& columnConfig : tableConfig->Columns) {
             auto [fieldIt, inserted] = columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
             if (!inserted) {
