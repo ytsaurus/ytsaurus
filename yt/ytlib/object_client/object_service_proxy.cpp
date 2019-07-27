@@ -720,7 +720,7 @@ TError GetCumulativeError(
         return batchRspOrError;
     }
 
-    return GetCumulativeError(batchRspOrError.Value());
+    return GetCumulativeError(batchRspOrError.Value(), key);
 }
 
 TError GetCumulativeError(
