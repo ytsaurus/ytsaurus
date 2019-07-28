@@ -31,7 +31,7 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
     int jobCount,
     std::optional<double> samplingRate = std::nullopt);
 
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const NChunkPools::TChunkStripePtr& chunkStripe);
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

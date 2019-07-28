@@ -4,19 +4,13 @@
 #include "format_helpers.h"
 #include "subquery_spec.h"
 #include "type_helpers.h"
-#include "subquery.h"
 #include "query_context.h"
-#include "table.h"
 #include "block_input_stream.h"
-
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
@@ -32,7 +26,6 @@
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
-using namespace NChunkPools;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTableClient;
@@ -75,7 +68,6 @@ public:
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
-        // TODO(max42): normal logging in this method.
         const auto& Logger = QueryContext_->Logger;
 
         // TODO(max42): ?
@@ -83,30 +75,23 @@ public:
 
         i64 totalRowCount = 0;
         i64 totalDataWeight = 0;
-        for (const auto& dataSliceDescriptor : SubquerySpec_.DataSliceDescriptors) {
-            totalRowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
-            totalDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
-        }
-        YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v)", totalRowCount, totalDataWeight);
-
-        YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, Columns: %v)", maxStreamCount, columns);
-
-        TChunkStripeListPtr chunkStripeList;
-        std::vector<TInputDataSlicePtr> dataSlices;
-        for (const auto& dataSliceDescriptor : SubquerySpec_.DataSliceDescriptors) {
-            const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
-            auto inputChunk = New<TInputChunk>(chunkSpec);
-            auto inputChunkSlice = New<TInputChunkSlice>(std::move(inputChunk));
-            auto dataSlice = CreateUnversionedInputDataSlice(std::move(inputChunkSlice));
-            dataSlices.emplace_back(std::move(dataSlice));
-        }
-        chunkStripeList = SubdivideDataSlices(dataSlices, maxStreamCount);
-
         i64 totalDataSliceCount = 0;
-        for (const auto& stripe : chunkStripeList->Stripes) {
-            totalDataSliceCount += stripe->DataSlices.size();
+        for (const auto& threadDataSliceDescriptors : SubquerySpec_.DataSliceDescriptors) {
+            for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
+                totalRowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
+                totalDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
+                ++totalDataSliceCount;
+            }
         }
-        YT_LOG_DEBUG("Per-thread stripes prepared (Count: %v, TotalDataSliceCount: %v)", chunkStripeList->Stripes.size(), totalDataSliceCount);
+        YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v, DalaSliceCount: %v)",
+            totalRowCount,
+            totalDataWeight,
+            totalDataSliceCount);
+
+        YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
+            maxStreamCount,
+            SubquerySpec_.DataSliceDescriptors.size(),
+            columns);
 
         auto schema = SubquerySpec_.ReadSchema;
 
@@ -133,37 +118,22 @@ public:
         YT_LOG_INFO("Creating table readers");
         BlockInputStreams streams;
 
-        for (const auto& chunkStripe : chunkStripeList->Stripes) {
-            std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-            i64 rowCount = 0;
-            i64 dataWeight = 0;
-            for (const auto& inputDataSlice : chunkStripe->DataSlices) {
-                auto inputChunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
-                NChunkClient::NProto::TChunkSpec chunkSpec;
-                auto chunkSlice = inputDataSlice->ChunkSlices[0];
-                if (chunkSlice->UpperLimit().RowIndex) {
-                    inputChunk->UpperLimit() = std::make_unique<TReadLimit>();
-                    inputChunk->UpperLimit()->SetRowIndex(*chunkSlice->UpperLimit().RowIndex);
-                }
-                if (chunkSlice->LowerLimit().RowIndex) {
-                    inputChunk->LowerLimit() = std::make_unique<TReadLimit>();
-                    inputChunk->LowerLimit()->SetRowIndex(*chunkSlice->LowerLimit().RowIndex);
-                }
-                ToProto(&chunkSpec, inputChunk, EDataSourceType::UnversionedTable);
-                chunkSpec.set_row_count_override(inputDataSlice->GetRowCount());
-                chunkSpec.set_data_weight_override(inputDataSlice->GetDataWeight());
-                dataSliceDescriptors.emplace_back(chunkSpec);
-
-                rowCount += inputChunk->GetRowCount();
-                dataWeight += inputDataSlice->GetDataWeight();
-            }
-
+        for (const auto& threadDataSliceDescriptors : SubquerySpec_.DataSliceDescriptors) {
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
             blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = QueryContext_->User;
             blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
+
+            i64 rowCount = 0;
+            i64 dataWeight = 0;
+            int dataSliceCount = 0;
+            for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
+                rowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
+                dataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
+                ++dataSliceCount;
+            }
 
             auto reader = CreateSchemalessParallelMultiReader(
                 config,
@@ -174,7 +144,7 @@ public:
                 QueryContext_->Client()->GetNativeConnection()->GetBlockCache(),
                 SubquerySpec_.NodeDirectory,
                 SubquerySpec_.DataSourceDirectory,
-                dataSliceDescriptors,
+                threadDataSliceDescriptors,
                 TNameTable::FromSchema(readSchema),
                 blockReadOptions,
                 TColumnFilter(readSchema.Columns().size()),
@@ -184,7 +154,7 @@ public:
                 GetUnlimitedThrottler() /* bandwidthThrottler */,
                 GetUnlimitedThrottler() /* rpsThrottler */);
 
-            YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
+            YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v, DataSliceCount: %v)", rowCount, dataWeight, dataSliceCount);
 
             streams.emplace_back(CreateBlockInputStream(
                 std::move(reader), 
