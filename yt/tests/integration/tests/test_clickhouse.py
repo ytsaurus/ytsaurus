@@ -119,7 +119,7 @@ class Clique(object):
         try:
             self.op.complete()
         except YtError as err:
-            print >>sys.stderr, "Error while completing clique operation:", err
+            print_debug("Error while completing clique operation:", err)
         clique_error = None
         try:
             self.op.track()
