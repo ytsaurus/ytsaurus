@@ -12,15 +12,17 @@ namespace NYT::NClickHouseServer {
 class TClickHouseTableSchema
 {
 public:
-    const DB::NamesAndTypesList Columns;
-    const DB::NamesAndTypesList KeyColumns;
-    const DB::Names PrimarySortColumns;
+    DB::NamesAndTypesList Columns;
+    DB::NamesAndTypesList KeyColumns;
+    DB::Names PrimarySortColumns;
 
 public:
     TClickHouseTableSchema(
         DB::NamesAndTypesList columns,
         DB::NamesAndTypesList keyColumns,
         DB::Names primarySortColumns);
+
+    TClickHouseTableSchema() = default;
 
     bool HasPrimaryKey() const
     {

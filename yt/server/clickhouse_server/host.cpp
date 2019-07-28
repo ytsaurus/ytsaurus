@@ -18,7 +18,7 @@
 #include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
-#include "storage_table.h"
+#include "storage_distributor.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -280,7 +280,7 @@ private:
         RegisterTableFunctions();
         RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Bootstrap_);
-        RegisterStorageTable();
+        RegisterStorageDistributor();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());

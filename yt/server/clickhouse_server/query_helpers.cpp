@@ -16,7 +16,7 @@ ASTTableExpression* GetFirstTableExpression(ASTSelectQuery& select)
     }
 
     const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables());
-    if (tablesInSelectQuery.children.size() != 1) {
+    if (tablesInSelectQuery.children.empty()) {
         return nullptr;
     }
 
