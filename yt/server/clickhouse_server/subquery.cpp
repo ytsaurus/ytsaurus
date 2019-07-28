@@ -573,30 +573,33 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
     return result;
 }
 
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TChunkStripePtr& chunkStripe)
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<TChunkStripePtr>& chunkStripes)
 {
-   for (const auto& dataSlice : chunkStripe->DataSlices) {
-        const auto& chunkSlice = dataSlice->ChunkSlices[0];
-        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-        auto& chunkSpec = subquerySpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-        ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-        // TODO(max42): wtf?
-        chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-        chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-        if (chunkSlice->LowerLimit().RowIndex) {
-            chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
+    for (const auto& chunkStripe : chunkStripes) {
+        auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            const auto& chunkSlice = dataSlice->ChunkSlices[0];
+            auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
+            ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
+            // TODO(max42): wtf?
+            chunkSpec.set_row_count_override(dataSlice->GetRowCount());
+            chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
+            if (chunkSlice->LowerLimit().RowIndex) {
+                chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
+            }
+            if (chunkSlice->UpperLimit().RowIndex) {
+                chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
+            }
+            NChunkClient::NProto::TMiscExt miscExt;
+            miscExt.set_row_count(chunk->GetTotalRowCount());
+            miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
+            miscExt.set_data_weight(chunk->GetTotalDataWeight());
+            miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
+            chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
+            chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
         }
-        if (chunkSlice->UpperLimit().RowIndex) {
-            chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-        }
-        NChunkClient::NProto::TMiscExt miscExt;
-        miscExt.set_row_count(chunk->GetTotalRowCount());
-        miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-        miscExt.set_data_weight(chunk->GetTotalDataWeight());
-        miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-        chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-        chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-        SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
     }
 }
 

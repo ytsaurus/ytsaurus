@@ -17,7 +17,7 @@ message TNameAndTypePair
 message TSubquerySpec
 {
     required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
-    required NScheduler.NProto.TTableInputSpec table_spec = 2;
+    repeated NScheduler.NProto.TTableInputSpec input_specs = 2;
     optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
     optional NYT.NProto.TGuid initial_query_id = 4;
     repeated TNameAndTypePair columns = 5;

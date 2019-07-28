@@ -24,15 +24,13 @@ class TSubquerySpec
 {
 public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
-    std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors;
+    std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TQueryId InitialQueryId;
     DB::NamesAndTypesList Columns;
     NTableClient::TTableSchema ReadSchema;
     // TODO(max42): CHYT-154.
     NYson::TYsonString MembershipHint;
-
-    void Validate() const;
 
 private:
     const std::vector<NChunkClient::TDataSource>& DataSources() const

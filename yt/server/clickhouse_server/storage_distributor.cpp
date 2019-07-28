@@ -258,10 +258,11 @@ public:
         auto clusterNodes = cluster->GetAvailableNodes();
         Prepare(clusterNodes.size(), queryInfo, context);
 
-        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, StripeCount: %v)",
+        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, StripeCount: %v)",
             columnNames,
             getTableName(),
             clusterNodes.size(),
+            static_cast<ui64>(context.getSettings().max_threads),
             StripeList_->Stripes.size());
 
         if (clusterNodes.empty()) {
@@ -286,11 +287,17 @@ public:
         // TODO(max42): CHYT-154.
         SpecTemplate_.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
 
-        for (int index = 0; index < static_cast<int>(StripeList_->Stripes.size()); ++index) {
-            const auto& stripe = StripeList_->Stripes[index];
+        for (int index = 0; index < static_cast<int>(clusterNodes.size()); ++index) {
+            int firstStripeIndex = index * StripeList_->Stripes.size() / clusterNodes.size();
+            int lastStripeIndex = (index + 1) * StripeList_->Stripes.size() / clusterNodes.size();
+
             const auto& clusterNode = clusterNodes[index];
             auto spec = SpecTemplate_;
-            FillDataSliceDescriptors(spec, stripe);
+            FillDataSliceDescriptors(
+                spec,
+                MakeRange(
+                    StripeList_->Stripes.begin() + firstStripeIndex,
+                    StripeList_->Stripes.begin() + lastStripeIndex));
 
             auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
             auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
@@ -298,6 +305,10 @@ public:
             YT_LOG_DEBUG("Rewriting query (OriginalQuery: %v)", *queryInfo.query);
             auto subqueryAst = RewriteForSubquery(queryInfo.query, encodedSpec, Logger);
             YT_LOG_DEBUG("Query rewritten (Subquery: %v)", *subqueryAst);
+
+            YT_LOG_DEBUG("Prepared subquery to node (Node: %v, StripeCount: %v)",
+                clusterNode->GetName().ToString(),
+                lastStripeIndex - firstStripeIndex);
 
             bool isLocal = clusterNode->IsLocal();
             // XXX(max42): weird workaround.
@@ -396,7 +407,7 @@ private:
             samplingRate = rate;
         }
 
-        StripeList_ = SubdivideDataSlices(dataSlices, subqueryCount, samplingRate);
+        StripeList_ = SubdivideDataSlices(dataSlices, subqueryCount * context.getSettings().max_threads, samplingRate);
     }
 };
 
