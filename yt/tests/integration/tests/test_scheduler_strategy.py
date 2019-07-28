@@ -972,10 +972,7 @@ class TestSchedulerPreemption(YTEnvSetup):
                 spec=spec)
             wait_breakpoint()
 
-            # Wait for fair share update.
-            time.sleep(0.2)
-
-            assert get_operation_min_share_ratio(op.id) == compute_min_share_ratio(min_share_spec)
+            wait(lambda: get_operation_min_share_ratio(op.id) == compute_min_share_ratio(min_share_spec))
 
             release_breakpoint()
             op.track()
