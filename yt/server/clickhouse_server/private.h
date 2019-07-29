@@ -66,6 +66,7 @@ using TQueryId = TGuid;
 DECLARE_SHARED_STRUCT(IAuthorizationToken);
 DECLARE_SHARED_STRUCT(ICliqueAuthorizationManager);
 DECLARE_SHARED_STRUCT(IColumnBuilder);
+DECLARE_SHARED_STRUCT(ICoordinationService);
 DECLARE_SHARED_STRUCT(IDocument);
 DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);

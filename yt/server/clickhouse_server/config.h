@@ -8,14 +8,11 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
-
-#include <yt/client/misc/config.h>
-
 #include <yt/client/ypath/rich.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/ytlib/table_client/config.h>
 
+#include <yt/core/concurrency/config.h>
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NClickHouseServer {
@@ -325,8 +322,6 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
-    TDiscoveryConfigPtr Discovery;
-
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -353,9 +348,6 @@ public:
 
         RegisterParameter("table_writer_config", TableWriterConfig)
             .DefaultNew();
-
-        // Note that CliqueId will be added to Directory automaticaly.
-        RegisterParameter("discovery", Discovery);
     }
 };
 

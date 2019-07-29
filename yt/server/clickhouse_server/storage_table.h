@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "cluster_tracker.h"
 
 #include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>

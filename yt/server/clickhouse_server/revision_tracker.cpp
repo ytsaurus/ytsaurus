@@ -1,5 +1,7 @@
 #include "revision_tracker.h"
 
+#include "format_helpers.h"
+
 #include "objects.h"
 #include "query_context.h"
 

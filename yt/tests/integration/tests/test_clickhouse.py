@@ -70,27 +70,14 @@ class Clique(object):
             self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
-    def get_active_instances(self):
+    def _get_active_instance_count(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
-            instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["locks", "host", "http_port"])
-
-            def is_active(instance):
-                if not instance.attributes["locks"]:
-                    return False
-                for lock in instance.attributes["locks"]:
-                    if lock["child_key"] and lock["child_key"] == "lock":
-                        return True
-                return False
-
-            return list(filter(is_active, instances))
+            return len(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False))
         else:
-            return []
-
-    def get_active_instance_count(self):
-        return len(self.get_active_instances())
+            return 0
 
     def _print_progress(self):
-        print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))
+        print_debug(self.op.build_progress(), "(active instance count: {})".format(self._get_active_instance_count()))
 
     def __enter__(self):
         self.op = start_op("vanilla",
@@ -114,7 +101,7 @@ class Clique(object):
 
             if state == "aborted" or state == "failed":
                 raise self.op.get_error()
-            elif state == "running" and self.get_active_instance_count() == self.instance_count:
+            elif state == "running" and self._get_active_instance_count() == self.instance_count:
                 break
             elif counter % 30 == 0:
                 self._print_progress()
@@ -161,7 +148,10 @@ class Clique(object):
                 result.append(line)
         return "\n".join(result)
 
-    def make_direct_query(self, instance, query, user="root", format="JSON", verbose=True, only_rows=True):
+    def make_query(self, query, user="root", format="JSON", verbose=True, only_rows=True):
+        instances = get("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["host", "http_port"])
+        assert len(instances) > 0
+
         # Make some improvements to query: strip trailing semicolon, add format if needed.
         query = query.strip()
         assert "format" not in query.lower()
@@ -172,6 +162,7 @@ class Clique(object):
         if output_present:
             query = query + " format " + format
 
+        instance = random.choice(instances.values())
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
 
@@ -214,11 +205,6 @@ class Clique(object):
             else:
                 return None
 
-    def make_query(self, query, user="root", format="JSON", verbose=True, only_rows=True):
-        instances = self.get_active_instances()
-        assert len(instances) > 0
-        instance = random.choice(instances)
-        return self.make_direct_query(instance, query, user, format, verbose, only_rows)
 
 @require_ytserver_root_privileges
 class ClickHouseTestBase(YTEnvSetup):
@@ -336,41 +322,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/link/t1", [{"i": 0}])
             write_table("//tmp/link/t2", [{"i": 1}])
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
-
-    def test_system_clique(self):
-        with Clique(3) as clique:
-            time.sleep(1)
-            instances = clique.get_active_instances()
-            assert len(instances) == 3
-            responses = []
-            for instance in instances:
-                responses.append(sorted(clique.make_direct_query(instance, "select * from system.clique")))
-            assert len(responses[0]) == 3
-            for node in responses[0]:
-                assert "host" in node and "rpc_port" in node and "monitoring_port" in node and "tcp_port" in node and "http_port" in node
-            assert responses[0] == responses[1]
-            assert responses[1] == responses[2]
-
-            jobs = list(clique.op.get_running_jobs())
-            assert len(jobs) == 3
-            abort_job(jobs[0])
-            time.sleep(2)
-
-            while clique.get_active_instance_count() < 3:
-                time.sleep(0.5)
-
-            time.sleep(1)
-
-            instances = clique.get_active_instances()
-            assert len(instances) == 3
-            responses2 = []
-            for instance in instances:
-                responses2.append(sorted(clique.make_direct_query(instance, "select * from system.clique")))
-            assert len(responses2[0]) == 3
-            assert responses2[0] == responses2[1]
-            assert responses2[1] == responses2[2]
-            assert responses != responses2
-
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

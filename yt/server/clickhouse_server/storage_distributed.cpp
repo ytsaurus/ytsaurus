@@ -3,6 +3,7 @@
 #include "config.h"
 #include "bootstrap.h"
 #include "block_input_stream.h"
+#include "format_helpers.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
@@ -39,18 +40,20 @@ BlockInputStreams TStorageDistributedBase::read(
     auto* queryContext = GetQueryContext(context);
     const auto& Logger = queryContext->Logger;
 
+    const auto& cluster = queryContext->Bootstrap->GetHost()->GetExecutionClusterNodeTracker();
+
     SpecTemplate.InitialQueryId = queryContext->QueryId;
 
-    auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
-    Prepare(cliqueNodes.size(), queryInfo, context);
+    auto clusterNodes = cluster->GetAvailableNodes();
+    Prepare(clusterNodes.size(), queryInfo, context);
 
     YT_LOG_INFO("Preparing query to YT table storage (ColumnNames: %v, TableName: %v, NodeCount: %v, StripeCount: %v)",
         columnNames,
         getTableName(),
-        cliqueNodes.size(),
+        clusterNodes.size(),
         StripeList->Stripes.size());
 
-    if (StripeList->Stripes.size() > cliqueNodes.size()) {
+    if (StripeList->Stripes.size() > clusterNodes.size()) {
         throw Exception("Cluster is too small", ErrorCodes::LOGICAL_ERROR);
     }
 
@@ -74,7 +77,7 @@ BlockInputStreams TStorageDistributedBase::read(
 
     for (int index = 0; index < static_cast<int>(StripeList->Stripes.size()); ++index) {
         const auto& stripe = StripeList->Stripes[index];
-        const auto& cliqueNode = cliqueNodes[index];
+        const auto& clusterNode = clusterNodes[index];
         auto spec = SpecTemplate;
         FillDataSliceDescriptors(spec, stripe);
 
@@ -85,7 +88,7 @@ BlockInputStreams TStorageDistributedBase::read(
         auto subqueryAst = RewriteSelectQueryForTablePart(queryInfo.query, encodedSpec);
         YT_LOG_DEBUG("Query rewritten (Subquery: %v)", *subqueryAst);
 
-        bool isLocal = cliqueNode->IsLocal();
+        bool isLocal = clusterNode->IsLocal();
         // XXX(max42): weird workaround.
         isLocal = false;
         auto substream = isLocal
@@ -94,7 +97,7 @@ BlockInputStreams TStorageDistributedBase::read(
                 newContext,
                 processedStage)
             : CreateRemoteStream(
-                cliqueNode,
+                clusterNode,
                 subqueryAst,
                 newContext,
                 throttler,

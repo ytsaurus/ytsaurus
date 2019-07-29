@@ -59,9 +59,4 @@
             "enable_optimize_predicate_expression" = 0;
         };
     };
-    "discovery" = {
-        "directory" = "//sys/clickhouse/cliques";
-        "update_period" = 500;
-        "transaction_timeout" = 1000;
-    };
 }

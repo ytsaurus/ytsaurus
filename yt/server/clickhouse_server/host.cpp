@@ -1,6 +1,7 @@
 #include "host.h"
 
 #include "config_repository.h"
+#include "cluster_tracker.h"
 #include "database.h"
 #include "functions.h"
 #include "http_handler.h"
@@ -18,10 +19,6 @@
 #include "poco_config.h"
 #include "config.h"
 #include "storage_table.h"
-
-#include <yt/ytlib/api/native/client.h>
-
-#include <yt/client/misc/discovery.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -76,7 +73,6 @@ namespace NYT::NClickHouseServer {
 
 using namespace DB;
 using namespace NProfiling;
-using namespace NYTree;
 
 static const auto& Logger = ServerLogger;
 
@@ -106,15 +102,13 @@ class TClickHouseHost::TImpl
 {
 private:
     TBootstrap* const Bootstrap_;
+    const ICoordinationServicePtr CoordinationService;
     const TClickHouseServerBootstrapConfigPtr Config_;
     const TString CliqueId_;
     const TString InstanceId_;
     const IInvokerPtr ControlInvoker_;
-    ui16 RpcPort_;
-    ui16 MonitoringPort_;
     ui16 TcpPort_;
     ui16 HttpPort_;
-    TDiscoveryPtr Discovery_;
 
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> EngineConfig_;
 
@@ -128,6 +122,9 @@ private:
     std::unique_ptr<Poco::ThreadPool> ServerPool;
     std::vector<std::unique_ptr<Poco::Net::TCPServer>> Servers;
 
+    IClusterNodeTrackerPtr ExecutionClusterNodeTracker;
+    TClusterNodeTicket ClusterNodeTicket;
+
     std::atomic<bool> Cancelled { false };
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
@@ -135,20 +132,18 @@ private:
 public:
     TImpl(
         TBootstrap* bootstrap,
+        ICoordinationServicePtr coordinationService,
         TClickHouseServerBootstrapConfigPtr config,
         std::string cliqueId,
         std::string instanceId,
-        ui16 rpcPort,
-        ui16 monitoringPort,
         ui16 tcpPort,
         ui16 httpPort)
         : Bootstrap_(bootstrap)
+        , CoordinationService(std::move(coordinationService))
         , Config_(std::move(config))
         , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
         , ControlInvoker_(Bootstrap_->GetControlInvoker())
-        , RpcPort_(rpcPort)
-        , MonitoringPort_(monitoringPort)
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
     { }
@@ -166,30 +161,11 @@ public:
         SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        
-        Discovery_ = New<TDiscovery>(
-            Config_->Discovery,
-            Bootstrap_->GetRootClient(),
-            ControlInvoker_,
-            std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port"},
-            Logger);
-        
         SetupContext();
         WarmupDictionaries();
         SetupHandlers();
-        
-        Discovery_->StartPolling();
-
-        TDiscovery::TAttributeDictionary attributes = {
-            {"host", ConvertToNode(GetFQDNHostName())},
-            {"rpc_port", ConvertToNode(RpcPort_)},
-            {"monitoring_port", ConvertToNode(MonitoringPort_)},
-            {"tcp_port", ConvertToNode(TcpPort_)},
-            {"http_port", ConvertToNode(HttpPort_)},
-        };
-
-        WaitFor(Discovery_->Enter(InstanceId_, attributes))
-            .ThrowOnError();
+        SetupExecutionClusterNodeTracker();
+        EnterExecutionCluster();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -218,17 +194,10 @@ public:
         return Cancelled;
     }
 
-    TClusterNodes GetNodes() const
+    // TODO(max42): refactor.
+    IClusterNodeTrackerPtr GetExecutionClusterNodeTracker() const
     {
-        auto nodeList = Discovery_->List();
-        TClusterNodes result;
-        result.reserve(nodeList.size());
-        for (const auto& [_, attributes] : nodeList) {
-            auto host = attributes.at("host")->AsString()->GetValue();
-            auto tcpPort = attributes.at("tcp_port")->AsUint64()->GetValue();
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), tcpPort));
-        }
-        return result;
+        return ExecutionClusterNodeTracker;
     }
 
     void OnProfiling()
@@ -267,6 +236,16 @@ private:
         rootLogger.close();
         rootLogger.setChannel(LogChannel);
         rootLogger.setLevel(Config_->Engine->LogLevel);
+    }
+
+    void SetupExecutionClusterNodeTracker()
+    {
+        YT_LOG_INFO("Starting cluster node tracker");
+
+        ExecutionClusterNodeTracker = CreateClusterNodeTracker(
+            CoordinationService,
+            Config_->Engine->CypressRootPath + "/cliques",
+            TcpPort_);
     }
 
     void SetupContext()
@@ -356,7 +335,7 @@ private:
         {
             auto systemDatabase = std::make_shared<DatabaseMemory>("system");
 
-            AttachSystemTables(*systemDatabase, Discovery_);
+            AttachSystemTables(*systemDatabase, ExecutionClusterNodeTracker);
 
             if (AsynchronousMetrics) {
                 attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
@@ -367,7 +346,7 @@ private:
 
         // Default database that wraps connection to YT cluster.
         {
-            auto defaultDatabase = CreateDatabase();
+            auto defaultDatabase = CreateDatabase(ExecutionClusterNodeTracker);
             Context->addDatabase("default", defaultDatabase);
             Context->addDatabase(CliqueId_, defaultDatabase);
         }
@@ -471,6 +450,17 @@ private:
         YT_LOG_INFO("Handlers set up");
     }
 
+    void EnterExecutionCluster()
+    {
+        ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
+            InstanceId_,
+            EngineConfig_->getString("interconnect_hostname", GetFQDNHostName()),
+            TcpPort_,
+            HttpPort_);
+
+        ExecutionClusterNodeTracker->StartTrack(*Context);
+    }
+
     void CheckMemoryUsage()
     {
         auto usage = GetProcessMemoryUsage();
@@ -496,20 +486,18 @@ private:
 
 TClickHouseHost::TClickHouseHost(
     TBootstrap* bootstrap,
+    ICoordinationServicePtr coordinationService,
     TClickHouseServerBootstrapConfigPtr config,
     std::string cliqueId,
     std::string instanceId,
-    ui16 rpcPort,
-    ui16 monitoringPort,
     ui16 tcpPort,
     ui16 httpPort)
     : Impl_(New<TImpl>(
         bootstrap,
+        std::move(coordinationService),
         std::move(config),
         std::move(cliqueId),
         std::move(instanceId),
-        rpcPort,
-        monitoringPort,
         tcpPort,
         httpPort))
 { }
@@ -529,9 +517,9 @@ DB::Context& TClickHouseHost::GetContext() const
     return Impl_->context();
 }
 
-TClusterNodes TClickHouseHost::GetNodes() const
+IClusterNodeTrackerPtr TClickHouseHost::GetExecutionClusterNodeTracker() const
 {
-    return Impl_->GetNodes();
+    return Impl_->GetExecutionClusterNodeTracker();
 }
 
 TClickHouseHost::~TClickHouseHost() = default;

@@ -1,5 +1,6 @@
 #include "security_manager.h"
 
+#include "format_helpers.h"
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"

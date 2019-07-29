@@ -34,11 +34,9 @@ public:
     void Ban(TString name); 
 
     //! Start updating the list of available participants.
-    //! Returns a future that becomes set after first update.
-    TFuture<void> StartPolling();
+    void StartPolling();
     //! Stop updating the list of available participants.
-    //! Returns a future that becomes set after stopping PeriodicExecutor.
-    TFuture<void> StopPolling();
+    void StopPolling();
 
 private:
     TDiscoveryConfigPtr Config_;
@@ -51,7 +49,6 @@ private:
     mutable NConcurrency::TReaderWriterSpinLock Lock_;
     NApi::ITransactionPtr Transaction_;
     NLogging::TLogger Logger;
-    std::optional<std::pair<TString, TAttributeDictionary>> SelfAttributes_;
     
     void DoEnter(TString name, TAttributeDictionary attributes);
     void DoLeave();

@@ -1,15 +1,16 @@
-#pragma once
+#include "backoff.h"
 
-#include "cluster_tracker.h"
-
-#include <Interpreters/Cluster.h>
-#include <Storages/IStorage.h>
+#include <util/random/random.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageConcat(std::vector<TClickHouseTablePtr> tables);
+TDuration AddJitter(const TDuration& d, double jitter)
+{
+    double correction = 1 - jitter + RandomNumber<double>() * (2 * jitter);
+    return d * correction;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
