@@ -2867,7 +2867,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         if (successfullyPrecommitted) {
             *precommittedResources += resourceDelta;
         } else {
-            const auto& jobId = scheduleJobResult->StartDescriptor->Id;
+            auto jobId = scheduleJobResult->StartDescriptor->Id;
             const auto availableDelta = GetHierarchicalAvailableResources(*context);
             YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                 jobId,

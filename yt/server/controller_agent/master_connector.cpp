@@ -775,7 +775,7 @@ private:
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
         for (const auto& request : requests) {
-            const auto& jobId = request.JobId;
+            auto jobId = request.JobId;
 
             auto path = GetJobPath(operation->GetId(), jobId);
             auto attributes = ConvertToAttributes(request.Attributes);
@@ -793,7 +793,7 @@ private:
 
         std::vector<TCreateJobNodeRequest> successfulRequests;
         for (const auto& request : requests) {
-            const auto& jobId = request.JobId;
+            auto jobId = request.JobId;
             auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
             bool allOK = true;
             for (const auto& rspOrError : rspsOrError) {

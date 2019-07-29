@@ -1050,7 +1050,7 @@ void TChunkReplicator::ProcessExistingJobs(
     const auto& address = node->GetDefaultAddress();
 
     for (const auto& job : currentJobs) {
-        const auto& jobId = job->GetJobId();
+        auto jobId = job->GetJobId();
         YT_VERIFY(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
         YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
         switch (job->GetState()) {

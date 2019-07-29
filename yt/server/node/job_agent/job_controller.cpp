@@ -892,7 +892,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     int confirmedJobCount = 0;
 
     for (const auto& pair : Jobs_) {
-        const auto& jobId = pair.first;
+        auto jobId = pair.first;
         const auto& job = pair.second;
         if (CellTagFromId(jobId) != cellTag)
             continue;
@@ -969,7 +969,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
         // TODO(ignat): make it in more general way (non-scheduler specific).
         for (const auto& pair : SpecFetchFailedJobIds_) {
-            const auto& jobId = pair.first;
+            auto jobId = pair.first;
             const auto& operationId = pair.second;
             auto* jobStatus = request->add_jobs();
             ToProto(jobStatus->mutable_job_id(), jobId);
@@ -988,7 +988,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
         if (!JobIdsToConfirm_.empty()) {
             YT_LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", JobIdsToConfirm_.size());
-            for (const auto& jobId : JobIdsToConfirm_) {
+            for (auto jobId : JobIdsToConfirm_) {
                 YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
             }
             ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
@@ -1002,7 +1002,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 {
     for (const auto& protoJobToRemove : response->jobs_to_remove()) {
         auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
-        const auto& jobId = jobToRemove.JobId;
+        auto jobId = jobToRemove.JobId;
         if (SpecFetchFailedJobIds_.erase(jobId) == 1) {
             continue;
         }
