@@ -18,6 +18,9 @@ namespace NYT::NYson {
  */
 class TProtobufMessageType;
 
+//! An opaque reflected counterpart of ::google::protobuf::EnumDescriptor.
+class TProtobufEnumType;
+
 //! Reflects ::google::protobuf::Descriptor.
 /*!
  *  The call caches its result in a static variable and is thus efficient.
@@ -32,8 +35,18 @@ const TProtobufMessageType* ReflectProtobufMessageType();
  */
 const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf::Descriptor* descriptor);
 
+//! Reflects ::google::protobuf::EnumDescriptor.
+/*!
+ *  The call invokes the internal reflection registry and takes spinlocks.
+ *  Should not be assumed to be efficient.
+ */
+const TProtobufEnumType* ReflectProtobufEnumType(const ::google::protobuf::EnumDescriptor* descriptor);
+
 //! Extracts the underlying ::google::protobuf::Descriptor from a reflected instance.
 const ::google::protobuf::Descriptor* UnreflectProtobufMessageType(const TProtobufMessageType* type);
+
+//! Extracts the underlying ::google::protobuf::EnumDescriptor from a reflected instance.
+const ::google::protobuf::EnumDescriptor* UnreflectProtobufMessageType(const TProtobufEnumType* type);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,6 +188,21 @@ void WriteProtobufMessage(
     IYsonConsumer* consumer,
     const ::google::protobuf::Message& message,
     const TProtobufParserOptions& options = TProtobufParserOptions());
+
+
+//! Given a enum type T, tries to convert a string literal to T.
+//! Returns null if the literal is not known.
+template <class T>
+std::optional<T> FindProtobufEnumValueByLiteral(
+    const TProtobufEnumType* type,
+    TStringBuf literal);
+
+//! Given a enum type T, tries to convert a value of T to string literals.
+//! Returns null if no literal is known for this value.
+template <class T>
+TStringBuf FindProtobufEnumLiteralByValue(
+    const TProtobufEnumType* type,
+    T value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

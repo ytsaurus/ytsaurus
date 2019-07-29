@@ -419,6 +419,11 @@ public:
         }
     }
 
+    const EnumDescriptor* GetUnderlying() const
+    {
+        return Underlying_;
+    }
+
     const TString& GetFullName() const
     {
         return Underlying_->full_name();
@@ -483,9 +488,33 @@ const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descrip
     return TProtobufTypeRegistry::Get()->ReflectMessageType(descriptor);
 }
 
+const TProtobufEnumType* ReflectProtobufEnumType(const EnumDescriptor* descriptor)
+{
+    return TProtobufTypeRegistry::Get()->ReflectEnumType(descriptor);
+}
+
 const ::google::protobuf::Descriptor* UnreflectProtobufMessageType(const TProtobufMessageType* type)
 {
     return type->GetUnderlying();
+}
+
+const ::google::protobuf::EnumDescriptor* UnreflectProtobufEnumType(const TProtobufEnumType* type)
+{
+    return type->GetUnderlying();
+}
+
+std::optional<int> FindProtobufEnumValueByLiteralUntyped(
+    const TProtobufEnumType* type,
+    TStringBuf literal)
+{
+    return type->FindValueByLiteral(literal);
+}
+
+TStringBuf FindProtobufEnumLiteralByValueUntyped(
+    const TProtobufEnumType* type,
+    int value)
+{
+    return type->FindLiteralByValue(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
