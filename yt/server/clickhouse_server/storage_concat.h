@@ -1,7 +1,5 @@
 #pragma once
 
-#include "cluster_tracker.h"
-
 #include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>
 

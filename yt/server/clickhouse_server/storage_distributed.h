@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "cluster_tracker.h"
+#include "cluster_nodes.h"
 #include "table_schema.h"
 #include "subquery_spec.h"
 
