@@ -142,7 +142,7 @@ public:
      */
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
-    NSecurityClient::TSerializableAccessControlList GetBaseOperationAcl() const;
+    NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
 private:
     class TImpl;

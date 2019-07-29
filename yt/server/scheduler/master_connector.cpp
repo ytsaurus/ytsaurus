@@ -935,7 +935,7 @@ private:
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParams,
-                Owner_->Bootstrap_->GetScheduler()->GetBaseOperationAcl(),
+                Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
