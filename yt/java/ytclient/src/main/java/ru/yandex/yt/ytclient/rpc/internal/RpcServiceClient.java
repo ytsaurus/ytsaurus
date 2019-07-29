@@ -4,12 +4,14 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.protobuf.MessageLite;
 
 import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpc.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -43,6 +45,16 @@ public class RpcServiceClient implements InvocationHandler {
         builder.setService(serviceName);
         builder.setMethod(methodDescriptor.getMethodName());
         builder.setProtocolVersionMajor(protocolVersion);
+
+        if (options.getTrace()) {
+            TTracingExt.Builder tracing = TTracingExt.newBuilder();
+            tracing.setSampled(options.getTraceSampled());
+            tracing.setDebug(options.getTraceDebug());
+            tracing.setTraceId(RpcUtil.toProto(GUID.create()));
+            tracing.setSpanId(ThreadLocalRandom.current().nextLong());
+            builder.setExtension(TTracingExt.tracingExt, tracing.build());
+        }
+
         return builder;
     }
 
