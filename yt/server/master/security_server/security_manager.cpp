@@ -17,7 +17,6 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
 #include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_requisition.h>
@@ -1400,7 +1399,6 @@ public:
     {
         return SecurityTagsRegistry_;
     }
-
 
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 

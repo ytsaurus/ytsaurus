@@ -60,6 +60,8 @@ struct TPermissionCheckResponse;
 
 struct TUserWorkload;
 
+constexpr int TypicalAccessLogAttributeCount = 1;
+using TAttributeVector = SmallVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
 constexpr int TypicalSecurityTagCount = 16;
 using TSecurityTagsItems = SmallVector<TSecurityTag, TypicalSecurityTagCount>;
 struct TSecurityTags;
