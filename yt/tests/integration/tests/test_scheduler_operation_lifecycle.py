@@ -900,7 +900,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         assert pool_metrics["unique_pool"] - start_pool_metrics["unique_pool"] == op_writes > 0
 
     @unix_only
-    @require_ytserver_root_privileges
+    # @require_ytserver_root_privileges
     def test_operation_failed(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")

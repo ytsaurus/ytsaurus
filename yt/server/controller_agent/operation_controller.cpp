@@ -286,9 +286,9 @@ public:
         return Underlying_->ExtractJobSpec(jobId);
     }
 
-    virtual TOperationJobMetrics PullJobMetricsDelta() override
+    virtual TOperationJobMetrics PullJobMetricsDelta(bool force) override
     {
-        return Underlying_->PullJobMetricsDelta();
+        return Underlying_->PullJobMetricsDelta(force);
     }
 
     virtual TOperationAlertMap GetAlerts() override

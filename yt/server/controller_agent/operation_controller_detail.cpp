@@ -6413,12 +6413,12 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     }
 }
 
-TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
+TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
-    if (LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
+    if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
         return {};
     }
 

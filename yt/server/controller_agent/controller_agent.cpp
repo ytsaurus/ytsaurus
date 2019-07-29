@@ -430,7 +430,7 @@ public:
                 .Run())
                 .ThrowOnError();
 
-            result.ResidualJobMetrics = controller->PullJobMetricsDelta();
+            result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
         }
 
         UnregisterOperation(operationId);
