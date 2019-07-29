@@ -121,7 +121,7 @@ def make_request(command_name,
         result_string = ""
         if result:
             debug_result = result
-            if "output_format" in params and str(params["output_format"]) == "yson":
+            if "output_format" in params and str(params["output_format"]) == "yson" and isinstance(result, bytes):
                 debug_result = yson.dumps(yson.loads(result), yson_format="text")
             result_string = " (result: %r)" % debug_result
         logger.info("Command executed" + result_string)
