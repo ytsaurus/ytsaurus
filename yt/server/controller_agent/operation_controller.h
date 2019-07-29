@@ -463,10 +463,12 @@ struct IOperationController
     virtual NYson::TYsonString GetSuspiciousJobsYson() const = 0;
 
     //! Returns metrics delta since the last call and resets the state.
+    //! When `force` is true, the delta is returned unconditionally, otherwise the method has
+    //! no effect in case too little time has passed since the last call.
     /*!
      * \note Invoker affinity: any.
      */
-    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() = 0;
+    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) = 0;
 
     //! Extracts the job spec proto blob, which is being built at background.
     //! After this call, the reference to this blob is released.

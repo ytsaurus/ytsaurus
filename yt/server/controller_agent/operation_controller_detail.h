@@ -340,7 +340,7 @@ public:
 
     virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
 
-    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
+    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) override;
 
     virtual TOperationAlertMap GetAlerts() override;
 
