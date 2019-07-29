@@ -2167,7 +2167,7 @@ void TNodeShard::SubmitJobsToStrategy()
             }
 
             for (const auto& pair : jobsToRemove) {
-                const auto& operationId = pair.first;
+                auto operationId = pair.first;
                 auto jobId = pair.second;
 
                 auto* operationState = FindOperationState(operationId);

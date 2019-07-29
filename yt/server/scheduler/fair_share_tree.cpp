@@ -801,7 +801,7 @@ void TFairShareTree::BuildFairShareInfo(TFluentMap fluent)
         .Item("operations").DoMapFor(
             OperationIdToElement_,
             [=] (TFluentMap fluent, const TOperationElementMap::value_type& pair) {
-                const auto& operationId = pair.first;
+                auto operationId = pair.first;
                 fluent
                     .Item(ToString(operationId)).BeginMap()
                         .Do(BIND(&TFairShareTree::BuildOperationProgress, Unretained(this), operationId))
@@ -818,7 +818,7 @@ void TFairShareTree::BuildEssentialFairShareInfo(TFluentMap fluent)
         .Item("operations").DoMapFor(
             OperationIdToElement_,
             [=] (TFluentMap fluent, const TOperationElementMap::value_type& pair) {
-                const auto& operationId = pair.first;
+                auto operationId = pair.first;
                 fluent
                     .Item(ToString(operationId)).BeginMap()
                         .Do(BIND(&TFairShareTree::BuildEssentialOperationProgress, Unretained(this), operationId))
@@ -1460,7 +1460,7 @@ std::vector<TOperationId> TFairShareTree::RunWaitingOperations()
     std::vector<TOperationId> result;
     auto it = WaitingOperationQueue_.begin();
     while (it != WaitingOperationQueue_.end() && RootElement_->RunningOperationCount() < Config_->MaxRunningOperationCount) {
-        const auto& operationId = *it;
+        auto operationId = *it;
         auto element = GetOperationElement(operationId);
         auto* operationPool = element->GetParent();
         if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {

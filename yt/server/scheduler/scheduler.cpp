@@ -2068,7 +2068,7 @@ private:
     void CheckUnschedulableOperations()
     {
         for (auto pair : Strategy_->GetUnschedulableOperations()) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& error = pair.second;
             auto operation = FindOperation(operationId);
             if (!operation) {
@@ -2567,7 +2567,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
         YT_LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
 
@@ -3167,7 +3167,7 @@ private:
 
     void HandleOrphanedOperation(const TOperationPtr& operation)
     {
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
