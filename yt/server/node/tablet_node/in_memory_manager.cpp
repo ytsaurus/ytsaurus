@@ -358,7 +358,7 @@ private:
 
         ~TInterceptingBlockCache()
         {
-            for (const auto& chunkId : ChunkIds_) {
+            for (auto chunkId : ChunkIds_) {
                 TDelayedExecutor::Submit(
                     BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), Owner_, chunkId),
                     Owner_->Config_->InterceptedDataRetentionTime);

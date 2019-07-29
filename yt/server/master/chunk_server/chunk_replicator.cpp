@@ -1606,7 +1606,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 }
 
                 auto jt = it++;
-                const auto& chunkIdWithIndex = jt->first;
+                auto chunkIdWithIndex = jt->first;
                 auto& mediumIndexSet = jt->second;
                 for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {

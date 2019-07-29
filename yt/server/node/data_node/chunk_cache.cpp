@@ -517,7 +517,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        const auto& chunkId = descriptor.Id;
+        auto chunkId = descriptor.Id;
 
         auto optionalKey = TryParseArtifactMeta(location, chunkId);
         if (!optionalKey) {
