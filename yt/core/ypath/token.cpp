@@ -44,15 +44,6 @@ int ParseListIndex(TStringBuf token)
     }
 }
 
-bool IsSpecialListKey(TStringBuf key)
-{
-    return
-        key == ListBeginToken ||
-        key == ListEndToken ||
-        key.StartsWith(ListBeforeToken) ||
-        key.StartsWith(ListAfterToken);
-}
-
 TString ToYPathLiteral(TStringBuf value)
 {
     TStringBuilder builder;
