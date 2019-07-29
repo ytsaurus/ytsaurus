@@ -297,7 +297,7 @@ public:
 
         RunningThreadCount_ = threadCount;
         for (size_t i = 0; i < threadCount; ++i) {
-            TString threadName = TStringBuilder() << "par_reader_" << i;
+            TString threadName = ::TStringBuilder() << "par_reader_" << i;
             Threads_.push_back(::MakeHolder<TThread>(
                 TThread::TParams(ReaderThread, this).SetName(threadName)));
             Threads_.back()->Start();
