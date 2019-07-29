@@ -686,7 +686,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     // Also "repair" half-alive chunks (e.g. those having some of their essential parts missing)
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
-    for (const auto& chunkId : chunkIds) {
+    for (auto chunkId : chunkIds) {
         auto optionalDescriptor = RepairChunk(chunkId);
         if (optionalDescriptor) {
             descriptors.push_back(*optionalDescriptor);
@@ -1144,7 +1144,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
             trashChunkIds.insert(chunkId);
         }
 
-        for (const auto& chunkId : trashChunkIds) {
+        for (auto chunkId : trashChunkIds) {
             RegisterTrashChunk(chunkId);
         }
     }

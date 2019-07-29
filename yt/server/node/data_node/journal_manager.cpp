@@ -262,7 +262,7 @@ private:
         YT_LOG_INFO("Analyzing dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
-            const auto& chunkId = record.Header.ChunkId;
+            auto chunkId = record.Header.ChunkId;
             switch (record.Header.Type) {
                 case EMultiplexedRecordType::Append: {
                     YT_VERIFY(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
@@ -301,7 +301,7 @@ private:
     void DumpAnalysisResults()
     {
         auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const TString& action) {
-            for (const auto& chunkId : chunkIds) {
+            for (auto chunkId : chunkIds) {
                 YT_LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
                     chunkId,
@@ -327,7 +327,7 @@ private:
         YT_LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
-            const auto& chunkId = record.Header.ChunkId;
+            auto chunkId = record.Header.ChunkId;
             if (version < GetFirstRelevantVersion(chunkId))
                 return;
 
@@ -371,7 +371,7 @@ private:
 
     void ReplayAppendRecord(const TMultiplexedRecord& record)
     {
-        const auto& chunkId = record.Header.ChunkId;
+        auto chunkId = record.Header.ChunkId;
 
         auto it = SplitMap_.find(chunkId);
         if (it == SplitMap_.end()) {
@@ -436,7 +436,7 @@ private:
 
     void ReplayCreateRecord(const TMultiplexedRecord& record)
     {
-        const auto& chunkId = record.Header.ChunkId;
+        auto chunkId = record.Header.ChunkId;
 
         auto changelog = Callbacks_->CreateSplitChangelog(chunkId);
         if (!changelog) {
@@ -455,7 +455,7 @@ private:
 
     void ReplayRemoveRecord(const TMultiplexedRecord& record)
     {
-        const auto& chunkId = record.Header.ChunkId;
+        auto chunkId = record.Header.ChunkId;
 
         YT_VERIFY(SplitMap_.find(chunkId) == SplitMap_.end());
 

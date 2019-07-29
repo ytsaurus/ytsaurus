@@ -235,7 +235,7 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
 {
     // Group chunks by cell tags.
     THashMap<TCellTag, int> cellTags;
-    for (const auto& chunkId : chunkIds) {
+    for (auto chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
         ++cellTags[cellTag];
     }
@@ -245,7 +245,7 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
         chunksByCells[cellTag.first].reserve(cellTag.second);
     }
 
-    for (const auto& chunkId : chunkIds) {
+    for (auto chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
         chunksByCells[cellTag].push_back(chunkId);
     }

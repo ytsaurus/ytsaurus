@@ -475,7 +475,7 @@ private:
                     store->GetMinKey() >= partition->GetNextPivotKey())
                     return;
 
-                const auto& chunkId = store->AsSortedChunk()->GetChunkId();
+                auto chunkId = store->AsSortedChunk()->GetChunkId();
                 YT_VERIFY(chunkId);
                 if (storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second) {
                     ToProto(req->add_subrequests(), chunkId);

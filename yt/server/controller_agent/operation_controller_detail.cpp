@@ -2337,7 +2337,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
+        for (auto chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
@@ -4602,7 +4602,7 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
 {
-    const auto& chunkId = inputChunk->ChunkId();
+    auto chunkId = inputChunk->ChunkId();
 
     // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
     auto& chunkDescriptor = InputChunkMap[chunkId];
@@ -5641,7 +5641,7 @@ void TOperationControllerBase::CollectTotals()
     for (const auto& table : InputTables_) {
         for (const auto& inputChunk : table->Chunks) {
             if (IsUnavailable(inputChunk, CheckParityReplicas())) {
-                const auto& chunkId = inputChunk->ChunkId();
+                auto chunkId = inputChunk->ChunkId();
 
                 switch (Spec_->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
@@ -6275,7 +6275,7 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& slice : dataSlice->ChunkSlices) {
             auto inputChunk = slice->GetInputChunk();
-            const auto& chunkId = inputChunk->ChunkId();
+            auto chunkId = inputChunk->ChunkId();
 
             if (!visitedChunks.insert(chunkId).second) {
                 continue;
@@ -6304,7 +6304,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
 {
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
-        const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
         YT_VERIFY(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
 

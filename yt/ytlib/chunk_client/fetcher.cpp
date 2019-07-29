@@ -88,7 +88,7 @@ private:
         THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
-            const auto& chunkId = chunkSpec->ChunkId();
+            auto chunkId = chunkSpec->ChunkId();
             chunkIds.insert(chunkId);
             ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
         }
@@ -241,7 +241,7 @@ void TFetcherBase::StartFetchingRound()
 
     for (auto chunkIndex : UnfetchedChunkIndexes_) {
         const auto& chunk = Chunks_[chunkIndex];
-        const auto& chunkId = chunk->ChunkId();
+        auto chunkId = chunk->ChunkId();
         bool chunkAvailable = false;
         const auto replicas = chunk->GetReplicaList();
         for (auto replica : replicas) {
@@ -326,7 +326,7 @@ IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& error)
 {
     const auto& chunk = Chunks_[chunkIndex];
-    const auto& chunkId = chunk->ChunkId();
+    auto chunkId = chunk->ChunkId();
 
     YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
         chunkId,
