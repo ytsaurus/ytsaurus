@@ -865,17 +865,10 @@ private:
                 }
             }
 
-            std::vector<TArchiveOperationRequest> archivedOperationRequests;
-            archivedOperationRequests.reserve(batch.size());
+            ProcessCleanedOperation(batch);
             for (auto operationId : batch) {
-                auto it = OperationMap_.find(operationId);
-                YT_VERIFY(it != OperationMap_.end());
-                archivedOperationRequests.emplace_back(std::move(it->second));
-                OperationMap_.erase(it);
                 EnqueueForRemoval(operationId);
             }
-
-            OperationsArchived_.Fire(archivedOperationRequests);
 
             Profiler.Increment(ArchivePendingCounter_, -batch.size());
         }
@@ -894,6 +887,7 @@ private:
             YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
 
             std::vector<TOperationId> failedOperationIds;
+            std::vector<TOperationId> removedOperationIds;
             std::vector<TOperationId> operationIdsToRemove;
 
             {
@@ -967,7 +961,9 @@ private:
                         auto operationId = operationIdsToRemove[index];
 
                         auto rsp = rsps[index];
-                        if (!rsp.IsOK()) {
+                        if (rsp.IsOK()) {
+                            removedOperationIds.push_back(operationId);
+                        } else {
                             YT_LOG_DEBUG(
                                 rsp,
                                 "Failed to remove finished operation from Cypress (OperationId: %v)",
@@ -988,18 +984,21 @@ private:
                 }
             }
 
-            YT_VERIFY(batch.size() >= failedOperationIds.size());
-            int removedCount = batch.size() - failedOperationIds.size();
-            YT_LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
+            YT_VERIFY(batch.size() == failedOperationIds.size() + removedOperationIds.size());
+            int removedCount = removedOperationIds.size();
 
-            Profiler.Increment(RemovedCounter_, removedCount);
+            Profiler.Increment(RemovedCounter_, removedOperationIds.size());
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
+            
+            ProcessCleanedOperation(removedOperationIds);
 
             for (auto operationId : failedOperationIds) {
                 RemoveBatcher_.Enqueue(operationId);
             }
 
             Profiler.Increment(RemovePendingCounter_, -removedCount);
+
+            YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
         }
 
         auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
@@ -1084,6 +1083,21 @@ private:
         auto it = OperationMap_.find(operationId);
         YT_VERIFY(it != OperationMap_.end());
         return it->second;
+    }
+
+    void ProcessCleanedOperation(const std::vector<TOperationId>& cleanedOperationIds)
+    {
+        std::vector<TArchiveOperationRequest> archivedOperationRequests;
+        archivedOperationRequests.reserve(cleanedOperationIds.size());
+        for (const auto& operationId : cleanedOperationIds) {
+            auto it = OperationMap_.find(operationId);
+            if (it != OperationMap_.end()) {
+                archivedOperationRequests.emplace_back(std::move(it->second));
+                OperationMap_.erase(it);
+            }
+        }
+
+        OperationsArchived_.Fire(archivedOperationRequests);
     }
 };
 
