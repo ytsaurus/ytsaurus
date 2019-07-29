@@ -11,6 +11,7 @@ namespace google::protobuf {
 ////////////////////////////////////////////////////////////////////////////////
 
 class Descriptor;
+class EnumDescriptor;
 class MessageLite;
 class Message;
 

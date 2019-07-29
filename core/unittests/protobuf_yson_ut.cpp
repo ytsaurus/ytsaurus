@@ -1325,5 +1325,21 @@ TEST(TResolveProtobufElementByYPath, Failure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TProtobufEnums, FindValueByLiteral)
+{
+    static const auto* type = ReflectProtobufEnumType(NYT::NProto::EColor_descriptor());
+    ASSERT_EQ(std::nullopt, FindProtobufEnumValueByLiteral<NYT::NProto::EColor>(type, "zzz"));
+    ASSERT_EQ(NYT::NProto::Color_Red, FindProtobufEnumValueByLiteral<NYT::NProto::EColor>(type, "red"));
+}
+
+TEST(TProtobufEnums, FindLiteralByValue)
+{
+    static const auto* type = ReflectProtobufEnumType(NYT::NProto::EColor_descriptor());
+    ASSERT_EQ("red", FindProtobufEnumLiteralByValue(type, NYT::NProto::Color_Red));
+    ASSERT_EQ(TStringBuf(), FindProtobufEnumLiteralByValue(type, NYT::NProto::EColor(666)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NYson
