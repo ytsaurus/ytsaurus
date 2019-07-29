@@ -178,6 +178,7 @@ class TDynamicClusterConfig
 {
 public:
     bool EnableSafeMode;
+    bool EnableAccessLog;
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
@@ -186,7 +187,6 @@ public:
     NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
     TDynamicMulticellManagerConfigPtr MulticellManager;
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
-
 
     TDynamicClusterConfig();
 };

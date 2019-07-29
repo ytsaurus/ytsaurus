@@ -90,6 +90,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
 {
     RegisterParameter("enable_safe_mode", EnableSafeMode)
         .Default(false);
+    RegisterParameter("enable_access_log", EnableAccessLog)
+        .Default(true);
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)

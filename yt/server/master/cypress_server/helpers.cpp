@@ -1,11 +1,16 @@
 #include "helpers.h"
 #include "node_detail.h"
 
+#include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/core/logging/fluent_log.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NCypressServer {
 
@@ -15,6 +20,8 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
+
+static const auto& AccessLogger = CypressAccessLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -384,6 +391,102 @@ TCypressShardId MakeCypressShardId(
     TNodeId rootNodeId)
 {
     return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
+}
+
+bool IsAccessLoggedNodeType(EObjectType type)
+{
+    static const THashSet<EObjectType> typesForAccessLog = {
+        EObjectType::Link,
+        EObjectType::File,
+        EObjectType::Journal,
+        EObjectType::Table
+    };
+    return typesForAccessLog.contains(type);
+};
+
+void TraverseTransactionAncestors(
+    TTransaction* transaction,
+    TFluentMap fluent)
+{
+    auto *attributes = transaction->GetAttributes();
+
+    fluent
+        .Item("transaction_id").Value(transaction->GetId())
+        .DoIf(transaction->GetTitle().has_value(), [&] (auto fluent) {
+            fluent.Item("transaction_title").Value(transaction->GetTitle());
+        })
+        .DoIf(attributes, [&] (auto fluent) {
+            const auto& attributeMap = attributes->Attributes();
+            for (const auto& attribute : {"operation_id", "operation_title"}) {
+                auto it = attributeMap.find(attribute);
+                fluent.DoIf(it != attributeMap.end(), [&] (auto fluent) {
+                    fluent.Item(attribute).Value(*it);
+                });
+            }
+        })
+        .DoIf(transaction->GetParent(), [&] (auto fluent) {
+            fluent.Item("parent")
+                .BeginMap()
+                    .Do(BIND(TraverseTransactionAncestors, transaction->GetParent()))
+                .EndMap();
+        });
+}
+
+void LogAccess(
+    const NCellMaster::TBootstrap* bootstrap,
+    const NRpc::IServiceContextPtr& context,
+    const TString& path,
+    TTransaction* transaction,
+    TCypressNode* trunkNode,
+    std::map<TString, TString>&& additionalAttributes,
+    std::optional<TString>&& methodOverride)
+{
+    YT_VERIFY(trunkNode);
+
+    if (bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader()) {
+        return;
+    }
+    if (context->GetMethod() != "Create" && !IsAccessLoggedNodeType(trunkNode->GetType())) {
+        return;
+    }
+    if (!bootstrap->GetConfigManager()->GetConfig()->EnableAccessLog) {
+        return;
+    }
+
+    LogStructuredEventFluently(AccessLogger, NLogging::ELogLevel::Info)
+        .Item("user").Value(context->GetUser())
+        .Item("method").Value(CamelCaseToUnderscoreCase(methodOverride.value_or(context->GetMethod())))
+        .Item("path").Value(path)
+        .Do([&] (auto fluent) {
+            for (const auto& [key, value] : additionalAttributes) {
+                fluent.Item(key).Value(value);
+            }
+        })
+        .DoIf(transaction, [&] (auto fluent) {
+            fluent.Item("info").DoMap(BIND(TraverseTransactionAncestors, transaction));
+        });
+}
+
+void LogAccessIf(
+    bool predicate,
+    const NCellMaster::TBootstrap* bootstrap,
+    const NRpc::IServiceContextPtr& context,
+    const TString& path,
+    NTransactionServer::TTransaction* transaction,
+    TCypressNode* trunkNode,
+    std::map<TString, TString>&& additionalAttributes,
+    std::optional<TString>&& methodOverride)
+{
+    if (predicate) {
+        LogAccess(
+            bootstrap,
+            context,
+            path,
+            transaction,
+            trunkNode,
+            std::move(additionalAttributes),
+            std::move(methodOverride));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
