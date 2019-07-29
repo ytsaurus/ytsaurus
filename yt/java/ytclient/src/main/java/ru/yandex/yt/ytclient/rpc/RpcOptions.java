@@ -27,8 +27,39 @@ public class RpcOptions {
     private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.instance;
     private BalancingDestinationMetricsHolder destinationMetricsHolder = new BalancingDestinationMetricsHolderImpl();
 
+    private boolean traceEnabled = false;
+    private boolean traceSampled = false;
+    private boolean traceDebug = false;
+
     public RpcOptions() {
         // nothing
+    }
+
+    public boolean getTrace() {
+        return traceEnabled;
+    }
+
+    public RpcOptions setTrace(boolean traceEnabled) {
+        this.traceEnabled = traceEnabled;
+        return this;
+    }
+
+    public boolean getTraceSampled() {
+        return traceSampled;
+    }
+
+    public RpcOptions setTraceSampled(boolean traceSampled) {
+        this.traceSampled = traceSampled;
+        return this;
+    }
+
+    public boolean getTraceDebug() {
+        return traceDebug;
+    }
+
+    public RpcOptions setTraceDebug(boolean traceDebug) {
+        this.traceDebug = traceDebug;
+        return this;
     }
 
     public String getServiceName() {
