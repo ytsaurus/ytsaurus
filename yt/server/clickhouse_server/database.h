@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cluster_tracker.h"
+
 #include "private.h"
 
 #include <Databases/IDatabase.h>
@@ -9,7 +11,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DatabasePtr CreateDatabase();
+DB::DatabasePtr CreateDatabase(IExecutionClusterPtr cluster);
 
 ////////////////////////////////////////////////////////////////////////////////
 

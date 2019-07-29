@@ -1,15 +1,16 @@
 #pragma once
 
-#include "cluster_tracker.h"
-
-#include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>
+
+#include "cluster_tracker.h"
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageConcat(std::vector<TClickHouseTablePtr> tables);
+DB::StoragePtr CreateStorageSystemCluster(
+    IClusterNodeTrackerPtr clusterNodeTracker,
+    std::string tableName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

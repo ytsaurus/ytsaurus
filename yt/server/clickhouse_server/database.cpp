@@ -36,7 +36,14 @@ using namespace NYson;
 class TDatabase
     : public IDatabase
 {
+private:
+    const IExecutionClusterPtr Cluster;
+
 public:
+    TDatabase(IExecutionClusterPtr cluster)
+        : Cluster(std::move(cluster))
+    {}
+
     std::string getEngineName() const override;
 
     void loadTables(
@@ -329,9 +336,9 @@ ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::St
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DatabasePtr CreateDatabase()
+DatabasePtr CreateDatabase(IExecutionClusterPtr cluster)
 {
-    return std::make_shared<TDatabase>();
+    return std::make_shared<TDatabase>(std::move(cluster));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

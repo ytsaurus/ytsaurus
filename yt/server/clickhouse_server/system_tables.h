@@ -1,8 +1,6 @@
 #pragma once
 
-#include <yt/client/misc/public.h>
-
-#include <Databases/IDatabase.h>
+#include "cluster_tracker.h"
 
 namespace NYT::NClickHouseServer {
 
@@ -10,7 +8,7 @@ namespace NYT::NClickHouseServer {
 
 void AttachSystemTables(
     DB::IDatabase& system,
-    TDiscoveryPtr clusterNodeTracker);
+    IClusterNodeTrackerPtr clusterNodeTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
