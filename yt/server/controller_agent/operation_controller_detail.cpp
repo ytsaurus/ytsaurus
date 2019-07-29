@@ -1052,7 +1052,7 @@ void TOperationControllerBase::AbortAllJoblets()
 {
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
-        const auto& jobId = pair.first;
+        auto jobId = pair.first;
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
         if (JobSplitter_) {
@@ -2386,7 +2386,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
-    const auto& jobId = jobSummary->Id;
+    auto jobId = jobSummary->Id;
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale job running, ignored (JobId: %v)", jobId);
@@ -6572,7 +6572,7 @@ std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& t
 {
     std::vector<TJobId> jobIds;
     for (const auto& pair : JobletMap) {
-        const auto& jobId = pair.first;
+        auto jobId = pair.first;
         const auto& joblet = pair.second;
         if (joblet->TreeId == treeId) {
             jobIds.push_back(jobId);
@@ -6812,7 +6812,7 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     if (CachedRunningJobsUpdateTime_ + Config->CachedRunningJobsUpdatePeriod < now) {
         CachedRunningJobsYson_ = BuildYsonStringFluently<EYsonType::MapFragment>()
             .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-                const auto& jobId = pair.first;
+                auto jobId = pair.first;
                 const auto& joblet = pair.second;
                 if (joblet->StartTime) {
                     fluent.Item(ToString(jobId)).BeginMap()
@@ -6927,7 +6927,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     std::vector<TJobToRelease> jobsToRelease;
     jobsToRelease.reserve(jobIds.size());
 
-    for (const auto& jobId : jobIds) {
+    for (auto jobId : jobIds) {
         bool archiveJobSpec = false;
         bool archiveStderr = false;
         bool archiveFailContext = false;

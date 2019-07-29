@@ -110,7 +110,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
 
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
                     if (scheduleJobResult->StartDescriptor) {
-                        const auto& jobId = scheduleJobResult->StartDescriptor->Id;
+                        auto jobId = scheduleJobResult->StartDescriptor->Id;
                         YT_LOG_WARNING("Aborting late job (JobId: %v)",
                             jobId);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);

@@ -814,7 +814,7 @@ public:
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
     {
         std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
-        for (const auto& jobId : jobIds) {
+        for (auto jobId : jobIds) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
             jobIdsByShardId[shardId].emplace_back(jobId);
         }

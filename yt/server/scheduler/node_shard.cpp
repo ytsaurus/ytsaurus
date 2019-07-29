@@ -299,7 +299,7 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
         JobsToSubmitToStrategy_.erase(job->GetId());
     }
 
-    for (const auto& jobId : operationState.JobsToSubmitToStrategy) {
+    for (auto jobId : operationState.JobsToSubmitToStrategy) {
         JobsToSubmitToStrategy_.erase(jobId);
     }
     operationState.JobsToSubmitToStrategy.clear();
@@ -1070,7 +1070,7 @@ void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& erro
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
-    for (const auto& jobId : jobIds) {
+    for (auto jobId : jobIds) {
         AbortJob(jobId, error);
     }
 }
@@ -1410,7 +1410,7 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     auto jobsToRemove = node->RecentlyFinishedJobs();
     for (const auto& pair : jobsToRemove) {
-        const auto& jobId = pair.first;
+        auto jobId = pair.first;
         RemoveRecentlyFinishedJob(jobId);
     }
 
@@ -1554,7 +1554,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         auto now = GetCpuInstant();
         std::vector<TJobId> recentlyFinishedJobsToRemove;
         for (const auto& pair : node->RecentlyFinishedJobs()) {
-            const auto& jobId = pair.first;
+            auto jobId = pair.first;
             const auto& jobInfo = pair.second;
             if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently completed due to timeout for release "
@@ -1565,7 +1565,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 recentlyFinishedJobsToRemove.push_back(jobId);
             }
         }
-        for (const auto& jobId : recentlyFinishedJobsToRemove) {
+        for (auto jobId : recentlyFinishedJobsToRemove) {
             RemoveRecentlyFinishedJob(jobId);
         }
     }
@@ -1624,7 +1624,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
-    for (const auto& jobId : FromProto<std::vector<TJobId>>(request->unconfirmed_jobs())) {
+    for (auto jobId : FromProto<std::vector<TJobId>>(request->unconfirmed_jobs())) {
         auto job = FindJob(jobId);
         if (!job) {
             // This may happen if we received heartbeat after job was removed by some different reasons
@@ -2162,13 +2162,13 @@ void TNodeShard::SubmitJobsToStrategy()
                 &jobsToAbort,
                 &snapshotRevision);
 
-            for (const auto& jobId : jobsToAbort) {
+            for (auto jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
             }
 
             for (const auto& pair : jobsToRemove) {
                 const auto& operationId = pair.first;
-                const auto& jobId = pair.second;
+                auto jobId = pair.second;
 
                 auto* operationState = FindOperationState(operationId);
                 if (operationState) {
@@ -2310,7 +2310,7 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
 {
     auto storingEvictionDeadline = GetCpuInstant() + DurationToCpuDuration(Config_->FinishedOperationJobStoringTimeout);
 
-    for (const auto& jobId : operationState->RecentlyFinishedJobIds) {
+    for (auto jobId : operationState->RecentlyFinishedJobIds) {
         auto node = FindNodeByJob(jobId);
         YT_VERIFY(node);
 
