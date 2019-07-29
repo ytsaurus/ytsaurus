@@ -514,7 +514,7 @@ class YTEnvSetup(object):
 
     # To be redefined in successors
     @classmethod
-    def modify_master_config(cls, config):
+    def modify_master_config(cls, config, index):
         pass
 
     @classmethod
@@ -719,7 +719,7 @@ class YTEnvSetup(object):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for index, config in enumerate(configs["master"][tag]):
                 configs["master"][tag][index] = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                cls.modify_master_config(configs["master"][tag][index])
+                cls.modify_master_config(configs["master"][tag][index], index)
         for index, config in enumerate(configs["scheduler"]):
             configs["scheduler"][index] = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(configs["scheduler"][index])

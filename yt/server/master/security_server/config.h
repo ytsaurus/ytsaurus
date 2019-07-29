@@ -16,6 +16,7 @@ public:
     TDuration RequestRateSmoothingPeriod;
 
     bool EnableDelayedMembershipClosureRecomputation;
+    bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;
 
     TDynamicSecurityManagerConfig()
@@ -29,6 +30,8 @@ public:
             .Default(false);
         RegisterParameter("membership_closure_recomputation_period", MembershipClosureRecomputePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("enable_access_log", EnableAccessLog)
+            .Default(true);
     }
 };
 

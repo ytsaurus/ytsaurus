@@ -8,6 +8,7 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_manager.h>
@@ -16,6 +17,7 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/security_server/access_log.h>
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
@@ -70,6 +72,24 @@ using namespace NCypressClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+bool IsAccessLoggedMethod(const TString& method) {
+    static const THashSet<TString> methodsForAccessLog = {
+        "Lock",
+        "Unlock",
+        "GetKey",
+        "Get",
+        "Set",
+        "Remove",
+        "List",
+        "Exists",
+        "GetBasicAttributes",
+        "CheckPermission",
+        "BeginCopy",
+        "EndCopy"
+    };
+    return methodsForAccessLog.contains(method);
+}
 
 bool HasTrivialAcd(const TCypressNode* node)
 {
@@ -783,6 +803,12 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
 {
     ValidateAccessTransaction();
 
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedMethod(context->GetMethod()),
+        context,
+        GetPath(),
+        Transaction_);
+
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -1348,12 +1374,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     DeclareMutating();
-
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
+
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedType(type),
+        context,
+        GetPath(),
+        Transaction_,
+        {{"type", FormatEnum(type)}});
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
         type,
@@ -1435,6 +1467,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
+    if (type == EObjectType::Link && explicitAttributes->Contains("target_path")) {
+        auto targetPath = explicitAttributes->Get<TString>("target_path");
+        YT_LOG_ACCESS(
+            context,
+            GetPath(),
+            Transaction_,
+            {{"destination_path", targetPath}},
+            "Link");
+    }
+
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
     auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
 
@@ -1511,6 +1553,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             EPermission::Remove);
         ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
     }
+
+    YT_LOG_ACCESS(
+        context,
+        sourceProxy->GetPath(),
+        Transaction_,
+        {{"destination_path", GetPath()}},
+        mode == ENodeCloneMode::Move ? "Move" : "Copy");
 
     CopyCore(
         context,
