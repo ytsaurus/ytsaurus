@@ -407,7 +407,7 @@ private:
             samplingRate = rate;
         }
 
-        StripeList_ = SubdivideDataSlices(dataSlices, subqueryCount * context.getSettings().max_threads, samplingRate);
+        StripeList_ = BuildThreadStripes(dataSlices, subqueryCount * context.getSettings().max_threads, samplingRate, queryContext->QueryId);
     }
 };
 
