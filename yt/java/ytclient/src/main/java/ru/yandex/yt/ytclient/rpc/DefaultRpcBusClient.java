@@ -24,6 +24,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.bolts.internal.NotImplementedException;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
@@ -148,6 +149,10 @@ public class DefaultRpcBusClient implements RpcClient {
 
                     request.response(header, message.subList(1, message.size()));
                     break;
+
+                case STREAMING_PAYLOAD:
+                    throw new NotImplementedException("Streaming is not implemented yet");
+
                 default:
                     throw new IllegalStateException("Unexpected " + type + " message in a client connection");
             }

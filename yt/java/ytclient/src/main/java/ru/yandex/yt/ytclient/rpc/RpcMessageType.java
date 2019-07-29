@@ -6,7 +6,10 @@ import java.util.Map;
 public enum RpcMessageType {
     REQUEST(0x69637072),
     CANCEL(0x63637072),
-    RESPONSE(0x6f637072);
+    RESPONSE(0x6f637072),
+
+    STREAMING_PAYLOAD(0x70637072),
+    STREAMING_FEEDBACK(0x70637072);
 
     private final int value;
 
