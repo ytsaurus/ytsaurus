@@ -152,6 +152,13 @@ class ListOperationsSetup(YTEnvSetup):
 
         set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
+        def base_operation_acl_has_admins():
+            for ace in get("//sys/scheduler/orchid/scheduler/operation_base_acl"):
+                if "admins" in ace["subjects"]:
+                    return True
+            return False
+        wait(base_operation_acl_has_admins)
+
         cls._create_operations()
 
 

@@ -554,7 +554,7 @@ public:
         auto spec = parseSpecResult.Spec;
         auto secureVault = std::move(spec->SecureVault);
 
-        auto baseAcl = GetBaseOperationAcl();
+        auto baseAcl = GetOperationBaseAcl();
         if (spec->AddAuthenticatedUserToAcl) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
@@ -1229,10 +1229,10 @@ public:
         return OperationArchiveVersion_.load();
     }
 
-    TSerializableAccessControlList GetBaseOperationAcl() const
+    TSerializableAccessControlList GetOperationBaseAcl() const
     {
-        YT_VERIFY(BaseOperationAcl_.has_value());
-        return *BaseOperationAcl_;
+        YT_VERIFY(OperationBaseAcl_.has_value());
+        return *OperationBaseAcl_;
     }
 
 private:
@@ -1315,7 +1315,7 @@ private:
     TEnumIndexedVector<std::vector<TOperationPtr>, EOperationState> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
 
-    std::optional<NSecurityClient::TSerializableAccessControlList> BaseOperationAcl_;
+    std::optional<NSecurityClient::TSerializableAccessControlList> OperationBaseAcl_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
@@ -1884,10 +1884,10 @@ private:
             return;
         }
 
-        BaseOperationAcl_.emplace();
+        OperationBaseAcl_.emplace();
         for (const auto& ace : operationsEffectiveAcl.Entries) {
             if (ace.Action == ESecurityAction::Allow && Any(ace.Permissions & EPermission::Write)) {
-                BaseOperationAcl_->Entries.emplace_back(
+                OperationBaseAcl_->Entries.emplace_back(
                     ESecurityAction::Allow,
                     ace.Subjects,
                     EPermissionSet(EPermission::Read | EPermission::Manage));
@@ -3095,6 +3095,7 @@ private:
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()
+                .Item("operation_base_acl").Value(OperationBaseAcl_)
             .EndMap();
     }
 
@@ -3659,9 +3660,9 @@ void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     Impl_->ProcessNodeHeartbeat(context);
 }
 
-TSerializableAccessControlList TScheduler::GetBaseOperationAcl() const
+TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {
-    return Impl_->GetBaseOperationAcl();
+    return Impl_->GetOperationBaseAcl();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
