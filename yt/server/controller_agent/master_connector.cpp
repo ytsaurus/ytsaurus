@@ -581,7 +581,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
 
         std::vector<TCreateJobNodeRequest> jobRequests;
         std::vector<TLivePreviewRequest> livePreviewRequests;

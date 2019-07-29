@@ -970,7 +970,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         // TODO(ignat): make it in more general way (non-scheduler specific).
         for (const auto& pair : SpecFetchFailedJobIds_) {
             auto jobId = pair.first;
-            const auto& operationId = pair.second;
+            auto operationId = pair.second;
             auto* jobStatus = request->add_jobs();
             ToProto(jobStatus->mutable_job_id(), jobId);
             ToProto(jobStatus->mutable_operation_id(), operationId);

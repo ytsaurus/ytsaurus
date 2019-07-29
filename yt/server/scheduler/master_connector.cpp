@@ -822,7 +822,7 @@ private:
                 YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
 
-                for (const auto& operationId : OperationIds_) {
+                for (auto operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto operationAttributesPath = GetOperationPath(operationId) + "/@";
@@ -848,7 +848,7 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                for (const auto& operationId : OperationIds_) {
+                for (auto operationId : OperationIds_) {
                     auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                         "get_op_attr_" + ToString(operationId))
                         .ValueOrThrow();
@@ -997,7 +997,7 @@ private:
 
             const auto& operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
 
-            for (const auto& operationId : OperationIdsToRemove_) {
+            for (auto operationId : OperationIdsToRemove_) {
                 operationsCleaner->SubmitForRemoval({operationId});
             }
 
@@ -1039,7 +1039,7 @@ private:
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             for (const auto& operation : operations) {
-                const auto& operationId = operation->GetId();
+                auto operationId = operation->GetId();
                 auto operationAttributesPath = GetOperationPath(operationId) + "/@";
                 auto secureVaultPath = GetSecureVaultPath(operationId);
 
@@ -1055,7 +1055,7 @@ private:
                 .ValueOrThrow();
 
             for (const auto& operation : operations) {
-                const auto& operationId = operation->GetId();
+                auto operationId = operation->GetId();
 
                 auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                     "get_op_attr_" + ToString(operationId))

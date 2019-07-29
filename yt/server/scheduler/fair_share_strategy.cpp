@@ -361,7 +361,7 @@ public:
     {
         std::vector<std::pair<TOperationId, TError>> result;
         for (const auto& operationStatePair : OperationIdToOperationState_) {
-            const auto& operationId = operationStatePair.first;
+            auto operationId = operationStatePair.first;
             const auto& operationState = operationStatePair.second;
 
             if (operationState->TreeIdToPoolNameMap().empty()) {
@@ -577,7 +577,7 @@ public:
         }
 
         for (const auto& pair : operationIdToOperationJobMetrics) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             for (const auto& metrics : pair.second) {
                 auto snapshotIt = snapshots.find(metrics.TreeId);
                 if (snapshotIt == snapshots.end()) {
@@ -799,7 +799,7 @@ public:
 
     virtual void EnableOperation(IOperationStrategyHost* host) override
     {
-        const auto& operationId = host->GetId();
+        auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
         for (const auto& pair : state->TreeIdToPoolNameMap()) {
             const auto& treeId = pair.first;
@@ -1046,7 +1046,7 @@ private:
 
     void ActivateOperations(const std::vector<TOperationId>& operationIds) const
     {
-        for (const auto& operationId : operationIds) {
+        for (auto operationId : operationIds) {
             const auto& state = GetOperationState(operationId);
             if (!state->GetHost()->GetActivated()) {
                 Host->ActivateOperation(operationId);
@@ -1198,7 +1198,7 @@ private:
         THashMap<TString, THashSet<TOperationId>> treeIdToOperationSet;
 
         for (const auto& pair : OperationIdToOperationState_) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& poolsMap = pair.second->TreeIdToPoolNameMap();
 
             for (const auto& treeAndPool : poolsMap) {
@@ -1218,7 +1218,7 @@ private:
             }
 
             // Unregister operations in removed tree and update their tree set.
-            for (const auto& operationId : it->second) {
+            for (auto operationId : it->second) {
                 const auto& state = GetOperationState(operationId);
                 GetTree(treeId)->UnregisterOperation(state);
                 YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
@@ -1231,7 +1231,7 @@ private:
 
         // Aborting orphaned operations.
         for (const auto& pair : operationIdToTreeSet) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& treeSet = pair.second;
             bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
             if (treeSet.empty() && isOperationExists) {

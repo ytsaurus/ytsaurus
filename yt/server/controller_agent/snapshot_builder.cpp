@@ -88,7 +88,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     // Capture everything needed in Build.
     for (const auto& pair : controllers) {
-        const auto& operationId = pair.first;
+        auto operationId = pair.first;
         const auto& weakController = pair.second;
 
         auto controller = weakController.Lock();
@@ -323,7 +323,7 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 
 void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
 {
-    const auto& operationId = job->OperationId;
+    auto operationId = job->OperationId;
 
     auto Logger = this->Logger;
     Logger.AddTag("OperationId: %v", operationId);

@@ -388,7 +388,7 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = New<TOperation>(descriptor);
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
         auto host = New<TOperationControllerHost>(
             operation.Get(),
             CancelableControlInvoker_,
@@ -1062,7 +1062,7 @@ private:
 
         if (preparedRequest.OperationsSent) {
             for (const auto& pair : GetOperations()) {
-                const auto& operationId = pair.first;
+                auto operationId = pair.first;
                 const auto& operation = pair.second;
                 auto controller = operation->GetController();
 
