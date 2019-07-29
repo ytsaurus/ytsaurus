@@ -233,8 +233,8 @@ public:
         }
 
         YT_LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
-            SelfCellId_,
-            cellId);
+            cellId,
+            SelfCellId_);
 
         THiveServiceProxy proxy(std::move(channel));
         auto req = proxy.Ping();
