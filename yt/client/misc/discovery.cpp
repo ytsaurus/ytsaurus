@@ -55,12 +55,17 @@ THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List() const
 {
     THashMap<TString, TAttributeDictionary> result;
     THashMap<TString, TInstant> bannedSince;
+    decltype(SelfAttributes_) selfAttributes;
     {
         TReaderGuard guard(Lock_);
         result = List_;
         bannedSince = BannedSince_;
+        selfAttributes = SelfAttributes_;
     }
     auto now = TInstant::Now();
+    if (selfAttributes) {
+        result.insert(*selfAttributes);
+    }
     for (auto it = result.begin(); it != result.end();) {
         auto banIt = bannedSince.find(it->first);
         if (banIt != bannedSince.end() && (banIt->second + Config_->BanTimeout) > now) {
@@ -79,20 +84,22 @@ void TDiscovery::Ban(TString name)
     YT_LOG_INFO("Participant banned (Name: %v, Duration: %v)", name, Config_->BanTimeout);
 }
 
-void TDiscovery::StartPolling()
+TFuture<void> TDiscovery::StartPolling()
 {
     PeriodicExecutor_->Start();
+    return PeriodicExecutor_->GetExecutedEvent();
 }
 
-void TDiscovery::StopPolling()
+TFuture<void> TDiscovery::StopPolling()
 {
-    WaitFor(PeriodicExecutor_->Stop())
-        .ThrowOnError();
+    return PeriodicExecutor_->Stop();
 }
 
 void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
 {
     YT_VERIFY(!Transaction_);
+
+    YT_LOG_INFO("Entering the group");
 
     TCreateNodeOptions createOptions;
     createOptions.IgnoreExisting = true;
@@ -101,8 +108,22 @@ void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
     WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
         .ThrowOnError();
         
-    Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+    YT_LOG_DEBUG("Instance node created (Name: %v)",
+        name);
+
+    TTransactionStartOptions transactionOptions {
+        .Timeout = Config_->TransactionTimeout,
+    };
+    Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, transactionOptions))
         .ValueOrThrow();
+
+    YT_LOG_DEBUG("Transaction for lock started (TransactionId: %v)",
+        name);
+
+    {
+        TWriterGuard guard(Lock_);
+        SelfAttributes_ = {name, attributes};
+    }
 
     TLockNodeOptions lockOptions;
     lockOptions.ChildKey = "lock";
@@ -125,6 +146,11 @@ void TDiscovery::DoLeave()
     YT_LOG_INFO("Left the group (TransactionId: %v)", Transaction_->GetId());
 
     Transaction_.Reset();
+
+    {
+        TWriterGuard guard(Lock_);
+        SelfAttributes_.reset();
+    }
 }
     
 void TDiscovery::UpdateList()

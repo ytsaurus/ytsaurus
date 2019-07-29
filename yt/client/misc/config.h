@@ -32,6 +32,7 @@ public:
     NYPath::TYPath Directory;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
+    TDuration TransactionTimeout;
 
     TDiscoveryConfig()
     {
@@ -39,7 +40,9 @@ public:
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("ban_timeout", BanTimeout)
-            .Default(TDuration::Seconds(31));
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("transaction_timeout", TransactionTimeout)
+            .Default(TDuration::Seconds(15));
     }
 };
 

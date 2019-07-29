@@ -2,7 +2,6 @@
 
 #include "db_helpers.h"
 #include "private.h"
-#include "format_helpers.h"
 #include "logging_helpers.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"

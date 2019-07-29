@@ -1,7 +1,6 @@
 #include "storage_subquery.h"
 
 #include "db_helpers.h"
-#include "format_helpers.h"
 #include "subquery_spec.h"
 #include "type_helpers.h"
 #include "subquery.h"

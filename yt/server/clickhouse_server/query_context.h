@@ -4,7 +4,6 @@
 #include "bootstrap.h"
 #include "host.h"
 
-#include "document.h"
 #include "objects.h"
 #include "table_schema.h"
 

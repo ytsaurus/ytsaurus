@@ -1,8 +1,10 @@
 #pragma once
 
+#include "cluster_nodes.h"
 #include "query_context.h"
-#include "cluster_tracker.h"
 #include "private.h"
+
+#include <yt/client/misc/discovery.h>
 
 #include <yt/core/actions/public.h>
 
@@ -18,10 +20,11 @@ class TClickHouseHost
 public:
     TClickHouseHost(
         TBootstrap* bootstrap,
-        ICoordinationServicePtr coordinationService,
         TClickHouseServerBootstrapConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
+        ui16 rpcPort,
+        ui16 monitoringPort,
         ui16 tcpPort,
         ui16 httpPort);
 
@@ -33,7 +36,7 @@ public:
 
     DB::Context& GetContext() const;
 
-    IClusterNodeTrackerPtr GetExecutionClusterNodeTracker() const;
+    TClusterNodes GetNodes() const;
 
 private:
     class TImpl;

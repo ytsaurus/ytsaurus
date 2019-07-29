@@ -5,7 +5,6 @@
 #include "host.h"
 
 #include "config.h"
-#include "directory.h"
 #include "query_context.h"
 #include "query_registry.h"
 #include "security_manager.h"
@@ -164,14 +163,25 @@ void TBootstrap::DoRun()
 
     RootClient_ = ClientCache_->GetClient(Config_->User);
 
-    CoordinationService_ = CreateCoordinationService(RootClient_, CliqueId_);
+    // Configure clique's directory.
+    Config_->Discovery->Directory += "/" + CliqueId_;
+    TCreateNodeOptions createCliqueNodeOptions{
+        .IgnoreExisting = true,
+        .Recursive = true,
+    };
+    WaitFor(RootClient_->CreateNode(
+        Config_->Discovery->Directory,
+        NObjectClient::EObjectType::MapNode,
+        createCliqueNodeOptions))
+        .ThrowOnError();
 
     Host_ = New<TClickHouseHost>(
         this,
-        CoordinationService_,
         Config_,
         CliqueId_,
         InstanceId_,
+        RpcPort_,
+        MonitoringPort_,
         TcpPort_,
         HttpPort_);
 

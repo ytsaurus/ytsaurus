@@ -1,6 +1,6 @@
 #include "system_tables.h"
 
-#include "storage_system_cluster.h"
+#include "storage_system_clique.h"
 
 #include <Databases/IDatabase.h>
 #include <Storages/IStorage.h>
@@ -51,15 +51,15 @@ void AttachRelevantClickHouseSystemTables(IDatabase& system)
     AttachSystemTablesServer(system);
 }
 
-void AttachClusterSystemTable(IDatabase& system, IClusterNodeTrackerPtr clusterTracker)
+void AttachCliqueSystemTable(IDatabase& system, TDiscoveryPtr cliqueTracker)
 {
-    system.attachTable("cluster", CreateStorageSystemCluster(clusterTracker, "cluster"));
+    system.attachTable("clique", CreateStorageSystemClique(cliqueTracker, "clique"));
 }
 
-void AttachSystemTables(IDatabase& system, IClusterNodeTrackerPtr clusterTracker)
+void AttachSystemTables(IDatabase& system, TDiscoveryPtr cliqueTracker)
 {
     AttachRelevantClickHouseSystemTables(system);
-    AttachClusterSystemTable(system, clusterTracker);
+    AttachCliqueSystemTable(system, cliqueTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
