@@ -1525,7 +1525,7 @@ void TChunkReplicator::ScheduleNewJobs(
                    HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {
                 auto jt = it++;
-                const auto& chunkWithIndexes = jt->first;
+                auto chunkWithIndexes = jt->first;
                 auto& mediumIndexSet = jt->second;
                 for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
