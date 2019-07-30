@@ -266,7 +266,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Abort() override
+    virtual TFuture<void> Abort(EOperationState finalState) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -276,8 +276,14 @@ public:
             return VoidFuture;
         }
 
+        YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
+        EControllerState controllerFinalState = finalState == EOperationState::Aborted
+            ? EControllerState::Aborted
+            : EControllerState::Failed;
+
         auto req = AgentProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->set_controller_final_state(static_cast<int>(controllerFinalState));
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspAbortOperation>(req).As<void>();
     }
