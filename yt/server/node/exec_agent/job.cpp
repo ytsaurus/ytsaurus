@@ -1121,7 +1121,10 @@ private:
         GpuSlots_.clear();
         GpuStatistics_.clear();
 
-        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
+        auto oneUserSlotResources = ZeroNodeResources();
+        oneUserSlotResources.set_user_slots(1);
+
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage_ + oneUserSlotResources;
         ResourceUsage_ = ZeroNodeResources();
         ResourcesUpdated_.Fire(resourceDelta);
         PortsReleased_.Fire();
@@ -1136,6 +1139,8 @@ private:
             }
             Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
+
+        ResourcesUpdated_.Fire(-oneUserSlotResources);
 
         SetJobPhase(EJobPhase::Finished);
 
