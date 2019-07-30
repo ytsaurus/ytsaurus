@@ -179,8 +179,9 @@ protected:
                     break;
 
                 case EChunkListKind::SortedDynamicTablet:
+                case EChunkListKind::SortedDynamicSubtablet:
                 case EChunkListKind::OrderedDynamicTablet:
-                    VisitEntryDynamicTablet(&entry, &visitedChunkCount);
+                    VisitEntryDynamic(&entry, &visitedChunkCount);
                     break;
 
                 default:
@@ -406,7 +407,7 @@ protected:
         GetStartChildIndex(childChunkList, 0, subtreeStartLimit, subtreeEndLimit);
     }
 
-    void VisitEntryDynamicTablet(TStackEntry* entry, int* visitedChunkCount)
+    void VisitEntryDynamic(TStackEntry* entry, int* visitedChunkCount)
     {
         auto* chunkList = entry->ChunkList;
         auto* child = chunkList->Children()[entry->ChildIndex];
@@ -464,33 +465,47 @@ protected:
             &subtreeStartLimit,
             &subtreeEndLimit);
 
-        YT_VERIFY(
-            child->GetType() == EObjectType::Chunk ||
-            child->GetType() == EObjectType::ErasureChunk ||
-            child->GetType() == EObjectType::ChunkView);
+        switch (child->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+            case EObjectType::ChunkView: {
+                TChunk* childChunk = nullptr;
+                if (child->GetType() == EObjectType::ChunkView) {
+                    auto* chunkView = child->AsChunkView();
+                    if (Visitor_->OnChunkView(chunkView)) {
+                        ++ChunkCount_;
+                        *visitedChunkCount += 1;
+                        return;
+                    }
 
-        TChunk* childChunk = nullptr;
-        if (child->GetType() == EObjectType::ChunkView) {
-            auto* chunkView = child->AsChunkView();
-            if (Visitor_->OnChunkView(chunkView)) {
+                    subtreeStartLimit = chunkView->GetAdjustedLowerReadLimit(subtreeStartLimit);
+                    subtreeEndLimit = chunkView->GetAdjustedUpperReadLimit(subtreeEndLimit);
+                    childChunk = chunkView->GetUnderlyingChunk();
+                } else {
+                    childChunk = child->AsChunk();
+                }
+
+                if (!Visitor_->OnChunk(childChunk, 0, subtreeStartLimit, subtreeEndLimit)) {
+                    Shutdown();
+                    return;
+                }
+
                 ++ChunkCount_;
                 *visitedChunkCount += 1;
-                return;
+                break;
             }
 
-            subtreeStartLimit = chunkView->GetAdjustedLowerReadLimit(subtreeStartLimit);
-            subtreeEndLimit = chunkView->GetAdjustedUpperReadLimit(subtreeEndLimit);
-            childChunk = chunkView->GetUnderlyingChunk();
-        } else {
-            childChunk = child->AsChunk();
-        }
-        if (!Visitor_->OnChunk(childChunk, 0, subtreeStartLimit, subtreeEndLimit)) {
-            Shutdown();
-            return;
-        }
+            case EObjectType::ChunkList: {
+                auto* childChunkList = child->AsChunkList();
+                YT_VERIFY(childChunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+                GetStartChildIndex(childChunkList, 0, subtreeStartLimit, subtreeEndLimit);
+                break;
+            }
 
-        ++ChunkCount_;
-        *visitedChunkCount += 1;
+            default:
+                Y_UNREACHABLE();
+
+        }
     }
 
     void GetStartChildIndex(
@@ -512,8 +527,9 @@ protected:
                 return GetStartChildIndexDynamicRoot(chunkList, rowIndex, lowerBound, upperBound);
 
             case EChunkListKind::SortedDynamicTablet:
+            case EChunkListKind::SortedDynamicSubtablet:
             case EChunkListKind::OrderedDynamicTablet:
-                return GetStartChildIndexTablet(chunkList, rowIndex, lowerBound, upperBound);
+                return GetStartChildIndexDynamic(chunkList, rowIndex, lowerBound, upperBound);
 
             default:
                 YT_ABORT();
@@ -657,7 +673,7 @@ protected:
             upperBound));
     }
 
-    void GetStartChildIndexTablet(
+    void GetStartChildIndexDynamic(
         TChunkList* chunkList,
         i64 rowIndex,
         const TReadLimit& lowerBound,
@@ -681,7 +697,7 @@ protected:
                 chunkList->Statistics().LogicalChunkCount);
         }
 
-        // NB: Key is not used here since tablet chunk list is never sorted.
+        // NB: Key is not used here since tablet/subtablet chunk list is never sorted.
 
         PushStack(TStackEntry(
             chunkList,

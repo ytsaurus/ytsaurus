@@ -580,8 +580,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            # Validate against @chunk_count just to make sure that statistics arrive from secondary master to pimary one.
+            # Validate against @chunk_count just to make sure that statistics arrive from secondary master to primary one.
             assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):

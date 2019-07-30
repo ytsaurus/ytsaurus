@@ -25,7 +25,9 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = 
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
-TChunkList* GetUniqueParent(TChunkTree* chunkTree);
+TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
+int GetParentCount(const TChunkTree* chunkTree);
+TChunkTree* GetParent(const TChunkTree* chunkTree, int index);
 
 void AttachToChunkList(
     TChunkList* chunkList,

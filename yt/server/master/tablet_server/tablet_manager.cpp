@@ -1004,7 +1004,10 @@ public:
         i64 totalSize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            for (const auto* chunkOrView : table->GetChunkList()->Children()[index]->AsChunkList()->Children()) {
+            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(
+                table->GetChunkList()->Children()[index]->AsChunkList());
+
+            for (const auto* chunkOrView : chunksOrViews) {
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
                     : chunkOrView->AsChunk();
@@ -4988,7 +4991,8 @@ private:
     void CopyChunkListIfShared(
         TTableNode* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex,
+        bool force = false)
     {
         auto* oldRootChunkList = table->GetChunkList();
         auto& chunkLists = oldRootChunkList->Children();
@@ -5020,7 +5024,10 @@ private:
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
             if (newRootChunkList->Statistics() != statistics) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid new root chunk list statistics (TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                YT_LOG_ERROR_UNLESS(
+                    IsRecovery(),
+                    "Unexpected error: invalid new root chunk list statistics "
+                    "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     newRootChunkList->Statistics(),
                     statistics);
@@ -5030,14 +5037,16 @@ private:
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
-                if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
+                if (force || objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
                     chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
                 }
             }
 
             if (oldRootChunkList->Statistics() != statistics) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid old root chunk list statistics (TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(),
+                    "Unexpected error: invalid old root chunk list statistics "
+                    "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     oldRootChunkList->Statistics(),
                     statistics);
@@ -5126,6 +5135,71 @@ private:
             tabletId);
     }
 
+    bool CanUnambiguouslyDetachChunk(TChunkList* tabletChunkList, const TChunkTree* child)
+    {
+        while (GetParentCount(child) == 1) {
+            auto* parent = GetParent(child, 0);
+            if (parent == tabletChunkList) {
+                return true;
+            }
+            if (parent->GetObjectRefCounter() > 1) {
+                return false;
+            }
+            child = parent;
+        }
+
+        int parentCount = GetParentCount(child);
+        YT_VERIFY(parentCount > 0);
+        for (int index = 0; index < parentCount; ++index) {
+            if (GetParent(child, index) == tabletChunkList) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void DetachChunksFromTablet(TChunkList* tabletChunkList, const std::vector<TChunkTree*>& chunksOrViews)
+    {
+        THashMap<TChunkListId, std::vector<TChunkTree*>> childrenByParent;
+
+        for (auto* child : chunksOrViews) {
+            int parentCount = GetParentCount(child);
+            if (parentCount == 1) {
+                auto* parent = GetParent(child, 0);
+                YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+                childrenByParent[parent->GetId()].push_back(child);
+            } else {
+                bool foundParent = false;
+                for (int index = 0; index < parentCount; ++index) {
+                    if (GetParent(child, index) == tabletChunkList) {
+                        foundParent = true;
+                        break;
+                    }
+                }
+                YT_VERIFY(foundParent);
+                childrenByParent[tabletChunkList->GetId()].push_back(child);
+            }
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto pruneEmptyChunkList = [&] (TChunkList* chunkList) {
+            while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
+                auto* parent = GetUniqueParent(chunkList);
+                chunkManager->DetachFromChunkList(parent, chunkList);
+                chunkList = parent;
+            }
+        };
+
+        for (const auto& pair : childrenByParent) {
+            const auto& children = pair.second;
+            auto* parent = GetUniqueParent(children[0]);
+            chunkManager->DetachFromChunkList(parent, children);
+            pruneEmptyChunkList(parent);
+        }
+    }
+
     void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -5191,6 +5265,7 @@ private:
 
         std::vector<TChunkTree*> chunksToDetach;
         i64 detachedRowCount = 0;
+        bool flatteningRequired = false;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             if (TypeFromId(storeId) == EObjectType::Chunk ||
@@ -5200,12 +5275,16 @@ private:
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunk);
+                flatteningRequired = flatteningRequired ||
+                    !CanUnambiguouslyDetachChunk(tablet->GetChunkList(), chunk);
             } else if (TypeFromId(storeId) == EObjectType::ChunkView) {
                 auto* chunkView = chunkManager->GetChunkViewOrThrow(storeId);
                 auto* chunk = chunkView->GetUnderlyingChunk();
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunkView);
+                flatteningRequired = flatteningRequired ||
+                    !CanUnambiguouslyDetachChunk(tablet->GetChunkList(), chunkView);
             }
         }
 
@@ -5218,10 +5297,10 @@ private:
             static_cast<TTimestamp>(request->retained_timestamp()));
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
-        // Copy chunk tree if somebody holds a reference.
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+        // Copy chunk tree if somebody holds a reference or if children cannot be detached unambiguously.
+        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex(), flatteningRequired);
 
-        // Save old tabet resource usage.
+        // Save old tablet resource usage.
         auto oldMemorySize = tablet->GetTabletStaticMemorySize();
         auto oldStatistics = GetTabletStatistics(tablet);
 
@@ -5229,7 +5308,7 @@ private:
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
-        chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
+        DetachChunksFromTablet(tabletChunkList, chunksToDetach);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
         // Get new tablet resource usage.

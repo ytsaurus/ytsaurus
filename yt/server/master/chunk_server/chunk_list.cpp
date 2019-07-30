@@ -224,7 +224,8 @@ bool TChunkList::HasModifyableCumulativeStatistics() const
 {
     return Kind_ == EChunkListKind::SortedDynamicRoot ||
         Kind_ == EChunkListKind::OrderedDynamicRoot ||
-        Kind_ == EChunkListKind::SortedDynamicTablet;
+        Kind_ == EChunkListKind::SortedDynamicTablet ||
+        Kind_ == EChunkListKind::SortedDynamicSubtablet;
 }
 
 bool TChunkList::HasTrimmableCumulativeStatistics() const
