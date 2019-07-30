@@ -57,7 +57,7 @@ int GetChildIndex(TChunkList* parentChunkList, TChunkTree* child)
 
 } // namespace
 
-TChunkList* GetUniqueParent(TChunkTree* chunkTree)
+TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
@@ -89,6 +89,44 @@ TChunkList* GetUniqueParent(TChunkTree* chunkTree)
             YT_VERIFY(parents.Size() == 1);
             return *parents.begin();
         }
+
+        default:
+            YT_ABORT();
+    }
+}
+
+int GetParentCount(const TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk:
+            return chunkTree->AsChunk()->Parents().size();
+
+        case EObjectType::ChunkView:
+            return chunkTree->AsChunkView()->Parents().size();
+
+        case EObjectType::ChunkList:
+            return chunkTree->AsChunkList()->Parents().size();
+
+        default:
+            YT_ABORT();
+    }
+}
+
+TChunkTree* GetParent(const TChunkTree* chunkTree, int index)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk:
+            return chunkTree->AsChunk()->Parents()[index];
+
+        case EObjectType::ChunkView:
+            return chunkTree->AsChunkView()->Parents()[index];
+
+        case EObjectType::ChunkList:
+            return chunkTree->AsChunkList()->Parents()[index];
 
         default:
             YT_ABORT();

@@ -151,11 +151,12 @@ DEFINE_BIT_ENUM(EChunkScanKind,
 );
 
 DEFINE_ENUM(EChunkListKind,
-    ((Static)                (0))
-    ((SortedDynamicRoot)     (1))
-    ((SortedDynamicTablet)   (2))
-    ((OrderedDynamicRoot)    (3))
-    ((OrderedDynamicTablet)  (4))
+    ((Static)                 (0))
+    ((SortedDynamicRoot)      (1))
+    ((SortedDynamicTablet)    (2))
+    ((OrderedDynamicRoot)     (3))
+    ((OrderedDynamicTablet)   (4))
+    ((SortedDynamicSubtablet) (5))
 );
 
 typedef std::list<TChunkPtrWithIndexes> TChunkRepairQueue;

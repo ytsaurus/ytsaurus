@@ -9,6 +9,7 @@
 #include "chunk_replicator.h"
 #include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
+#include "chunk_tree_traverser.h"
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
@@ -789,13 +790,9 @@ public:
             newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
-            // TODO(ifsmirnov): to be replaced with EnumerateChunksAndChunkViewsInChunkTree
-            // when multilevel chunk lists for DTs come.
             newChunkList->SetPivotKey(chunkList->GetPivotKey());
-            AttachToChunkList(
-                newChunkList,
-                chunkList->Children().data(),
-                chunkList->Children().data() + chunkList->Children().size());
+            auto children = EnumerateChunksAndChunkViewsInChunkTree(chunkList);
+            AttachToChunkList(newChunkList, children);
         } else {
             YT_ABORT();
         }

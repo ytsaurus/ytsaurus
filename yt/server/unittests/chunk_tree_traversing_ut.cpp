@@ -244,6 +244,17 @@ private:
                 if (!TraverseChunkList(child->AsChunkList(), lowerKeyLimit, upperKeyLimit)) {
                     return false;
                 }
+            } else if (child->GetType() == EObjectType::ChunkView) {
+                const auto& readRange = child->AsChunkView()->ReadRange();
+                if (readRange.LowerLimit().HasKey()) {
+                    lowerKeyLimit = ChooseMaxKey(lowerKeyLimit, readRange.LowerLimit().GetKey());
+                }
+                if (readRange.UpperLimit().HasKey()) {
+                    upperKeyLimit = ChooseMinKey(upperKeyLimit, readRange.UpperLimit().GetKey());
+                }
+                if (!OnChunk(child->AsChunk(), lowerKeyLimit, upperKeyLimit)) {
+                    return false;
+                }
             } else {
                 if (!OnChunk(child->AsChunk(), lowerKeyLimit, upperKeyLimit)) {
                     return false;
@@ -358,6 +369,11 @@ TChunkTree* GenerateChunkTree(
                 } else {
                     child->AsChunkList()->SetPivotKey(GetMinKeyOrThrow(child));
                 }
+            }
+
+            // Special case: wrap subtablet's children into chunk views.
+            if (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && numLayers == 1) {
+                child = chunkGenerator->CreateChunkView(child->AsChunk(), MinKey(), MaxKey());
             }
 
             children.push_back(child);
@@ -1392,7 +1408,67 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
         }
 
         {
-            auto keys = generateOrderedPair(500);
+            auto keys = generateOrderedPair(5 * 5 * 2 * 10);
+
+            TReadLimit lowerLimit;
+            lowerLimit.SetKey(BuildKey(ToString(keys.first)));
+
+            TReadLimit upperLimit;
+            upperLimit.SetKey(BuildKey(ToString(keys.second)));
+
+            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+
+            auto visitor = New<TTestChunkVisitor>();
+            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+
+            EXPECT_EQ(expected, visitor->GetChunkInfos());
+        }
+    }
+}
+
+TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
+{
+    std::mt19937 gen;
+    std::function<int()> keyYielder = CreateBasicKeyYielder();
+    auto* root = GenerateChunkTree(this, 2, gen, keyYielder, {
+        EChunkListKind::SortedDynamicRoot,
+        EChunkListKind::SortedDynamicTablet,
+        EChunkListKind::SortedDynamicSubtablet,
+    })->AsChunkList();
+
+    const auto& statistics = GetChunkTreeStatistics(root);
+
+    auto generateOrderedPair = [&] (int bound) {
+        int lhs = gen() % bound;
+        int rhs = gen() % bound;
+        if (lhs > rhs) {
+            std::swap(lhs, rhs);
+        }
+        return std::make_pair(lhs, rhs);
+    };
+
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    for (int iter = 0; iter < 100; ++iter) {
+        {
+            auto chunkIndices = generateOrderedPair(statistics.ChunkCount);
+
+            TReadLimit lowerLimit;
+            lowerLimit.SetChunkIndex(chunkIndices.first);
+
+            TReadLimit upperLimit;
+            upperLimit.SetChunkIndex(chunkIndices.second);
+
+            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+
+            auto visitor = New<TTestChunkVisitor>();
+            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+
+            EXPECT_EQ(expected, visitor->GetChunkInfos());
+        }
+
+        {
+            auto keys = generateOrderedPair(5 * 5 * 5 * 2 * 10);
 
             TReadLimit lowerLimit;
             lowerLimit.SetKey(BuildKey(ToString(keys.first)));
