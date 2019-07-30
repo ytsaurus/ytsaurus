@@ -1841,6 +1841,9 @@ TOperationId ExecuteSort(
         .Item("input_table_paths").List(inputs)
         .Item("output_table_path").Value(output)
         .Item("sort_by").Value(spec.SortBy_)
+        .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+        })
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -1880,6 +1883,9 @@ TOperationId ExecuteMerge(
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Item("force_transform").Value(spec.ForceTransform_)
         .Item("merge_by").Value(spec.MergeBy_)
+        .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+        })
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -1907,6 +1913,9 @@ TOperationId ExecuteErase(
     .BeginMap().Item("spec").BeginMap()
         .Item("table_path").Value(tablePath)
         .Item("combine_chunks").Value(spec.CombineChunks_)
+        .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+        })
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 

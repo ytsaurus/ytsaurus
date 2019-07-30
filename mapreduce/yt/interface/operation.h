@@ -553,6 +553,14 @@ struct TRawMapReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// See https://wiki.yandex-team.ru/yt/userdoc/static_schema/#sxemaisistemnyeoperacii
+enum class ESchemaInferenceMode : int
+{
+    FromInput   /* from_input */,
+    FromOutput  /* from_output */,
+    Auto        /* auto */,
+};
+
 struct TSortOperationSpec
 {
     using TSelf = TSortOperationSpec;
@@ -566,6 +574,8 @@ struct TSortOperationSpec
 
     FLUENT_FIELD_OPTION(ui64, PartitionJobCount);
     FLUENT_FIELD_OPTION(ui64, DataSizePerPartitionJob);
+
+    FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 
     // Replication factor for intermediate data (it's equal 1 by default).
     FLUENT_FIELD_OPTION(ui64, IntermediateDataReplicationFactor);
@@ -592,6 +602,8 @@ struct TMergeOperationSpec
     // Similar to `JobCount' / `DataSizePerJob'.
     FLUENT_FIELD_OPTION(ui64, JobCount);
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
+
+    FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 };
 
 struct TEraseOperationSpec
@@ -600,14 +612,8 @@ struct TEraseOperationSpec
 
     FLUENT_FIELD(TRichYPath, TablePath);
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
-};
 
-// See https://wiki.yandex-team.ru/yt/userdoc/static_schema/#sxemaisistemnyeoperacii
-enum class ESchemaInferenceMode : int
-{
-    FromInput   /* from_input */,
-    FromOutput  /* from_output */,
-    Auto        /* auto */,
+    FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 };
 
 // See https://wiki.yandex-team.ru/yt/userdoc/operations/#remotecopy
