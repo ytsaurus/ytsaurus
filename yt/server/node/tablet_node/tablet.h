@@ -498,6 +498,7 @@ private:
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
+    int CountEdenOverlappingStoreCount() const;
     void UpdateOverlappingStoreCount();
 };
 

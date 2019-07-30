@@ -1289,6 +1289,26 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     }
 }
 
+int TTablet::CountEdenOverlappingStoreCount() const
+{
+    std::map<TOwningKey, int> keyMap;
+    for (const auto& store : Eden_->Stores()) {
+        ++keyMap[store->GetMinKey()];
+        --keyMap[store->GetUpperBoundKey()];
+    }
+
+    int curOverlappingCount = 0;
+    int maxOverlappingCount = 0;
+    for (const auto& [key, value] : keyMap) {
+        Y_UNUSED(key);
+        
+        curOverlappingCount += value;
+        maxOverlappingCount = std::max(maxOverlappingCount, curOverlappingCount);
+    }
+
+    return maxOverlappingCount;
+}
+
 void TTablet::UpdateOverlappingStoreCount()
 {
     int overlappingStoreCount = 0;
@@ -1302,7 +1322,7 @@ void TTablet::UpdateOverlappingStoreCount()
             criticalPartitionCount++;
         }
     }
-    overlappingStoreCount += Eden_->Stores().size();
+    overlappingStoreCount += CountEdenOverlappingStoreCount();
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
         YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
