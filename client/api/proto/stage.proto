@@ -91,6 +91,11 @@ message TDeployUnitSpec
         NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec replica_set = 1;
     }
 
+    message TEndpointSetTemplate
+    {
+        int32 port = 1;
+    }
+
     oneof pod_deploy_primitive {
         TReplicaSetDeploy replica_set = 10;
         TMultiClusterReplicaSetDeploy multi_cluster_replica_set = 11;
@@ -102,6 +107,9 @@ message TDeployUnitSpec
     // below layers specified in pod agent spec.
     // NOTE: box id must be present in pod agent spec.
     map<string, TDockerImageDescription> images_for_boxes = 3 [(NYT.NYson.NProto.yson_map) = true];
+
+    // NOTE: now available only one endpoint_set per cluster ==> length must be less or equals than 1
+    repeated TEndpointSetTemplate endpoint_sets = 4;
 }
 
 message TDockerImageContents
