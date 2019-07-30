@@ -3344,12 +3344,217 @@ class TestPoolMetrics(YTEnvSetup):
             metrics = get_metrics()
             for p in ("parent", "child"):
                 if metrics[p] == 0:
-                    continue
+                    return False
             return metrics["parent"] - start_metrics["parent"] == metrics["child"] - start_metrics["child"]
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_completed", start_time), start_completed_metrics))
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_aborted", start_time), start_aborted_metrics))
+
+    def test_total_time_operation_by_state(self):
+        create("map_node", "//sys/pools/parent")
+        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+        for i in xrange(3):
+            create("map_node", "//sys/pools/parent/child" + str(i + 1))
+            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+
+
+        create("table", "//tmp/t_input")
+        for i in xrange(3):
+            create("table", "//tmp/t_output_" + str(i + 1))
+
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        start_time = time.time()
+
+        start_total_time_metrics = get_pool_metrics("total_time", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, dont_track=True)
+        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, dont_track=True)
+        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, dont_track=True)
+
+        # Wait until at least some metrics are reported for op3
+        wait(lambda: get_pool_metrics("total_time", start_time)["child3"] - start_total_time_metrics["child3"] > 0)
+        op3.abort()
+
+        op1.track()
+        op2.track(raise_on_failed=False)
+        op3.track(raise_on_aborted=False)
+
+        # Wait for metrics update.
+        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["child1"] > 0)
+        wait(lambda: get_pool_metrics("total_time_operation_failed", start_time)["child2"] > 0)
+        wait(lambda: get_pool_metrics("total_time_operation_aborted", start_time)["child3"] > 0)
+
+        def check_metrics(get_metrics, child, start_metrics):
+            metrics = get_metrics()
+            for p in ("parent", child):
+                if metrics[p] - start_metrics[p] == 0:
+                    return False
+            return metrics["parent"] - start_metrics["parent"] == metrics[child] - start_metrics[child]
+
+        # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_completed", start_time),
+                                   "child1",
+                                   start_operation_completed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_failed", start_time),
+                                   "child2",
+                                   start_operation_failed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_aborted", start_time),
+                                   "child3",
+                                   start_operation_aborted_metrics))
+        assert get_pool_metrics("total_time", start_time)["parent"] - start_total_time_metrics["parent"] == \
+            get_pool_metrics("total_time_operation_completed", start_time)["parent"] - start_operation_completed_metrics["parent"] + \
+            get_pool_metrics("total_time_operation_failed", start_time)["parent"] - start_operation_failed_metrics["parent"] + \
+            get_pool_metrics("total_time_operation_aborted", start_time)["parent"] - start_operation_aborted_metrics["parent"]
+
+    def test_total_time_operation_completed_several_jobs(self):
+        create("map_node", "//sys/pools/unique_pool")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        start_time = time.time()
+
+        start_completed_metrics = get_pool_metrics("total_time_completed", start_time)
+        start_aborted_metrics = get_pool_metrics("total_time_aborted", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        op = map(
+            command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"data_size_per_job": 1, "pool": "unique_pool", "max_speculative_job_count_per_task": 0},
+            dont_track=True)
+
+        jobs = wait_breakpoint(job_count=2)
+        assert len(jobs) == 2
+
+        release_breakpoint(job_id=jobs[0])
+
+        # Wait until short job is completed.
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        running_jobs = list(op.get_running_jobs())
+        assert len(running_jobs) == 1
+
+        job_to_abort = running_jobs[0]
+        release_breakpoint(job_id=job_to_abort)
+        abort_job(job_to_abort)
+
+        # Wait for restarted job to reach breakpoint.
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1 and jobs[0] != job_to_abort
+        release_breakpoint(job_id=jobs[0])
+
+        op.track()
+
+        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] ==
+             get_pool_metrics("total_time_completed", start_time)["unique_pool"] - start_completed_metrics["unique_pool"] +
+             get_pool_metrics("total_time_aborted", start_time)["unique_pool"] - start_aborted_metrics["unique_pool"] > 0)
+        assert get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] == 0
+        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+
+    def test_total_time_operation_failed_several_jobs(self):
+        create("map_node", "//sys/pools/unique_pool")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input",
+                    [{"sleep": 2, "exit": 0},
+                     {"sleep": 5, "exit": 1}],
+                    output_format="json")
+
+        start_time = time.time()
+
+        start_total_time_metrics = get_pool_metrics("total_time", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
+
+        op = map(
+            command=map_cmd,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"data_size_per_job": 1,
+                  "max_failed_job_count": 1,
+                  "pool": "unique_pool",
+                  "mapper": {"input_format": "json",
+                             "check_input_fully_consumed": True}},
+            dont_track=True)
+        op.track(raise_on_failed=False)
+
+        wait(lambda: get_pool_metrics("total_time", start_time)["unique_pool"] - start_total_time_metrics["unique_pool"] ==
+             get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"]) > 0
+        assert get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] == 0
+        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+
+    def test_total_time_operation_completed_per_tree(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(9):
+            write_table("<append=%true>//tmp/t_in", [{"x": i}])
+        create("table", "//tmp/t_out")
+
+        # Set up second tree
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+
+        time.sleep(1.0)
+
+        def get_pool_metric_per_tree_root_(metric_key, start_time):
+            result = {}
+            for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
+                                      options={"from_time": int(start_time) * 1000000}, verbose=False)):
+                if entry["tags"]["pool"] != "<Root>":
+                    continue
+                tree = entry["tags"]["tree"]
+                if tree not in result:
+                    result[tree] = entry["value"]
+            print >>sys.stderr, "Root metrics per tree: ", result
+            return result
+
+        start_time = time.time()
+        start_total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
+        start_total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
+
+        map(command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]})
+
+        time.sleep(2)
+
+        wait(lambda: all([value > 0 for _, value in get_pool_metric_per_tree_root_("total_time", start_time).iteritems()]))
+        total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
+        total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
+
+        for tree in ("default", "other"):
+            assert total_time_metrics[tree] - start_total_time_metrics[tree] == \
+                total_time_operation_completed_metrics[tree] - start_total_time_operation_completed_metrics[tree]
+
+        # Go back to one default tree
+        remove("//sys/pool_trees/*")
+        create("map_node", "//sys/pool_trees/default")
+        set("//sys/pool_trees/@default_tree", "default")
+        time.sleep(0.5)  # Give scheduler some time to reload trees
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):

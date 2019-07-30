@@ -20,6 +20,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SaveJobPhase)           (300108))
     ((JobSplitterPrepareDuration) (300109))
     ((ForceAdvanceBefore19_6)     (300150))
+    ((JobMetricsByOperationState)     (300151))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

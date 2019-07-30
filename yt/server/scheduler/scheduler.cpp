@@ -2831,7 +2831,7 @@ private:
 
         if (const auto& controller = operation->GetController()) {
             try {
-                WaitFor(controller->Abort())
+                WaitFor(controller->Abort(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to abort controller of operation %v",

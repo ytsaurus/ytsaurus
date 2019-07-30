@@ -295,9 +295,11 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
+        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %Qlv",
             incarnationId,
-            operationId);
+            operationId,
+            controllerFinalState);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -311,7 +313,7 @@ private:
                 return;
             }
 
-            WaitFor(controllerAgent->AbortOperation(operation))
+            WaitFor(controllerAgent->AbortOperation(operation, controllerFinalState))
                 .ThrowOnError();
 
             context->Reply();

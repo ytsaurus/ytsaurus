@@ -113,7 +113,7 @@ struct IOperationController
     virtual TFuture<void> Commit() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Abort asynchronously.
-    virtual TFuture<void> Abort() = 0;
+    virtual TFuture<void> Abort(EOperationState finalState) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Complete asynchronously.
     virtual TFuture<void> Complete() = 0;

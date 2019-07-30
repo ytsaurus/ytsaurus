@@ -157,7 +157,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
-    IMPLEMENT_SAFE_METHOD(void, Abort, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, Abort, (EControllerState finalState), (finalState), false)
 
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
@@ -340,6 +340,9 @@ public:
 
     virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
 
+    //! Returns the aggregated delta of job metrics and resets it to zero.
+    //! When `force` is true, the delta is returned unconditionally, otherwise a zero delta is
+    //! returned within a certain period since last call.
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) override;
 
     virtual TOperationAlertMap GetAlerts() override;
@@ -958,6 +961,11 @@ private:
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
+    // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
+    // are not accumulated, and (2) job statistics don't provide per tree granularity.
+    //! Aggregated total time of jobs per tree.
+    THashMap<TString, i64> TotalTimePerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.

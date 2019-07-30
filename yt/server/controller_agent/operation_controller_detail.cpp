@@ -2843,7 +2843,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
     return false;
 }
 
-void TOperationControllerBase::SafeAbort()
+void TOperationControllerBase::SafeAbort(EControllerState finalState)
 {
     YT_LOG_INFO("Aborting operation controller");
 
@@ -2907,7 +2907,8 @@ void TOperationControllerBase::SafeAbort()
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
 
-    State = EControllerState::Finished;
+    YT_VERIFY(finalState == EControllerState::Aborted || finalState == EControllerState::Failed);
+    State = finalState;
 
     LogProgress(/* force */ true);
 
@@ -4082,10 +4083,10 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.g. SortController).
-    if (State == EControllerState::Finished) {
+    if (IsFinished()) {
         return;
     }
-    State = EControllerState::Finished;
+    State = EControllerState::Completed;
 
     BuildAndSaveProgress();
     FlushOperationNode(/* checkFlushResult */ true);
@@ -4100,10 +4101,10 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
-    if (State == EControllerState::Finished) {
+    if (IsFinished()) {
         return;
     }
-    State = EControllerState::Finished;
+    State = EControllerState::Failed;
 
     BuildAndSaveProgress();
     LogProgress(/* force */ true);
@@ -4123,10 +4124,10 @@ void TOperationControllerBase::OnOperationAborted(const TError& error)
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // Cf. OnOperationFailed.
-    if (State == EControllerState::Finished) {
+    if (IsFinished()) {
         return;
     }
-    State = EControllerState::Finished;
+    State = EControllerState::Aborted;
 
     Host->OnOperationAborted(error);
 }
@@ -4329,7 +4330,9 @@ bool TOperationControllerBase::IsFailing() const
 
 bool TOperationControllerBase::IsFinished() const
 {
-    return State == EControllerState::Finished;
+    return State == EControllerState::Completed ||
+        State == EControllerState::Failed ||
+        State == EControllerState::Aborted;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
@@ -6399,6 +6402,33 @@ void TOperationControllerBase::Dispose()
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
+    YT_VERIFY(IsFinished());
+
+    {
+        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
+        for (auto& [treeId, metrics] : JobMetricsDeltaPerTree_) {
+            auto totalTime = TotalTimePerTree_.at(treeId);
+
+            switch (State) {
+                case EControllerState::Completed:
+                    metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = totalTime;
+                    break;
+
+                case EControllerState::Aborted:
+                    metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = totalTime;
+                    break;
+
+                case EControllerState::Failed:
+                    metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = totalTime;
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+        }
+    }
+
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
     YT_LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
         headCookie);
@@ -7027,6 +7057,8 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
         } else {
             it->second += delta;
         }
+
+        TotalTimePerTree_[joblet->TreeId] += delta.Values()[EJobMetricName::TotalTime];
     }
 }
 
@@ -7634,6 +7666,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
         Persist(context, PathToInputTables_);
     }
+
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobMetricsByOperationState)) {
+        Persist(context, JobMetricsDeltaPerTree_);
+        Persist(context, TotalTimePerTree_);
+    }
 }
 
 void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
@@ -7841,7 +7878,7 @@ TString TOperationControllerBase::WriteCoreDump() const
 
 void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
 {
-    if (RowCountLimitTableIndex && *RowCountLimitTableIndex == tableIndex && State != EControllerState::Finished) {
+    if (RowCountLimitTableIndex && *RowCountLimitTableIndex == tableIndex && !IsFinished()) {
         CompletedRowCount_ += count;
         if (CompletedRowCount_ >= RowCountLimit) {
             YT_LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
