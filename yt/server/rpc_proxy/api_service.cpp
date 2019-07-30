@@ -1740,6 +1740,9 @@ private:
         if (request->has_with_failed_jobs()) {
             options.WithFailedJobs = request->with_failed_jobs();
         }
+
+        options.ArchiveFetchingTimeout = FromProto<TDuration>(request->archive_fetching_timeout());
+
         options.IncludeArchive = request->include_archive();
         options.IncludeCounters = request->include_counters();
         options.Limit = request->limit();
