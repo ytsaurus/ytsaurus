@@ -685,7 +685,7 @@ message TPodSpec
 {
     // Raw ISS payload to be delivered to agent.
     // COMPAT(babenko): will be deprecated after switching to pod agent.
-    optional bytes iss_payload = 1;
+    optional bytes iss_payload = 1 [deprecated = true];
 
     // Structured ISS spec.
     // COMPAT(babenko): will be deprecated after switching to pod agent.
@@ -992,7 +992,7 @@ message TPodStatus
 
         // Raw ISS payload received from agent.
         // COMPAT(babenko): will be deprecated after switching to pod agent.
-        optional bytes iss_payload = 3;
+        optional bytes iss_payload = 3 [deprecated = true];
 
         // Structured ISS status.
         // COMPAT(babenko): will be deprecated after switching to pod agent.
