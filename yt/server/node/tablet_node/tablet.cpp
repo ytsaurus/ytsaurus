@@ -1301,7 +1301,7 @@ int TTablet::CountEdenOverlappingStoreCount() const
     int maxOverlappingCount = 0;
     for (const auto& [key, value] : keyMap) {
         Y_UNUSED(key);
-        
+
         curOverlappingCount += value;
         maxOverlappingCount = std::max(maxOverlappingCount, curOverlappingCount);
     }
