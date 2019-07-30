@@ -939,7 +939,8 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
         XX(Tx.Carrier);
         XX(Tx.Compressed);
 #undef XX
-        YT_VERIFY(interfaceToStatistics.insert({interfaceName, statistics}).second);
+        // NB: data is racy; duplicates are possible; just deal with it.
+        interfaceToStatistics.emplace(interfaceName, statistics);
     }
     return interfaceToStatistics;
 #else
