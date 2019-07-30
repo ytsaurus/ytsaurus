@@ -21,4 +21,30 @@ const TProtobufMessageType* ReflectProtobufMessageType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<int> FindProtobufEnumValueByLiteralUntyped(
+    const TProtobufEnumType* type,
+    TStringBuf literal);
+TStringBuf FindProtobufEnumLiteralByValueUntyped(
+    const TProtobufEnumType* type,
+    int value);
+
+template <class T>
+std::optional<T> FindProtobufEnumValueByLiteral(
+    const TProtobufEnumType* type,
+    TStringBuf literal)
+{
+    auto untyped = FindProtobufEnumValueByLiteralUntyped(type, literal);
+    return untyped ? static_cast<T>(*untyped) : std::optional<T>();
+}
+
+template <class T>
+TStringBuf FindProtobufEnumLiteralByValue(
+    const TProtobufEnumType* type,
+    T value)
+{
+    return FindProtobufEnumLiteralByValueUntyped(type, static_cast<int>(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson
