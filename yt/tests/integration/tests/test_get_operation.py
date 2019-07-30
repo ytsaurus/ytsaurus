@@ -2,8 +2,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+
 from yt.test_helpers import wait
-from yt.operations_archive.clear_operations import id_to_parts_new
+from yt.common import uuid_to_parts
 
 import pytest
 
@@ -141,7 +142,7 @@ class TestGetOperation(YTEnvSetup):
             })
         wait_breakpoint()
 
-        id_hi, id_lo = id_to_parts_new(op.id)
+        id_hi, id_lo = uuid_to_parts(op.id)
         archive_table_path = "//sys/operations_archive/ordered_by_id"
         brief_progress = {"ivan": "ivanov"}
         progress = {"semen": "semenych", "semenych": "gorbunkov"}
