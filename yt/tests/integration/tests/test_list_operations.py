@@ -18,6 +18,13 @@ def clear_start_time(path):
         ops[i]["start_time"] = 0
     insert_rows(path, ops, update=True)
 
+def clear_progress(path):
+    ops = select_rows("id_hi, id_lo, brief_progress, progress FROM [{}]".format(path))
+    for i in range(len(ops)):
+        ops[i]["brief_progress"] = {"ivan": "ivanov"}
+        ops[i]["progress"] = {"semen": "semenych", "semenych": "gorbunkov"}
+    insert_rows(path, ops, update=True)
+
 
 class ListOperationsSetup(YTEnvSetup):
     _input_path = "//testing/input"
@@ -555,6 +562,13 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
                               to_time=datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING))["operations"]
         ids = [uuid_to_parts(op["id"]) for op in ops]
         assert ids == sorted(ids, reverse=True)
+
+    def test_archive_fetching(self):
+        clear_progress("//sys/operations_archive/ordered_by_id")
+        wait(lambda: select_rows("brief_progress FROM [//sys/operations_archive/ordered_by_id]")[0]["brief_progress"] == {"ivan": "ivanov"})
+        res = list_operations(include_archive=False)
+        for op in res["operations"]:
+            assert op["brief_progress"] == {"ivan": "ivanov"}
 
 
 ##################################################################

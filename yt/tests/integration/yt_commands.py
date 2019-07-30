@@ -40,6 +40,7 @@ default_api_version = 4
 # TODO(levysotsky): Move error codes to separate file in python repo.
 SchemaViolation = 307
 AuthorizationErrorCode = 901
+NoSuchOperation = 1915
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -995,8 +996,8 @@ def operation_nodes_exist():
 
 
 def clean_operations():
+    cleaner_path = "//sys/scheduler/config/operations_cleaner"
     try:
-        cleaner_path = "//sys/scheduler/config/operations_cleaner"
         set(cleaner_path + "/enable", True, recursive=True)
         wait(lambda: not operation_nodes_exist())
     finally:

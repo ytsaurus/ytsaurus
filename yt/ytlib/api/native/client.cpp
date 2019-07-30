@@ -192,11 +192,13 @@ TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
     return keyBuilder.FinishRow();
 }
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrderedByIdTableDescriptor::TIndex& Index, const TRowBufferPtr& rowBuffer)
+{
+    auto key = rowBuffer->AllocateUnversioned(2);
+    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], Index.IdHi);
+    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], Index.IdLo);
+    return key;
+}
 
 constexpr int FileCacheHashDigitCount = 2;
 
@@ -205,12 +207,6 @@ NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cache
     auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
     return cachePath + "/" + lastDigits + "/" + md5;
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 template <class TReq>
 void SetDynamicTableCypressRequestFullPath(TReq* req, const TYPath& fullPath)
@@ -223,12 +219,6 @@ void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
 {
     req->set_path(fullPath);
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 constexpr i64 ListJobsFromArchiveInProgressJobLimit = 100000;
 
@@ -4351,10 +4341,7 @@ private:
         auto rowBuffer = New<TRowBuffer>();
 
         std::vector<TUnversionedRow> keys;
-        auto key = rowBuffer->AllocateUnversioned(2);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo);
-        keys.push_back(key);
+        keys.push_back(CreateOperationKey(operationId, tableDescriptor.Index, rowBuffer));
 
         std::vector<int> columnIndexes;
         THashMap<TString, int> fieldToIndex;
@@ -4502,31 +4489,55 @@ private:
                 operationId = ResolveOperationAlias(alias, options, deadline);
             });
 
-        if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
-            return result;
-        }
+        std::vector<TFuture<TYsonString>> getOperationFutures;
 
-        YT_LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
-            operationId);
+        auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
+            .AsyncVia(Connection_->GetInvoker())
+            .Run()
+            .WithTimeout(options.CypressTimeout);
+        getOperationFutures.push_back(cypressFuture);
 
+        TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TError("No such operation in Archive."));
         if (DoesOperationsArchiveExist()) {
-            try {
-                if (auto result = DoGetOperationFromArchive(operationId, deadline, options)) {
-                    return result;
-                }
-            } catch (const TErrorException& ex) {
-                if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION("Failed to get operation from archive")
-                        << TErrorAttribute("operation_id", operationId)
-                        << ex.Error();
+             archiveFuture = BIND(&TClient::DoGetOperationFromArchive, MakeStrong(this), operationId, deadline, options)
+                .AsyncVia(Connection_->GetInvoker())
+                .Run()
+                .WithTimeout(options.ArchiveTimeout);
+        }
+        getOperationFutures.push_back(archiveFuture);
+
+        auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
+            .ValueOrThrow();
+
+        TErrorOr<TYsonString> cypressResultOrError = cypressFuture.Get();
+        TErrorOr<TYsonString> archiveResultOrError = archiveFuture.Get();
+
+        if (archiveResultOrError.IsOK() && archiveResultOrError.Value() &&
+            cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
+            // Merging goes here.
+            auto cypressNode = ConvertToNode(cypressResultOrError.Value())->AsMap();
+            auto archiveNode = ConvertToNode(archiveResultOrError.Value())->AsMap();
+
+            std::vector<TString> fieldNames = {"brief_progress", "progress"};
+            for (const auto& fieldName : fieldNames) {
+                auto archiveField = archiveNode->FindChild(fieldName);
+                if (archiveField) {
+                    cypressNode->RemoveChild(fieldName);
+                    archiveNode->RemoveChild(fieldName);
+                    cypressNode->AddChild(fieldName, archiveField);
                 }
             }
+            return ConvertToYsonString(cypressNode);
+        } else if (archiveResultOrError.IsOK() && archiveResultOrError.Value()) {
+            return archiveResultOrError.Value();
+        } else if (cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
+            return cypressResultOrError.Value();
+        } else {
+            THROW_ERROR_EXCEPTION(
+                NApi::EErrorCode::NoSuchOperation,
+                "No such operation %v",
+                operationId);
         }
-
-        THROW_ERROR_EXCEPTION(
-            NApi::EErrorCode::NoSuchOperation,
-            "No such operation %v",
-            operationId);
     }
 
     void ValidateOperationAccess(
@@ -5834,10 +5845,8 @@ private:
 
         keys.reserve(rowsItemsId.Rowset->GetRows().Size());
         for (auto row : rowsItemsId.Rowset->GetRows()) {
-            auto key = rowBuffer->AllocateUnversioned(2);
-            key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, tableDescriptor.Index.IdHi);
-            key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, tableDescriptor.Index.IdLo);
-            keys.push_back(key);
+            auto id = TOperationId(FromUnversionedValue<ui64>(row[0]), FromUnversionedValue<ui64>(row[1]));
+            keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
         }
 
         static const THashSet<TString> RequiredAttributes = {"id", "start_time", "brief_progress"};
@@ -6103,6 +6112,70 @@ private:
                 result.Operations.erase(result.Operations.begin(), result.Operations.end() - options.Limit);
             }
             result.Incomplete = true;
+        }
+
+        // Fetching progress for operations with mentioned ids.
+        if (DoesOperationsArchiveExist() && !options.IncludeArchive) {
+            std::vector<TUnversionedRow> keys;
+
+            TOrderedByIdTableDescriptor tableDescriptor;
+            auto rowBuffer = New<TRowBuffer>();
+            for (const auto& operation: result.Operations) {
+                keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
+            }
+
+            bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
+            bool needProgress = options.Attributes && options.Attributes->contains("progress");
+
+            std::vector<TString> fields;
+            if (needBriefProgress) {
+                fields.emplace_back("brief_progress");
+            }
+            if (needProgress) {
+                fields.emplace_back("progress");
+            }
+            std::vector<int> columnIndexes;
+            for (const auto& field : fields) {
+                columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
+            }
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+            lookupOptions.Timeout = options.ArchiveFetchingTimeout;
+            lookupOptions.KeepMissingRows = true;
+            auto rowsetOrError = WaitFor(LookupRows(
+                GetOperationsArchiveOrderedByIdPath(),
+                tableDescriptor.NameTable,
+                MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+                lookupOptions)
+                .WithTimeout(options.ArchiveFetchingTimeout));
+
+            if (!rowsetOrError.IsOK()) {
+                YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
+            } else {
+                const auto& rows = rowsetOrError.Value()->GetRows();
+
+                for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+                    const auto& row = rows[rowIndex];
+                    if (!row) {
+                        continue;
+                    }
+
+                    auto& operation = result.Operations[rowIndex];
+                    if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
+                        auto briefProgressValue = row[*briefProgressPosition];
+                        if (briefProgressValue.Type != EValueType::Null) {
+                            operation.BriefProgress = FromUnversionedValue<TYsonString>(briefProgressValue);
+                        }
+                    }
+                    if (auto progressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.Progress)) {
+                        auto progressValue = row[*progressPosition];
+                        if (progressValue.Type != EValueType::Null) {
+                            operation.Progress = FromUnversionedValue<TYsonString>(progressValue);
+                        }
+                    }
+                }
+            }
         }
 
         if (options.IncludeCounters) {

@@ -1316,6 +1316,8 @@ message TReqListOperations
 
     optional bytes access_filter = 17; // YSON
 
+    optional uint64 archive_fetching_timeout = 18 [default = 3000000]; // TDuration, 3 seconds by default
+
     optional TMasterReadOptions master_read_options = 102;
 }
 

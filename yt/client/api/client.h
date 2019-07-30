@@ -786,6 +786,8 @@ struct TListOperationsOptions
     // See st/YTFRONT-1360.
     bool EnableUIMode = false;
 
+    TDuration ArchiveFetchingTimeout = TDuration::Seconds(3);
+
     TListOperationsOptions()
     {
         ReadFrom = EMasterChannelKind::Cache;
@@ -870,6 +872,8 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     std::optional<THashSet<TString>> Attributes;
+    TDuration CypressTimeout = TDuration::Seconds(3);
+    TDuration ArchiveTimeout = TDuration::Seconds(3);
     bool IncludeRuntime = false;
 };
 
