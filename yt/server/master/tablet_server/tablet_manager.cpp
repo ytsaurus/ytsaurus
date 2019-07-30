@@ -5373,9 +5373,8 @@ private:
             }
         };
 
-        for (const auto& pair : childrenByParent) {
-            const auto& children = pair.second;
-            auto* parent = GetUniqueParent(children[0]);
+        for (const auto& [parentId, children] : childrenByParent) {
+            auto* parent = chunkManager->GetChunkList(parentId);
             chunkManager->DetachFromChunkList(parent, children);
             pruneEmptyChunkList(parent);
         }
