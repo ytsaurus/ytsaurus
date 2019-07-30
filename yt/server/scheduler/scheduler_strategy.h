@@ -113,13 +113,14 @@ struct ISchedulerStrategy
      */
     virtual TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) = 0;
 
-    //! Validates that operation can be registered without errors.
+    //! Returns limit validation errors for each pool specified in #runtimeParameters
     /*!
      *  Checks limits for the number of concurrent operations.
+     *  For each tree with limit violations returns corresponding error.
      *
      *  The implementation must be synchronous.
      */
-    virtual void ValidatePoolLimits(
+    virtual THashMap<TString, TError> GetPoolLimitViolations(
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 

@@ -4,6 +4,7 @@
 #include "scheduler_strategy.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
+#include "fair_share_tree.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/helpers.h>
@@ -219,7 +220,7 @@ public:
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Do(BIND(&BuildFullOperationAttributes, operation))
-                .Item("brief_spec").Value(operation->BriefSpec())
+                .Item("brief_spec").Value(operation->BriefSpecString())
             .EndMap());
 
         auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
@@ -815,6 +816,7 @@ private:
                 "runtime_parameters",
                 "output_completion_transaction_id",
                 "suspended",
+                "erased_trees",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -931,6 +933,7 @@ private:
                 attributes.Get<EOperationType>("operation_type"),
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
+                spec,
                 specString,
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
@@ -942,7 +945,8 @@ private:
                 spec->Alias,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
-                /* suspended */ attributes.Get<bool>("suspended", false));
+                /* suspended */ attributes.Get<bool>("suspended", false),
+                attributes.Get<std::vector<TString>>("erased_trees", {}));
 
             operation->SetShouldFlushAcl(true);
 
@@ -1429,6 +1433,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("annotations");
                 req->set_value(ConvertToYsonString(operation->Annotations()).GetData());
+            }
+
+            // Set erased trees.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("erased_trees");
+                req->set_value(ConvertToYsonString(operation->ErasedTrees()).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

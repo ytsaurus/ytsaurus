@@ -244,7 +244,7 @@ public:
         return Controller_;
     }
 
-    virtual const NYson::TYsonString& GetSpec() const override
+    virtual const NYson::TYsonString& GetSpecString() const override
     {
         YT_ABORT();
     }
@@ -262,6 +262,21 @@ public:
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
     {
         return *Controller_.Get();
+    }
+
+    void SetErasedTrees(std::vector<TString> erasedTrees) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const std::vector<TString>& ErasedTrees() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void EraseTree(const TString& treeId) override
+    {
+        YT_UNIMPLEMENTED();
     }
 
 private:

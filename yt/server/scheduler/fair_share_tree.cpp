@@ -41,6 +41,26 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStrategyHost* host)
+    : Host_(host)
+    , Controller_(New<TFairShareStrategyOperationController>(host))
+{ }
+
+TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
+{
+    auto it = TreeIdToPoolNameMap_.find(treeId);
+    YT_VERIFY(it != TreeIdToPoolNameMap_.end());
+    return it->second;
+}
+
+void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
+{
+    Host_->EraseTree(treeId);
+    YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
     static const NProfiling::TEnumMemberTagCache<EScheduleJobFailReason> ReasonTagCache("reason");
@@ -77,8 +97,32 @@ TTagId GetUserNameProfilingTag(const TString& userName)
     return it->second;
 };
 
-
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams)
+{
+    THashMap<TString, TPoolName> pools;
+    for (const auto& [treeId, options] : runtimeParams->SchedulingOptionsPerPoolTree) {
+        pools.emplace(treeId, options->Pool);
+    }
+    return pools;
+}
+
+TFairShareStrategyOperationStatePtr
+CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
+{
+    auto state = New<TFairShareStrategyOperationState>(host);
+    auto treeIdToPoolNameMap = GetOperationPools(host->GetRuntimeParameters());
+
+    for (const auto& treeId : host->ErasedTrees()) {
+        treeIdToPoolNameMap.erase(treeId);
+    }
+
+    state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
+    return std::move(state);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -851,7 +895,7 @@ TPoolName TFairShareTree::CreatePoolName(const std::optional<TString>& poolFromS
         return TPoolName(user, *poolFromSpec);
     }
     return TPoolName(*poolFromSpec, std::nullopt);
-};
+}
 
 bool TFairShareTree::HasOperation(TOperationId operationId)
 {
