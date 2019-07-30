@@ -38,6 +38,10 @@ DEFINE_ENUM(EJobMetricName,
 
     (TotalTimeCompleted)
     (TotalTimeAborted)
+
+    (TotalTimeOperationCompleted)
+    (TotalTimeOperationFailed)
+    (TotalTimeOperationAborted)
 );
 
 DEFINE_ENUM(EAggregateType,

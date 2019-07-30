@@ -236,7 +236,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: Controller invoker
      *
      */
-    virtual void Abort() = 0;
+    virtual void Abort(EControllerState finalState) = 0;
 
     //! Notifies the controller that the operation has been completed.
     /*!
