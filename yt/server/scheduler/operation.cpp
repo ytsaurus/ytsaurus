@@ -110,7 +110,8 @@ TOperation::TOperation(
     EOperationType type,
     TMutationId mutationId,
     TTransactionId userTransactionId,
-    TYsonString spec,
+    TOperationSpecBasePtr spec,
+    TYsonString specString,
     IMapNodePtr annotations,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,
@@ -121,7 +122,8 @@ TOperation::TOperation(
     const std::optional<TString>& alias,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
-    bool suspended)
+    bool suspended,
+    std::vector<TString> erasedTrees)
     : MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
@@ -129,6 +131,7 @@ TOperation::TOperation(
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
+    , Spec_(std::move(spec))
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , Annotations_(std::move(annotations))
@@ -137,12 +140,13 @@ TOperation::TOperation(
     , Type_(type)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
-    , Spec_(spec)
+    , SpecString_(specString)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , RuntimeParameters_(std::move(runtimeParams))
+    , ErasedTrees_(std::move(erasedTrees))
 {
-    YT_VERIFY(Spec_);
+    YT_VERIFY(SpecString_);
     Restart();
 }
 
@@ -166,9 +170,9 @@ TString TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
-const TYsonString& TOperation::GetSpec() const
+const TYsonString& TOperation::GetSpecString() const
 {
-    return Spec_;
+    return SpecString_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -383,6 +387,21 @@ TControllerAgentPtr TOperation::GetAgentOrThrow()
             Id_);
     }
     return agent;
+}
+
+void TOperation::SetErasedTrees(std::vector<TString> erasedTrees)
+{
+    ErasedTrees_ = std::move(erasedTrees);
+}
+
+const std::vector<TString>& TOperation::ErasedTrees() const
+{
+    return ErasedTrees_;
+}
+
+void TOperation::EraseTree(const TString& treeId)
+{
+    ErasedTrees_.push_back(treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

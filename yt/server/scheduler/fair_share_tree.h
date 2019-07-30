@@ -34,29 +34,21 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
 
 public:
-    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host)
-        : Host_(host)
-        , Controller_(New<TFairShareStrategyOperationController>(host))
-    { }
+    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host);
 
-    TPoolName GetPoolNameByTreeId(const TString& treeId) const
-    {
-        auto it = TreeIdToPoolNameMap_.find(treeId);
-        YT_VERIFY(it != TreeIdToPoolNameMap_.end());
-        return it->second;
-    }
+    TPoolName GetPoolNameByTreeId(const TString& treeId) const;
 
-    void EraseTree(const TString& treeId)
-    {
-        ErasedTrees_.push_back(treeId);
-        YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
-    }
+    void EraseTree(const TString& treeId);
 };
 
-using TFairShareStrategyOperationStatePtr = TIntrusivePtr<TFairShareStrategyOperationState>;
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
+
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams);
+
+TFairShareStrategyOperationStatePtr
+CreateFairShareStrategyOperationState(IOperationStrategyHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

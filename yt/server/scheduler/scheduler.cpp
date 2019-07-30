@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "private.h"
 #include "fair_share_strategy.h"
+#include "fair_share_tree.h"
 #include "helpers.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
@@ -576,6 +577,7 @@ public:
             type,
             mutationId,
             transactionId,
+            spec,
             std::move(parseSpecResult.SpecString),
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
@@ -2140,7 +2142,22 @@ private:
             // NB(babenko): now we only validate this on start but not during revival
             // NB(ignat): this validation must be just before operation registration below
             // to avoid violation of pool limits. See YT-10802.
-            Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
+
+            auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
+
+            const auto& spec = operation->Spec();
+            std::vector<TString> erasedTrees;
+            for (const auto& [treeId, error] : poolLimitViolations) {
+                if (spec->TentativePoolTrees && spec->TentativePoolTrees->contains(treeId)) {
+                    erasedTrees.push_back(treeId);
+                    // No need to throw now.
+                    continue;
+                }
+
+                THROW_ERROR error;
+            }
+
+            operation->SetErasedTrees(std::move(erasedTrees));
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
@@ -2211,7 +2228,7 @@ private:
 
             operation->Transactions() = initializeResult.Transactions;
             operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
-            operation->BriefSpec() = BuildBriefSpec(operation);
+            operation->BriefSpecString() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
@@ -2293,7 +2310,7 @@ private:
 
                 operation->Transactions() = std::move(result.Transactions);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
-                operation->BriefSpec() = BuildBriefSpec(operation);
+                operation->BriefSpecString() = BuildBriefSpec(operation);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2521,7 +2538,7 @@ private:
         fluent
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
+            .Item("spec").Value(operation->GetSpecString())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 

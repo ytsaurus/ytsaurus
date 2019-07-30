@@ -35,7 +35,7 @@ public:
 
     virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
-    virtual const NYson::TYsonString& GetSpec() const override;
+    virtual const NYson::TYsonString& GetSpecString() const override;
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
@@ -43,16 +43,23 @@ public:
 
     bool SetCompleting();
 
+    void SetErasedTrees(std::vector<TString> erasedTrees) override;
+    const std::vector<TString>& ErasedTrees() const override;
+
 private:
     std::atomic<bool> Completing_ = {false};
 
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
-    const NYson::TYsonString Spec_;
+    const NYson::TYsonString SpecString_;
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParams_;
     THashMap<TString, int> TreeIdToSlotIndex_;
+
+    std::vector<TString> ErasedTrees_;
+
+    void EraseTree(const TString& treeId) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

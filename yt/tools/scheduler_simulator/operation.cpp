@@ -11,7 +11,7 @@ TOperation::TOperation(
     const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters)
     : Id_(description.Id)
     , Type_(description.Type)
-    , Spec_(description.Spec)
+    , SpecString_(description.Spec)
     , AuthenticatedUser_(description.AuthenticatedUser)
     , StartTime_(description.StartTime)
     , RuntimeParams_(runtimeParameters)
@@ -65,9 +65,9 @@ NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrateg
     return Controller_;
 }
 
-const NYson::TYsonString& TOperation::GetSpec() const
+const NYson::TYsonString& TOperation::GetSpecString() const
 {
-    return Spec_;
+    return SpecString_;
 }
 
 NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
@@ -84,6 +84,21 @@ bool TOperation::GetActivated() const
 {
     // NB(renadeen): return value doesn't matter in simulator.
     return true;
+}
+
+void TOperation::SetErasedTrees(std::vector<TString> erasedTrees)
+{
+    ErasedTrees_ = std::move(erasedTrees);
+}
+
+const std::vector<TString>& TOperation::ErasedTrees() const
+{
+    return ErasedTrees_;
+}
+
+void TOperation::EraseTree(const TString& treeId)
+{
+    ErasedTrees_.push_back(treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

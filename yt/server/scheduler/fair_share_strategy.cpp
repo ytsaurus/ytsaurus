@@ -155,8 +155,8 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto spec = ParseSpec(operation);
-        auto state = New<TFairShareStrategyOperationState>(operation);
-        state->TreeIdToPoolNameMap() = GetOperationPools(operation->GetRuntimeParameters());
+
+        auto state = CreateFairShareStrategyOperationState(operation);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
@@ -440,7 +440,7 @@ public:
         YT_VERIFY(newPools.size() == state->TreeIdToPoolNameMap().size());
 
         // Tentative trees can be removed from state, we must apply these changes to new state.
-        for (const auto& erasedTree : state->ErasedTrees()) {
+        for (const auto& erasedTree : state->GetHost()->ErasedTrees()) {
             newPools.erase(erasedTree);
         }
 
@@ -514,8 +514,12 @@ public:
 
         if (validatePools) {
             ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
-            ValidatePoolLimits(operation, runtimeParams);
             ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+
+            auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParams);
+            if (!poolLimitViolations.empty()) {
+                THROW_ERROR poolLimitViolations.begin()->second;
+            }
         }
     }
 
@@ -599,7 +603,7 @@ public:
             .Run(operation, operation->GetRuntimeParameters());
     }
 
-    virtual void ValidatePoolLimits(
+    virtual THashMap<TString, TError> GetPoolLimitViolations(
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -607,10 +611,18 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        for (const auto& pair : pools) {
-            auto tree = GetTree(pair.first);
-            tree->ValidatePoolLimits(operation, pair.second);
+        THashMap<TString, TError> result;
+
+        for (const auto& [treeId, pool] : pools) {
+            auto tree = GetTree(treeId);
+            try {
+                tree->ValidatePoolLimits(operation, pool);
+            } catch (TErrorException& ex) {
+                result.emplace(treeId, std::move(ex.Error()));
+            }
         }
+
+        return result;
     }
 
     virtual void ValidateMaxRunningOperationsCountOnPoolChange(
@@ -860,7 +872,7 @@ private:
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {
         try {
-            return ConvertTo<TStrategyOperationSpecPtr>(operation->GetSpec());
+            return ConvertTo<TStrategyOperationSpecPtr>(operation->GetSpecString());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing strategy spec of operation")
                 << ex;
@@ -926,15 +938,6 @@ private:
         }
 
         return result;
-    }
-
-    THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams) const
-    {
-        THashMap<TString, TPoolName> pools;
-        for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, pair.second->Pool);
-        }
-        return pools;
     }
 
     IFairShareTreeSnapshotPtr FindTreeSnapshotByNodeDescriptor(const TExecNodeDescriptor& descriptor) const

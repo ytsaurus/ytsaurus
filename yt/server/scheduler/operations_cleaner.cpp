@@ -65,11 +65,11 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     State = operation->GetState();
     AuthenticatedUser = operation->GetAuthenticatedUser();
     OperationType = operation->GetType();
-    Spec = operation->GetSpec();
+    Spec = operation->GetSpecString();
     Result = operation->BuildResultString();
     Events = ConvertToYsonString(operation->Events());
     Alerts = operation->BuildAlertsString();
-    BriefSpec = operation->BriefSpec();
+    BriefSpec = operation->BriefSpecString();
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
     Alias = operation->Alias();
     SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);

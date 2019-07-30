@@ -718,6 +718,62 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    def test_ignoring_tentative_pool_operation_limit(self):
+        create("map_node", "//sys/pool_trees/normal", attributes={"nodes_filter": "normal"})
+        create("map_node", "//sys/pool_trees/normal/pool", attributes={"max_operation_count": 5})
+        create("map_node", "//sys/pool_trees/tentative", attributes={"nodes_filter": "tentative"})
+        create("map_node", "//sys/pool_trees/tentative/pool", attributes={"max_operation_count": 3})
+
+        pool_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/pool"
+        wait(lambda: exists(pool_path.format("normal")))
+        wait(lambda: exists(pool_path.format("tentative")))
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        for i in xrange(6):
+            create("table", "//tmp/out" + str(i))
+
+        ops = []
+        def run(index, trees, tentative_trees, should_raise):
+            def execute(dont_track):
+                return map(
+                    dont_track=dont_track,
+                    command="sleep 1000; cat",
+                    in_=["//tmp/in"],
+                    out="//tmp/out" + str(index),
+                    spec={
+                        "pool_trees": list(trees),
+                        "tentative_pool_trees": list(tentative_trees),
+                        "scheduling_options_per_pool_tree": {tree : {"pool" : "pool"} for tree in trees | tentative_trees}
+                    })
+
+            if should_raise:
+                with pytest.raises(YtError):
+                    execute(dont_track=False)
+            else:
+                op = execute(dont_track=True)
+                wait(lambda: op.get_state() in ("pending", "running"))
+                ops.append(op)
+
+        for i in xrange(3):
+            run(i, {"normal", "tentative"}, frozenset(), False)
+
+        for i in xrange(3, 5):
+            run(i, {"normal", "tentative"}, frozenset(), True)
+
+        for i in xrange(3, 5):
+            run(i, {"normal"}, {"tentative"}, False)
+
+        for i in xrange(5, 6):
+            run(i, {"normal"}, {"tentative"}, True)
+
+        wait(lambda: get(pool_path.format("normal") + "/operation_count") == 5)
+        wait(lambda: get(pool_path.format("tentative") + "/operation_count") == 3)
+
+        for op in ops:
+            op.abort()
+
+
     def test_pool_changes(self):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/subpool")

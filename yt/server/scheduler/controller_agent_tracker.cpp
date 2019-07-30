@@ -754,7 +754,7 @@ public:
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());
         descriptor->set_operation_type(static_cast<int>(operation->GetType()));
-        descriptor->set_spec(operation->GetSpec().GetData());
+        descriptor->set_spec(operation->GetSpecString().GetData());
         descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
         descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
         if (operation->GetSecureVault()) {
