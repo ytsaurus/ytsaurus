@@ -164,6 +164,12 @@ public:
         return ReflectMessageTypeInternal(descriptor);
     }
 
+    const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor)
+    {
+        auto guard = Guard(TypeMapsLock_);
+        return ReflectEnumTypeInternal(descriptor);
+    }
+
     static TProtobufTypeRegistry* Get()
     {
         return Singleton<TProtobufTypeRegistry>();
