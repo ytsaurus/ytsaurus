@@ -3066,9 +3066,9 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
     return false;
 }
 
-void TOperationControllerBase::SafeAbort(EControllerState finalState)
+void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 {
-    YT_LOG_INFO("Aborting operation controller");
+    YT_LOG_INFO("Terminating operation controller");
 
     // NB: Errors ignored since we cannot do anything with it.
     Y_UNUSED(WaitFor(Host->FlushOperationNode()));
@@ -3135,7 +3135,7 @@ void TOperationControllerBase::SafeAbort(EControllerState finalState)
 
     LogProgress(/* force */ true);
 
-    YT_LOG_INFO("Operation controller aborted");
+    YT_LOG_INFO("Operation controller terminated");
 }
 
 void TOperationControllerBase::SafeComplete()

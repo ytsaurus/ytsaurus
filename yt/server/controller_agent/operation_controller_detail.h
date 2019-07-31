@@ -157,7 +157,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
-    IMPLEMENT_SAFE_METHOD(void, Abort, (EControllerState finalState), (finalState), false)
+    IMPLEMENT_SAFE_METHOD(void, Terminate, (EControllerState finalState), (finalState), false)
 
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 

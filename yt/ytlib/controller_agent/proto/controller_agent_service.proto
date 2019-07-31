@@ -203,14 +203,14 @@ message TRspCompleteOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAbortOperation
+message TReqTerminateOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
     required int32 controller_final_state = 3; // EControllerState
 }
 
-message TRspAbortOperation
+message TRspTerminateOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -112,8 +112,8 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
     virtual TFuture<void> Commit() = 0;
 
-    //! Invokes IOperationControllerSchedulerHost::Abort asynchronously.
-    virtual TFuture<void> Abort(EOperationState finalState) = 0;
+    //! Invokes IOperationControllerSchedulerHost::Terminate asynchronously.
+    virtual TFuture<void> Terminate(EOperationState finalState) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Complete asynchronously.
     virtual TFuture<void> Complete() = 0;
