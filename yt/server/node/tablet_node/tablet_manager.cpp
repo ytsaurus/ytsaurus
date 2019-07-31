@@ -205,6 +205,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraLockTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReportTabletLocked, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnlockTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
@@ -1122,15 +1123,27 @@ private:
 
     void ReportTabletLocked(TTablet* tablet)
     {
-        auto tabletId = tablet->GetId();
+        if (IsRecovery()) {
+            return;
+        }
+
+        TReqReportTabletLocked request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        CommitTabletMutation(request);
+    }
+
+    void HydraReportTabletLocked(TReqReportTabletLocked* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
         const auto& lockManager = tablet->GetLockManager();
         auto transactionIds = lockManager->RemoveUnconfirmedTransactions();
 
         if (transactionIds.empty()) {
-            return;
-        }
-
-        if (IsRecovery()) {
             return;
         }
 
@@ -2269,7 +2282,6 @@ private:
                 THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
             }
 
-            // XXX(savrus) This seems to be unncecessary. Remove?
             if (tablet->GetLockManager()->IsLocked()) {
                 THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
                     << TErrorAttribute("tablet_id", tablet->GetId());
@@ -2775,7 +2787,6 @@ private:
             return;
         }
 
-        // XXX(savrus) Is this really inside mutation?
         ReportTabletLocked(tablet);
 
         auto state = tablet->GetState();
