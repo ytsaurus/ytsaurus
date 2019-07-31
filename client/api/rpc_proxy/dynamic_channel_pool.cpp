@@ -1,6 +1,7 @@
 #include "dynamic_channel_pool.h"
 #include "private.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/channel.h>
@@ -12,6 +13,8 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <util/random/shuffle.h>
+#include <util/string/split.h>
+#include <util/string/vector.h>
 
 namespace NYT::NApi::NRpcProxy {
 
@@ -233,22 +236,31 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
         }
     }
 
-    ShuffleRange(addresses);
-    for (int i = 0; i < replaced.size(); i++) {
-        auto address = addresses[i % addresses.size()];
-        auto channel = CreateChannel(address);
-        channel = CreateFailureDetectingChannel(
-            std::move(channel),
-            BIND([slot = MakeWeak(replaced[i])] (IChannelPtr channel) {
-                auto strongSlot = slot.Lock();
-                if (strongSlot) {
-                    strongSlot->SeemsBroken = true;
-                }
-            }));
 
-        replaced[i]->Channel.TrySet(channel);
+    if (!replaced.empty()) {  // Assuming `addresses` are only needed for `replaced`.
+
+        ShuffleRange(addresses);
+        if (!Config_->ProxyHostOrder.empty()) {
+            SortByRegexes(addresses, Config_->ProxyHostOrder);
+        }
+
+        YT_LOG_DEBUG("SetAddressList sorted addresses: %v)", addresses);
+
+        for (int i = 0; i < replaced.size(); i++) {
+            auto address = addresses[i % addresses.size()];
+            auto channel = CreateChannel(address);
+            channel = CreateFailureDetectingChannel(
+                std::move(channel),
+                BIND([slot = MakeWeak(replaced[i])] (IChannelPtr channel) {
+                    auto strongSlot = slot.Lock();
+                    if (strongSlot) {
+                        strongSlot->SeemsBroken = true;
+                    }
+                }));
+
+            replaced[i]->Channel.TrySet(channel);
+        }
     }
-
     TerminateIdleChannels();
 }
 
