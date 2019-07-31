@@ -3,6 +3,9 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
+#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
+#include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
+
 #include <mapreduce/yt/interface/logging/logger.h>
 
 #include <mapreduce/yt/interface/client.h>
@@ -39,6 +42,9 @@
 
 using namespace NYT;
 using namespace NYT::NTesting;
+
+namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
+namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,6 +145,20 @@ REGISTER_MAPPER(TUrlRowIdMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYdlUrlRowIdMapper : public IMapper<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::TUrlRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+REGISTER_MAPPER(TYdlUrlRowIdMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUrlRowIdReducer : public IReducer<TTableReader<TUrlRow>, TTableWriter<TUrlRow>>
 {
 public:
@@ -150,6 +170,42 @@ public:
     }
 };
 REGISTER_REDUCER(TUrlRowIdReducer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYdlUrlRowIdReducer : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::TUrlRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+REGISTER_REDUCER(TYdlUrlRowIdReducer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYdlMultipleInputMapper
+    : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            NYdlRows::TRow row;
+            if (reader->GetTableIndex() == 0) {
+                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
+            } else if (reader->GetTableIndex() == 1) {
+                row.SetStringField(*reader->GetRow<NYdlRows::THostRow>().GetHost());
+            }
+            writer->AddRow(row);
+        }
+    }
+};
+
+REGISTER_MAPPER(TYdlMultipleInputMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,6 +386,23 @@ REGISTER_MAPPER(TProtobufMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYdlMapper : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        NYdlRows::TRow row;
+        for (; reader->IsValid(); reader->Next()) {
+            reader->MoveRow(&row);
+            row.SetStringField(row.GetStringField() + " mapped");
+            writer->AddRow<NYdlRows::TRow>(row);
+        }
+    }
+};
+REGISTER_MAPPER(TYdlMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSplitGoodUrlMapper : public IMapper<TTableReader<TUrlRow>, TTableWriter<::google::protobuf::Message>>
 {
 public:
@@ -369,6 +442,48 @@ public:
     }
 };
 REGISTER_REDUCER(TCountHttpCodeTotalReducer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSplitGoodUrlYdlMapper : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            auto urlRow = reader->GetRow();
+            if (urlRow.GetHttpCode() == 200) {
+                NYdlRows::TGoodUrl goodUrl;
+                goodUrl.SetUrl(*urlRow.GetHost() + *urlRow.GetPath());
+                writer->AddRow<NYdlRows::TGoodUrl>(goodUrl, 1);
+            }
+            writer->AddRow<NYdlRows::TUrlRow>(urlRow, 0);
+        }
+    }
+};
+REGISTER_MAPPER(TSplitGoodUrlYdlMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCountHttpCodeTotalYdlReducer : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::THostRow>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        NYdlRows::THostRow hostRow;
+        i32 total = 0;
+        for (; reader->IsValid(); reader->Next()) {
+            auto urlRow = reader->GetRow();
+            if (hostRow.GetHost().Empty()) {
+                hostRow.SetHost(urlRow.GetHost());
+            }
+            total += *urlRow.GetHttpCode();
+        }
+        hostRow.SetHttpCodeTotal(total);
+        writer->AddRow(hostRow);
+    }
+};
+REGISTER_REDUCER(TCountHttpCodeTotalYdlReducer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -561,6 +676,7 @@ public:
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TNode>);
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TYaMRRow>);
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TEmbeddedMessage>);
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<NYdlRows::TMessage>);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1268,6 +1384,76 @@ Y_UNIT_TEST_SUITE(Operations)
         MapWithProtobuf(true, true);
     }
 
+    Y_UNIT_TEST(YdlMap)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("StringField", "raz"));
+            writer->AddRow(TNode()("StringField", "dva"));
+            writer->AddRow(TNode()("StringField", "tri"));
+            writer->Finish();
+        }
+
+        client->Map(
+            new TYdlMapper,
+            Structured<NYdlRows::TRow>(inputTable),
+            Structured<NYdlRows::TRow>(outputTable));
+
+        TVector<TNode> expected = {
+            TNode()("StringField", "raz mapped"),
+            TNode()("StringField", "dva mapped"),
+            TNode()("StringField", "tri mapped"),
+        };
+        auto actual = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
+    Y_UNIT_TEST(MultipleInputYdlMap)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable1 = TRichYPath(workingDir + "/input1");
+        auto inputTable2 = TRichYPath(workingDir + "/input2");
+        auto outputTable = TRichYPath(workingDir + "/output");
+
+        {
+            auto writer = client->CreateTableWriter<NYdlRows::TUrlRow>(inputTable1);
+            NYdlRows::TUrlRow row;
+            row.SetHost("https://www.google.com");
+            writer->AddRow(row);
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<NYdlRows::THostRow>(inputTable2);
+            NYdlRows::THostRow row;
+            row.SetHost("https://www.yandex.ru");
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        client->Map(
+            new TYdlMultipleInputMapper,
+            {Structured<NYdlRows::TUrlRow>(inputTable1), Structured<NYdlRows::THostRow>(inputTable2)},
+            Structured<NYdlRows::TRow>(outputTable));
+
+        client->Sort(outputTable, outputTable, "StringField");
+
+        TVector<TNode> expected = {
+            TNode()("StringField", "https://www.google.com"),
+            TNode()("StringField", "https://www.yandex.ru"),
+        };
+        auto actual = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
     Y_UNIT_TEST(JobPrefix)
     {
         TTestFixture fixture;
@@ -1404,9 +1590,10 @@ Y_UNIT_TEST_SUITE(Operations)
             TVector<TNode>{TNode()("key", "bar")("value", "foo")});
     }
 
-    Y_UNIT_TEST(MapReduceMapOutputProtobuf)
+    template<typename TUrlRow, typename TGoodUrl, typename THostRow, class TMapper, class TReducer>
+    void TestMapReduceMapOutput()
     {
-        TTestFixture fixture;
+       TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         {
@@ -1421,15 +1608,42 @@ Y_UNIT_TEST_SUITE(Operations)
 
         client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TUrlRow>(workingDir + "/input")
-                .HintMapOutput<TUrlRow>()
-                .AddMapOutput<TGoodUrl>(workingDir + "/map_output")
-                .AddOutput<THostRow>(workingDir + "/output")
-                .ReduceBy({"key"}),
-            new TSplitGoodUrlMapper,
-            new TCountHttpCodeTotalReducer);
+                .template AddInput<TUrlRow>(workingDir + "/input")
+                .template HintMapOutput<TUrlRow>()
+                .template AddMapOutput<TGoodUrl>(workingDir + "/map_output")
+                .template AddOutput<THostRow>(workingDir + "/output")
+                .ReduceBy({"Host"}),
+            new TMapper,
+            new TReducer);
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            ReadTable(client, workingDir + "/output"),
+            TVector<TNode>{TNode()("Host", "http://example.com")("HttpCodeTotal", 200)});
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            ReadTable(client, workingDir + "/map_output"),
+            TVector<TNode>{TNode()("Url", "http://example.com/index.php")});
     }
 
+    Y_UNIT_TEST(MapReduceMapOutputProtobuf)
+    {
+        TestMapReduceMapOutput<
+           TUrlRow,
+           TGoodUrl,
+           THostRow,
+           TSplitGoodUrlMapper,
+           TCountHttpCodeTotalReducer>();
+    }
+
+    Y_UNIT_TEST(MapReduceMapOutputYdl)
+    {
+        TestMapReduceMapOutput<
+            NYdlRows::TUrlRow,
+            NYdlRows::TGoodUrl,
+            NYdlRows::THostRow,
+            TSplitGoodUrlYdlMapper,
+            TCountHttpCodeTotalYdlReducer>();
+    }
 
     Y_UNIT_TEST(AddLocalFile)
     {
@@ -1883,6 +2097,11 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(RangeIndices_Protobuf)
     {
         TestRangeIndices<TEmbeddedMessage>(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(RangeIndices_Ydl)
+    {
+        TestRangeIndices<NYdlRows::TMessage>(ENodeReaderFormat::Yson);
     }
 
     Y_UNIT_TEST(SkiffForInputQuery)
@@ -2973,7 +3192,8 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_NO_EXCEPTION(thread->Join());
     }
 
-    void TestProtobufSchemaInference(bool setOperationOptions)
+    template<typename TRow, class TIdMapper, class TIdReducer>
+    void TestSchemaInference(bool setOperationOptions)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -2981,14 +3201,14 @@ Y_UNIT_TEST_SUITE(Operations)
 
         TOperationOptions options;
         if (setOperationOptions) {
-            options.InferOutputSchema(true);
+            options.InferOutputSchema(std::is_base_of_v<::google::protobuf::Message, TRow>);
         } else {
-            TConfig::Get()->InferTableSchema = true;
+            TConfig::Get()->InferTableSchema = std::is_base_of_v<::google::protobuf::Message, TRow>;
         }
 
         {
-            auto writer = client->CreateTableWriter<TUrlRow>(workingDir + "/input");
-            TUrlRow row;
+            auto writer = client->CreateTableWriter<TRow>(workingDir + "/input");
+            TRow row;
             row.SetHost("build01-myt.yandex.net");
             row.SetPath("~/.virmc");
             row.SetHttpCode(3213);
@@ -3009,20 +3229,20 @@ Y_UNIT_TEST_SUITE(Operations)
 
         client->Map(
             TMapOperationSpec()
-                .AddInput<TUrlRow>(workingDir + "/input")
-                .AddOutput<TUrlRow>(workingDir + "/map_output"),
-            new TUrlRowIdMapper,
+                .template AddInput<TRow>(workingDir + "/input")
+                .template AddOutput<TRow>(workingDir + "/map_output"),
+            new TIdMapper,
             options);
 
         checkSchema(client->Get(workingDir + "/map_output/@schema"));
 
         client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TUrlRow>(workingDir + "/input")
-                .AddOutput<TUrlRow>(workingDir + "/mapreduce_output")
+                .template AddInput<TRow>(workingDir + "/input")
+                .template AddOutput<TRow>(workingDir + "/mapreduce_output")
                 .ReduceBy("Host"),
-            new TUrlRowIdMapper,
-            new TUrlRowIdReducer,
+            new TIdMapper,
+            new TIdReducer,
             options);
 
         checkSchema(client->Get(workingDir + "/mapreduce_output/@schema"));
@@ -3030,12 +3250,17 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(ProtobufSchemaInference_Config)
     {
-        TestProtobufSchemaInference(false);
+        TestSchemaInference<TUrlRow, TUrlRowIdMapper, TUrlRowIdReducer>(false);
     }
 
     Y_UNIT_TEST(ProtobufSchemaInference_Options)
     {
-        TestProtobufSchemaInference(true);
+        TestSchemaInference<TUrlRow, TUrlRowIdMapper, TUrlRowIdReducer>(true);
+    }
+
+    Y_UNIT_TEST(YdlSchemaInference)
+    {
+        TestSchemaInference<NYdlRows::TUrlRow, TYdlUrlRowIdMapper, TYdlUrlRowIdReducer>(true);
     }
 
     Y_UNIT_TEST(OutputTableCounter)
@@ -3979,7 +4204,8 @@ public:
 REGISTER_REDUCER(TInferringIdReducer);
 
 // This mapper infers one additional column.
-class TInferringProtoMapper : public TUrlRowIdMapper
+template<class TBase>
+class TInferringMapper : public TBase
 {
 public:
     void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
@@ -3994,7 +4220,8 @@ public:
         builder.OutputSchema(0, schema);
     }
 };
-REGISTER_MAPPER(TInferringProtoMapper);
+REGISTER_MAPPER(TInferringMapper<TUrlRowIdMapper>);
+REGISTER_MAPPER(TInferringMapper<TYdlUrlRowIdMapper>);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4138,7 +4365,8 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
         }
     }
 
-    Y_UNIT_TEST(PrecedenceOverProtobufInference)
+    template<typename TRow, class TIdMapper, class TInferringMapper>
+    void TestPrecedenceOverInference()
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -4146,9 +4374,12 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
 
         TYPath input = workingDir + "/input";
         {
-            auto writer = client->CreateTableWriter<TUrlRow>(
-                WithSchema<TUrlRow>(TRichYPath(input)));
-            TUrlRow row;
+            auto path = TRichYPath(input);
+            if constexpr (std::is_base_of_v<::google::protobuf::Message, TRow>) {
+                path = WithSchema<TRow>(TRichYPath(input));
+            }
+            auto writer = client->CreateTableWriter<TRow>(path);
+            TRow row;
             row.SetHost("ya.ru");
             row.SetPath("search");
             row.SetHttpCode(404);
@@ -4156,18 +4387,18 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
             writer->Finish();
         }
 
-        TYPath outputForProtoInference = workingDir + "/output_for_proto_inference";
+        TYPath outputForInference = workingDir + "/output_for_inference";
         client->Map(
             TMapOperationSpec()
-                .AddInput<TUrlRow>(input)
-                .AddOutput<TUrlRow>(outputForProtoInference),
-            new TUrlRowIdMapper(),
+                .template AddInput<TRow>(input)
+                .template AddOutput<TRow>(outputForInference),
+            new TIdMapper(),
             TOperationOptions()
-                .InferOutputSchema(true));
+                .InferOutputSchema(std::is_base_of_v<::google::protobuf::Message, TRow>));
 
         {
             TTableSchema schema;
-            Deserialize(schema, client->Get(outputForProtoInference + "/@schema"));
+            Deserialize(schema, client->Get(outputForInference + "/@schema"));
 
             UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 3);
             for (const auto& [index, expectedName, expectedType] : TVector<std::tuple<int, TString, EValueType>>{
@@ -4183,11 +4414,11 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
         TYPath outputForBothInferences = workingDir + "/output_for_both_inferences";
         client->Map(
             TMapOperationSpec()
-                .AddInput<TUrlRow>(input)
-                .AddOutput<TUrlRow>(outputForBothInferences),
-            new TInferringProtoMapper(),
+                .template AddInput<TRow>(input)
+                .template AddOutput<TRow>(outputForBothInferences),
+            new TInferringMapper(),
             TOperationOptions()
-                .InferOutputSchema(true));
+                .InferOutputSchema(std::is_base_of_v<::google::protobuf::Message, TRow>));
 
         TTableSchema schema;
         Deserialize(schema, client->Get(outputForBothInferences + "/@schema"));
@@ -4202,6 +4433,16 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
             UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Name_, expectedName);
             UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Type_, expectedType);
         }
+    }
+
+    Y_UNIT_TEST(PrecedenceOverProtobufInference)
+    {
+        TestPrecedenceOverInference<TUrlRow, TUrlRowIdMapper, TInferringMapper<TUrlRowIdMapper>>();
+    }
+
+    Y_UNIT_TEST(PrecedenceOverYdlInference)
+    {
+        TestPrecedenceOverInference<NYdlRows::TUrlRow, TYdlUrlRowIdMapper, TInferringMapper<TYdlUrlRowIdMapper>>();
     }
 
 } // Y_UNIT_TEST_SUITE(JobSchemaInference)

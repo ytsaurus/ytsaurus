@@ -7,6 +7,8 @@
 
 #include <library/threading/future/future.h>
 
+#include <statbox/ti/ti.h>
+
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
 #include <util/generic/maybe.h>
@@ -27,9 +29,15 @@ struct TProtobufTableStructure
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
+struct TYdlTableStructure
+{
+    NTi::TType::TPtr Type = nullptr;
+};
+
 using TTableStructure = ::TVariant<
     TUnspecifiedTableStructure,
-    TProtobufTableStructure
+    TProtobufTableStructure,
+    TYdlTableStructure
 >;
 
 struct TStructuredTablePath
@@ -54,6 +62,11 @@ struct TStructuredTablePath
         , Description(TUnspecifiedTableStructure())
     { }
 
+    TStructuredTablePath(TRichYPath richYPath, NTi::TType::TPtr typePtr)
+        : RichYPath(std::move(richYPath))
+        , Description(TYdlTableStructure{std::move(typePtr)})
+    { }
+
     TRichYPath RichYPath;
     TTableStructure Description;
 };
@@ -72,6 +85,9 @@ struct TTNodeStructuredRowStream
 struct TTYaMRRowStructuredRowStream
 { };
 
+struct TYdlStructuredRowStream
+{ };
+
 struct TProtobufStructuredRowStream
 {
     // If descriptor is nullptr, then mapper works with multiple message types
@@ -81,6 +97,7 @@ struct TProtobufStructuredRowStream
 using TStructuredRowStreamDescription = ::TVariant<
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
+    TYdlStructuredRowStream,
     TProtobufStructuredRowStream
 >;
 

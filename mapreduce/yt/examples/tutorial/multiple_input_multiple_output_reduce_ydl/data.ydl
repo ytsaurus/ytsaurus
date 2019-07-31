@@ -1,0 +1,21 @@
+struct TUserRecord {
+    Uid: Int64;
+    Name: String;
+    Login: String;
+}
+
+struct TIsRobotRecord {
+    Uid: Int64;
+    IsRobot: Bool;
+}
+
+struct THumanRecord {
+    Name: String;
+    Email: String;
+    Login: String;
+}
+
+struct TRobotRecord {
+    Uid: Int64;
+    Login: String;
+}

@@ -2759,6 +2759,11 @@ void ResetUseClientProtobuf(const char* methodName)
     }
 }
 
+::TIntrusivePtr<IYdlReaderImpl> CreateJobYdlReader()
+{
+    return CreateJobNodeReader();
+}
+
 ::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
 {
     return new TNodeTableWriter(MakeHolder<TJobWriter>(outputTableCount));
@@ -2780,6 +2785,11 @@ void ResetUseClientProtobuf(const char* methodName)
             MakeHolder<TJobWriter>(outputTableCount),
             GetJobOutputDescriptors());
     }
+}
+
+::TIntrusivePtr<IYdlWriterImpl> CreateJobYdlWriter(size_t outputTableCount)
+{
+    return CreateJobNodeWriter(outputTableCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

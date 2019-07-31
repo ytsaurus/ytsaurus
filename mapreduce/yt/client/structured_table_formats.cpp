@@ -7,6 +7,10 @@
 
 #include <mapreduce/yt/library/table_schema/protobuf.h>
 
+#include <mapreduce/yt/interface/common.h>
+
+#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+
 #include <library/yson/writer.h>
 
 #include <memory>
@@ -77,6 +81,14 @@ struct TGetTableStructureDescriptionStringImpl {
             }
             out << " protobuf message";
             return res;
+        } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
+            TString name;
+            if (description.Type->AsStruct().GetName().Defined()) {
+                name = *description.Type->AsStruct().GetName();
+            } else {
+                name = "<unknown>";
+            }
+            return name + " YDL type";
         } else {
             static_assert(TDependentFalse<T>::value, "Unknown type");
         }
@@ -136,6 +148,9 @@ TVector<TRichYPath> GetPathList(
     auto maybeInferSchema = [&] (const TStructuredJobTable& table, ui32 tableIndex) -> TMaybe<TTableSchema> {
         if (jobSchemaInferenceResult && !jobSchemaInferenceResult->at(tableIndex).Empty()) {
             return jobSchemaInferenceResult->at(tableIndex);
+        }
+        if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
+            return CreateYdlTableSchema(Get<TYdlTableStructure>(table.Description).Type);
         }
         if (inferSchemaFromDescriptions) {
             return GetTableSchema(table.Description);
@@ -209,6 +224,8 @@ struct TFormatBuilder::TFormatSwitcher
             return &TFormatBuilder::CreateYamrFormat;
         } else if constexpr (std::is_same_v<T, TProtobufStructuredRowStream>) {
             return &TFormatBuilder::CreateProtobufFormat;
+        } else if constexpr (std::is_same_v<T, TYdlStructuredRowStream>) {
+            return &TFormatBuilder::CreateNodeYdlFormat;
         } else {
             static_assert(TDependentFalse<T>::value, "unknown stream description");
         }
@@ -339,6 +356,22 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
     }
 }
 
+std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
+    const IStructuredJob& /*job*/,
+    const EIODirection& /*direction*/,
+    const TStructuredJobTableList& /*structuredTableList*/,
+    const TMaybe<TFormatHints>& formatHints,
+    ENodeReaderFormat /*nodeReaderFormat*/,
+    bool /*allowFormatFromTableAttribute*/)
+{
+    auto format = TFormat::YsonBinary();
+    NYT::NDetail::ApplyFormatHints<TNode>(&format, formatHints);
+    return {
+        format,
+        Nothing()
+    };
+}
+
 std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     const IStructuredJob& job,
     const EIODirection& direction,
@@ -415,6 +448,8 @@ struct TGetTableSchemaImpl
                 return Nothing();
             }
             return CreateTableSchema(*description.Descriptor);
+        } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
+            return CreateYdlTableSchema(description.Type);
         } else {
             static_assert(TDependentFalse<T>::value, "unknown type");
         }

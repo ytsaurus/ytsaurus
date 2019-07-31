@@ -13,6 +13,9 @@
 
 #include <contrib/libs/protobuf/message.h>
 
+#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+#include <statbox/ti/ti.h>
+
 #include <initializer_list>
 #include <type_traits>
 
@@ -247,6 +250,15 @@ inline TTableSchema CreateTableSchema(
         *TProtoType::descriptor(),
         keyColumns,
         keepFieldsWithoutExtension);
+}
+
+TTableSchema CreateYdlTableSchema(NTi::TType::TPtr type);
+
+template<class TYdlType>
+inline TTableSchema CreateYdlTableSchema()
+{
+    static_assert(NYdl::TIsYdlGenerated<TYdlType>::value, "Expected YDL type");
+    return CreateYdlTableSchema(NYdl::TYdlTraits<TYdlType>::Reflect());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

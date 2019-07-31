@@ -1,0 +1,27 @@
+enum Direction {
+    north;
+    east;
+    south;
+    west;
+}
+
+struct TAllTypes {
+    DoubleField: Double;
+    FloatField: Float;
+
+    Int8Field: Int8;
+    Int16Field: Int16;
+    Int32Field: Int32;
+    Int64Field: Int64;
+
+    Uint8Field: Uint8;
+    Uint16Field: Uint16;
+    Uint32Field: Uint32;
+    Uint64Field: Uint64;
+
+    BoolField: Bool;
+
+    StringField: String;
+
+    DirectionField: Direction;
+}
