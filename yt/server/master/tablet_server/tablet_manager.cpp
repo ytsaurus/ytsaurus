@@ -1883,6 +1883,7 @@ public:
 
             {
                 TReqMountTablet req;
+                req.set_retained_timestamp(tablet->GetRetainedTimestamp());
                 req.set_path(table->GetMountPath());
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
