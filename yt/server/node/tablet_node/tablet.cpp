@@ -1088,6 +1088,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->HashTableSize = HashTableSize_;
     snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+    snapshot->EdenOverlappingStoreCount = EdenOverlappingStoreCount_;
     snapshot->CriticalPartitionCount = CriticalPartitionCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
     snapshot->FlushThrottler = FlushThrottler_;
@@ -1343,7 +1344,8 @@ void TTablet::UpdateOverlappingStoreCount()
             criticalPartitionCount++;
         }
     }
-    overlappingStoreCount += ComputeEdenOverlappingStoreCount();
+    auto edenOverlappingStoreCount = ComputeEdenOverlappingStoreCount();
+    overlappingStoreCount += edenOverlappingStoreCount;
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
         YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
@@ -1351,6 +1353,7 @@ void TTablet::UpdateOverlappingStoreCount()
     }
 
     OverlappingStoreCount_ = overlappingStoreCount;
+    EdenOverlappingStoreCount_ = edenOverlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
 
     if (ProfilerCounters_) {

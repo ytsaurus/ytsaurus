@@ -126,6 +126,7 @@ struct TTabletSnapshot
     NTabletClient::TTableReplicaId UpstreamReplicaId;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
+    int EdenOverlappingStoreCount = 0;
     int CriticalPartitionCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
 
@@ -332,6 +333,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, EdenOverlappingStoreCount);
     DEFINE_BYVAL_RO_PROPERTY(int, CriticalPartitionCount);
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
@@ -507,8 +509,8 @@ private:
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
-    int ComputeEdenOverlappingStoreCount() const;
     void UpdateOverlappingStoreCount();
+    int ComputeEdenOverlappingStoreCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

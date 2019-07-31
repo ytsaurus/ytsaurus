@@ -112,13 +112,7 @@ private:
             return;
         }
 
-        int currentMaxOverlappingStoreCount = 0;
-        for (const auto& partition : tablet->PartitionList()) {
-            currentMaxOverlappingStoreCount = std::max(
-                currentMaxOverlappingStoreCount,
-                int(partition->Stores().size()));
-        }
-        currentMaxOverlappingStoreCount += tablet->GetEden()->Stores().size();
+        int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
         for (const auto& partition : tablet->PartitionList()) {
@@ -176,7 +170,7 @@ private:
                 --firstPartitionIndex;
                 --lastPartitionIndex;
             }
-            int estimatedOverlappingStoreCount = tablet->GetEden()->Stores().size() +
+            int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
                 tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
                 tablet->PartitionList()[lastPartitionIndex]->Stores().size();
 
@@ -204,6 +198,16 @@ private:
             return false;
         }
 
+        auto Logger = BuildLogger(slot, partition);
+
+        if (!partition->GetTablet()->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+            partition->GetTablet()->GetEden()->GetState() == EPartitionState::Partitioning)
+        {
+            YT_LOG_DEBUG("Eden is partitioning, aborting partition split (EdenPartitionId: %v)",
+                partition->GetTablet()->GetEden()->GetId());
+            return false;
+        }
+
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
                 return false;
@@ -212,9 +216,7 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
 
-        YT_LOG_DEBUG("Partition is scheduled for split (PartitionId: %v, %v)",
-            partition->GetId(),
-            partition->GetTablet()->GetLoggingId());
+        YT_LOG_DEBUG("Partition is scheduled for split");
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -224,7 +226,8 @@ private:
                 splitFactor,
                 partition->GetTablet(),
                 partition->GetId(),
-                partition->GetTablet()->GetId());
+                partition->GetTablet()->GetId(),
+                Logger);
         return true;
     }
 
@@ -234,10 +237,9 @@ private:
         int splitFactor,
         TTablet* tablet,
         TPartitionId partitonId,
-        TTabletId tabletId)
+        TTabletId tabletId,
+        NLogging::TLogger Logger)
     {
-        auto Logger = BuildLogger(slot, partition);
-
         YT_LOG_DEBUG("Splitting partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
@@ -357,7 +359,8 @@ private:
                 partition,
                 partition->GetTablet(),
                 partition->GetId(),
-                partition->GetTablet()->GetId());
+                partition->GetTablet()->GetId(),
+                Logger);
         return true;
     }
 
@@ -367,10 +370,9 @@ private:
         TPartition* partition,
         TTablet* tablet,
         TPartitionId partitonId,
-        TTabletId tabletId)
+        TTabletId tabletId,
+        NLogging::TLogger Logger)
     {
-        auto Logger = BuildLogger(slot, partition);
-
         YT_LOG_DEBUG("Sampling partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
