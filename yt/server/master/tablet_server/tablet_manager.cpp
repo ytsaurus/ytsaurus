@@ -3968,9 +3968,9 @@ private:
     void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     {
         YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
-        YT_VERIFY(cunkOwner->GetType() == EObjectType::Table);
+        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
 
-        auto* table = static_cast<TTableNode*>(originatingChunkOwner);
+        auto* table = static_cast<TTableNode*>(chunkOwner);
         YT_VERIFY(!table->IsDynamic());
 
         SendTableStatisticsUpdates(table);
