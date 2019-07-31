@@ -30,7 +30,6 @@ def main_impl(yp_client, arguments):
     logging.info("Selected %d pods", len(filtered_pod_ids))
 
     tx_id = yp_client.start_transaction()
-    set_updates = []
     for pod_id in filtered_pod_ids:
         logging.info("Touching pod (id: %s)", pod_id)
     if not arguments.dry_run:
