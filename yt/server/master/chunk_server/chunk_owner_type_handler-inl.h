@@ -401,7 +401,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
         "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
-        "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
+        "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v, "
+        "BranchedSnashotStatistics: %v, BranchedDeltaStatistics: %v, "
+        "NewOriginatingSnashotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
         originatingNode->GetVersionedId(),
         originatingPrimaryMedium->GetName(),
         originatingNode->Replication(),
@@ -411,7 +413,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
         branchedPrimaryMedium->GetName(),
         branchedNode->Replication(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
-        originatingNode->GetUpdateMode());
+        originatingNode->GetUpdateMode(),
+        branchedNode->SnapshotStatistics(),
+        branchedNode->DeltaStatistics(),
+        originatingNode->SnapshotStatistics(),
+        originatingNode->DeltaStatistics());
 }
 
 template <class TChunkOwner>
