@@ -1522,6 +1522,17 @@ public:
         chunkManager->ClearChunkList(branchedChunkList);
     }
 
+    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
+    {
+        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
+
+        auto* table = static_cast<TTableNode*>(chunkOwner);
+        YT_VERIFY(!table->IsDynamic());
+
+        SendTableStatisticsUpdates(table);
+    }
+
     const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
     {
         auto it = AddressToCell_.find(address);
@@ -3963,17 +3974,6 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
-    }
-
-    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
-    {
-        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
-        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
-
-        auto* table = static_cast<TTableNode*>(chunkOwner);
-        YT_VERIFY(!table->IsDynamic());
-
-        SendTableStatisticsUpdates(table);
     }
 
     void SendTableStatisticsUpdates(TTableNode* table)
@@ -7037,7 +7037,7 @@ void TTabletManager::MergeTableNodes(TChunkOwnerBase* originatingChunkOwniner, T
     Impl_->MergeTableNodes(originatingChunkOwniner, branchedChunkOwner);
 }
 
-void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwniner)
+void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
 {
     Impl_->SendTableStatisticsUpdates(chunkOwner);
 }
