@@ -1647,10 +1647,10 @@ void TOperationControllerBase::SafeCommit()
 
     CustomCommit();
 
+    LockDynamicTables();
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
-    LockDynamicTables();
     CommitTransactions();
 
     CancelableContext->Cancel();
