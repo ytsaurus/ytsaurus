@@ -1674,7 +1674,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
             out="<append=true>//tmp/t_output",
             command="cat")
 
-        assert get("//tmp/t_output/@chunk_count") == 1
         assert read_table("//tmp/t_output") == rows
         assert select_rows("* from [//tmp/t_output]") == rows
 
@@ -1689,6 +1688,8 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert row["key"] == 1
         assert str(row["value"][0]) ==  "1"
+
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
 
 ##################################################################
 

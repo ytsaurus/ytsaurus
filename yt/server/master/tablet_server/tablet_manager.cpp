@@ -3965,6 +3965,17 @@ private:
             ->CommitAndLog(Logger);
     }
 
+    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
+    {
+        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(cunkOwner->GetType() == EObjectType::Table);
+
+        auto* table = static_cast<TTableNode*>(originatingChunkOwner);
+        YT_VERIFY(!table->IsDynamic());
+
+        SendTableStatisticsUpdates(table);
+    }
+
     void SendTableStatisticsUpdates(TTableNode* table)
     {
         YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
@@ -7024,6 +7035,11 @@ void TTabletManager::DestroyTabletAction(TTabletAction* action)
 void TTabletManager::MergeTableNodes(TChunkOwnerBase* originatingChunkOwniner, TChunkOwnerBase* branchedChunkOwner)
 {
     Impl_->MergeTableNodes(originatingChunkOwniner, branchedChunkOwner);
+}
+
+void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwniner)
+{
+    Impl_->SendTableStatisticsUpdates(chunkOwner);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)
