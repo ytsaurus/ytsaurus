@@ -465,6 +465,12 @@ TError ValidateTableSchemaCompatibility(
         } else if (outputColumn.Expression()) {
             return addAttributes(TError("Unexpected computed column %Qv in output schema",
                 outputColumn.Name()));
+        } else if (!inputSchema.GetStrict()) {
+            return addAttributes(TError("Column %Qv is present in output schema and is missing in nonstrict input schema",
+                    outputColumn.Name()));
+        } else if (outputColumn.Required()) {
+            return addAttributes(TError("Required column %Qv is present in output schema and is missing in input schema",
+                    outputColumn.Name()));
         }
     }
 
