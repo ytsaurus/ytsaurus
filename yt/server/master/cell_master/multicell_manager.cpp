@@ -91,6 +91,15 @@ public:
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
+        if (Bootstrap_->IsSecondaryMaster()) {
+            // NB: This causes a cyclic reference but we don't care.
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            hiveManager->SetIncomingMessageUpstreamSyncHandler(BIND(&TImpl::OnIncomingMessageUpstreamSync, MakeStrong(this)));
+
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            hydraManager->SubscribeUpstreamSync(BIND(&TImpl::OnHydraUpstreamSync, MakeStrong(this)));
+        }
     }
 
 
@@ -656,6 +665,56 @@ private:
         result.set_chunk_count(chunkManager->Chunks().GetSize());
         result.set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
         return result;
+    }
+
+
+    TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
+    {
+        // XXX(babenko): sync with a subset of cells only
+        std::vector<TFuture<void>> asyncResults;
+        auto addCell = [&] (TCellId cellId) {
+            if (cellId == Bootstrap_->GetCellId() || cellId == srcCellId) {
+                return;
+            }
+
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            auto* mailbox = hiveManager->FindMailbox(cellId);
+            if (!mailbox) {
+                return;
+            }
+
+            asyncResults.push_back(hiveManager->SyncWith(mailbox));
+        };
+
+        addCell(Bootstrap_->GetPrimaryCellId());
+        for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+            addCell(Bootstrap_->GetCellId(cellTag));
+        }
+
+        return Combine(asyncResults);
+    }
+
+    TFuture<void> OnHydraUpstreamSync()
+    {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        // XXX(babenko): sync with a subset of cells only
+        std::vector<TFuture<void>> asyncResults;
+        auto addCell = [&] (TCellId cellId) {
+            auto* mailbox = hiveManager->FindMailbox(cellId);
+            if (mailbox) {
+                asyncResults.push_back(hiveManager->SyncWith(mailbox));
+            }
+        };
+
+        addCell(Bootstrap_->GetPrimaryCellId());
+        for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+            if (cellTag != Bootstrap_->GetCellTag()) {
+                addCell(Bootstrap_->GetCellId(cellTag));
+            }
+        }
+
+        return Combine(std::move(asyncResults));
     }
 
 

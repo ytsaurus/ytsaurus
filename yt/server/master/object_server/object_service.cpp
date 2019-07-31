@@ -390,8 +390,7 @@ private:
     TUser* User_ = nullptr;
     bool NeedsSync_ = true;
     bool SuppressUpstreamSync_ = false;
-    // TODO(babenko): temporary workaround util transactions are fully sharded
-    std::vector<TCellTag> CellTagsToSyncWith_;
+    TCellTagList CellTagsToSyncWith_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
@@ -425,6 +424,9 @@ private:
 
         const auto& request = RpcContext_->Request();
         const auto& attachments = RpcContext_->RequestAttachments();
+
+        CellTagsToSyncWith_ = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
+
         Subrequests_.reset(new TSubrequest[TotalSubrequestCount_]);
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {

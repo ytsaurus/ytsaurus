@@ -251,8 +251,9 @@ public:
         return OrchidService_;
     }
 
+    DEFINE_SIGNAL(TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox)
 
 private:
     const TCellId SelfCellId_;
@@ -373,6 +374,7 @@ private:
             firstMessageId + messageCount - 1);
 
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstreamOnIncomingMessage(srcCellId);
 
         auto* nextTransientIncomingMessageId = GetNextTransientIncomingMessageIdPtr(srcCellId);
         if (*nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
@@ -411,6 +413,7 @@ private:
             messageCount);
 
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstreamOnIncomingMessage(srcCellId);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
             "MessageCount: %v)",
@@ -970,7 +973,7 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-        void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+    void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
@@ -1326,6 +1329,24 @@ private:
     }
 
 
+    void SyncWithUpstreamOnIncomingMessage(TCellId srcCellId)
+    {
+        auto handlers =  IncomingMessageUpstreamSync_.ToVector();
+        if (handlers.empty()) {
+            return;
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& handler : handlers) {
+            asyncResults.push_back(handler.Run(srcCellId));
+        }
+
+        auto result = WaitFor(Combine(asyncResults));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error synchronizing with upstream upon receiving message from cell %v",
+            srcCellId);
+    }
+
+
     // THydraServiceBase overrides.
     virtual IHydraManagerPtr GetHydraManager() override
     {
@@ -1446,6 +1467,7 @@ IYPathServicePtr THiveManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
+DELEGATE_SIGNAL(THiveManager, TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////

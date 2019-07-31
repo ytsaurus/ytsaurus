@@ -17,6 +17,9 @@ message TReqExecute
 
     // If |true|, the master is allowed to send a partial response to this request.
     optional bool allow_backoff = 3 [default = false];
+
+    // The master will sync with these master cells before processing the request.
+    repeated int32 cell_tags_to_sync_with = 4;
 }
 
 message TRspExecute
