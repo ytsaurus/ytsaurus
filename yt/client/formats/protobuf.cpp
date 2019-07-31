@@ -339,7 +339,11 @@ void ValidateSimpleType(
             }
             return;
         case EProtobufType::EnumString:
-            validateLogicalType(ESimpleLogicalValueType::String);
+            if (logicalType != ESimpleLogicalValueType::String &&
+                getLogicalTypeKind(logicalType) != EKind::SignedInteger)
+            {
+                throwMismatchError("logical type must be either signed integer type or string");
+            }
             return;
 
         case EProtobufType::Any:
