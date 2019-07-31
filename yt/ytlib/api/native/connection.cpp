@@ -255,6 +255,11 @@ public:
         return SecondaryMasterCellTags_;
     }
 
+    virtual TCellId GetMasterCellId(TCellTag cellTag) const override
+    {
+        return ReplaceCellTagInId(PrimaryMasterCellId_, cellTag);
+    }
+
     virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override

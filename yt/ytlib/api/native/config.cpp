@@ -153,6 +153,11 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(65536);
 
+    RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
+        .Default(TDuration::Seconds(15));
+    RegisterParameter("hive_sync_rpc_timeout", HiveSyncRpcTimeout)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
     });

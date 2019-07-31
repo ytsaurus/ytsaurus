@@ -3185,6 +3185,10 @@ private:
 
         const auto& simpleDstPath = dstPath.GetPath();
 
+        TChunkUploadSynchronizer uploadSynchronizer(
+            Connection_,
+            options.TransactionId);
+
         bool append = dstPath.GetAppend();
 
         try {
@@ -3422,7 +3426,7 @@ private:
                 // NB: Replicate upload transaction to each secondary cell since we have
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
-                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->UploadTransactionTimeout));
                 NRpc::GenerateMutationId(req);
                 SetTransactionId(req, options, true);
 
@@ -3433,12 +3437,14 @@ private:
 
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
                 dstExternalCellTag = rsp->cell_tag();
+
+                uploadSynchronizer.AfterBeginUpload(dstId, dstExternalCellTag);
             }
 
-            NTransactionClient::TTransactionAttachOptions attachOptions;
-            attachOptions.PingAncestors = options.PingAncestors;
-            attachOptions.AutoAbort = true;
-            auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, attachOptions);
+            auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
+                .AutoAbort = true,
+                .PingAncestors = options.PingAncestors
+            });
 
             // Flatten chunk ids.
             std::vector<TChunkId> flatChunkIds;
@@ -3502,6 +3508,8 @@ private:
                 dataStatistics = rsp.statistics();
             }
 
+            uploadSynchronizer.BeforeEndUpload();
+
             // End upload.
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
@@ -3536,6 +3544,10 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v",
                     simpleDstPath);
             }
+
+            uploadSynchronizer.AfterEndUpload();
+
+            uploadTransaction->Detach();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 simpleSrcPaths,

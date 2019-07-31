@@ -2081,6 +2081,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : tables) {
                 {
+                    // XXX(babenko): portals
                     auto req = TTableYPathProxy::EndUpload(table->GetObjectIdPath());
                     SetTransactionId(req, table->UploadTransactionId);
                     GenerateMutationId(req);
