@@ -372,9 +372,14 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
         }
 
-        if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
-            objectManager->UnrefObject(originatingChunkList);
-            objectManager->UnrefObject(branchedChunkList);
+        if (!isExternal) {
+            if (branchedChunkList->GetKind() == EChunkListKind::Static) {
+                objectManager->UnrefObject(originatingChunkList);
+                objectManager->UnrefObject(branchedChunkList);
+            } else {
+                const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
+                tabletManager->SendTableStatisticsUpdate(originatingNode);
+            }
         }
     }
 
