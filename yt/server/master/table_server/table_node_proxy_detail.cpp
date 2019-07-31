@@ -4,6 +4,8 @@
 #include "replicated_table_node.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/server/master/chunk_server/chunk.h>
@@ -994,6 +996,10 @@ void TTableNodeProxy::ValidateBeginUpload()
 
     if (table->IsDynamic() && !table->GetTableSchema().IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
+    }
+
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->EnableBulkInsert) {
+        THROW_ERROR_EXCEPTION("Bulk insert is disabled");
     }
 }
 
