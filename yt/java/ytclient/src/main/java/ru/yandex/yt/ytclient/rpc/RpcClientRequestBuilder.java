@@ -97,4 +97,9 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
     CompletableFuture<ResponseType> invoke();
 
     CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients);
+
+    RpcClientStreamControl startStream();
+
+    RpcClientStreamControl startStream(List<RpcClient> clients);
+
 }

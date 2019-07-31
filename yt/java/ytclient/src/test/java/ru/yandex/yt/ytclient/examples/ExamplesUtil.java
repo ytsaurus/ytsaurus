@@ -20,17 +20,22 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 public final class ExamplesUtil {
     // get this list from //sys/rpc_proxies
     // see YT-7594
     private static final String[] hosts = new String[] {
-        "n0026-sas.hahn.yt.yandex.net",
-        "n0028-sas.hahn.yt.yandex.net",
-        "n0045-sas.hahn.yt.yandex.net",
-        "n0046-sas.hahn.yt.yandex.net"
+            "man2-4291-d59.hume.yt.gencfg-c.yandex.net"
+//            "man2-3929-d7d.socrates.yt.gencfg-c.yandex.net"
+//            "man2-4179-c03.hume.yt.gencfg-c.yandex.net",
+//        "n0026-sas.hahn.yt.yandex.net",
+//        "n0028-sas.hahn.yt.yandex.net",
+//        "n0045-sas.hahn.yt.yandex.net",
+//        "n0046-sas.hahn.yt.yandex.net"
     };
     private static final int YT_PORT = 9013;
     private static final Random random = new Random();
@@ -84,16 +89,35 @@ public final class ExamplesUtil {
         return createRpcClient(connector, credentials, getRandomHost(), YT_PORT);
     }
 
+    static private boolean CompressionEnabled = false;
+
+    public static void enableCompression() {
+        CompressionEnabled = true;
+    }
+
     public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port) {
         RpcClient client = new DefaultRpcBusClient(
                 new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)));
-        return client.withTokenAuthentication(credentials);
+
+        if (CompressionEnabled) {
+            return client
+                    .withTokenAuthentication(credentials)
+                    .withCompression(new RpcCompression(Compression.Zlib_6));
+        } else {
+            return client.withTokenAuthentication(credentials);
+        }
     }
 
     public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port, String shortName) {
         RpcClient client = new DefaultRpcBusClient(
             new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), shortName);
-        return client.withTokenAuthentication(credentials);
+        if (CompressionEnabled) {
+            return client
+                    .withTokenAuthentication(credentials)
+                    .withCompression(new RpcCompression(Compression.Zlib_6));
+        } else {
+            return client.withTokenAuthentication(credentials);
+        }
     }
 
     public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials) {

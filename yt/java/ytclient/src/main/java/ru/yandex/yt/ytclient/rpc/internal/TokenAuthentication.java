@@ -9,6 +9,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 
 /**
@@ -38,8 +39,7 @@ public class TokenAuthentication implements RpcClient {
         client.close();
     }
 
-    @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+    private void patchHeader(RpcClientRequest request) {
         TRequestHeader.Builder header = request.header();
         if (!header.hasUser()) {
             header.setUser(credentials.getUser());
@@ -49,7 +49,18 @@ public class TokenAuthentication implements RpcClient {
                     .setToken(credentials.getToken())
                     .build());
         }
+    }
+
+    @Override
+    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+        patchHeader(request);
         return client.send(sender, request, handler);
+    }
+
+    @Override
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+        patchHeader(request);
+        return client.startStream(sender, request);
     }
 
     private static String getLocalAddress() {

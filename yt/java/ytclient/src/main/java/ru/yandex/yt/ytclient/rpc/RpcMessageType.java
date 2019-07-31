@@ -9,7 +9,7 @@ public enum RpcMessageType {
     RESPONSE(0x6f637072),
 
     STREAMING_PAYLOAD(0x70637072),
-    STREAMING_FEEDBACK(0x70637072);
+    STREAMING_FEEDBACK(0x66637072);
 
     private final int value;
 

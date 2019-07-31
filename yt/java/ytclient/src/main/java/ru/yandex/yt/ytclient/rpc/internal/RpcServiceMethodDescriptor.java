@@ -131,7 +131,7 @@ public class RpcServiceMethodDescriptor {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> RpcMessageParser<T> makeMessageParser(Class<T> messageClass) {
+    public static <T> RpcMessageParser<T> makeMessageParser(Class<T> messageClass) {
         try {
             MethodType methodType = MethodType.methodType(messageClass, CodedInputStream.class);
             MethodHandle handle = LOOKUP.findStatic(messageClass, "parseFrom", methodType);

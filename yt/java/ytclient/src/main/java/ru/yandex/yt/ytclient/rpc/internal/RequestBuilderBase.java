@@ -15,6 +15,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
@@ -93,6 +94,26 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             result.completeExceptionally(e);
         }
         return result;
+    }
+
+    @Override
+    public RpcClientStreamControl startStream()
+    {
+        if (clientOpt.isPresent()) {
+            return clientOpt.get().startStream(this);
+        } else {
+            throw new IllegalStateException("client is not set");
+        }
+    }
+
+    @Override
+    public RpcClientStreamControl startStream(List<RpcClient> clients)
+    {
+        if (!clients.isEmpty()) {
+            return clients.get(0).startStream(this);
+        } else {
+            throw new IllegalStateException("client is not set");
+        }
     }
 
     private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients)

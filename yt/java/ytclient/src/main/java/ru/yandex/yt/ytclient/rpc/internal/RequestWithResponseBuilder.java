@@ -18,17 +18,16 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> extends RequestBuilderBase<RequestType, RpcClientResponse<ResponseType>> {
     private final RpcMessageParser<ResponseType> parser;
 
-    public RequestWithResponseBuilder(
+    RequestWithResponseBuilder(
             Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body,
             RpcMessageParser<ResponseType> parser,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         super(clientOpt, header, body, options);
         this.parser = parser;
     }
 
     @Override
-    protected RpcClientResponseHandler createHandler(CompletableFuture<RpcClientResponse<ResponseType>> result) {
+    public RpcClientResponseHandler createHandler(CompletableFuture<RpcClientResponse<ResponseType>> result) {
         return new RpcClientResponseHandler() {
             @Override
             public void onAcknowledgement(RpcClient sender) {
