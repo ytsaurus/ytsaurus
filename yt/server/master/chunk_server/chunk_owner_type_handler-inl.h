@@ -260,6 +260,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
+    bool isDynamic = false;
 
     // For new chunks, there're two reasons to update chunk requisition.
     //
@@ -324,6 +325,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     branchedChunkList->AddOwningNode(originatingNode);
                     objectManager->UnrefObject(originatingChunkList);
                 }
+                isDynamic = true; 
             } else {
                 YT_VERIFY(branchedChunkList->Children().size() == 2);
                 deltaTree = branchedChunkList->Children()[1];
@@ -373,12 +375,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (!isExternal) {
-            if (branchedChunkList->GetKind() == EChunkListKind::Static) {
-                objectManager->UnrefObject(originatingChunkList);
-                objectManager->UnrefObject(branchedChunkList);
-            } else {
+            if (isDynamic) {
                 const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
                 tabletManager->SendTableStatisticsUpdates(originatingNode);
+            } else {
+                objectManager->UnrefObject(originatingChunkList);
+                objectManager->UnrefObject(branchedChunkList);
             }
         }
     }

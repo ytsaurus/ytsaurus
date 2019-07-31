@@ -1524,11 +1524,13 @@ public:
 
     void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     {
-        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
-        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
+        if (!chunkOwner->IsForeign()) {
+            return;
+        }
 
+        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
         auto* table = static_cast<TTableNode*>(chunkOwner);
-        YT_VERIFY(!table->IsDynamic());
+        YT_VERIFY(table->IsDynamic());
 
         SendTableStatisticsUpdates(table);
     }
