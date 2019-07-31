@@ -26,6 +26,7 @@ struct IConnection
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
+    virtual NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag cellTag) const = 0;
 
     virtual const NQueryClient::TEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;

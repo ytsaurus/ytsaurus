@@ -188,6 +188,30 @@ std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vect
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkUploadSynchronizer
+{
+public:
+    TChunkUploadSynchronizer(
+        NApi::NNative::IConnectionPtr connection,
+        NTransactionClient::TTransactionId transactionId);
+
+    void AfterBeginUpload(
+        NObjectClient::TObjectId objectId,
+        NObjectClient::TCellTag externalCellTag);
+    void BeforeEndUpload();
+    void AfterEndUpload();
+
+private:
+    const NApi::NNative::IConnectionPtr Connection_;
+    const NTransactionClient::TTransactionId TransactionId_;
+
+    std::vector<TFuture<void>> BeginUploadSyncs_;
+    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseOne_;
+    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseTwo_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRpcPtr>
 std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecksums = true);
 

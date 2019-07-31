@@ -111,6 +111,9 @@ public:
 
     ssize_t MaxRequestWindowSize;
 
+    TDuration UploadTransactionTimeout;
+    TDuration HiveSyncRpcTimeout;
+
     TConnectionConfig();
 };
 

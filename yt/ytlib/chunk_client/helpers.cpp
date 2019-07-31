@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/data_statistics.h>
@@ -14,6 +15,8 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+
+#include <yt/ytlib/hive/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -614,6 +617,81 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
         Persist(context, OmittedInaccessibleColumns);
         Persist(context, SecurityTags);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkUploadSynchronizer::TChunkUploadSynchronizer(
+    NApi::NNative::IConnectionPtr connection,
+    TTransactionId transactionId)
+    : Connection_(std::move(connection))
+    , TransactionId_(transactionId)
+{ }
+
+void TChunkUploadSynchronizer::AfterBeginUpload(
+    TObjectId objectId,
+    TCellTag externalCellTag)
+{
+    if (!TransactionId_) {
+        return;
+    }
+
+    if (CellTagFromId(objectId) == CellTagFromId(TransactionId_)) {
+        return;
+    }
+
+    if (CellTagFromId(objectId) == externalCellTag) {
+        return;
+    }
+
+    // Wait for external cell to receive BeginUpload.
+    DstCellIdToSrcCellIdsPhaseOne_[Connection_->GetMasterCellId(externalCellTag)].push_back(
+        Connection_->GetMasterCellId(CellTagFromId(objectId)));
+
+    // Wait for transaction cell to receive UnregisterExternalNestedTransaction.
+    DstCellIdToSrcCellIdsPhaseTwo_[Connection_->GetMasterCellId(CellTagFromId(TransactionId_))].push_back(
+        Connection_->GetMasterCellId(externalCellTag));
+
+    // Wait for transaction cell to receive RegisterExternalNestedTransaction.
+    BeginUploadSyncs_.push_back(SyncHiveCellWithOthers(
+        Connection_->GetCellDirectory(),
+        {Connection_->GetMasterCellId(CellTagFromId(objectId))},
+        Connection_->GetMasterCellId(CellTagFromId(TransactionId_)),
+        Connection_->GetConfig()->HiveSyncRpcTimeout));
+}
+
+void TChunkUploadSynchronizer::BeforeEndUpload()
+{
+    if (BeginUploadSyncs_.empty()) {
+        return;
+    }
+
+    WaitFor(Combine(BeginUploadSyncs_))
+        .ThrowOnError();
+}
+
+void TChunkUploadSynchronizer::AfterEndUpload()
+{
+    auto doSync = [&] (const auto& dstCellIdToSrcCellIds) {
+        if (dstCellIdToSrcCellIds.empty()) {
+            return;
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& [dstCellId, srcCellIds] : dstCellIdToSrcCellIds) {
+            asyncResults.push_back(SyncHiveCellWithOthers(
+                Connection_->GetCellDirectory(),
+                srcCellIds,
+                dstCellId,
+                Connection_->GetConfig()->HiveSyncRpcTimeout));
+        }
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+    };
+
+    doSync(DstCellIdToSrcCellIdsPhaseOne_);
+    doSync(DstCellIdToSrcCellIdsPhaseTwo_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

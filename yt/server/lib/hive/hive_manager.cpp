@@ -53,8 +53,6 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = HiveServerProfiler;
-static const auto HiveTracingService = TString("HiveManager");
-static const auto ClientHostAnnotation = TString("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +112,7 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));
@@ -423,6 +422,25 @@ private:
 
         CreateSendMessagesMutation(context)
             ->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
+    {
+        auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
+
+        context->SetRequestInfo("SrcCellIds: %v",
+            srcCellIds);
+
+        ValidatePeer(EPeerKind::Leader);
+
+        std::vector<TFuture<void>> asyncResults;
+        for (auto cellId : srcCellIds) {
+            auto* mailbox = GetMailboxOrThrow(cellId);
+            asyncResults.push_back(SyncWith(mailbox));
+        }
+
+        // XXX(babenko): batching
+        context->ReplyFrom(Combine(asyncResults));
     }
 
 

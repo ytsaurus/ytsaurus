@@ -149,16 +149,7 @@ DEFINE_REFCOUNTED_TYPE(TFileReaderConfig)
 class TFileWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NFileClient::TFileChunkWriterConfig
-{
-public:
-    TDuration UploadTransactionTimeout;
-
-    TFileWriterConfig()
-    {
-        RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
-            .Default(TDuration::Seconds(15));
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 
@@ -197,7 +188,6 @@ public:
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
-    TDuration UploadTransactionTimeout;
     TDuration PrerequisiteTransactionProbePeriod;
 
     bool IgnoreClosing; // for testing purposes only
@@ -241,8 +231,6 @@ public:
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
 
-        RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
-            .Default(TDuration::Seconds(15));
         RegisterParameter("prerequisite_transaction_probe_period", PrerequisiteTransactionProbePeriod)
             .Default(TDuration::Seconds(60));
 
