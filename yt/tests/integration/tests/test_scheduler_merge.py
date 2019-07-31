@@ -1346,6 +1346,59 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2"
             )
 
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_infer_output_yt_8661_first(self, mode):
+        schema = make_schema([{'name': 'x', 'type': 'uint64'}], strict=False)
+        schemaful_table = "//tmp/schemaful_table"
+        schemaless_table = "//tmp/schemaless_table"
+
+        create("table", schemaful_table, attributes={
+            "schema": schema,
+            "optimize_for": "scan",
+        })
+        create("table", schemaless_table)
+
+        write_table(schemaful_table, [{'x': i} for i in xrange(100)])
+        write_table(schemaless_table, [{'x': str(i)} for i in xrange(100, 200)])
+
+        # merging non-strict table with strict table
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_=[schemaless_table, schemaful_table],
+                out=schemaful_table,
+                spec={'schema_inference_mode': 'from_output'})
+
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_infer_output_yt_8661_second(self, mode):
+        schema1 = make_schema([
+            {"name": "x", "type": "uint64", "required": True},
+            {"name": "y", "type": "uint64", "required": True},
+        ])
+        schema2 = make_schema([
+            {"name": "y", "type": "uint64", "required": True},
+        ])
+        table1 = "//tmp/table1"
+        table2 = "//tmp/table2"
+
+        create("table", table1, attributes={
+            "schema": schema1,
+        })
+        create("table", table2, attributes={
+            "schema": schema2,
+        })
+
+        write_table(table1, [{'x': i, "y": i} for i in xrange(100)])
+        write_table(table2, [{"y": i} for i in xrange(100, 200)])
+
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_=[table2, table1],
+                out=table1,
+                spec={'schema_inference_mode': 'from_output'})
+
+
 
 ##################################################################
 
