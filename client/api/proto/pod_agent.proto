@@ -592,6 +592,15 @@ message TUtilityContainer {
 
     // Рабочая директория контейнера
     string cwd = 9;
+
+    // Путь относительно корня бокса до файла для stdout
+    string stdout_file = 10;
+
+    // Путь относительно корня бокса до файла для stderr
+    string stderr_file = 11;
+
+    // Ограничение на размер stdout и stderr
+    uint32 stdout_and_stderr_limit = 12;
 }
 
 // TODO
