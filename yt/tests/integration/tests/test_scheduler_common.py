@@ -68,7 +68,9 @@ def get_pool_metrics(metric_key, start_time):
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
     statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return get_statistics(statistics, "{0}.$.completed.map.{1}".format(key, aggr))
+    return sum(filter(lambda x: x is not None,
+                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+                       for job_state in ("completed", "failed", "aborted")]))
 
 ##################################################################
 
