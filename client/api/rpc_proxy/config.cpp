@@ -12,6 +12,10 @@ TConnectionConfig::TConnectionConfig()
         .Optional();
     RegisterParameter("addresses", Addresses)
         .Default();
+
+    RegisterParameter("proxy_host_order", ProxyHostOrder)
+        .Default();
+
     RegisterParameter("channel_pool_size", ChannelPoolSize)
         .Default(3);
     RegisterParameter("channel_pool_rebalance_interval", ChannelPoolRebalanceInterval)
