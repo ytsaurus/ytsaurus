@@ -206,6 +206,13 @@ private:
             return;
         }
 
+        if (attachments.empty()) {
+            YT_LOG_WARNING("Streaming payload without attachments; canceling request (RequestId: %v)",
+                requestId);
+            service->HandleRequestCancelation(requestId);
+            return;
+        }
+
         NCompression::ECodec codec;
         int intCodec = header.codec();
         if (!TryEnumCast(intCodec, &codec)) {

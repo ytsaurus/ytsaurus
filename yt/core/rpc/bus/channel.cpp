@@ -802,6 +802,13 @@ private:
                 return;
             }
 
+            if (attachments.empty()) {
+                responseHandler->HandleError(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Streaming payload without attachments"));
+                return;
+            }
+
             NCompression::ECodec codec;
             int intCodec = header.codec();
             if (!TryEnumCast(intCodec, &codec)) {
