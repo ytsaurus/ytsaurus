@@ -378,7 +378,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 objectManager->UnrefObject(branchedChunkList);
             } else {
                 const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
-                tabletManager->SendTableStatisticsUpdate(originatingNode);
+                tabletManager->SendTableStatisticsUpdates(originatingNode);
             }
         }
     }
