@@ -133,9 +133,9 @@ public:
         return Underlying_->Revive();
     }
 
-    virtual void Abort(EControllerState finalState) override
+    virtual void Terminate(EControllerState finalState) override
     {
-        Underlying_->Abort(finalState);
+        Underlying_->Terminate(finalState);
     }
 
     virtual void Cancel() override

@@ -45,7 +45,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReviveOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TerminateOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteOperationControllerCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationRuntimeParameters));
@@ -291,7 +291,7 @@ private:
         });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
+    DECLARE_RPC_SERVICE_METHOD(NProto, TerminateOperation)
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
@@ -313,7 +313,7 @@ private:
                 return;
             }
 
-            WaitFor(controllerAgent->AbortOperation(operation, controllerFinalState))
+            WaitFor(controllerAgent->TerminateOperation(operation, controllerFinalState))
                 .ThrowOnError();
 
             context->Reply();

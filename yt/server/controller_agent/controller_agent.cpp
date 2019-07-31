@@ -573,7 +573,7 @@ public:
     }
 
     // NB(eshcherbin): controllerFinalState should be either Aborted or Failed.
-    TFuture<void> AbortOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
+    TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
@@ -588,7 +588,7 @@ public:
         }
 
         controller->Cancel();
-        return BIND(&IOperationControllerSchedulerHost::Abort, controller, controllerFinalState)
+        return BIND(&IOperationControllerSchedulerHost::Terminate, controller, controllerFinalState)
             .AsyncVia(controller->GetInvoker())
             .Run();
     }
@@ -1647,9 +1647,9 @@ TFuture<void> TControllerAgent::CompleteOperation(const TOperationPtr& operation
     return Impl_->CompleteOperation(operation);
 }
 
-TFuture<void> TControllerAgent::AbortOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
+TFuture<void> TControllerAgent::TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
 {
-    return Impl_->AbortOperation(operation, controllerFinalState);
+    return Impl_->TerminateOperation(operation, controllerFinalState);
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
