@@ -8,6 +8,7 @@ import ru.yandex.bolts.function.Function;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
+import ru.yandex.yt.rpcproxy.TTableSchema;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
@@ -74,7 +75,6 @@ public class ApiServiceUtil {
         return builder.build();
     }
 
-
     public static <T> void deserializeUnversionedRowset(TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeObjectSerializer<T> serializer,
@@ -90,8 +90,7 @@ public class ApiServiceUtil {
         return deserializeUnversionedRowset(descriptor, attachments, UnversionedRowsetDeserializer::new).getRowset();
     }
 
-    private static <B extends WireRowsetDeserializer<T>, T> B deserializeUnversionedRowset(TRowsetDescriptor descriptor,
-            List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
+    public static void validateRowsetDescriptor(TRowsetDescriptor descriptor)
     {
         if (descriptor.getWireFormatVersion() != WireProtocol.WIRE_FORMAT_VERSION) {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
@@ -101,6 +100,12 @@ public class ApiServiceUtil {
             throw new IllegalStateException(
                     "Cannot deserialize " + descriptor.getRowsetKind() + ": UNVERSIONED is required");
         }
+    }
+
+    private static <B extends WireRowsetDeserializer<T>, T> B deserializeUnversionedRowset(TRowsetDescriptor descriptor,
+            List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
+    {
+        validateRowsetDescriptor(descriptor);
         final B deserializer = deserializerFunction.apply(deserializeRowsetSchema(descriptor));
         return new WireProtocolReader(attachments).readUnversionedRowset(deserializer);
     }
