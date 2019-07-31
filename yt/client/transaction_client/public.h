@@ -30,7 +30,8 @@ DEFINE_ENUM(ECommitOrdering,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((NoSuchTransaction)  (11000))
+    ((NoSuchTransaction)                (11000))
+    ((NestedExternalTransactionExists)  (11001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

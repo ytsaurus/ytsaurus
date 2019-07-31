@@ -146,6 +146,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterExternalNestedTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterExternalNestedTransaction, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -207,7 +209,7 @@ public:
 
         if (parent) {
             transaction->SetParent(parent);
-            YT_VERIFY(parent->NestedTransactions().insert(transaction).second);
+            YT_VERIFY(parent->NestedNativeTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
         } else {
             YT_VERIFY(TopmostTransactions_.insert(transaction).second);
@@ -315,17 +317,18 @@ public:
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(
-            transaction->NestedTransactions().begin(),
-            transaction->NestedTransactions().end());
-        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
-        for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+        SmallVector<TTransaction*, 16> nestedNativeTransactions(
+            transaction->NestedNativeTransactions().begin(),
+            transaction->NestedNativeTransactions().end());
+        std::sort(nestedNativeTransactions.begin(), nestedNativeTransactions.end(), TObjectRefComparer::Compare);
+        for (auto* nestedTransaction : nestedNativeTransactions) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested native transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
         }
-        YT_VERIFY(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedNativeTransactions().empty());
+        YT_VERIFY(transaction->NestedExternalTransactionIds().empty());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -360,6 +363,19 @@ public:
 
         SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
 
+        if (parent && transaction->GetUnregisterFromParentOnCommit()) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "Unregistering transaction from parent on commit "
+                "(TransactionId: %v, ParentTransactionId: %v)",
+                transactionId,
+                parent->GetId());
+            NProto::TReqUnregisterExternalNestedTransaction request;
+            ToProto(request.mutable_transaction_id(), parent->GetId());
+            ToProto(request.mutable_nested_transaction_id(), transactionId);
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+        }
+
         FinishTransaction(transaction);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
@@ -391,24 +407,49 @@ public:
         }
 
         auto transactionId = transaction->GetId();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(
-            transaction->NestedTransactions().begin(),
-            transaction->NestedTransactions().end());
-        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
-        for (auto* nestedTransaction : nestedTransactions) {
+        SmallVector<TTransaction*, 16> nestedNativeTransactions(
+            transaction->NestedNativeTransactions().begin(),
+            transaction->NestedNativeTransactions().end());
+        std::sort(nestedNativeTransactions.begin(), nestedNativeTransactions.end(), TObjectRefComparer::Compare);
+        for (auto* nestedTransaction : nestedNativeTransactions) {
             AbortTransaction(nestedTransaction, force, false);
         }
-        YT_VERIFY(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedNativeTransactions().empty());
+
+        SmallVector<TTransactionId, 16> nestedExternalTransactionIds(
+            transaction->NestedExternalTransactionIds().begin(),
+            transaction->NestedExternalTransactionIds().end());
+        std::sort(nestedExternalTransactionIds.begin(), nestedExternalTransactionIds.end());
+        for (auto nestedTransactionId : nestedExternalTransactionIds) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested external transaction (TransactionId: %v)",
+                nestedTransactionId);
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), nestedTransactionId);
+            multicellManager->PostToMaster(request, CellTagFromId(nestedTransactionId));
+        }
+        transaction->NestedExternalTransactionIds().clear();
+
+        auto* parent = transaction->GetParent();
+        if (parent && transaction->GetUnregisterFromParentOnAbort()) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "Unregistering transaction from parent on abort "
+                "(TransactionId: %v, ParentTransactionId: %v)",
+                transactionId,
+                parent->GetId());
+            NProto::TReqUnregisterExternalNestedTransaction request;
+            ToProto(request.mutable_transaction_id(), parent->GetId());
+            ToProto(request.mutable_nested_transaction_id(), transactionId);
+            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -439,6 +480,22 @@ public:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
+    }
+
+    void RegisterTransactionAtParent(TTransaction* transaction)
+    {
+        auto* parent = transaction->GetParent();
+        YT_ASSERT(parent && parent->IsForeign());
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Registering transaction at parent (TransactionId: %v, ParentTransactionId: %v)",
+            transaction->GetId(),
+            parent->GetId());
+
+        NTransactionServer::NProto::TReqRegisterExternalNestedTransaction request;
+        ToProto(request.mutable_transaction_id(), parent->GetId());
+        ToProto(request.mutable_nested_transaction_id(), transaction->GetId());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
@@ -563,6 +620,14 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+
+        if (!transaction->NestedExternalTransactionIds().empty()) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::NestedExternalTransactionExists,
+                "Cannot commit transaction %v since it has nested external transaction(s) %v",
+                transactionId,
+                transaction->NestedExternalTransactionIds());
+        }
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         // This check applies not only to #transaction itself but also to all of its ancestors.
@@ -816,8 +881,6 @@ private:
         }
     }
 
-
-    // Primary-secondary replication only.
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -845,6 +908,75 @@ private:
         AbortTransaction(transactionId, force);
     }
 
+    void HydraRegisterExternalNestedTransaction(NProto::TReqRegisterExternalNestedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nestedTransactionId = FromProto<TTransactionId>(request->nested_transaction_id());
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "Requested to register an external nested transaction for a non-existing parent transaction; ignored "
+                "(TransactionId: %v, NestedTransactionId: %v)",
+                transactionId,
+                nestedTransactionId);
+            return;
+        }
+
+        auto* currentTransaction = transaction;
+        while (currentTransaction) {
+            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
+                YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                    "Requested to register an external nested transaction for a non-active transaction; ignored "
+                    "(TransactionId: %v, State: %v, NestedTransactionId: %v)",
+                    currentTransaction->GetId(),
+                    currentTransaction->GetPersistentState(),
+                    nestedTransactionId);
+                return;
+            }
+            currentTransaction = currentTransaction->GetParent();
+        }
+
+        if (transaction->NestedExternalTransactionIds().insert(nestedTransactionId).second) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "External nested transaction registered (TransactionId: %v, NestedTransactionId: %v)",
+                transactionId,
+                nestedTransactionId);
+        } else {
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
+                "Unexpected error: external nested transaction re-registered (TransactionId: %v, NestedTransactionId: %v)",
+                transaction,
+                nestedTransactionId);
+        }
+    }
+
+    void HydraUnregisterExternalNestedTransaction(NProto::TReqUnregisterExternalNestedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nestedTransactionId = FromProto<TTransactionId>(request->nested_transaction_id());
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "Requested to unregister an external nested transaction for a non-existing parent transaction; ignored "
+                "(TransactionId: %v, NestedTransactionId: %v)",
+                transactionId,
+                nestedTransactionId);
+            return;
+        }
+
+        if (transaction->NestedExternalTransactionIds().erase(nestedTransactionId)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "External nested transaction unregistered (TransactionId: %v, NestedTransactionId: %v)",
+                transactionId,
+                nestedTransactionId);
+        } else {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "Requested to unregister a non-existing external nested transaction; ignored "
+                "(TransactionId: %v, NestedTransactionId: %v)",
+                transactionId,
+                nestedTransactionId);
+        }
+    }
+
 // COMPAT(shakurov)
 public:
     void FinishTransaction(TTransaction* transaction)
@@ -867,7 +999,7 @@ public:
 
         auto* parent = transaction->GetParent();
         if (parent) {
-            YT_VERIFY(parent->NestedTransactions().erase(transaction) == 1);
+            YT_VERIFY(parent->NestedNativeTransactions().erase(transaction) == 1);
             objectManager->UnrefObject(transaction);
             transaction->SetParent(nullptr);
         } else {
@@ -1101,6 +1233,11 @@ void TTransactionManager::AbortTransaction(
     bool force)
 {
     Impl_->AbortTransaction(transaction, force);
+}
+
+void TTransactionManager::RegisterTransactionAtParent(TTransaction* transaction)
+{
+    Impl_->RegisterTransactionAtParent(transaction);
 }
 
 // COMPAT(shakurov)

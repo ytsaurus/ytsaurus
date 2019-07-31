@@ -1110,7 +1110,7 @@ public:
         YT_VERIFY(transaction);
 
         auto result = ELockMode::Snapshot;
-        for (auto* nestedTransaction : transaction->NestedTransactions()) {
+        for (auto* nestedTransaction : transaction->NestedNativeTransactions()) {
             auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
             if (!versionedNode) {
                 continue;
@@ -1934,7 +1934,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_VERIFY(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedNativeTransactions().empty());
+        YT_VERIFY(transaction->NestedExternalTransactionIds().empty());
 
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
