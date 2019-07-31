@@ -146,11 +146,17 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait(lambda: "test_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
-        stats = get(scheduler_orchid_default_pool_tree_path())
-        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
-        for resource, limit in resource_limits.iteritems():
-            resource_name = "user_memory" if resource == "memory" else resource
-            assert are_almost_equal(pool_resource_limits[resource_name], limit)
+        # TODO(renadeen): make better, I know you can
+        def check_limits():
+            stats = get(scheduler_orchid_default_pool_tree_path())
+            pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+            for resource, limit in resource_limits.iteritems():
+                resource_name = "user_memory" if resource == "memory" else resource
+                if not are_almost_equal(pool_resource_limits[resource_name], limit):
+                    return False
+            return True
+
+        wait(check_limits)
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
