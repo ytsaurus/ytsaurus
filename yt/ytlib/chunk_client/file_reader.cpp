@@ -190,6 +190,7 @@ std::vector<TBlock> TFileReader::OnDataBlock(
             if (checksum != blockInfo.checksum()) {
                 DumpBrokenBlock(blockIndex, blockInfo, block);
                 THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
                     "Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
                     blockIndex,
                     FileName_,
@@ -302,7 +303,9 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
             break;
 
         default:
-            THROW_ERROR_EXCEPTION("Incorrect header signature %llx in chunk meta file %v",
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::IncorrectChunkFileHeaderSignature,
+                "Incorrect header signature %llx in chunk meta file %v",
                 metaHeaderBase->Signature,
                 FileName_);
     }
@@ -310,7 +313,9 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
     auto checksum = GetChecksum(metaBlob);
     if (checksum != metaHeader.Checksum) {
         DumpBrokenMeta(metaBlob);
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
+            "Incorrect checksum in chunk meta file %v: expected %v, actual %v",
             metaFileName,
             metaHeader.Checksum,
             checksum)
