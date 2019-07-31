@@ -89,6 +89,11 @@ message TReqUnfreezeTablet
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
+message TReqReportTabletLocked
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
 message TReqLockTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;

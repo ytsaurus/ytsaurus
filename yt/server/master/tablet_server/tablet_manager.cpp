@@ -3250,18 +3250,18 @@ public:
             if (auto it = tablet->UnconfirmedDynamicTableLocks().find(transactionId)) {
                 tablet->UnconfirmedDynamicTableLocks().erase(it);
                 table->ConfirmDynamicTableLock(transactionId);
-            }
 
-            int pendingTabletCount = 0;
-            if (auto it = table->DynamicTableLocks().find(transactionId)) {
-                pendingTabletCount = it->second.PendingTabletCount;
-            }
+                int pendingTabletCount = 0;
+                if (auto it = table->DynamicTableLocks().find(transactionId)) {
+                    pendingTabletCount = it->second.PendingTabletCount;
+                }
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirmed tablet locks (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
-                tabletId,
-                table->GetId(),
-                transactionId,
-                pendingTabletCount);
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirmed tablet lock (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
+                    tabletId,
+                    table->GetId(),
+                    transactionId,
+                    pendingTabletCount);
+            }
         }
     }
 
