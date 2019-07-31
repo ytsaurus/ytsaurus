@@ -1309,7 +1309,7 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     }
 }
 
-int TTablet::CountEdenOverlappingStoreCount() const
+int TTablet::ComputeEdenOverlappingStoreCount() const
 {
     std::map<TOwningKey, int> keyMap;
     for (const auto& store : Eden_->Stores()) {
@@ -1342,7 +1342,7 @@ void TTablet::UpdateOverlappingStoreCount()
             criticalPartitionCount++;
         }
     }
-    overlappingStoreCount += CountEdenOverlappingStoreCount();
+    overlappingStoreCount += ComputeEdenOverlappingStoreCount();
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
         YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
