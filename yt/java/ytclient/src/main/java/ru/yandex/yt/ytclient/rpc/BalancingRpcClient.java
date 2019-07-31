@@ -202,6 +202,11 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     @Override
+    public RpcClientStreamControl startStream(RpcClient unused, RpcClientRequest request) {
+        throw new IllegalArgumentException();
+    }
+
+    @Override
     public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
         List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
 

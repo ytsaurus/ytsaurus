@@ -29,6 +29,7 @@ import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
@@ -155,6 +156,13 @@ public class RpcUtil {
 
     public static List<byte[]> createCancelMessage(TRequestCancelationHeader header) {
         return Collections.singletonList(createMessageHeader(RpcMessageType.CANCEL, header));
+    }
+
+    public static List<byte[]> createEofMessage(TStreamingPayloadHeader header) {
+        List<byte[]> message = new ArrayList<>(2);
+        message.add(createMessageHeader(RpcMessageType.STREAMING_PAYLOAD, header));
+        message.add(null);
+        return message;
     }
 
     public static List<ByteBuf> createResponseMessage(TResponseHeader header, MessageLite body,

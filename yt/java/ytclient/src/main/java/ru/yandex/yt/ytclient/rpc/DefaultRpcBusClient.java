@@ -6,6 +6,8 @@ import java.nio.ByteOrder;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -15,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -24,11 +27,12 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.internal.NotImplementedException;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
 import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
+import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusFactory;
@@ -92,7 +96,7 @@ public class DefaultRpcBusClient implements RpcClient {
      */
     private class Session implements BusListener {
         private final Bus bus;
-        private final ConcurrentHashMap<GUID, Request> activeRequests = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<GUID, RequestBase> activeRequests = new ConcurrentHashMap<>();
         private final String sessionName = String.format("Session(%s@%s)", name, Integer.toHexString(hashCode()));
 
         public Session() {
@@ -126,8 +130,9 @@ public class DefaultRpcBusClient implements RpcClient {
             } catch (RuntimeException e) {
                 throw new IllegalStateException("Failed to read message type", e);
             }
+
             switch (type) {
-                case RESPONSE:
+                case RESPONSE: {
                     TResponseHeader header;
                     try {
                         header = TResponseHeader
@@ -135,24 +140,72 @@ public class DefaultRpcBusClient implements RpcClient {
                     } catch (RuntimeException | IOException e) {
                         throw new IllegalStateException("Failed to parse message header", e);
                     }
+
                     GUID requestId = RpcUtil.fromProto(header.getRequestId());
-                    Request request = activeRequests.get(requestId);
+
+                    RequestBase request = activeRequests.get(requestId);
                     if (request == null) {
                         // Может произойти, если мы отменили запрос, но успели получить ответ
                         logger.debug("Received response to an unknown request {}", requestId);
                         return;
                     }
+
                     if (header.hasError() && header.getError().getCode() != 0) {
                         request.error(new RpcError(header.getError()));
                         return;
                     }
 
                     request.response(header, message.subList(1, message.size()));
+
                     break;
+                }
 
-                case STREAMING_PAYLOAD:
-                    throw new NotImplementedException("Streaming is not implemented yet");
+                case STREAMING_PAYLOAD: {
 
+                    TStreamingPayloadHeader header;
+                    try {
+                        header = TStreamingPayloadHeader
+                                .parseFrom(CodedInputStream.newInstance(headerPart, 4, headerPart.length - 4));
+                    } catch (RuntimeException | IOException e) {
+                        throw new IllegalStateException("Failed to parse message header", e);
+                    }
+
+                    GUID requestId = RpcUtil.fromProto(header.getRequestId());
+
+                    RequestBase request = activeRequests.get(requestId);
+                    if (request == null) {
+                        // Может произойти, если мы отменили запрос, но успели получить ответ
+                        logger.debug("Received response to an unknown request {}", requestId);
+                        return;
+                    }
+
+                    request.streamingPayload(header, message.subList(1, message.size()));
+
+                    break;
+                }
+
+                case STREAMING_FEEDBACK: {
+                    TStreamingFeedbackHeader header;
+                    try {
+                        header = TStreamingFeedbackHeader
+                                .parseFrom(CodedInputStream.newInstance(headerPart, 4, headerPart.length - 4));
+                    } catch (RuntimeException | IOException e) {
+                        throw new IllegalStateException("Failed to parse message header", e);
+                    }
+
+                    GUID requestId = RpcUtil.fromProto(header.getRequestId());
+
+                    RequestBase request = activeRequests.get(requestId);
+                    if (request == null) {
+                        // Может произойти, если мы отменили запрос, но успели получить ответ
+                        logger.debug("Received response to an unknown request {}", requestId);
+                        return;
+                    }
+
+                    request.streamingFeedback(header, message.subList(1, message.size()));
+
+                    break;
+                }
                 default:
                     throw new IllegalStateException("Unexpected " + type + " message in a client connection");
             }
@@ -174,9 +227,9 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         private void failPending(Throwable cause) {
-            Iterator<Request> it = activeRequests.values().iterator();
+            Iterator<RequestBase> it = activeRequests.values().iterator();
             while (it.hasNext()) {
-                Request request = it.next();
+                RequestBase request = it.next();
                 try {
                     request.error(cause);
                 } catch (Throwable e) {
@@ -186,11 +239,12 @@ public class DefaultRpcBusClient implements RpcClient {
             }
         }
 
-        public void register(Request request) {
+        public void register(RequestBase request) {
             activeRequests.put(request.requestId, request);
         }
 
-        public boolean unregister(Request request) {
+        public boolean unregister(RequestBase request) {
+            logger.debug("Unregister request {}", request.requestId);
             return activeRequests.remove(request.requestId, request);
         }
 
@@ -210,27 +264,45 @@ public class DefaultRpcBusClient implements RpcClient {
         FINISHED,
     }
 
-    private static class Request implements RpcClientRequestControl {
-        private final Lock lock = new ReentrantLock();
-        private RequestState state = RequestState.INITIALIZING;
-        private final RpcClient sender;
-        private final Session session;
-        private final RpcClientRequest request;
-        private final RpcClientResponseHandler handler;
-        private final GUID requestId;
-        private Instant started;
-        private final Statistics stat;
+    private static abstract class RequestBase implements RpcClientRequestControl {
+        protected final Lock lock = new ReentrantLock();
+        protected RequestState state = RequestState.INITIALIZING;
+        protected final RpcClient sender;
+        protected final Session session;
+        protected final RpcClientRequest request;
+        protected final GUID requestId;
+        protected Instant started;
+        protected final Statistics stat;
 
         // Подписка на событие с таймаутом, если он есть
-        private ScheduledFuture<?> timeoutFuture;
+        protected ScheduledFuture<?> timeoutFuture;
 
-        public Request(RpcClient sender, Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
+        RequestBase(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
             this.sender = Objects.requireNonNull(sender);
             this.session = Objects.requireNonNull(session);
             this.request = Objects.requireNonNull(request);
-            this.handler = Objects.requireNonNull(handler);
             this.requestId = request.getRequestId();
             this.stat = stat;
+        }
+
+        public void response(TResponseHeader header, List<byte[]> attachments) {
+            throw new IllegalArgumentException();
+        }
+
+        public void streamingPayload(TStreamingPayloadHeader header, List<byte[]> attachments) {
+            throw new IllegalArgumentException();
+        }
+
+        public void streamingFeedback(TStreamingFeedbackHeader header, List<byte[]> attachments) {
+            throw new IllegalArgumentException();
+        }
+
+        void handleError(Throwable cause) {
+            throw new IllegalArgumentException();
+        }
+
+        void handleAcknowledgement(RpcClient sender) {
+            throw new IllegalArgumentException();
         }
 
         /**
@@ -292,7 +364,7 @@ public class DefaultRpcBusClient implements RpcClient {
         /**
          * Вызывается для перехода в FINISHED состояние, только под локом
          */
-        private void finishLocked() {
+        protected void finishLocked() {
             state = RequestState.FINISHED;
             if (timeoutFuture != null) {
                 timeoutFuture.cancel(false);
@@ -337,7 +409,7 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             try {
                 // Вызываем обработчик onError, сигнализируя завершение обработки
-                handler.onError(new CancellationException());
+                handleError(new CancellationException());
             } finally {
                 if (session.unregister(this)) {
                     // Отправляем сообщение на сервер, но только если пользователь ещё не успел
@@ -363,7 +435,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handler.onAcknowledgement(sender);
+                handleAcknowledgement(sender);
             } catch (Throwable e) {
                 error(e);
             }
@@ -385,15 +457,35 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handler.onError(cause);
+                handleError(cause);
             } finally {
                 session.unregister(this);
             }
+        }
+    }
+
+    private static class Request extends RequestBase {
+        protected final RpcClientResponseHandler handler;
+
+        public Request(RpcClient sender, Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
+            super(sender, session, request, stat);
+
+            this.handler = Objects.requireNonNull(handler);
+        }
+
+        public void handleError(Throwable error) {
+            handler.onError(error);
+        }
+
+        @Override
+        public void handleAcknowledgement(RpcClient sender) {
+            handler.onAcknowledgement(sender);
         }
 
         /**
          * Вызывается при получении ответа за запрос
          */
+        @Override
         public void response(TResponseHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
@@ -424,6 +516,247 @@ public class DefaultRpcBusClient implements RpcClient {
             } finally {
                 session.unregister(this);
             }
+        }
+    }
+
+    private static class StashedMessage {
+        TStreamingFeedbackHeader feedbackHeader = null;
+        TStreamingPayloadHeader payloadHeader = null;
+        TResponseHeader responseHeader = null;
+        List<byte[]> attachments = null;
+        Throwable cause = null;
+    }
+
+    private static class Stash implements RpcStreamConsumer {
+        ArrayList<StashedMessage> stashedMessages = new ArrayList<>();
+
+        @Override
+        public void onFeedback(RpcClient unused, TStreamingFeedbackHeader header, List<byte[]> attachments) {
+            StashedMessage message = new StashedMessage();
+            message.feedbackHeader = header;
+            message.attachments = attachments;
+            stashedMessages.add(message);
+        }
+
+        @Override
+        public void onPayload(RpcClient unused, TStreamingPayloadHeader header, List<byte[]> attachments) {
+            StashedMessage message = new StashedMessage();
+            message.payloadHeader = header;
+            message.attachments = attachments;
+            stashedMessages.add(message);
+        }
+
+        @Override
+        public void onResponse(RpcClient unused, TResponseHeader header, List<byte[]> attachments) {
+            StashedMessage message = new StashedMessage();
+            message.responseHeader = header;
+            message.attachments = attachments;
+            stashedMessages.add(message);
+        }
+
+        @Override
+        public void onError(RpcClient unused, Throwable cause) {
+            StashedMessage message = new StashedMessage();
+            message.cause = cause;
+            stashedMessages.add(message);
+        }
+
+        void unstash(RpcClient sender, RpcStreamConsumer consumer) {
+            for (StashedMessage message : stashedMessages) {
+                if (message.feedbackHeader != null) {
+                    consumer.onFeedback(sender, message.feedbackHeader, message.attachments);
+                } else if (message.payloadHeader != null) {
+                    consumer.onPayload(sender, message.payloadHeader, message.attachments);
+                } else if (message.responseHeader != null) {
+                    consumer.onResponse(sender, message.responseHeader, message.attachments);
+                } else if (message.cause != null) {
+                    consumer.onError(sender, message.cause);
+                }
+            }
+        }
+    }
+
+    private static class StreamingRequest extends RequestBase implements RpcClientStreamControl {
+        RpcStreamConsumer consumer = new Stash();
+        final AtomicInteger sequenceNumber = new AtomicInteger(0);
+        final Duration timeout;
+
+        StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
+            super(sender, session, request, stat);
+            this.timeout = request.getTimeout();
+            this.resetTimeout();
+            request.header().clearTimeout();
+        }
+
+        @Override
+        void handleAcknowledgement(RpcClient sender) {
+            logger.debug("Ack {}", requestId);
+        }
+
+        @Override
+        void handleError(Throwable cause) {
+            lock.lock();
+            try {
+                consumer.onError(sender, cause);
+            } catch (Throwable e) {
+                logger.error("Error", e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private void resetTimeout() {
+            if (timeout != null) {
+                if (timeoutFuture != null) {
+                    timeoutFuture.cancel(false);
+                }
+                timeoutFuture = session.eventLoop()
+                        .schedule(this::handleTimeout, timeout.toNanos(), TimeUnit.NANOSECONDS);
+            }
+        }
+
+        @Override
+        public void streamingPayload(TStreamingPayloadHeader header, List<byte[]> attachments) {
+            Duration elapsed = Duration.between(started, Instant.now());
+            stat.updateResponse(elapsed.toMillis());
+            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
+
+            lock.lock();
+            try {
+                if (state == RequestState.INITIALIZING) {
+                    // Мы получили ответ до того, как приаттачили сессию
+                    // Этого не может произойти, проверка просто на всякий случай
+                    logger.error("Received response to {} before sending the request", request);
+                    return;
+                }
+                if (state == RequestState.FINISHED) {
+                    // Обработка запроса уже завершена
+                    return;
+                }
+            } finally {
+                resetTimeout();
+                lock.unlock();
+            }
+
+            try {
+                lock.lock();
+                consumer.onPayload(sender, header, attachments);
+            } catch (Throwable e) {
+                handleError(e);
+                session.unregister(this);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void streamingFeedback(TStreamingFeedbackHeader header, List<byte[]> attachments) {
+            Duration elapsed = Duration.between(started, Instant.now());
+            stat.updateResponse(elapsed.toMillis());
+            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
+
+            lock.lock();
+            try {
+                if (state == RequestState.INITIALIZING) {
+                    // Мы получили ответ до того, как приаттачили сессию
+                    // Этого не может произойти, проверка просто на всякий случай
+                    logger.error("Received response to {} before sending the request", request);
+                    return;
+                }
+                if (state == RequestState.FINISHED) {
+                    // Обработка запроса уже завершена
+                    return;
+                }
+            } finally {
+                resetTimeout();
+                lock.unlock();
+            }
+
+            try {
+                lock.lock();
+                consumer.onFeedback(sender, header, attachments);
+            } catch (Throwable e) {
+                handleError(e);
+                session.unregister(this);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void response(TResponseHeader header, List<byte[]> attachments) {
+            Duration elapsed = Duration.between(started, Instant.now());
+            stat.updateResponse(elapsed.toMillis());
+            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
+
+            lock.lock();
+            try {
+                if (state == RequestState.INITIALIZING) {
+                    // Мы получили ответ до того, как приаттачили сессию
+                    // Этого не может произойти, проверка просто на всякий случай
+                    logger.error("Received response to {} before sending the request", request);
+                    return;
+                }
+                if (state == RequestState.FINISHED) {
+                    // Обработка запроса уже завершена
+                    return;
+                }
+                finishLocked();
+            } finally {
+                lock.unlock();
+            }
+
+            try {
+                lock.lock();
+                consumer.onResponse(sender, header, attachments);
+            } catch (Throwable e) {
+                handleError(e);
+            } finally {
+                finishLocked();
+                session.unregister(this);
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void subscribe(RpcStreamConsumer consumer) {
+            lock.lock();
+            try {
+                ((Stash) this.consumer).unstash(sender, consumer);
+                this.consumer = consumer;
+            } catch (Throwable e) {
+                logger.error("Error", e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void feedback(long offset) {
+            TStreamingFeedbackHeader.Builder builder = TStreamingFeedbackHeader.newBuilder();
+            TRequestHeaderOrBuilder header = request.header();
+            builder.setRequestId(header.getRequestId());
+            builder.setService(header.getService());
+            builder.setMethod(header.getMethod());
+            if (header.hasRealmId()) {
+                builder.setRealmId(header.getRealmId());
+            }
+            builder.setReadPosition(offset);
+            session.bus.send(Collections.singletonList(RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())), BusDeliveryTracking.NONE);
+        }
+
+        @Override
+        public void sendEof() {
+            TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
+            TRequestHeaderOrBuilder header = request.header();
+            builder.setRequestId(header.getRequestId());
+            builder.setService(header.getService());
+            builder.setMethod(header.getMethod());
+            builder.setSequenceNumber(sequenceNumber.getAndIncrement());
+            if (header.hasRealmId()) {
+                builder.setRealmId(header.getRealmId());
+            }
+            session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE);
         }
     }
 
@@ -487,7 +820,14 @@ public class DefaultRpcBusClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        Request pendingRequest = new Request(sender, getSession(), request, handler, stats);
+        RequestBase pendingRequest = new Request(sender, getSession(), request, handler, stats);
+        pendingRequest.start();
+        return pendingRequest;
+    }
+
+    @Override
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+        StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, stats);
         pendingRequest.start();
         return pendingRequest;
     }

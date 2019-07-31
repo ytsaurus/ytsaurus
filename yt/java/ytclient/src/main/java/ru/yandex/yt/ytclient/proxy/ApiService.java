@@ -36,6 +36,8 @@ import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
+import ru.yandex.yt.rpcproxy.TReqReadFile;
+import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
@@ -90,6 +92,8 @@ import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
+import ru.yandex.yt.rpcproxy.TRspReadFile;
+import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
@@ -232,4 +236,8 @@ public interface ApiService extends DiscoverableRpcService {
 
     RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>> checkPermission();
     /* */
+
+    RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>> readTable();
+
+    RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>> readFile();
 }

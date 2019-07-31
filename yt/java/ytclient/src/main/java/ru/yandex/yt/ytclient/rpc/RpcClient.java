@@ -29,6 +29,11 @@ public interface RpcClient extends AutoCloseable {
         return send(this, request, handler);
     }
 
+    RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request);
+
+    default RpcClientStreamControl startStream(RpcClientRequest request) {
+        return startStream(this, request);
+    }
 
     /**
      * Возвращает клиент с аутентификацией запросов по токену

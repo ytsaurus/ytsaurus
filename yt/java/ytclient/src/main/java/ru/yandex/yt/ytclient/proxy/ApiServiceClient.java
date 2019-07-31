@@ -64,6 +64,8 @@ import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
+import ru.yandex.yt.rpcproxy.TReqReadFile;
+import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
@@ -118,6 +120,8 @@ import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
+import ru.yandex.yt.rpcproxy.TRspReadFile;
+import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
@@ -137,6 +141,8 @@ import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
+import ru.yandex.yt.ytclient.proxy.internal.TableReader;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -156,6 +162,8 @@ import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
+import ru.yandex.yt.ytclient.proxy.request.ReadFile;
+import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
@@ -165,6 +173,7 @@ import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
@@ -1127,6 +1136,24 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
+    public TableReader readTable(ReadTable req) {
+        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
+                builder = service.readTable();
+
+        req.writeTo(builder.body());
+
+        return new TableReader(startStream(builder));
+    }
+
+    public FileReader readFile(ReadFile req) {
+        RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
+                builder = service.readFile();
+
+        req.writeTo(builder.body());
+
+        return new FileReaderImpl(startStream(builder));
+    }
+
     /* */
 
     private <T, Response> CompletableFuture<T> handleHeavyResponse(CompletableFuture<Response> future,
@@ -1139,6 +1166,12 @@ public class ApiServiceClient implements TransactionalClient {
             RpcClientRequestBuilder<RequestType, ResponseType> builder)
     {
         return builder.invoke();
+    }
+
+    protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
+            RpcClientRequestBuilder<RequestType, ResponseType> builder)
+    {
+        return builder.startStream();
     }
 
     @Override

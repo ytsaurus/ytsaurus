@@ -23,6 +23,7 @@ import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -260,5 +261,12 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             RpcClientRequestBuilder<RequestType, ResponseType> builder)
     {
         return builder.invokeVia(selectDestinations());
+    }
+
+    @Override
+    protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
+            RpcClientRequestBuilder<RequestType, ResponseType> builder)
+    {
+        return builder.startStream(selectDestinations());
     }
 }

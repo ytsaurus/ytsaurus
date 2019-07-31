@@ -11,6 +11,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 
 public class DataCenterTest {
 
@@ -34,6 +35,11 @@ public class DataCenterTest {
 
         @Override
         public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
+            throw new IllegalArgumentException("unreachable");
+        }
+
+        @Override
+        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
             throw new IllegalArgumentException("unreachable");
         }
 

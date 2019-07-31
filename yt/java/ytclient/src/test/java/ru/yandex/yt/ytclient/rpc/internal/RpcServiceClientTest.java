@@ -18,6 +18,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -52,6 +53,11 @@ public class RpcServiceClientTest {
         }
 
         @Override
+        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+            return null;
+        }
+
+        @Override
         public String destinationName() {
             return "RespondingClient";
         }
@@ -79,6 +85,11 @@ public class RpcServiceClientTest {
             request.serialize();
             handler.onError(error);
             return () -> false;
+        }
+
+        @Override
+        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+            return null;
         }
 
         @Override
