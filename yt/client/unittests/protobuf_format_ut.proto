@@ -1,7 +1,7 @@
 package NYT.NProtobufFormatTest;
 
 enum EEnum
- {
+{
     one = 1;
     two = 2;
     three = 3;
@@ -49,6 +49,10 @@ message TMessageWithStructuredEmbedded
     optional uint32 uint32_field = 7;
     optional int64 int64_field = 8;
     optional uint64 uint64_field = 9;
+
+    optional EEnum enum_int_field = 10;
+    optional EEnum enum_string_string_field = 11;
+    optional EEnum enum_string_int64_field = 12;
 }
 
 message TSeveralTablesMessageFirst

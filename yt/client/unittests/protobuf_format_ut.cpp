@@ -911,7 +911,7 @@ TEST(TProtobufFormat, TestContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
+std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
 {
     TTableSchema schema({
         {"first", StructLogicalType({
@@ -948,6 +948,10 @@ std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
         {"uint64_field", SimpleLogicalType(ESimpleLogicalValueType::Uint64, true)},
         {"int32_field", SimpleLogicalType(ESimpleLogicalValueType::Int32, true)},
         {"uint32_field", SimpleLogicalType(ESimpleLogicalValueType::Uint32, true)},
+
+        {"enum_int_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+        {"enum_string_string_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+        {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1138,6 +1142,29 @@ std::pair<TTableSchema, INodePtr> ScreateSchemaAndConfigWithStructuredMessage()
                             .Item("field_number").Value(9)
                             .Item("proto_type").Value("uint64")
                         .EndMap()
+
+                        // Enums.
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("enum_int_field")
+                            .Item("field_number").Value(10)
+                            .Item("proto_type").Value("enum_int")
+                            .Item("enumeration_name").Value("EEnum")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("enum_string_string_field")
+                            .Item("field_number").Value(11)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("enumeration_name").Value("EEnum")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("enum_string_int64_field")
+                            .Item("field_number").Value(12)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("enumeration_name").Value("EEnum")
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1158,8 +1185,11 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto uint64FieldId = nameTable->RegisterName("uint64_field");
     auto int32FieldId = nameTable->RegisterName("int32_field");
     auto uint32FieldId = nameTable->RegisterName("uint32_field");
+    auto enumIntFieldId = nameTable->RegisterName("enum_int_field");
+    auto enumStringStringFieldId = nameTable->RegisterName("enum_string_string_field");
+    auto enumStringInt64FieldId = nameTable->RegisterName("enum_string_int64_field");
 
-    auto [schema, config] = ScreateSchemaAndConfigWithStructuredMessage();
+    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage();
 
     TString result;
     TStringOutput resultStream(result);
@@ -1249,6 +1279,10 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     builder.AddValue(MakeUnversionedInt64Value(-32, int32FieldId));
     builder.AddValue(MakeUnversionedUint64Value(32, uint32FieldId));
 
+    builder.AddValue(MakeUnversionedInt64Value(-42, enumIntFieldId));
+    builder.AddValue(MakeUnversionedStringValue("Three", enumStringStringFieldId));
+    builder.AddValue(MakeUnversionedInt64Value(1, enumStringInt64FieldId));
+
     writer->Write({builder.GetRow()});
 
     writer->Close()
@@ -1315,12 +1349,16 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     EXPECT_EQ(message.int64_field(), -32);
     EXPECT_EQ(message.uint64_field(), 32);
 
+    EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
+    EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
+    EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
+
     ASSERT_FALSE(lenvalParser.Next());
 }
 
 TEST(TProtobufFormat, ParseStructuredMessage)
 {
-    auto [schema, config] = ScreateSchemaAndConfigWithStructuredMessage();
+    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage();
 
     TCollectingValueConsumer rowCollector(schema);
 
@@ -1379,6 +1417,10 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     message.set_uint64_field(32);
     message.set_int32_field(-64);
     message.set_uint32_field(64);
+
+    // Note that we don't set the "enum_string_int64_field" as it will fail during parsing.
+    message.set_enum_int_field(NProtobufFormatTest::EEnum::minus_forty_two);
+    message.set_enum_string_string_field(NProtobufFormatTest::EEnum::three);
 
     TString lenvalBytes;
     {
@@ -1467,6 +1509,9 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint64_field")), 64);
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int32_field")), -32);
     EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint32_field")), 32);
+
+    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "enum_int_field")), -42);
+    EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_string_string_field")), "Three");
 }
 
 std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
