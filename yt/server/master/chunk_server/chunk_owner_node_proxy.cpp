@@ -23,6 +23,8 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/security_tags.h>
 
+#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
@@ -1070,7 +1072,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     lockedNode->BeginUpload(uploadContext);
 
-    const auto& uploadTransactionId = uploadTransaction->GetId();
+    auto uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
     response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetCellTag() : externalCellTag);
@@ -1088,8 +1090,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         // NB: upload_transaction_timeout must be null
         // NB: upload_transaction_secondary_cell_tags must be empty
         SetTransactionId(replicationRequest, GetObjectId(GetTransaction()));
-
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
+
+        if (Transaction && Transaction->IsForeign()) {
+            transactionManager->RegisterTransactionAtParent(uploadTransaction);
+            uploadTransaction->SetUnregisterFromParentOnAbort(true);
+        }
+    }
+
+    if (Transaction && CellTagFromId(TrunkNode->GetId()) != CellTagFromId(Transaction->GetId())) {
+        uploadTransaction->SetUnregisterFromParentOnCommit(true);
     }
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
