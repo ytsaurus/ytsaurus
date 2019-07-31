@@ -215,12 +215,22 @@ namespace NYT {
 
     using ::google::protobuf::Message;
 
+    namespace NDetail {
+
+    class TYdlGenericRowType;
+
+    } // namespace NDetail
+
+    template<class... TYdlRows>
+    class TYdlOneOf;
+
     using TYaMRReader = TTableReader<TYaMRRow>;
     using TYaMRWriter = TTableWriter<TYaMRRow>;
     using TNodeReader = TTableReader<TNode>;
     using TNodeWriter = TTableWriter<TNode>;
     using TMessageReader = TTableReader<Message>;
     using TMessageWriter = TTableWriter<Message>;
+    using TYdlTableWriter = TTableWriter<NDetail::TYdlGenericRowType>;
 
     template <class TDerived>
     struct TIOOptions;

@@ -223,6 +223,9 @@ private:
     ::TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) override;
 
+    ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
+        const TRichYPath& path, const TTableReaderOptions& options) override;
+
     ::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
         const TRichYPath& path,
         const TTableReaderOptions& options,
@@ -232,6 +235,9 @@ private:
         const TRichYPath& path, const TTableWriterOptions& options) override;
 
     ::TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
+        const TRichYPath& path, const TTableWriterOptions& options) override;
+
+    ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override;
 
     ::TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(

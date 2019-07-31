@@ -10,6 +10,8 @@
 
 #include <contrib/libs/protobuf/message.h>
 
+#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/generic/yexception.h>
@@ -19,12 +21,31 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+class TYdlGenericRowType
+{ };
+
+} // namespace NDetail
+
+template<class ... TYdlRowTypes>
+class TYdlOneOf
+{
+    static_assert((NYdl::TIsYdlGenerated<TYdlRowTypes>::value && ...), "Template parameters can only be YDL types");
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct INodeReaderImpl;
 struct IYaMRReaderImpl;
 struct IProtoReaderImpl;
 struct INodeWriterImpl;
 struct IYaMRWriterImpl;
 struct IProtoWriterImpl;
+
+// These are temporary implementation details so you should not depend on this code
+using IYdlReaderImpl = INodeReaderImpl;
+using IYdlWriterImpl = INodeWriterImpl;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +225,12 @@ private:
         const TTableReaderOptions& options,
         const ::google::protobuf::Message* prototype) = 0;
 
+    virtual ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
+        const TRichYPath& /*path*/, const TTableReaderOptions& /*options*/)
+    {
+        Y_FAIL("Uimplemented");
+    }
+
     virtual ::TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) = 0;
 
@@ -214,6 +241,12 @@ private:
         const TRichYPath& path,
         const TTableWriterOptions& options,
         const ::google::protobuf::Message* prototype) = 0;
+
+    virtual ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
+        const TRichYPath& /*path*/, const TTableWriterOptions& /*options*/)
+    {
+        Y_FAIL("Uimplemented");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

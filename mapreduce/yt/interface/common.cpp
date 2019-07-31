@@ -3,6 +3,7 @@
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 #include <mapreduce/yt/node/node_builder.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <util/generic/xrange.h>
 
@@ -178,6 +179,14 @@ TTableSchema CreateTableSchema(
     }
 
     return result;
+}
+
+TTableSchema CreateYdlTableSchema(NTi::TType::TPtr type)
+{
+    Y_VERIFY(type);
+    TTableSchema schema;
+    Deserialize(schema, type->AsYtSchema());
+    return schema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

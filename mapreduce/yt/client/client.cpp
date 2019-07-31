@@ -507,6 +507,17 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
         CreateClientReader(path, TFormat::YaMRLenval(), options, /* useFormatFromTableAttributes = */ true));
 }
 
+::TIntrusivePtr<IYdlReaderImpl> TClientBase::CreateYdlReader(
+    const TRichYPath& path, const TTableReaderOptions& options)
+{
+    auto format = TFormat::YsonBinary();
+    ApplyFormatHints<TNode>(&format, options.FormatHints_);
+
+    return new TNodeTableReader(
+        CreateClientReader(path, format, options),
+        options.SizeLimit_);
+}
+
 ::TIntrusivePtr<IProtoReaderImpl> TClientBase::CreateProtoReader(
     const TRichYPath& path,
     const TTableReaderOptions& options,
@@ -544,6 +555,16 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     ApplyFormatHints<TYaMRRow>(&format, options.FormatHints_);
 
     return new TYaMRTableWriter(
+        CreateClientWriter(path, format, options));
+}
+
+::TIntrusivePtr<IYdlWriterImpl> TClientBase::CreateYdlWriter(
+    const TRichYPath& path, const TTableWriterOptions& options)
+{
+    auto format = TFormat::YsonBinary();
+    ApplyFormatHints<TNode>(&format, options.FormatHints_);
+
+    return new TNodeTableWriter(
         CreateClientWriter(path, format, options));
 }
 
