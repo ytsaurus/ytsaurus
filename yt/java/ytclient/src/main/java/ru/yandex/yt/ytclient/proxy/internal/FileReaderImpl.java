@@ -26,13 +26,13 @@ public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements Fi
     }
 
     @Override
-    public CompletableFuture<Long> revision() {
-        return this.revision;
+    public Long revision() {
+        return this.revision.getNow(0L);
     }
 
     @Override
-    public void read(Consumer<byte[]> consumer) {
-        doRead((next) -> {
+    public CompletableFuture<Void> read(Consumer<byte[]> consumer) {
+        return doRead((next) -> {
             if (!revision.isDone()) {
                 TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
                 revision.complete(meta.getRevision());

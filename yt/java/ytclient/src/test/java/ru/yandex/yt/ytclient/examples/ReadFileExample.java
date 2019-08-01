@@ -37,8 +37,6 @@ public class ReadFileExample {
 
                 fo.close();
 
-                reader.waitResult().get();
-
             } catch (Throwable e) {
                 logger.error("Error {}", e);
                 System.exit(0);
@@ -61,9 +59,7 @@ public class ReadFileExample {
                     } catch (Exception ex) {
                         throw ExceptionUtils.translate(ex);
                     }
-                });
-
-                reader.waitResult().get();
+                }).get();
 
                 fo.close();
 
@@ -88,8 +84,6 @@ public class ReadFileExample {
                 }
 
                 fo.close();
-
-                reader.waitResult().get();
 
             } catch (Throwable e) {
                 logger.error("Error {}", e);

@@ -2,64 +2,46 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import NYT.NChunkClient.NProto.DataStatistics;
 
 import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.misc.ExceptionUtils;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
-import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import ru.yandex.yt.rpcproxy.TReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TTableReaderPayload;
 import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
+import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class TableReaderImpl implements RpcStreamConsumer {
-    private static final Logger logger = LoggerFactory.getLogger(TableReaderImpl.class);
+public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements TableReader {
+    private TReadTableMeta metadata = null;
+    private final static RpcMessageParser<TReadTableMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadTableMeta.class);
 
-    private final static RpcMessageParser<TRspReadTable> responseParser = RpcServiceMethodDescriptor.makeMessageParser(TRspReadTable.class);
-    private final CompletableFuture<RpcClientResponse<TRspReadTable>> result;
-
-    private final RpcClientStreamControl control;
-    private long offset = 0;
-
-    private Object metadata = null;
-
+    final private Object lock = new Object();
     private TRowsetDescriptor currentRowsetDescriptor = null;
     private TableSchema currentReadSchema = null;
     private UnversionedRowsetDeserializer deserializer = null;
+    private DataStatistics.TDataStatistics currentDataStatistics = null;
+    private long totalRowCount = -1;
 
     public TableReaderImpl(RpcClientStreamControl control) {
-        this.control = control;
-        this.control.subscribe(this);
-        this.control.sendEof();
-        this.result = new CompletableFuture<>();
+        super(control);
     }
 
     @Override
-    public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
-        // throw new IllegalArgumentException();
-        logger.debug("Feedback {} {}", header.getReadPosition(), attachments.size());
-
-        // this.control.sendEof();
+    protected RpcMessageParser<TRspReadTable> responseParser() {
+        return RpcServiceMethodDescriptor.makeMessageParser(TRspReadTable.class);
     }
 
     private void parseDescriptorDeltaRefSize(ByteBuffer bb, int size) throws Exception {
@@ -84,14 +66,13 @@ public class TableReaderImpl implements RpcStreamConsumer {
         bb.position(endPosition);
     }
 
-    private void parseMergedRowRefs(ByteBuffer bb, int size) {
+    private UnversionedRowset parseMergedRowRefs(ByteBuffer bb, int size) {
         byte[] data = new byte[size];
         bb.get(data);
-        UnversionedRowset rowset = new WireProtocolReader(Cf.list(data)).readUnversionedRowset(deserializer).getRowset();
-        // logger.debug("{}", rowset);
+        return new WireProtocolReader(Cf.list(data)).readUnversionedRowset(deserializer).getRowset();
     }
 
-    private void parseRowData(ByteBuffer bb, int size) throws Exception {
+    private UnversionedRowset parseRowData(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
 
         int parts = bb.getInt();
@@ -104,21 +85,30 @@ public class TableReaderImpl implements RpcStreamConsumer {
         parseDescriptorDeltaRefSize(bb, descriptorDeltaRefSize);
 
         int mergedRowRefsSize = (int)bb.getLong();
-        parseMergedRowRefs(bb, mergedRowRefsSize);
+        UnversionedRowset rowset = parseMergedRowRefs(bb, mergedRowRefsSize);
 
         if (bb.position() != endPosition) {
             throw new IllegalArgumentException();
         }
+
+        return rowset;
     }
 
     private void parsePayload(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
         TTableReaderPayload payload = TTableReaderPayload.parseFrom((ByteBuffer)bb.slice().limit(size)); // (ByteBuffer) for java8 compatibility
-        logger.debug("{}", payload);
+        synchronized (lock) {
+            currentDataStatistics = payload.getDataStatistics();
+            totalRowCount = payload.getTotalRowCount();
+        }
         bb.position(endPosition);
     }
 
-    private void parseRowsWithPayload(byte[] attachment) throws Exception {
+    private UnversionedRowset parseRowsWithPayload(byte[] attachment) throws Exception {
+        if (attachment == null) {
+            return null;
+        }
+
         ByteBuffer bb = ByteBuffer.wrap(attachment).order(ByteOrder.LITTLE_ENDIAN);
         int parts = bb.getInt();
         if (parts != 2) {
@@ -127,7 +117,7 @@ public class TableReaderImpl implements RpcStreamConsumer {
 
         int rowDataSize = (int)bb.getLong();
 
-        parseRowData(bb, rowDataSize);
+        UnversionedRowset rowset = parseRowData(bb, rowDataSize);
 
         int payloadSize = (int)bb.getLong();
 
@@ -136,75 +126,65 @@ public class TableReaderImpl implements RpcStreamConsumer {
         if (bb.hasRemaining()) {
             throw new IllegalArgumentException();
         }
+
+        return rowset;
     }
 
     @Override
-    public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
+    public long getStartRowIndex() {
+        return metadata.getStartRowIndex();
+    }
 
-        logger.debug("payload ");
-
-        if (attachments.isEmpty()) {
-            throw new IllegalArgumentException();
+    @Override
+    public long getTotalRowCount() {
+        synchronized (lock) {
+            return totalRowCount;
         }
+    }
+
+    @Override
+    public DataStatistics.TDataStatistics getDataStatistics() {
+        synchronized (lock) {
+            return currentDataStatistics;
+        }
+    }
+
+    @Override
+    public TableSchema getTableSchema() {
+        return ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
+    }
+
+    @Override
+    public TRowsetDescriptor getRowsetDescriptor() {
+        synchronized (lock) {
+            return currentRowsetDescriptor;
+        }
+    }
+
+    @Override
+    public UnversionedRowset read() throws Exception {
+        byte[] next = doRead();
 
         if (metadata == null) {
-            metadata = attachments.get(0);
-            offset += attachments.get(0).length;
-
-            attachments = attachments.subList(1, attachments.size());
+            metadata = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
+            return parseRowsWithPayload(doRead());
+        } else {
+            return parseRowsWithPayload(next);
         }
+    }
 
-        for (byte[] attachment : attachments) {
-            if (attachment != null) {
-                offset += attachment.length;
-
+    @Override
+    public CompletableFuture<Void> read(Consumer<UnversionedRowset> consumer) {
+        return doRead((next) -> {
+            if (metadata == null) {
+                metadata = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
+            } else {
                 try {
-                    parseRowsWithPayload(attachment);
+                    consumer.accept(parseRowsWithPayload(next));
                 } catch (Exception ex) {
                     throw ExceptionUtils.translate(ex);
                 }
-
-            } else {
-
-                logger.debug("EOF");
-
-                offset += 1;
             }
-        }
-
-        logger.debug("offset {} {} ", offset, RpcUtil.fromProto(header.getRequestId()));
-
-        control.feedback(offset);
-    }
-
-    @Override
-    public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
-        logger.debug("Response");
-
-        if (!result.isDone()) {
-            if (attachments.size() < 1 || attachments.get(0) == null) {
-                throw new IllegalStateException("Received response without a body");
-            }
-            result.complete(new LazyResponse<>(responseParser, attachments.get(0),
-                    new ArrayList<>(attachments.subList(1, attachments.size())), sender,
-                    Option.of(header)));
-        }
-    }
-
-    @Override
-    public void onError(RpcClient sender, Throwable error) {
-        logger.error("Error", error);
-
-        if (!result.isDone()) {
-            result.completeExceptionally(error);
-        }
-    }
-
-    public void cancel() {
-        control.cancel();
-    }
-
-    public void waitResult() throws Exception {
-        result.get();
+        });
     }
 }

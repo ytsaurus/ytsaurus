@@ -1136,7 +1136,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
-    public TableReaderImpl readTable(ReadTable req) {
+    public TableReader readTable(ReadTable req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
