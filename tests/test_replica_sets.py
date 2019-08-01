@@ -7,20 +7,23 @@ from yt.yson.yson_types import YsonEntity
 @pytest.mark.usefixtures("yp_env")
 class TestReplicaSets(object):
     def test_permissions(self, yp_env):
-        templates.permissions_test_template(yp_env, "replica_set")
+        templates.permissions_test_template(yp_env, "replica_set", account_is_mandatory=True)
 
-    
+
     def test_update_spec(self, yp_env):
-        templates.update_spec_test_template(yp_env.yp_client, "replica_set", {"revision_id": "1"},
+        account_id = yp_env.yp_client.create_object("account")
+        templates.update_spec_test_template(yp_env.yp_client, "replica_set", {"account_id": account_id, "revision_id": "1"},
                                             "/spec/revision_id", "2")
 
     def test_simple(self, yp_env):
         yp_client = yp_env.yp_client
 
+        account_id = yp_client.create_object("account")
         rs_id = yp_client.create_object(
             object_type="replica_set",
             attributes={
                 "spec": {
+                    "account_id": account_id,
                     "revision_id": "42",
                     "replica_count": 32,
                     "deployment_strategy": {
@@ -70,8 +73,9 @@ class TestReplicaSets(object):
     def test_extensible_spec(self, yp_env):
         yp_client = yp_env.yp_client
 
-        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"replica_count": 1}})
-        
+        account_id = yp_client.create_object("account")
+        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"replica_count": 1, "account_id": account_id}})
+
         yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/spec/hello", "value": "world"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/hello"])[0] == "world"
 
@@ -91,8 +95,10 @@ class TestReplicaSets(object):
     def test_extensible_status(self, yp_env):
         yp_client = yp_env.yp_client
 
-        rs_id = yp_client.create_object(object_type="replica_set", attributes={"status": {"in_progress": {"pod_count": 3}}})
-        
+        account_id = yp_client.create_object("account")
+        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"account_id": account_id},
+                                                                               "status": {"in_progress": {"pod_count": 3}}})
+
         yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/status/hello", "value": "world"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/status/hello"])[0] == "world"
 

@@ -152,10 +152,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SchedulerLoopThread);
 
-        if (!Config_->Enable) {
-            YT_LOG_DEBUG("Pod disruption budget controller is disabled; skipping iteration");
-            return;
-        }
         try {
             RunImpl(cluster);
         } catch (const std::exception& ex) {

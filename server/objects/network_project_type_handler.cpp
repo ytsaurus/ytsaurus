@@ -13,7 +13,12 @@ class TNetworkProjectTypeHandler
 public:
     explicit TNetworkProjectTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::NetworkProject)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("project_id")

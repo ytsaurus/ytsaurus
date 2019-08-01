@@ -233,7 +233,15 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
     return this;
 }
 
-TAttributeSchema* TAttributeSchema::SetParentAttribute()
+TAttributeSchema* TAttributeSchema::SetIdAttribute()
+{
+    InitExpressionBuilder(
+        TypeHandler_->GetIdField(),
+        TEmptyPathValidator::Run);
+    return this;
+}
+
+TAttributeSchema* TAttributeSchema::SetParentIdAttribute()
 {
     InitExpressionBuilder(
         TypeHandler_->GetParentIdField(),

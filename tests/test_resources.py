@@ -29,10 +29,12 @@ class TestResources(object):
         cpu_resource_id = yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"cpu": {"total_capacity": 1}}})
         memory_resource_id = yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"memory": {"total_capacity": 1}}})
         disk_resource_id = yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"disk": {"total_capacity": 1000, "storage_class": "hdd", "device": "/dev/null"}}})
+        slot_resource_id = yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"slot": {"total_capacity": 1}}})
 
         assert yp_client.get_object("resource", cpu_resource_id, selectors=["/meta/kind"])[0] == "cpu"
         assert yp_client.get_object("resource", memory_resource_id, selectors=["/meta/kind"])[0] == "memory"
         assert yp_client.get_object("resource", disk_resource_id, selectors=["/meta/kind"])[0] == "disk"
+        assert yp_client.get_object("resource", slot_resource_id, selectors=["/meta/kind"])[0] == "slot"
 
     def test_cannot_change_kind(self, yp_env):
         yp_client = yp_env.yp_client
@@ -166,10 +168,17 @@ class TestResources(object):
                 "disk": {"total_capacity": 1000, "total_volume_slots": 10, "supported_policies": ["quota"],"storage_class": "hdd", "device": "/dev/null"}
             }
         })
+        slot_resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {
+                "slot": {"total_capacity": 300}
+            }
+        })
 
         assert yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [100, 0]
         assert yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [200, 0]
         assert yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [1000, 0]
+        assert yp_client.get_object("resource", slot_resource_id, selectors=["/status/free/slot/capacity", "/status/used/slot/capacity"]) == [300, 0]
 
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = yp_client.create_object("pod", attributes={
@@ -182,7 +191,8 @@ class TestResources(object):
                     "vcpu_guarantee": 30,
                     "vcpu_limit": 40,
                     "memory_guarantee": 10,
-                    "memory_limit": 20
+                    "memory_limit": 20,
+                    "slot": 1
                 },
                 "disk_volume_requests": [
                     {
@@ -197,9 +207,11 @@ class TestResources(object):
         assert yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [70, 30]
         assert yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [180, 20]
         assert yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [700, 300]
+        assert yp_client.get_object("resource", slot_resource_id, selectors=["/status/free/slot/capacity", "/status/used/slot/capacity"]) == [299, 1]
 
         yp_client.remove_object("pod", pod_id)
 
         wait(lambda: yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [100, 0] and \
                      yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [200, 0] and \
-                     yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [1000, 0])
+                     yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [1000, 0] and \
+                     yp_client.get_object("resource", slot_resource_id, selectors=["/status/free/slot/capacity", "/status/used/slot/capacity"]) == [300, 0])

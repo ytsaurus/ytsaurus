@@ -83,14 +83,11 @@ class TPodDisruptionBudgetControllerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
-    bool Enable;
     int UpdateConcurrency;
     int UpdatesPerIteration;
 
     TPodDisruptionBudgetControllerConfig()
     {
-        RegisterParameter("enable", Enable)
-            .Default(true);
         RegisterParameter("update_concurrency", UpdateConcurrency)
             .Default(256)
             .GreaterThanOrEqual(1);
@@ -108,6 +105,8 @@ class TSchedulerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
+    bool Disabled;
+    TEnumIndexedVector<bool, ESchedulerLoopStage> DisableStage;
     TDuration LoopPeriod;
     TDuration FailedAllocationBackoffTime;
     int AllocationCommitConcurrency;
@@ -116,6 +115,10 @@ public:
 
     TSchedulerConfig()
     {
+        RegisterParameter("disabled", Disabled)
+            .Default(false);
+        RegisterParameter("disable_stage", DisableStage)
+            .Default();
         RegisterParameter("loop_period", LoopPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("failed_allocation_backoff_time", FailedAllocationBackoffTime)

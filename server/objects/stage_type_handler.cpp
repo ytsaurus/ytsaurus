@@ -23,7 +23,12 @@ class TStageTypeHandler
 public:
     explicit TStageTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Stage)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("account_id")

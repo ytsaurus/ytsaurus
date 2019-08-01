@@ -51,11 +51,16 @@ public:
     TPodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Pod)
         , Config_(std::move(config))
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         MetaAttributeSchema_
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("pod_set_id")
-                    ->SetParentAttribute()
+                    ->SetParentIdAttribute()
                     ->SetMandatory()
             });
 

@@ -32,10 +32,10 @@ def time_struct_to_timestamp(time_struct):
 class TestPodDisruptionBudgets(object):
     YP_MASTER_CONFIG = dict(
         scheduler=dict(
-            pod_disruption_budget_controller=dict(
-                enable=False,
-            )
-        )
+            disable_stage=dict(
+                run_pod_disruption_budget_controller=True,
+            ),
+        ),
     )
 
     def test_attributes(self, yp_env_configurable):
@@ -349,21 +349,22 @@ def create_pods(yp_client, pod_counts, pod_disruption_budget_id):
 
 @pytest.mark.usefixtures("yp_env")
 class TestPodDisruptionBudgetController(object):
-    def test_enable_option_reconfiguration(self, yp_env):
+    def test_scheduler_disable_stage_reconfiguration(self, yp_env):
         yp_client = yp_env.yp_client
 
         validate_controller_liveness(yp_client)
-        yp_env.set_cypress_config_patch(dict(scheduler=dict(pod_disruption_budget_controller=dict(
-            enable=False,
+        yp_env.set_cypress_config_patch(dict(scheduler=dict(disable_stage=dict(
+            run_pod_disruption_budget_controller=True,
         ))))
         orchid = yp_env.create_orchid_client()
         def is_controller_disabled():
             config = orchid.get(orchid.get_instances()[0], "/config")
-            return not config["scheduler"]["pod_disruption_budget_controller"]["enable"]
+            return config["scheduler"].get("disable_stage", {}) \
+                .get("run_pod_disruption_budget_controller", None) == True
         wait(is_controller_disabled)
         validate_controller_lifelessness(yp_client)
 
-    def test_other_options_reconfiguration(self, yp_env):
+    def test_options_reconfiguration(self, yp_env):
         yp_client = yp_env.yp_client
 
         updates_per_iteration = 3

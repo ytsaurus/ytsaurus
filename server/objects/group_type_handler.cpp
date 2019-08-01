@@ -18,7 +18,12 @@ class TGroupTypeHandler
 public:
     explicit TGroupTypeHandler(NMaster::TBootstrap* bootstrap)
         : TSubjectTypeHandlerBase(bootstrap, EObjectType::Group)
+    { }
+
+    virtual void Initialize() override
     {
+        TSubjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TGroup::SpecSchema);
 

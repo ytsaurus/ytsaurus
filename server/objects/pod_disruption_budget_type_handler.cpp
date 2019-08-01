@@ -19,7 +19,12 @@ class TPodDisruptionBudgetTypeHandler
 public:
     explicit TPodDisruptionBudgetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::PodDisruptionBudget)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         StatusAttributeSchema_
             ->SetAttribute(TPodDisruptionBudget::StatusSchema);
 

@@ -131,7 +131,15 @@ struct TSelectQueryOptions
 {
     std::optional<i64> Offset;
     std::optional<i64> Limit;
+    bool FetchValues = true;
+    bool FetchTimestamps = false;
 };
+
+void FromProto(
+    TSelectQueryOptions* options,
+    const NClient::NApi::NProto::TSelectObjectsOptions& protoOptions);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TSelectQueryResult
 {

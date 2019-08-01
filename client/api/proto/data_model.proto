@@ -462,11 +462,17 @@ message TResourceSpec
         optional double write_operation_rate_divisor = 12;
     }
 
+    message TSlotSpec
+    {
+        required uint64 total_capacity = 1;
+    }
+
     oneof concrete_spec
     {
         TCpuSpec cpu = 3;
         TMemorySpec memory = 4;
         TDiskSpec disk = 5;
+        TSlotSpec slot = 6;
     }
 }
 
@@ -490,6 +496,11 @@ message TResourceStatus
         optional uint64 bandwidth = 4;
     }
 
+    message TSlotAllocation
+    {
+        required uint64 capacity = 1;
+    }
+
     message TAllocation
     {
         optional string pod_id = 1;
@@ -500,6 +511,7 @@ message TResourceStatus
             TCpuAllocation cpu = 2;
             TMemoryAllocation memory = 3;
             TDiskAllocation disk = 4;
+            TSlotAllocation slot = 6;
         }
     }
     repeated TAllocation scheduled_allocations = 1;
@@ -528,6 +540,11 @@ message TResourceStatus
         optional uint64 bandwidth = 3;
     }
 
+    message TSlotStatistics
+    {
+        required uint64 capacity = 1;
+    }
+
     message TAllocationStatistics
     {
         oneof concrete_statisticss
@@ -535,6 +552,7 @@ message TResourceStatus
             TCpuStatistics cpu = 1;
             TMemoryStatistics memory = 2;
             TDiskStatistics disk = 3;
+            TSlotStatistics slot = 4;
         }
     }
 
@@ -740,6 +758,8 @@ message TPodSpec
         optional uint64 memory_limit = 4;
         optional uint64 anonymous_memory_limit = 5;
         optional uint64 dirty_memory_limit = 6;
+
+        optional uint64 slot = 7;
     };
     // CPU and memory resources to allocate and configure for this pod upon assignment.
     optional TResourceRequests resource_requests = 3 [(NYP.NClient.NApi.NProto.etc) = true];
@@ -747,6 +767,7 @@ message TPodSpec
     message TIP6AddressRequest
     {
         // Id of network_project.
+        // This attribute supports update without rescheduling.
         required string network_id = 1;
 
         // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
@@ -1313,7 +1334,11 @@ message TEndpointSetSpec
 }
 
 message TEndpointSetStatus
-{ }
+{
+    // Timestamp of the last change of set of endpoints contained in the endpoint_set
+    // or change of meta, spec or labels of any endpoint in endpoint_set.
+    optional uint64 last_endpoints_update_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

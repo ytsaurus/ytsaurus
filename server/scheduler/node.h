@@ -104,6 +104,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
+    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, SlotResource);
     using TDiskResources = SmallVector<TDiskResource, NObjects::TypicalDiskResourceCountPerNode>;
     DEFINE_BYREF_RW_PROPERTY(TDiskResources, DiskResources);
 

@@ -39,6 +39,7 @@ class TObjectManagerConfig
 public:
     TDuration RemovedObjectsSweepPeriod;
     TDuration RemovedObjectsGraceTimeout;
+    int RemovedObjectsDropBatchSize;
     TPodTypeHandlerConfigPtr PodTypeHandler;
     bool EnableExtensibleAttributes;
 
@@ -48,6 +49,9 @@ public:
             .Default(TDuration::Minutes(10));
         RegisterParameter("removed_objects_grace_timeout", RemovedObjectsGraceTimeout)
             .Default(TDuration::Hours(24));
+        RegisterParameter("removed_objects_drop_batch_size", RemovedObjectsDropBatchSize)
+            .GreaterThanOrEqual(1)
+            .Default(50000);
         RegisterParameter("pod_type_handler", PodTypeHandler)
             .DefaultNew();
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)

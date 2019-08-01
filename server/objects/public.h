@@ -166,6 +166,7 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EResourceKind,
     ((Cpu)             (0))
     ((Memory)          (1))
     ((Disk)            (2))
+    ((Slot)            (3))
 );
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EHfsmState,

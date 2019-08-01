@@ -64,6 +64,14 @@ DEFAULT_POD_SET_SPEC = dict(
 logger.setLevel(logging.DEBUG)
 
 
+def check_over_time(predicate, iter=20, sleep_backoff=1):
+    for _ in xrange(iter):
+        if not predicate():
+            return False
+        time.sleep(sleep_backoff)
+    return True
+
+
 def assert_over_time(predicate, iter=20, sleep_backoff=1):
     for _ in xrange(iter):
         assert predicate()
@@ -128,6 +136,7 @@ def create_nodes(
         hfsm_state="up",
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
+        slot_capacity=None,
         disk_spec=None,
         vlan_id="backbone",
         subnet="1:2:3:4::/64",
@@ -197,6 +206,17 @@ def create_nodes(
                     "disk": disk_spec
                 }
             })
+        if slot_capacity is not None:
+            yp_client.create_object("resource", attributes={
+                    "meta": {
+                        "node_id": node_id
+                    },
+                    "spec": {
+                        "slot": {
+                            "total_capacity": slot_capacity
+                        }
+                    }
+                })
     return node_ids
 
 

@@ -22,6 +22,8 @@ public:
         NMaster::TBootstrap* bootstrap,
         EObjectType type);
 
+    virtual void Initialize() override;
+
     virtual EObjectType GetType() override;
 
     virtual EObjectType GetParentType() override;

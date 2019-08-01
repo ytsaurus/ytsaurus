@@ -95,6 +95,12 @@ public:
         RegisterTypeHandler(CreateDynamicResourceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreatePodDisruptionBudgetTypeHandler(Bootstrap_));
 
+        for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
+            if (auto typeHandler = FindTypeHandler(type)) {
+                typeHandler->Initialize();
+            }
+        }
+
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));
         ytConnector->SubscribeStartedLeading(BIND(&TImpl::OnStartedLeading, MakeWeak(this)));
@@ -287,31 +293,44 @@ private:
         const TDBTable* table,
         const IUnversionedRowsetPtr& rowset)
     {
-        YT_LOG_INFO("Starting removal transaction");
-
+        auto rows = rowset->GetRows();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
-            .ValueOrThrow();
+        const size_t batchSize = std::max(
+            std::min(static_cast<size_t>(Config_->RemovedObjectsDropBatchSize), rows.Size()),
+            1ul);
 
-        YT_LOG_INFO("Removal transaction started (TransactionId: %v)",
-            transaction->GetId());
+        for (size_t startOffset = 0; startOffset < rows.Size(); startOffset += batchSize) {
+            auto endOffset = std::min(startOffset + batchSize, rows.Size());
 
-        auto* session = transaction->GetSession();
-        session->ScheduleStore(
-            [&] (IStoreContext* context) {
-                for (auto row : rowset->GetRows()) {
-                    context->DeleteRow(
-                        table,
-                        TRange<TUnversionedValue>(row.Begin(), row.End()));
-                }
-            });
+            auto Logger = NLogging::TLogger(NObjects::Logger)
+                .AddTag("StartOffset: %v", startOffset)
+                .AddTag("EndOffset: %v", endOffset);
 
-        YT_LOG_INFO("Committing removal transaction");
+            YT_LOG_INFO("Starting removal transaction");
 
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
+            auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
+                .ValueOrThrow();
 
-        YT_LOG_INFO("Removal transaction committed");
+            YT_LOG_INFO("Removal transaction started (TransactionId: %v)",
+                transaction->GetId());
+
+            auto* session = transaction->GetSession();
+            session->ScheduleStore(
+                [&, startOffset, endOffset] (IStoreContext* context) {
+                    for (auto row : rows.Slice(startOffset, endOffset)) {
+                        context->DeleteRow(
+                            table,
+                            TRange<TUnversionedValue>(row.Begin(), row.End()));
+                    }
+                });
+
+            YT_LOG_INFO("Committing removal transaction");
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+
+            YT_LOG_INFO("Removal transaction committed");
+        }
     }
 };
 

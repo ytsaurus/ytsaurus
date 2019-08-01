@@ -101,6 +101,20 @@ void FromProto(
     options->FetchTimestamps = protoOptions.fetch_timestamps();
 }
 
+void FromProto(
+    TSelectQueryOptions* options,
+    const NClient::NApi::NProto::TSelectObjectsOptions& protoOptions)
+{
+    if (protoOptions.has_offset()) {
+        options->Offset = protoOptions.offset();
+    }
+    if (protoOptions.has_limit()) {
+        options->Limit = protoOptions.limit();
+    }
+    options->FetchValues = protoOptions.fetch_values();
+    options->FetchTimestamps = protoOptions.fetch_timestamps();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TAttributeSelector& selector)
@@ -420,7 +434,6 @@ public:
             type,
             query.get());
         TAttributeFetcherContext fetcherContext(&queryContext);
-        fetcherContext.WillNeedObject();
 
         TResolvePermissions permissions;
         auto resolveResults = ResolveAttributes(
@@ -433,8 +446,7 @@ public:
             query.get(),
             &fetcherContext,
             &queryContext,
-            resolveResults,
-            &permissions);
+            resolveResults);
         auto queryString = FormatQuery(*query);
 
         YT_LOG_DEBUG("Getting objects (ObjectIds: %v, Query: %v)",
@@ -444,61 +456,31 @@ public:
         auto rowset = RunSelect(queryString);
         auto rows = rowset->GetRows();
 
-        for (auto row : rows) {
-            for (auto& fetcher : fetchers) {
-                fetcher.Prefetch(row);
-            }
-        }
+        PrefetchAttributeValues(rows, fetchers);
 
-        std::vector<TObject*> rowObjects;
-        rowObjects.reserve(rows.size());
-        for (auto row : rows) {
-            rowObjects.push_back(fetcherContext.GetObject(Owner_, row));
-        }
+        auto rowObjects = fetcherContext.GetObjects(Owner_, rows);
 
-        for (auto* object : rowObjects) {
-            if (!permissions.ReadPermissions.empty()) {
-                for (auto permission : permissions.ReadPermissions) {
-                    const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-                    accessControlManager->ValidatePermission(object, permission);
-                }
-            }
-        }
+        ValidateObjectPermissions(rowObjects, permissions);
 
         if (options.FetchTimestamps) {
-            for (auto* object : rowObjects) {
-                for (const auto& resolveResult : resolveResults) {
-                    PregetAttributeTimestamp(
-                        resolveResult,
-                        Owner_,
-                        object);
-                }
-            }
+            PrefetchAttributeTimestamps(rowObjects, resolveResults);
         }
 
         for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
             auto row = rows[rowIndex];
             auto* object = rowObjects[rowIndex];
 
-            const auto& indexes = getIndexesForId(object->GetId());
-
+            const auto& indexes = getIndexesForId(fetcherContext.GetObjectId(row));
             auto& valueList = result.Objects[indexes.front()];
             YT_VERIFY(!valueList);
             valueList.emplace();
 
             if (options.FetchValues) {
-                for (auto& fetcher : fetchers) {
-                    valueList->Values.push_back(fetcher.Fetch(row));
-                }
+                FillAttributeValues(&*valueList, row, fetchers);
             }
 
             if (options.FetchTimestamps) {
-                for (const auto& resolveResult : resolveResults) {
-                    valueList->Timestamps.push_back(GetAttributeTimestamp(
-                        resolveResult,
-                        Owner_,
-                        object));
-                }
+                FillAttributeTimestamps(&*valueList, object, resolveResults);
             }
 
             copyResultsForDuplicateIds(indexes);
@@ -559,7 +541,6 @@ public:
             : nullptr,
             BuildObjectFilterByRemovalTime());
         query->WherePredicate = {std::move(predicateExpr)};
-
         query->Limit = limit;
 
         auto queryString = FormatQuery(*query);
@@ -569,36 +550,47 @@ public:
             queryString);
 
         auto rowset = RunSelect(queryString);
-        auto rows = rowset->GetRows();
 
-        auto forAllRows = [&] (auto func) {
-            auto rowsToSkip = offset.value_or(0);
-            for (auto row : rows) {
-                if (rowsToSkip > 0) {
-                    --rowsToSkip;
-                    continue;
-                }
-                func(row);
+        // TODO(babenko): YP-921; use QL offset feature
+        auto rows = rowset->GetRows();
+        if (offset) {
+            if (offset > rows.Size()) {
+                rows = TRange<TUnversionedRow>();
+            } else {
+                rows = rows.Slice(*offset, rows.Size());
             }
-        };
+        }
+
+        // NB: Avoid instantiating objects unless needed.
+        std::vector<TObject*> rowObjects;
+        if (options.FetchTimestamps) {
+            rowObjects = fetcherContext.GetObjects(Owner_, rows);
+        }
 
         YT_LOG_DEBUG("Prefetching results");
 
-        forAllRows([&] (auto row) {
-            for (auto& fetcher : fetchers) {
-                fetcher.Prefetch(row);
-            }
-        });
+        if (options.FetchValues) {
+            PrefetchAttributeValues(rows, fetchers);
+        }
+
+        if (options.FetchTimestamps) {
+            PrefetchAttributeTimestamps(rowObjects, resolveResults);
+        }
 
         YT_LOG_DEBUG("Fetching results");
 
         TSelectQueryResult result;
-        forAllRows([&] (auto row) {
-            result.Objects.emplace_back();
-            for (auto& fetcher : fetchers) {
-                result.Objects.back().Values.push_back(fetcher.Fetch(row));
+        for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+            auto& valueList = result.Objects.emplace_back();
+
+            if (options.FetchValues) {
+                FillAttributeValues(&valueList, rows[rowIndex], fetchers);
             }
-        });
+
+            if (options.FetchTimestamps) {
+                FillAttributeTimestamps(&valueList, rowObjects[rowIndex], resolveResults);
+            }
+        }
 
         return result;
     }
@@ -2626,16 +2618,11 @@ private:
         TQuery* query,
         TAttributeFetcherContext* fetcherContext,
         IQueryContext* queryContext,
-        const std::vector<TResolveResult>& resolveResults,
-        TResolvePermissions* permissions = nullptr)
+        const std::vector<TResolveResult>& resolveResults)
     {
         std::vector<TAttributeFetcher> fetchers;
         for (const auto& resolveResult : resolveResults) {
             fetchers.emplace_back(resolveResult, transaction, fetcherContext, queryContext);
-        }
-
-        if (permissions && !permissions->ReadPermissions.empty()) {
-            fetcherContext->WillNeedObject();
         }
 
         query->SelectExprs = fetcherContext->GetSelectExpressions();
@@ -2687,6 +2674,66 @@ private:
             return resolveResult.Attribute->RunTimestampGetter(transaction, object, resolveResult.SuffixPath);
         } else {
             return NullTimestamp;
+        }
+    }
+
+    void PrefetchAttributeValues(
+        TRange<TUnversionedRow> rows,
+        std::vector<TAttributeFetcher>& fetchers)
+    {
+        for (auto row : rows) {
+            for (auto& fetcher : fetchers) {
+                fetcher.Prefetch(row);
+            }
+        }
+    }
+
+    void PrefetchAttributeTimestamps(
+        const std::vector<TObject*>& objects,
+        const std::vector<TResolveResult>& resolveResults)
+    {
+        for (auto* object : objects) {
+            for (const auto& resolveResult : resolveResults) {
+                PregetAttributeTimestamp(
+                    resolveResult,
+                    Owner_,
+                    object);
+            }
+        }
+    }
+
+    void ValidateObjectPermissions(
+        const std::vector<TObject*>& objects,
+        const TResolvePermissions& permissions)
+    {
+        for (auto* object : objects) {
+            for (auto permission : permissions.ReadPermissions) {
+                const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+                accessControlManager->ValidatePermission(object, permission);
+            }
+        }
+    }
+
+    void FillAttributeValues(
+        TAttributeValueList* valueList,
+        TUnversionedRow row,
+        std::vector<TAttributeFetcher>& fetchers)
+    {
+        for (auto& fetcher : fetchers) {
+            valueList->Values.push_back(fetcher.Fetch(row));
+        }
+    }
+
+    void FillAttributeTimestamps(
+        TAttributeValueList* valueList,
+        TObject* object,
+        const std::vector<TResolveResult>& resolveResults)
+    {
+        for (const auto& resolveResult : resolveResults) {
+            valueList->Timestamps.push_back(GetAttributeTimestamp(
+                resolveResult,
+                Owner_,
+                object));
         }
     }
 

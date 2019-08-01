@@ -120,7 +120,7 @@ public:
 
         if (ShouldReassignPodAddresses(transaction, pod)) {
             ReleasePodAddresses(transaction, internetAddressManager, pod);
-            AcquirePodAddress(transaction,internetAddressManager,  pod);
+            AcquirePodAddress(transaction, internetAddressManager, pod);
         }
 
         if (ShouldUpdateAddressAllocations(pod)) {

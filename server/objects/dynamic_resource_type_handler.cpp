@@ -14,11 +14,16 @@ class TDynamicResourceTypeHandler
 public:
     explicit TDynamicResourceTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::DynamicResource)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         MetaAttributeSchema_
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("pod_set_id")
-                    ->SetParentAttribute()
+                    ->SetParentIdAttribute()
                     ->SetMandatory()
             });
 

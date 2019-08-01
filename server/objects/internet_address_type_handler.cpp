@@ -13,7 +13,12 @@ class TInternetAddressTypeHandler
 public:
     explicit TInternetAddressTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::InternetAddress)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TInternetAddress::SpecSchema);
 

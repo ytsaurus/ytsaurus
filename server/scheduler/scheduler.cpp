@@ -291,37 +291,62 @@ private:
 
         void Run()
         {
+            auto shouldRunStage = [this] (ESchedulerLoopStage stage) {
+                if (Context_.Config->DisableStage[stage]) {
+                    YT_LOG_INFO("Skipping disabled stage %v",
+                        stage);
+                    return false;
+                }
+                return true;
+            };
             PROFILE_TIMING("/loop/time/reconcile_state") {
                 ReconcileState();
             }
-            const auto& accountingManager = Bootstrap_->GetAccountingManager();
-            PROFILE_TIMING("/loop/time/update_node_segments_status") {
-                accountingManager->UpdateNodeSegmentsStatus(Context_.Cluster);
+            if (shouldRunStage(ESchedulerLoopStage::UpdateNodeSegmentsStatus)) {
+                const auto& accountingManager = Bootstrap_->GetAccountingManager();
+                PROFILE_TIMING("/loop/time/update_node_segments_status") {
+                    accountingManager->UpdateNodeSegmentsStatus(Context_.Cluster);
+                }
             }
-            PROFILE_TIMING("/loop/time/update_accounts_status") {
-                accountingManager->UpdateAccountsStatus(Context_.Cluster);
+            if (shouldRunStage(ESchedulerLoopStage::UpdateAccountsStatus)) {
+                const auto& accountingManager = Bootstrap_->GetAccountingManager();
+                PROFILE_TIMING("/loop/time/update_accounts_status") {
+                    accountingManager->UpdateAccountsStatus(Context_.Cluster);
+                }
             }
-            PROFILE_TIMING("/loop/time/run_pod_disruption_budget_controller") {
-                Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
+            if (shouldRunStage(ESchedulerLoopStage::RunPodDisruptionBudgetController)) {
+                PROFILE_TIMING("/loop/time/run_pod_disruption_budget_controller") {
+                    Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
+                }
             }
-            TPodEvictionByHfsmController podEvictionByHfsmController(Bootstrap_);
-            PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
-                podEvictionByHfsmController.AbortPodEvictionAtUpNodes(Context_.Cluster);
+            if (shouldRunStage(ESchedulerLoopStage::RunPodEvictionByHfsmController)) {
+                TPodEvictionByHfsmController podEvictionByHfsmController(Bootstrap_);
+                PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
+                    podEvictionByHfsmController.AbortPodEvictionAtUpNodes(Context_.Cluster);
+                }
+                PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
+                    podEvictionByHfsmController.RequestPodEvictionAtNodesWithRequestedMaintenance(Context_.Cluster);
+                }
             }
-            PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
-                podEvictionByHfsmController.RequestPodEvictionAtNodesWithRequestedMaintenance(Context_.Cluster);
+            if (shouldRunStage(ESchedulerLoopStage::RevokePodsWithAcknowledgedEviction)) {
+                PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
+                    RevokePodsWithAcknowledgedEviction();
+                }
             }
-            PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
-                RevokePodsWithAcknowledgedEviction();
+            if (shouldRunStage(ESchedulerLoopStage::RemoveOrphanedAllocations)) {
+                PROFILE_TIMING("/loop/time/remove_orphaned_allocations") {
+                    RemoveOrphanedAllocations();
+                }
             }
-            PROFILE_TIMING("/loop/time/remove_orphaned_allocations") {
-                RemoveOrphanedAllocations();
+            if (shouldRunStage(ESchedulerLoopStage::AcknowledgeNodeMaintenance)) {
+                PROFILE_TIMING("/loop/time/acknowledge_node_maintenance") {
+                    AcknowledgeNodeMaintenance();
+                }
             }
-            PROFILE_TIMING("/loop/time/acknowledge_node_maintenance") {
-                AcknowledgeNodeMaintenance();
-            }
-            PROFILE_TIMING("/loop/time/schedule_pods") {
-                SchedulePods();
+            if (shouldRunStage(ESchedulerLoopStage::SchedulePods)) {
+                PROFILE_TIMING("/loop/time/schedule_pods") {
+                    SchedulePods();
+                }
             }
             PROFILE_TIMING("/loop/time/commit") {
                 Commit();
@@ -742,6 +767,10 @@ private:
             // NB! Make a copy.
             auto context = GlobalLoopContext_;
             ValidateLoopContext(context);
+            if (context.Config->Disabled) {
+                YT_LOG_INFO("Scheduler is disabled; skipping loop iteration");
+                return;
+            }
             New<TLoopIteration>(Bootstrap_, std::move(context))->Run();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Loop iteration failed");

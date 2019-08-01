@@ -163,7 +163,19 @@ TExpressionPtr BuildAttributeSelector(
 
 TAttributeFetcherContext::TAttributeFetcherContext(IQueryContext* queryContext)
     : QueryContext_(queryContext)
-{ }
+{
+    auto* typeHandler = QueryContext_->GetTypeHandler();
+    ObjectIdIndex_ = RegisterField(typeHandler->GetIdField());
+    if (typeHandler->GetParentType() != EObjectType::Null) {
+        ParentIdIndex_ = RegisterField(typeHandler->GetParentIdField());
+    }
+}
+
+int TAttributeFetcherContext::RegisterField(const TDBField* field)
+{
+    SelectExprs_.push_back(QueryContext_->GetFieldExpression(field));
+    return static_cast<int>(SelectExprs_.size()) - 1;
+}
 
 void TAttributeFetcherContext::AddSelectExpression(TExpressionPtr expr)
 {
@@ -175,41 +187,45 @@ const TExpressionList& TAttributeFetcherContext::GetSelectExpressions() const
     return SelectExprs_;
 }
 
-void TAttributeFetcherContext::WillNeedObject()
+TObjectId TAttributeFetcherContext::GetObjectId(TUnversionedRow row) const
 {
-    if (ObjectIdIndex_ >= 0) {
-        return;
-    }
-    ObjectIdIndex_ = static_cast<int>(SelectExprs_.size());
+    return FromUnversionedValue<TObjectId>(row[ObjectIdIndex_]);
+}
+
+TObjectId TAttributeFetcherContext::GetParentId(TUnversionedRow row) const
+{
     auto* typeHandler = QueryContext_->GetTypeHandler();
-    SelectExprs_.push_back(QueryContext_->GetFieldExpression(typeHandler->GetIdField()));
-    if (typeHandler->GetParentType() != EObjectType::Null) {
-        ParentIdIndex_ = static_cast<int>(SelectExprs_.size());
-        SelectExprs_.push_back(QueryContext_->GetFieldExpression(typeHandler->GetParentIdField()));
-    }
+    auto objectId = FromUnversionedValue<TObjectId>(row[ObjectIdIndex_]);
+    return typeHandler->GetParentType() == EObjectType::Null
+        ? TObjectId()
+        : FromUnversionedValue<TObjectId>(row[ParentIdIndex_]);
 }
 
 TObject* TAttributeFetcherContext::GetObject(
     TTransaction* transaction,
     TUnversionedRow row) const
 {
-    YT_VERIFY(ObjectIdIndex_ >= 0);
     auto* typeHandler = QueryContext_->GetTypeHandler();
-    auto objectId = FromUnversionedValue<TObjectId>(row[ObjectIdIndex_]);
-    auto parentId = typeHandler->GetParentType() == EObjectType::Null
-        ? TObjectId()
-        : FromUnversionedValue<TObjectId>(row[ParentIdIndex_]);
-    return transaction->GetObject(typeHandler->GetType(), objectId, parentId);
+    return transaction->GetObject(
+        typeHandler->GetType(),
+        GetObjectId(row),
+        GetParentId(row));
+}
+
+std::vector<TObject*> TAttributeFetcherContext::GetObjects(
+    TTransaction* transaction,
+    TRange<TUnversionedRow> rows) const
+{
+    std::vector<TObject*> objects;
+    objects.reserve(rows.size());
+    for (auto row : rows) {
+        objects.push_back(GetObject(transaction, row));
+    }
+    return objects;
 }
 
 TUnversionedValue TAttributeFetcherContext::RetrieveNextValue(TUnversionedRow row, int* currentIndex) const
 {
-    if (*currentIndex == ObjectIdIndex_) {
-        ++(*currentIndex);
-    }
-    if (*currentIndex == ParentIdIndex_) {
-        ++(*currentIndex);
-    }
     return row[(*currentIndex)++];
 }
 
@@ -289,7 +305,6 @@ void TAttributeFetcher::DoPrepare(
         }
 
         case EAttributeFetchMethod::Evaluator:
-            FetcherContext_->WillNeedObject();
             break;
 
         default:

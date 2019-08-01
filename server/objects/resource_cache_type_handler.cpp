@@ -14,11 +14,16 @@ class TResourceCacheTypeHandler
 public:
     explicit TResourceCacheTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::ResourceCache)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         MetaAttributeSchema_
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("pod_set_id")
-                    ->SetParentAttribute()
+                    ->SetParentIdAttribute()
                     ->SetMandatory()
             });
 

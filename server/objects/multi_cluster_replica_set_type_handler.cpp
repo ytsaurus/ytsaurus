@@ -23,7 +23,12 @@ class TMultiClusterReplicaSetTypeHandler
 public:
     explicit TMultiClusterReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::MultiClusterReplicaSet)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("account_id")

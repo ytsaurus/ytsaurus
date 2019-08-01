@@ -18,7 +18,12 @@ class TNodeSegmentTypeHandler
 public:
     explicit TNodeSegmentTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::NodeSegment)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TNodeSegment::SpecSchema
                 .SetInitializer(InitializeSpec))

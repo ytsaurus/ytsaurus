@@ -9,11 +9,15 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <yp/server/master/db_version_getter.h>
 
 namespace NYP::NServer::NMaster {
 
@@ -25,11 +29,13 @@ class TMasterProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NMaster::TMasterConfig>
+    , public TDBVersionGetter
 {
 public:
     TMasterProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
+        , TDBVersionGetter(Opts_)
     { }
 
 protected:
@@ -42,8 +48,10 @@ protected:
         EnablePhdrCache();
         ConfigureExitZeroOnSigterm();
         EnableRefCountedTrackerProfiling();
-        NYTAlloc::EnableLogging();
-        NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableYTLogging();
+        NYTAlloc::EnableYTProfiling();
+        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
 
         google::protobuf::internal::SetProto3PreserveUnknownsDefault(true);
@@ -53,6 +61,10 @@ protected:
         }
 
         if (HandleConfigOptions()) {
+            return;
+        }
+
+        if (HandleGetDBVersion()) {
             return;
         }
 

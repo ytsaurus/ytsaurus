@@ -474,6 +474,9 @@ private:
             case EResourceKind::Memory:
                 node->MemoryResource() = THomogeneousResource(totalCapacities, allocatedStatistics.Capacities);
                 break;
+            case EResourceKind::Slot:
+                node->SlotResource() = THomogeneousResource(totalCapacities, allocatedStatistics.Capacities);
+                break;
             case EResourceKind::Disk: {
                 TDiskVolumePolicyList supportedPolicies;
                 for (auto policy : resource->Spec().disk().supported_policies()) {

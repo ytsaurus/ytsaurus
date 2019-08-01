@@ -26,7 +26,6 @@ public:
     void InitializeCreating();
     void InitializeInstantiated();
 
-    static const TScalarAttributeSchema<TObject, TObjectId> IdSchema;
     const TObjectId& GetId() const;
     const TObjectId& GetParentId() const;
 

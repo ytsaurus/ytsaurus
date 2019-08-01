@@ -790,17 +790,19 @@ private:
             ? std::make_optional(TObjectFilter{request->filter().query()})
             : std::nullopt;
 
-        TSelectQueryOptions options;
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
         };
 
-        options.Offset = request->has_offset()
-            ? std::make_optional(request->offset().value())
-            : std::nullopt;
-        options.Limit = request->has_limit()
-            ? std::make_optional(request->limit().value())
-            : std::nullopt;
+        auto options = FromProto<TSelectQueryOptions>(request->options());
+
+        // COMPAT(babenko)
+        if (request->has_offset()) {
+            options.Offset = request->offset().value();
+        }
+        if (request->has_limit()) {
+            options.Limit = request->limit().value();
+        }
 
         context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, Filter: %v, Selector: %v, Offset: %v, Limit: %v",
             objectType,

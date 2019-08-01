@@ -26,7 +26,12 @@ class TPodSetTypeHandler
 public:
     explicit TPodSetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::PodSet)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("antiaffinity_constraints")

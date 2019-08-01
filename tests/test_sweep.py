@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from .conftest import create_nodes
+
 from yp.common import YpNoSuchObjectError, wait
 
 import pytest
@@ -10,7 +12,8 @@ class TestSweep(object):
     YP_MASTER_CONFIG = {
         "object_manager": {
             "removed_objects_sweep_period": 1000,
-            "removed_objects_grace_timeout": 2000
+            "removed_objects_grace_timeout": 2000,
+            "removed_objects_drop_batch_size": 10,
         }
     }
 
@@ -40,3 +43,15 @@ class TestSweep(object):
         assert len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 1
 
         wait(lambda: len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 0)
+
+    def test_batch(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        yt_client = yp_env_configurable.yt_client
+
+        node_ids = create_nodes(yp_client, 100)
+        for node_id in node_ids:
+            yp_client.remove_object("node", node_id)
+
+        select_node = lambda node_id: yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\""
+                                                            .format(node_id))
+        wait(lambda: all(len(list(select_node(node_id))) == 0 for node_id in node_ids))

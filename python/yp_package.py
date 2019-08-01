@@ -1,10 +1,7 @@
 def setup_package(name, python_dependent_requires):
-    from helpers import get_version
+    from helpers import get_version, prepare_files
 
     from setuptools import setup, find_packages
-
-    import os
-    import sys
 
     try:
         from itertools import imap
@@ -26,11 +23,7 @@ def setup_package(name, python_dependent_requires):
 
     binaries = ["yp/bin/yp", "yp/bin/yp-local"]
 
-    data_files = []
-    scripts = [binary + str(sys.version_info[0]) for binary in binaries]
-
-    if "DEB" not in os.environ:
-        scripts.extend(binaries)
+    scripts, data_files = prepare_files(binaries)
 
     find_packages("yp/packages")
     find_packages("yp/data_model")
@@ -51,7 +44,7 @@ def setup_package(name, python_dependent_requires):
         description = "Python library for YP.",
         keywords = "yp python yson",
 
-        long_description = "TODO",
+        long_description = "Python library that implements client for YP system",
 
         data_files = data_files,
 

@@ -21,7 +21,12 @@ class TAccountTypeHandler
 public:
     explicit TAccountTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Account)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         StatusAttributeSchema_
             ->SetAttribute(TAccount::StatusSchema);
 

@@ -25,6 +25,7 @@ DEFINE_ENUM(EAllocatorResourceType,
     (IP6AddressVlan)
     (IP6AddressIP4Tunnel)
     (IP6Subnet)
+    (Slot)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +130,7 @@ public:
     TNodeAllocationContext(TNode* node, TPod* pod, const TClusterPtr& cluster)
         : CpuResource_(node->CpuResource())
         , MemoryResource_(node->MemoryResource())
+        , SlotResource_(node->SlotResource())
         , DiskResources_(node->DiskResources())
         , Node_(node)
         , Pod_(pod)
@@ -178,6 +180,7 @@ public:
 
         Node_->CpuResource() = CpuResource_;
         Node_->MemoryResource() = MemoryResource_;
+        Node_->SlotResource() = SlotResource_;
         Node_->DiskResources() = DiskResources_;
 
         InternetAddressAllocationContext_.Commit();
@@ -185,6 +188,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
+    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, SlotResource);
     DEFINE_BYREF_RW_PROPERTY(TNode::TDiskResources, DiskResources);
 
 private:
@@ -381,6 +385,13 @@ private:
             if (!nodeAllocationContext->MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_limit()))) {
                 result = false;
                 statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Memory);
+            }
+        }
+
+        if (resourceRequests.slot() > 0) {
+            if (!nodeAllocationContext->SlotResource().TryAllocate(MakeSlotCapacities(resourceRequests.slot()))) {
+                result = false;
+                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Slot);
             }
         }
 

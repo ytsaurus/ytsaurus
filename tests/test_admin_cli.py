@@ -132,6 +132,18 @@ class TestAdminCli(object):
         tables = os.listdir(os.path.join(dump_dir_path, "tables"))
         assert all(x in tables for x in ("pods", "resources", "groups"))
 
+    def test_backup_without_path_argument(self, yp_env_configurable):
+        cli = YpAdminCli()
+        output = cli.check_output([
+            "backup",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp",
+        ])
+        assert output == ""
+
+        yp_client = yp_env_configurable.yp_client
+        yp_client.select_objects("account", selectors=["/meta/id"])
+
 
 @pytest.mark.usefixtures("yp_env_unfreezenable")
 class TestAdminCliFreezeUnfreeze(object):

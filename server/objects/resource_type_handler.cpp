@@ -27,11 +27,16 @@ class TResourceTypeHandler
 public:
     explicit TResourceTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Resource)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         MetaAttributeSchema_
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("node_id")
-                    ->SetParentAttribute()
+                    ->SetParentIdAttribute()
                     ->SetMandatory(),
                 MakeAttributeSchema("kind")
                     ->SetAttribute(TResource::KindSchema)
@@ -127,6 +132,9 @@ private:
         }
         if (spec.has_disk()) {
             setKind(EResourceKind::Disk);
+        }
+        if (spec.has_slot()) {
+            setKind(EResourceKind::Slot);
         }
         if (!optionalKind) {
             THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecognized kind",

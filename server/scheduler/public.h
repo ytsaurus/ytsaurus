@@ -64,6 +64,17 @@ DEFINE_ENUM(EPodNodeScoreType,
 
 using TPodNodeScoreValue = double;
 
+DEFINE_ENUM(ESchedulerLoopStage,
+    (UpdateNodeSegmentsStatus)
+    (UpdateAccountsStatus)
+    (RunPodDisruptionBudgetController)
+    (RunPodEvictionByHfsmController)
+    (RevokePodsWithAcknowledgedEviction)
+    (RemoveOrphanedAllocations)
+    (AcknowledgeNodeMaintenance)
+    (SchedulePods)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NScheduler

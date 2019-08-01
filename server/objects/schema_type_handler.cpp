@@ -13,7 +13,12 @@ class TSchemaTypeHandler
 public:
     explicit TSchemaTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Schema)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetComposite();
 

@@ -7,10 +7,6 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TScalarAttributeSchema<TObject, TObjectId> TObject::IdSchema{
-    &ObjectsTable.Fields.Meta_Id
-};
-
 const TScalarAttributeSchema<TObject, TInstant> TObject::CreationTimeSchema{
     &ObjectsTable.Fields.Meta_CreationTime,
     [] (TObject* object) { return &object->CreationTime(); }

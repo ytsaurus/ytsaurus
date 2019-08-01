@@ -23,13 +23,19 @@ class TReplicaSetTypeHandler
 public:
     explicit TReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::ReplicaSet)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("account_id")
                     ->SetAttribute(TReplicaSet::TSpec::AccountSchema
                         .SetNullable(false))
                     ->SetUpdatable()
+                    ->SetMandatory()
                     ->SetValidator<TReplicaSet>(std::bind(&TReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
 
                 MakeEtcAttributeSchema()

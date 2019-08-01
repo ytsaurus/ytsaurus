@@ -3,21 +3,28 @@ from yp.common import YtResponseError, YpAuthorizationError
 import pytest
 
 
-def permissions_test_template(yp_env, object_type):
+def permissions_test_template(yp_env, object_type, account_is_mandatory=False):
     yp_client = yp_env.yp_client
 
-    object_id = yp_client.create_object(object_type)
+    account_id = yp_client.create_object("account")
+    object_spec = {}
+    if account_is_mandatory:
+        with pytest.raises(YtResponseError):
+            yp_client.create_object(object_type)
+        object_spec = {"account_id": account_id}
+
+    object_id = yp_client.create_object(object_type, attributes={"spec": object_spec})
 
     with pytest.raises(YtResponseError) as exc:
         yp_client.update_object(object_type, object_id, set_updates=[{"path": "/spec/account_id", "value": ""}])
         assert exc.contains_text("Cannot set null account")
 
-    account_id = yp_client.create_object("account")
     user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
     yp_env.sync_access_control()
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
-        client.create_object(object_type)
+        if not account_is_mandatory:
+            client.create_object(object_type)
         with pytest.raises(YpAuthorizationError):
             client.create_object(object_type, attributes={"spec": {"account_id": account_id}})
 

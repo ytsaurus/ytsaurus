@@ -91,6 +91,8 @@ class TestConfig(object):
         def test_default_fields(config):
             assert config["config_update_period"] == self.CONFIG_UPDATE_PERIOD
             assert "scheduler" in config
+            assert "disable_stage" in config["scheduler"]
+            assert config["scheduler"]["disable_stage"]["remove_orphaned_allocations"] == False
             assert "access_control_manager" in config
             assert "global_resource_allocator" in config["scheduler"]
 
@@ -173,6 +175,10 @@ class TestConfig(object):
 
         self._set_and_validate_config_stability(yp_env_configurable, dict(scheduler=dict(
             global_resource_allocator=dict(pod_node_score=dict(type="abracadbar")),
+        )))
+
+        self._set_and_validate_config_stability(yp_env_configurable, dict(scheduler=dict(
+            disable_stage=dict(abracadabra="123"),
         )))
 
         self._set_and_validate_config_stability(yp_env_configurable, dict(worker_thread_pool_size=yson.YsonEntity()))
@@ -260,5 +266,20 @@ class TestConfig(object):
         yp_env_configurable.reset_cypress_config_patch()
         test_incorrect_pod_node_score(dict(type="node_random_hash", parameters=dict(seed="abracadabra")))
 
+        # Disable the scheduler.
+        self._set_and_validate_config_patch(yp_env_configurable, dict(scheduler=dict(disabled=True)))
+        sync_scheduler_config()
+        self._validate_scheduler_lifelessness(yp_env_configurable)
+
+        # Disable the scheduler differently.
+        self._set_and_validate_config_patch(yp_env_configurable, dict(scheduler=dict(disable_stage=dict(
+            revoke_pods_with_acknowledged_eviction=True,
+            remove_orphaned_allocations=True,
+            schedule_pods=True,
+        ))))
+        sync_scheduler_config()
+        self._validate_scheduler_lifelessness(yp_env_configurable)
+
+        # Finally make sure we can recover the scheduler after all reconfigurations.
         yp_env_configurable.reset_cypress_config_patch()
         self._validate_scheduler_liveness(yp_env_configurable)

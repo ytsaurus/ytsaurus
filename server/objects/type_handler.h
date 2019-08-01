@@ -12,6 +12,8 @@ struct IObjectTypeHandler
 {
     virtual ~IObjectTypeHandler() = default;
 
+    virtual void Initialize() = 0;
+
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() = 0;
     virtual const TDBTable* GetTable() = 0;
     virtual const TDBField* GetIdField() = 0;

@@ -13,7 +13,12 @@ class TVirtualServiceTypeHandler
 public:
     explicit TVirtualServiceTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::VirtualService)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TVirtualService::SpecSchema);
 

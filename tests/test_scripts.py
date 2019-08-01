@@ -28,6 +28,7 @@ class ScriptWrapper(Cli):
 
 
 @pytest.mark.usefixtures("yp_env")
+@pytest.mark.skipif("True", reason="YP-1155")
 class TestScripts(object):
     def test_touch_pod_master_spec_timestamp(self, yp_env, tmpdir):
         yp_client = yp_env.yp_client

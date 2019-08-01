@@ -17,7 +17,12 @@ class TUserTypeHandler
 public:
     explicit TUserTypeHandler(NMaster::TBootstrap* bootstrap)
         : TSubjectTypeHandlerBase(bootstrap, EObjectType::User)
+    { }
+
+    virtual void Initialize() override
     {
+        TSubjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TUser::SpecSchema);
 

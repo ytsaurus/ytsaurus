@@ -293,7 +293,7 @@ struct TScalarAttributeSchema
 {
     explicit TScalarAttributeSchema(
         const TDBField* field,
-        std::function<TScalarAttribute<TTypedValue>*(TTypedObject*)> attributeGetter = nullptr)
+        std::function<TScalarAttribute<TTypedValue>*(TTypedObject*)> attributeGetter)
         : TScalarAttributeSchemaBase(field)
         , AttributeGetter(std::move(attributeGetter))
     { }

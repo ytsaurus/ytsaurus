@@ -29,22 +29,44 @@ class TEndpointTypeHandler
 public:
     explicit TEndpointTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Endpoint)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         MetaAttributeSchema_
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("endpoint_set_id")
-                    ->SetParentAttribute()
+                    ->SetParentIdAttribute()
                     ->SetMandatory()
-            });
+            })
+            ->SetUpdateHandler<TEndpoint>(std::bind(&TEndpointTypeHandler::UpdateParentLastChangeTimestamp, this, _1, _2));
 
         SpecAttributeSchema_
             ->SetAttribute(TEndpoint::SpecSchema)
+            ->SetUpdateHandler<TEndpoint>(std::bind(&TEndpointTypeHandler::UpdateParentLastChangeTimestamp, this, _1, _2))
             ->SetValidator<TEndpoint>(std::bind(&TEndpointTypeHandler::ValidateSpec, this, _1, _2));
+
+        LabelsAttributeSchema_
+            ->SetUpdateHandler<TEndpoint>(std::bind(&TEndpointTypeHandler::UpdateParentLastChangeTimestamp, this, _1, _2));
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
     {
         return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TEndpoint>();
+    }
+
+    virtual void AfterObjectCreated(TTransaction* transaction, TObject* object) override
+    {
+        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
+        UpdateParentLastChangeTimestamp(transaction, object->As<TEndpoint>());
+    }
+
+    virtual void BeforeObjectRemoved(TTransaction* transaction, TObject* object) override
+    {
+        TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
+        UpdateParentLastChangeTimestamp(transaction, object->As<TEndpoint>());
     }
 
     virtual EObjectType GetParentType() override
@@ -99,6 +121,14 @@ private:
         }
         // TODO(babenko): validate FQDN?
         // TODO(babenko): validate IP4?
+    }
+
+    void UpdateParentLastChangeTimestamp(TTransaction* /*transaction*/, TEndpoint* endpoint)
+    {
+        auto* endpointSet = endpoint->EndpointSet().Load();
+        if (endpointSet->DoesExist()) {
+            endpointSet->Status().LastEndpointsUpdateTimestamp().Touch();
+        }
     }
 };
 

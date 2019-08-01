@@ -38,10 +38,15 @@ public:
     void AddSelectExpression(NYT::NQueryClient::NAst::TExpressionPtr expr);
     const NYT::NQueryClient::NAst::TExpressionList& GetSelectExpressions() const;
 
-    void WillNeedObject();
+    TObjectId GetObjectId(NYT::NTableClient::TUnversionedRow row) const;
+    TObjectId GetParentId(NYT::NTableClient::TUnversionedRow row) const;
+
     TObject* GetObject(
         TTransaction* transaction,
         NYT::NTableClient::TUnversionedRow row) const;
+    std::vector<TObject*> GetObjects(
+        TTransaction* transaction,
+        TRange<NYT::NTableClient::TUnversionedRow> rows) const;
 
     NYT::NTableClient::TUnversionedValue RetrieveNextValue(
         NYT::NTableClient::TUnversionedRow row,
@@ -50,10 +55,11 @@ public:
 private:
     IQueryContext* const QueryContext_;
 
+    NYT::NQueryClient::NAst::TExpressionList SelectExprs_;
     int ObjectIdIndex_ = -1;
     int ParentIdIndex_ = -1;
 
-    NYT::NQueryClient::NAst::TExpressionList SelectExprs_;
+    int RegisterField(const TDBField* field);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

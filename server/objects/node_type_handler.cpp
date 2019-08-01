@@ -26,7 +26,12 @@ class TNodeTypeHandler
 public:
     explicit TNodeTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Node)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TNode::SpecSchema
                 .SetInitializer(InitializeSpec)

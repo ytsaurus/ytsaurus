@@ -30,6 +30,16 @@ public:
     using TSpec = NYP::NClient::NApi::NProto::TEndpointSetSpec;
     static const TScalarAttributeSchema<TEndpointSet, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
+
+    class TStatus
+    {
+    public:
+        explicit TStatus(TEndpointSet* endpointSet);
+
+        static const TTimestampAttributeSchema LastEndpointsUpdateTimestampSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TTimestampAttribute, LastEndpointsUpdateTimestamp);
+    };
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStatus, Status);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

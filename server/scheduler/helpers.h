@@ -31,10 +31,12 @@ bool IsHomogeneous(EResourceKind kind);
 
 TResourceCapacities MakeCpuCapacities(ui64 capacity);
 TResourceCapacities MakeMemoryCapacities(ui64 capacity);
+TResourceCapacities MakeSlotCapacities(ui64 capacity);
 TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 bandwidth);
 ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities);
 ui64 GetCpuCapacity(const TResourceCapacities& capacities);
 ui64 GetMemoryCapacity(const TResourceCapacities& capacities);
+ui64 GetSlotCapacity(const TResourceCapacities& capacities);
 ui64 GetDiskCapacity(const TResourceCapacities& capacities);
 ui64 GetDiskBandwidth(const TResourceCapacities& capacities);
 

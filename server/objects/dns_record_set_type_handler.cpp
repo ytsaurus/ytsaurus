@@ -13,7 +13,12 @@ class TDnsRecordSetTypeHandler
 public:
     explicit TDnsRecordSetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::DnsRecordSet)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TDnsRecordSet::SpecSchema);
     }

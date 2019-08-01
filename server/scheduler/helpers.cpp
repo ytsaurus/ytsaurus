@@ -31,6 +31,13 @@ bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TA
         return false;
     }
 
+    if (lhs.has_slot() != rhs.has_slot()) {
+        return false;
+    }
+    if (lhs.has_slot() && lhs.slot().capacity() != rhs.slot().capacity()) {
+        return false;
+    }
+
     if (lhs.has_disk() != rhs.has_disk()) {
         return false;
     }
@@ -108,7 +115,8 @@ bool IsHomogeneous(EResourceKind kind)
 {
     return
         kind == EResourceKind::Cpu ||
-        kind == EResourceKind::Memory;
+        kind == EResourceKind::Memory ||
+        kind == EResourceKind::Slot;
 }
 
 TResourceCapacities MakeCpuCapacities(ui64 capacity)
@@ -117,6 +125,11 @@ TResourceCapacities MakeCpuCapacities(ui64 capacity)
 }
 
 TResourceCapacities MakeMemoryCapacities(ui64 capacity)
+{
+    return {{capacity, 0, 0}};
+}
+
+TResourceCapacities MakeSlotCapacities(ui64 capacity)
 {
     return {{capacity, 0, 0}};
 }
@@ -141,6 +154,11 @@ ui64 GetMemoryCapacity(const TResourceCapacities& capacities)
     return GetHomogeneousCapacity(capacities);
 }
 
+ui64 GetSlotCapacity(const TResourceCapacities& capacities)
+{
+    return GetHomogeneousCapacity(capacities);
+}
+
 ui64 GetDiskCapacity(const TResourceCapacities& capacities)
 {
     return capacities[0];
@@ -157,6 +175,8 @@ TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResource
         return MakeCpuCapacities(spec.cpu().total_capacity());
     } else if (spec.has_memory()) {
         return MakeMemoryCapacities(spec.memory().total_capacity());
+    } else if (spec.has_slot()) {
+        return MakeSlotCapacities(spec.slot().total_capacity());
     } else if (spec.has_disk()) {
         return MakeDiskCapacities(
             spec.disk().total_capacity(),
@@ -173,6 +193,8 @@ TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResour
         return MakeCpuCapacities(allocation.cpu().capacity());
     } else if (allocation.has_memory()) {
         return MakeMemoryCapacities(allocation.memory().capacity());
+    } else if (allocation.has_slot()) {
+        return MakeSlotCapacities(allocation.slot().capacity());
     } else if (allocation.has_disk()) {
         return MakeDiskCapacities(
             allocation.disk().capacity(),
@@ -203,6 +225,8 @@ TLocalResourceAllocator::TResource BuildAllocatorResource(
         resource.Kind = EResourceKind::Cpu;
     } else if (spec.has_memory()) {
         resource.Kind = EResourceKind::Memory;
+    } else if (spec.has_slot()) {
+        resource.Kind = EResourceKind::Slot;
     } else if (spec.has_disk()) {
         resource.Kind = EResourceKind::Disk;
         resource.ProtoDiskSpec = &spec.disk();
@@ -244,6 +268,10 @@ void BuildProtoResourceAllocation(
 
         case EResourceKind::Memory:
             protoAllocation->mutable_memory()->set_capacity(GetMemoryCapacity(allocation.Capacities));
+            break;
+
+        case EResourceKind::Slot:
+            protoAllocation->mutable_slot()->set_capacity(GetSlotCapacity(allocation.Capacities));
             break;
 
         case EResourceKind::Disk: {
@@ -339,6 +367,9 @@ NClient::NApi::NProto::TResourceStatus_TAllocationStatistics ResourceCapacitiesT
         case EResourceKind::Memory:
             result.mutable_memory()->set_capacity(GetMemoryCapacity(capacities));
             break;
+        case EResourceKind::Slot:
+            result.mutable_slot()->set_capacity(GetSlotCapacity(capacities));
+            break;
         default:
             YT_ABORT();
     }
@@ -384,6 +415,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
 
         const TLocalResourceAllocator::TResource* cpuResource = nullptr;
         const TLocalResourceAllocator::TResource* memoryResource = nullptr;
+        const TLocalResourceAllocator::TResource* slotResource = nullptr;
         for (auto& resource : resources) {
             switch (resource.Kind) {
                 case EResourceKind::Cpu:
@@ -392,6 +424,10 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
 
                 case EResourceKind::Memory:
                     memoryResource = &resource;
+                    break;
+
+                case EResourceKind::Slot:
+                    slotResource = &resource;
                     break;
 
                 default:
@@ -415,9 +451,20 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
         if (resourceRequests.memory_limit() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Memory;
-            request.Capacities = MakeCpuCapacities(resourceRequests.memory_limit());
+            request.Capacities = MakeMemoryCapacities(resourceRequests.memory_limit());
             if (memoryResource) {
                 request.MatchingResources.push_back(memoryResource);
+            }
+            requests.push_back(request);
+        }
+
+        // Slot
+        if (resourceRequests.slot() > 0) {
+            TLocalResourceAllocator::TRequest request;
+            request.Kind = EResourceKind::Slot;
+            request.Capacities = MakeSlotCapacities(resourceRequests.slot());
+            if (slotResource) {
+                request.MatchingResources.push_back(slotResource);
             }
             requests.push_back(request);
         }
@@ -593,6 +640,9 @@ void UpdateScheduledResourceAllocations(
                     break;
                 case EResourceKind::Memory:
                     allocation.mutable_memory()->set_capacity(GetMemoryCapacity(request.Capacities));
+                    break;
+                case EResourceKind::Slot:
+                    allocation.mutable_slot()->set_capacity(GetSlotCapacity(request.Capacities));
                     break;
                 case EResourceKind::Disk: {
                     auto* protoDisk = allocation.mutable_disk();

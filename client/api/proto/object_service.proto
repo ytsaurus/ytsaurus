@@ -436,13 +436,30 @@ message TRspGetObjects
         // The requested attributes.
         optional TAttributeList result = 1;
     }
- 
+
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
 
     // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
     // used for reading the DB; otherwise this is just the copy of TRspGetObjects.timestamp.
     optional uint64 timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSelectObjectsOptions
+{
+    // If true then TAttributeList.value_payloads are filled.
+    optional bool fetch_values = 1 [default = true];
+
+    // If true then TAttributeList.timestamps are filled.
+    optional bool fetch_timestamps = 2 [default = false];
+
+    // Number of leading results to skip.
+    optional int32 offset = 3;
+
+    // Maximum number of results to fetch.
+    optional int32 limit = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,13 +481,18 @@ message TReqSelectObjects
     required TAttributeSelector selector = 4;
 
     // Enables limiting the number of results.
+    // COMPAT(babenko): deprecated; use options instead.
     optional TSelectLimit limit = 5;
 
     // Enables skipping a number of leading results.
+    // COMPAT(babenko): deprecated; use options instead.
     optional TSelectOffset offset = 6;
 
     // Format to use in response.
     optional EPayloadFormat format = 7;
+
+    // Request options.
+    optional TSelectObjectsOptions options = 8;
 }
 
 message TRspSelectObjects

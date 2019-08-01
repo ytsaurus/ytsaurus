@@ -3,7 +3,16 @@
 #include "endpoint_set.h"
 #include "db_schema.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYP::NServer::NObjects {
+
+using namespace NYT::NYson;
+using namespace NYT::NYTree;
+
+using std::placeholders::_1;
+using std::placeholders::_2;
+using std::placeholders::_3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,17 +22,32 @@ class TEndpointSetTypeHandler
 public:
     explicit TEndpointSetTypeHandler(NMaster::TBootstrap* bootstrap)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::EndpointSet)
+    { }
+
+    virtual void Initialize() override
     {
+        TObjectTypeHandlerBase::Initialize();
+
         SpecAttributeSchema_
             ->SetAttribute(TEndpointSet::SpecSchema);
 
         StatusAttributeSchema_
-            ->SetComposite();
+            ->AddChildren({
+                MakeAttributeSchema("last_endpoints_update_timestamp")
+                    ->SetPreevaluator<TEndpointSet>(std::bind(&TEndpointSetTypeHandler::PreevaluateLastEndpointsUpdateTimestamp, this, _1, _2))
+                    ->SetEvaluator<TEndpointSet>(std::bind(&TEndpointSetTypeHandler::EvaluateLastEndpointsUpdateTimestamp, this, _1, _2, _3)),
+              });
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
     {
         return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TEndpointSet>();
+    }
+
+    virtual void AfterObjectCreated(TTransaction* transaction, TObject* object) override
+    {
+        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
+        object->As<TEndpointSet>()->Status().LastEndpointsUpdateTimestamp().Touch();
     }
 
     virtual const TDBTable* GetTable() override
@@ -43,6 +67,18 @@ public:
     {
         YT_VERIFY(!parentId);
         return std::unique_ptr<TObject>(new TEndpointSet(id, this, session));
+    }
+
+private:
+    void PreevaluateLastEndpointsUpdateTimestamp(TTransaction* /*transaction*/, TEndpointSet* endpointSet)
+    {
+        endpointSet->Status().LastEndpointsUpdateTimestamp().ScheduleLoad();
+    }
+
+    void EvaluateLastEndpointsUpdateTimestamp(TTransaction* /*transaction*/, TEndpointSet* endpointSet, NYT::NYson::IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .Value(endpointSet->Status().LastEndpointsUpdateTimestamp().Load());
     }
 };
 

@@ -27,13 +27,16 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
     : Bootstrap_(bootstrap)
     , Type_(type)
     , SchemaId_(FormatEnum(Type_))
+{ }
+
+void TObjectTypeHandlerBase::Initialize()
 {
     RootAttributeSchema_ = MakeAttributeSchema(TString())
         ->AddChildren({
             MetaAttributeSchema_ = MakeAttributeSchema("meta")
                 ->AddChildren({
                     IdAttributeSchema_ = MakeAttributeSchema("id")
-                        ->SetAttribute(TObject::IdSchema),
+                        ->SetIdAttribute(),
 
                     MakeAttributeSchema("type")
                         ->SetExpressionBuilder(

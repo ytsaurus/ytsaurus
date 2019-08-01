@@ -85,7 +85,8 @@ public:
     TAttributeSchema* SetAnnotationsAttribute();
     bool IsAnnotationsAttribute() const;
 
-    TAttributeSchema* SetParentAttribute();
+    TAttributeSchema* SetIdAttribute();
+    TAttributeSchema* SetParentIdAttribute();
 
     TAttributeSchema* SetControlAttribute();
 

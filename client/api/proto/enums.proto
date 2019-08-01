@@ -22,6 +22,9 @@ enum EResourceKind
     RK_DISK = 2
     [(NYT.NYson.NProto.enum_value_name) = "disk"];
 
+    RK_SLOT = 3
+    [(NYT.NYson.NProto.enum_value_name) = "slot"];
+
     RK_UNDEFINED = -1
     [(NYT.NYson.NProto.enum_value_name) = "undefined"];
 }
