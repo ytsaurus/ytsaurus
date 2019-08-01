@@ -3039,6 +3039,11 @@ private:
                                     .Do(BIND(&TImpl::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
                 })
+                .DoIf(tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("dynamic_table_locks").DoMap(
+                            BIND(&TLockManager::BuildOrchidYson, tablet->GetLockManager()));
+                })
             .EndMap();
     }
 
