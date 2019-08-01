@@ -2732,11 +2732,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
     def test_overlapping_store_count(self):
-        def check_all(address, tablet_id, stores, overlaps):
-            orchid = self._find_tablet_orchid(address, tablet_id)
-            assert(stores == len(orchid["eden"]["stores"]))
-            assert(overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
-
         # This magic combination of parameters makes flushed insertion to be stored in eden stores
         sync_create_cells(1)
         self._create_simple_table(
@@ -2751,15 +2746,20 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = get_tablet_leader_address(tablet_id)
-        check_all(address, tablet_id, stores=1, overlaps=1)
+
+        def _check(stores, overlaps):
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            lambda: stores == len(orchid["eden"]["stores"])
+            wait(lambda: overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
+        _check(stores=1, overlaps=1)
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12)])
         sync_flush_table("//tmp/t")
-        check_all(address, tablet_id, stores=2, overlaps=2)
+        _check(stores=2, overlaps=2)
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12, 24)])
         sync_flush_table("//tmp/t")
-        check_all(address, tablet_id, stores=3, overlaps=2)
+        _check(stores=3, overlaps=2)
 
 ##################################################################
 
