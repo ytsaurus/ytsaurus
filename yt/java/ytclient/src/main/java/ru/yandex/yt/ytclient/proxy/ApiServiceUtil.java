@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import ru.yandex.bolts.function.Function;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
+import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TTableSchema;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
@@ -57,6 +58,23 @@ public class ApiServiceUtil {
             }
             row.add(new UnversionedValue(id, type, aggregate, value));
         }
+    }
+
+    public static TableSchema deserializeTableSchema(TTableSchema schema) {
+        TableSchema.Builder builder = new TableSchema.Builder().setUniqueKeys(schema.getUniqueKeys());
+
+        for (TColumnSchema columnSchema : schema.getColumnsList()) {
+            String name = columnSchema.getName();
+            ColumnValueType type = ColumnValueType.fromValue(columnSchema.getType());
+
+            if (columnSchema.hasSortOrder()) {
+                builder.addKey(name, type);
+            } else {
+                builder.addValue(name, type);
+            }
+        }
+
+        return builder.build();
     }
 
     public static TableSchema deserializeRowsetSchema(TRowsetDescriptor descriptor) {

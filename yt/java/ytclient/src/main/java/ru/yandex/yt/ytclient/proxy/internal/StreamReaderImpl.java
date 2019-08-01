@@ -172,10 +172,12 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
         return message.data;
     }
 
-    void doRead(Consumer<byte[]> consumer) {
+    CompletableFuture<Void> doRead(Consumer<byte[]> consumer) {
         synchronized (lock) {
             start();
             this.stash = StreamStash.asyncStash(consumer);
         }
+
+        return waitResult();
     }
 }

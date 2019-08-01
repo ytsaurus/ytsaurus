@@ -11,7 +11,7 @@ public abstract class StreamStash<DataType> {
     public abstract void commit(RpcClientStreamControl control);
 
     public static <DataType> StreamStash<DataType> syncStash() {
-        return new StreamStash<DataType>() {
+        return new StreamStash<DataType>() { // jdk8 compatibilty
             private final LinkedList<StashedMessage<DataType>> messages = new LinkedList<>();
 
             @Override
