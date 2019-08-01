@@ -1,11 +1,12 @@
 #pragma once
 
 #include "task.h"
-#include "serialize.h"
 #include "controller_agent.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 

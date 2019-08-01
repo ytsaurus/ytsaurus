@@ -1,10 +1,11 @@
 #pragma once
 
 #include "private.h"
-#include "serialize.h"
 #include "job_info.h"
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 namespace NYT::NControllerAgent {
 

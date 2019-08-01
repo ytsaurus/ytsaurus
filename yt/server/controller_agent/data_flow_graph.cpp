@@ -1,9 +1,10 @@
 #include "data_flow_graph.h"
-#include "serialize.h"
 #include "virtual.h"
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 #include <yt/client/node_tracker_client/node_directory.h>

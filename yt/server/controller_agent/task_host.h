@@ -1,13 +1,14 @@
 #pragma once
 
 #include "private.h"
-#include "serialize.h"
 #include "table.h"
 #include "data_flow_graph.h"
 #include "operation_controller.h"
 
 #include <yt/server/lib/chunk_pools/public.h>
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/client/ypath/rich.h>
 
