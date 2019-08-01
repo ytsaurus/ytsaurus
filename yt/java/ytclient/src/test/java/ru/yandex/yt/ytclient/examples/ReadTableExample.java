@@ -3,7 +3,7 @@ package ru.yandex.yt.ytclient.examples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.yt.ytclient.proxy.internal.TableReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 
 public class ReadTableExample {
@@ -25,7 +25,7 @@ public class ReadTableExample {
                 // Thread.sleep(5000);
                 logger.info("Read table");
                 //TableReader reader = client.readTable(new ReadTable("//home/market/production/mbo/export/recent/models/models"));
-                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy"));
+                TableReaderImpl reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy"));
                 //TableReader reader = client.readTable(new ReadTable("//home/arivkin/choyt/demo/mobile_sorted_small"));
 
                 reader.waitResult();

@@ -142,7 +142,7 @@ import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
-import ru.yandex.yt.ytclient.proxy.internal.TableReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -1136,13 +1136,13 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
-    public TableReader readTable(ReadTable req) {
+    public TableReaderImpl readTable(ReadTable req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
         req.writeTo(builder.body());
 
-        return new TableReader(startStream(builder));
+        return new TableReaderImpl(startStream(builder));
     }
 
     public FileReader readFile(ReadFile req) {
