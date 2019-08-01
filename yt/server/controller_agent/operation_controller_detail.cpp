@@ -57,6 +57,7 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
 
@@ -1666,6 +1667,10 @@ void TOperationControllerBase::LockDynamicTables()
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     std::vector<TTagId> cellTags;
 
+    const auto& timestampProvider = OutputClient->GetNativeConnection()->GetTimestampProvider();
+    auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
+        .ValueOrThrow();
+
     for (const auto& [cellTag, tables] : cellTagToTables) {
         auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
@@ -1676,6 +1681,7 @@ void TOperationControllerBase::LockDynamicTables()
         for (const auto& table : tables) {
             auto objectIdPath = FromObjectId(table->ObjectId);
             auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
+            req->set_timestamp(currentTimestamp);
             SetTransactionId(req, OutputTransaction->GetId());
             GenerateMutationId(req);
 

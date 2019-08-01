@@ -1387,7 +1387,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->LockDynamicTable(
         GetThisImpl()->GetTrunkNode(),
-        GetTransaction());
+        GetTransaction(),
+        request->timestamp());
 
     context->Reply();
 }
