@@ -50,6 +50,23 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
         auto column = ColumnFromYson(
             "{"
             "  name=x;"
+            "  type=null;"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Null));
+        EXPECT_EQ(column.Required(), false);
+    }
+
+    EXPECT_ANY_THROW(ColumnFromYson(
+        "{"
+        " name=x;"
+        " type=null;"
+        " required=%true;"
+        "}"));
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
             "  type_v2={"
             "    metatype=list;"
             "    element=utf8"

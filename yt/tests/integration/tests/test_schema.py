@@ -16,6 +16,7 @@ GOOD_VALUE_LIST = [
     {"ui8": 0}, {"ui8": 2 ** 8 - 1}, {"ui8": None},
 
     {"utf8": "ff"}, {"utf8": "ЫТЬ"}, {"utf8": None},
+    {"null": None},
 ]
 
 BAD_VALUE_LIST = [
@@ -28,6 +29,7 @@ BAD_VALUE_LIST = [
     {"ui8": 2 ** 8},
 
     {"utf8": "\xFF"},
+    {"null": 0}, {"null": False}, {"null": ""},
 ]
 
 SCHEMA = [
@@ -63,6 +65,10 @@ SCHEMA = [
     {
         "type": "utf8",
         "name": "utf8",
+    },
+    {
+        "type": "null",
+        "name": "null",
     },
 ]
 
@@ -370,6 +376,80 @@ class TestComplexTypes(YTEnvSetup):
         check_bad([0, "one", 2])
         check_bad([1, 3.14])
         check_bad([2, None])
+
+    @authors("ermolovd")
+    def test_null_type(self):
+        def check_schema():
+            column_schema = get("//tmp/table/@schema/0")
+            assert column_schema["required"] == False
+            assert column_schema["type"] == "null"
+            assert column_schema["type_v2"] == "null"
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": "null",
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type": "null",
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type": "null",
+                "required": False,
+            }])
+        })
+        check_schema()
+
+        # no exception
+        write_table("//tmp/table", [{}, {"column": None}])
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": 0}])
+
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/table", force=True, attributes={
+                "schema": make_schema([{
+                    "name": "column",
+                    "type": "null",
+                    "required": True,
+                }])
+        })
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": list_type("null"),
+            }])
+        })
+        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
+        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": [0]}])
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": optional_type("null")
+            }])
+        })
+        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": []}])
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": []}])
+
 
     @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):
