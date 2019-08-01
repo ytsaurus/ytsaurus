@@ -396,7 +396,7 @@ class TestSkynetManager(YTEnvSetup):
 
             if rsp.status_code == 202:
                 progress = json.loads(rsp.headers["X-YT-Progress"])
-                print "Progress %s" % str(progress)
+                print_debug("Progress %s" % str(progress))
                 time.sleep(1)
                 continue
 

@@ -37,6 +37,7 @@ public:
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Invoker_);
+        VERIFY_INVOKER_THREAD_AFFINITY(Invoker_, HomeThread);
 
         EvictionExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
@@ -124,12 +125,10 @@ public:
 
         YT_VERIFY(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
 
-        YT_LOG_TRACE("Response will be kept (MutationId: %v)", id);
-
         return TFuture<TSharedRefArray>();
     }
 
-    void EndRequest(TMutationId id, TSharedRefArray response)
+    void EndRequest(TMutationId id, TSharedRefArray response, bool remember)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
         YT_ASSERT(id);
@@ -142,27 +141,27 @@ public:
 
         TPromise<TSharedRefArray> promise;
         if (pendingIt != PendingResponses_.end()) {
-            promise = pendingIt->second;
+            promise = std::move(pendingIt->second);
             PendingResponses_.erase(pendingIt);
         }
 
-        // NB: Allow duplicates.
-        if (!FinishedResponses_.insert(std::make_pair(id, response)).second) {
-            return;
+        if (remember) {
+            // NB: Allow duplicates.
+            if (!FinishedResponses_.insert(std::make_pair(id, response)).second) {
+                return;
+            }
+
+            ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
+
+            UpdateCounters(response, +1);
         }
-
-        ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
-
-        UpdateCounters(response, +1);
 
         if (promise) {
             promise.Set(response);
         }
-
-        YT_LOG_TRACE("Response kept (MutationId: %v)", id);
     }
 
-    void CancelRequest(TMutationId id, const TError& error)
+    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
         YT_ASSERT(id);
@@ -171,18 +170,39 @@ public:
             return;
         }
 
+        if (responseOrError.IsOK()) {
+            EndRequest(id, std::move(responseOrError.Value()), remember);
+            return;
+        }
+
         auto it = PendingResponses_.find(id);
         if (it == PendingResponses_.end()) {
             return;
         }
 
-        it->second.Set(error);
+        auto promise = std::move(it->second);
         PendingResponses_.erase(it);
 
-        YT_LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
+        promise.Set(TError(responseOrError));
     }
 
-    bool TryReplyFrom(IServiceContextPtr context)
+    void CancelPendingRequests(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(HomeThread);
+
+        if (!Started_) {
+            return;
+        }
+
+        auto pendingResponses = std::move(PendingResponses_);
+        for (auto& [id, promise] : pendingResponses) {
+            promise.Set(error);
+        }
+
+        YT_LOG_INFO(error, "All pending requests canceled");
+    }
+
+    bool TryReplyFrom(const IServiceContextPtr& context)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -196,14 +216,14 @@ public:
             context->ReplyFrom(std::move(keptAsyncResponseMessage));
             return true;
         } else {
-            context->GetAsyncResponseMessage().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
-                const auto& error = context->GetError();
-                if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
-                    CancelRequest(mutationId, error);
-                } else {
-                    EndRequest(mutationId, context->GetResponseMessage());
-                }
-            }).Via(Invoker_));
+            context->GetAsyncResponseMessage()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
+                    const auto& error = context->GetError();
+                    EndRequest(
+                        mutationId,
+                        context->GetResponseMessage(),
+                        error.GetCode() != NRpc::EErrorCode::Unavailable);
+                }).Via(Invoker_));
             return false;
         }
     }
@@ -320,19 +340,24 @@ TFuture<TSharedRefArray> TResponseKeeper::TryBeginRequest(TMutationId id, bool i
     return Impl_->TryBeginRequest(id, isRetry);
 }
 
-void TResponseKeeper::EndRequest(TMutationId id, TSharedRefArray response)
+void TResponseKeeper::EndRequest(TMutationId id, TSharedRefArray response, bool remember)
 {
-    Impl_->EndRequest(id, std::move(response));
+    Impl_->EndRequest(id, std::move(response), remember);
 }
 
-void TResponseKeeper::CancelRequest(TMutationId id, const TError& error)
+void TResponseKeeper::EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
 {
-    Impl_->CancelRequest(id, error);
+    Impl_->EndRequest(id, std::move(responseOrError), remember);
 }
 
-bool TResponseKeeper::TryReplyFrom(IServiceContextPtr context)
+void TResponseKeeper::CancelPendingRequests(const TError& error)
 {
-    return Impl_->TryReplyFrom(std::move(context));
+    Impl_->CancelPendingRequests(error);
+}
+
+bool TResponseKeeper::TryReplyFrom(const IServiceContextPtr& context)
+{
+    return Impl_->TryReplyFrom(context);
 }
 
 bool TResponseKeeper::IsWarmingUp() const

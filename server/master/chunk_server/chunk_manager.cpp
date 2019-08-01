@@ -9,6 +9,7 @@
 #include "chunk_replicator.h"
 #include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
+#include "chunk_tree_traverser.h"
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
@@ -25,7 +26,7 @@
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.pb.h>
+#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -71,6 +72,8 @@
 #include <yt/core/misc/string.h>
 
 #include <yt/core/profiling/profile_manager.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NChunkServer {
 
@@ -134,17 +137,17 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void RefObject(TObjectBase* object) override
+    virtual void RefObject(TObject* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
     }
 
-    virtual void UnrefObject(TObjectBase* object) override
+    virtual void UnrefObject(TObject* object) override
     {
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
-    virtual int GetObjectRefCounter(TObjectBase* object) override
+    virtual int GetObjectRefCounter(TObject* object) override
     {
         return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
     }
@@ -194,7 +197,7 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TObjectBase* FindObject(TObjectId id) override
+    virtual TObject* FindObject(TObjectId id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -308,7 +311,7 @@ public:
         return EObjectType::Medium;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -729,13 +732,13 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange)
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = NullTransactionId)
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->As<TChunk>();
-                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange));
+                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v)",
                     chunkView->GetId(),
                     underlyingChunk->GetId());
@@ -744,7 +747,7 @@ public:
 
             case EObjectType::ChunkView: {
                 auto* underlyingChunkView = underlyingTree->As<TChunkView>();
-                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
+                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange), transactionId);
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
                     underlyingChunkView->GetUnderlyingChunk()->GetId(),
@@ -769,6 +772,32 @@ public:
             chunkList->GetId(),
             chunkList->GetKind());
         return chunkList;
+    }
+
+    TChunkList* CloneTabletChunkList(TChunkList* chunkList)
+    {
+        auto* newChunkList = CreateChunkList(chunkList->GetKind());
+
+        if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+            AttachToChunkList(
+                newChunkList,
+                chunkList->Children().data() + chunkList->GetTrimmedChildCount(),
+                chunkList->Children().data() + chunkList->Children().size());
+
+            // Restoring statistics.
+            newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
+            newChunkList->Statistics().LogicalChunkCount = chunkList->Statistics().LogicalChunkCount;
+            newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
+            newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
+        } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
+            newChunkList->SetPivotKey(chunkList->GetPivotKey());
+            auto children = EnumerateChunksAndChunkViewsInChunkTree(chunkList);
+            AttachToChunkList(newChunkList, children);
+        } else {
+            YT_ABORT();
+        }
+
+        return newChunkList;
     }
 
 
@@ -841,6 +870,25 @@ public:
     }
 
 
+    void ReplaceChunkListChild(
+        TChunkList* chunkList,
+        int childIndex,
+        TChunkTree* child)
+    {
+        auto* oldChild = chunkList->Children()[childIndex];
+
+        if (oldChild == child) {
+            return;
+        }
+
+        NChunkServer::ReplaceChunkListChild(chunkList, childIndex, child);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(child);
+        objectManager->UnrefObject(oldChild);
+    }
+
+
     void RebalanceChunkTree(TChunkList* chunkList)
     {
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
@@ -886,6 +934,7 @@ public:
         chunkTree->SetStagingAccount(account);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        // XXX(portals)
         objectManager->RefObject(account);
     }
 
@@ -1409,8 +1458,9 @@ private:
 
     int TotalReplicaCount_ = 0;
 
-    bool NeedToRecomputeStatistics_ = false;
+    bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
     bool NeedInitializeMediumMaxReplicationFactor_ = false;
+    bool NeedSetChunkViewParents_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1589,7 +1639,7 @@ private:
     }
 
 
-    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange)
+    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange, TTransactionId transactionId)
     {
         ++ChunkViewsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1597,16 +1647,22 @@ private:
         auto chunkViewHolder = std::make_unique<TChunkView>(id);
         auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
         chunkView->SetUnderlyingChunk(underlyingChunk);
+        underlyingChunk->AddParent(chunkView);
         chunkView->SetReadRange(std::move(readRange));
         Bootstrap_->GetObjectManager()->RefObject(underlyingChunk);
+        if (transactionId) {
+            auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->CreateOrRefTimestampHolder(transactionId);
+            chunkView->SetTransactionId(transactionId);
+        }
         return chunkView;
     }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange, TTransactionId transactionId)
     {
         readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
         readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
-        return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange);
+        return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange, transactionId);
     }
 
     void DestroyChunkView(TChunkView* chunkView)
@@ -1615,7 +1671,11 @@ private:
 
         auto* underlyingChunk = chunkView->GetUnderlyingChunk();
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        underlyingChunk->RemoveParent(chunkView);
         objectManager->UnrefObject(underlyingChunk);
+
+        auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->UnrefTimestampHolder(chunkView->GetTransactionId());
 
         ++ChunkViewsDestroyed_;
     }
@@ -2219,6 +2279,8 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
+        account->ValidateCreationCommitted();
+
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
                 .SetChunkCount(1)
@@ -2383,13 +2445,23 @@ private:
     {
         auto parentId = FromProto<TTransactionId>(subrequest->parent_id());
         auto* parent = GetChunkListOrThrow(parentId);
+        auto transactionId = subrequest->has_transaction_id()
+            ? FromProto<TTransactionId>(subrequest->transaction_id())
+            : NullTransactionId;
 
         std::vector<TChunkTree*> children;
         children.reserve(subrequest->child_ids_size());
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
             auto* child = GetChunkTreeOrThrow(childId);
-            children.push_back(child);
+            if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet) {
+                YT_VERIFY(child->GetType() == EObjectType::Chunk);
+
+                auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TReadRange(), transactionId);
+                children.push_back(chunkView);
+            } else {
+                children.push_back(child);
+            }
             // YT-6542: Make sure we never attach a chunk list to its parent more than once.
             if (child->GetType() == EObjectType::ChunkList) {
                 auto* chunkListChild = child->AsChunkList();
@@ -2409,11 +2481,11 @@ private:
             *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
             parentId,
-            MakeFormattableView(children, TObjectIdFormatter()));
+            MakeFormattableView(children, TObjectIdFormatter()),
+            transactionId);
     }
-
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
@@ -2440,7 +2512,7 @@ private:
         MediumMap_.LoadKeys(context);
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= 830) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
             ChunkViewMap_.LoadKeys(context);
         }
     }
@@ -2455,25 +2527,34 @@ private:
         Load(context, ChunkRequisitionRegistry_);
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 809) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::PersistRequisitionUpdateRequests) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= 830) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
             ChunkViewMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 817;
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterSnapshotVersion::PersistTNodeResourceUsageLimits;
+
+        // COMPAT(ifsmirnov)
+        NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
+            EMasterSnapshotVersion::YT_10639_CumulativeStatisticsInDynamicTables;
+
+        // COMPAT(ifsmirnov)
+        NeedSetChunkViewParents_ = context.GetVersion() <
+            EMasterSnapshotVersion::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedToRecomputeStatistics_ = false;
+        NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         NeedInitializeMediumMaxReplicationFactor_ = false;
+        NeedSetChunkViewParents_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2522,9 +2603,9 @@ private:
 
         InitBuiltins();
 
-        if (NeedToRecomputeStatistics_) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics_ = false;
+        if (NeedToComputeCumulativeStatisticsForDynamicTables_) {
+            ComputeCumulativeStatisticsForDynamicTables();
+            NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         }
 
         if (NeedInitializeMediumMaxReplicationFactor_) {
@@ -2533,6 +2614,12 @@ private:
                 InitializeMediumMaxReplicationFactor(medium);
             }
             NeedInitializeMediumMaxReplicationFactor_ = false;
+        }
+
+        if (NeedSetChunkViewParents_) {
+            for (const auto& [id, chunkView] : ChunkViewMap_) {
+                chunkView->GetUnderlyingChunk()->AddParent(chunkView);
+            }
         }
 
         YT_LOG_INFO("Finished initializing chunks");
@@ -2645,10 +2732,130 @@ private:
         return true;
     }
 
-
-    void ScheduleRecomputeStatistics()
+    void RecomputeStatistics(TChunkList* chunkList)
     {
-        NeedToRecomputeStatistics_ = true;
+        YT_VERIFY(chunkList->GetKind() != EChunkListKind::OrderedDynamicTablet);
+
+        auto& statistics = chunkList->Statistics();
+        auto oldStatistics = statistics;
+        statistics = TChunkTreeStatistics{};
+
+        auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+        cumulativeStatistics.Clear();
+        if (chunkList->HasModifyableCumulativeStatistics()) {
+            cumulativeStatistics.DeclareModifiable();
+        } else if (chunkList->HasAppendableCumulativeStatistics()) {
+            cumulativeStatistics.DeclareAppendable();
+        } else {
+            YT_ABORT();
+        }
+
+        for (auto* child : chunkList->Children()) {
+            YT_VERIFY(child);
+            auto childStatistics = GetChunkTreeStatistics(child);
+            statistics.Accumulate(childStatistics);
+            if (chunkList->HasCumulativeStatistics()) {
+                cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{childStatistics});
+            }
+        }
+
+        ++statistics.Rank;
+        ++statistics.ChunkListCount;
+
+        if (statistics != oldStatistics) {
+            YT_LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
+                chunkList->GetId(),
+                oldStatistics,
+                statistics);
+        }
+
+        if (!chunkList->Children().empty() && chunkList->HasCumulativeStatistics()) {
+            auto ultimateCumulativeEntry = chunkList->CumulativeStatistics().Back();
+            if (ultimateCumulativeEntry != TCumulativeStatisticsEntry{statistics}) {
+                YT_LOG_FATAL(
+                    "Chunk list cumulative statistics do not match statistics "
+                    "(ChunkListId: %v, Statistics: %v, UltimateCumulativeEntry: %v)",
+                    chunkList->GetId(),
+                    statistics,
+                    ultimateCumulativeEntry);
+            }
+        }
+    }
+
+    // Fix for YT-10619.
+    void RecomputeOrderedTabletCumulativeStatistics(TChunkList* chunkList)
+    {
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+
+        auto getChildStatisticsEntry = [] (TChunkTree* child) {
+            return child
+                ? TCumulativeStatisticsEntry{child->AsChunk()->GetStatistics()}
+                : TCumulativeStatisticsEntry(0 /*RowCount*/, 1 /*ChunkCount*/, 0 /*DataSize*/);
+        };
+
+        TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
+        for (auto* child : chunkList->Children()) {
+            auto childEntry = getChildStatisticsEntry(child);
+            beforeFirst = beforeFirst - childEntry;
+        }
+
+        YT_VERIFY(chunkList->HasTrimmableCumulativeStatistics());
+        auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+        cumulativeStatistics.Clear();
+        cumulativeStatistics.DeclareTrimmable();
+        // Replace default-constructed auxiliary 'before-first' entry.
+        cumulativeStatistics.PushBack(beforeFirst);
+        cumulativeStatistics.TrimFront(1);
+
+        auto currentStatistics = beforeFirst;
+        for (auto* child : chunkList->Children()) {
+            auto childEntry = getChildStatisticsEntry(child);
+            currentStatistics = currentStatistics + childEntry;
+            cumulativeStatistics.PushBack(childEntry);
+        }
+
+        YT_VERIFY(currentStatistics == TCumulativeStatisticsEntry{chunkList->Statistics()});
+        auto ultimateCumulativeEntry = chunkList->CumulativeStatistics().Empty()
+            ? chunkList->CumulativeStatistics().GetPreviousSum(0)
+            : chunkList->CumulativeStatistics().Back();
+        if (ultimateCumulativeEntry != TCumulativeStatisticsEntry{chunkList->Statistics()}) {
+            YT_LOG_FATAL(
+                "Chunk list cumulative statistics do not match statistics "
+                "(ChunkListId: %v, Statistics: %v, UltimateCumulativeEntry: %v)",
+                chunkList->GetId(),
+                chunkList->Statistics(),
+                ultimateCumulativeEntry);
+        }
+    }
+
+    // Compat for YT-10639.
+    void ComputeCumulativeStatisticsForDynamicTables()
+    {
+        for (auto [id, chunkList] : ChunkListMap_) {
+            switch (chunkList->GetKind()) {
+                case EChunkListKind::OrderedDynamicTablet:
+                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
+                    break;
+
+                case EChunkListKind::OrderedDynamicRoot:
+                case EChunkListKind::SortedDynamicRoot:
+                case EChunkListKind::SortedDynamicTablet:
+                    RecomputeStatistics(chunkList);
+                    break;
+
+                default:
+                    break;
+            }
+
+            if (chunkList->HasCumulativeStatistics()) {
+                YT_VERIFY(chunkList->Children().size() == chunkList->CumulativeStatistics().Size());
+                if (chunkList->Statistics().ChunkCount > 0 && !chunkList->CumulativeStatistics().Empty()) {
+                    YT_VERIFY(TCumulativeStatisticsEntry{chunkList->Statistics()} ==
+                        chunkList->CumulativeStatistics().Back());
+                }
+            }
+        }
     }
 
     // NB(ifsmirnov): This code was used 3 years ago as an ancient COMPAT but might soon
@@ -2694,6 +2901,7 @@ private:
 
         // Recompute statistics
         for (auto* chunkList : chunkLists) {
+            RecomputeStatistics(chunkList);
             auto& statistics = chunkList->Statistics();
             auto oldStatistics = statistics;
             statistics = TChunkTreeStatistics();
@@ -3077,10 +3285,8 @@ private:
 
         // Go upwards and apply delta.
         YT_VERIFY(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
         auto statisticsDelta = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+        AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 
         auto owningNodes = GetOwningNodes(chunk);
 
@@ -3321,8 +3527,10 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
 
 void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
+    // NB: TObjectTypeHandlerWithMapBase::DoDestroyObject will release
+    // the runtime data; postpone its call.
     Owner_->DestroyChunk(chunk);
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
@@ -3417,7 +3625,7 @@ IObjectProxyPtr TChunkManager::TMediumTypeHandler::DoGetProxy(
     return CreateMediumProxy(Bootstrap_, &Metadata_, medium);
 }
 
-TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
+TObject* TChunkManager::TMediumTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -3435,6 +3643,7 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
 
 void TChunkManager::TMediumTypeHandler::DoZombifyObject(TMedium* medium)
 {
+    TObjectTypeHandlerBase::DoZombifyObject(medium);
     // NB: Destroying arbitrary media is not currently supported.
     // This handler, however, is needed to destroy just-created media
     // for which attribute initialization has failed.
@@ -3542,6 +3751,11 @@ TChunkList* TChunkManager::CreateChunkList(EChunkListKind kind)
     return Impl_->CreateChunkList(kind);
 }
 
+TChunkList* TChunkManager::CloneTabletChunkList(TChunkList* chunkList)
+{
+    return Impl_->CloneTabletChunkList(chunkList);
+}
+
 void TChunkManager::UnstageChunk(TChunk* chunk)
 {
     Impl_->UnstageChunk(chunk);
@@ -3604,6 +3818,14 @@ void TChunkManager::DetachFromChunkList(
     TChunkTree* child)
 {
     Impl_->DetachFromChunkList(chunkList, child);
+}
+
+void TChunkManager::ReplaceChunkListChild(
+    TChunkList* chunkList,
+    int childIndex,
+    TChunkTree* newChild)
+{
+    Impl_->ReplaceChunkListChild(chunkList, childIndex, newChild);
 }
 
 TChunkView* TChunkManager::CreateChunkView(

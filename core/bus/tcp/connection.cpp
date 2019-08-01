@@ -30,6 +30,7 @@ using namespace NConcurrency;
 using namespace NNet;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

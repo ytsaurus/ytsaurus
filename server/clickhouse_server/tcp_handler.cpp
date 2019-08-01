@@ -50,7 +50,15 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
 
         virtual void customizeContext(DB::Context& context) override
         {
-            SetupHostContext(Bootstrap_, context);
+            context.getClientInfo().current_user = context.getClientInfo().initial_user;
+            auto contextQueryId = context.getClientInfo().current_query_id;
+            TQueryId queryId;
+            if (!TQueryId::FromString(contextQueryId, &queryId)) {
+                const auto& Logger = ServerLogger;
+                YT_LOG_INFO("Query id from TCP handler is not a valid YT query id (ContextQueryId: %v)", contextQueryId);
+                queryId = TQueryId::Create();
+            }
+            SetupHostContext(Bootstrap_, context, queryId);
         }
 
     private:

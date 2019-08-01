@@ -382,11 +382,15 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int r
 
 TFuture<void> TAsyncFileChangelogIndex::FlushData()
 {
-    std::vector<TFuture<void>> asyncResults;
-    asyncResults.reserve(2);
-    asyncResults.push_back(FlushDirtyBuckets());
-    asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
-    return Combine(asyncResults);
+    if (HasDirtyBuckets_) {
+        std::vector<TFuture<void>> asyncResults;
+        asyncResults.reserve(2);
+        asyncResults.push_back(FlushDirtyBuckets());
+        asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
+        return Combine(asyncResults);
+    } else {
+        return VoidFuture;
+    }
 }
 
 void TAsyncFileChangelogIndex::Close()

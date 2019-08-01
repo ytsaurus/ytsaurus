@@ -19,6 +19,8 @@
 #include <yt/server/lib/misc/disk_health_checker.h>
 #include <yt/server/lib/misc/private.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
@@ -399,7 +401,9 @@ private:
                 OpenExisting | RdOnly | Seq | CloseOnExec);
 
             if (metaFile.GetLength() < sizeof (TLayerMetaHeader)) {
-                THROW_ERROR_EXCEPTION("Layer meta file %v is too short: at least %v bytes expected",
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::IncorrectLayerFileSize,
+                    "Layer meta file %v is too short: at least %v bytes expected",
                     metaFileName,
                     sizeof (TLayerMetaHeader));
             }

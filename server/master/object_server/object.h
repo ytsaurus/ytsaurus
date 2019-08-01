@@ -16,31 +16,37 @@ struct TObjectDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Some objects must be created atomically.
+// Some objects must be created and removed atomically.
 //
 // Let's consider accounts. In the absence of an atomic commit, it's possible
 // that some cell knows about an account, and some other cell doesn't. Then, the
 // former cell sending a chunk requisition update to the latter will cause
 // trouble.
 //
-// To be extended for deletion (for symmetry's sake).
+// Removal also needs two-phase locking since otherwise a primary master
+// is unable to command the destruction of an object to its secondaries without risking
+// that some secondary still holds a reference to the object.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
-     (CreationStarted)
-     (CreationPreCommitted)
-     (CreationCommitted)
+     ((CreationStarted)         (0))
+     ((CreationPreCommitted)    (1))
+     ((CreationCommitted)       (2))
+     ((RemovalStarted)          (3))
+     ((RemovalPreCommitted)     (4))
+     ((RemovalCommitted)        (5))
 );
 
-EObjectLifeStage NextStage(EObjectLifeStage lifeStage);
+EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage);
+bool IsStableLifeStage(EObjectLifeStage lifeStage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a base for all objects in YT master server.
-class TObjectBase
+class TObject
     : public NHydra::TEntityBase
 {
 public:
-    explicit TObjectBase(TObjectId id);
-    virtual ~TObjectBase();
+    explicit TObject(TObjectId id);
+    virtual ~TObject();
 
     TObjectDynamicData* GetDynamicData() const;
 
@@ -132,20 +138,16 @@ public:
     int GetImportRefCounter() const;
 
     //! Returns the current life stage of the object.
-    /*!
-     *  For most objects, this is always #Created.
-     *
-     *  Some objects, however, need to be created atomically (across all
-     *  cells). Returning an object in the #PreCreated stage from type handler
-     *  initiates atomic creation procedure.
-     */
     EObjectLifeStage GetLifeStage() const;
 
-    //! Sets object's life stage and resets vote count to zero.
+    //! Sets the object's life stage.
     void SetLifeStage(EObjectLifeStage lifeStage);
 
-    //! Advances object's life stage and resets vote count to zero.
-    void AdvanceLifeStage();
+    //! Returns the life stage vote count.
+    int GetLifeStageVoteCount() const;
+
+    //! Resets the life stage vote count to zero.
+    void ResetLifeStageVoteCount();
 
     //! Increases life stage vote count and returns the vote count.
     int IncrementLifeStageVoteCount();
@@ -212,11 +214,11 @@ protected:
 
 struct TObjectRefComparer
 {
-    static bool Compare(const TObjectBase* lhs, const TObjectBase* rhs);
+    static bool Compare(const TObject* lhs, const TObject* rhs);
 };
 
-TObjectId GetObjectId(const TObjectBase* object);
-bool IsObjectAlive(const TObjectBase* object);
+TObjectId GetObjectId(const TObject* object);
+bool IsObjectAlive(const TObject* object);
 
 template <class T>
 std::vector<TObjectId> ToObjectIds(
@@ -235,18 +237,23 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNonversionedObjectBase
-    : public TObjectBase
+    : public TObject
 {
 public:
     explicit TNonversionedObjectBase(TObjectId id);
 
+    //! Builds a human-readable string for diagnostics.
+    virtual TString GetObjectName() const;
+
+    //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
+    void ValidateCreationCommitted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TObjectIdFormatter
 {
-    void operator()(TStringBuilderBase* builder, const TObjectBase* object) const;
+    void operator()(TStringBuilderBase* builder, const TObject* object) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

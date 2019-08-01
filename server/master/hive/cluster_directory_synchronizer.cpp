@@ -17,6 +17,7 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/server/master/object_server/object_manager.h>
+#include <yt/server/master/object_server/object_proxy.h>
 
 namespace NYT::NHiveServer {
 

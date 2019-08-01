@@ -185,8 +185,7 @@ protected:
 
         auto spec = New<TOperationSpecBase>();
         spec->Pool = std::move(pool);
-        auto specNode = NYTree::ConvertToNode(spec)->AsMap();
-        operation.Spec = specNode;
+        operation.Spec = ConvertToYsonString(spec);
 
         NextOperationId_ += 1;
         return operation;

@@ -18,7 +18,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/enum.h>
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
@@ -120,11 +119,19 @@ struct IOperationStrategyHost
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
-    virtual NYTree::IMapNodePtr GetSpec() const = 0;
+    virtual const NYson::TYsonString& GetSpecString() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
     virtual bool GetActivated() const = 0;
+
+    virtual void SetErasedTrees(std::vector<TString> erasedTrees) = 0;
+    virtual const std::vector<TString>& ErasedTrees() const = 0;
+
+protected:
+    friend class TFairShareStrategyOperationState;
+
+    virtual void EraseTree(const TString& treeId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +222,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
     //! Brief operation spec.
-    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, BriefSpec);
+    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, BriefSpecString);
+
+    //! Operation spec.
+    DEFINE_BYREF_RO_PROPERTY(TOperationSpecBasePtr, Spec);
 
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
@@ -251,8 +261,8 @@ public:
     //! Returns operation authenticated user.
     TString GetAuthenticatedUser() const override;
 
-    //! Returns operation spec.
-    NYTree::IMapNodePtr GetSpec() const override;
+    //! Returns operation spec as a yson string.
+    const NYson::TYsonString& GetSpecString() const override;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -314,12 +324,16 @@ public:
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
+    void SetErasedTrees(std::vector<TString> erasedTrees) override;
+    const std::vector<TString>& ErasedTrees() const override;
+
     TOperation(
         TOperationId operationId,
         EOperationType type,
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
-        NYTree::IMapNodePtr spec,
+        TOperationSpecBasePtr spec,
+        NYson::TYsonString specString,
         NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,
@@ -330,14 +344,15 @@ public:
         const std::optional<TString>& alias,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
-        bool suspended = false);
+        bool suspended = false,
+        std::vector<TString> erasedTrees = {});
 
 private:
     const TOperationId Id_;
     const EOperationType Type_;
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
-    const NYTree::IMapNodePtr Spec_;
+    const NYson::TYsonString SpecString_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
     bool Activated_ = false;
@@ -355,6 +370,10 @@ private:
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     TWeakPtr<TControllerAgent> Agent_;
+
+    std::vector<TString> ErasedTrees_;
+
+    void EraseTree(const TString& treeId) override;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

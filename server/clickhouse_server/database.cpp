@@ -1,6 +1,6 @@
 #include "database.h"
 
-#include "storage_table.h"
+#include "storage_distributor.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
@@ -130,7 +130,7 @@ StoragePtr TDatabase::GetTable(
         return nullptr;
     }
 
-    return CreateStorageTable(std::move(table));
+    return CreateStorageDistributor({std::move(table)});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,7 @@ public:
     int GetTrackedThreadCount() const;
 
 private:
-    DECLARE_IMMORTAL_SINGLETON_FRIEND()
+    DECLARE_LEAKY_SINGLETON_FRIEND()
 
     struct TLocalSlotsHolder;
 

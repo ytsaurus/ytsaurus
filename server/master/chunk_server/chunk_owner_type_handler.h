@@ -32,11 +32,6 @@ public:
 
     virtual bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
 
-private:
-    NSecurityServer::TClusterResources GetChunkOwnerDiskUsage(
-        const NChunkClient::NProto::TDataStatistics& statistics,
-        const TChunkOwner& chunkOwner);
-
 protected:
     NLogging::TLogger Logger;
 

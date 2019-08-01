@@ -12,16 +12,18 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForProtobuf(
+ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     TProtobufFormatConfigPtr config,
+    const std::vector<NTableClient::TTableSchema>& schemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForProtobuf(
+ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     const NYTree::IAttributeDictionary& attributes,
+    const std::vector<NTableClient::TTableSchema>& schemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,

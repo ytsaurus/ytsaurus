@@ -226,7 +226,7 @@ void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
     YT_LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
     TGuard<TSpinLock> guard(FailedChunksLock_);
-    for (const auto& chunkId : chunkIds) {
+    for (auto chunkId : chunkIds) {
         FailedChunks_.insert(chunkId);
     }
 }

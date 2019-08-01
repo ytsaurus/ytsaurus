@@ -12,8 +12,8 @@
 
 #include <yt/server/controller_agent/job_memory.h>
 
-#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -226,11 +226,11 @@ protected:
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
             for (int index = 0; index < InputTables_.size(); ++index) {
-                if (!InputTables_[index]->IsDynamic &&
+                if (!InputTables_[index]->Dynamic &&
                     !InputTables_[index]->Path.GetColumns() &&
                     InputTables_[index]->ColumnRenameDescriptors.empty())
                 {
-                    InputTables_[index]->IsTeleportable = ValidateTableSchemaCompatibility(
+                    InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
                         InputTables_[index]->Schema,
                         OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
@@ -585,7 +585,7 @@ private:
         ValidateUserFileCount(Spec->Mapper, "mapper");
     }
 
-    virtual bool IsOutputLivePreviewSupported() const override
+    virtual bool DoCheckOutputLivePreviewSupported() const override
     {
         return Spec->EnableLegacyLivePreview;
     }

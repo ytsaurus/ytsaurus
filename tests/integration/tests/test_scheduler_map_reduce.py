@@ -822,7 +822,7 @@ print "x={0}\ty={1}".format(x, y)
         for row in read_table("//tmp/t2"):
             cnt[row["cwd"]] = cnt.get(row["cwd"], 0) + 1
         values = cnt.values()
-        print >>sys.stderr, values
+        print_debug(values)
         assert max(values) <= 2 * job_count // node_count
 
     def test_ordered_map_reduce(self):

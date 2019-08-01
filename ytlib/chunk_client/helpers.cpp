@@ -68,7 +68,7 @@ void GetUserObjectBasicAttributes(
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Getting basic attributes of user objects");
+    YT_LOG_DEBUG("Getting basic attributes of user objects");
 
     auto channel = client->GetMasterChannelOrThrow(options.ChannelKind);
     TObjectServiceProxy proxy(channel);
@@ -76,7 +76,7 @@ void GetUserObjectBasicAttributes(
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto* userObject : objects) {
-        auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetPath());
+        auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
         req->set_permission(static_cast<int>(permission));
         req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
         req->set_populate_security_tags(options.PopulateSecurityTags);
@@ -86,26 +86,21 @@ void GetUserObjectBasicAttributes(
                 protoColumns->add_items(column);
             }
         }
-        auto transactionId = userObject->TransactionId.value_or(defaultTransactionId);
-        NCypressClient::SetTransactionId(req, transactionId);
+        req->Tag() = userObject;
+        NCypressClient::SetTransactionId(req, userObject->TransactionId.value_or(defaultTransactionId));
         NCypressClient::SetSuppressAccessTracking(req, options.SuppressAccessTracking);
-        batchReq->AddRequest(req, "get_basic_attributes");
+        batchReq->AddRequest(req);
     }
 
-    auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of user objects");
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting basic attributes of user objects");
     const auto& batchRsp = batchRspOrError.Value();
 
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (size_t index = 0; index < objects.size(); ++index) {
-        auto* userObject = objects[index];
-        const auto& rspOrError = rspsOrError[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
-            userObject->Path.GetPath());
-        
+    for (const auto& rspOrError : batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>()) {
         const auto& rsp = rspOrError.Value();
-        userObject->ObjectId = NYT::FromProto<TObjectId>(rsp->object_id());
-        userObject->CellTag = rsp->cell_tag();
+        auto* userObject = std::any_cast<TUserObject*>(rsp->Tag());
+        userObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
+        userObject->ExternalCellTag = rsp->external_cell_tag();
         userObject->Type = TypeFromId(userObject->ObjectId);
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
@@ -114,6 +109,13 @@ void GetUserObjectBasicAttributes(
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
     }
+
+    YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
+        MakeFormattableView(objects, [] (auto* builder, const auto* object) {
+            builder->AppendFormat("{Id: %v, ExternalCellTag: %v}",
+                object->ObjectId,
+                object->ExternalCellTag);
+        }));
 }
 
 TSessionId CreateChunk(
@@ -247,7 +249,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 
             auto req = TChunkOwnerYPathProxy::Fetch(path);
             initializeFetchRequest(req.Get());
-            NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req, "fetch");
             rangeIndices.push_back(rangeIndex);
         }
@@ -433,8 +435,8 @@ IChunkReaderPtr CreateRemoteReader(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
-    auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
+    auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
     auto Logger = TLogger(ChunkClientLogger).AddTag("ChunkId: %v", chunkId);
 
@@ -578,14 +580,25 @@ void LocateChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TUserObject::GetPath() const
+bool TUserObject::IsPrepared() const
+{
+    return static_cast<bool>(ObjectId);
+}
+
+const NYPath::TYPath& TUserObject::GetPath() const
 {
     return Path.GetPath();
 }
 
-bool TUserObject::IsPrepared() const
+TString TUserObject::GetObjectIdPath() const
 {
-    return static_cast<bool>(ObjectId);
+    YT_VERIFY(IsPrepared());
+    return FromObjectId(ObjectId);
+}
+
+TString TUserObject::GetObjectIdPathIfAvailable() const
+{
+    return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }
 
 void TUserObject::Persist(const TStreamPersistenceContext& context)
@@ -593,7 +606,7 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Path);
     Persist(context, ObjectId);
-    Persist(context, CellTag);
+    Persist(context, ExternalCellTag);
     // COMPAT(babenko)
     if (context.GetVersion() >= 300100) {
         Persist(context, Type);

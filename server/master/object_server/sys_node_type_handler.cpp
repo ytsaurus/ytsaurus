@@ -15,9 +15,7 @@ class TSysNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TSysNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
-    { }
+    using TMapNodeTypeHandler::TMapNodeTypeHandler;
 
     virtual EObjectType GetObjectType() const override
     {
@@ -36,6 +34,8 @@ private:
             trunkNode);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 INodeTypeHandlerPtr CreateSysNodeTypeHandler(TBootstrap* bootstrap)
 {

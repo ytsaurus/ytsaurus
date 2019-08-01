@@ -65,13 +65,6 @@ NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr orig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TLockedUserObject::GetPath() const
-{
-    return FromObjectId(ObjectId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TUserFile::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
@@ -172,16 +165,16 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     for (const auto& inputTable : inputTables) {
-        auto dataSource = (inputTable->IsDynamic && inputTable->Schema.IsSorted())
+        auto dataSource = (inputTable->Dynamic && inputTable->Schema.IsSorted())
             ? MakeVersionedDataSource(
-                inputTable->Path.GetPath(),
+                inputTable->GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
                 inputTable->OmittedInaccessibleColumns,
                 inputTable->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
                 inputTable->ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
-                inputTable->Path.GetPath(),
+                inputTable->GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
                 inputTable->OmittedInaccessibleColumns,

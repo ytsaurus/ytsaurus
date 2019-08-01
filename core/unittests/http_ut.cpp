@@ -397,6 +397,7 @@ TEST(THttpOutputTest, Full)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 void ExpectBodyPart(THttpInput* in, TStringBuf chunk)
 {
     ASSERT_EQ(chunk, ToString(WaitFor(in->Read()).ValueOrThrow()));
@@ -441,6 +442,24 @@ TEST(THttpInputTest, Simple)
         },
         TTestCase{
             EMessageType::Request,
+            "GET / HTTP/1.1\r\n"
+            "X-Foo: test\r\n"
+            "X-Foo0: test-test-test\r\n"
+            "X-FooFooFoo: test-test-test\r\n"
+            "\r\n",
+            [] (THttpInput* in) {
+                EXPECT_EQ(in->GetMethod(), EMethod::Get);
+                EXPECT_EQ(in->GetUrl().Path, AsStringBuf("/"));
+                auto headers = in->GetHeaders();
+
+                ASSERT_EQ(TString("test"), headers->GetOrThrow("X-Foo"));
+                ASSERT_EQ(TString("test-test-test"), headers->GetOrThrow("X-Foo0"));
+                ASSERT_EQ(TString("test-test-test"), headers->GetOrThrow("X-FooFooFoo"));
+                ExpectBodyEnd(in);
+            }
+        },
+        TTestCase{
+            EMessageType::Request,
             "POST / HTTP/1.1\r\n"
             "Content-Length: 6\r\n"
             "\r\n"
@@ -473,7 +492,8 @@ TEST(THttpInputTest, Simple)
 
                 ASSERT_THROW(in->GetTrailers(), TErrorException);
 
-                ExpectBodyPart(in, "hello");
+                ExpectBodyPart(in, "hell");
+                ExpectBodyPart(in, "o");
                 ExpectBodyPart(in, " world");
                 ExpectBodyEnd(in);
 
@@ -496,7 +516,7 @@ TEST(THttpInputTest, Simple)
         auto fake = New<TFakeConnection>();
         fake->Input = std::get<1>(testCase);
         auto config = New<THttpIOConfig>();
-        config->ReadBufferSize = 1024;
+        config->ReadBufferSize = 16;
 
         auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), config);
 

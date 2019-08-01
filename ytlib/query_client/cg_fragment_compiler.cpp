@@ -23,6 +23,9 @@
 //    It is possible to do better memory management here.
 //  - TBAA is a king
 
+// TODO(lukyan): Remove offset from comparers and hashers to reduce its count.
+// Add offset to values in other palaces instead.
+
 namespace NYT::NQueryClient {
 
 using namespace NTableClient;
@@ -2681,7 +2684,7 @@ size_t MakeCodegenMergeOp(
     return consumerSlot;
 }
 
-size_t MakeCodegenGroupOp(
+std::pair<size_t, size_t> MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,
@@ -2693,6 +2696,7 @@ size_t MakeCodegenGroupOp(
     std::vector<EValueType> stateTypes,
     bool isMerge,
     bool checkNulls,
+    size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager)
 {
     // codegenInitialize calls the aggregates' initialisation functions
@@ -2700,10 +2704,12 @@ size_t MakeCodegenGroupOp(
     // codegenEvaluateAggregateArgs evaluates the aggregates' arguments
     // codegenUpdate calls the aggregates' update or merge functions
 
-    size_t consumerSlot = (*slotCount)++;
+    size_t boundaryConsumerSlot = (*slotCount)++;
+    size_t innerConsumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
+        boundaryConsumerSlot,
+        innerConsumerSlot,
         producerSlot,
         MOVE(fragmentInfos),
         MOVE(groupExprsIds),
@@ -2714,6 +2720,7 @@ size_t MakeCodegenGroupOp(
         MOVE(stateTypes),
         isMerge,
         checkNulls,
+        commonPrefixWithPrimaryKey,
         MOVE(comparerManager)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "CollectGroups", [&] (
@@ -2723,7 +2730,8 @@ size_t MakeCodegenGroupOp(
         ) {
             Value* newValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*, false>::get(builder->getContext()));
 
-            size_t groupRowSize = keyTypes.size() + stateTypes.size();
+            size_t keySize = keyTypes.size();
+            size_t groupRowSize = keySize + stateTypes.size();
 
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
@@ -2758,7 +2766,12 @@ size_t MakeCodegenGroupOp(
                         .StoreToValues(builder, dstValues, index);
                 }
 
-                for (int index = groupExprsIds.size(); index < keyTypes.size(); ++index) {
+                for (int index = groupExprsIds.size(); index < commonPrefixWithPrimaryKey; ++index) {
+                    TCGValue::CreateNull(builder, keyTypes[index])
+                        .StoreToValues(builder, dstValues, index);
+                }
+
+                for (int index = groupExprsIds.size(); index < keySize; ++index) {
                     TCGValue::CreateNull(builder, keyTypes[index])
                         .StoreToValues(builder, dstValues, index);
                 }
@@ -2783,7 +2796,7 @@ size_t MakeCodegenGroupOp(
                     [&] (TCGContext& builder) {
                         for (int index = 0; index < codegenAggregates.size(); index++) {
                             codegenAggregates[index].Initialize(builder, bufferRef)
-                                .StoreToValues(builder, groupValues, keyTypes.size() + index);
+                                .StoreToValues(builder, groupValues, keySize + index);
                         }
 
                         builder->CreateCall(
@@ -2801,7 +2814,7 @@ size_t MakeCodegenGroupOp(
                     auto aggState = TCGValue::CreateFromRowValues(
                         builder,
                         groupValues,
-                        keyTypes.size() + index,
+                        keySize + index,
                         stateTypes[index]);
 
                     auto newValue = !isMerge
@@ -2809,7 +2822,7 @@ size_t MakeCodegenGroupOp(
                         : TCGValue::CreateFromRowValues(
                             builder,
                             innerBuilder.RowValues,
-                            keyTypes.size() + index,
+                            keySize + index,
                             stateTypes[index]);
 
                     TCodegenAggregateUpdate updateFunction;
@@ -2819,9 +2832,8 @@ size_t MakeCodegenGroupOp(
                         updateFunction = codegenAggregates[index].Update;
                     }
                     updateFunction(builder, bufferRef, aggState, newValue)
-                        .StoreToValues(builder, groupValues, keyTypes.size() + index);
+                        .StoreToValues(builder, groupValues, keySize + index);
                 }
-
             };
 
             codegenSource(builder);
@@ -2829,7 +2841,9 @@ size_t MakeCodegenGroupOp(
             builder->CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeGroupedRows", [&] (
+        typedef void TConsumer(TExpressionContext*, TValue**, i64);
+
+        auto boundaryConsume = MakeClosure<TConsumer>(builder, "ConsumeGroupedRows", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* finalGroupedRows,
@@ -2840,7 +2854,23 @@ size_t MakeCodegenGroupOp(
                 innerBuilder,
                 finalGroupedRows,
                 size,
-                builder[consumerSlot]);
+                builder[boundaryConsumerSlot]);
+
+            innerBuilder->CreateRetVoid();
+        });
+
+        auto innerConsume = MakeClosure<TConsumer>(builder, "ConsumeGroupedRows", [&] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* finalGroupedRows,
+            Value* size
+        ) {
+            TCGContext innerBuilder(builder, buffer);
+            CodegenForEachRow(
+                innerBuilder,
+                finalGroupedRows,
+                size,
+                builder[innerConsumerSlot]);
 
             innerBuilder->CreateRetVoid();
         });
@@ -2849,21 +2879,26 @@ size_t MakeCodegenGroupOp(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
                 builder.GetExecutionContext(),
-                comparerManager->GetHasher(keyTypes, builder.Module),
-                comparerManager->GetEqComparer(keyTypes, builder.Module),
+
+                comparerManager->GetEqComparer(keyTypes, builder.Module, 0, commonPrefixWithPrimaryKey),
+                comparerManager->GetHasher(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
+                comparerManager->GetEqComparer(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 builder->getInt32(keyTypes.size()),
                 builder->getInt8(checkNulls),
 
                 collect.ClosurePtr,
                 collect.Function,
 
-                consume.ClosurePtr,
-                consume.Function,
+                boundaryConsume.ClosurePtr,
+                boundaryConsume.Function,
+
+                innerConsume.ClosurePtr,
+                innerConsume.Function,
             });
 
     };
 
-    return consumerSlot;
+    return std::make_pair(boundaryConsumerSlot, innerConsumerSlot);
 }
 
 size_t MakeCodegenFinalizeOp(

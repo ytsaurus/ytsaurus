@@ -22,7 +22,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 

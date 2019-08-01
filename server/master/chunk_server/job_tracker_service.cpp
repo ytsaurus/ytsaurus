@@ -148,7 +148,7 @@ private:
         }
 
         for (const auto& job : jobsToStart) {
-            const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
+            auto chunkIdWithIndexes = job->GetChunkIdWithIndexes();
 
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());

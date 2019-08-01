@@ -22,9 +22,10 @@ public:
 public:
     explicit TGroup(TGroupId id);
 
+    virtual TString GetObjectName() const override;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

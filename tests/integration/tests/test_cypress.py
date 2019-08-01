@@ -693,6 +693,10 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {})
         assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
 
+    def test_get_with_attributes_objects(self):
+        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type(None, {"name" : "tmp"})
+        assert get("//sys/users/root", attributes=["name", "type"]) == to_yson_type(None, {"name" : "root", "type" : "user"})
+
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
         assert get("//sys/transactions", attributes=["type"]) == to_yson_type(\
@@ -1189,7 +1193,6 @@ class TestCypress(YTEnvSetup):
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
-        time.sleep(0.2)
         wait(lambda: not exists("//tmp/t"))
 
     def test_expiration_time_can_be_set_upon_construction2(self):

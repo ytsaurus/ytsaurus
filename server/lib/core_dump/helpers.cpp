@@ -6,7 +6,8 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/size_literals.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NCoreDump {
 

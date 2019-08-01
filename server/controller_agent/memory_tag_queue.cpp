@@ -11,6 +11,7 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYTree;
+using namespace NYTAlloc;
 
 static const auto& Logger = ControllerLogger;
 

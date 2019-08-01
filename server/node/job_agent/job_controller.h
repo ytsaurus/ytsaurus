@@ -60,6 +60,9 @@ public:
     //! Returns the list of all currently known jobs.
     std::vector<IJobPtr> GetJobs() const;
 
+    //! Finds the job that is held after it has been removed.
+    IJobPtr FindRecentlyRemovedJob(TJobId jobId) const;
+
     //! Returns the maximum allowed resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
 

@@ -26,6 +26,7 @@ public:
         TStoreId id,
         NChunkClient::TChunkId chunkId,
         const NChunkClient::TReadRange& readRange,
+        TTimestamp chunkTimestamp,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,

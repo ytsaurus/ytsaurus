@@ -15,15 +15,17 @@ class TTableNodeTypeHandlerBase
     : public NChunkServer::TChunkOwnerTypeHandler<TImpl>
 {
 public:
-    typedef NChunkServer::TChunkOwnerTypeHandler<TImpl> TBase;
-
     explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
+
+    virtual NObjectServer::ETypeFlags GetFlags() const override;
 
     virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
 
     virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 
 protected:
+    using TBase = NChunkServer::TChunkOwnerTypeHandler<TImpl>;
+
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
@@ -47,8 +49,6 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-
-    virtual bool IsExternalizable() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

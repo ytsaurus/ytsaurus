@@ -332,7 +332,10 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const std::vector<TJobFile>& files)
+void SaveJobFiles(
+    const NNative::IClientPtr& client,
+    TOperationId operationId,
+    const std::vector<TJobFile>& files)
 {
     using NYT::FromProto;
     using NYT::ToProto;
@@ -340,6 +343,15 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
     if (files.empty()) {
         return;
     }
+
+    struct TJobFileInfo
+    {
+        TTransactionId UploadTransactionId;
+        TNodeId NodeId;
+        TChunkListId ChunkListId;
+        NChunkClient::NProto::TDataStatistics Statistics;
+    };
+    THashMap<const TJobFile*, TJobFileInfo> fileToInfo;
 
     auto connection = client->GetNativeConnection();
 
@@ -356,155 +368,153 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
 
     auto transactionId = transaction->GetId();
 
-    THashMap<TCellTag, std::vector<TJobFile>> cellTagToFiles;
-    for (const auto& file : files) {
-        cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
+    {
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& file : files) {
+            auto req = TCypressYPathProxy::Create(file.Path);
+            req->set_recursive(true);
+            req->set_force(true);
+            req->set_type(static_cast<int>(EObjectType::File));
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("external", true);
+            attributes->Set("external_cell_tag", CellTagFromId(file.ChunkId));
+            attributes->Set("vital", false);
+            attributes->Set("replication_factor", 1);
+            attributes->Set(
+                "description", BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("type").Value(file.DescriptionType)
+                        .Item("job_id").Value(file.JobId)
+                    .EndMap());
+            ToProto(req->mutable_node_attributes(), *attributes);
+
+            SetTransactionId(req, transactionId);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "create");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto createRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create");
+        for (size_t index = 0; index < createRsps.size(); ++index) {
+            const auto& rsp = createRsps[index].Value();
+            const auto& file = files[index];
+            auto& info = fileToInfo[&file];
+            info.NodeId = FromProto<TNodeId>(rsp->node_id());
+        }
     }
 
-    for (const auto& pair : cellTagToFiles) {
-        auto cellTag = pair.first;
-        const auto& perCellFiles = pair.second;
+    THashMap<TCellTag, std::vector<const TJobFile*>> nativeCellTagToFiles;
+    for (const auto& file : files) {
+        const auto& info = fileToInfo[&file];
+        nativeCellTagToFiles[CellTagFromId(info.NodeId)].push_back(&file);
+    }
 
-        struct TJobFileInfo
-        {
-            TTransactionId UploadTransactionId;
-            TNodeId NodeId;
-            TChunkListId ChunkListId;
-            NChunkClient::NProto::TDataStatistics Statistics;
-        };
+    THashMap<TCellTag, std::vector<const TJobFile*>> externalCellTagToFiles;
+    for (const auto& file : files) {
+        externalCellTagToFiles[CellTagFromId(file.ChunkId)].push_back(&file);
+    }
 
-        std::vector<TJobFileInfo> infos;
+    for (const auto& [cellTag, files] : nativeCellTagToFiles) {
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        auto batchReq = proxy.ExecuteBatch();
 
-        {
-            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
-            auto batchReq =  proxy.ExecuteBatch();
-
-            for (const auto& file : perCellFiles) {
-                {
-                    auto req = TCypressYPathProxy::Create(file.Path);
-                    req->set_recursive(true);
-                    req->set_force(true);
-                    req->set_type(static_cast<int>(EObjectType::File));
-
-                    auto attributes = CreateEphemeralAttributes();
-                    if (cellTag == connection->GetPrimaryMasterCellTag()) {
-                        attributes->Set("external", false);
-                    } else {
-                        attributes->Set("external_cell_tag", cellTag);
-                    }
-                    attributes->Set("vital", false);
-                    attributes->Set("replication_factor", 1);
-                    attributes->Set(
-                        "description", BuildYsonStringFluently()
-                            .BeginMap()
-                                .Item("type").Value(file.DescriptionType)
-                                .Item("job_id").Value(file.JobId)
-                            .EndMap());
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    SetTransactionId(req, transactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "create");
-                }
-                {
-                    auto req = TFileYPathProxy::BeginUpload(file.Path);
-                    req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
-                    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-                    req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
-                        file.JobId,
-                        operationId));
-                    GenerateMutationId(req);
-                    SetTransactionId(req, transactionId);
-                    batchReq->AddRequest(req, "begin_upload");
-                }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto createRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create");
-            auto beginUploadRsps = batchRsp->GetResponses<TFileYPathProxy::TRspBeginUpload>("begin_upload");
-            for (int index = 0; index < perCellFiles.size(); ++index) {
-                infos.push_back(TJobFileInfo());
-                auto& info = infos.back();
-
-                {
-                    const auto& rsp = createRsps[index].Value();
-                    info.NodeId = FromProto<TNodeId>(rsp->node_id());
-                }
-                {
-                    const auto& rsp = beginUploadRsps[index].Value();
-                    info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                }
-            }
+        for (const auto* file : files) {
+            const auto& info = fileToInfo[file];
+            auto req = TFileYPathProxy::BeginUpload(FromObjectId(info.NodeId));
+            req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
+            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+            req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
+                file->JobId,
+                operationId));
+            GenerateMutationId(req);
+            SetTransactionId(req, transactionId);
+            batchReq->AddRequest(req, "begin_upload");
         }
 
-        {
-            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
-            auto batchReq =  proxy.ExecuteBatch();
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        const auto& batchRsp = batchRspOrError.Value();
 
-            for (const auto& info : infos) {
-                auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
-                SetTransactionId(req, info.UploadTransactionId);
-                batchReq->AddRequest(req, "get_upload_params");
-            }
+        auto beginUploadRsps = batchRsp->GetResponses<TFileYPathProxy::TRspBeginUpload>("begin_upload");
+        for (size_t index = 0; index < beginUploadRsps.size(); ++index) {
+            const auto& rsp = beginUploadRsps[index].Value();
+            const auto* file = files[index];
+            auto& info = fileToInfo[file];
+            info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+        }
+    }
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& [cellTag, files] : externalCellTagToFiles) {
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        auto batchReq = proxy.ExecuteBatch();
 
-            auto getUploadParamsRsps = batchRsp->GetResponses<TFileYPathProxy::TRspGetUploadParams>("get_upload_params");
-            for (int index = 0; index < getUploadParamsRsps.size(); ++index) {
-                const auto& rsp = getUploadParamsRsps[index].Value();
-                auto& info = infos[index];
-                info.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            }
+        for (const auto* file : files) {
+            const auto& info = fileToInfo[file];
+            auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
+            SetTransactionId(req, info.UploadTransactionId);
+            batchReq->AddRequest(req, "get_upload_params");
         }
 
-        {
-            TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
-            auto batchReq = proxy.ExecuteBatch();
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        const auto& batchRsp = batchRspOrError.Value();
 
-            GenerateMutationId(batchReq);
-            batchReq->set_suppress_upstream_sync(true);
+        auto getUploadParamsRsps = batchRsp->GetResponses<TFileYPathProxy::TRspGetUploadParams>("get_upload_params");
+        for (size_t index = 0; index < getUploadParamsRsps.size(); ++index) {
+            const auto& rsp = getUploadParamsRsps[index].Value();
+            const auto* file = files[index];
+            auto& info = fileToInfo[file];
+            info.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+        }
+    }
 
-            for (int index = 0; index < perCellFiles.size(); ++index) {
-                const auto& file = perCellFiles[index];
-                const auto& info = infos[index];
-                auto* req = batchReq->add_attach_chunk_trees_subrequests();
-                ToProto(req->mutable_parent_id(), info.ChunkListId);
-                ToProto(req->add_child_ids(), file.ChunkId);
-                req->set_request_statistics(true);
-            }
+    for (const auto& [cellTag, files] : externalCellTagToFiles) {
+        TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->set_suppress_upstream_sync(true);
+        GenerateMutationId(batchReq);
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            for (int index = 0; index < perCellFiles.size(); ++index) {
-                auto& info = infos[index];
-                const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
-                info.Statistics = rsp.statistics();
-            }
+        for (const auto* file : files) {
+            const auto& info = fileToInfo[file];
+            auto* req = batchReq->add_attach_chunk_trees_subrequests();
+            ToProto(req->mutable_parent_id(), info.ChunkListId);
+            ToProto(req->add_child_ids(), file->ChunkId);
+            req->set_request_statistics(true);
         }
 
-        {
-            TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
-            auto batchReq =  proxy.ExecuteBatch();
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        const auto& batchRsp = batchRspOrError.Value();
 
-            for (int index = 0; index < perCellFiles.size(); ++index) {
-                const auto& info = infos[index];
-                auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
-                *req->mutable_statistics() = info.Statistics;
-                SetTransactionId(req, info.UploadTransactionId);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        for (int index = 0; index < batchRsp->attach_chunk_trees_subresponses_size(); ++index) {
+            const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
+            const auto* file = files[index];
+            auto& info = fileToInfo[file];
+            info.Statistics = rsp.statistics();
         }
+    }
+
+    for (const auto& [cellTag, files] : nativeCellTagToFiles) {
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto* file : files) {
+            const auto& info = fileToInfo[file];
+            auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
+            *req->mutable_statistics() = info.Statistics;
+            SetTransactionId(req, info.UploadTransactionId);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "end_upload");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
     WaitFor(transaction->Commit())

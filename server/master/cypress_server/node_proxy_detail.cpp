@@ -2,6 +2,7 @@
 #include "private.h"
 #include "cypress_traverser.h"
 #include "helpers.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
@@ -68,15 +69,15 @@ static const auto& Logger = CypressServerLogger;
 
 namespace {
 
-bool HasTrivialAcd(const TCypressNodeBase* node)
+bool HasTrivialAcd(const TCypressNode* node)
 {
     const auto& acd = node->Acd();
     return acd.GetInherit() && acd.Acl().Entries.empty();
 }
 
 bool CheckItemReadPermissions(
-    TCypressNodeBase* parent,
-    TCypressNodeBase* child,
+    TCypressNode* parent,
+    TCypressNode* child,
     const TSecurityManagerPtr& securityManager)
 {
     // Fast path.
@@ -204,7 +205,7 @@ private:
     TClusterResources ResourceUsage_;
 
 
-    virtual void OnNode(TCypressNodeBase* trunkNode, TTransaction* transaction) override
+    virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
@@ -231,7 +232,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TCypressNodeBase* trunkNode)
+    TCypressNode* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
     , CustomAttributesImpl_(this)
     , Transaction(transaction)
@@ -255,6 +256,7 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->CreateNodeFactory(
+        GetThisImpl()->GetTrunkNode()->GetShard(),
         Transaction,
         account,
         options);
@@ -271,7 +273,7 @@ TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
     return Transaction;
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetTrunkNode() const
+TCypressNode* TNontemplateCypressNodeProxyBase::GetTrunkNode() const
 {
     return TrunkNode;
 }
@@ -376,6 +378,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             auto name = ConvertTo<TString>(value);
             auto* account = securityManager->GetAccountByNameOrThrow(name);
+            account->ValidateCreationCommitted();
 
             ValidateStorageParametersUpdate();
             ValidatePermission(account, EPermission::Use);
@@ -525,6 +528,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Opaque)
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardId)
+        .SetPresent(node->GetTrunkNode()->GetShard() != nullptr));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -674,6 +679,14 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 .Value(node->GetOpaque());
             return true;
 
+        case EInternedAttributeKey::ShardId:
+            if (node->GetTrunkNode()->GetShard()) {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetTrunkNode()->GetShard()->GetId());
+                return true;
+            }
+            break;
+
         default:
             break;
     }
@@ -741,7 +754,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             , AttributeKeys_(std::move(attributeKeys))
         { }
 
-        void Run(TCypressNodeBase* root)
+        void Run(TCypressNode* root)
         {
             VisitAny(nullptr, root);
         }
@@ -760,7 +773,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         TAsyncYsonWriter Writer_;
 
 
-        void VisitAny(TCypressNodeBase* trunkParent, TCypressNodeBase* trunkChild)
+        void VisitAny(TCypressNode* trunkParent, TCypressNode* trunkChild)
         {
             if (!CheckItemReadPermissions(trunkParent, trunkChild, SecurityManager_)) {
                 Writer_.OnEntity();
@@ -788,7 +801,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             }
         }
 
-        void VisitOther(TCypressNodeBase* trunkNode)
+        void VisitOther(TCypressNode* trunkNode)
         {
             auto* node = CypressManager_->GetVersionedNode(trunkNode, Transaction_);
             switch (node->GetType()) {
@@ -813,12 +826,12 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             }
         }
 
-        void VisitList(TCypressNodeBase* node)
+        void VisitList(TCypressNode* node)
         {
             Writer_.OnBeginList();
             const auto& childList = GetListNodeChildList(
                 CypressManager_,
-                node,
+                node->As<TListNode>(),
                 Transaction_);
             for (auto* child : childList) {
                 Writer_.OnListItem();
@@ -827,13 +840,13 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             Writer_.OnEndList();
         }
 
-        void VisitMap(TCypressNodeBase* node)
+        void VisitMap(TCypressNode* node)
         {
             Writer_.OnBeginMap();
-            THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+            THashMap<TString, TCypressNode*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
-                node,
+                node->As<TMapNode>(),
                 Transaction_,
                 &keyToChildMapStorage);
             for (const auto& pair : keyToChildMap) {
@@ -875,20 +888,22 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     }));
 }
 
-void TNontemplateCypressNodeProxyBase::RemoveSelf(
-    TReqRemove* request,
-    TRspRemove* response,
-    const TCtxRemovePtr& context)
+void TNontemplateCypressNodeProxyBase::DoRemoveSelf()
 {
     auto* node = GetThisImpl();
-    if (node->IsForeign()) {
+    if (node->GetType() == EObjectType::PortalExit) {
+        // XXX(babenko)
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Removing portal in transaction is not supported");
+        }
         YT_VERIFY(node->IsTrunk());
-        YT_VERIFY(node->LockingState().AcquiredLocks.empty());
+
+        LockImpl(node, ELockMode::Exclusive, true);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        YT_VERIFY(objectManager->GetObjectRefCounter(node) == 1);
         objectManager->UnrefObject(node);
     } else {
-        TNodeBase::RemoveSelf(request, response, context);
+        TNodeBase::DoRemoveSelf();
     }
 }
 
@@ -941,14 +956,14 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
     TObjectProxyBase::ExistsAttribute(path, request, response, context);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
+TCypressNode* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNode* trunkNode) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetVersionedNode(trunkNode, Transaction);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
-    TCypressNodeBase* trunkNode,
+TCypressNode* TNontemplateCypressNodeProxyBase::LockImpl(
+    TCypressNode* trunkNode,
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/) const
 {
@@ -956,7 +971,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     return cypressManager->LockNode(trunkNode, Transaction, request, recursive);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
+TCypressNode* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
 {
     if (CachedNode) {
         return CachedNode;
@@ -968,7 +983,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
     return node;
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
+TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
@@ -977,7 +992,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     return LockImpl(TrunkNode, request, recursive);
 }
 
-void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes)
+void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes)
 {
     for (auto* ancestor = parent; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent())
     {
@@ -999,7 +1014,7 @@ void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNodeB
     }
 }
 
-ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
+ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNode* trunkNode) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
@@ -1021,7 +1036,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
-    TCypressNodeBase* node,
+    TCypressNode* node,
     EPermissionCheckScope scope,
     EPermission permission)
 {
@@ -1029,7 +1044,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
         ValidatePermission(node, permission);
     }
 
-    if (Any(scope & EPermissionCheckScope::Parent)) {
+    if (Any(scope & EPermissionCheckScope::Parent) && node->GetParent()) {
         ValidatePermission(node->GetParent(), permission);
     }
 
@@ -1316,6 +1331,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
+            account->ValidateCreationCommitted();
         }
 
         if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
@@ -1741,22 +1757,11 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             auto name = ConvertTo<TString>(value);
 
-            auto* oldBundle = node->GetTabletCellBundle();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+            newBundle->ValidateCreationCommitted();
 
-            if (oldBundle == newBundle) {
-                return true;
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            if (oldBundle) {
-                objectManager->UnrefObject(oldBundle);
-            }
-
-            node->SetTabletCellBundle(newBundle);
-            objectManager->RefObject(newBundle);
+            tabletManager->SetTabletCellBundle(node, newBundle);
 
             return true;
         }
@@ -1929,7 +1934,6 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYs
         TChunkReplication replication;
         replication.SetVital(true);
         serializableReplication.ToChunkReplication(&replication, chunkManager);
-
         InheritedAttributes_.Media = replication;
         return;
     }
@@ -1938,6 +1942,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYs
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName);
+        bundle->ValidateCreationCommitted();
         InheritedAttributes_.TabletCellBundle = bundle;
         return;
     }
@@ -1994,16 +1999,16 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildMapStorage);
     auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
-    typedef std::pair<TString, TCypressNodeBase*> TChild;
+    typedef std::pair<TString, TCypressNode*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& pair : keyToChildList) {
@@ -2041,10 +2046,10 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildStorage);
 
@@ -2059,10 +2064,10 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<TString> TMapNodeProxy::GetKeys() const
 {
-    THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+    THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildStorage);
 
@@ -2078,7 +2083,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
 {
     auto* childTrunkNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         key);
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
@@ -2116,7 +2121,7 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         key);
     if (!trunkChildImpl) {
@@ -2242,7 +2247,7 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
 void TMapNodeProxy::DoRemoveChild(
     TMapNode* impl,
     const TString& key,
-    TCypressNodeBase* childImpl)
+    TCypressNode* childImpl)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* trunkChildImpl = childImpl->GetTrunkNode();
@@ -2290,10 +2295,10 @@ void TMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        TrunkNode,
+        TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildMapStorage);
 
@@ -2364,7 +2369,7 @@ void TListNodeProxy::Clear()
     auto* impl = LockThisImpl();
 
     // Lock children and collect impls.
-    std::vector<TCypressNodeBase*> children;
+    std::vector<TCypressNode*> children;
     for (auto* trunkChild : impl->IndexToChild()) {
         children.push_back(LockImpl(trunkChild));
     }

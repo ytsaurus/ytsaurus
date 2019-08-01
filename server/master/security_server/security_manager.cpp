@@ -116,7 +116,10 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::TwoPhaseCreation |
+            ETypeFlags::Removable |
+            ETypeFlags::TwoPhaseRemoval;
     }
 
     virtual EObjectType GetType() const override
@@ -124,11 +127,11 @@ public:
         return EObjectType::Account;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId id) override;
+    virtual std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -167,10 +170,11 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const TObject* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -180,7 +184,7 @@ public:
         return EObjectType::User;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -215,7 +219,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -223,7 +228,7 @@ public:
         return EObjectType::Group;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -438,7 +443,7 @@ public:
     }
 
     void SetAccount(
-        TCypressNodeBase* node,
+        TCypressNode* node,
         TAccount* oldAccount,
         TAccount* newAccount,
         TTransaction* transaction)
@@ -453,20 +458,27 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (oldAccount) {
+            if (auto* shard = node->GetShard()) {
+                cypressManager->UpdateShardNodeCount(shard, oldAccount, -1);
+            }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
-        node->SetAccount(newAccount);
+        if (auto* shard = node->GetShard()) {
+            cypressManager->UpdateShardNodeCount(shard, newAccount, +1);
+        }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
+        node->SetAccount(newAccount);
         objectManager->RefObject(newAccount);
 
-        UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, transaction == nullptr);
+        UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
 
-    void ResetAccount(TCypressNodeBase* node)
+    void ResetAccount(TCypressNode* node)
     {
         auto* account = node->GetAccount();
         if (!account) {
@@ -476,13 +488,13 @@ public:
         node->SetAccount(nullptr);
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
-        UpdateAccountTabletResourceUsage(node, account, node->GetTransaction() == nullptr, nullptr, false);
+        UpdateAccountTabletResourceUsage(node, account, !node->GetTransaction(), nullptr, false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
     }
 
-    void UpdateAccountNodeCountUsage(TCypressNodeBase* node, TAccount* account, TTransaction* transaction, i64 delta)
+    void UpdateAccountNodeCountUsage(TCypressNode* node, TAccount* account, TTransaction* transaction, i64 delta)
     {
         if (node->IsExternal()) {
             return;
@@ -502,7 +514,7 @@ public:
         }
     }
 
-    void UpdateAccountTabletResourceUsage(TCypressNodeBase* node, TAccount* oldAccount, bool oldCommitted, TAccount* newAccount, bool newCommitted)
+    void UpdateAccountTabletResourceUsage(TCypressNode* node, TAccount* oldAccount, bool oldCommitted, TAccount* newAccount, bool newCommitted)
     {
         if (node->IsExternal()) {
             return;
@@ -517,12 +529,12 @@ public:
         UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
     }
 
-    void UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
+    void UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
     {
         UpdateTabletResourceUsage(node, node->GetAccount(), resourceUsageDelta, node->IsTrunk());
     }
 
-    void UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
+    void UpdateTabletResourceUsage(TCypressNode* node, TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
     {
         if (!account) {
             return;
@@ -863,21 +875,21 @@ public:
     }
 
 
-    TAccessControlDescriptor* FindAcd(TObjectBase* object)
+    TAccessControlDescriptor* FindAcd(TObject* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
-    TAccessControlDescriptor* GetAcd(TObjectBase* object)
+    TAccessControlDescriptor* GetAcd(TObject* object)
     {
         auto* acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -942,7 +954,7 @@ public:
 
 
     TPermissionCheckResponse CheckPermission(
-        TObjectBase* object,
+        TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
@@ -1043,7 +1055,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
@@ -1069,7 +1081,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        TObject* object,
         EPermission permission,
         const TPermissionCheckOptions& options = {})
     {
@@ -1158,7 +1170,7 @@ public:
             return;
         }
 
-        ValidateLifeStage(account);
+        account->ValidateCreationCommitted();
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
@@ -1219,16 +1231,6 @@ public:
         }
     }
 
-
-    void ValidateLifeStage(TAccount* account)
-    {
-        if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ObjectNotReplicated,
-                "Account %Qv is not replicated to all cells yet",
-                account->GetName());
-        }
-    }
 
     void SetUserBanned(TUser* user, bool banned)
     {
@@ -1672,16 +1674,19 @@ private:
         GroupMap_.LoadValues(context);
 
         // COMPAT(savrus) COMPAT(shakurov)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 708;
+        ValidateAccountResourceUsage_ = true;
+        RecomputeAccountResourceUsage_ = false;
 
         // COMPAT(shakurov)
-        NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+        NeedAdjustUserReadRateLimits_ = context.GetVersion() < EMasterSnapshotVersion::MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers;
 
         // COMPAT(babenko)
-        if (context.GetVersion() >= 836) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::YT_10952_DelayedMembershipClosureRecomputation) {
             MustRecomputeMembershipClosure_ = Load<bool>(context);
         }
+
+        // COMPAT(ifsmirnov)
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterSnapshotVersion::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2525,7 +2530,7 @@ private:
         void ProcessAce(
             const TAccessControlEntry& ace,
             TSubject* owner,
-            TObjectBase* object,
+            TObject* object,
             int depth)
         {
             if (!Proceed_) {
@@ -2718,7 +2723,7 @@ private:
             TPermissionCheckResult* result,
             const TAccessControlEntry& ace,
             TSubject* subject,
-            TObjectBase* object)
+            TObject* object)
         {
             if (result->Action == ESecurityAction::Deny) {
                 return;
@@ -2729,14 +2734,14 @@ private:
             result->Subject = subject;
         }
 
-        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObjectBase* object)
+        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObject* object)
         {
             result->Action = ESecurityAction::Deny;
             result->Subject = subject;
             result->Object = object;
         }
 
-        void SetDeny(TSubject* subject, TObjectBase* object)
+        void SetDeny(TSubject* subject, TObject* object)
         {
             SetDeny(&Response_, subject, object);
             if (Response_.Columns) {
@@ -2811,19 +2816,15 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
-    auto lifeStage = attributes->GetAndRemove<EObjectLifeStage>("life_stage", EObjectLifeStage::CreationStarted);
-
-    auto* account = Owner_->CreateAccount(name, hintId);
-    account->SetLifeStage(lifeStage);
-    return account;
+    return Owner_->CreateAccount(name, hintId);
 }
 
-std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
+std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
     return std::make_unique<TAccount>(id);
 }
@@ -2848,7 +2849,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+TObject* TSecurityManager::TUserTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2877,7 +2878,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+TObject* TSecurityManager::TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2947,7 +2948,7 @@ void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequ
     Impl_->UpdateResourceUsage(chunk, requisition, delta);
 }
 
-void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
+void TSecurityManager::UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
 {
     Impl_->UpdateTabletResourceUsage(node, resourceUsageDelta);
 }
@@ -2957,12 +2958,12 @@ void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
 }
 
-void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
+void TSecurityManager::SetAccount(TCypressNode* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
 {
     Impl_->SetAccount(node, oldAccount, newAccount, transaction);
 }
 
-void TSecurityManager::ResetAccount(TCypressNodeBase* node)
+void TSecurityManager::ResetAccount(TCypressNode* node)
 {
     Impl_->ResetAccount(node);
 }
@@ -3047,17 +3048,17 @@ void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
     Impl_->RenameSubject(subject, newName);
 }
 
-TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::FindAcd(TObject* object)
 {
     return Impl_->FindAcd(object);
 }
 
-TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
 {
     return Impl_->GetAcd(object);
 }
 
-TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
+TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
 {
     return Impl_->GetEffectiveAcl(object);
 }
@@ -3088,7 +3089,7 @@ std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 }
 
 TPermissionCheckResponse TSecurityManager::CheckPermission(
-    TObjectBase* object,
+    TObject* object,
     TUser* user,
     EPermission permission,
     const TPermissionCheckOptions& options)
@@ -3114,7 +3115,7 @@ TPermissionCheckResponse TSecurityManager::CheckPermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    TObject* object,
     TUser* user,
     EPermission permission,
     const TPermissionCheckOptions& options)
@@ -3127,7 +3128,7 @@ void TSecurityManager::ValidatePermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    TObject* object,
     EPermission permission,
     const TPermissionCheckOptions& options)
 {

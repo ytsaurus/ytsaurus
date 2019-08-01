@@ -10,7 +10,11 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/yson/string.h>
+
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NObjectServer {
 

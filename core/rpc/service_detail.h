@@ -704,12 +704,20 @@ private:
     
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
+    struct TPendingPayloadsEntry
+    {
+        std::vector<TStreamingPayload> Payloads;
+        NConcurrency::TLease Lease;
+    };
+
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
 
     TSpinLock RequestMapLock_;
     THashMap<TRequestId, TServiceContext*> RequestIdToContext_;
     THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
+    THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads_;
+    TDuration PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();
@@ -752,6 +760,11 @@ private:
     void RegisterRequest(TServiceContext* context);
     void UnregisterRequest(TServiceContext* context);
     TServiceContextPtr FindRequest(TRequestId requestId);
+    TServiceContextPtr DoFindRequest(TRequestId requestId);
+
+    TPendingPayloadsEntry* DoGetOrCreatePendingPayloadsEntry(TRequestId requestId);
+    std::vector<TStreamingPayload> GetAndErasePendingPayloads(TRequestId requestId);
+    void OnPendingPayloadsLeaseExpired(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,

@@ -87,7 +87,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Implicit);
     DEFINE_BYVAL_RW_PROPERTY(ELockState, State, ELockState::Pending);
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
-    DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
+    DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
     // Not persisted.

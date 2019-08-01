@@ -8,6 +8,7 @@ namespace NYT::NChunkServer {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,7 @@ void TChunkView::Save(NCellMaster::TSaveContext& context) const
     Save(context, UnderlyingChunk_);
     Save(context, ReadRange_);
     Save(context, Parents_);
+    Save(context, TransactionId_);
 }
 
 void TChunkView::Load(NCellMaster::TLoadContext& context)
@@ -61,6 +63,9 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     Load(context, UnderlyingChunk_);
     Load(context, ReadRange_);
     Load(context, Parents_);
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, TransactionId_);
+    }
 }
 
 TReadLimit TChunkView::GetAdjustedLowerReadLimit(TReadLimit readLimit) const
@@ -82,8 +87,8 @@ TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
 TReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
-        GetAdjustedLowerReadLimit(TReadLimit(GetMinKey(UnderlyingChunk_))),
-        GetAdjustedUpperReadLimit(TReadLimit(GetUpperBoundKey(UnderlyingChunk_)))
+        GetAdjustedLowerReadLimit(TReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),
+        GetAdjustedUpperReadLimit(TReadLimit(GetUpperBoundKeyOrThrow(UnderlyingChunk_)))
     };
 }
 
@@ -106,15 +111,20 @@ TChunkTreeStatistics TChunkView::GetStatistics() const
 
 int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
 {
-    // TODO(ifsmirnov): when ChunkView gets new attributes (e.g. tx_id) one should
-    // consider them here and merge only views with identical attributes.
+    // When ChunkView gets new attributes one should consider them
+    // here and merge only views with identical attributes.
 
     const auto& lhsChunkId = lhs->GetUnderlyingChunk()->GetId();
     const auto& rhsChunkId = rhs->GetUnderlyingChunk()->GetId();
-    if (lhsChunkId == rhsChunkId) {
+    const auto& lhsTransactionId = lhs->GetTransactionId();
+    const auto& rhsTransactionId = rhs->GetTransactionId();
+
+    if (lhsChunkId == rhsChunkId && rhsTransactionId == lhsTransactionId) {
         return 0;
     } else {
-        return lhsChunkId < rhsChunkId ? -1 : 1;
+        return lhsChunkId == rhsChunkId
+            ? (rhsTransactionId < rhsTransactionId ? -1 : 1)
+            : (lhsChunkId < rhsChunkId ? -1 : 1);
     }
 }
 

@@ -123,16 +123,14 @@ void TCompositeAutomatonPart::RegisterMethod(
             auto request = ObjectPool<TRequest>().Allocate();
             DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
-            auto& mutationResponse = context->Response();
-
             try {
                 callback.Run(request.get());
                 static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
-                mutationResponse.Data = cachedResponseMessage;
+                context->SetResponseData(cachedResponseMessage);
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 LogHandlerError(error);
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(error);
+                context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
             }
         }));
 }
@@ -149,15 +147,13 @@ void TCompositeAutomatonPart::RegisterMethod(
 
             DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
-            auto& mutationResponse = context->Response();
-
             try {
                 callback.Run(nullptr, request.get(), response.get());
-                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
+                context->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 LogHandlerError(error);
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(error);
+                context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
             }
         }));
 }

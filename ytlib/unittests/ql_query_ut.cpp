@@ -503,6 +503,98 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(a))")),
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    {
+        TString queryString = "* from [//t] group by hash, a, b";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_TRUE(query->UseDisjointGroupBy);
+    }
+
+    {
+        TString queryString = "* from [//t] group by a, b";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_TRUE(query->UseDisjointGroupBy);
+    }
+
+    {
+        TString queryString = "* from [//t] group by a, v";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1);
+        EXPECT_FALSE(query->UseDisjointGroupBy);
+    }
+}
+
+TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(a))")),
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    {
+        TString queryString = "* from [//t] order by hash, a limit 10";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_FALSE(query->OrderClause);
+    }
+
+    {
+        TString queryString = "* from [//t] order by hash, a, b limit 10";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_FALSE(query->OrderClause);
+    }
+
+    {
+        TString queryString = "* from [//t] order by a, b limit 10";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_TRUE(query->OrderClause);
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
@@ -1778,6 +1870,25 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupByAny)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+
+    EXPECT_THROW_THAT(
+        [&] {
+            Evaluate("x, sum(b) as t FROM [//t] group by to_any(a) as x",
+                split, source,  [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
+        },
+        HasSubstr("Type mismatch in expression"));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, GroupByAlias)
 {
     auto split = MakeSplit({
@@ -1898,7 +2009,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
             Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
                 source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
         },
-        HasSubstr("std::nullopt values in group key"));
+        HasSubstr("Null values are forbidden in group key"));
 
     SUCCEED();
 }

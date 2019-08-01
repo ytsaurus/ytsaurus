@@ -7,12 +7,12 @@ namespace NYT::NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataCenter::TDataCenter(TDataCenterId id)
-    : TObjectBase(id)
+    : TObject(id)
 { }
 
 void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -20,7 +20,7 @@ void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 
 void TDataCenter::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

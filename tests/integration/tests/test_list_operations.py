@@ -18,6 +18,13 @@ def clear_start_time(path):
         ops[i]["start_time"] = 0
     insert_rows(path, ops, update=True)
 
+def clear_progress(path):
+    ops = select_rows("id_hi, id_lo, brief_progress, progress FROM [{}]".format(path))
+    for i in range(len(ops)):
+        ops[i]["brief_progress"] = {"ivan": "ivanov"}
+        ops[i]["progress"] = {"semen": "semenych", "semenych": "gorbunkov"}
+    insert_rows(path, ops, update=True)
+
 
 class ListOperationsSetup(YTEnvSetup):
     _input_path = "//testing/input"
@@ -152,6 +159,13 @@ class ListOperationsSetup(YTEnvSetup):
 
         set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
+        def base_operation_acl_has_admins():
+            for ace in get("//sys/scheduler/orchid/scheduler/operation_base_acl"):
+                if "admins" in ace["subjects"]:
+                    return True
+            return False
+        wait(base_operation_acl_has_admins)
+
         cls._create_operations()
 
 
@@ -161,8 +175,8 @@ class _TestListOperationsBase(ListOperationsSetup):
     NUM_SCHEDULERS = 1
     SINGLE_SETUP_TEARDOWN = True
 
-    # The following tests expect five operations to be present
-    # in Cypress (and/or in the archive if |self.include_archive| is |True|):
+    # The following tests expect the following operations to be present
+    # in Cypress and/or in the archive (depending on |self.include_archive|):
     #     TYPE       -    STATE   - USER  -   POOLS          - FAILED JOBS - READ_ACCESS   - MANAGE_ACCESS   - ANNOTATIONS
     #  1. map        - completed  - user1 -  user1           - False       - []            - []              - {key=[annotation1;annotation2]}
     #  2. map        - completed  - user2 -  user2           - False       - [group1,      - [group1, user3] - {}
@@ -485,8 +499,6 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
-        for x in res["operations"]:
-            print(x)
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
         res = list_operations(include_archive=self.include_archive, with_failed_jobs=False, read_from=read_from)
@@ -499,6 +511,13 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
     include_archive = True
     read_from_values=["follower"]
     check_failed_jobs_count = False
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+        }
+    }
 
     def test_time_range_missing(self):
         with pytest.raises(YtError):
@@ -526,6 +545,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
+            "watchers_update_period": 100,
         },
     }
 
@@ -542,6 +562,13 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
                               to_time=datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING))["operations"]
         ids = [uuid_to_parts(op["id"]) for op in ops]
         assert ids == sorted(ids, reverse=True)
+
+    def test_archive_fetching(self):
+        clear_progress("//sys/operations_archive/ordered_by_id")
+        wait(lambda: select_rows("brief_progress FROM [//sys/operations_archive/ordered_by_id]")[0]["brief_progress"] == {"ivan": "ivanov"})
+        res = list_operations(include_archive=False)
+        for op in res["operations"]:
+            assert op["brief_progress"] == {"ivan": "ivanov"}
 
 
 ##################################################################

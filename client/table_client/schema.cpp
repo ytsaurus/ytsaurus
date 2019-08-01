@@ -218,6 +218,45 @@ private:
     std::optional<bool> RequiredV1_;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec)
+{
+    builder->AppendChar('{');
+
+    builder->AppendFormat("name=%Qv", schema.Name());
+
+    if (const auto& logicalType = schema.LogicalType()) {
+        builder->AppendFormat("; type=%v", *logicalType);
+    }
+
+    if (const auto& sortOrder = schema.SortOrder()) {
+        builder->AppendFormat("; sort_order=%v", *sortOrder);
+    }
+
+    if (const auto& lock = schema.Lock()) {
+        builder->AppendFormat("; lock=%v", *lock);
+    }
+
+    if (const auto& expression = schema.Expression()) {
+        builder->AppendFormat("; expression=%Qv", *expression);
+    }
+
+    if (const auto& aggregate = schema.Aggregate()) {
+        builder->AppendFormat("; aggregate=%v", *aggregate);
+    }
+
+    if (const auto& group = schema.Group()) {
+        builder->AppendFormat("; group=%v", *group);
+    }
+
+    if (const auto& physicalType = schema.SimplifiedLogicalType()) {
+        builder->AppendFormat("; physical_type=%v", CamelCaseToUnderscoreCase(ToString(*physicalType)));
+    }
+
+    builder->AppendFormat("; required=%v", schema.Required());
+
+    builder->AppendChar('}');
+}
+
 void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
 {
     TSerializableColumnSchema wrapper;
@@ -683,6 +722,21 @@ i64 TTableSchema::GetMemoryUsage() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec)
+{
+    builder->AppendFormat("<strict=%v;unique_keys=%v>", schema.GetStrict(), schema.GetUniqueKeys());
+    builder->AppendChar('[');
+    bool first = true;
+    for (const auto& column : schema.Columns()) {
+        if (!first) {
+            builder->AppendString(AsStringBuf("; "));
+        }
+        builder->AppendFormat("%v", column);
+        first = false;
+    }
+    builder->AppendChar(']');
+}
 
 TString ToString(const TTableSchema& schema)
 {

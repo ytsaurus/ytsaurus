@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "table.h"
+#include "subquery_spec.h"
 
 #include <Storages/IStorage.h>
 
@@ -14,7 +15,7 @@ namespace NYT::NClickHouseServer {
 
 DB::StoragePtr CreateStorageSubquery(
     TQueryContext* queryContext,
-    std::string subquerySpec);
+    TSubquerySpec subquerySpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

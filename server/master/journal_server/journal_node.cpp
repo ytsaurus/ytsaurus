@@ -128,9 +128,9 @@ public:
         return EObjectType::Journal;
     }
 
-    virtual bool IsExternalizable() const override
+    virtual ETypeFlags GetFlags() const override
     {
-        return true;
+        return TBase::GetFlags() | ETypeFlags::Externalizable;
     }
 
     virtual ENodeType GetNodeType() const override
@@ -147,7 +147,7 @@ public:
     }
 
 protected:
-    typedef TChunkOwnerTypeHandler<TJournalNode> TBase;
+    using TBase = TChunkOwnerTypeHandler<TJournalNode>;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TJournalNode* trunkNode,

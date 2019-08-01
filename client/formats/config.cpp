@@ -1,18 +1,9 @@
 #include "config.h"
 
-#include "protobuf.h"
-
 namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProtobufFormatConfig::Validate()
-{
-    // Just try to construct.
-    New<TProtobufFormatDescription>()->Init(this);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT::NFormats

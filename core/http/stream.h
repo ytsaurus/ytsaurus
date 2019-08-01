@@ -65,6 +65,7 @@ private:
     TSharedRef LastBodyChunk_;
 
     bool ShouldKeepAlive_ = false;
+    bool HeaderBuffered_ = false;
 
     void MaybeFlushHeader(bool trailer);
 

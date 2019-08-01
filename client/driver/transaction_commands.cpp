@@ -53,8 +53,8 @@ void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
         Options.Attributes = ConvertToAttributes(Attributes);
     }
 
-    if (!Options.Sticky && Type != ETransactionType::Master) {
-        THROW_ERROR_EXCEPTION("Tablet transactions must be sticky");
+    if (Type != ETransactionType::Master) {
+        Options.Sticky = true;
     }
 
     auto transaction = WaitFor(context->GetClient()->StartTransaction(Type, Options))

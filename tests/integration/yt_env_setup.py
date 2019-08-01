@@ -27,22 +27,34 @@ from distutils.spawn import find_executable
 from time import sleep, time
 from threading import Thread
 
-SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
-SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+if arcadia_interop.yatest_common is None:
+    SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
+    SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+else:
+    SANDBOX_ROOTDIR = None
+    SANDBOX_STORAGE_ROOTDIR = None
 
 yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
 
-def prepare_binaries():
+def prepare_yatest_environment():
     if arcadia_interop.yatest_common is None:
         return
-    
+
     destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
-    if not os.path.exists(destination):       
+    if not os.path.exists(destination):
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+
+    global SANDBOX_ROOTDIR
+    SANDBOX_ROOTDIR = arcadia_interop.yatest_common.get_param("ram_drive_path")
+    if SANDBOX_ROOTDIR is None:
+        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
+
+    global SANDBOX_STORAGE_ROOTDIR
+    SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 def _abort_transactions(driver=None):
     command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -115,10 +127,11 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
     def do():
         list_objects_results = yt_commands.execute_batch([
             yt_commands.make_batch_request("list", return_only_value=True, path="//sys/" + type,
-                attributes=["id", "builtin"]) for type in TYPES],
+                attributes=["id", "builtin", "life_stage"]) for type in TYPES],
                 driver=driver)
 
         object_ids_to_remove = []
+        object_ids_to_check = []
         for index, type in enumerate(TYPES):
             objects = yt_commands.get_batch_output(list_objects_results[index])
             for object in objects:
@@ -126,12 +139,22 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                     continue
                 if type == "users" and str(object) == "application_operations":
                     continue
-                object_ids_to_remove.append(object.attributes["id"])
+                id = object.attributes["id"]
+                object_ids_to_check.append(id)
+                if object.attributes["life_stage"] == "creation_committed":
+                    object_ids_to_remove.append(id)
 
         for result in yt_commands.execute_batch([
                 yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
             ], driver=driver):
             assert not yt_commands.get_batch_output(result)
+
+        def check_removed():
+            results = yt_commands.execute_batch([
+                yt_commands.make_batch_request("exists", path="#" + id) for id in object_ids_to_check
+            ], driver=driver)
+            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
+        wait(check_removed)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -190,15 +213,18 @@ def _remove_operations(driver=None):
         assert not yt_commands.get_batch_output(response)
 
 def _wait_for_jobs_to_vanish(driver=None):
+    nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
     def check_no_jobs():
-        for node in yt_commands.ls("//sys/cluster_nodes", driver=driver):
-            jobs = yt_commands.get("//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
-            if jobs.get("scheduler", 0) > 0:
-                return False
-        return True
+        requests = [yt_commands.make_batch_request("get", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), return_only_value=True)
+                    for node in nodes]
+        responses = yt_commands.execute_batch(requests, driver=driver)
+        return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
     wait(check_no_jobs)
 
 def find_ut_file(file_name):
+    if arcadia_interop.yatest_common is not None:
+        pytest.skip("Access to .bc files is not supported inside distbuild")
+
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
     for unittests_path in [
@@ -283,14 +309,29 @@ def skip_if_porto(func):
 
 
 def is_asan_build():
+    if arcadia_interop.yatest_common is not None:
+        return False
+
     binary = find_executable("ytserver-master")
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
 
 
+def is_gcc_build():
+    if arcadia_interop.yatest_common is not None:
+        return False
+
+    binary = find_executable("ytserver-clickhouse")
+    svnrevision = subprocess.check_output([binary, "--svnrevision"])
+    return "GCC" in svnrevision
+
+
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
     def check_root_privileges():
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip("root is not available inside distbuild")
+
         for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
                        "ytserver-tools"]:
             binary_path = find_executable(binary)
@@ -544,20 +585,24 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
+        prepare_yatest_environment()
+
         if test_name is None:
             test_name = cls.__name__
         cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
-
-        prepare_binaries()
 
         # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []
 
         cls.path_to_test = path_to_test
         # For running in parallel
-        cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
-        cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+        if arcadia_interop.yatest_common is None:
+            cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
+            cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+        else:
+            cls.run_id = None
+            cls.path_to_run = path_to_test
 
         primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
@@ -613,6 +658,11 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
 
             sleep(1.0)
+
+        # XXX(babenko): portals
+        if yt_commands.is_multicell:
+            yt_commands.remove("//sys/operations")
+            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -678,36 +728,39 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            # XXX(psushin): unlink all porto volumes.
-            remove_all_volumes(cls.path_to_run)
+            if arcadia_interop.yatest_common is None:
+                # XXX(psushin): unlink all porto volumes.
+                remove_all_volumes(cls.path_to_run)
 
-            # XXX(asaitgalin): Unmount everything.
-            subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
-                                   "mountpoint", "-q", "{}", ";", "-exec", "sudo",
-                                   "umount", "{}", ";"])
+                # XXX(asaitgalin): Unmount everything.
+                subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
+                                       "mountpoint", "-q", "{}", ";", "-exec", "sudo",
+                                       "umount", "{}", ";"])
 
-            # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
-            chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
+                # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
+                chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
 
-            p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
-            _, stderr = p.communicate()
-            if p.returncode != 0:
-                print >>sys.stderr, stderr
-                raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
+                p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
+                _, stderr = p.communicate()
+                if p.returncode != 0:
+                    print >>sys.stderr, stderr
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
-            # XXX(psushin): porto volume directories may have weirdest permissions ever.
-            chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
+                # XXX(psushin): porto volume directories may have weirdest permissions ever.
+                chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
 
-            p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
-            _, stderr = p.communicate()
-            if p.returncode != 0:
-                print >>sys.stderr, stderr
-                raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
+                p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
+                _, stderr = p.communicate()
+                if p.returncode != 0:
+                    print >>sys.stderr, stderr
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
 
-            # XXX(dcherednik): Delete named pipes.
-            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+                # XXX(dcherednik): Delete named pipes.
+                subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
-            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
+            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+            if cls.run_id:
+                destination_path = os.path.join(destination_path, cls.run_id)
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
@@ -777,4 +830,3 @@ class YTEnvSetup(object):
     def teardown_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
             self._teardown_method()
-

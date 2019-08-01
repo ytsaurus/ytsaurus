@@ -47,6 +47,7 @@ using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NApi;
 using namespace NApi::NNative;
+using namespace NProfiling;
 
 using NYT::ToProto;
 
@@ -676,7 +677,7 @@ private:
 
         TDuration serializationTime;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&serializationTime);
 
             ToProto(req->mutable_query(), query);
             req->mutable_query()->set_input_row_limit(options.InputRowLimit);

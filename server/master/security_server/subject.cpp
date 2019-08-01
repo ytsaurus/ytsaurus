@@ -37,9 +37,7 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
     Load(context, MemberOf_);
     Load(context, RecursiveMemberOf_);
     Load(context, LinkedObjects_);
-    if (context.GetVersion() >= 300) {
-        Load(context, Acd_);
-    }
+    Load(context, Acd_);
 }
 
 TUser* TSubject::AsUser()
@@ -54,7 +52,7 @@ TGroup* TSubject::AsGroup()
     return static_cast<TGroup*>(this);
 }
 
-void TSubject::LinkObject(TObjectBase* object)
+void TSubject::LinkObject(TObject* object)
 {
     auto it = LinkedObjects_.find(object);
     if (it == LinkedObjects_.end()) {
@@ -64,7 +62,7 @@ void TSubject::LinkObject(TObjectBase* object)
     }
 }
 
-void TSubject::UnlinkObject(TObjectBase* object)
+void TSubject::UnlinkObject(TObject* object)
 {
     auto it = LinkedObjects_.find(object);
     YT_VERIFY(it != LinkedObjects_.end());

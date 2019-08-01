@@ -93,7 +93,7 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
 
-        CreateTableAndClient(
+        CreateTable(
             "//tmp/lookup_test", // tablePath
             "[" // schema
             "{name=k0;type=int64;sort_order=ascending};"
@@ -705,7 +705,7 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
 
-        CreateTableAndClient(
+        CreateTable(
             "//tmp/write_ordered_test", // tablePath
             "[" // schema
             "{name=v1;type=int64};"

@@ -9,6 +9,7 @@
 
 namespace NYT::NTableServer {
 
+using namespace NCellMaster;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -34,6 +35,14 @@ DEFINE_ENUM(ESchemaSerializationMethod,
     (Schema)
     (TableIdWithSameSchema)
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicTableLock::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using ::NYT::Persist;
+    Persist(context, PendingTabletCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +72,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, PrimaryLastMountTransactionId);
     Save(context, CurrentMountTransactionId);
     Save(context, *TabletBalancerConfig);
+    Save(context, DynamicTableLocks);
+    Save(context, UnconfirmedDynamicTableLockCount);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -72,7 +83,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     // COMPAT(savrus)
-    if (context.GetVersion() < 824) {
+    if (context.GetVersion() < EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
         Load(context, TabletCellBundle);
     }
     Load(context, LastCommitTimestamp);
@@ -80,7 +91,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, Tablets);
     // COMPAT(savrus)
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 614 && context.GetVersion() < 821) {
+    if (context.GetVersion() < EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
         std::optional<bool> enableTabletBalancer;
         Load(context, enableTabletBalancer);
         TabletBalancerConfig->EnableAutoReshard = enableTabletBalancer.value_or(true);
@@ -91,12 +102,12 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, InMemoryMode);
     // COMPAT(savrus)
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 622 && context.GetVersion() < 821) {
+    if (context.GetVersion() < EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
         Load(context, TabletBalancerConfig->DesiredTabletCount);
     }
     Load(context, TabletErrorCount);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 800) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
         Load(context, ForcedCompactionRevision);
         Load(context, Dynamic);
         Load(context, MountPath);
@@ -106,24 +117,29 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TabletCountByExpectedState);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 801) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::MakeTabletStateBackwardCompatible) {
         Load(context, ActualTabletState);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 803) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddPrimaryLastMountTransactionId) {
         Load(context, PrimaryLastMountTransactionId);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 822) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::UseCurrentMountTransactionIdToLockTableNodeDuringMount) {
         Load(context, CurrentMountTransactionId);
     }
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 821) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
         Load(context, *TabletBalancerConfig);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, DynamicTableLocks);
+        Load(context, UnconfirmedDynamicTableLockCount);
     }
 
     // COMPAT(savrus)
-    if (context.GetVersion() < 800) {
+    if (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables) {
         Dynamic = !Tablets.empty();
     }
 }
@@ -263,7 +279,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 824) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
         Load(context, TabletCellBundle_);
     }
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
@@ -276,46 +292,22 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     const auto& registry = context.GetBootstrap()->GetCypressManager()->GetSharedTableSchemaRegistry();
-    if (context.GetVersion() < 708) {
-        TTableSchema tableSchema = Load<TTableSchema>(context);
-        if (tableSchema != TSharedTableSchemaRegistry::EmptyTableSchema) {
-            SharedTableSchema() = registry->GetSchema(std::move(tableSchema));
+
+    switch (Load<ESchemaSerializationMethod>(context)) {
+        case ESchemaSerializationMethod::Schema: {
+            SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
+            auto inserted = context.LoadedSchemas().emplace(GetVersionedId(), SharedTableSchema().Get()).second;
+            YT_VERIFY(inserted);
+            break;
         }
-    } else if (context.GetVersion() < 709) {
-        switch (Load<ESchemaSerializationMethod>(context)) {
-            case ESchemaSerializationMethod::Schema: {
-                SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
-                const TVersionedObjectId currentTableId(Id_, NullTransactionId);
-                auto inserted = context.LoadedSchemas().emplace(currentTableId, SharedTableSchema().Get()).second;
-                YT_VERIFY(inserted);
-                break;
-            }
-            case ESchemaSerializationMethod::TableIdWithSameSchema: {
-                const TVersionedObjectId previousTableId(Load<TObjectId>(context), NullTransactionId);
-                YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
-                SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
-                break;
-            }
-            default:
-                YT_ABORT();
+        case ESchemaSerializationMethod::TableIdWithSameSchema: {
+            auto previousTableId = Load<TVersionedObjectId>(context);
+            YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
+            SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
+            break;
         }
-    } else {
-        switch (Load<ESchemaSerializationMethod>(context)) {
-            case ESchemaSerializationMethod::Schema: {
-                SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
-                auto inserted = context.LoadedSchemas().emplace(GetVersionedId(), SharedTableSchema().Get()).second;
-                YT_VERIFY(inserted);
-                break;
-            }
-            case ESchemaSerializationMethod::TableIdWithSameSchema: {
-                auto previousTableId = Load<TVersionedObjectId>(context);
-                YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
-                SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
-                break;
-            }
-            default:
-                YT_ABORT();
-        }
+        default:
+            YT_ABORT();
     }
 }
 
@@ -339,7 +331,7 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < 800) {
+    if (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -392,7 +384,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
     }
 
     //COMPAT(savrus)
-    if (context.GetVersion() < 824) {
+    if (context.GetVersion() < EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
         if (HasCustomDynamicTableAttributes()) {
             TabletCellBundle_ = DynamicTableAttributes_->TabletCellBundle;
 
@@ -641,6 +633,33 @@ std::optional<int> TTableNode::GetDesiredTabletCount() const
 void TTableNode::SetDesiredTabletCount(std::optional<int> value)
 {
     MutableTabletBalancerConfig()->DesiredTabletCount = value;
+}
+
+void TTableNode::AddDynamicTableLock(TTransactionId transactionId, TTimestamp timestamp, int pending)
+{
+    YT_VERIFY(MutableDynamicTableLocks().insert(std::make_pair(transactionId, TDynamicTableLock{timestamp, pending})).second);
+    SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() + 1);
+}
+
+void TTableNode::ConfirmDynamicTableLock(TTransactionId transactionId)
+{
+    if (auto it = MutableDynamicTableLocks().find(transactionId)) {
+        YT_VERIFY(it->second.PendingTabletCount > 0);
+        --it->second.PendingTabletCount;
+        if (it->second.PendingTabletCount == 0) {
+            SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() - 1);
+        }
+    }
+}
+
+void TTableNode::RemoveDynamicTableLock(TTransactionId transactionId)
+{
+    if (auto it = MutableDynamicTableLocks().find(transactionId)) {
+        if (it->second.PendingTabletCount > 0) {
+            SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() - 1);
+        }
+        MutableDynamicTableLocks().erase(it);
+    }
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

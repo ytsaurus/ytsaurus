@@ -4,7 +4,9 @@
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,8 +16,10 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-        NYT::NYTAlloc::EnableLogging();
-        NYT::NYTAlloc::EnableProfiling();
+        NYT::NYTAlloc::EnableYTLogging();
+        NYT::NYTAlloc::EnableYTProfiling();
+        NYT::NYTAlloc::SetLibunwindBacktraceProvider();
+        NYT::NYTAlloc::ConfigureFromEnv();
         NYT::NYTAlloc::EnableStockpile();
         NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
     }

@@ -1,0 +1,319 @@
+#include "client_mock.h"
+#include "transaction_mock.h"
+
+#include <yt/client/misc/discovery.h>
+
+#include <yt/core/test_framework/framework.h>
+
+#include <yt/core/ytree/fluent.h>
+
+namespace NYT {
+namespace {
+
+using ::testing::InSequence;
+using ::testing::Invoke;
+using ::testing::InvokeWithoutArgs;
+using ::testing::StrictMock;
+using ::testing::NiceMock;
+using ::testing::Return;
+using ::testing::ResultOf;
+using ::testing::_;
+
+using namespace NApi;
+using namespace NYTree;
+using namespace NYson;
+using namespace NConcurrency;
+using namespace NLogging;
+
+using StrictMockClient = StrictMock<TMockClient>;
+DEFINE_REFCOUNTED_TYPE(StrictMockClient)
+
+using StrictMockTransaction = StrictMock<TMockTransaction>;
+DEFINE_REFCOUNTED_TYPE(StrictMockTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> GetNames(const THashMap<TString, TDiscovery::TAttributeDictionary>& listResult) {
+    auto result = GetKeys(listResult);
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+TEST(TDiscoveryTest, Simple)
+{
+    auto MockClient = New<StrictMockClient>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {};
+    NApi::TListNodeOptions options;
+    options.Attributes = keys;
+    options.Attributes->push_back("lock_count");
+
+    NYson::TYsonString listRet("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]");
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(Return(MakeFuture(listRet)));
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::Seconds(1);
+    auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
+    discovery->StartPolling();
+
+    // Time for TDiscovery to do UpdateList
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+    std::vector<TString> expected = {"alive_node"};
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    discovery->StopPolling();
+}
+
+TYsonString GetLockYson(bool created, bool locked)
+{
+    return BuildYsonStringFluently()
+            .BeginList()
+                .DoIf(created, [&] (TFluentList fluent) {
+                    fluent.Item()
+                        .BeginAttributes()
+                            .Item("locks")
+                                .BeginList()
+                                    .DoIf(locked, [&] (TFluentList fluent) {
+                                        fluent.Item().BeginMap()
+                                            .Item("child_key").Value("lock")
+                                        .EndMap();
+                                    })
+                                .EndList()
+                        .EndAttributes()
+                        .Value("test_node");
+                })
+            .EndList();
+}
+
+TEST(TDiscoveryTest, Enter)
+{
+    auto MockClient = New<StrictMockClient>();
+    auto MockTransaction = New<StrictMockTransaction>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {};
+
+    bool locked = false;
+    bool created = false;
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(InvokeWithoutArgs([&] {
+                return MakeFuture(GetLockYson(created, locked));
+            }));
+
+    EXPECT_CALL(*MockClient, StartTransaction(_, _))
+        .WillOnce(Return(MakeFuture(MockTransaction).As<ITransactionPtr>()));
+
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+                created = true;
+                return MakeFuture(NCypressClient::TNodeId());
+            }
+        ));
+
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+                locked = true;
+                return MakeFuture(TLockNodeResult());
+            }));
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
+    discovery->StartPolling();
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+
+    WaitFor(discovery->Enter("test_node", TDiscovery::TAttributeDictionary())).ThrowOnError();
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+    std::vector<TString> expected = {"test_node"};
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    discovery->StopPolling();
+}
+
+THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
+{
+    THashMap<TString, TString> result;
+    if (options.Attributes) {
+        for (const auto& [name, value] : options.Attributes->ToMap()->GetChildren()) {
+            result[name] = value->AsString()->GetValue();
+        }
+    }
+    return result;
+}
+
+TEST(TDiscoveryTest, Leave) {
+    auto MockClient = New<StrictMockClient>();
+    auto MockTransaction = New<StrictMockTransaction>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {};
+
+    TDiscovery::TAttributeDictionary attrs;
+    attrs["host"] = BuildYsonNodeFluently().Value("something.ru");
+    THashMap<TString, TString> comparableAttrs;
+    comparableAttrs["host"] = "something.ru";
+
+    bool locked = false;
+    bool created = false;
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(InvokeWithoutArgs([&] {
+                return MakeFuture(GetLockYson(created, locked));
+            }));
+        
+    EXPECT_CALL(*MockClient, StartTransaction(_, _))
+        .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
+
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, ResultOf(TransformAttributes, comparableAttrs)))
+        .WillOnce(InvokeWithoutArgs([&] {
+                created = true;
+                return MakeFuture(NCypressClient::TNodeId());
+            }
+        ));
+
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+                locked = true;
+                return MakeFuture(TLockNodeResult());
+            }));
+
+    EXPECT_CALL(*MockTransaction, Abort(_))
+        .WillOnce(InvokeWithoutArgs([&] {
+                locked = false;
+                return VoidFuture;
+            }));
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
+    discovery->StartPolling();
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    
+    WaitFor(discovery->Enter("test_node", attrs)).ThrowOnError();
+    WaitFor(discovery->Leave()).ThrowOnError();
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    EXPECT_THAT(created, true);
+    EXPECT_THAT(locked, false);
+
+    discovery->StopPolling();
+}
+
+TEST(TDiscoveryTest, Ban)
+{
+    auto MockClient = New<StrictMockClient>();
+    auto MockTransaction = New<StrictMockTransaction>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {};
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(Return(MakeFuture(BuildYsonStringFluently()
+            .BeginList()
+                .Item().Value(TYsonString("<locks=[{}]>dead_node"))
+                .Item().Value(TYsonString("<locks=[{child_key=lock}]>alive_node1"))
+                .Item().Value(TYsonString("<locks=[{};{child_key=lock}]>alive_node2"))
+            .EndList())));
+
+    std::vector<TString> expected = {"alive_node1", "alive_node2"};
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    config->BanTimeout = TDuration::MilliSeconds(100);
+    auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
+    discovery->StartPolling();
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    discovery->Ban("alive_node2");
+    expected.pop_back();
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(101));
+    expected.push_back("alive_node2");
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    discovery->StopPolling();
+}
+
+THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TDiscovery::TAttributeDictionary> listResult)
+{
+    THashMap<TString, std::vector<TString>> result;
+    for (const auto& [name, attributes] : listResult) {
+        result[name] = GetKeys(attributes);
+        std::sort(result[name].begin(), result[name].end());
+    }
+    return result;
+}
+
+TEST(TDiscoveryTest, Attributes)
+{
+    auto MockClient = New<StrictMockClient>();
+    auto MockTransaction = New<StrictMockTransaction>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {"a1", "a2"};
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(Return(MakeFuture(BuildYsonStringFluently()
+            .BeginList()
+                .Item()
+                    .BeginAttributes()
+                        .Item("locks").Value(TYsonString("[{child_key=tmp}]"))
+                    .EndAttributes()
+                    .Value("dead_node")
+                .Item()
+                    .BeginAttributes()
+                        .Item("locks").Value(TYsonString("[{child_key=lock}]"))
+                        .Item("a1").Value(1)
+                        .Item("a2").Value(2)
+                    .EndAttributes()
+                    .Value("alive_node1")
+                .Item()
+                    .BeginAttributes()
+                        .Item("locks").Value(TYsonString("[{child_key=lock}]"))
+                        .Item("a1").Value(1)
+                        .Item("a2").Value(2)
+                    .EndAttributes()
+                    .Value("alive_node2")
+            .EndList())));
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
+    discovery->StartPolling();
+
+    THashMap<TString, std::vector<TString>> expected;
+    expected["alive_node1"] = expected["alive_node2"] = {"a1", "a2", "locks"};
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+    EXPECT_THAT(discovery->List(), ResultOf(GetAttributesKeys, expected));
+
+    discovery->StopPolling();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT

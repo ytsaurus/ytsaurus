@@ -18,12 +18,14 @@ struct TChunkState
         NChunkClient::IBlockCachePtr preloadedBlockCache,
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        NTransactionClient::TTimestamp chunkTimestamp,
         IChunkLookupHashTablePtr lookupHashTable,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TKeyComparer keyComparer)
         : BlockCache(std::move(preloadedBlockCache))
         , ChunkSpec(chunkSpec)
         , ChunkMeta(std::move(chunkMeta))
+        , ChunkTimestamp(chunkTimestamp)
         , LookupHashTable(std::move(lookupHashTable))
         , PerformanceCounters(std::move(performanceCounters))
         , KeyComparer(std::move(keyComparer))
@@ -35,6 +37,7 @@ struct TChunkState
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
     TCachedVersionedChunkMetaPtr ChunkMeta;
+    NTransactionClient::TTimestamp ChunkTimestamp;
     IChunkLookupHashTablePtr LookupHashTable;
     TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;

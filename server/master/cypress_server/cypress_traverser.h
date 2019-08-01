@@ -21,7 +21,7 @@ namespace NYT::NCypressServer {
 struct ICypressNodeVisitor
     : public virtual TRefCounted
 {
-    virtual void OnNode(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction) = 0;
+    virtual void OnNode(TCypressNode* trunkNode, NTransactionServer::TTransaction* transaction) = 0;
     virtual void OnError(const TError& error) = 0;
     virtual void OnCompleted() = 0;
 };
@@ -34,7 +34,7 @@ void TraverseCypress(
     NObjectServer::TObjectManagerPtr objectManager,
     NSecurityServer::TSecurityManagerPtr securityManager,
     IInvokerPtr invoker,
-    TCypressNodeBase* trunkRootNode,
+    TCypressNode* trunkRootNode,
     NTransactionServer::TTransaction* transaction,
     ICypressNodeVisitorPtr visitor);
 

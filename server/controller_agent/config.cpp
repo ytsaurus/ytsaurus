@@ -1,20 +1,10 @@
 #include "config.h"
 
+#include <yt/server/lib/chunk_pools/config.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TJobSizeAdjusterConfig::TJobSizeAdjusterConfig()
-{
-    RegisterParameter("min_job_time", MinJobTime)
-        .Default(TDuration::Seconds(60));
-
-    RegisterParameter("max_job_time", MaxJobTime)
-        .Default(TDuration::Minutes(10));
-
-    RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-        .Default(20.0);
-}
 
 TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
 {
@@ -331,6 +321,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(10000)
         .GreaterThan(0);
 
+    RegisterParameter("enable_cypress_job_nodes", EnableCypressJobNodes)
+        .Default(true);
+
     RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
         .DefaultNew();
 
@@ -339,9 +332,12 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("scheduler_handshake_failure_backoff", SchedulerHandshakeFailureBackoff)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("scheduler_failure_backoff", SchedulerHeartbeatFailureBackoff)
+    RegisterParameter("scheduler_heartbeat_failure_backoff", SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
     RegisterParameter("scheduler_heartbeat_period", SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(100));
@@ -352,6 +348,8 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
     RegisterParameter("operations_push_period", OperationsPushPeriod)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("operation_job_metrics_push_period", OperationJobMetricsPushPeriod)
         .Default(TDuration::Seconds(1));
     RegisterParameter("operation_alerts_push_period", OperationAlertsPushPeriod)
         .Default(TDuration::Seconds(3));
@@ -621,6 +619,18 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("custom_job_metrics", CustomJobMetrics)
         .Default();
 
+    RegisterParameter("lock_input_tables_retries", LockInputTablesRetries)
+        .Default(nullptr);
+
+    RegisterParameter("dynamic_table_lock_checking_attempt_count_limit", DynamicTableLockCheckingAttemptCountLimit)
+        .Default(10);
+    RegisterParameter("dynamic_table_lock_checking_interval_scale", DynamicTableLockCheckingIntervalScale)
+        .Default(1.5);
+    RegisterParameter("dynamic_table_lock_checking_interval_duration_min", DynamicTableLockCheckingIntervalDurationMin)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("dynamic_table_lock_checking_interval_duration_max", DynamicTableLockCheckingIntervalDurationMax)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
@@ -660,6 +670,12 @@ TControllerAgentConfig::TControllerAgentConfig()
                          customJobMetricDescription.ProfilingName);
                 }
             }
+        }
+
+        if (!LockInputTablesRetries) {
+            LockInputTablesRetries = New<NObjectClient::TReqExecuteBatchWithRetriesConfig>();
+            LockInputTablesRetries->RetriableErrorCodes.push_back(
+                static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
         }
     });
 }

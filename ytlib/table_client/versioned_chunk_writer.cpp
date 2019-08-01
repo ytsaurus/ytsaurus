@@ -531,7 +531,7 @@ private:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                const auto& row = rows[rowIndex];
+                auto row = rows[rowIndex];
                 auto rowWeight = NTableClient::GetDataWeight(row);
                 if (rowIndex == 0) {
                     ValidateRow(row, rowWeight, LastKey_.Begin(), LastKey_.End());

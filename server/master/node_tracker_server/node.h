@@ -8,7 +8,7 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/node_tracker_server/node_tracker.pb.h>
+#include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
 #include <yt/server/master/tablet_server/public.h>
 
@@ -50,7 +50,7 @@ void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescripto
 void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor);
 
 class TNode
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TNode>
 {
 public:

@@ -8,6 +8,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/misc/shared_range.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////

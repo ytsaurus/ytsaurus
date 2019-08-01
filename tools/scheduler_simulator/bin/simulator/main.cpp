@@ -10,6 +10,13 @@
 
 #include <yt/server/scheduler/public.h>
 
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+
+#include <yt/ytlib/program/program.h>
+#include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/configure_singletons.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/core/logging/public.h>
@@ -17,8 +24,14 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/http/server.h>
+
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/property.h>
+
+#include <yt/core/phdr_cache/phdr_cache.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 namespace NYT {
 
@@ -34,6 +47,8 @@ using namespace NLogging;
 
 static const auto& Logger = SchedulerSimulatorLogger;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
@@ -46,7 +61,7 @@ TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
     return resourceLimits;
 }
 
-TSchedulerSimulatorConfigPtr LoadConfig(const char* configFilename)
+TSchedulerSimulatorConfigPtr LoadConfig(const TString& configFilename)
 {
     INodePtr configNode;
     try {
@@ -162,12 +177,10 @@ INodePtr LoadPoolTrees(const TString& poolTreesFilename)
 
 } // namespace
 
-void Run(const char* configFilename)
+////////////////////////////////////////////////////////////////////////////////
+
+void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
 {
-    const auto config = LoadConfig(configFilename);
-
-    TLogManager::Get()->Configure(config->Logging);
-
     YT_LOG_INFO("Reading operations description");
 
     std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
@@ -200,18 +213,68 @@ void Run(const char* configFilename)
         .ThrowOnError();
 }
 
-} // namespace NYT
-
-
-int main(int argc, char** argv)
+class TSchedulerSimulatorProgram
+    : public TProgram
+    , public TProgramPdeathsigMixin
 {
-    if (argc != 2) {
-        printf("Usage: scheduler_simulator <config_filename>\n");
-        return 1;
+public:
+    TSchedulerSimulatorProgram()
+        : TProgramPdeathsigMixin(Opts_)
+    {
+        Opts_.SetFreeArgsNum(1);
+        Opts_.SetFreeArgTitle(0, "SIMULATOR_CONFIG_FILENAME");
+        SetCrashOnError();
     }
 
-    NYT::Run(argv[1]);
-    NYT::Shutdown();
+protected:
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    {
+        // TODO(antonkikh): Which of these are actually needed?
+        ConfigureUids();
+        ConfigureSignals();
+        ConfigureCrashHandler();
+        ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
+        NYTAlloc::EnableYTLogging();
+        NYTAlloc::EnableYTProfiling();
+        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::ConfigureFromEnv();
+        NYTAlloc::EnableStockpile();
 
-    return 0;
+        if (HandlePdeathsigOptions()) {
+            return;
+        }
+
+        auto config = LoadConfig(/* configFilename */ parseResult.GetFreeArgs()[0]);
+        ConfigureSingletons(config);
+
+        {
+            config->MonitoringServer->Port = config->MonitoringPort;
+            config->MonitoringServer->BindRetryCount = config->BusServer->BindRetryCount;
+            config->MonitoringServer->BindRetryBackoff = config->BusServer->BindRetryBackoff;
+            auto httpServer = NHttp::CreateServer(config->MonitoringServer);
+
+            NMonitoring::TMonitoringManagerPtr monitoringManager;
+            NYTree::IMapNodePtr orchidRoot;
+            NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot);
+
+            YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
+            httpServer->Start();
+
+            RunSimulation(config);
+
+            httpServer->Stop();
+        }
+
+        NYT::Shutdown();
+    }
+};
+
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+int main(int argc, const char** argv)
+{
+    return NYT::TSchedulerSimulatorProgram().Run(argc, argv);
 }

@@ -19,8 +19,6 @@ DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
-DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
-
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
@@ -48,9 +46,7 @@ DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TVanillaOperationOptions)
 
 DECLARE_REFCOUNTED_CLASS(TJobSplitterConfig)
-DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 
-DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TOperationAlertsConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TSuspiciousJobsOptions)
@@ -76,8 +72,6 @@ struct ISchedulingContext;
 
 class TMasterConnector;
 class TBootstrap;
-
-DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 class TMemoryTagQueue;
 

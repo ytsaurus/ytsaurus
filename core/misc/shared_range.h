@@ -4,6 +4,7 @@
 #include "intrusive_ptr.h"
 #include "range.h"
 #include "ref_counted.h"
+#include "format.h"
 
 namespace NYT {
 

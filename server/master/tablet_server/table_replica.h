@@ -18,7 +18,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReplica
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TTableReplica>
 {
 public:

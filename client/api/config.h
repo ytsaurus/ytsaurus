@@ -198,6 +198,7 @@ public:
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TDuration UploadTransactionTimeout;
+    TDuration PrerequisiteTransactionProbePeriod;
 
     bool IgnoreClosing; // for testing purposes only
 
@@ -242,6 +243,8 @@ public:
 
         RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("prerequisite_transaction_probe_period", PrerequisiteTransactionProbePeriod)
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("ignore_closing", IgnoreClosing)
             .Default(false);

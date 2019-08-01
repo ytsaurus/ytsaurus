@@ -5,6 +5,7 @@
 #include <yt/core/actions/callback.h>
 
 #include <yt/core/misc/shutdownable.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT::NConcurrency {
 

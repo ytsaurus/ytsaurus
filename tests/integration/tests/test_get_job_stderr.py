@@ -56,7 +56,7 @@ class TestGetJobStderr(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
-    def test_get_job_stderr(self):
+    def do_test_get_job_stderr(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -87,6 +87,20 @@ class TestGetJobStderr(YTEnvSetup):
 
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
+
+    def test_get_job_stderr(self):
+        self.do_test_get_job_stderr()
+
+    def test_get_job_stderr_without_cypress(self):
+        old_value = None
+        try:
+            instances = ls("//sys/controller_agents/instances")
+            old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))
+            set("//sys/controller_agents/config/enable_cypress_job_nodes", False, recursive=True)
+            self.do_test_get_job_stderr()
+        finally:
+            if old_value is not None:
+                set("//sys/controller_agents/config/enable_cypress_job_nodes", old_value, recursive=True)
 
     def test_get_job_stderr_acl(self):
         create_user("u")
@@ -151,7 +165,6 @@ class TestGetJobStderr(YTEnvSetup):
             get_job_stderr(op.id, other_job_id, authenticated_user="other")
         finally:
             set("//sys/operations/@inherit_acl", True)
-
 
 ##################################################################
 

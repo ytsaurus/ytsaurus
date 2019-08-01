@@ -782,6 +782,7 @@ private:
 
             std::vector<TDataRanges> groupedSplit(splits.begin() + beginIndex, splits.begin() + endIndex);
             readRanges.push_back(groupedSplit);
+
             std::vector<TRowRange> keyRanges;
             for (const auto& dataRange : groupedSplit) {
                 keyRanges.insert(keyRanges.end(), dataRange.Ranges.Begin(), dataRange.Ranges.End());
@@ -797,6 +798,7 @@ private:
                     return expr;
                 }
             });
+
             subreaderCreators.push_back([this, MOVE(groupedSplit)] () {
                 size_t rangesCount = std::accumulate(
                     groupedSplit.begin(),
@@ -829,11 +831,28 @@ private:
             });
         };
 
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
+
+        auto regroupAndProcessSplitsRanges = [&] (int beginIndex, int endIndex) {
+            if (!regroupByTablets) {
+                processSplitsRanges(beginIndex, endIndex);
+                return;
+            }
+            size_t lastOffset = beginIndex;
+            for (size_t index = beginIndex; index < endIndex; ++index) {
+                if (index > lastOffset && splits[index].Id != splits[lastOffset].Id) {
+                    processSplitsRanges(lastOffset, index);
+                    lastOffset = index;
+                }
+            }
+            processSplitsRanges(lastOffset, endIndex);
+        };
+
         auto processSplitKeys = [&] (int index) {
+            readRanges.push_back({splits[index]});
+
             auto tabletId = splits[index].Id;
             const auto& keys = splits[index].Keys;
-
-            readRanges.push_back({splits[index]});
 
             refiners.push_back([keys, inferRanges = Query_->InferRanges] (
                 const TConstExpressionPtr& expr,
@@ -857,7 +876,7 @@ private:
         int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
         for (size_t splitIndex = 0; splitIndex < splitCount;) {
             if (splits[splitIndex].Keys) {
-                processSplitsRanges(splitOffset, splitIndex);
+                regroupAndProcessSplitsRanges(splitOffset, splitIndex);
                 processSplitKeys(splitIndex);
                 splitOffset = ++splitIndex;
             } else {
@@ -865,8 +884,8 @@ private:
             }
 
             if (splitIndex == nextSplitOffset) {
-                processSplitsRanges(splitOffset, nextSplitOffset);
-                splitOffset = nextSplitOffset;
+                regroupAndProcessSplitsRanges(splitOffset, splitIndex);
+                splitOffset = splitIndex;
                 ++queryIndex;
                 nextSplitOffset = queryIndex * splitCount / maxSubqueries;
             }

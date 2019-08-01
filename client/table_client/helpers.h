@@ -174,6 +174,10 @@ TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TR
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_

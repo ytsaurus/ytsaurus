@@ -388,7 +388,7 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = New<TOperation>(descriptor);
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
         auto host = New<TOperationControllerHost>(
             operation.Get(),
             CancelableControlInvoker_,
@@ -414,13 +414,14 @@ public:
         YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void DoDisposeAndUnregisterOperation(TOperationId operationId)
+    TOperationControllerUnregisterResult DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
+        TOperationControllerUnregisterResult result;
         if (controller) {
             WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
                 // It is called in regular invoker since controller is canceled
@@ -428,12 +429,16 @@ public:
                 .AsyncVia(controller->GetInvoker())
                 .Run())
                 .ThrowOnError();
+
+            result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
         }
 
         UnregisterOperation(operationId);
+
+        return result;
     }
 
-    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId)
+    TFuture<TOperationControllerUnregisterResult> DisposeAndUnregisterOperation(TOperationId operationId)
     {
         return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
@@ -567,7 +572,8 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortOperation(const TOperationPtr& operation)
+    // NB(eshcherbin): controllerFinalState should be either Aborted or Failed.
+    TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
@@ -582,7 +588,7 @@ public:
         }
 
         controller->Cancel();
-        return BIND(&IOperationControllerSchedulerHost::Abort, controller)
+        return BIND(&IOperationControllerSchedulerHost::Terminate, controller, controllerFinalState)
             .AsyncVia(controller->GetInvoker())
             .Run();
     }
@@ -734,6 +740,7 @@ private:
 
     TInstant LastExecNodesUpdateTime_;
     TInstant LastOperationsSendTime_;
+    TInstant LastOperationJobMetricsSendTime_;
     TInstant LastOperationAlertsSendTime_;
     TInstant LastSuspiciousJobsSendTime_;
 
@@ -958,6 +965,7 @@ private:
         TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr RpcRequest;
         bool ExecNodesRequested = false;
         bool OperationsSent = false;
+        bool OperationJobMetricsSent = false;
         bool OperationAlertsSent = false;
         bool SuspiciousJobsSent = false;
     };
@@ -1049,19 +1057,20 @@ private:
         auto now = TInstant::Now();
         preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
         preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
+        preparedRequest.OperationJobMetricsSent = LastOperationJobMetricsSendTime_ + Config_->OperationJobMetricsPushPeriod < now;
         preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
         preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
         if (preparedRequest.OperationsSent) {
             for (const auto& pair : GetOperations()) {
-                const auto& operationId = pair.first;
+                auto operationId = pair.first;
                 const auto& operation = pair.second;
                 auto controller = operation->GetController();
 
                 auto* protoOperation = request->add_operations();
                 ToProto(protoOperation->mutable_operation_id(), operationId);
 
-                {
+                if (preparedRequest.OperationJobMetricsSent) {
                     auto jobMetricsDelta = controller->PullJobMetricsDelta();
                     ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
                 }
@@ -1106,6 +1115,9 @@ private:
         if (preparedRequest.OperationsSent) {
             LastOperationsSendTime_ = now;
         }
+        if (preparedRequest.OperationJobMetricsSent) {
+            LastOperationJobMetricsSendTime_ = now;
+        }
         if (preparedRequest.OperationAlertsSent) {
             LastOperationAlertsSendTime_ = now;
         }
@@ -1132,7 +1144,7 @@ private:
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
-                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
+                TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
             } else {
                 Disconnect(rspOrError);
             }
@@ -1591,7 +1603,7 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
+TFuture<TOperationControllerUnregisterResult> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
@@ -1635,9 +1647,9 @@ TFuture<void> TControllerAgent::CompleteOperation(const TOperationPtr& operation
     return Impl_->CompleteOperation(operation);
 }
 
-TFuture<void> TControllerAgent::AbortOperation(const TOperationPtr& operation)
+TFuture<void> TControllerAgent::TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
 {
-    return Impl_->AbortOperation(operation);
+    return Impl_->TerminateOperation(operation, controllerFinalState);
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(

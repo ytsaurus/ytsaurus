@@ -80,7 +80,7 @@ public:
     // This list is typically small, e.g. has the length of 1.
     // It may contain duplicates, i.e. when a chunk is added into the same
     // table multiple times during merge.
-    using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
+    using TParents = SmallVector<TChunkTree*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
@@ -108,8 +108,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    void AddParent(TChunkList* parent);
-    void RemoveParent(TChunkList* parent);
+    void AddParent(TChunkTree* parent);
+    void RemoveParent(TChunkTree* parent);
 
     using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;

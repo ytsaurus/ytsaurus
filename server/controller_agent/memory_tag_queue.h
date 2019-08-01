@@ -22,8 +22,8 @@ class TMemoryTagQueue
 public:
     explicit TMemoryTagQueue(TControllerAgentConfigPtr config);
 
-    TMemoryTag AssignTagToOperation(TOperationId operationId);
-    void ReclaimTag(TMemoryTag tag);
+    NYTAlloc::TMemoryTag AssignTagToOperation(TOperationId operationId);
+    void ReclaimTag(NYTAlloc::TMemoryTag tag);
 
     void BuildTaggedMemoryStatistics(NYTree::TFluentList fluent);
 
@@ -38,10 +38,10 @@ private:
     TSpinLock Lock_;
 
     //! A queue of spare tags.
-    std::queue<TMemoryTag> AvailableTags_;
+    std::queue<NYTAlloc::TMemoryTag> AvailableTags_;
 
     //! A hashset of used tags.
-    THashSet<TMemoryTag> UsedTags_;
+    THashSet<NYTAlloc::TMemoryTag> UsedTags_;
 
     //! Last operation id that was assigned to each of the tags.
     std::vector<TOperationId> TagToLastOperationId_;

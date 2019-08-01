@@ -10,16 +10,17 @@ namespace NYT::NTabletServer {
 using namespace NYPath;
 using namespace NTableServer;
 using namespace NTransactionClient;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReplica::TTableReplica(TTableReplicaId id)
-    : TObjectBase(id)
+    : TObject(id)
 { }
 
 void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, ClusterName_);
@@ -36,7 +37,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 
 void TTableReplica::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, ClusterName_);
@@ -47,10 +48,10 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, Mode_);
     Load(context, TransitioningTablets_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() >= 717) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddReplicatedTableOptions) {
         Load(context, EnableReplicatedTableTracker_);
     }
-    if (context.GetVersion() >= 802) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddReplicaOptions) {
         Load(context, PreserveTimestamps_);
         Load(context, Atomicity_);
     }

@@ -227,8 +227,7 @@ private:
                     Initialized_ = false;
                     YT_LOG_WARNING("Connectivity lost");
                 }
-                WaitFor(TDelayedExecutor::MakeDelayed(backoffDuration))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(backoffDuration);
             }
         }
     }

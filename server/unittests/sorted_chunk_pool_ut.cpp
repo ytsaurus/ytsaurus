@@ -4,10 +4,10 @@
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/input_chunk_mapping.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -16,7 +16,8 @@
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
-#include <yt/core/misc/size_literals.h>
+
+#include <util/generic/size_literals.h>
 
 #include <util/stream/null.h>
 
@@ -302,7 +303,7 @@ protected:
 
     void SuspendChunk(IChunkPoolInput::TCookie cookie)
     {
-        const auto& chunkId = InputCookieToChunkId_[cookie];
+        auto chunkId = InputCookieToChunkId_[cookie];
         YT_VERIFY(chunkId);
         YT_VERIFY(ActiveChunks_.erase(chunkId));
         ChunkPool_->Suspend(cookie);
@@ -310,7 +311,7 @@ protected:
 
     void ResumeChunk(IChunkPoolInput::TCookie cookie)
     {
-        const auto& chunkId = InputCookieToChunkId_[cookie];
+        auto chunkId = InputCookieToChunkId_[cookie];
         YT_VERIFY(chunkId);
         ActiveChunks_.insert(chunkId);
         ChunkPool_->Resume(cookie);
@@ -2911,7 +2912,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
-        const auto& chunkId = chunk->ChunkId();
+        auto chunkId = chunk->ChunkId();
         auto cookie = AddChunk(chunk);
         chunkIdToInputCookie[chunkId] = cookie;
         chunkIdToChunk[chunkId] = chunk;
@@ -2938,7 +2939,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         completedChunks.clear();
         ++invalidationCount;
         Cdebug << "Invalidating pool" << Endl;
-        for (const auto& chunkId : startedChunks) {
+        for (auto chunkId : startedChunks) {
             Cdebug << Format("Aborted chunk %v due to invalidation", chunkId) << Endl;
             auto outputCookie = chunkIdToOutputCookie.at(chunkId);
             ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
@@ -3012,7 +3013,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                const auto& chunkId = chunk->ChunkId();
+                auto chunkId = chunk->ChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));
                 ASSERT_TRUE(!suspendedChunks.contains(chunkId));
@@ -3022,7 +3023,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else if (eventType <= 79) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Completed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
@@ -3032,7 +3033,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else if (eventType <= 89) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
@@ -3042,7 +3043,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else { // if (eventType <= 99)
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Failed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));

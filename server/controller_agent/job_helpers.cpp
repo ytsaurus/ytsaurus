@@ -2,7 +2,7 @@
 #include "controller_agent.h"
 #include "config.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/core/ytree/fluent.h>
 

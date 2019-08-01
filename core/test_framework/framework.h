@@ -3,8 +3,7 @@
 #include <yt/core/concurrency/execution_context.h>
 #include <yt/core/actions/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/preprocessor.h>
+#include <library/ytalloc/core/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1

@@ -26,7 +26,11 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const = 0;
     virtual IInvokerPtr GetProfilingInvoker() const = 0;
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
+
+    virtual void Disconnect(const TError& error) = 0;
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
@@ -86,7 +90,10 @@ struct ISchedulerStrategy
     //! Stops all activities, resets all state.
     virtual void OnMasterDisconnected() = 0;
 
-    //! Called periodically to build new tree snapshot.
+    //! Called periodically to collect the metrics of tree elements.
+    virtual void OnFairShareProfilingAt(TInstant now) = 0;
+
+    //! Called periodically to build new tree snapshots.
     virtual void OnFairShareUpdateAt(TInstant now) = 0;
 
     //! Called periodically to log scheduling tree state.
@@ -106,13 +113,14 @@ struct ISchedulerStrategy
      */
     virtual TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) = 0;
 
-    //! Validates that operation can be registered without errors.
+    //! Returns limit validation errors for each pool specified in #runtimeParameters
     /*!
      *  Checks limits for the number of concurrent operations.
+     *  For each tree with limit violations returns corresponding error.
      *
      *  The implementation must be synchronous.
      */
-    virtual void ValidatePoolLimits(
+    virtual THashMap<TString, TError> GetPoolLimitViolations(
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 

@@ -1375,8 +1375,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t/@chunk_ids") == [chunk_id1, chunk_id2]
         assert get("#" + chunk_id1 + "/@ref_counter") == 2
         assert get("#" + chunk_id2 + "/@ref_counter") == 2
-        assert_items_equal(get("#" + chunk_id1 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
-        assert_items_equal(get("#" + chunk_id2 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
+        wait(lambda: get("#" + chunk_id1 + "/@exports") == {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
+        wait(lambda: get("#" + chunk_id2 + "/@exports") == {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id1, chunk_id2])
 
         assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
@@ -1396,47 +1396,47 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         chunk_id = get_singular_chunk_id("//tmp/t1")
 
         assert get("#" + chunk_id + "/@ref_counter") == 1
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {})
+        assert get("#" + chunk_id + "/@exports") == {}
         assert not get("#" + chunk_id + "/@foreign")
-        assert not exists("#" + chunk_id + "&")
+        assert not exists("#" + chunk_id,  driver=get_driver(2))
 
-        create("table", "//tmp/t2", attributes={"external": False})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t1"],
               out="//tmp/t2")
 
         assert get("//tmp/t2/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 3
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 2, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
-        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
-        assert get("#" + chunk_id + "&/@import_ref_counter") == 2
+        wait(lambda: get("#" + chunk_id + "/@exports") == {"2": {"ref_counter": 2, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
+        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(2)), [chunk_id])
+        assert get("#" + chunk_id + "/@import_ref_counter", driver=get_driver(2)) == 2
 
         assert read_table("//tmp/t2") == [{"a": 1}, {"a": 1}]
 
-        create("table", "//tmp/t3", attributes={"external": False})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 2})
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t1"],
               out="//tmp/t3")
 
         assert get("//tmp/t3/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 5
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
-        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
-        assert get("#" + chunk_id + "&/@import_ref_counter") == 4
+        wait(lambda: get("#" + chunk_id + "/@exports") == {"2": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
+        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(2)), [chunk_id])
+        assert get("#" + chunk_id + "/@import_ref_counter", driver=get_driver(2)) == 4
 
         assert read_table("//tmp/t3") == [{"a": 1}, {"a": 1}]
 
         remove("//tmp/t2")
 
         wait(lambda: get("#" + chunk_id + "/@ref_counter") == 5 and \
-                     get("#" + chunk_id + "/@exports") == {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}} and \
-                     ls("//sys/foreign_chunks", driver=get_driver(0)) == [chunk_id])
+                     get("#" + chunk_id + "/@exports") == {"2": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}} and \
+                     ls("//sys/foreign_chunks", driver=get_driver(2)) == [chunk_id])
 
         remove("//tmp/t3")
 
         wait(lambda: get("#" + chunk_id + "/@ref_counter") == 1 and \
                      get("#" + chunk_id + "/@exports") == {} and \
-                     ls("//sys/foreign_chunks", driver=get_driver(0)) == [])
+                     ls("//sys/foreign_chunks", driver=get_driver(2)) == [])
 
         remove("//tmp/t1")
 
@@ -1496,8 +1496,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t1")
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t2")
 
-        assert_items_equal(
-            get("#" + chunk_id + "/@exports"),
+        wait(lambda: get("#" + chunk_id + "/@exports") == \
             {
                 "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}

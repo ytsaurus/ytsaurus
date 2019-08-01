@@ -240,47 +240,53 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TSchedulerElement::EnumerateElements(int startIndex)
+void TSchedulerElement::MarkUnmutable()
 {
-    YT_VERIFY(!Cloned_);
+    Mutable_ = false;
+}
+
+int TSchedulerElement::EnumerateElements(int startIndex, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
 
     TreeIndex_ = startIndex++;
+    context->ElementIndexes[GetId()] = TreeIndex_;
     return startIndex;
 }
 
 void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     UpdateBottomUp(dynamicAttributesList);
     UpdateTopDown(dynamicAttributesList, context);
 }
 
-void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
     UpdateAttributes();
-    dynamicAttributesList[GetTreeIndex()].Active = true;
+    (*dynamicAttributesList)[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 }
 
-void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
-    auto& attributes = dynamicAttributesList[GetTreeIndex()];
+    auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
     YT_VERIFY(attributes.Active);
     attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
     attributes.Active = IsAlive();
@@ -288,12 +294,12 @@ void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
 
 void TSchedulerElement::PrescheduleJob(TFairShareContext* context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
 {
-    UpdateDynamicAttributes(context->DynamicAttributesList);
+    UpdateDynamicAttributes(&context->DynamicAttributesList);
 }
 
 void TSchedulerElement::UpdateAttributes()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     // Choose dominant resource types, compute max share ratios, compute demand ratios.
     const auto& demand = ResourceDemand();
@@ -337,14 +343,8 @@ bool TSchedulerElement::IsOperation() const
 }
 
 
-TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const
+TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& dynamicAttributes) const
 {
-    TDynamicAttributes dynamicAttributes;
-    auto treeIndex = GetTreeIndex();
-    if (treeIndex != UnassignedTreeIndex) {
-        dynamicAttributes = dynamicAttributesList[treeIndex];
-    }
-
     return Format(
         "Status: %v, DominantResource: %v, Demand: %.6lf, "
         "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
@@ -364,9 +364,9 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributesLi
         GetWeight());
 }
 
-TString TSchedulerElement::GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const
+TString TSchedulerElement::GetLoggingString(const TDynamicAttributes& dynamicAttributes) const
 {
-    return Format("Scheduling info for tree %Qv = {%v}", GetTreeId(), GetLoggingAttributesString(dynamicAttributesList));
+    return Format("Scheduling info for tree %Qv = {%v}", GetTreeId(), GetLoggingAttributesString(dynamicAttributes));
 }
 
 bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
@@ -433,7 +433,7 @@ bool TSchedulerElement::GetStarving() const
 
 void TSchedulerElement::SetStarving(bool starving)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     Starving_ = starving;
 }
@@ -526,7 +526,7 @@ TSchedulerElement::TSchedulerElement(
 
 ISchedulerStrategyHost* TSchedulerElement::GetHost() const
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     return Host_;
 }
@@ -585,28 +585,29 @@ void TSchedulerElement::CheckForStarvationImpl(
     TDuration fairSharePreemptionTimeout,
     TInstant now)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
+
+    auto updateStarving = [&] (const TDuration timeout)
+    {
+        if (!PersistentAttributes_.BelowFairShareSince_) {
+            PersistentAttributes_.BelowFairShareSince_ = now;
+        } else if (*PersistentAttributes_.BelowFairShareSince_ < now - timeout) {
+            SetStarving(true);
+        }
+    };
 
     auto status = GetStatus();
     switch (status) {
         case ESchedulableStatus::BelowMinShare:
-            if (!BelowFairShareSince_) {
-                BelowFairShareSince_ = now;
-            } else if (*BelowFairShareSince_ < now - minSharePreemptionTimeout) {
-                SetStarving(true);
-            }
+            updateStarving(minSharePreemptionTimeout);
             break;
 
         case ESchedulableStatus::BelowFairShare:
-            if (!BelowFairShareSince_) {
-                BelowFairShareSince_ = now;
-            } else if (*BelowFairShareSince_ < now - fairSharePreemptionTimeout) {
-                SetStarving(true);
-            }
+            updateStarving(fairSharePreemptionTimeout);
             break;
 
         case ESchedulableStatus::Normal:
-            BelowFairShareSince_ = std::nullopt;
+            PersistentAttributes_.BelowFairShareSince_ = std::nullopt;
             SetStarving(false);
             break;
 
@@ -671,20 +672,47 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     cloneChildren(other.DisabledChildren_, &DisabledChildToIndex_, &DisabledChildren_);
 }
 
-int TCompositeSchedulerElement::EnumerateElements(int startIndex)
+void TCompositeSchedulerElement::MarkUnmutable()
 {
-    YT_VERIFY(!Cloned_);
-
-    startIndex = TSchedulerElement::EnumerateElements(startIndex);
+    TSchedulerElement::MarkUnmutable();
     for (const auto& child : EnabledChildren_) {
-        startIndex = child->EnumerateElements(startIndex);
+        child->MarkUnmutable();
+    }
+    for (const auto& child : DisabledChildren_) {
+        child->MarkUnmutable();
+    }
+}
+
+int TCompositeSchedulerElement::EnumerateElements(int startIndex, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    startIndex = TSchedulerElement::EnumerateElements(startIndex, context);
+    for (const auto& child : EnabledChildren_) {
+        startIndex = child->EnumerateElements(startIndex, context);
     }
     return startIndex;
 }
 
+void TCompositeSchedulerElement::DisableNonAliveElements()
+{
+    std::vector<TSchedulerElementPtr> childrenToDisable;
+    for (const auto& child : EnabledChildren_) {
+        if (!child->IsAlive()) {
+            childrenToDisable.push_back(child);
+        }
+    }
+    for (const auto& child : childrenToDisable) {
+        DisableChild(child);
+    }
+    for (const auto& child : EnabledChildren_) {
+        child->DisableNonAliveElements();
+    }
+}
+
 void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     TSchedulerElement::UpdateTreeConfig(config);
 
@@ -698,9 +726,9 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
@@ -721,9 +749,9 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 }
 
-void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     switch (Mode_) {
         case ESchedulingMode::Fifo:
@@ -779,7 +807,7 @@ TDuration TCompositeSchedulerElement::GetFairSharePreemptionTimeoutLimit() const
 
 void TCompositeSchedulerElement::UpdatePreemptionSettingsLimits()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     if (Parent_) {
         AdjustedFairShareStarvationToleranceLimit_ = std::min(
@@ -798,7 +826,7 @@ void TCompositeSchedulerElement::UpdatePreemptionSettingsLimits()
 
 void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const TSchedulerElementPtr& child)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     auto& childAttributes = child->Attributes();
 
@@ -815,9 +843,10 @@ void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const TSchedulerE
         AdjustedFairSharePreemptionTimeoutLimit_);
 }
 
-void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
-    auto& attributes = dynamicAttributesList[GetTreeIndex()];
+    YT_VERIFY(IsActive(*dynamicAttributesList));
+    auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
 
     if (!IsAlive()) {
         attributes.Active = false;
@@ -831,8 +860,8 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
     attributes.Active = false;
     attributes.BestLeafDescendant = nullptr;
 
-    while (auto* bestChild = GetBestActiveChild(dynamicAttributesList)) {
-        const auto& bestChildAttributes = dynamicAttributesList[bestChild->GetTreeIndex()];
+    while (auto bestChild = GetBestActiveChild(*dynamicAttributesList)) {
+        const auto& bestChildAttributes = (*dynamicAttributesList)[bestChild->GetTreeIndex()];
         auto childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         if (!childBestLeafDescendant->IsAlive()) {
             bestChild->UpdateDynamicAttributes(dynamicAttributesList);
@@ -852,10 +881,10 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
     }
 }
 
-void TCompositeSchedulerElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildOperationToElementMapping(operationElementByIdMap);
+        child->BuildElementMapping(operationMap, poolMap);
     }
 }
 
@@ -946,7 +975,7 @@ TFairShareScheduleJobResult TCompositeSchedulerElement::ScheduleJob(TFairShareCo
 
     auto bestLeafDescendant = attributes.BestLeafDescendant;
     if (!bestLeafDescendant->IsAlive()) {
-        UpdateDynamicAttributes(context->DynamicAttributesList);
+        UpdateDynamicAttributes(&context->DynamicAttributesList);
         if (!attributes.Active) {
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
@@ -974,7 +1003,7 @@ bool TCompositeSchedulerElement::IsAggressiveStarvationPreemptionAllowed() const
 
 void TCompositeSchedulerElement::AddChild(const TSchedulerElementPtr& child, bool enabled)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
     auto& list = enabled ? EnabledChildren_ : DisabledChildren_;
@@ -983,7 +1012,7 @@ void TCompositeSchedulerElement::AddChild(const TSchedulerElementPtr& child, boo
 
 void TCompositeSchedulerElement::EnableChild(const TSchedulerElementPtr& child)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     RemoveChild(&DisabledChildToIndex_, &DisabledChildren_, child);
     AddChild(&EnabledChildToIndex_, &EnabledChildren_, child);
@@ -991,7 +1020,7 @@ void TCompositeSchedulerElement::EnableChild(const TSchedulerElementPtr& child)
 
 void TCompositeSchedulerElement::DisableChild(const TSchedulerElementPtr& child)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     if (EnabledChildToIndex_.find(child) == EnabledChildToIndex_.end()) {
         return;
@@ -1003,7 +1032,7 @@ void TCompositeSchedulerElement::DisableChild(const TSchedulerElementPtr& child)
 
 void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     bool enabled = ContainsChild(EnabledChildToIndex_, child);
     auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
@@ -1084,9 +1113,9 @@ void TCompositeSchedulerElement::ComputeByFitting(
     }
 }
 
-void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* /* context */)
+void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* /* context */)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     auto children = EnabledChildren_;
     std::sort(
@@ -1116,9 +1145,9 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     }
 }
 
-void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     if (IsRoot()) {
         SetFairShareRatio(1.0);
@@ -1432,7 +1461,7 @@ TPoolConfigPtr TPool::GetConfig()
 
 void TPool::SetConfig(TPoolConfigPtr config)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     DoSetConfig(config);
     DefaultConfigured_ = false;
@@ -1440,7 +1469,7 @@ void TPool::SetConfig(TPoolConfigPtr config)
 
 void TPool::SetDefaultConfig()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
@@ -1448,7 +1477,7 @@ void TPool::SetDefaultConfig()
 
 void TPool::SetEphemeralInDefaultParentPool()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     EphemeralInDefaultParentPool_ = true;
 }
@@ -1531,7 +1560,7 @@ TDuration TPool::GetFairSharePreemptionTimeoutLimit() const
 
 void TPool::SetStarving(bool starving)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
@@ -1544,7 +1573,7 @@ void TPool::SetStarving(bool starving)
 
 void TPool::CheckForStarvation(TInstant now)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     TSchedulerElement::CheckForStarvationImpl(
         Attributes_.AdjustedMinSharePreemptionTimeout,
@@ -1557,9 +1586,9 @@ const TSchedulingTagFilter& TPool::GetSchedulingTagFilter() const
     return SchedulingTagFilter_;
 }
 
-void TPool::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
+void TPool::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     ResourceLimits_ = ComputeResourceLimits();
     ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
@@ -1598,7 +1627,7 @@ TSchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 
 void TPool::AttachParent(TCompositeSchedulerElement* parent)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(!Parent_);
     YT_VERIFY(RunningOperationCount_ == 0);
     YT_VERIFY(OperationCount_ == 0);
@@ -1614,7 +1643,7 @@ void TPool::AttachParent(TCompositeSchedulerElement* parent)
 
 void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
     YT_VERIFY(newParent);
     YT_VERIFY(Parent_ != newParent);
@@ -1637,7 +1666,7 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
 
 void TPool::DetachParent()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
     YT_VERIFY(RunningOperationCount() == 0);
     YT_VERIFY(OperationCount() == 0);
@@ -1653,7 +1682,7 @@ void TPool::DetachParent()
 
 void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     Config_ = std::move(newConfig);
     FifoSortParameters_ = Config_->FifoSortParameters;
@@ -1664,6 +1693,12 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 TJobResources TPool::ComputeResourceLimits() const
 {
     return ComputeResourceLimitsBase(Config_->ResourceLimits);
+}
+
+void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+{
+    poolMap->emplace(GetId(), this);
+    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2234,9 +2269,12 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
     return Spec_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
 }
 
-void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
+void TOperationElement::DisableNonAliveElements()
+{ }
+
+void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     Schedulable_ = Operation_->IsSchedulable();
     ResourceDemand_ = ComputeResourceDemand();
@@ -2262,9 +2300,9 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
         dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
 }
 
-void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList, context);
 
@@ -2298,9 +2336,9 @@ bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext&
     return false;
 }
 
-void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
+void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
-    auto& attributes = dynamicAttributesList[GetTreeIndex()];
+    auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
     attributes.Active = true;
     attributes.BestLeafDescendant = this;
 
@@ -2309,7 +2347,7 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
 
 void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     ControllerConfig_ = config;
 }
 
@@ -2368,13 +2406,13 @@ bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* /*con
     return false;
 }
 
-TString TOperationElement::GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const
+TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAttributes) const
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
         "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
         GetTreeId(),
-        GetLoggingAttributesString(dynamicAttributesList),
+        GetLoggingAttributesString(dynamicAttributes),
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
         GetPreemptionStatusStatistics(),
@@ -2385,7 +2423,7 @@ void TOperationElement::UpdateAncestorsAttributes(TFairShareContext* context)
 {
     auto* parent = GetMutableParent();
     while (parent) {
-        parent->UpdateDynamicAttributes(context->DynamicAttributesList);
+        parent->UpdateDynamicAttributes(&context->DynamicAttributesList);
         if (!parent->IsActive(context->DynamicAttributesList)) {
             ++context->StageState->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
         }
@@ -2527,7 +2565,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         scheduleJobResult->IncarnationId,
         startDescriptor);
 
-    UpdateDynamicAttributes(context->DynamicAttributesList);
+    UpdateDynamicAttributes(&context->DynamicAttributesList);
     UpdateAncestorsAttributes(context);
 
     if (heartbeatSnapshot) {
@@ -2594,7 +2632,7 @@ ESchedulableStatus TOperationElement::GetStatus() const
 
 void TOperationElement::SetStarving(bool starving)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     if (!starving) {
         LastNonStarvingTime_ = TInstant::Now();
@@ -2612,7 +2650,7 @@ void TOperationElement::SetStarving(bool starving)
 
 void TOperationElement::CheckForStarvation(TInstant now)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     auto minSharePreemptionTimeout = Attributes_.AdjustedMinSharePreemptionTimeout;
     auto fairSharePreemptionTimeout = Attributes_.AdjustedFairSharePreemptionTimeout;
@@ -2764,9 +2802,9 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
 {
-    operationElementByIdMap->emplace(OperationId_, this);
+    operationMap->emplace(OperationId_, this);
 }
 
 TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)
@@ -2776,7 +2814,7 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
 
 bool TOperationElement::IsSchedulable() const
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
     return Schedulable_;
 }
@@ -2829,7 +2867,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         if (successfullyPrecommitted) {
             *precommittedResources += resourceDelta;
         } else {
-            const auto& jobId = scheduleJobResult->StartDescriptor->Id;
+            auto jobId = scheduleJobResult->StartDescriptor->Id;
             const auto availableDelta = GetHierarchicalAvailableResources(*context);
             YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                 jobId,
@@ -2916,7 +2954,7 @@ bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
 
 void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement* newParent, bool enabled)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(!Parent_);
 
     Parent_ = newParent;
@@ -2930,7 +2968,7 @@ void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement
 
 void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement* parent)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
 
     auto oldParentId = Parent_->GetId();
@@ -2954,7 +2992,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
 
 void TOperationElement::DetachParent()
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
 
     auto parentId = Parent_->GetId();
@@ -3027,12 +3065,15 @@ void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& confi
     Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
 }
 
-void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
+void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
-    YT_VERIFY(!Cloned_);
+    YT_VERIFY(Mutable_);
 
-    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0);
-    dynamicAttributesList.assign(TreeSize_, TDynamicAttributes());
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    DisableNonAliveElements();
+    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
+    dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
     TCompositeSchedulerElement::Update(dynamicAttributesList, context);
 }
 

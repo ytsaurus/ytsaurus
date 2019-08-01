@@ -70,16 +70,16 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, Tablets_);
     Load(context, ClusterStatistics_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 800) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
         Load(context, MulticellStatistics_);
     }
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 713) {
-        if (context.GetVersion() >= 820) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::AddTabletCellDecommission) {
+        if (context.GetVersion() >= EMasterSnapshotVersion::FixSnapshot) {
             Load(context, TabletCellLifeStage_);
-        } else if (context.GetVersion() >= 819) {
+        } else if (context.GetVersion() >= EMasterSnapshotVersion::AddTabletCellLifeStage) {
             // Saved wrong value by accident
             Load<NObjectServer::EObjectLifeStage>(context);
             TabletCellLifeStage_ = ETabletCellLifeStage::Running;

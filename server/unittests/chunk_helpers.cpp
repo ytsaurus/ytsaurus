@@ -59,6 +59,16 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     return ptr;
 }
 
+TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk(EChunkType chunkType)
+{
+    auto chunk = std::make_unique<TChunk>(GenerateId(NCypressClient::EObjectType::Chunk));
+    chunk->RefObject();
+
+    auto ptr = chunk.get();
+    CreatedObjects_.push_back(std::move(chunk));
+    return ptr;
+}
+
 TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
 {
     auto chunkList = std::make_unique<TChunkList>(GenerateId(NCypressClient::EObjectType::ChunkList));
@@ -90,6 +100,25 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
     return ptr;
 }
 
+void TChunkGeneratorBase::ConfirmChunk(
+    TChunk *chunk,
+    i64 rowCount,
+    i64 compressedDataSize,
+    i64 uncompressedDataSize,
+    i64 dataWeight,
+    NTableClient::TOwningKey minKey,
+    NTableClient::TOwningKey maxKey)
+{
+    auto* donorChunk = CreateChunk(
+        rowCount,
+        compressedDataSize,
+        uncompressedDataSize,
+        dataWeight,
+        minKey,
+        maxKey);
+
+    chunk->Confirm(&donorChunk->ChunkInfo(), &donorChunk->ChunkMeta());
+}
 
 NTableClient::TUnversionedOwningRow BuildKey(const TString& yson)
 {

@@ -108,7 +108,7 @@ class TClusterNodeNodeTypeHandler
 {
 public:
     explicit TClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
+        : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() const override
@@ -309,7 +309,7 @@ class TClusterNodeMapTypeHandler
 {
 public:
     explicit TClusterNodeMapTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
+        : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() const override

@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/server/lib/chunk_pools/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -13,6 +15,8 @@
 #include <yt/ytlib/event_log/config.h>
 
 #include <yt/ytlib/node_tracker_client/config.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -24,22 +28,6 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobSizeAdjusterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MinJobTime;
-    TDuration MaxJobTime;
-
-    double ExecToPrepareTimeRatio;
-
-    TJobSizeAdjusterConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -256,7 +244,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions, 0x5d08252b);
 
 public:
-    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     TMapOperationOptions();
 };
@@ -336,7 +324,7 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
-    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
 
     TSortOperationOptionsBase();
@@ -469,6 +457,9 @@ public:
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
+    //! Enables creation of job nodes (including stderr and fail_context nodes) in cypress.
+    bool EnableCypressJobNodes;
+
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
@@ -497,6 +488,9 @@ public:
 
     //! Period for pushing any operation info from agent to scheduler.
     TDuration OperationsPushPeriod;
+
+    //! Period for pushing operation alerts from agent to scheduler.
+    TDuration OperationJobMetricsPushPeriod;
 
     //! Period for pushing operation alerts from agent to scheduler.
     TDuration OperationAlertsPushPeriod;
@@ -709,6 +703,13 @@ public:
     bool AllowUsersGroupReadIntermediateData;
 
     std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
+
+    NObjectClient::TReqExecuteBatchWithRetriesConfigPtr LockInputTablesRetries;
+
+    int DynamicTableLockCheckingAttemptCountLimit;
+    double DynamicTableLockCheckingIntervalScale;
+    TDuration DynamicTableLockCheckingIntervalDurationMin;
+    TDuration DynamicTableLockCheckingIntervalDurationMax;
 
     TControllerAgentConfig();
 

@@ -315,6 +315,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         GetNullBlockCache(),
         ChunkSpec_,
         nullptr,
+        NullTimestamp,
         nullptr,
         nullptr,
         nullptr);
@@ -558,6 +559,7 @@ protected:
             GetNullBlockCache(),
             ChunkSpec_,
             nullptr,
+            NullTimestamp,
             nullptr,
             nullptr,
             nullptr);

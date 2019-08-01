@@ -17,6 +17,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +45,7 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Action);
     Persist(context, InheritanceMode);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 826) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::ColumnarAcls) {
         Persist(context, Columns);
     }
 }
@@ -126,7 +127,7 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
+TAccessControlDescriptor::TAccessControlDescriptor(TObject* object)
     : Object_(object)
 { }
 
@@ -173,6 +174,14 @@ void TAccessControlDescriptor::ClearEntries()
         }
     }
     Acl_.Entries.clear();
+}
+
+void TAccessControlDescriptor::SetEntries(const TAccessControlList& acl)
+{
+    ClearEntries();
+    for (const auto& ace : acl.Entries) {
+        AddEntry(ace);
+    }
 }
 
 void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner)

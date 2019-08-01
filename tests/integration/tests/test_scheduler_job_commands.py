@@ -365,7 +365,7 @@ class TestJobProber(YTEnvSetup):
             end_profiling = get_job_count_profiling()
 
             for state in end_profiling["state"]:
-                print state, start_profiling["state"][state], end_profiling["state"][state]
+                print_debug(state, start_profiling["state"][state], end_profiling["state"][state])
                 value = end_profiling["state"][state] - start_profiling["state"][state]
                 count = 0
                 if state == "aborted":
@@ -376,7 +376,7 @@ class TestJobProber(YTEnvSetup):
                     return False
 
             for abort_reason in end_profiling["abort_reason"]:
-                print abort_reason, start_profiling["abort_reason"][abort_reason], end_profiling["abort_reason"][abort_reason]
+                print_debug(abort_reason, start_profiling["abort_reason"][abort_reason], end_profiling["abort_reason"][abort_reason])
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 if value != (1 if abort_reason == "user_request" else 0):
                     return False

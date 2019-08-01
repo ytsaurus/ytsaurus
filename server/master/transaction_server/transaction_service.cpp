@@ -5,7 +5,7 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
 
-#include <yt/server/master/transaction_server/transaction_manager.pb.h>
+#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 

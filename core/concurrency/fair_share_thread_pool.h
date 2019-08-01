@@ -15,9 +15,9 @@ struct IFairShareThreadPool
     , public IShutdownable
 {
     virtual IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag) = 0;
-};
 
-DECLARE_REFCOUNTED_TYPE(IFairShareThreadPool);
+    virtual void Configure(int threadCount) = 0;
+};
 
 IFairShareThreadPoolPtr CreateFairShareThreadPool(
     int threadCount,

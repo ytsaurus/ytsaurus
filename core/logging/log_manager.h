@@ -58,7 +58,7 @@ public:
 private:
     TLogManager();
 
-    DECLARE_IMMORTAL_SINGLETON_FRIEND();
+    DECLARE_LEAKY_SINGLETON_FRIEND();
 
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

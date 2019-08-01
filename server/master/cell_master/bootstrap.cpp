@@ -14,6 +14,7 @@
 
 #include <yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/server/master/file_server/file_node.h>
 
@@ -99,7 +100,7 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -279,6 +280,11 @@ const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
 const TCypressManagerPtr& TBootstrap::GetCypressManager() const
 {
     return CypressManager_;
+}
+
+const TPortalManagerPtr& TBootstrap::GetPortalManager() const
+{
+    return PortalManager_;
 }
 
 const THydraFacadePtr& TBootstrap::GetHydraFacade() const
@@ -557,6 +563,8 @@ void TBootstrap::DoInitialize()
     NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
     CypressManager_ = New<TCypressManager>(this);
+
+    PortalManager_ =  New<TPortalManager>(this);
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 

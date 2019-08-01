@@ -5,8 +5,11 @@ import "yt/core/misc/proto/error.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/ytlib/chunk_client/session_id.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/chunk_client/chunk_owner_ypath.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/data_statistics.proto";
+import "yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt/client/chunk_client/proto/read_limit.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +147,19 @@ message TRspGetChunkOwningNodes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqFetchChunkList
+{
+    required NYT.NProto.TGuid chunk_list_id = 1;
+    required TReqFetch fetch_request = 2;
+}
+
+message TRspFetchChunkList
+{
+    required TRspFetch fetch_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExecuteBatch
 {
     message TCreateChunkSubrequest
@@ -228,6 +244,7 @@ message TReqExecuteBatch
         required NYT.NProto.TGuid parent_id = 1;
         repeated NYT.NProto.TGuid child_ids = 2;
         optional bool request_statistics = 3 [default = false];
+        optional NYT.NProto.TGuid transaction_id = 4;
     }
 
     repeated TAttachChunkTreesSubrequest attach_chunk_trees_subrequests = 6;

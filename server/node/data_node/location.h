@@ -7,8 +7,6 @@
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/core/misc/enum.h>
-
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/action_queue.h>

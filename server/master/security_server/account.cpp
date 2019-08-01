@@ -63,9 +63,13 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 
 TAccount::TAccount(TAccountId id)
     : TNonversionedObjectBase(id)
-    , LocalStatisticsPtr_(nullptr)
     , Acd_(this)
 { }
+
+TString TAccount::GetObjectName() const
+{
+    return Format("Account %Qv", Name_);
+}
 
 void TAccount::Save(NCellMaster::TSaveContext& context) const
 {

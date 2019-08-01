@@ -1,6 +1,7 @@
 #include "blob.h"
 #include "ref.h"
-#include "yt_alloc.h"
+
+#include <library/ytalloc/api/ytalloc.h>
 
 #include <util/system/align.h>
 

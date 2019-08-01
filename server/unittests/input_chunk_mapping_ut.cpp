@@ -1,7 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/input_chunk_mapping.h>
 #include <yt/server/controller_agent/helpers.h>
+
+#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

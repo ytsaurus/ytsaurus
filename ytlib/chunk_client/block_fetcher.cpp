@@ -16,6 +16,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,7 +189,7 @@ void TBlockFetcher::DecompressBlocks(
 
         TSharedRef uncompressedBlock;
         {
-            NProfiling::TCpuTimingGuard timer(&DecompressionTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> guard(&DecompressionTime);
             uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
         }
         YT_VERIFY(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
@@ -357,7 +358,7 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
 TSequentialBlockFetcher::TSequentialBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
+    TAsyncSemaphorePtr asyncSemaphore,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,

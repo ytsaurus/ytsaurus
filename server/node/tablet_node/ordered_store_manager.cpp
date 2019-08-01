@@ -35,7 +35,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 
@@ -48,6 +48,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NYTAlloc;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 

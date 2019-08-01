@@ -73,7 +73,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
     , StrategyHost_(execNodes, eventLogOutputStream)
-    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, ActionQueue_->GetInvoker(), {ActionQueue_->GetInvoker()}))
+    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , NodeShardEventQueue_(
         *execNodes,
@@ -243,6 +243,7 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
     YT_LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
 
     SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
+    SchedulerStrategy_->OnFairShareProfilingAt(updateTime);
     if (Config_->EnableFullEventLog) {
         SchedulerStrategy_->OnFairShareLoggingAt(updateTime);
     } else {

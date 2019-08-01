@@ -6,7 +6,7 @@
 #include "scheduler.h"
 #include "thread_affinity.h"
 
-#include <yt/core/misc/memory_tag.h>
+#include <yt/core/ytalloc/memory_tag.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -15,6 +15,7 @@
 namespace NYT::NConcurrency {
 
 using namespace NTracing;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,7 +17,7 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/world_initializer.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/multicell_manager.pb.h>
+#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 
@@ -1050,7 +1050,7 @@ void TChunkReplicator::ProcessExistingJobs(
     const auto& address = node->GetDefaultAddress();
 
     for (const auto& job : currentJobs) {
-        const auto& jobId = job->GetJobId();
+        auto jobId = job->GetJobId();
         YT_VERIFY(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
         YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
         switch (job->GetState()) {
@@ -1525,7 +1525,7 @@ void TChunkReplicator::ScheduleNewJobs(
                    HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {
                 auto jt = it++;
-                const auto& chunkWithIndexes = jt->first;
+                auto chunkWithIndexes = jt->first;
                 auto& mediumIndexSet = jt->second;
                 for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
@@ -1606,7 +1606,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 }
 
                 auto jt = it++;
-                const auto& chunkIdWithIndex = jt->first;
+                auto chunkIdWithIndex = jt->first;
                 auto& mediumIndexSet = jt->second;
                 for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
@@ -2354,11 +2354,28 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         }
     };
 
-    // Put seeds into the queue.
-    for (auto* parent : chunk->Parents()) {
+    auto enqueueAdjustedParent = [&] (TChunkList* parent) {
         auto* adjustedParent = FollowParentLinks(parent);
         if (adjustedParent) {
             enqueue(adjustedParent);
+        }
+    };
+
+    // Put seeds into the queue.
+    for (auto* parent : chunk->Parents()) {
+        switch (parent->GetType()) {
+            case EObjectType::ChunkList:
+                enqueueAdjustedParent(parent->AsChunkList());
+                break;
+
+            case EObjectType::ChunkView:
+                for (auto* chunkViewParent : parent->AsChunkView()->Parents()) {
+                    enqueueAdjustedParent(chunkViewParent);
+                }
+                break;
+
+            default:
+                YT_ABORT();
         }
     }
 
@@ -2377,10 +2394,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         }
         // Proceed to parents.
         for (auto* parent : chunkList->Parents()) {
-            auto* adjustedParent = FollowParentLinks(parent);
-            if (adjustedParent) {
-                enqueue(adjustedParent);
-            }
+            enqueueAdjustedParent(parent);
         }
     }
 

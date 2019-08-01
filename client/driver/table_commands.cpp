@@ -908,7 +908,7 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     auto transactionPool = context->GetDriver()->GetStickyTransactionPool();
-    auto transaction = transactionPool->GetTransactionAndRenewLease(Options.TransactionId);
+    auto transaction = transactionPool->GetTransactionAndRenewLeaseOrThrow(Options.TransactionId);
 
     struct TLockRowsBufferTag
     { };

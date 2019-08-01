@@ -551,11 +551,11 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNode
-    : public TCypressNodeBase
+    : public TCypressNode
 {
 public:
     explicit TVirtualNode(const TVersionedNodeId& id)
-        : TCypressNodeBase(id)
+        : TCypressNode(id)
     { }
 
     virtual ENodeType GetNodeType() const override

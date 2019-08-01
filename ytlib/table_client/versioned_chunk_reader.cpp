@@ -1684,7 +1684,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
             }
 
-            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            auto chunkTimestamp = chunkState->ChunkTimestamp
+                ? chunkState->ChunkTimestamp
+                : static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader();
             }
@@ -1822,7 +1824,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }
 
-            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            auto chunkTimestamp = chunkState->ChunkTimestamp
+                ? chunkState->ChunkTimestamp
+                : static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
             }

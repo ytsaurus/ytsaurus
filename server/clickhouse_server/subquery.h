@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -26,12 +26,13 @@ std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);
 
-NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
+NChunkPools::TChunkStripeListPtr BuildThreadStripes(
     const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
     int jobCount,
-    std::optional<double> samplingRate = std::nullopt);
+    std::optional<double> samplingRate,
+    TQueryId queryId);
 
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const NChunkPools::TChunkStripePtr& chunkStripe);
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

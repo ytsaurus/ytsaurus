@@ -9,7 +9,9 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 
@@ -41,8 +43,10 @@ protected:
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         EnableRefCountedTrackerProfiling();
-        NYTAlloc::EnableLogging();
-        NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableYTLogging();
+        NYTAlloc::EnableYTProfiling();
+        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {

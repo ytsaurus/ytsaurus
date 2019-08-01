@@ -191,6 +191,7 @@ public:
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
+        TTimestamp chunkTimestamp,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry,
@@ -280,6 +281,8 @@ protected:
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
     NChunkClient::TChunkId ChunkId_;
+
+    TTimestamp ChunkTimestamp_;
 
     void OnLocalReaderFailed();
 

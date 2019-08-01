@@ -94,7 +94,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    static TTableNode* AsTableNodeSafe(TCypressNodeBase* node)
+    static TTableNode* AsTableNodeSafe(TCypressNode* node)
     {
         if (!node) {
             return nullptr;

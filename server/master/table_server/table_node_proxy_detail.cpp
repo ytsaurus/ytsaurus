@@ -4,6 +4,8 @@
 #include "replicated_table_node.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/server/master/chunk_server/chunk.h>
@@ -791,6 +793,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto name = ConvertTo<TString>(value);
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+            cellBundle->ValidateCreationCommitted();
 
             auto* lockedTable = LockThisImpl();
             tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
@@ -981,16 +984,22 @@ bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
+    DISPATCH_YPATH_SERVICE_METHOD(LockDynamicTable);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckDynamicTableLock);
     return TBase::DoInvoke(context);
 }
 
 void TTableNodeProxy::ValidateBeginUpload()
 {
     TBase::ValidateBeginUpload();
-
     const auto* table = GetThisImpl();
-    if (table->IsDynamic()) {
-        THROW_ERROR_EXCEPTION("Cannot upload into a dynamic table");
+
+    if (table->IsDynamic() && !table->GetTableSchema().IsSorted()) {
+        THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
+    }
+
+    if (table->IsDynamic() && !Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->EnableBulkInsert) {
+        THROW_ERROR_EXCEPTION("Bulk insert is disabled");
     }
 }
 
@@ -1365,6 +1374,33 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (table->IsExternal()) {
         PostToMaster(context, table->GetExternalCellTag());
     }
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
+{
+    DeclareMutating();
+
+    context->SetRequestInfo();
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    tabletManager->LockDynamicTable(
+        GetThisImpl()->GetTrunkNode(),
+        GetTransaction());
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
+{
+    context->SetRequestInfo();
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    tabletManager->CheckDynamicTableLock(
+        GetThisImpl()->GetTrunkNode(),
+        GetTransaction(),
+        response);
 
     context->Reply();
 }

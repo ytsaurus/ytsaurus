@@ -6,8 +6,8 @@
 #include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/controller_agent/chunk_pools/ordered_chunk_pool.h>
-#include <yt/server/controller_agent/chunk_pools/output_order.h>
+#include <yt/server/lib/chunk_pools/ordered_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/output_order.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -553,7 +553,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
-        const auto& chunkId = chunk->ChunkId();
+        auto chunkId = chunk->ChunkId();
         chunkIdToInputCookie[chunkId] = AddChunk(chunk);
         chunkIdToChunk[chunkId] = chunk;
         resumedChunks.insert(chunkId);
@@ -584,7 +584,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             PersistAndRestore();
         } else if (eventType <= 29) {
             if (auto randomElement = chooseRandomElement(resumedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Suspending chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.erase(chunkId));
                 ASSERT_TRUE(suspendedChunks.insert(chunkId).second);
@@ -594,7 +594,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else if (eventType <= 59) {
             if (auto randomElement = chooseRandomElement(suspendedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Resuming chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(suspendedChunks.erase(chunkId));
                 ASSERT_TRUE(resumedChunks.insert(chunkId).second);
@@ -614,7 +614,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                const auto& chunkId = chunk->ChunkId();
+                auto chunkId = chunk->ChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));
                 ASSERT_TRUE(!suspendedChunks.contains(chunkId));
@@ -624,7 +624,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else if (eventType <= 79) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Completed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
@@ -634,7 +634,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else if (eventType <= 89) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
@@ -644,7 +644,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             }
         } else { // if (eventType <= 99)
             if (auto randomElement = chooseRandomElement(startedChunks)) {
-                const auto& chunkId = *randomElement;
+                auto chunkId = *randomElement;
                 Cdebug << Format("Failed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));

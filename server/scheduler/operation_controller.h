@@ -2,6 +2,8 @@
 
 #include "job.h"
 
+#include <yt/server/lib/scheduler/job_metrics.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
@@ -66,6 +68,11 @@ struct TOperationControllerMaterializeResult
     bool Suspend = false;
 };
 
+struct TOperationControllerUnregisterResult
+{
+    TOperationJobMetrics ResidualJobMetrics;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
@@ -105,14 +112,14 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
     virtual TFuture<void> Commit() = 0;
 
-    //! Invokes IOperationControllerSchedulerHost::Abort asynchronously.
-    virtual TFuture<void> Abort() = 0;
+    //! Invokes IOperationControllerSchedulerHost::Terminate asynchronously.
+    virtual TFuture<void> Terminate(EOperationState finalState) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Complete asynchronously.
     virtual TFuture<void> Complete() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Dispose asynchronously.
-    virtual TFuture<void> Unregister() = 0;
+    virtual TFuture<TOperationControllerUnregisterResult> Unregister() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::UpdateRuntimeParameters asynchronously.
     virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) = 0;

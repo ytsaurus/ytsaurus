@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/ytlib/controller_agent/public.h>
 
 #include <yt/core/profiling/metrics_accumulator.h>
 
@@ -38,6 +38,10 @@ DEFINE_ENUM(EJobMetricName,
 
     (TotalTimeCompleted)
     (TotalTimeAborted)
+
+    (TotalTimeOperationCompleted)
+    (TotalTimeOperationFailed)
+    (TotalTimeOperationAborted)
 );
 
 DEFINE_ENUM(EAggregateType,
@@ -116,8 +120,8 @@ TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
 TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
 TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
 
-void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics);
-void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJobMetrics& protoJobMetrics);
+void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics);
+void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NProto::TJobMetrics& protoJobMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,12 +135,12 @@ using TOperationJobMetrics = std::vector<TTreeTaggedJobMetrics>;
 using TOperationIdToOperationJobMetrics = THashMap<TOperationId, TOperationJobMetrics>;
 
 void ToProto(
-    NScheduler::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
+    NControllerAgent::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
     const NScheduler::TTreeTaggedJobMetrics& jobMetrics);
 
 void FromProto(
     NScheduler::TTreeTaggedJobMetrics* jobMetrics,
-    const NScheduler::NProto::TTreeTaggedJobMetrics& protoJobMetrics);
+    const NControllerAgent::NProto::TTreeTaggedJobMetrics& protoJobMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

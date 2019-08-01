@@ -19,6 +19,8 @@ namespace NYT {
 class TErrorCode
 {
 public:
+    using TUnderlying = int;
+
     TErrorCode();
     TErrorCode(int value);
     template <class E>

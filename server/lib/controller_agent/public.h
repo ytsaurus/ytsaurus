@@ -23,6 +23,13 @@ struct TAbortedJobSummary;
 using TFailedJobSummary = TJobSummary;
 struct TRunningJobSummary;
 
+DECLARE_REFCOUNTED_CLASS(TProgressCounter)
+DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr TDuration PrepareYieldPeriod = TDuration::MilliSeconds(100);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

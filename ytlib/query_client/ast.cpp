@@ -255,6 +255,62 @@ void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
     }
 }
 
+std::vector<TStringBuf> GetKeywords()
+{
+    std::vector<TStringBuf> result;
+
+#define XX(keyword) result.push_back(#keyword);
+
+    XX(from)
+    XX(where)
+    XX(having)
+    XX(offset)
+    XX(limit)
+    XX(join)
+    XX(using)
+    XX(group)
+    XX(by)
+    XX(with)
+    XX(totals)
+    XX(order)
+    XX(by)
+    XX(asc)
+    XX(desc)
+    XX(left)
+    XX(as)
+    XX(on)
+    XX(and)
+    XX(or)
+    XX(not)
+    XX(null)
+    XX(between)
+    XX(in)
+    XX(transform)
+    XX(false)
+    XX(true)
+
+#undef XX
+
+    std::sort(result.begin(), result.end());
+
+    return result;
+}
+
+bool IsKeyword(TStringBuf str)
+{
+    static auto keywords = GetKeywords();
+
+    return std::binary_search(keywords.begin(), keywords.end(), str, [] (TStringBuf str, TStringBuf keyword) {
+        return std::lexicographical_compare(
+            str.begin(),
+            str.end(),
+            keyword.begin(),
+            keyword.end(), [] (char a, char b) {
+                return tolower(a) < tolower(b);
+            });
+    });
+}
+
 bool IsValidId(TStringBuf str)
 {
     if (str.empty()) {
@@ -282,6 +338,10 @@ bool IsValidId(TStringBuf str)
         if (!isAlpha(ch) && !isNum(ch)) {
             return false;
         }
+    }
+
+    if (IsKeyword(str)) {
+        return false;
     }
 
     return true;

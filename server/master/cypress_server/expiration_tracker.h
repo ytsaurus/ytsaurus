@@ -23,9 +23,9 @@ public:
 
     void Clear();
 
-    void OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode);
-    void OnNodeDestroyed(TCypressNodeBase* trunkNode);
-    void OnNodeRemovalFailed(TCypressNodeBase* trunkNode);
+    void OnNodeExpirationTimeUpdated(TCypressNode* trunkNode);
+    void OnNodeDestroyed(TCypressNode* trunkNode);
+    void OnNodeRemovalFailed(TCypressNode* trunkNode);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -35,13 +35,13 @@ private:
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
     TCypressNodeExpirationMap ExpirationMap_;
-    THashSet<TCypressNodeBase*> ExpiredNodes_;
+    THashSet<TCypressNode*> ExpiredNodes_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    void RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime);
-    void UnregisterNodeExpiration(TCypressNodeBase* trunkNode);
+    void RegisterNodeExpiration(TCypressNode* trunkNode, TInstant expirationTime);
+    void UnregisterNodeExpiration(TCypressNode* trunkNode);
 
     void OnCheck();
 

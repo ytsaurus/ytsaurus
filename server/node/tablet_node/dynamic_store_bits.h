@@ -6,7 +6,6 @@
 #include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/enum.h>
 
 #include <atomic>
 

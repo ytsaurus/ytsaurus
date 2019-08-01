@@ -82,7 +82,7 @@ private:
         }
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(TObject* object) const override
     {
         auto type = object->GetType();
         if (type != EObjectType::Chunk &&
@@ -142,7 +142,6 @@ private:
                 YT_ABORT();
         }
     }
-
 };
 
 INodeTypeHandlerPtr CreateChunkMapTypeHandler(
@@ -177,7 +176,7 @@ private:
         return ToObjectIds(GetValues(chunkManager->ChunkViews(), sizeLimit));
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkView;
     }
@@ -224,7 +223,7 @@ private:
         return ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit));
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkList;
     }
@@ -239,7 +238,6 @@ private:
     {
         return "//sys/chunk_lists";
     }
-
 };
 
 INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
@@ -278,11 +276,6 @@ private:
             keys.push_back(medium->GetName());
         }
         return keys;
-    }
-
-    virtual bool IsValid(TObjectBase* object) const
-    {
-        return object->GetType() == EObjectType::Medium;
     }
 
     virtual i64 GetSize() const override

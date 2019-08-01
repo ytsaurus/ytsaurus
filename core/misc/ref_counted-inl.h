@@ -5,7 +5,7 @@
 #include "ref_counted.h"
 #endif
 
-#include "yt_alloc.h"
+#include <library/ytalloc/api/ytalloc.h>
 
 namespace NYT {
 

@@ -113,7 +113,10 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
     }
 
     if (query->GroupClause) {
-        clauses.push_back(TString("GROUP BY ") + JoinToString(query->GroupClause->GroupItems, namedItemFormatter));
+        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v] %v",
+            query->GroupClause->CommonPrefixWithPrimaryKey,
+            query->UseDisjointGroupBy,
+            JoinToString(query->GroupClause->GroupItems, namedItemFormatter)));
         if (query->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
             clauses.push_back("WITH TOTALS");
         }
@@ -603,15 +606,17 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
     proto->set_totals_mode(static_cast<int>(original->TotalsMode));
+    proto->set_common_prefix_with_primary_key(static_cast<int>(original->CommonPrefixWithPrimaryKey));
 }
 
 void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
-
-    result->TotalsMode = ETotalsMode(serialized.totals_mode());
     FromProto(&result->GroupItems, serialized.group_items());
     FromProto(&result->AggregateItems, serialized.aggregate_items());
+    result->TotalsMode = ETotalsMode(serialized.totals_mode());
+    result->CommonPrefixWithPrimaryKey = serialized.common_prefix_with_primary_key();
+
     *original = result;
 }
 

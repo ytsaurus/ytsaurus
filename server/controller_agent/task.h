@@ -3,14 +3,15 @@
 #include "private.h"
 
 #include "tentative_tree_eligibility.h"
-#include "progress_counter.h"
 #include "serialize.h"
 #include "data_flow_graph.h"
-#include "input_chunk_mapping.h"
 #include "competitive_job_manager.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+
+#include <yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>
@@ -151,7 +152,7 @@ public:
 
     //! Return a chunk mapping that is used to substitute input chunks when job spec is built.
     //! Base implementation returns task's own mapping.
-    virtual TInputChunkMappingPtr GetChunkMapping() const;
+    virtual NChunkPools::TInputChunkMappingPtr GetChunkMapping() const;
 
     std::vector<TString> FindAndBanSlowTentativeTrees();
 
@@ -270,7 +271,7 @@ private:
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
-    TInputChunkMappingPtr InputChunkMapping_;
+    NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
 
     TCompetitiveJobManager CompetitiveJobManager_;
 

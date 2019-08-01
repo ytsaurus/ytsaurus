@@ -1863,6 +1863,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             blockCache,
                             chunkSpec,
                             nullptr,
+                            NullTimestamp,
                             nullptr,
                             nullptr,
                             nullptr);
@@ -2705,6 +2706,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             blockCache,
             chunkSpec,
             nullptr,
+            NullTimestamp,
             nullptr,
             performanceCounters,
             nullptr);

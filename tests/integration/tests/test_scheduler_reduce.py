@@ -465,6 +465,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read_table("//tmp/out") == []
 
+    def test_no_outputs(self):
+        create("table", "//tmp/t1")
+        write_table("<sorted_by=[key]>//tmp/t1", [{"key": "value"}])
+        op = reduce(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"])
+        check_all_stderrs(op, "stderr\n", 1)
+
     def test_duplicate_key_columns(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -1147,7 +1153,7 @@ echo {v = 2} >&7
 
         for i in xrange(10):
             write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
-            print get("//tmp/input/@schema")
+            print_debug(get("//tmp/input/@schema"))
 
         reduce(
             in_="//tmp/input",
@@ -1419,7 +1425,6 @@ echo {v = 2} >&7
                 command="cat",
                 spec={"input_query": "a where a > 0"})
 
-    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
     def test_reduce_job_splitter(self):
         create("table", "//tmp/in_1")
         for j in range(5):

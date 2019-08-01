@@ -36,7 +36,9 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            // XXX(babenko): two phase
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -44,13 +46,16 @@ public:
         return EObjectType::TabletCell;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultTabletCellBundleName);
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(cellBundleName);
+        cellBundle->ValidateCreationCommitted();
+
         return tabletManager->CreateTabletCell(cellBundle, hintId);
     }
 

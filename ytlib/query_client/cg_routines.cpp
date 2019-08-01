@@ -15,6 +15,7 @@
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/ytlib/table_client/pipe.h>
@@ -63,6 +64,7 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,12 +76,12 @@ static const auto& Logger = QueryClientLogger;
 static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
 
 class TYielder
-    : public NProfiling::TWallTimer
-    , private NConcurrency::TContextSwitchGuard
+    : public TWallTimer
+    , private TContextSwitchGuard
 {
 public:
     TYielder()
-        : NConcurrency::TContextSwitchGuard(
+        : TContextSwitchGuard(
             [this] () noexcept { Stop(); },
             [this] () noexcept { Restart(); })
     { }
@@ -93,7 +95,6 @@ public:
             Yield();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,12 +139,12 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&statistics->WriteTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -180,14 +181,22 @@ void ScanOpHelper(
     TYielder yielder;
 
     auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
-    while (true) {
-        bool hasMoreData;
+    bool hasMoreData;
+    do {
         {
-            NProfiling::TCpuTimingGuard timingGuard(&statistics->ReadTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
-        bool shouldWait = rows.empty();
+        if (rows.empty()) {
+            if (!hasMoreData) {
+                break;
+            }
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            continue;
+        }
 
         // Remove null rows.
         rows.erase(
@@ -202,6 +211,7 @@ void ScanOpHelper(
             statistics->IncompleteInput = true;
             hasMoreData = false;
         }
+
         statistics->RowsRead += rows.size();
         for (const auto& row : rows) {
             statistics->BytesRead += GetDataWeight(row);
@@ -219,16 +229,10 @@ void ScanOpHelper(
         values.clear();
         rowBuffer->Clear();
 
-        if (!hasMoreData) {
-            break;
+        if (rows.capacity() < RowsetProcessingSize) {
+            rows.reserve(std::min(2 * rows.capacity(), RowsetProcessingSize));
         }
-
-        if (shouldWait) {
-            NProfiling::TWallTimingGuard timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-        }
-    }
+    } while (hasMoreData);
 }
 
 void InsertJoinRow(
@@ -292,7 +296,11 @@ char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
         ->AllocateAligned(byteCount);
 }
 
-typedef std::pair<size_t, size_t> TSlot;
+struct TSlot
+{
+    size_t Offset;
+    size_t Count;
+};
 
 TValue* AllocateJoinKeys(
     TExecutionContext* context,
@@ -340,7 +348,7 @@ void StorePrimaryRow(
             // Key will be reallocated further.
         }
 
-        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot(0, 0);
+        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot{0, 0};
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
@@ -533,9 +541,19 @@ public:
             }
         };
 
-        while (currentKey != keysToRows.end()) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
+        bool hasMoreData = true;
+        while (hasMoreData && currentKey != keysToRows.end()) {
+            hasMoreData = reader->Read(&foreignRows);
+
+            if (foreignRows.empty()) {
+                if (!hasMoreData) {
+                    break;
+                }
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
 
             if (isPartiallySorted) {
                 processForeignSequence(foreignRows.begin(), foreignRows.end());
@@ -544,16 +562,6 @@ public:
             }
 
             foreignRows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            }
         }
 
         if (isPartiallySorted) {
@@ -594,9 +602,19 @@ public:
         std::vector<TRow> foreignRows;
         foreignRows.reserve(RowsetProcessingSize);
 
-        while (true) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
+        bool hasMoreData;
+        do {
+            hasMoreData = reader->Read(&foreignRows);
+
+            if (foreignRows.empty()) {
+                if (!hasMoreData) {
+                    break;
+                }
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
 
             for (auto foreignRow : foreignRows) {
                 auto it = joinLookup->find(foreignRow.Begin());
@@ -614,17 +632,7 @@ public:
             ConsumeJoinedRows();
 
             foreignRows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            }
-        }
+        } while (hasMoreData);
 
         if (isLeft) {
             for (auto lookup : *joinLookup) {
@@ -764,30 +772,28 @@ void JoinOpHelper(
                 std::vector<TRow> rows;
                 rows.reserve(RowsetProcessingSize);
 
-                while (true) {
-                    bool hasMoreData;
+                bool hasMoreData;
+                do {
                     {
-                        NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
-                    bool shouldWait = foreignRows.empty();
+                    if (foreignRows.empty()) {
+                        if (!hasMoreData) {
+                            break;
+                        }
+                        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                        continue;
+                    }
 
                     for (auto row : rows) {
                         foreignLookup.insert(foreignRowsBuffer->Capture(row).Begin());
                     }
                     rows.clear();
-
-                    if (!hasMoreData) {
-                        break;
-                    }
-
-                    if (shouldWait) {
-                        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
+                } while (hasMoreData);
             }
 
             YT_LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
@@ -933,10 +939,10 @@ void MultiJoinOpHelper(
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
                         TSlot* slot = reinterpret_cast<TSlot*>(*currentKey + keySize);
-                        if (slot->second == 0) {
-                            slot->first = index;
+                        if (slot->Count == 0) {
+                            slot->Offset = index;
                         }
-                        ++slot->second;
+                        ++slot->Count;
                         ++index;
                     } else if (cmpResult < 0) {
                         ++currentKey;
@@ -964,21 +970,29 @@ void MultiJoinOpHelper(
 
             TDuration sortingForeignTime;
 
-            while (currentKey != orderedKeys.end()) {
-                bool hasMoreData;
+            bool hasMoreData = true;
+            while (hasMoreData && currentKey != orderedKeys.end()) {
                 {
-                    NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->ReadTime);
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
                     hasMoreData = reader->Read(&foreignRows);
                 }
 
-                bool shouldWait = foreignRows.empty();
+                if (foreignRows.empty()) {
+                    if (!hasMoreData) {
+                        break;
+                    }
+                    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
+                    continue;
+                }
 
                 for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
                     foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
                 }
 
                 {
-                    NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
                     if (isPartiallySorted) {
                         processForeignSequence(foreignValues.begin(), foreignValues.end());
                     } else {
@@ -993,20 +1007,10 @@ void MultiJoinOpHelper(
 
                 foreignRows.clear();
                 foreignValues.clear();
-
-                if (!hasMoreData) {
-                    break;
-                }
-
-                if (shouldWait) {
-                    NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
-                }
             }
 
             {
-                NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
 
                 if (isPartiallySorted) {
                     std::sort(
@@ -1060,13 +1064,13 @@ void MultiJoinOpHelper(
                     TSlot slot = *(reinterpret_cast<TSlot**>(rowValues + closure.PrimaryRowSize)[joinId]);
                     const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
 
-                    if (slot.second != 0) {
-                        YT_VERIFY(indexes[joinId] < slot.second);
-                        TValue* foreignRow = sortedForeignSequences[joinId][slot.first + indexes[joinId]];
+                    if (slot.Count != 0) {
+                        YT_VERIFY(indexes[joinId] < slot.Count);
+                        TValue* foreignRow = sortedForeignSequences[joinId][slot.Offset + indexes[joinId]];
 
                         if (incrementIndex == joinId) {
                             ++indexes[joinId];
-                            if (indexes[joinId] == slot.second) {
+                            if (indexes[joinId] == slot.Count) {
                                 indexes[joinId] = 0;
                                 ++incrementIndex;
                             } else {
@@ -1134,9 +1138,15 @@ const TValue* InsertGroupRow(
 {
     CHECK_STACK();
 
+    if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey)) {
+        closure->ProcessSegment();
+    }
+
     auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
+        closure->LastKey = *inserted.first;
+
         if (closure->GroupedRows.size() >= context->GroupRowLimit) {
             throw TInterruptedIncompleteException();
         }
@@ -1149,7 +1159,7 @@ const TValue* InsertGroupRow(
         if (closure->CheckNulls) {
             for (int index = 0; index < closure->KeySize; ++index) {
                 if (row[index].Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("std::nullopt values in group key");
+                    THROW_ERROR_EXCEPTION("Null values are forbidden in group key");
                 }
             }
         }
@@ -1160,6 +1170,7 @@ const TValue* InsertGroupRow(
 
 void GroupOpHelper(
     TExecutionContext* context,
+    TComparerFunction* prefixEqComparer,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
@@ -1169,14 +1180,76 @@ void GroupOpHelper(
         void** closure,
         TGroupByClosure* groupByClosure,
         TExpressionContext* buffer),
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
+    void** boundaryConsumeRowsClosure,
+    void (*boundaryConsumeRows)(
+        void** closure,
+        TExpressionContext*,
+        const TValue** rows,
+        i64 size),
+    void** innerConsumeRowsClosure,
+    void (*innerConsumeRows)(
+        void** closure,
+        TExpressionContext*,
+        const TValue** rows,
+        i64 size))
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing group helper");
     });
 
-    TGroupByClosure closure(context->MemoryChunkProvider, groupHasher, groupComparer, keySize, checkNulls);
+    TGroupByClosure closure(
+        context->MemoryChunkProvider,
+        prefixEqComparer,
+        groupHasher,
+        groupComparer,
+        keySize,
+        checkNulls);
+
+    TYielder yielder;
+    size_t processedRows = 0;
+
+    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+
+    auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
+        while (begin < end) {
+            i64 size = std::min(begin + RowsetProcessingSize, end) - begin;
+            processedRows += size;
+
+            if (isBoundary) {
+                boundaryConsumeRows(boundaryConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+            } else {
+                innerConsumeRows(innerConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+            }
+
+            intermediateBuffer->Clear();
+            yielder.Checkpoint(processedRows);
+            begin += size;
+        }
+    };
+
+    bool isBoundarySegment = true;
+
+    // When group key contains full primary key (used with joins) ProcessSegment will be called on each grouped
+    // row.
+    closure.ProcessSegment = [&] {
+        auto& groupedRows = closure.GroupedRows;
+        auto& lookup = closure.Lookup;
+
+        if (Y_UNLIKELY(isBoundarySegment)) {
+            size_t innerCount = groupedRows.size() - lookup.size();
+
+            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
+            flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
+
+            closure.GroupedRows.clear();
+        } else if(Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
+            flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
+            closure.GroupedRows.clear();
+        }
+
+        lookup.clear();
+        isBoundarySegment = false;
+    };
 
     try {
         collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
@@ -1185,22 +1258,13 @@ void GroupOpHelper(
         context->Statistics->IncompleteOutput = true;
     }
 
-    YT_LOG_DEBUG("Collected %v group rows",
-        closure.GroupedRows.size());
+    isBoundarySegment = true;
 
-    auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
+    closure.ProcessSegment();
 
-    TYielder yielder;
-    size_t processedRows = 0;
+    YT_VERIFY(closure.GroupedRows.empty());
 
-    for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
-        auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
-        processedRows += size;
-        consumeRows(consumeRowsClosure, intermediateBuffer.Get(), closure.GroupedRows.data() + index, size);
-        intermediateBuffer->Clear();
-
-        yielder.Checkpoint(processedRows);
-    }
+    YT_LOG_DEBUG("Processed %v group rows", processedRows);
 }
 
 void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
@@ -1274,12 +1338,12 @@ void WriteOpHelper(
     if (!batch.empty()) {
         bool shouldNotWait;
         {
-            NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->WriteTime);
             shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -1287,7 +1351,7 @@ void WriteOpHelper(
 
     YT_LOG_DEBUG("Closing writer");
     {
-        NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
+        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
         WaitFor(context->Writer->Close())
             .ThrowOnError();
     }
@@ -1851,47 +1915,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
 void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
-    TStringStream stream;
-    NYson::TYsonWriter writer(&stream);
-
-    switch (value->Type) {
-        case EValueType::Null: {
-            result->Type = EValueType::Null;
-            return;
-        }
-        case EValueType::Any: {
-            *result = *value;
-            return;
-        }
-        case EValueType::String: {
-            writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));
-            break;
-        }
-        case EValueType::Int64: {
-            writer.OnInt64Scalar(value->Data.Int64);
-            break;
-        }
-        case EValueType::Uint64: {
-            writer.OnUint64Scalar(value->Data.Uint64);
-            break;
-        }
-        case EValueType::Double: {
-            writer.OnDoubleScalar(value->Data.Double);
-            break;
-        }
-        case EValueType::Boolean: {
-            writer.OnBooleanScalar(value->Data.Boolean);
-            break;
-        }
-        default:
-            YT_ABORT();
-    }
-
-    writer.Flush();
-    result->Type = EValueType::Any;
-    result->Length = stream.Size();
-    result->Data.String = stream.Data();
-    *result = context->Capture(*result);
+    NTableClient::ToAny(context, result, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

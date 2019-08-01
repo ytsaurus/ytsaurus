@@ -89,7 +89,7 @@ static NProfiling::TAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TClusterNodeTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TNode>
+    : public TObjectTypeHandlerBase<TNode>
 {
 public:
     explicit TClusterNodeTypeHandler(TImpl* owner);
@@ -105,6 +105,8 @@ public:
     {
         return EObjectType::ClusterNode;
     }
+
+    virtual TObject* FindObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -138,7 +140,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -146,7 +149,7 @@ public:
         return EObjectType::Rack;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -166,7 +169,6 @@ private:
     virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override;
 
     virtual void DoZombifyObject(TRack* rack) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +185,8 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -191,7 +194,7 @@ public:
         return EObjectType::DataCenter;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
@@ -211,7 +214,6 @@ private:
     virtual IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* transaction) override;
 
     virtual void DoZombifyObject(TDataCenter* dc) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2099,9 +2101,21 @@ DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NodeMap_)
+    : TObjectTypeHandlerBase(owner->Bootstrap_)
     , Owner_(owner)
 { }
+
+TObject* TNodeTracker::TClusterNodeTypeHandler::FindObject(TObjectId id)
+{
+    auto* node = Owner_->FindNode(NodeIdFromObjectId(id));
+    if (!node) {
+        return nullptr;
+    }
+    if (Owner_->ObjectIdFromNodeId(node->GetId()) != id) {
+        return  nullptr;
+    }
+    return node;
+}
 
 IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
     TNode* node,
@@ -2112,7 +2126,7 @@ IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
 
 void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
 {
-    TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
+    TObjectTypeHandlerBase::DoZombifyObject(node);
     // NB: Destroy the node right away and do not wait for GC to prevent
     // dangling links from occurring in //sys/cluster_nodes.
     Owner_->DestroyNode(node);
@@ -2125,7 +2139,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+TObject* TNodeTracker::TRackTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2143,7 +2157,7 @@ IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
 
 void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(rack);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(rack);
     Owner_->DestroyRack(rack);
 }
 
@@ -2154,7 +2168,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
+TObject* TNodeTracker::TDataCenterTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -2173,7 +2187,7 @@ IObjectProxyPtr TNodeTracker::TDataCenterTypeHandler::DoGetProxy(
 
 void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(dc);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(dc);
     Owner_->DestroyDataCenter(dc);
 }
 

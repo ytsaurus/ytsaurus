@@ -80,7 +80,10 @@ struct TJobFile
     TString DescriptionType;
 };
 
-void SaveJobFiles(NApi::NNative::IClientPtr client, TOperationId operationId, const std::vector<TJobFile>& files);
+void SaveJobFiles(
+    const NApi::NNative::IClientPtr& client,
+    TOperationId operationId,
+    const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -31,20 +31,17 @@ class TestRff(YTEnvSetup):
 
     def test_access_stat(self):
         time.sleep(1.0)
-        c1 = get("//tmp/@access_counter")
+        c0 = get("//tmp/@access_counter")
         for i in xrange(100):
             assert ls('//tmp', read_from="follower") == []
-        time.sleep(1.0)
-        c2 = get("//tmp/@access_counter")
-        assert c2 == c1 + 100
+        wait(lambda: get("//tmp/@access_counter") == c0 + 100)
 
     def test_request_stat(self):
         create_user("u")
         assert get("//sys/users/u/@request_count") == 0
         for i in xrange(100):
             ls("//tmp", authenticated_user="u", read_from="follower")
-        time.sleep(1.0)
-        assert get("//sys/users/u/@request_count") == 100
+        wait(lambda: get("//sys/users/u/@request_count") == 100)
 
     def test_leader_fallback(self):
         create("table", "//tmp/t")

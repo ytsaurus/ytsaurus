@@ -21,7 +21,17 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue queue) const
+{
+    return GetCurrentInvoker();
+}
+
 IInvokerPtr TSchedulerStrategyHost::GetProfilingInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
+IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
 {
     return GetCurrentInvoker();
 }
@@ -45,6 +55,11 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     return result;
 }
 
+void TSchedulerStrategyHost::Disconnect(const TError& error)
+{
+    YT_VERIFY(false);
+}
+
 TInstant TSchedulerStrategyHost::GetConnectionTime() const
 {
     return TInstant();
@@ -62,7 +77,7 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             auto resourceLimits = execNode->GetResourceLimits();
-            ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GB)];
+            ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GBs)];
         }
     }
 

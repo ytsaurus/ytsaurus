@@ -12,20 +12,22 @@
 #include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/lease_manager.h>
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/fiber.h>
-#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/net/local_address.h>
 #include <yt/core/net/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -39,6 +41,7 @@ using namespace NYson;
 using namespace NProfiling;
 using namespace NTracing;
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -412,7 +415,7 @@ private:
         } else {
             ResponseCodec_ = NCompression::ECodec::None;
         }
-        
+
         BuildGlobalRequestInfo();
 
         if (IsRegistrable()) {
@@ -603,11 +606,11 @@ private:
         const auto* fiber = GetCurrentFiber();
         auto handlerFiberTime = CpuDurationToDuration(fiber->GetRunCpuTime());
         Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
-        
+
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
             auto traceContextTime = TraceContext_->GetElapsedTime();
-            Profiler.Increment(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(traceContextTime));
+            Profiler.Increment(PerformanceCounters_->TraceContextTimeCounter, DurationToValue(traceContextTime));
         }
     }
 
@@ -1128,14 +1131,18 @@ void TServiceBase::HandleStreamingPayload(
     TRequestId requestId,
     const TStreamingPayload& payload)
 {
-    auto context = FindRequest(requestId);
-    if (!context) {
-        YT_LOG_DEBUG("Received streaming payload for an unknown request, ignored (RequestId: %v)",
+    TGuard<TSpinLock> guard(RequestMapLock_);
+    auto context = DoFindRequest(requestId);
+    if (context) {
+        guard.Release();
+        context->HandleStreamingPayload(payload);
+    } else {
+        auto* entry = DoGetOrCreatePendingPayloadsEntry(requestId);
+        entry->Payloads.emplace_back(payload);
+        guard.Release();
+        YT_LOG_DEBUG("Received streaming payload for an unknown request, saving (RequestId: %v)",
             requestId);
-        return;
     }
-
-    context->HandleStreamingPayload(payload);
 }
 
 void TServiceBase::HandleStreamingFeedback(
@@ -1277,6 +1284,16 @@ void TServiceBase::RegisterRequest(TServiceContext* context)
     if (subscribe) {
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
+
+    auto pendingPayloads = GetAndErasePendingPayloads(requestId);
+    if (!pendingPayloads.empty()) {
+        YT_LOG_DEBUG("Pulling pending streaming payloads for a late request (RequestId: %v, PayloadCount: %v)",
+            requestId,
+            pendingPayloads.size());
+        for (const auto& payload : pendingPayloads) {
+            context->HandleStreamingPayload(payload);
+        }
+    }
 }
 
 void TServiceBase::UnregisterRequest(TServiceContext* context)
@@ -1300,8 +1317,52 @@ void TServiceBase::UnregisterRequest(TServiceContext* context)
 TServiceBase::TServiceContextPtr TServiceBase::FindRequest(TRequestId requestId)
 {
     TGuard<TSpinLock> guard(RequestMapLock_);
+    return DoFindRequest(requestId);
+}
+
+TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestId requestId)
+{
     auto it = RequestIdToContext_.find(requestId);
     return it == RequestIdToContext_.end() ? nullptr : TServiceContext::DangerousGetPtr(it->second);
+}
+
+TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestId requestId)
+{
+    auto& entry = RequestIdToPendingPayloads_[requestId];
+    if (!entry.Lease) {
+        entry.Lease = NConcurrency::TLeaseManager::CreateLease(
+            PendingPayloadsTimeout_,
+            BIND(&TServiceBase::OnPendingPayloadsLeaseExpired, MakeWeak(this), requestId));
+    }
+
+    return &entry;
+}
+
+std::vector<TStreamingPayload> TServiceBase::GetAndErasePendingPayloads(TRequestId requestId)
+{
+    TPendingPayloadsEntry entry;
+    {
+        TGuard<TSpinLock> guard(RequestMapLock_);
+        auto it = RequestIdToPendingPayloads_.find(requestId);
+        if (it == RequestIdToPendingPayloads_.end()) {
+            return {};
+        }
+        entry = std::move(it->second);
+        RequestIdToPendingPayloads_.erase(it);
+    }
+
+    NConcurrency::TLeaseManager::CloseLease(entry.Lease);
+    return std::move(entry.Payloads);
+}
+
+void TServiceBase::OnPendingPayloadsLeaseExpired(TRequestId requestId)
+{
+    auto payloads = GetAndErasePendingPayloads(requestId);
+    if (!payloads.empty()) {
+        YT_LOG_DEBUG("Pending payloads lease expired, erasing (RequestId: %v, PayloadCount: %v)",
+            requestId,
+            payloads.size());
+    }
 }
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
@@ -1396,6 +1457,7 @@ void TServiceBase::Configure(INodePtr configNode)
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
 
         AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
+        PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
 
         for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;

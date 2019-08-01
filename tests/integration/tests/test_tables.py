@@ -655,7 +655,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
         t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
-        print t2_id
+        print(t2_id)
         assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["#%s" % t2_id, "//tmp/t", to_yson_type("//tmp/t2", attributes = {"transaction_id" : tx})])
         assert read_table("//tmp/t2", tx=tx) == [{"a" : "b"}]
 
@@ -1215,7 +1215,7 @@ class TestTables(YTEnvSetup):
                     recursive(c, level + 1)
         recursive(chunk_list, 0)
         for r in result:
-            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
+            print_debug("%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4]))
 
     def test_cumulative_statistics(self):
         create("table", "//tmp/t")
@@ -1224,15 +1224,15 @@ class TestTables(YTEnvSetup):
 
         chunk_list = get("//tmp/t/@chunk_list_id")
         statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
-        assert len(statistics) == 1
-        assert statistics[0]["row_count"] == 3
-        assert statistics[0]["chunk_count"] == 2
+        assert len(statistics) == 2
+        assert statistics[1]["row_count"] == 3
+        assert statistics[1]["chunk_count"] == 2
 
         chunk_list = get("#{0}/@child_ids".format(chunk_list))[0]
         statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
-        assert len(statistics) == 2
-        assert statistics[0]["row_count"] == 1
-        assert statistics[1]["row_count"] == 3
+        assert len(statistics) == 3
+        assert statistics[1]["row_count"] == 1
+        assert statistics[2]["row_count"] == 3
 
         write_table(
             "//tmp/t",
@@ -1242,11 +1242,38 @@ class TestTables(YTEnvSetup):
 
         chunk_list = get("//tmp/t/@chunk_list_id")
         statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
-        assert len(statistics) == 2
-        assert statistics[0]["row_count"] == 1
-        assert statistics[1]["row_count"] == 2
-        assert statistics[0]["chunk_count"] == 1
-        assert statistics[1]["chunk_count"] == 2
+        assert len(statistics) == 3
+        assert statistics[0]["row_count"] == 0
+        assert statistics[1]["row_count"] == 1
+        assert statistics[2]["row_count"] == 2
+        assert statistics[0]["chunk_count"] == 0
+        assert statistics[1]["chunk_count"] == 1
+        assert statistics[2]["chunk_count"] == 2
+
+    def test_append_sorted_to_corrupted_table_YT_11060(self):
+        create("table", "//tmp/t")
+
+        write_table("<append=true; sorted_by=[key]>//tmp/t", {"key": 1})
+        assert get("//tmp/t/@sorted")
+
+        tx1 = start_transaction()
+        tx11 = start_transaction(tx=tx1)
+        lock("//tmp/t", tx=tx11, mode="exclusive")
+        abort_transaction(tx11)
+
+        write_table("<append=true>//tmp/t", [{"key": 3}, {"key": 2}])
+
+        tx12 = start_transaction(tx=tx1)
+        lock("//tmp/t", tx=tx12, mode="exclusive")
+        commit_transaction(tx=tx12)
+
+        assert not get("//tmp/t/@sorted", tx=tx1)
+        commit_transaction(tx=tx1)
+        assert not get("//tmp/t/@sorted")
+
+        with pytest.raises(YtError):
+            write_table("<append=true;sorted_by=[key]>//tmp/t", [{"key": 15}, {"key": 20}, {"key": 25}])
+
 
 ##################################################################
 

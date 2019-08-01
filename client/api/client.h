@@ -87,6 +87,7 @@ struct TTransactionalOptions
     NObjectClient::TTransactionId TransactionId;
     bool Ping = false;
     bool PingAncestors = false;
+    // COMPAT(kiselyovp) remove Sticky (YT-10654)
     bool Sticky = false;
 };
 
@@ -246,11 +247,13 @@ struct TBalanceTabletCellsOptions
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TRemoveMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCheckPermissionOptions
@@ -337,6 +340,7 @@ struct TTransactionStartOptions
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
+    // COMPAT(kiselyovp) remove Sticky (YT-10654)
     bool Sticky = false;
     std::optional<TDuration> PingPeriod;
     bool Ping = true;
@@ -782,6 +786,8 @@ struct TListOperationsOptions
     // See st/YTFRONT-1360.
     bool EnableUIMode = false;
 
+    TDuration ArchiveFetchingTimeout = TDuration::Seconds(3);
+
     TListOperationsOptions()
     {
         ReadFrom = EMasterChannelKind::Cache;
@@ -866,6 +872,8 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     std::optional<THashSet<TString>> Attributes;
+    TDuration CypressTimeout = TDuration::Seconds(3);
+    TDuration ArchiveTimeout = TDuration::Seconds(3);
     bool IncludeRuntime = false;
 };
 

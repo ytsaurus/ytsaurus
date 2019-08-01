@@ -4,6 +4,7 @@
 #include "scheduler_strategy.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
+#include "fair_share_tree.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/helpers.h>
@@ -219,7 +220,7 @@ public:
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Do(BIND(&BuildFullOperationAttributes, operation))
-                .Item("brief_spec").Value(operation->BriefSpec())
+                .Item("brief_spec").Value(operation->BriefSpecString())
             .EndMap());
 
         auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
@@ -815,6 +816,7 @@ private:
                 "runtime_parameters",
                 "output_completion_transaction_id",
                 "suspended",
+                "erased_trees",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -822,7 +824,7 @@ private:
                 YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
 
-                for (const auto& operationId : OperationIds_) {
+                for (auto operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto operationAttributesPath = GetOperationPath(operationId) + "/@";
@@ -848,7 +850,7 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                for (const auto& operationId : OperationIds_) {
+                for (auto operationId : OperationIds_) {
                     auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                         "get_op_attr_" + ToString(operationId))
                         .ValueOrThrow();
@@ -901,11 +903,11 @@ private:
             const IAttributeDictionary& attributes,
             const IMapNodePtr& secureVault)
         {
-            auto specNode = attributes.Get<INodePtr>("spec")->AsMap();
+            auto specString = attributes.GetYson("spec");
 
             TOperationSpecBasePtr spec;
             try {
-                spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+                spec = ConvertTo<TOperationSpecBasePtr>(specString);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error parsing operation spec")
                     << ex;
@@ -931,18 +933,20 @@ private:
                 attributes.Get<EOperationType>("operation_type"),
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
-                specNode,
+                spec,
+                specString,
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParams,
-                Owner_->Bootstrap_->GetScheduler()->GetBaseOperationAcl(),
+                Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
-                /* suspended */ attributes.Get<bool>("suspended", false));
+                /* suspended */ attributes.Get<bool>("suspended", false),
+                attributes.Get<std::vector<TString>>("erased_trees", {}));
 
             operation->SetShouldFlushAcl(true);
 
@@ -997,7 +1001,7 @@ private:
 
             const auto& operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
 
-            for (const auto& operationId : OperationIdsToRemove_) {
+            for (auto operationId : OperationIdsToRemove_) {
                 operationsCleaner->SubmitForRemoval({operationId});
             }
 
@@ -1039,7 +1043,7 @@ private:
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             for (const auto& operation : operations) {
-                const auto& operationId = operation->GetId();
+                auto operationId = operation->GetId();
                 auto operationAttributesPath = GetOperationPath(operationId) + "/@";
                 auto secureVaultPath = GetSecureVaultPath(operationId);
 
@@ -1055,7 +1059,7 @@ private:
                 .ValueOrThrow();
 
             for (const auto& operation : operations) {
-                const auto& operationId = operation->GetId();
+                auto operationId = operation->GetId();
 
                 auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                     "get_op_attr_" + ToString(operationId))
@@ -1429,6 +1433,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("annotations");
                 req->set_value(ConvertToYsonString(operation->Annotations()).GetData());
+            }
+
+            // Set erased trees.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("erased_trees");
+                req->set_value(ConvertToYsonString(operation->ErasedTrees()).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

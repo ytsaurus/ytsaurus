@@ -489,6 +489,21 @@ private:
                 transactionId,
                 EObjectType::TabletActionMap);
 
+            ScheduleCreateNode(
+                "//sys/portal_entrances",
+                transactionId,
+                EObjectType::PortalEntranceMap);
+
+            ScheduleCreateNode(
+                "//sys/portal_exits",
+                transactionId,
+                EObjectType::PortalExitMap);
+
+            ScheduleCreateNode(
+                "//sys/cypress_shards",
+                transactionId,
+                EObjectType::CypressShardMap);
+
             FlushScheduled();
 
             // Level 3

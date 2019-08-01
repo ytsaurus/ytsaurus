@@ -64,17 +64,17 @@ public:
         : ChunkLists_(chunkLists)
     { }
 
-    virtual void RefObject(NObjectServer::TObjectBase* object) override
+    virtual void RefObject(NObjectServer::TObject* object) override
     {
         object->RefObject();
     }
 
-    virtual void UnrefObject(NObjectServer::TObjectBase* object) override
+    virtual void UnrefObject(NObjectServer::TObject* object) override
     {
         object->UnrefObject();
     }
 
-    virtual int GetObjectRefCounter(NObjectServer::TObjectBase* object) override
+    virtual int GetObjectRefCounter(NObjectServer::TObject* object) override
     {
         return object->GetObjectRefCounter();
     }

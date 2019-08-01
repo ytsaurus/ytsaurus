@@ -12,6 +12,7 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NTabletServer {
 

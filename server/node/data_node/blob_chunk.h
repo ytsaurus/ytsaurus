@@ -169,9 +169,14 @@ public:
 
     ~TCachedBlobChunk();
 
+    TFuture<void> Validate();
+
 private:
     const TClosure Destroyed_;
+    TPromise<void> ValidationResult_;
+    std::atomic_flag ValidationLaunched_;
 
+    void DoValidate();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)

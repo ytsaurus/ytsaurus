@@ -188,10 +188,10 @@ time.sleep(5.0)
         last_memory_reserve = None
         for event in event_log:
             if event["event_type"] == "job_completed" and event["operation_id"] == op.id:
-                print >>sys.stderr, \
-                    event["job_id"], \
-                    event["statistics"]["user_job"]["memory_reserve"]["sum"], \
-                    event["statistics"]["user_job"]["max_memory"]["sum"]
+                print_debug(
+                    event["job_id"],
+                    event["statistics"]["user_job"]["memory_reserve"]["sum"],
+                    event["statistics"]["user_job"]["max_memory"]["sum"])
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
         assert 5e7 <= last_memory_reserve <= 10e7

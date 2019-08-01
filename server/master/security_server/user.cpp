@@ -20,10 +20,8 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, RequestCount);
-    if (context.GetVersion() >= 200) {
-        Persist(context, ReadRequestTime);
-        Persist(context, WriteRequestTime);
-    }
+    Persist(context, ReadRequestTime);
+    Persist(context, WriteRequestTime);
     Persist(context, AccessTime);
 }
 
@@ -76,6 +74,11 @@ TUser::TUser(TUserId id)
     : TSubject(id)
 { }
 
+TString TUser::GetObjectName() const
+{
+    return Format("User %Qv", Name_);
+}
+
 void TUser::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
@@ -96,7 +99,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < 815) {
+    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::AddReadRequestRateLimitAndWriteRequestRateLimit) {
         auto requestRateLimit = Load<int>(context);
         ReadRequestRateLimit_ = requestRateLimit;
         WriteRequestRateLimit_ = requestRateLimit;
@@ -182,7 +185,6 @@ void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
             YT_ABORT();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

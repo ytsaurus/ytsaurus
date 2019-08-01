@@ -44,6 +44,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidMountRevision)     (1704))
     ((TableReplicaAlreadyExists)(1705))
     ((InvalidTabletState)       (1706))
+    ((QueryRetryRequested)      (1707))
 );
 
 DEFINE_ENUM(EInMemoryMode,

@@ -33,6 +33,7 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/tablet_client/public.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
@@ -191,11 +192,13 @@ TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
     return keyBuilder.FinishRow();
 }
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrderedByIdTableDescriptor::TIndex& Index, const TRowBufferPtr& rowBuffer)
+{
+    auto key = rowBuffer->AllocateUnversioned(2);
+    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], Index.IdHi);
+    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], Index.IdLo);
+    return key;
+}
 
 constexpr int FileCacheHashDigitCount = 2;
 
@@ -204,12 +207,6 @@ NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cache
     auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
     return cachePath + "/" + lastDigits + "/" + md5;
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 template <class TReq>
 void SetDynamicTableCypressRequestFullPath(TReq* req, const TYPath& fullPath)
@@ -222,12 +219,6 @@ void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
 {
     req->set_path(fullPath);
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 constexpr i64 ListJobsFromArchiveInProgressJobLimit = 100000;
 
@@ -990,8 +981,7 @@ private:
                 auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
                     config->TableMountCache->OnErrorSlackPeriod;
                 if (retryTime > now) {
-                    WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                        .ThrowOnError();
+                    TDelayedExecutor::WaitForDuration(retryTime - now);
                 }
                 continue;
             }
@@ -2400,6 +2390,10 @@ private:
             &cellTag,
             {"path"});
 
+        if (!IsTableType(TypeFromId(tableId))) {
+            THROW_ERROR_EXCEPTION("Object %Qv is not a table", path);
+        }
+
         TTransactionStartOptions txOptions;
         txOptions.Multicell = cellTag != PrimaryMasterCellTag;
         txOptions.CellTag = cellTag;
@@ -3031,7 +3025,12 @@ private:
         const TLockNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        auto batchReq = proxy->ExecuteBatch();
+
+        auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
+        batchReqConfig->RetriableErrorCodes.push_back(
+            static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
+        auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
+
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Lock(path);
@@ -3193,7 +3192,8 @@ private:
             std::vector<TObjectId> srcIds;
             TCellTagList srcCellTags;
             TObjectId dstId;
-            TCellTag dstCellTag;
+            TCellTag dstNativeCellTag;
+            TCellTag dstExternalCellTag;
             std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
             std::vector<TSecurityTag> inferredSecurityTags;
             {
@@ -3248,7 +3248,7 @@ private:
                         auto id = FromProto<TObjectId>(rsp->object_id());
                         srcIds.push_back(id);
 
-                        auto cellTag = rsp->cell_tag();
+                        auto cellTag = rsp->external_cell_tag();
                         srcCellTags.push_back(cellTag);
 
                         auto securityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
@@ -3275,12 +3275,12 @@ private:
                     const auto& rsp = rspsOrError[0].Value();
 
                     dstId = FromProto<TObjectId>(rsp->object_id());
-                    dstCellTag = rsp->cell_tag();
+                    dstNativeCellTag = CellTagFromId(dstId);
 
-                    YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, CellTag: %v)",
+                    YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v)",
                         simpleDstPath,
                         dstId,
-                        dstCellTag);
+                        dstExternalCellTag);
 
                     checkType(TypeFromId(dstId), simpleDstPath);
                 }
@@ -3411,7 +3411,7 @@ private:
             TTransactionId uploadTransactionId;
             const auto dstIdPath = FromObjectId(dstId);
             {
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
                 req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -3432,6 +3432,7 @@ private:
                 const auto& rsp = rspOrError.Value();
 
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                dstExternalCellTag = rsp->cell_tag();
             }
 
             NTransactionClient::TTransactionAttachOptions attachOptions;
@@ -3454,8 +3455,8 @@ private:
                     uploadTransactionId,
                     Logger);
 
-                for (const auto& chunkId : flatChunkIds) {
-                    teleporter->RegisterChunk(chunkId, dstCellTag);
+                for (auto chunkId : flatChunkIds) {
+                    teleporter->RegisterChunk(chunkId, dstExternalCellTag);
                 }
 
                 WaitFor(teleporter->Run())
@@ -3465,7 +3466,7 @@ private:
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstCellTag);
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstExternalCellTag);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
@@ -3481,7 +3482,7 @@ private:
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
-                auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstCellTag);
+                auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstExternalCellTag);
 
                 auto batchReq = proxy->ExecuteBatch();
                 NRpc::GenerateMutationId(batchReq);
@@ -3503,7 +3504,7 @@ private:
 
             // End upload.
             {
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
@@ -3891,12 +3892,19 @@ private:
         const TString& member,
         const TAddMemberOptions& options)
     {
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
         req->set_name(member);
         SetMutationId(req, options);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TGroupYPathProxy::TRspAddMember>(0)
             .ThrowOnError();
     }
 
@@ -3905,12 +3913,19 @@ private:
         const TString& member,
         const TRemoveMemberOptions& options)
     {
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
         req->set_name(member);
         SetMutationId(req, options);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TGroupYPathProxy::TRspRemoveMember>(0)
             .ThrowOnError();
     }
 
@@ -4326,10 +4341,7 @@ private:
         auto rowBuffer = New<TRowBuffer>();
 
         std::vector<TUnversionedRow> keys;
-        auto key = rowBuffer->AllocateUnversioned(2);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo);
-        keys.push_back(key);
+        keys.push_back(CreateOperationKey(operationId, tableDescriptor.Index, rowBuffer));
 
         std::vector<int> columnIndexes;
         THashMap<TString, int> fieldToIndex;
@@ -4477,31 +4489,55 @@ private:
                 operationId = ResolveOperationAlias(alias, options, deadline);
             });
 
-        if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
-            return result;
-        }
+        std::vector<TFuture<TYsonString>> getOperationFutures;
 
-        YT_LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
-            operationId);
+        auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
+            .AsyncVia(Connection_->GetInvoker())
+            .Run()
+            .WithTimeout(options.CypressTimeout);
+        getOperationFutures.push_back(cypressFuture);
 
+        TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TError("No such operation in Archive."));
         if (DoesOperationsArchiveExist()) {
-            try {
-                if (auto result = DoGetOperationFromArchive(operationId, deadline, options)) {
-                    return result;
-                }
-            } catch (const TErrorException& ex) {
-                if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION("Failed to get operation from archive")
-                        << TErrorAttribute("operation_id", operationId)
-                        << ex.Error();
+             archiveFuture = BIND(&TClient::DoGetOperationFromArchive, MakeStrong(this), operationId, deadline, options)
+                .AsyncVia(Connection_->GetInvoker())
+                .Run()
+                .WithTimeout(options.ArchiveTimeout);
+        }
+        getOperationFutures.push_back(archiveFuture);
+
+        auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
+            .ValueOrThrow();
+
+        TErrorOr<TYsonString> cypressResultOrError = cypressFuture.Get();
+        TErrorOr<TYsonString> archiveResultOrError = archiveFuture.Get();
+
+        if (archiveResultOrError.IsOK() && archiveResultOrError.Value() &&
+            cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
+            // Merging goes here.
+            auto cypressNode = ConvertToNode(cypressResultOrError.Value())->AsMap();
+            auto archiveNode = ConvertToNode(archiveResultOrError.Value())->AsMap();
+
+            std::vector<TString> fieldNames = {"brief_progress", "progress"};
+            for (const auto& fieldName : fieldNames) {
+                auto archiveField = archiveNode->FindChild(fieldName);
+                if (archiveField) {
+                    cypressNode->RemoveChild(fieldName);
+                    archiveNode->RemoveChild(fieldName);
+                    cypressNode->AddChild(fieldName, archiveField);
                 }
             }
+            return ConvertToYsonString(cypressNode);
+        } else if (archiveResultOrError.IsOK() && archiveResultOrError.Value()) {
+            return archiveResultOrError.Value();
+        } else if (cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
+            return cypressResultOrError.Value();
+        } else {
+            THROW_ERROR_EXCEPTION(
+                NApi::EErrorCode::NoSuchOperation,
+                "No such operation %v",
+                operationId);
         }
-
-        THROW_ERROR_EXCEPTION(
-            NApi::EErrorCode::NoSuchOperation,
-            "No such operation %v",
-            operationId);
     }
 
     void ValidateOperationAccess(
@@ -4579,6 +4615,46 @@ private:
         auto rsp = rspOrError.Value();
         FromProto(&jobNodeDescriptor, rsp->node_descriptor());
         return jobNodeDescriptor;
+    }
+
+    IChannelPtr TryCreateChannelToJobNode(TOperationId operationId, TJobId jobId, EPermissionSet requiredPermissions)
+    {
+        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+        if (jobNodeDescriptorOrError.IsOK()) {
+            return ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+        }
+
+        if (!IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
+            THROW_ERROR_EXCEPTION("Failed to get job node descriptor from scheduler")
+                << jobNodeDescriptorOrError;
+        }
+
+        try {
+            TGetJobOptions options;
+            options.Attributes = {TString("address")};
+            // TODO(ignat): support structured return value in GetJob.
+            auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
+                .ValueOrThrow();
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChild("address")->GetValue<TString>();
+            auto nodeChannel = ChannelFactory_->CreateChannel(address);
+
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+            auto jobSpecOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+            if (!jobSpecOrError.IsOK()) {
+                return nullptr;
+            }
+
+            auto jobSpec = jobSpecOrError
+                .ValueOrThrow();
+
+            ValidateJobSpecVersion(jobId, jobSpec);
+            ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
+
+            return nodeChannel;
+        } catch (const TErrorException& ex) {
+            YT_LOG_DEBUG(ex, "Failed create node channel to job using address from archive (JobId: %v)", jobId);
+            return nullptr;
+        }
     }
 
     TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
@@ -4921,18 +4997,13 @@ private:
         TOperationId operationId,
         TJobId jobId)
     {
-        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Read));
-        if (!jobNodeDescriptorOrError.IsOK() && IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
+        auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
+
+        if (!nodeChannel) {
             return TSharedRef();
         }
-        auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+
         NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-
-        auto specOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
-        if (!specOrError.IsOK()) {
-            return TSharedRef();
-        }
-
         auto req = jobProberServiceProxy.GetStderr();
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_job_id(), jobId);
@@ -5423,7 +5494,7 @@ private:
         return attributes;
     }
 
-    // Searches in cypress for operations satisfying given filters.
+    // Searches in Cypress for operations satisfying given filters.
     // Adds found operations to |idToOperation| map.
     // The operations are returned with requested fields plus necessarily "start_time" and "id".
     void DoListOperationsFromCypress(
@@ -5774,10 +5845,8 @@ private:
 
         keys.reserve(rowsItemsId.Rowset->GetRows().Size());
         for (auto row : rowsItemsId.Rowset->GetRows()) {
-            auto key = rowBuffer->AllocateUnversioned(2);
-            key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, tableDescriptor.Index.IdHi);
-            key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, tableDescriptor.Index.IdLo);
-            keys.push_back(key);
+            auto id = TOperationId(FromUnversionedValue<ui64>(row[0]), FromUnversionedValue<ui64>(row[1]));
+            keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
         }
 
         static const THashSet<TString> RequiredAttributes = {"id", "start_time", "brief_progress"};
@@ -6043,6 +6112,70 @@ private:
                 result.Operations.erase(result.Operations.begin(), result.Operations.end() - options.Limit);
             }
             result.Incomplete = true;
+        }
+
+        // Fetching progress for operations with mentioned ids.
+        if (DoesOperationsArchiveExist() && !options.IncludeArchive) {
+            std::vector<TUnversionedRow> keys;
+
+            TOrderedByIdTableDescriptor tableDescriptor;
+            auto rowBuffer = New<TRowBuffer>();
+            for (const auto& operation: result.Operations) {
+                keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
+            }
+
+            bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
+            bool needProgress = options.Attributes && options.Attributes->contains("progress");
+
+            std::vector<TString> fields;
+            if (needBriefProgress) {
+                fields.emplace_back("brief_progress");
+            }
+            if (needProgress) {
+                fields.emplace_back("progress");
+            }
+            std::vector<int> columnIndexes;
+            for (const auto& field : fields) {
+                columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
+            }
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+            lookupOptions.Timeout = options.ArchiveFetchingTimeout;
+            lookupOptions.KeepMissingRows = true;
+            auto rowsetOrError = WaitFor(LookupRows(
+                GetOperationsArchiveOrderedByIdPath(),
+                tableDescriptor.NameTable,
+                MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+                lookupOptions)
+                .WithTimeout(options.ArchiveFetchingTimeout));
+
+            if (!rowsetOrError.IsOK()) {
+                YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
+            } else {
+                const auto& rows = rowsetOrError.Value()->GetRows();
+
+                for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+                    const auto& row = rows[rowIndex];
+                    if (!row) {
+                        continue;
+                    }
+
+                    auto& operation = result.Operations[rowIndex];
+                    if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
+                        auto briefProgressValue = row[*briefProgressPosition];
+                        if (briefProgressValue.Type != EValueType::Null) {
+                            operation.BriefProgress = FromUnversionedValue<TYsonString>(briefProgressValue);
+                        }
+                    }
+                    if (auto progressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.Progress)) {
+                        auto progressValue = row[*progressPosition];
+                        if (progressValue.Type != EValueType::Null) {
+                            operation.Progress = FromUnversionedValue<TYsonString>(progressValue);
+                        }
+                    }
+                }
+            }
         }
 
         if (options.IncludeCounters) {

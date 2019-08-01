@@ -3,7 +3,7 @@
 #include "table.h"
 #include "query_context.h"
 #include "format_helpers.h"
-#include "storage_concat.h"
+#include "storage_distributor.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
@@ -219,7 +219,7 @@ private:
     {
         auto tables = FetchClickHouseTables(queryContext, tablePaths);
 
-        return CreateStorageConcat(std::move(tables));
+        return CreateStorageDistributor(std::move(tables));
     }
 };
 
@@ -315,7 +315,7 @@ private:
             throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
         }
 
-        return CreateStorageConcat(tables);
+        return CreateStorageDistributor(tables);
     }
 };
 

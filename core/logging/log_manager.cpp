@@ -1285,7 +1285,7 @@ TLogManager::~TLogManager() = default;
 
 TLogManager* TLogManager::Get()
 {
-    return ImmortalSingleton<TLogManager>();
+    return LeakySingleton<TLogManager>();
 }
 
 void TLogManager::StaticShutdown()

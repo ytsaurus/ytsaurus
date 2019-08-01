@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/memory_tag.h>
+#include <yt/core/ytalloc/memory_tag.h>
 
 #include <yt/core/actions/invoker_util.h>
 
@@ -14,6 +14,8 @@
 #include <util/system/compiler.h>
 
 namespace NYT {
+
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

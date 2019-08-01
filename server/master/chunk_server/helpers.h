@@ -17,11 +17,17 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Calls |functor(chunkList, child)| and |functor(parent(x), x)|, where |x|
+//! iterates through proper ancestors of |chunkList|.
 template <class F>
-void VisitUniqueAncestors(TChunkList* chunkList, F functor);
+void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = nullptr);
 
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
+
+TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
+int GetParentCount(const TChunkTree* chunkTree);
+TChunkTree* GetParent(const TChunkTree* chunkTree, int index);
 
 void AttachToChunkList(
     TChunkList* chunkList,
@@ -32,6 +38,10 @@ void DetachFromChunkList(
     TChunkTree* const* childrenBegin,
     TChunkTree* const* childrenEnd);
 
+//! Set |childIndex|-th child of |chunkList| to |newChild|. It is up to caller
+//! to deal with statistics.
+void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild);
+
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
@@ -40,8 +50,12 @@ void AppendChunkTreeChild(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics);
+
+//! Apply statisticsDelta to all proper ancestors of |child|.
+//! Both statistics and cumulative statistics are updated.
+//! |statisticsDelta| should have |child|'s rank.
 void AccumulateUniqueAncestorsStatistics(
-    TChunkList* chunkList,
+    TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta);
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
@@ -55,11 +69,21 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
 
-NTableClient::TOwningKey GetUpperBoundKey(const TChunk* chunk);
-NTableClient::TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree);
+//! Returns the upper boundary key of a chunk. Throws if the chunk contains no
+//! boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk);
 
-NTableClient::TOwningKey GetMinKey(const TChunk* chunk);
-NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
+//! Returns the upper boundary key of a chunk tree. Throws if the tree is empty
+//! or the last chunk in it contains no boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree);
+
+//! Returns the minimum key of a chunk. Throws if the chunk contains no boundary
+//! info (i.e. it's not sorted).
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk);
+
+//! Returns the minimum key of a chunk tree. Throws if the tree is empty or the
+//! first chunk in it contains no boundary info (i.e. it's not sorted).
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree);
 
 struct TChunkViewMergeResult;
 

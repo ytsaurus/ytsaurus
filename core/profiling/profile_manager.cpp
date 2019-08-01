@@ -22,6 +22,10 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <yt/core/profiling/proto/profiling.pb.h>
+
+#include <util/generic/iterator_range.h>
+
 namespace NYT::NProfiling {
 
 using namespace NYTree;
@@ -32,10 +36,6 @@ using namespace NConcurrency;
 
 static NLogging::TLogger Logger("Profiling");
 static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
-// TODO(babenko): make configurable
-static const auto MaxKeepInterval = TDuration::Minutes(5);
-static const auto DequeuePeriod = TDuration::MilliSeconds(100);
-static const auto SampleRateLimit = TDuration::MilliSeconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,18 +44,18 @@ class TProfileManager::TImpl
 {
 public:
     TImpl()
-        : WasStarted(false)
-        , WasShutdown(false)
-        , EventQueue(New<TInvokerQueue>(
-            EventCount,
+        : WasStarted_(false)
+        , WasShutdown_(false)
+        , EventQueue_(New<TInvokerQueue>(
+            EventCount_,
             EmptyTagIds,
             true,
             false))
-        , Thread(New<TThread>(this))
-        , Root(GetEphemeralNodeFactory(true)->CreateMap())
-        , EnqueuedCounter("/enqueued")
-        , DequeuedCounter("/dequeued")
-        , DroppedCounter("/dropped")
+        , Thread_(New<TThread>(this))
+        , Root_(GetEphemeralNodeFactory(true)->CreateMap())
+        , EnqueuedCounter_("/enqueued")
+        , DequeuedCounter_("/dequeued")
+        , DroppedCounter_("/dropped")
     {
 #ifdef _linux_
         ResourceTracker = New<TResourceTracker>(GetInvoker());
@@ -64,19 +64,19 @@ public:
 
     void Start()
     {
-        YT_VERIFY(!WasStarted);
-        YT_VERIFY(!WasShutdown);
+        YT_VERIFY(!WasStarted_);
+        YT_VERIFY(!WasShutdown_);
 
-        WasStarted = true;
+        WasStarted_ = true;
 
-        Thread->Start();
-        EventQueue->SetThreadId(Thread->GetId());
+        Thread_->Start();
+        EventQueue_->SetThreadId(Thread_->GetId());
 
-        DequeueExecutor = New<TPeriodicExecutor>(
-            EventQueue,
+        DequeueExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
             BIND(&TImpl::OnDequeue, MakeStrong(this)),
-            DequeuePeriod);
-        DequeueExecutor->Start();
+            Config_->DequeuePeriod);
+        DequeueExecutor_->Start();
 
 #ifdef _linux_
         ResourceTracker->Start();
@@ -85,37 +85,38 @@ public:
 
     void Shutdown()
     {
-        WasShutdown = true;
-        EventQueue->Shutdown();
-        Thread->Shutdown();
+        WasShutdown_ = true;
+        EventQueue_->Shutdown();
+        Thread_->Shutdown();
     }
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (!WasStarted || WasShutdown) {
+        if (!WasStarted_ || WasShutdown_) {
             return;
         }
 
         if (!selfProfiling) {
-            ProfilingProfiler.Increment(EnqueuedCounter);
+            ProfilingProfiler.Increment(EnqueuedCounter_);
         }
 
-        SampleQueue.Enqueue(sample);
+        SampleQueue_.Enqueue(sample);
     }
 
     void Configure(const TProfileManagerConfigPtr& config)
     {
         GlobalTags_ = config->GlobalTags;
+        Config_ = config;
     }
 
     IInvokerPtr GetInvoker() const
     {
-        return EventQueue;
+        return EventQueue_;
     }
 
     IMapNodePtr GetRoot() const
     {
-        return Root;
+        return Root_;
     }
 
     IYPathServicePtr GetService() const
@@ -123,31 +124,43 @@ public:
         return GetRoot()->Via(GetInvoker());
     }
 
+    TProfileManagerConfigPtr GetConfig() const
+    {
+        return Config_;
+    }
+
     TTagId RegisterTag(const TTag& tag)
     {
-        TGuard<TForkAwareSpinLock> guard(TagSpinLock);
+        TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
         auto pair = std::make_pair(tag.Key, tag.Value);
-        auto it = TagToId.find(pair);
-        if (it != TagToId.end()) {
+        auto it = TagToId_.find(pair);
+        if (it != TagToId_.end()) {
             return it->second;
         }
 
-        auto id = static_cast<TTagId>(IdToTag.size());
-        IdToTag.push_back(tag);
-        YT_VERIFY(TagToId.insert(std::make_pair(pair, id)).second);
-        TagKeyToValues[tag.Key].push_back(tag.Value);
+        auto id = static_cast<TTagId>(IdToTag_.size());
+        IdToTag_.push_back(tag);
+        YT_VERIFY(TagToId_.insert(std::make_pair(pair, id)).second);
+        TagKeyToValues_[tag.Key].push_back(tag.Value);
 
         return id;
     }
 
     TForkAwareSpinLock& GetTagSpinLock()
     {
-        return TagSpinLock;
+        return TagSpinLock_;
     }
 
     const TTag& GetTag(TTagId id)
     {
-        return IdToTag[id];
+        return IdToTag_[id];
+    }
+
+    std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> count = std::nullopt)
+    {
+        auto result = BIND(&TSampleStorage::GetProtoSamples, &Storage_, count)
+            .AsyncVia(GetInvoker()).Run();
+        return WaitFor(result).ValueOrThrow();
     }
 
 private:
@@ -158,6 +171,92 @@ private:
         TValue Value;
         TTagIdList TagIds;
         EMetricType MetricType;
+        NYPath::TYPath Path;
+    };
+
+    class TSampleStorage
+    {
+    public:
+        using TSamples = std::deque<TStoredSample>;
+        using TSamplesIterator = TSamples::iterator;
+        using TSampleRange = TIteratorRange<TSamplesIterator>;
+        using TSampleIdAndRange = std::pair<i64, TSampleRange>;
+
+        //! Adds new sample to the deque.
+        void AddSample(const TStoredSample& sample)
+        {
+            Samples_.push_back(sample);
+        }
+
+        //! Gets samples with #id more than #count in the deque and id of the first returned element.
+        //! If #count is not given, all deque is returned.
+        TSampleIdAndRange GetSamples(std::optional<i64> count = std::nullopt)
+        {
+            if (!count) {
+                return std::make_pair(RemovedCount_, TSampleRange(Samples_.begin(), Samples_.end()));
+            }
+            if (*count > Samples_.size() + RemovedCount_) {
+                return std::make_pair(*count, TSampleRange(Samples_.end(), Samples_.end()));
+            } else {
+                auto startIndex = std::max(*count - RemovedCount_, i64(0));
+                return std::make_pair(startIndex + RemovedCount_,
+                    TSampleRange(Samples_.begin() + startIndex, Samples_.end()));
+            }
+        }
+
+        //! Removes old samples (#count instances from the beginning of the deque).
+        void RemoveOldSamples(TDuration maxKeepInterval)
+        {
+            if (Samples_.size() <= 1) {
+                return;
+            }
+            auto deadline = Samples_.back().Time - maxKeepInterval;
+            while (Samples_.front().Time < deadline) {
+                ++RemovedCount_;
+                Samples_.pop_front();
+            }
+        }
+
+        std::pair<i64, NProto::TPointBatch> GetProtoSamples(std::optional<i64> count = std::nullopt)
+        {
+            auto [index, samples] = GetSamples(count);
+
+            for (const auto& sample : samples) {
+                for (auto tagId : sample.TagIds) {
+                    TagIdToValue_.emplace(tagId, TTag());
+                }
+            }
+
+            {
+                const auto& profilingManager = TProfileManager::Get()->Impl_;
+                TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
+                for (auto& [tagId, tag] : TagIdToValue_) {
+                    tag = profilingManager->GetTag(tagId);
+                }
+            }
+
+            NProto::TPointBatch protoVec;
+            for (const auto& sample : samples) {
+                auto* protoSample = protoVec.add_points();
+                protoSample->set_time(ToProto<i64>(sample.Time));
+                protoSample->set_value(sample.Value);
+                ToProto(protoSample->mutable_tag_ids(), sample.TagIds);
+                protoSample->set_metric_type(static_cast<NProfiling::NProto::EMetricType>(sample.MetricType));
+                ToProto(protoSample->mutable_path(), sample.Path);
+            }
+            for (const auto& [id, tag] : TagIdToValue_) {
+                auto* sample = protoVec.add_tags();
+                sample->set_tag_id(id);
+                ToProto(sample->mutable_key(), tag.Key);
+                ToProto(sample->mutable_value(), tag.Value);
+            }
+            return {index, protoVec};
+        }
+
+    private:
+        TSamples Samples_;
+        THashMap<TTagId, TTag> TagIdToValue_;
+        i64 RemovedCount_ = 0;
     };
 
     class TBucket
@@ -169,15 +268,16 @@ private:
         typedef TSamples::iterator TSamplesIterator;
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
-        TBucket(const THashMap<TString, TString>& globalTags)
+        TBucket(const THashMap<TString, TString>& globalTags, const TProfileManagerConfigPtr& config)
             : GlobalTags_(globalTags)
+            , Config_(config)
         { }
 
         //! Adds a new sample to the bucket inserting in at an appropriate position.
         int AddSample(const TStoredSample& sample)
         {
             auto& rateLimit = RateLimits[sample.TagIds];
-            if (rateLimit.first && sample.Time < rateLimit.first + SampleRateLimit) {
+            if (rateLimit.first && sample.Time < rateLimit.first + Config_->SampleRateLimit) {
                 ++rateLimit.second;
                 return rateLimit.second;
             }
@@ -231,6 +331,7 @@ private:
         std::deque<TStoredSample> Samples;
         std::map<TTagIdList, std::pair<TInstant, int>> RateLimits;
         THashMap<TString, TString> GlobalTags_;
+        TProfileManagerConfigPtr Config_;
 
         virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
@@ -307,7 +408,7 @@ private:
     public:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
-                owner->EventCount,
+                owner->EventCount_,
                 "Profiling",
                 EmptyTagIds,
                 true,
@@ -329,29 +430,34 @@ private:
         }
     };
 
-    const std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
-    std::atomic<bool> WasStarted;
-    std::atomic<bool> WasShutdown;
-    TInvokerQueuePtr EventQueue;
-    TIntrusivePtr<TThread> Thread;
-    TEnqueuedAction CurrentAction;
+    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    std::atomic<bool> WasStarted_;
+    std::atomic<bool> WasShutdown_;
+    TInvokerQueuePtr EventQueue_;
+    TIntrusivePtr<TThread> Thread_;
+    TEnqueuedAction CurrentAction_;
 
-    TPeriodicExecutorPtr DequeueExecutor;
+    TPeriodicExecutorPtr DequeueExecutor_;
 
-    IMapNodePtr Root;
-    TMonotonicCounter EnqueuedCounter;
-    TMonotonicCounter DequeuedCounter;
-    TMonotonicCounter DroppedCounter;
+    IMapNodePtr Root_;
+    TMonotonicCounter EnqueuedCounter_;
+    TMonotonicCounter DequeuedCounter_;
+    TMonotonicCounter DroppedCounter_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
-    THashMap<TYPath, TBucketPtr> PathToBucket;
-    TIdGenerator SampleIdGenerator;
+    TProfileManagerConfigPtr Config_;
 
-    TForkAwareSpinLock TagSpinLock;
-    std::vector<TTag> IdToTag;
-    THashMap<std::pair<TString, TString>, int> TagToId;
-    typedef THashMap<TString, std::vector<TString>> TTagKeyToValues;
-    TTagKeyToValues TagKeyToValues;
+    TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue_;
+    THashMap<TYPath, TBucketPtr> PathToBucket_;
+    TIdGenerator SampleIdGenerator_;
+
+    TForkAwareSpinLock TagSpinLock_;
+    std::vector<TTag> IdToTag_;
+    THashMap<std::pair<TString, TString>, int> TagToId_;
+    using TTagKeyToValues = THashMap<TString, std::vector<TString>>;
+    TTagKeyToValues TagKeyToValues_;
+
+    //! One deque instead of buckets with deques.
+    TSampleStorage Storage_;
 
 #ifdef _linux_
     TIntrusivePtr<TResourceTracker> ResourceTracker;
@@ -361,12 +467,12 @@ private:
 
     EBeginExecuteResult BeginExecute()
     {
-        return EventQueue->BeginExecute(&CurrentAction);
+        return EventQueue_->BeginExecute(&CurrentAction_);
     }
 
     void EndExecute()
     {
-        EventQueue->EndExecute(&CurrentAction);
+        EventQueue_->EndExecute(&CurrentAction_);
     }
 
     void OnDequeue()
@@ -374,39 +480,40 @@ private:
         // Process all pending samples in a row.
         int samplesProcessed = 0;
 
-        while (SampleQueue.DequeueAll(true, [&] (TQueuedSample& sample) {
+        while (SampleQueue_.DequeueAll(true, [&] (TQueuedSample& sample) {
                 ProcessSample(sample);
+                ProcessSampleV2(sample);
                 ++samplesProcessed;
             }))
         { }
 
-        ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
+        ProfilingProfiler.Increment(DequeuedCounter_, samplesProcessed);
     }
 
     TBucketPtr LookupBucket(const TYPath& path)
     {
-        auto it = PathToBucket.find(path);
-        if (it != PathToBucket.end()) {
+        auto it = PathToBucket_.find(path);
+        if (it != PathToBucket_.end()) {
             return it->second;
         }
 
         YT_LOG_DEBUG("Creating bucket %v", path);
-        auto bucket = New<TBucket>(GlobalTags_);
-        YT_VERIFY(PathToBucket.insert(std::make_pair(path, bucket)).second);
+        auto bucket = New<TBucket>(GlobalTags_, Config_);
+        YT_VERIFY(PathToBucket_.insert(std::make_pair(path, bucket)).second);
 
         auto node = CreateVirtualNode(bucket);
-        ForceYPath(Root, path);
-        SetNodeByYPath(Root, path, node);
+        ForceYPath(Root_, path);
+        SetNodeByYPath(Root_, path, node);
 
         return bucket;
     }
 
-    void ProcessSample(TQueuedSample& queuedSample)
+    void ProcessSample(const TQueuedSample& queuedSample)
     {
         auto bucket = LookupBucket(queuedSample.Path);
 
         TStoredSample storedSample;
-        storedSample.Id = SampleIdGenerator.Next();
+        storedSample.Id = SampleIdGenerator_.Next();
         storedSample.Time = CpuInstantToInstant(queuedSample.Time);
         storedSample.Value = queuedSample.Value;
         storedSample.TagIds = queuedSample.TagIds;
@@ -415,7 +522,7 @@ private:
         if (bucket->AddSample(storedSample) == 1) {
             THashMultiMap<TString, TString> tags;
             {
-                TGuard<TForkAwareSpinLock> guard(TagSpinLock);
+                TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
                 for (auto tagId : storedSample.TagIds) {
                     const auto& tag = GetTag(tagId);
                     tags.insert(std::make_pair(tag.Key, tag.Value));
@@ -424,9 +531,21 @@ private:
             YT_LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
                 queuedSample.Path,
                 tags);
-            ProfilingProfiler.Increment(DroppedCounter);
+            ProfilingProfiler.Increment(DroppedCounter_);
         }
-        bucket->TrimSamples(MaxKeepInterval);
+        bucket->TrimSamples(Config_->MaxKeepInterval);
+    }
+
+    void ProcessSampleV2(const TQueuedSample& queuedSample)
+    {
+        TStoredSample storedSample;
+        storedSample.Time = CpuInstantToInstant(queuedSample.Time);
+        storedSample.Value = queuedSample.Value;
+        storedSample.TagIds = queuedSample.TagIds;
+        storedSample.MetricType = queuedSample.MetricType;
+        storedSample.Path = queuedSample.Path;
+        Storage_.AddSample(storedSample);
+        Storage_.RemoveOldSamples(Config_->MaxKeepInterval);
     }
 };
 
@@ -486,6 +605,11 @@ IYPathServicePtr TProfileManager::GetService() const
 TTagId TProfileManager::RegisterTag(const TTag& tag)
 {
     return Impl_->RegisterTag(tag);
+}
+
+std::pair<i64, NProto::TPointBatch> TProfileManager::GetSamples(std::optional<i64> count)
+{
+    return Impl_->GetSamples(count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

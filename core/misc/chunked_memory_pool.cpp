@@ -1,5 +1,4 @@
 #include "chunked_memory_pool.h"
-#include "serialize.h"
 
 namespace NYT {
 

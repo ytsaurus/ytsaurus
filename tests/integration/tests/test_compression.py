@@ -55,7 +55,7 @@ def test_compression(yt_proxy, caching_file_getter, testcase_info):
         pytest.skip("yt is unavailable")
     uncompressed_data = caching_file_getter.get_file(testcase_info.uncompressed_file["yt_path"])
     if get_shasum(uncompressed_data) != testcase_info.uncompressed_file["shasum"]:
-        print >>sys.stderr, "LENGTH OF UNCOMPRESSED DATA", len(uncompressed_data)
+        print_debug("LENGTH OF UNCOMPRESSED DATA", len(uncompressed_data))
         with open("/home/teamcity/failed_compression_test_file") as fout:
             fout.write(uncompressed_data)
     assert get_shasum(uncompressed_data) == testcase_info.uncompressed_file["shasum"]

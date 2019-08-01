@@ -4,6 +4,8 @@
 
 #include <yt/client/api/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,12 @@ protected:
 
     //! Stops listening for transaction abort.
     void StopListenTransaction(const NApi::ITransactionPtr& transaction);
+
+    //! Starts probing transaction periodically.
+    void StartProbeTransaction(const NApi::ITransactionPtr& transaction, TDuration probePeriod);
+
+    //! Stops probing transaction.
+    void StopProbeTransaction(const NApi::ITransactionPtr& transaction);
 
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.
@@ -35,9 +43,10 @@ private:
     mutable TSpinLock SpinLock_;
     std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
+    THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;
 
-private:
-    void OnTransactionAborted(TTransactionId id);
+    void ProbeTransaction(const NApi::ITransactionPtr& transaction);
+    void OnTransactionAborted(TTransactionId transactionId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

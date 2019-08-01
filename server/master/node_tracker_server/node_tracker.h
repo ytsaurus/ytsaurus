@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/node_tracker_server/node_tracker.pb.h>
+#include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 

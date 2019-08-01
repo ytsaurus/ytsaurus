@@ -4,6 +4,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
@@ -13,7 +14,6 @@ namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +34,8 @@ public:
     {
         HeavyPool_->Configure(config->HeavyPoolSize);
         CompressionPool_->Configure(config->CompressionPoolSize);
+        // NB: TFairShareThreadPool::Configure() has dummy implementation.
+        CompressionFairShareThreadPool_->Configure(config->CompressionPoolSize);
         TWriterGuard guard(SpinLock_);
 
         for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
@@ -109,6 +111,11 @@ public:
         return CompressionPoolInvoker_.Value();
     }
 
+    const IFairShareThreadPoolPtr& GetCompressionFairShareThreadPool()
+    {
+        return CompressionFairShareThreadPool_;
+    }
+
     const IInvokerPtr& GetCompressionPoolInvoker()
     {
         return CompressionPool_->GetInvoker();
@@ -118,6 +125,7 @@ public:
     {
         LightQueue_->Shutdown();
         HeavyPool_->Shutdown();
+        CompressionFairShareThreadPool_->Shutdown();
         CompressionPool_->Shutdown();
     }
 
@@ -131,6 +139,10 @@ private:
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
     const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
     const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
+    const IFairShareThreadPoolPtr CompressionFairShareThreadPool_ = CreateFairShareThreadPool(
+
+        TDispatcherConfig::DefaultCompressionPoolSize,
+        "FSCompression");
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
     TReaderWriterSpinLock SpinLock_;
@@ -215,6 +227,11 @@ const IPrioritizedInvokerPtr& TDispatcher::GetPrioritizedCompressionPoolInvoker(
 const IInvokerPtr& TDispatcher::GetCompressionPoolInvoker()
 {
     return Impl_->GetCompressionPoolInvoker();
+}
+
+const IFairShareThreadPoolPtr& TDispatcher::GetCompressionFairShareThreadPool()
+{
+    return Impl_->GetCompressionFairShareThreadPool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

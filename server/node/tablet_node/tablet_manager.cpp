@@ -204,6 +204,9 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraLockTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReportTabletLocked, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnlockTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
@@ -252,35 +255,6 @@ public:
         return tablet;
     }
 
-
-    void Read(
-        TTabletSnapshotPtr tabletSnapshot,
-        TTimestamp timestamp,
-        const TString& user,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        TRetentionConfigPtr retentionConfig,
-        TWireProtocolReader* reader,
-        TWireProtocolWriter* writer)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ValidateReadTimestamp(timestamp);
-        ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
-
-        tabletSnapshot->TabletRuntimeData->AccessTime = NProfiling::GetInstant();
-
-        while (!reader->IsFinished()) {
-            ExecuteSingleRead(
-                tabletSnapshot,
-                timestamp,
-                user,
-                blockReadOptions,
-                retentionConfig,
-                reader,
-                writer);
-        }
-    }
-
     void Write(
         const TTabletSnapshotPtr& tabletSnapshot,
         TTransactionId transactionId,
@@ -322,6 +296,11 @@ public:
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
+
+            if (tablet->GetLockManager()->IsLocked()) {
+                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
+                    << TErrorAttribute("tablet_id", tabletId);
+            }
 
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
@@ -955,6 +934,14 @@ private:
             AddTableReplica(tablet, descriptor);
         }
 
+        const auto& lockManager = tablet->GetLockManager();
+
+        for (const auto& lock : request->locks()) {
+            auto transactionId = FromProto<TTabletId>(lock.transaction_id());
+            auto lockTimestamp = static_cast<TTimestamp>(lock.timestamp());
+            lockManager->Lock(lockTimestamp, transactionId);
+        }
+
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -1112,6 +1099,94 @@ private:
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         PostMasterMutation(tabletId, response);
+    }
+
+    void HydraLockTablet(TReqLockTablet* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+        auto transactionId = FromProto<TTabletId>(request->lock().transaction_id());
+        auto lockTimestamp = static_cast<TTimestamp>(request->lock().timestamp());
+
+        const auto& lockManager = tablet->GetLockManager();
+        lockManager->Lock(lockTimestamp, transactionId);
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet locked (TabletId: %v, TransactionId: %v)",
+            tabletId,
+            transactionId);
+
+        CheckIfTabletFullyUnlocked(tablet);
+    }
+
+    void ReportTabletLocked(TTablet* tablet)
+    {
+        if (IsRecovery()) {
+            return;
+        }
+
+        TReqReportTabletLocked request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        CommitTabletMutation(request);
+    }
+
+    void HydraReportTabletLocked(TReqReportTabletLocked* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        const auto& lockManager = tablet->GetLockManager();
+        auto transactionIds = lockManager->RemoveUnconfirmedTransactions();
+
+        if (transactionIds.empty()) {
+            return;
+        }
+
+        TRspLockTablet response;
+        ToProto(response.mutable_tablet_id(), tabletId);
+        ToProto(response.mutable_transaction_ids(), transactionIds);
+        PostMasterMutation(tabletId, response);
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
+            tabletId,
+            transactionIds);
+    }
+
+    void HydraUnlockTablet(TReqUnlockTablet* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+        auto transactionId = FromProto<TTabletId>(request->transaction_id());
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        std::vector<TStoreId> addedStoreIds;
+        for (const auto& descriptor : request->stores_to_add()) {
+            auto storeType = EStoreType(descriptor.store_type());
+            auto storeId = FromProto<TChunkId>(descriptor.store_id());
+            addedStoreIds.push_back(storeId);
+
+            auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
+            storeManager->AddStore(store, false);
+        }
+
+        UpdateTabletSnapshot(tablet);
+
+        const auto& lockManager = tablet->GetLockManager();
+        lockManager->Unlock(transactionId);
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v)",
+            tabletId,
+            transactionId,
+            addedStoreIds);
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -2207,6 +2282,11 @@ private:
                 THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
             }
 
+            if (tablet->GetLockManager()->IsLocked()) {
+                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
+                    << TErrorAttribute("tablet_id", tablet->GetId());
+            }
+
             ValidateSyncReplicaSet(tablet, writeRecord.SyncReplicaIds);
             for (auto& pair : tablet->Replicas()) {
                 auto& replicaInfo = pair.second;
@@ -2670,45 +2750,6 @@ private:
     }
 
 
-    void ExecuteSingleRead(
-        TTabletSnapshotPtr tabletSnapshot,
-        TTimestamp timestamp,
-        const TString& user,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        TRetentionConfigPtr retentionConfig,
-        TWireProtocolReader* reader,
-        TWireProtocolWriter* writer)
-    {
-        auto command = reader->ReadCommand();
-        switch (command) {
-            case EWireProtocolCommand::LookupRows:
-                LookupRows(
-                    std::move(tabletSnapshot),
-                    timestamp,
-                    user,
-                    blockReadOptions,
-                    reader,
-                    writer);
-                break;
-
-            case EWireProtocolCommand::VersionedLookupRows:
-                VersionedLookupRows(
-                    std::move(tabletSnapshot),
-                    timestamp,
-                    user,
-                    blockReadOptions,
-                    std::move(retentionConfig),
-                    reader,
-                    writer);
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unknown read command %v",
-                    command);
-        }
-    }
-
-
     void UnlockLockedTablets(TTransaction* transaction)
     {
         auto& tablets = transaction->LockedTablets();
@@ -2738,16 +2779,18 @@ private:
             return;
         }
 
-        auto state = tablet->GetState();
-        if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
-            return;
-        }
-
         if (tablet->GetTabletLockCount() > 0) {
             return;
         }
 
         if (tablet->GetStoreManager()->HasActiveLocks()) {
+            return;
+        }
+
+        ReportTabletLocked(tablet);
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
             return;
         }
 
@@ -3230,12 +3273,16 @@ private:
             case EStoreType::SortedChunk: {
                 NChunkClient::TReadRange readRange;
                 TChunkId chunkId;
+                TTimestamp chunkTimestamp = NullTimestamp;
 
                 if (descriptor) {
                     if (descriptor->has_chunk_view_descriptor()) {
                         const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
                         if (chunkViewDescriptor.has_read_range()) {
                             readRange = FromProto<NChunkClient::TReadRange>(chunkViewDescriptor.read_range());
+                        }
+                        if (chunkViewDescriptor.has_timestamp()) {
+                            chunkTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.timestamp());
                         }
                         chunkId = FromProto<TChunkId>(chunkViewDescriptor.underlying_chunk_id());
                     } else {
@@ -3250,6 +3297,7 @@ private:
                     storeId,
                     chunkId,
                     readRange,
+                    chunkTimestamp,
                     tablet,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
@@ -3570,25 +3618,6 @@ void TTabletManager::Initialize()
 TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
 {
     return Impl_->GetTabletOrThrow(id);
-}
-
-void TTabletManager::Read(
-    TTabletSnapshotPtr tabletSnapshot,
-    TTimestamp timestamp,
-    const TString& user,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    TRetentionConfigPtr retentionConfig,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
-{
-    Impl_->Read(
-        std::move(tabletSnapshot),
-        timestamp,
-        user,
-        blockReadOptions,
-        std::move(retentionConfig),
-        reader,
-        writer);
 }
 
 void TTabletManager::Write(

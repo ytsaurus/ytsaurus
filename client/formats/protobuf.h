@@ -12,7 +12,7 @@ namespace NYT::NFormats {
 class TEnumerationDescription
 {
 public:
-    TEnumerationDescription(const TString& name);
+    explicit TEnumerationDescription(const TString& name);
 
     const TString& GetEnumerationName() const;
     const TString& GetValueName(i32 value) const;
@@ -27,7 +27,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProtobufFieldDescription
+struct TProtobufFieldDescriptionBase
 {
     TString Name;
     EProtobufType Type;
@@ -35,10 +35,23 @@ struct TProtobufFieldDescription
     size_t TagSize;
     const TEnumerationDescription* EnumerationDescription;
 
+    int StructElementCount;
+
+    int StructElementIndex;
+    bool Repeated;
+    bool Optional;
+
     ui32 GetFieldNumber() const;
 };
 
+struct TProtobufFieldDescription
+    : public TProtobufFieldDescriptionBase
+{
+    std::vector<TProtobufFieldDescription> Children;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
+
 
 struct TProtobufTableDescription
 {
@@ -53,19 +66,49 @@ class TProtobufFormatDescription
 public:
     TProtobufFormatDescription() = default;
 
-    void Init(const TProtobufFormatConfigPtr& config);
+    void Init(
+        const TProtobufFormatConfigPtr& config,
+        const std::vector<NTableClient::TTableSchema>& schemas,
+        bool validateMissingFieldsOptionality);
     const TProtobufTableDescription& GetTableDescription(ui32 tableIndex) const;
     size_t GetTableCount() const;
 
 private:
     void InitFromFileDescriptors(const TProtobufFormatConfigPtr& config);
-    void InitFromProtobufSchema(const TProtobufFormatConfigPtr& config);
+    void InitFromProtobufSchema(
+        const TProtobufFormatConfigPtr& config,
+        const std::vector<NTableClient::TTableSchema>& schemas,
+        bool validateMissingFieldsOptionality);
+
+    // Initialize field description from column config and logical type from schema.
+    // Matching of the config and type is performed by the following rules:
+    //  * Field of simple type matches simple type T "naturally"
+    //  * Repeated field matches List<T> iff corresponding non-repeated field matches T and T is not Optional<...>
+    //  * Non-repeated field matches Optional<T> iff it matches T and T is not Optional<...>
+    //  * StructuredMessage field matches Struct<Name1: Type1, ..., NameN: TypeN> iff
+    //      - the field has subfields whose names are in set {Name1, ..., NameN}
+    //      - the subfield with name NameK matches TypeK
+    //      - if |validateMissingFieldsOptionality| is |true|,
+    //        for each name NameK missing from subfields TypeK is Optional<...>
+    void InitField(
+        TProtobufFieldDescription* field,
+        const TProtobufColumnConfigPtr& columnConfig,
+        NTableClient::TLogicalTypePtr logicalType,
+        int elementIndex,
+        bool validateMissingFieldsOptionality);
+
+    // Initialize field description from column config without matching it with logical type.
+    // StructuredMessage and repeated fields must _not_ be initialized solely by this method.
+    void InitSchemalessField(
+        TProtobufFieldDescription* field,
+        const TProtobufColumnConfigPtr& columnConfig);
 
 private:
     std::vector<TProtobufTableDescription> Tables_;
     THashMap<TString, TEnumerationDescription> EnumerationDescriptionMap_;
 };
 
+DECLARE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -422,7 +422,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
         }
 
         if (!isRecovery) {
-                Profiler.Increment(descriptor->CumulativeTimeCounter, DurationToValue(timer.GetElapsedTime()));
+            Profiler.Increment(descriptor->CumulativeTimeCounter, DurationToValue(timer.GetElapsedTime()));
         }
     }
 

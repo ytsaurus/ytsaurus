@@ -25,10 +25,10 @@ namespace NYT::NChunkServer {
 
 //! Base classes for Cypress nodes that own chunks.
 class TChunkOwnerBase
-    : public NCypressServer::TCypressNodeBase
+    : public NCypressServer::TCypressNode
 {
 public:
-    using TBase = NCypressServer::TCypressNodeBase;
+    using TBase = NCypressServer::TCypressNode;
 
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);

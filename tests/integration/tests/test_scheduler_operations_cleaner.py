@@ -4,7 +4,7 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.test_helpers import wait
 
-from yt.operations_archive.clear_operations import id_to_parts_new
+from yt.common import uuid_to_parts
 
 import __builtin__
 
@@ -58,7 +58,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             remove("//sys/operations/*")
 
     def _lookup_ordered_by_id_row(self, op_id):
-        id_hi, id_lo = id_to_parts_new(op_id)
+        id_hi, id_lo = uuid_to_parts(op_id)
         rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
         assert len(rows) == 1
         return rows[0]

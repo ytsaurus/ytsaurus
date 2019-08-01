@@ -67,54 +67,58 @@ private:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Upon destruction, increments the value by the elapsed time (measured by the timer)
+//! passed since construction.
+template <class TTimer>
+class TValueIncrementingTimingGuard
+{
+public:
+    explicit TValueIncrementingTimingGuard(TDuration* value);
+    ~TValueIncrementingTimingGuard();
+
+    TValueIncrementingTimingGuard(const TValueIncrementingTimingGuard&) = delete;
+    TValueIncrementingTimingGuard& operator=(const TValueIncrementingTimingGuard&) = delete;
+
+private:
+    TDuration* const Value_;
+    TTimer Timer_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Similar to TWallTimer but excludes the time passed while the fiber was inactive.
-class TCpuTimer
+class TFiberWallTimer
     : public TWallTimer
     , private NConcurrency::TContextSwitchGuard
 {
 public:
-    TCpuTimer();
+    TFiberWallTimer();
 
 };
 
-//! Upon destruction, increments the value by the wall time passed since construction.
-class TWallTimingGuard
-    : public TWallTimer
+////////////////////////////////////////////////////////////////////////////////
+
+//! Upon destruction, increments the counter by the elapsed time (measured by the timer)
+//! passed since construction.
+template <class TTimer>
+class TCounterIncrementingTimingGuard
 {
 public:
-    explicit TWallTimingGuard(TDuration* value);
-    ~TWallTimingGuard();
-
-private:
-    TDuration* const Value_;
-
-};
-
-class TCpuTimingGuard
-    : public TCpuTimer
-{
-public:
-    explicit TCpuTimingGuard(TDuration* value);
-    ~TCpuTimingGuard();
-
-private:
-    TDuration* const Value_;
-
-};
-
-//! Upon destruction, increments the counter by the wall time passed since construction.
-class TProfilingTimingGuard
-{
-public:
-    TProfilingTimingGuard(
+    TCounterIncrementingTimingGuard(
         const TProfiler& profiler,
         TMonotonicCounter* counter);
-    ~TProfilingTimingGuard();
+    ~TCounterIncrementingTimingGuard();
+
+    TCounterIncrementingTimingGuard(const TCounterIncrementingTimingGuard&) = delete;
+    TCounterIncrementingTimingGuard& operator=(const TCounterIncrementingTimingGuard&) = delete;
 
 private:
     const TProfiler& Profiler_;
     TMonotonicCounter* const Counter_;
-    const TCpuInstant StartInstant_;
+    TTimer Timer_;
 
 };
 

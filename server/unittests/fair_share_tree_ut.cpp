@@ -34,9 +34,19 @@ struct TSchedulerStrategyHostMock
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     virtual IInvokerPtr GetProfilingInvoker() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
@@ -50,6 +60,11 @@ struct TSchedulerStrategyHostMock
             totalResources += resources.ToJobResources();
         }
         return totalResources;
+    }
+
+    virtual void Disconnect(const TError& error) override
+    {
+        YT_ABORT();
     }
 
     virtual TInstant GetConnectionTime() const override
@@ -229,7 +244,7 @@ public:
         return Controller_;
     }
 
-    virtual NYTree::IMapNodePtr GetSpec() const override
+    virtual const NYson::TYsonString& GetSpecString() const override
     {
         YT_ABORT();
     }
@@ -247,6 +262,21 @@ public:
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
     {
         return *Controller_.Get();
+    }
+
+    void SetErasedTrees(std::vector<TString> erasedTrees) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const std::vector<TString>& ErasedTrees() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void EraseTree(const TString& treeId) override
+    {
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -382,9 +412,9 @@ private:
         TDynamicAttributesList* dynamicAttributesList)
     {
         TUpdateFairShareContext updateContext;
-        rootElement->Update(*dynamicAttributesList, &updateContext);
-        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
-        rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+        rootElement->Update(dynamicAttributesList, &updateContext);
+        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
+        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
         context->PrescheduleCalled = true;
     }
 };
@@ -426,7 +456,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
     EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
@@ -477,7 +507,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto dynamicAttributes = TDynamicAttributesList(2);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
@@ -527,7 +557,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
@@ -613,7 +643,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
     EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
 

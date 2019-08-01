@@ -55,6 +55,7 @@
 
 #include <yt/core/yson/string.h>
 #include <yt/core/yson/async_consumer.h>
+#include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
 namespace NYT::NObjectServer {
@@ -78,7 +79,7 @@ using NYT::ToProto;
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TObjectBase* object)
+    TObject* object)
     : Bootstrap_(bootstrap)
     , Metadata_(metadata)
     , Object_(object)
@@ -93,7 +94,7 @@ TObjectId TObjectProxyBase::GetId() const
     return Object_->GetId();
 }
 
-TObjectBase* TObjectProxyBase::GetObject() const
+TObject* TObjectProxyBase::GetObject() const
 {
     return Object_;
 }
@@ -123,12 +124,12 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     }
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
-    getBasicAttributesContext.CellTag = CellTagFromId(GetId());
+    getBasicAttributesContext.ExternalCellTag = CellTagFromId(GetId());
 
     GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
-    response->set_cell_tag(getBasicAttributesContext.CellTag);
+    response->set_external_cell_tag(getBasicAttributesContext.ExternalCellTag);
     if (getBasicAttributesContext.OmittedInaccessibleColumns) {
         ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
     }
@@ -542,6 +543,14 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+            if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
+                THROW_ERROR_EXCEPTION("Cannot change %Qlv attribute for objects of type %Qlv",
+                    GetUninternedAttributeKey(EInternedAttributeKey::InheritAcl),
+                    Object_->GetType());
+            }
+
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
         }
@@ -551,11 +560,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             TAccessControlList newAcl;
             Deserialize(newAcl, ConvertToNode(value), securityManager);
-
-            acd->ClearEntries();
-            for (const auto& ace : newAcl.Entries) {
-                acd->AddEntry(ace);
-            }
+            acd->SetEntries(newAcl);
 
             return true;
         }
@@ -660,7 +665,7 @@ void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermissi
     ValidatePermission(Object_, permission);
 }
 
-void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
+void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permission)
 {
     YT_VERIFY(object);
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -807,7 +812,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TObjectBase* object)
+    TObject* object)
     : TObjectProxyBase(bootstrap, metadata, object)
     , CustomAttributesImpl_(this)
 {
@@ -821,15 +826,31 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr&
 }
 
 void TNontemplateNonversionedObjectProxyBase::GetSelf(
-    TReqGet* /*request*/,
+    TReqGet* request,
     TRspGet* response,
     const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
 
-    response->set_value("#");
-    context->Reply();
+    if (request->has_attributes()) {
+        auto attributeKeys = std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()));
+        TAsyncYsonWriter writer;
+        WriteAttributes(&writer, attributeKeys, false);
+        writer.OnEntity();
+
+        writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().GetData());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
+    } else {
+        response->set_value("#");
+        context->Reply();
+    }
 }
 
 void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
@@ -846,11 +867,7 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
     ValidateRemoval();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (objectManager->GetObjectRefCounter(Object_) != 1) {
-        THROW_ERROR_EXCEPTION("Object is in use");
-    }
-
-    objectManager->UnrefObject(Object_);
+    objectManager->RemoveObject(Object_);
 
     context->Reply();
 }

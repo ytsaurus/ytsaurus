@@ -38,16 +38,6 @@ public:
 
     void Initialize();
 
-
-    void Read(
-        TTabletSnapshotPtr tabletSnapshot,
-        TTimestamp timestamp,
-        const TString& user,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NTableClient::TRetentionConfigPtr retentionConfig,
-        NTableClient::TWireProtocolReader* reader,
-        NTableClient::TWireProtocolWriter* writer);
-
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
         TTransactionId transactionId,

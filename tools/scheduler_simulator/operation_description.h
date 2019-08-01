@@ -37,7 +37,7 @@ struct TOperationDescription
     NScheduler::EOperationType Type;
     TString State;
     bool InTimeframe;
-    NYTree::IMapNodePtr Spec;
+    NYson::TYsonString Spec;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 };

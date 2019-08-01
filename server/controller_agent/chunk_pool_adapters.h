@@ -4,7 +4,7 @@
 
 #include "task_host.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 namespace NYT::NControllerAgent {
 
@@ -27,7 +27,7 @@ public:
 
     virtual void Resume(TCookie cookie) override;
 
-    virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override;
+    virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr mapping) override;
 
     virtual void Finish() override;
 

@@ -84,6 +84,12 @@ message TRspUnfreezeTablet
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
+message TRspLockTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated NYT.NProto.TGuid transaction_ids = 2;
+}
+
 message TReqUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;

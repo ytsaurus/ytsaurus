@@ -260,6 +260,9 @@ public:
      */
     TDuration HeartbeatMutationPeriod;
 
+    //! If "heartbeat" mutation commit takes longer than this value, Hydra is restarted.
+    TDuration HeartbeatMutationTimeout;
+
     //! Period for retrying while waiting for quorum record count to become
     //! sufficiently high to proceed with applying mutations.
     TDuration ChangelogQuorumCheckRetryPeriod;
@@ -328,6 +331,8 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("heartbeat_mutation_timeout", HeartbeatMutationTimeout)
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)

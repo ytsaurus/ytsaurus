@@ -31,52 +31,57 @@ bool ValidateSnapshotVersion(int version);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterSnapshotVersion,
-    ((OldVersion711)                                                 (711))
-    ((OldVersion712)                                                 (712))
-    ((AddTabletCellDecommission)                                     (713))
-    ((ChangeTReqKickOrphanedTabletActions)                           (714))
-    ((FixTabletErrorCountLag)                                        (715))
-    ((AddDynamicTabletCellOptions)                                   (716))
-    ((AddReplicatedTableOptions)                                     (717))
-    ((WeakGhostsSaveLoad)                                            (718))
-    ((MulticellForDynamicTables)                                     (800))
-    ((MakeTabletStateBackwardCompatible)                             (801))
-    ((AddReplicaOptions)                                             (802))
-    ((AddPrimaryLastMountTransactionId)                              (803))
-    ((RemoveTTransactionSystem)                                      (804))
-    ((AddCypressAnnotations)                                         (805))
-    ((SameAsVer718ButIn19_4)                                         (806))
-    ((AddTabletCellHealthToTabletCellStatistics)                     (807))
-    ((ForwardStartPrerequisiteTransactionToSecondaryMaster)          (808))
-    ((PersistRequisitionUpdateRequests)                              (809))
-    ((PersistTransactionDeadline)                                    (810))
-    ((AddAttributesRevisionContentRevision)                          (811))
-    ((AddReassignPeerMutation)                                       (812))
-    ((YT_9775_MasterMasterProtocolChange)                            (813))
-    ((OldVersion814)                                                 (814))
-    ((AddReadRequestRateLimitAndWriteRequestRateLimit)               (815))
-    ((InitializeMediumSpecificMaxReplicationFactor)                  (816))
-    ((PersistTNodeResourceUsageLimits)                               (817))
-    ((IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount)  (818))
-    ((AddTabletCellLifeStage)                                        (819))
-    ((FixSnapshot)                                                   (820))
-    ((PerTableTabletBalancerConfig)                                  (821))
-    ((UseCurrentMountTransactionIdToLockTableNodeDuringMount)        (822))
-    ((SynchronousHandlesForTabletBalancer)                           (823))
-    ((RemoveDynamicTableAttrsFromStaticTables)                       (824))
-    ((InTChunkReplicationReplaceArrayWithSmallVector)                (825))
-    ((ColumnarAcls)                                                  (826))
-    ((SecurityTags)                                                  (827))
-    ((TCumulativeStatisticsInChunkLists)                             (828))
-    ((MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers)       (829))
-    ((ChunkView)                                                     (830))
-    ((VersionedExpirationTime)                                       (831))
-    ((TClusterResourcesDiskSpaceSerialization)                       (832))
-    ((YT_10852)                                                      (833))
-    ((TTabletCellBundleHealthAdded)                                  (834))
-    ((SnapshotLockableMapNodes)                                      (835))
-    ((YT_10952_DelayedMembershipClosureRecomputation)                (836))
-    ((YT_10726_StagedChunkExpiration)                                (837))
+    ((OldVersion711)                                                 (711))  // shakurov
+    ((OldVersion712)                                                 (712))  // aozeritsky
+    ((AddTabletCellDecommission)                                     (713))  // savrus
+    ((ChangeTReqKickOrphanedTabletActions)                           (714))  // savrus
+    ((FixTabletErrorCountLag)                                        (715))  // ifsmirnov
+    ((AddDynamicTabletCellOptions)                                   (716))  // savrus
+    ((AddReplicatedTableOptions)                                     (717))  // aozeritsky
+    ((WeakGhostsSaveLoad)                                            (718))  // shakurov
+    ((MulticellForDynamicTables)                                     (800))  // savrus
+    ((MakeTabletStateBackwardCompatible)                             (801))  // savrus
+    ((AddReplicaOptions)                                             (802))  // aozeritsky
+    ((AddPrimaryLastMountTransactionId)                              (803))  // savrus
+    ((RemoveTTransactionSystem)                                      (804))  // shakurov
+    ((AddCypressAnnotations)                                         (805))  // psushin
+    ((SameAsVer718ButIn19_4)                                         (806))  // shakurov
+    ((AddTabletCellHealthToTabletCellStatistics)                     (807))  // savrus
+    ((ForwardStartPrerequisiteTransactionToSecondaryMaster)          (808))  // savrus
+    ((PersistRequisitionUpdateRequests)                              (809))  // shakurov
+    ((PersistTransactionDeadline)                                    (810))  // ignat
+    ((AddAttributesRevisionContentRevision)                          (811))  // aozeritsky
+    ((AddReassignPeerMutation)                                       (812))  // savrus
+    ((YT_9775_MasterMasterProtocolChange)                            (813))  // aozeritsky
+    ((OldVersion814)                                                 (814))  // aozeritsky
+    ((AddReadRequestRateLimitAndWriteRequestRateLimit)               (815))  // aozeritsky
+    ((InitializeMediumSpecificMaxReplicationFactor)                  (816))  // shakurov
+    ((PersistTNodeResourceUsageLimits)                               (817))  // shakurov
+    ((IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount)  (818))  // shakurov
+    ((AddTabletCellLifeStage)                                        (819))  // savrus
+    ((FixSnapshot)                                                   (820))  // savrus
+    ((PerTableTabletBalancerConfig)                                  (821))  // ifsmirnov
+    ((UseCurrentMountTransactionIdToLockTableNodeDuringMount)        (822))  // savrus
+    ((SynchronousHandlesForTabletBalancer)                           (823))  // ifsmirnov
+    ((RemoveDynamicTableAttrsFromStaticTables)                       (824))  // savrus
+    ((InTChunkReplicationReplaceArrayWithSmallVector)                (825))  // shakurov
+    ((ColumnarAcls)                                                  (826))  // babenko
+    ((SecurityTags)                                                  (827))  // babenko
+    ((TCumulativeStatisticsInChunkLists)                             (828))  // ifsmirnov
+    ((MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers)       (829))  // shakurov
+    ((ChunkView)                                                     (830))  // ifsmirnov
+    ((VersionedExpirationTime)                                       (831))  // shakurov
+    ((TClusterResourcesDiskSpaceSerialization)                       (832))  // aozeritsky
+    ((YT_10852)                                                      (833))  // shakurov
+    ((TTabletCellBundleHealthAdded)                                  (834))  // aozeritsky
+    ((SnapshotLockableMapNodes)                                      (835))  // shakurov
+    ((YT_10952_DelayedMembershipClosureRecomputation)                (836))  // babenko
+    ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
+    ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
+    ((YT_10639_CumulativeStatisticsInDynamicTables)                  (839))  // ifsmirnov
+    ((PortalsInitial)                                                (900))  // babenko
+    ((CypressShards)                                                 (901))  // babenko
+    ((BulkInsert)                                                    (902))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

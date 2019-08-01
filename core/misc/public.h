@@ -1,9 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "enum.h"
-#include "size_literals.h"
-#include "intrusive_ptr.h"
 
 // Google Protobuf forward declarations.
 namespace google::protobuf {
@@ -58,7 +55,7 @@ struct TErrorTraits;
 class TStreamSaveContext;
 class TStreamLoadContext;
 
-template <class TSaveContext, class TLoadContext>
+template <class TSaveContext, class TLoadContext, class TSnapshotVersion = int>
 class TCustomPersistenceContext;
 
 using TStreamPersistenceContext = TCustomPersistenceContext<
@@ -145,12 +142,6 @@ DEFINE_ENUM(EProcessErrorCode,
     ((NonZeroExitCode)    (10000))
     ((Signal)             (10001))
     ((CannotResolveBinary)(10002))
-);
-
-// Memory zone is used to pass hint to the allocator.
-DEFINE_ENUM(EMemoryZone,
-    ((Normal)     (0)) // default memory type
-    ((Undumpable) (1)) // memory is omitted from the core dump
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,7 +49,7 @@
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -117,7 +117,7 @@ void TBootstrap::DoRun()
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
-    
+
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
 
@@ -142,7 +142,7 @@ void TBootstrap::DoRun()
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
-    
+
     ControllerAgent_->Initialize();
 
     SetNodeByYPath(

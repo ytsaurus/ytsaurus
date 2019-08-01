@@ -36,61 +36,6 @@ using namespace NNodeTrackerClient;
 using namespace NYTree;
 using namespace NYson;
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsTable(const TDataSource& dataSource)
-{
-    auto type = dataSource.GetType();
-
-    return type == EDataSourceType::UnversionedTable ||
-           type == EDataSourceType::VersionedTable;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSubquerySpec::Validate() const
-{
-    const auto& dataSources = DataSources();
-
-    if (dataSources.empty()) {
-        THROW_ERROR_EXCEPTION("Invalid job specification: empty data sources list");
-    }
-
-    for (auto& dataSource : dataSources) {
-        if (!dataSource.GetPath()) {
-            THROW_ERROR_EXCEPTION("Invalid job specification: table path not found");
-        }
-        if (!dataSource.Schema()) {
-            THROW_ERROR_EXCEPTION("Invalid job specification: table schema not found");
-        }
-        if (!IsTable(dataSource)) {
-            THROW_ERROR_EXCEPTION(
-                "Invalid job specification: unsupported data source type %Qlv",
-                dataSource.GetType());
-        }
-    }
-
-    const auto& representativeDataSource = dataSources.front();
-
-    for (size_t i = 1; i < dataSources.size(); ++i) {
-        auto dataSource = dataSources[i];
-
-        if (dataSource.GetType() != representativeDataSource.GetType()) {
-            THROW_ERROR_EXCEPTION("Invalid job specification: inconsistent data source types");
-        }
-    }
-
-    if (DataSliceDescriptors.empty()) {
-        THROW_ERROR_EXCEPTION("Invalid job specification: empty data slice descriptors list");
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
@@ -99,11 +44,13 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
 
     ToProto(protoSpec->mutable_data_source_directory(), spec.DataSourceDirectory);
 
-    auto* tableSpec = protoSpec->mutable_table_spec();
-    ToProto(
-        tableSpec->mutable_chunk_specs(),
-        tableSpec->mutable_chunk_spec_count_per_data_slice(),
-        spec.DataSliceDescriptors);
+    for (const auto& inputDataSliceDescriptors : spec.DataSliceDescriptors) {
+        auto* inputSpec = protoSpec->add_input_specs();
+        ToProto(
+            inputSpec->mutable_chunk_specs(),
+            inputSpec->mutable_chunk_spec_count_per_data_slice(),
+            inputDataSliceDescriptors);
+    }
 
     if (spec.NodeDirectory) {
         spec.NodeDirectory->DumpTo(protoSpec->mutable_node_directory());
@@ -114,6 +61,8 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
         ToProto(protoSpec->add_columns(), column);
     }
     ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
+
+    protoSpec->set_membership_hint(spec.MembershipHint.GetData());
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -122,11 +71,12 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
 
     FromProto(&spec->DataSourceDirectory, protoSpec.data_source_directory());
 
-    const auto& tableSpec = protoSpec.table_spec();
-    FromProto(
-        &spec->DataSliceDescriptors,
-        tableSpec.chunk_specs(),
-        tableSpec.chunk_spec_count_per_data_slice());
+    for (const auto& inputSpec : protoSpec.input_specs()) {
+        FromProto(
+            &spec->DataSliceDescriptors.emplace_back(),
+            inputSpec.chunk_specs(),
+            inputSpec.chunk_spec_count_per_data_slice());
+    }
 
     if (protoSpec.has_node_directory()) {
         spec->NodeDirectory = New<TNodeDirectory>();
@@ -138,6 +88,8 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
         FromProto(&spec->Columns.emplace_back(), protoColumn);
     }
     FromProto(&spec->ReadSchema, protoSpec.read_schema());
+
+    spec->MembershipHint = TYsonString(protoSpec.membership_hint());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

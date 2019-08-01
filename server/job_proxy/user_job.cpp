@@ -478,6 +478,8 @@ private:
     std::optional<TString> FailContext_;
     std::optional<TString> Profile_;
 
+    std::atomic<bool> NotFullyConsumed_ = { false };
+
     void Prepare()
     {
         PreparePipes();
@@ -882,24 +884,29 @@ private:
         }));
 
         FinalizeActions_.push_back(BIND([=] () {
-            if (!UserJobSpec_.check_input_fully_consumed()) {
-                return;
-            }
-            auto buffer = TSharedMutableRef::Allocate(1, false);
-            auto future = reader->Read(buffer);
-            TErrorOr<size_t> result = WaitFor(future);
-            if (!result.IsOK()) {
+            bool throwOnFailure = UserJobSpec_.check_input_fully_consumed();
+
+            try {
+                auto buffer = TSharedMutableRef::Allocate(1, false);
+                auto future = reader->Read(buffer);
+                TErrorOr<size_t> result = WaitFor(future);
+                if (!result.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
+                        << TErrorAttribute("fd", jobDescriptor)
+                        << result;
+                }
+                // Try to read some data from the pipe.
+                if (result.Value() > 0) {
+                    THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
+                        << TErrorAttribute("fd", jobDescriptor);
+                }
+            } catch (...) {
                 reader->Abort();
-                THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
-                    << TErrorAttribute("fd", jobDescriptor)
-                    << result;
+                NotFullyConsumed_.store(true);
+                if (throwOnFailure) {
+                    throw;
+                }
             }
-            // Try to read some data from the pipe.
-            if (result.Value() > 0) {
-                THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
-                    << TErrorAttribute("fd", jobDescriptor);
-            }
-            reader->Abort();
         }));
     }
 
@@ -991,6 +998,8 @@ private:
             statistics.AddSample("/data/input", *dataStatistics);
         }
 
+        statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
+
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
             DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
         }
@@ -1038,8 +1047,16 @@ private:
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
-        for (int index = 0; index < MaximumTmpfsSizes_.size(); ++index) {
-            statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/max_size", index), MaximumTmpfsSizes_[index]);
+        auto tmpfsSizes = GetTmpfsSizes();
+        if (tmpfsSizes) {
+            YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
+            for (int index = 0; index < MaximumTmpfsSizes_.size(); ++index) {
+                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/max_size", index), MaximumTmpfsSizes_[index]);
+                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/size", index), (*tmpfsSizes)[index]);
+            }
+
+            statistics.AddSample("/user_job/tmpfs_size", std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll));
+            statistics.AddSample("/user_job/max_tmpfs_size", std::accumulate(MaximumTmpfsSizes_.begin(), MaximumTmpfsSizes_.end(), 0ll));
         }
 
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
@@ -1274,7 +1291,7 @@ private:
         return rss;
     }
 
-    std::vector<i64> GetTmpfsSizes() const
+    std::optional<std::vector<i64>> GetTmpfsSizes() const
     {
         std::vector<i64> tmpfsSizes;
         tmpfsSizes.reserve(Config_->TmpfsPaths.size());
@@ -1288,6 +1305,7 @@ private:
                     "Failed to get tmpfs size") << ex;
                 JobErrorPromise_.TrySet(error);
                 CleanupUserProcesses();
+                return std::nullopt;
             }
         }
         return tmpfsSizes;
@@ -1321,8 +1339,11 @@ private:
 
         auto rss = getMemoryUsage();
         auto tmpfsSizes = GetTmpfsSizes();
+        if (!tmpfsSizes) {
+            return;
+        }
         i64 memoryLimit = UserJobSpec_.memory_limit();
-        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll);
+        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll);
 
         CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
@@ -1336,15 +1357,15 @@ private:
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
-                << TErrorAttribute("tmpfs", tmpfsSizes)
+                << TErrorAttribute("tmpfs", *tmpfsSizes)
                 << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
         }
 
-        YT_VERIFY(tmpfsSizes.size() == MaximumTmpfsSizes_.size());
-        for (int index = 0; index < tmpfsSizes.size(); ++index) {
-            MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), tmpfsSizes[index]);
+        YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
+        for (int index = 0; index < tmpfsSizes->size(); ++index) {
+            MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), (*tmpfsSizes)[index]);
         }
 
         Host_->SetUserJobMemoryUsage(currentMemoryUsage);

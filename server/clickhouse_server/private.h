@@ -11,6 +11,8 @@ extern const NLogging::TLogger ServerLogger;
 extern const NLogging::TLogger EngineLogger;
 extern const NProfiling::TProfiler ServerProfiler;
 
+constexpr int MemoryLimitExceededExitCode = 42;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -28,7 +30,9 @@ DECLARE_REFCOUNTED_CLASS(TDictionaryConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TSubqueryConfig);
+DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
+DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
 
 class TClickHouseTableSchema;
@@ -43,6 +47,12 @@ DEFINE_ENUM(EQueryKind,
     ((NoQuery)(0))
     ((InitialQuery)(1))
     ((SecondaryQuery)(2))
+);
+
+//! This enum corresponds to DB::ClientInfo::Interface.
+DEFINE_ENUM(EInterface,
+    ((TCP)(1))
+    ((HTTP)(2))
 );
 
 using TQueryId = TGuid;
@@ -102,9 +112,12 @@ class KeyCondition;
 struct SelectQueryInfo;
 class Field;
 class StorageFactory;
-class ISecurityManager;
+class IUsersManager;
 class IExternalLoaderConfigRepository;
 class IRuntimeComponentsFactory;
+struct ProcessListForUser;
+struct QueryStatusInfo;
+class IAST;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);

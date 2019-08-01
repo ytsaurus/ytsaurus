@@ -67,7 +67,7 @@ class TestErasure(YTEnvSetup):
         for r in replicas:
             replica_index = r.attributes["index"]
             address = str(r)
-            print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
+            print_debug("Banning node %s containing replica %d" % (address, replica_index))
             set_node_banned(address, True)
             wait(lambda: self._is_chunk_ok(chunk_id))
             assert read_table("//tmp/table") == [{"b":"hello"}]

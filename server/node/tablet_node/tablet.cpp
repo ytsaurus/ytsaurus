@@ -195,6 +195,11 @@ bool TTabletSnapshot::IsProfilingEnabled() const
     return !ProfilerTags.empty();
 }
 
+void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
+{
+    LockManager->Wait(timestamp);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReplicaInfo::TTableReplicaInfo(
@@ -324,6 +329,7 @@ TTablet::TTablet(
     , WriterConfig_(New<TTabletChunkWriterConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
+    , LockManager_(New<TLockManager>())
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
 { }
@@ -368,6 +374,7 @@ TTablet::TTablet(
         PivotKey_,
         NextPivotKey_))
     , Context_(context)
+    , LockManager_(New<TLockManager>())
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
 {
@@ -440,6 +447,11 @@ void TTablet::SetStoreManager(IStoreManagerPtr storeManager)
     StoreManager_ = std::move(storeManager);
 }
 
+const TLockManagerPtr& TTablet::GetLockManager() const
+{
+    return LockManager_;
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -482,6 +494,8 @@ void TTablet::Save(TSaveContext& context) const
     for (const auto& partition : PartitionList_) {
         savePartition(*partition);
     }
+
+    Save(context, *LockManager_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -565,6 +579,11 @@ void TTablet::Load(TLoadContext& context)
             YT_VERIFY(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
             PartitionList_.push_back(std::move(partition));
         }
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 100012) {
+        Load(context, *LockManager_);
     }
 
     UpdateOverlappingStoreCount();
@@ -1045,7 +1064,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     if (slot) {
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
-        snapshot->TabletManager = slot->GetTabletManager();
         snapshot->TabletCellRuntimeData = slot->GetRuntimeData();
     }
 
@@ -1074,6 +1092,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->FlushThrottler = FlushThrottler_;
     snapshot->CompactionThrottler = CompactionThrottler_;
     snapshot->PartitioningThrottler = PartitioningThrottler_;
+    snapshot->LockManager = LockManager_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
@@ -1290,6 +1309,26 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     }
 }
 
+int TTablet::ComputeEdenOverlappingStoreCount() const
+{
+    std::map<TOwningKey, int> keyMap;
+    for (const auto& store : Eden_->Stores()) {
+        ++keyMap[store->GetMinKey()];
+        --keyMap[store->GetUpperBoundKey()];
+    }
+
+    int curOverlappingCount = 0;
+    int maxOverlappingCount = 0;
+    for (const auto& [key, value] : keyMap) {
+        Y_UNUSED(key);
+
+        curOverlappingCount += value;
+        maxOverlappingCount = std::max(maxOverlappingCount, curOverlappingCount);
+    }
+
+    return maxOverlappingCount;
+}
+
 void TTablet::UpdateOverlappingStoreCount()
 {
     int overlappingStoreCount = 0;
@@ -1303,7 +1342,7 @@ void TTablet::UpdateOverlappingStoreCount()
             criticalPartitionCount++;
         }
     }
-    overlappingStoreCount += Eden_->Stores().size();
+    overlappingStoreCount += ComputeEdenOverlappingStoreCount();
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
         YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",

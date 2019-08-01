@@ -24,6 +24,16 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicTableLock
+{
+    NTransactionClient::TTimestamp Timestamp;
+    int PendingTabletCount;
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
@@ -57,6 +67,8 @@ private:
         NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
         NTransactionClient::TTransactionId CurrentMountTransactionId;
         TTabletBalancerConfigPtr TabletBalancerConfig;
+        THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
+        int UnconfirmedDynamicTableLockCount = 0;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -92,6 +104,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CurrentMountTransactionId);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, DynamicTableLocks);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
@@ -152,6 +166,13 @@ public:
     void ValidateAllTabletsUnmounted(TStringBuf message) const;
 
     std::vector<TError> GetTabletErrors(std::optional<int> limit = std::nullopt) const;
+
+    void AddDynamicTableLock(
+        NTransactionClient::TTransactionId transactionId,
+        NTransactionClient::TTimestamp timestamp,
+        int pending);
+    void ConfirmDynamicTableLock(NTransactionClient::TTransactionId transactionId);
+    void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;

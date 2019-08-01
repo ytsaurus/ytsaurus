@@ -8,7 +8,7 @@
 
 #include <yt/server/master/cell_master/automaton.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/entity_map.h>
@@ -48,42 +48,51 @@ class TCypressManager
 {
 public:
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
-    ~TCypressManager();
 
     void Initialize();
 
     void RegisterHandler(INodeTypeHandlerPtr handler);
     const INodeTypeHandlerPtr& FindHandler(NObjectClient::EObjectType type);
     const INodeTypeHandlerPtr& GetHandler(NObjectClient::EObjectType type);
-    const INodeTypeHandlerPtr& GetHandler(const TCypressNodeBase* node);
+    const INodeTypeHandlerPtr& GetHandler(const TCypressNode* node);
 
-    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
+    //! Creates a new shard without any references to it.
+    TCypressShard* CreateShard(TCypressShardId shardId);
+
+    //! Assigns a given shard to the node. The node must not already be assigned any shard.
+    void SetShard(TCypressNode* node, TCypressShard* shard);
+
+    //! Resets the node's shard. This call is noop if no shard is assigned to the node.
+    void ResetShard(TCypressNode* node);
+
+    //! Increments the node counter of a given shard.
+    void UpdateShardNodeCount(TCypressShard* shard, NSecurityServer::TAccount* account, int delta);
 
     //! Creates a factory for creating nodes.
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
+        TCypressShard* shard,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options);
 
     //! Creates a new node and registers it.
-    TCypressNodeBase* CreateNode(
+    TCypressNode* CreateNode(
         TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
-        INodeTypeHandlerPtr handler,
+        const INodeTypeHandlerPtr& handler,
         NSecurityServer::TAccount* account,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes);
 
     //! Creates a new node and registers it.
-    TCypressNodeBase* InstantiateNode(
+    TCypressNode* InstantiateNode(
         TNodeId id,
         NObjectClient::TCellTag externalCellTag);
 
     //! Clones a node and registers its clone.
-    TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode,
+    TCypressNode* CloneNode(
+        TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
 
@@ -91,16 +100,16 @@ public:
     TMapNode* GetRootNode() const;
 
     //! Finds node by id, throws if nothing is found.
-    TCypressNodeBase* GetNodeOrThrow(const TVersionedNodeId& id);
+    TCypressNode* GetNodeOrThrow(const TVersionedNodeId& id);
 
     NYPath::TYPath GetNodePath(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
     NYPath::TYPath GetNodePath(
         const ICypressNodeProxy* nodeProxy);
 
-    TCypressNodeBase* ResolvePathToTrunkNode(
+    TCypressNode* ResolvePathToTrunkNode(
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction = nullptr);
 
@@ -110,27 +119,27 @@ public:
 
     //! Similar to |FindNode| provided by |DECLARE_ENTITY_MAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.
-    TCypressNodeBase* FindNode(
-        TCypressNodeBase* trunkNode,
+    TCypressNode* FindNode(
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    TCypressNodeBase* GetVersionedNode(
-        TCypressNodeBase* trunkNode,
+    TCypressNode* GetVersionedNode(
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
     ICypressNodeProxyPtr GetNodeProxy(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction = nullptr);
 
-    TCypressNodeBase* LockNode(
-        TCypressNodeBase* trunkNode,
+    TCypressNode* LockNode(
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool recursive = false,
         bool dontLockForeign = false);
 
     TLock* CreateLock(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool waitable);
@@ -139,30 +148,30 @@ public:
     //! specified transaction. Also destroys all pending locks. Adjusts the
     //! version tree of the node correspondingly.
     void UnlockNode(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
     void SetModified(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         EModificationType modificationType);
 
-    void SetAccessed(TCypressNodeBase* trunkNode);
+    void SetAccessed(TCypressNode* trunkNode);
 
-    void SetExpirationTime(TCypressNodeBase* node, std::optional<TInstant> time);
+    void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time);
 
-    typedef SmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
+    typedef SmallVector<TCypressNode*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true);
 
     void AbortSubtreeTransactions(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
     void AbortSubtreeTransactions(NYTree::INodePtr node);
 
-    bool IsOrphaned(TCypressNodeBase* trunkNode);
+    bool IsOrphaned(TCypressNode* trunkNode);
 
     const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
 
@@ -171,18 +180,19 @@ public:
     //! #trunkNode is the last element.
     TCypressNodeList GetNodeOriginators(
         NTransactionServer::TTransaction* transaction,
-        TCypressNodeBase* trunkNode);
+        TCypressNode* trunkNode);
 
     //! Same as GetNodeOverrides but #trunkNode is the first element.
     TCypressNodeList GetNodeReverseOriginators(
         NTransactionServer::TTransaction* transaction,
-        TCypressNodeBase* trunkNode);
+        TCypressNode* trunkNode);
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
+    DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
 
-    DECLARE_SIGNAL(void(TCypressNodeBase*), NodeCreated);
+    DECLARE_SIGNAL(void(TCypressNode*), NodeCreated);
 
 private:
     class TNodeFactory;

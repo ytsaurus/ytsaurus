@@ -8,7 +8,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMedium::TMedium(TMediumId id)
-    : TObjectBase(id)
+    : TObject(id)
     , Index_(-1)
     , Config_(New<TMediumConfig>())
     , Acd_(this)
@@ -16,7 +16,7 @@ TMedium::TMedium(TMediumId id)
 
 void TMedium::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -30,7 +30,7 @@ void TMedium::Save(NCellMaster::TSaveContext& context) const
 
 void TMedium::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

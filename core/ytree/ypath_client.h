@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
+#include <any>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,12 @@ namespace NYT::NYTree {
 class TYPathRequest
    : public NRpc::IClientRequest
 {
+public:
+    //! Enables tagging requests with arbitrary payload.
+    //! These tags are propagated to the respective responses (if a particular implementation supports this).
+    //! This simplifies correlating requests with responses within a batch.
+    DEFINE_BYREF_RW_PROPERTY(std::any, Tag);
+
 public:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
 
@@ -114,8 +122,11 @@ class TYPathResponse
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
+    //! A copy of the request's tag.
+    DEFINE_BYREF_RW_PROPERTY(std::any, Tag);
+
 public:
-    void Deserialize(TSharedRefArray message);
+    void Deserialize(const TSharedRefArray& message);
 
 protected:
     virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt);

@@ -12,6 +12,11 @@ TGroup::TGroup(TGroupId id)
     : TSubject(id)
 { }
 
+TString TGroup::GetObjectName() const
+{
+    return Format("Group %Qv", Name_);
+}
+
 void TGroup::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);

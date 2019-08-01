@@ -1563,9 +1563,10 @@ private:
     void DoClose()
     {
         const auto& path = RichPath_.GetPath();
+        auto nativeCellTag = CellTagFromId(ObjectId_);
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        YT_LOG_INFO("Closing table");
+        YT_LOG_DEBUG("Closing table");
         {
             auto error = WaitFor(UnderlyingWriter_->Close());
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
@@ -1573,7 +1574,7 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1603,7 +1604,7 @@ private:
 
         UploadTransaction_->Detach();
 
-        YT_LOG_INFO("Table closed");
+        YT_LOG_DEBUG("Table closed");
     }
 };
 
@@ -1627,7 +1628,6 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
             transactionId);
 
     auto writerConfig = CloneYsonSerializable(config);
-
     writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", richPath.GetPath()));
 
     const auto& path = richPath.GetPath();
@@ -1650,18 +1650,17 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
     }
 
     auto objectId = userObject.ObjectId;
-    auto cellTag = userObject.CellTag;
-
-    auto uploadMasterChannel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    auto nativeCellTag = CellTagFromId(objectId);
+    auto externalCellTag = userObject.ExternalCellTag;
     auto objectIdPath = FromObjectId(objectId);
 
     TTableWriterOptionsPtr writerOptions = options;
     TTableUploadOptions tableUploadOptions;
 
     {
-        YT_LOG_INFO("Requesting extended table attributes");
+        YT_LOG_DEBUG("Requesting extended table attributes");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, nativeCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req = TCypressYPathProxy::Get(objectIdPath);
@@ -1720,7 +1719,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
             ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
         }
 
-        YT_LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
+        YT_LOG_DEBUG("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
             writerOptions->Account,
             writerOptions->CompressionCodec,
             writerOptions->ErasureCodec);
@@ -1728,9 +1727,9 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
 
     ITransactionPtr uploadTransaction;
     {
-        YT_LOG_INFO("Starting table upload");
+        YT_LOG_DEBUG("Starting table upload");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1762,7 +1761,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
 
             uploadTransaction = client->AttachTransaction(uploadTransactionId, options);
 
-            YT_LOG_INFO("Table upload started (UploadTransactionId: %v)",
+            YT_LOG_DEBUG("Table upload started (UploadTransactionId: %v)",
                 uploadTransactionId);
         }
     }
@@ -1771,9 +1770,9 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
     TChunkListId chunkListId;
 
     {
-        YT_LOG_INFO("Requesting table upload parameters");
+        YT_LOG_DEBUG("Requesting table upload parameters");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
@@ -1798,7 +1797,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
                 lastKey.Begin() + tableUploadOptions.TableSchema.GetKeyColumnCount());
         }
 
-        YT_LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
+        YT_LOG_DEBUG("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
              chunkListId,
              static_cast<bool>(writerLastKey));
     }
@@ -1813,7 +1812,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
         tableUploadOptions.TableSchema,
         writerLastKey,
         client,
-        cellTag,
+        externalCellTag,
         uploadTransaction->GetId(),
         chunkListId,
         TChunkTimestamps{timestamp, timestamp},
@@ -1821,7 +1820,7 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
         throttler,
         blockCache);
 
-    YT_LOG_INFO("Table opened");
+    YT_LOG_DEBUG("Table opened");
 
     return New<TSchemalessTableWriter>(
         Logger,

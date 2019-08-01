@@ -129,10 +129,15 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
 
-    Load(context, Parents_);
+    if (context.GetVersion() < EMasterSnapshotVersion::ChunkViewToParentsArray) {
+        auto parents = Load<std::vector<TChunkList*>>(context);
+        Parents_.insert(Parents_.end(), parents.begin(), parents.end());
+    } else {
+        Load(context, Parents_);
+    }
 
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 837) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::YT_10726_StagedChunkExpiration) {
         ExpirationTime_ = Load<TInstant>(context);
     }
 
@@ -161,12 +166,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-void TChunk::AddParent(TChunkList* parent)
+void TChunk::AddParent(TChunkTree* parent)
 {
     Parents_.push_back(parent);
 }
 
-void TChunk::RemoveParent(TChunkList* parent)
+void TChunk::RemoveParent(TChunkTree* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
     YT_VERIFY(it != Parents_.end());

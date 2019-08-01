@@ -10,6 +10,8 @@ namespace NYT::NControllerAgent {
 
 namespace NProto {
 
+class TJobMetrics;
+class TTreeTaggedJobMetrics;
 class TPoolTreeSchedulingTagFilter;
 class TPoolTreeSchedulingTagFilters;
 class TOperationDescriptor;
@@ -28,7 +30,9 @@ DEFINE_ENUM(EControllerState,
     ((Preparing)(0))
     ((Running)(1))
     ((Failing)(2))
-    ((Finished)(3))
+    ((Completed)(3))
+    ((Failed)(4))
+    ((Aborted)(5))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

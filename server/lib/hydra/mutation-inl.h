@@ -39,13 +39,12 @@ std::unique_ptr<TMutation> CreateMutation(
     auto mutation = CreateMutation(std::move(hydraManager), request);
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
-            auto& mutationResponse = mutationContext->Response();
             try {
                 (target->*handler)(&request);
                 static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
-                mutationResponse.Data = cachedResponseMessage;
+                mutationContext->SetResponseData(cachedResponseMessage);
             } catch (const std::exception& ex) {
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
             }
         }));
     return mutation;
@@ -72,13 +71,12 @@ std::unique_ptr<TMutation> CreateMutation(
     auto mutation = CreateMutation(std::move(hydraManager), context);
     mutation->SetHandler(
         BIND([=] (TMutationContext* mutationContext) {
-            auto& mutationResponse = mutationContext->Response();
             auto response = ObjectPool<TResponse>().Allocate();
             try {
                 (target->*handler)(context, &context->Request(), response.get());
-                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
+                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
             }
         }));
     return mutation;
@@ -97,13 +95,12 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
-            auto& mutationResponse = mutationContext->Response();
             auto response = ObjectPool<TResponse>().Allocate();
             try {
                 (target->*handler)(context, &request, response.get());
-                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
+                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
             }
         }));
     return mutation;

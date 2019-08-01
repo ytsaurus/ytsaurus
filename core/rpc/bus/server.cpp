@@ -18,6 +18,7 @@ namespace NYT::NRpc::NBus {
 
 using namespace NConcurrency;
 using namespace NYT::NBus;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -202,6 +203,13 @@ private:
                 serviceName,
                 realmId,
                 requestId);
+            return;
+        }
+
+        if (attachments.empty()) {
+            YT_LOG_WARNING("Streaming payload without attachments; canceling request (RequestId: %v)",
+                requestId);
+            service->HandleRequestCancelation(requestId);
             return;
         }
 

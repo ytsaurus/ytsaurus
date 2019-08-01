@@ -28,7 +28,7 @@ message TRspExecute
     repeated int32 part_counts = 1;
 
     // Hydra revision at the beginning of each YPath request execution.
-    repeated int64 revisions = 2;
+    repeated uint64 revisions = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

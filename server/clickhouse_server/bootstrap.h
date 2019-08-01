@@ -4,9 +4,10 @@
 
 #include "host.h"
 
+#include <yt/ytlib/monitoring/public.h>
+
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
-#include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/actions/public.h>
 #include <yt/core/bus/public.h>
@@ -24,8 +25,32 @@ namespace NYT::NClickHouseServer {
 
 class TBootstrap
 {
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TClickHouseServerBootstrapConfigPtr, Config);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::IClientPtr, RootClient)
+    DEFINE_BYVAL_RO_PROPERTY(TClickHouseHostPtr, Host);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::IConnectionPtr, Connection);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::TClientCachePtr, ClientCache);
+    DEFINE_BYVAL_RO_PROPERTY(IInvokerPtr, WorkerInvoker);
+    DEFINE_BYVAL_RO_PROPERTY(IInvokerPtr, SerializedWorkerInvoker);
+    DEFINE_BYVAL_RO_PROPERTY(TQueryRegistryPtr, QueryRegistry);
+
+public:
+    TBootstrap(
+        TClickHouseServerBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        TString instanceId,
+        TString cliqueId,
+        ui16 rpcPort,
+        ui16 monitoringPort,
+        ui16 tcpPort,
+        ui16 httpPort);
+
+    void Run();
+
+    const IInvokerPtr& GetControlInvoker() const;
+
 private:
-    const TClickHouseServerBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
     TString InstanceId_;
     TString CliqueId_;
@@ -42,41 +67,12 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     ICoreDumperPtr CoreDumper_;
 
-    NApi::NNative::IConnectionPtr Connection_;
-    NApi::NNative::TClientCachePtr ClientCache_;
-    NApi::NNative::IClientPtr RootClient_;
-
-    ICoordinationServicePtr CoordinationService;
-    TClickHouseHostPtr ClickHouseHost_;
+    ICoordinationServicePtr CoordinationService_;
 
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
-    IInvokerPtr WorkerInvoker_;
-    IInvokerPtr SerializedWorkerInvoker_;
 
-public:
-    TBootstrap(
-        TClickHouseServerBootstrapConfigPtr config,
-        NYTree::INodePtr configNode,
-        TString instanceId,
-        TString cliqueId,
-        ui16 rpcPort,
-        ui16 monitoringPort,
-        ui16 tcpPort,
-        ui16 httpPort);
-
-    void Run();
-
-    const TClickHouseServerBootstrapConfigPtr& GetConfig() const;
-    const IInvokerPtr& GetControlInvoker() const;
-    const IInvokerPtr& GetWorkerInvoker() const;
-    const IInvokerPtr& GetSerializedWorkerInvoker() const;
-    const NApi::NNative::IConnectionPtr& GetConnection() const;
-    const NApi::NNative::TClientCachePtr& GetClientCache() const;
-    const NApi::NNative::IClientPtr& GetRootClient() const;
-    const TClickHouseHostPtr& GetHost() const;
-
-private:
     void DoRun();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

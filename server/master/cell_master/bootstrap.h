@@ -80,6 +80,7 @@ public:
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
+    const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
     const THydraFacadePtr& GetHydraFacade() const;
     const TWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
@@ -125,6 +126,7 @@ private:
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NHiveServer::TTransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
+    NCypressServer::TPortalManagerPtr PortalManager_;
     THydraFacadePtr HydraFacade_;
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;

@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "private.h"
 #include "fair_share_strategy.h"
+#include "fair_share_tree.h"
 #include "helpers.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
@@ -60,7 +61,6 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/size_literals.h>
 #include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/net/local_address.h>
@@ -72,6 +72,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/permission.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NScheduler {
 
@@ -166,6 +168,7 @@ public:
         : Config_(config)
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
+        , SpecTemplate_(Config_->SpecTemplate)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
     {
@@ -196,7 +199,7 @@ public:
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
 
-            Strategy_ = CreateFairShareStrategy(Config_, this, Bootstrap_->GetControlInvoker(EControlQueue::FairShareStrategy), feasibleInvokers);
+            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
         }
     }
 
@@ -251,7 +254,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::CollectProfiling),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
@@ -391,7 +394,7 @@ public:
     }
 
 
-    void Disconnect(const TError& error)
+    virtual void Disconnect(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -526,12 +529,19 @@ public:
             .ThrowOnError();
     }
 
+    TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
+    {
+        return BIND(&TImpl::DoParseSpec, MakeStrong(this), Passed(std::move(specString)), SpecTemplate_)
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+    }
+
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         TTransactionId transactionId,
         TMutationId mutationId,
-        IMapNodePtr specNode,
-        const TString& user)
+        const TString& user,
+        TParseOperationSpecResult parseSpecResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -542,22 +552,10 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        if (Config_->SpecTemplate) {
-            specNode = PatchNode(Config_->SpecTemplate, specNode)->AsMap();
-        }
-
-        TOperationSpecBasePtr spec;
-        try {
-            spec = ConvertTo<TOperationSpecBasePtr>(specNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
-
+        auto spec = parseSpecResult.Spec;
         auto secureVault = std::move(spec->SecureVault);
-        specNode->RemoveChild("secure_vault");
 
-        auto baseAcl = GetBaseOperationAcl();
+        auto baseAcl = GetOperationBaseAcl();
         if (spec->AddAuthenticatedUserToAcl) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
@@ -572,14 +570,15 @@ public:
         auto runtimeParams = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, baseAcl, user, type);
 
-        auto annotations = specNode->FindChild("annotations");
+        auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
 
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
-            specNode,
+            spec,
+            std::move(parseSpecResult.SpecString),
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
@@ -817,7 +816,7 @@ public:
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
     {
         std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
-        for (const auto& jobId : jobIds) {
+        for (auto jobId : jobIds) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
             jobIdsByShardId[shardId].emplace_back(jobId);
         }
@@ -1110,6 +1109,13 @@ public:
         return ProfilingActionQueue_->GetInvoker();
     }
 
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    {
+        return GetControlInvoker(EControlQueue::FairShareStrategy);
+        // TODO(ignat): make tree thread-safe and enable this separate thread for fair share updates.
+        // return FairShareUpdateActionQueue_->GetInvoker();
+    }
+
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1225,16 +1231,18 @@ public:
         return OperationArchiveVersion_.load();
     }
 
-    TSerializableAccessControlList GetBaseOperationAcl() const
+    TSerializableAccessControlList GetOperationBaseAcl() const
     {
-        YT_VERIFY(BaseOperationAcl_.has_value());
-        return *BaseOperationAcl_;
+        YT_VERIFY(OperationBaseAcl_.has_value());
+        return *OperationBaseAcl_;
     }
 
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
+
+    NYTree::INodePtr SpecTemplate_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
@@ -1243,6 +1251,7 @@ private:
 
     const TThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
+    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FairShareUpdate");
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1308,13 +1317,44 @@ private:
     TEnumIndexedVector<std::vector<TOperationPtr>, EOperationState> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
 
-    std::optional<NSecurityClient::TSerializableAccessControlList> BaseOperationAcl_;
+    std::optional<NSecurityClient::TSerializableAccessControlList> OperationBaseAcl_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+
+    TParseOperationSpecResult DoParseSpec(TYsonString specString, INodePtr specTemplate) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        IMapNodePtr specNode;
+        try {
+            specNode = ConvertToNode(specString)->AsMap();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
+        }
+
+        if (specTemplate) {
+            specNode = PatchNode(specTemplate, specNode)->AsMap();
+        }
+
+        TParseOperationSpecResult result;
+        try {
+            result.Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
+        }
+
+        specNode->RemoveChild("secure_vault");
+        result.SpecNode = specNode;
+        result.SpecString = ConvertToYsonString(specNode);
+
+        return result;
+    }
 
     void DoAttachJobContext(
         const NYTree::TYPath& path,
@@ -1833,15 +1873,23 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_effective_acl");
         if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error getting operations effective acl")
-                << rspOrError;
+            YT_LOG_WARNING(rspOrError, "Error getting operations effective ACL");
+            return;
         }
-        auto operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(
-            TYsonString(rspOrError.ValueOrThrow()->value()));
-        BaseOperationAcl_.emplace();
+
+        TSerializableAccessControlList operationsEffectiveAcl;
+        try {
+            const auto& rsp = rspOrError.Value();
+            operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(TYsonString(rsp->value()));
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error parsing operations effective ACL");
+            return;
+        }
+
+        OperationBaseAcl_.emplace();
         for (const auto& ace : operationsEffectiveAcl.Entries) {
             if (ace.Action == ESecurityAction::Allow && Any(ace.Permissions & EPermission::Write)) {
-                BaseOperationAcl_->Entries.emplace_back(
+                OperationBaseAcl_->Entries.emplace_back(
                     ESecurityAction::Allow,
                     ace.Subjects,
                     EPermissionSet(EPermission::Read | EPermission::Manage));
@@ -1899,6 +1947,8 @@ private:
 
             Config_ = newConfig;
             ValidateConfig();
+
+            SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
             for (const auto& nodeShard : NodeShards_) {
                 nodeShard->GetInvoker()->Invoke(
@@ -2020,7 +2070,7 @@ private:
     void CheckUnschedulableOperations()
     {
         for (auto pair : Strategy_->GetUnschedulableOperations()) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& error = pair.second;
             auto operation = FindOperation(operationId);
             if (!operation) {
@@ -2066,7 +2116,7 @@ private:
             for (const auto& pair : *CachedExecNodeDescriptors_) {
                 const auto& descriptor = pair.second;
                 if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
-                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
+                    ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
             }
         }
@@ -2092,7 +2142,22 @@ private:
             // NB(babenko): now we only validate this on start but not during revival
             // NB(ignat): this validation must be just before operation registration below
             // to avoid violation of pool limits. See YT-10802.
-            Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
+
+            auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
+
+            const auto& spec = operation->Spec();
+            std::vector<TString> erasedTrees;
+            for (const auto& [treeId, error] : poolLimitViolations) {
+                if (spec->TentativePoolTrees && spec->TentativePoolTrees->contains(treeId)) {
+                    erasedTrees.push_back(treeId);
+                    // No need to throw now.
+                    continue;
+                }
+
+                THROW_ERROR error;
+            }
+
+            operation->SetErasedTrees(std::move(erasedTrees));
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
@@ -2115,7 +2180,7 @@ private:
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Failed to create cypress node for operation %v",
+            auto wrappedError = TError("Failed to create Cypress node for operation %v",
                 operation->GetId())
                 << ex;
             operation->SetStarted(wrappedError);
@@ -2163,7 +2228,7 @@ private:
 
             operation->Transactions() = initializeResult.Transactions;
             operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
-            operation->BriefSpec() = BuildBriefSpec(operation);
+            operation->BriefSpecString() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
@@ -2245,7 +2310,7 @@ private:
 
                 operation->Transactions() = std::move(result.Transactions);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
-                operation->BriefSpec() = BuildBriefSpec(operation);
+                operation->BriefSpecString() = BuildBriefSpec(operation);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2473,7 +2538,7 @@ private:
         fluent
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
+            .Item("spec").Value(operation->GetSpecString())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
@@ -2499,6 +2564,15 @@ private:
         operation->Cancel();
     }
 
+    void ProcessUnregisterOperationResult(
+        const TOperationPtr& operation,
+        const TOperationControllerUnregisterResult& result) const
+    {
+        if (!result.ResidualJobMetrics.empty()) {
+            GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
+        }
+    }
+
     void DoCompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2510,7 +2584,7 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
         YT_LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
 
@@ -2563,8 +2637,13 @@ private:
             }
 
             // Notify controller that it is going to be disposed.
-            const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Unregister()));
+            {
+                const auto& controller = operation->GetController();
+                auto resultOrError = WaitFor(controller->Unregister());
+                if (resultOrError.IsOK()) {
+                    ProcessUnregisterOperationResult(operation, resultOrError.Value());
+                }
+            }
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
@@ -2767,10 +2846,9 @@ private:
             .Run())
             .ValueOrThrow();
 
-        const auto& controller = operation->GetController();
-        if (controller) {
+        if (const auto& controller = operation->GetController()) {
             try {
-                WaitFor(controller->Abort())
+                WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to abort controller of operation %v",
@@ -2819,10 +2897,12 @@ private:
 
         SubmitOperationToCleaner(operation, operationProgress);
 
-        if (controller) {
+        if (const auto& controller = operation->GetController()) {
             // Notify controller that it is going to be disposed.
-            const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Unregister()));
+            auto resultOrError = WaitFor(controller->Unregister());
+            if (resultOrError.IsOK()) {
+                ProcessUnregisterOperationResult(operation, resultOrError.Value());
+            }
         }
 
         LogOperationFinished(operation, logEventType, error, operationProgress.Progress);
@@ -3032,6 +3112,7 @@ private:
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()
+                .Item("operation_base_acl").Value(OperationBaseAcl_)
             .EndMap();
     }
 
@@ -3104,7 +3185,7 @@ private:
 
     void HandleOrphanedOperation(const TOperationPtr& operation)
     {
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
@@ -3472,19 +3553,24 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
     return Impl_->GetOperationOrThrow(idOrAlias);
 }
 
+TFuture<TParseOperationSpecResult> TScheduler::ParseSpec(TYsonString specString) const
+{
+    return Impl_->ParseSpec(std::move(specString));
+}
+
 TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     TTransactionId transactionId,
     TMutationId mutationId,
-    IMapNodePtr spec,
-    const TString& user)
+    const TString& user,
+    TParseOperationSpecResult parseSpecResult)
 {
     return Impl_->StartOperation(
         type,
         transactionId,
         mutationId,
-        spec,
-        user);
+        user,
+        std::move(parseSpecResult));
 }
 
 TFuture<void> TScheduler::AbortOperation(
@@ -3591,9 +3677,9 @@ void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     Impl_->ProcessNodeHeartbeat(context);
 }
 
-TSerializableAccessControlList TScheduler::GetBaseOperationAcl() const
+TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {
-    return Impl_->GetBaseOperationAcl();
+    return Impl_->GetOperationBaseAcl();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

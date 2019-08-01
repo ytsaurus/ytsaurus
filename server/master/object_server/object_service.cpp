@@ -9,14 +9,20 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/server/master/object_server/path_resolver.h>
+
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
+
+#include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/message.h>
@@ -35,6 +41,7 @@
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/async_batcher.h>
 
 #include <atomic>
 #include <queue>
@@ -53,15 +60,18 @@ using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
+using namespace NObjectClient;
+using namespace NHiveServer;
 using namespace NCellMaster;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-static NProfiling::TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
-static NProfiling::TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
-static NProfiling::TMonotonicCounter ReadRequestCounter("/read_request_count");
-static NProfiling::TMonotonicCounter WriteRequestCounter("/write_request_count");
+static TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
+static TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
+static TMonotonicCounter ReadRequestCounter("/read_request_count");
+static TMonotonicCounter WriteRequestCounter("/write_request_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,12 +79,12 @@ class TStickyUserErrorCache
 {
 public:
     explicit TStickyUserErrorCache(TDuration expireTime)
-        : ExpireTime_(NProfiling::DurationToCpuDuration(expireTime))
+        : ExpireTime_(DurationToCpuDuration(expireTime))
     { }
 
     TError Get(const TString& userName)
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         {
             TReaderGuard guard(Lock_);
             auto it = Map_.find(userName);
@@ -100,7 +110,7 @@ public:
 
     void Put(const TString& userName, const TError& error)
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         {
             TWriterGuard guard(Lock_);
             Map_.emplace(userName, std::make_pair(error, now + ExpireTime_));
@@ -108,11 +118,11 @@ public:
     }
 
 private:
-    const NProfiling::TCpuDuration ExpireTime_;
+    const TCpuDuration ExpireTime_;
 
     TReaderWriterSpinLock Lock_;
     //! Maps user name to (error, deadline) pairs.
-    THashMap<TString, std::pair<TError, NProfiling::TCpuInstant>> Map_;
+    THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +202,8 @@ private:
 
     TStickyUserErrorCache StickyUserErrorCache_;
 
+    THashMap<TCellTag, TIntrusivePtr<TAsyncBatcher<void>>> CellTagSyncBatcher_;
+
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -208,6 +220,8 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const TString& userName, const TError& error);
+
+    TFuture<void> SyncWithCell(TCellTag cellTag);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
@@ -240,6 +254,7 @@ public:
         , RequestId_(RpcContext_->GetRequestId())
         , HydraFacade_(Owner_->Bootstrap_->GetHydraFacade())
         , HydraManager_(HydraFacade_->GetHydraManager())
+        , HiveManager_(Owner_->Bootstrap_->GetHiveManager())
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
         , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
         , CodicilData_(Format("RequestId: %v, User: %v",
@@ -336,13 +351,14 @@ private:
     const TRequestId RequestId_;
     const THydraFacadePtr HydraFacade_;
     const IHydraManagerPtr HydraManager_;
+    const THiveManagerPtr HiveManager_;
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
     const TString CodicilData_;
 
     struct TSubrequest
     {
-        IServiceContextPtr Context;
+        IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         TFuture<TMutationResponse> AsyncCommitResult;
         TRequestHeader RequestHeader;
@@ -358,7 +374,10 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
     TUser* User_ = nullptr;
-    bool NeedsUpstreamSync_ = true;
+    bool NeedsSync_ = true;
+    bool SuppressUpstreamSync_ = false;
+    // TODO(babenko): temporary workaround util transactions are fully sharded
+    std::vector<TCellTag> CellTagsToSyncWith_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
@@ -416,6 +435,9 @@ private:
             ToProto(subrequestHeader.mutable_request_id(), RequestId_);
             subrequestHeader.set_retry(subrequestHeader.retry() || RpcContext_->IsRetry());
             subrequestHeader.set_user(UserName_);
+            if (RpcContext_->GetTimeout()) {
+                subrequestHeader.set_timeout(ToProto<i64>(*RpcContext_->GetTimeout()));
+            }
 
             auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
 
@@ -431,6 +453,16 @@ private:
                 SetSuppressAccessTracking(&subrequestHeader, true);
             }
 
+            auto transactionId = GetTransactionId(subrequestHeader);
+            if (transactionId) {
+                auto cellTag = CellTagFromId(transactionId);
+                if (cellTag != Owner_->Bootstrap_->GetCellTag() &&
+                    cellTag != Owner_->Bootstrap_->GetPrimaryCellTag())
+                {
+                    CellTagsToSyncWith_.push_back(cellTag);
+                }
+            }
+
             auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
             auto subcontext = CreateYPathContext(
@@ -439,7 +471,7 @@ private:
                 NLogging::ELogLevel::Debug);
 
             subrequest.RequestMessage = std::move(updatedSubrequestMessage);
-            subrequest.Context = subcontext;
+            subrequest.RpcContext = subcontext;
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 subrequestHeader.service(),
                 subrequestHeader.method());
@@ -449,7 +481,18 @@ private:
             }
         }
 
-        NeedsUpstreamSync_ = !request.suppress_upstream_sync();
+        SuppressUpstreamSync_ = request.suppress_upstream_sync();
+        if (!SuppressUpstreamSync_) {
+            NeedsSync_ = true;
+        }
+
+        SortUnique(CellTagsToSyncWith_);
+        if (!CellTagsToSyncWith_.empty()) {
+            NeedsSync_ = true;
+            YT_LOG_DEBUG("Request will synchronize with secondary cells (RequestId: %v, CellTags: %v)",
+                RequestId_,
+                CellTagsToSyncWith_);
+        }
 
         // The backoff alarm may've been triggered while we were parsing.
         CheckBackoffAlarmTriggered();
@@ -500,18 +543,8 @@ private:
             EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
         }
 
-        if (NeedsUpstreamSync_) {
-            NeedsUpstreamSync_ = false;
-
-            auto result = HydraManager_->SyncWithUpstream();
-            auto optionalError = result.TryGet();
-            if (!optionalError) {
-                result.Subscribe(
-                    BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
-                return false;
-            }
-
-            optionalError->ThrowOnError();
+        if (!SyncIfNeeded()) {
+            return false;
         }
 
         if (ScheduleFinishIfCanceled()) {
@@ -573,8 +606,8 @@ private:
 
     void GuardedRunSlow()
     {
-        auto batchStartTime = NProfiling::GetCpuInstant();
-        auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+        auto batchStartTime = GetCpuInstant();
+        auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         Owner_->ValidateClusterInitialized();
 
@@ -587,7 +620,7 @@ private:
                 break;
             }
 
-            if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
+            if (GetCpuInstant() > batchDeadlineTime) {
                 YT_LOG_DEBUG("Yielding automaton thread");
                 Reschedule();
                 break;
@@ -622,7 +655,7 @@ private:
     bool ExecuteCurrentSubrequest()
     {
         auto& subrequest = Subrequests_[CurrentSubrequestIndex_++];
-        if (!subrequest.Context) {
+        if (!subrequest.RpcContext) {
             ExecuteEmptySubrequest(&subrequest);
             return true;
         }
@@ -654,13 +687,13 @@ private:
 
     void ExecuteEmptySubrequest(TSubrequest* subrequest)
     {
-        OnSubresponse(subrequest, TError());
+        OnSuccessfullSubresponse(subrequest);
     }
 
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(WriteRequestCounter);
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
 
         subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
         subrequest->AsyncCommitResult.Subscribe(
@@ -670,28 +703,25 @@ private:
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(ReadRequestCounter);
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
         TAuthenticatedUserGuard userGuard(SecurityManager_, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
-        NProfiling::TWallTimer timer;
+        TWallTimer timer;
 
-        const auto& context = subrequest->Context;
-
-        // NB: IServiceContext is not thread-safe; get the async result here to avoid races with Reply.
-        auto asyncResponseMessage = context->GetAsyncResponseMessage();
-
+        const auto& context = subrequest->RpcContext;
         try {
             auto rootService = ObjectManager_->GetRootService();
             ExecuteVerb(rootService, context);
         } catch (const TLeaderFallbackException&) {
             YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
                 RequestId_);
-            context->ReplyFrom(ObjectManager_->ForwardToLeader(
-                Owner_->Bootstrap_->GetCellTag(),
+            context->ReplyFrom(ObjectManager_->ForwardObjectRequest(
                 subrequest->RequestMessage,
+                Owner_->Bootstrap_->GetCellTag(),
+                EPeerKind::Leader,
                 RpcContext_->GetTimeout()));
         }
 
@@ -700,13 +730,7 @@ private:
             SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
 
-        // Optimize for the (typical) case of synchronous response.
-        if (asyncResponseMessage.IsSet()) {
-            OnSubresponse(subrequest, asyncResponseMessage.Get());
-        } else {
-            asyncResponseMessage.Subscribe(
-                BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), subrequest));
-        }
+        WaitForSubresponse(subrequest);
     }
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
@@ -716,18 +740,30 @@ private:
             return;
         }
 
-        // Here the context is typically already replied.
-        // A notable exception is when the mutation response comes from Response Keeper.
-        const auto& context = subrequest->Context;
-        if (!context->IsReplied()) {
-            context->Reply(responseOrError.Value().Data);
+        const auto& response = responseOrError.Value();
+        const auto& context = subrequest->RpcContext;
+        if (response.Origin != EMutationResponseOrigin::Commit) {
+            context->Reply(response.Data);
         }
 
-        OnSubresponse(subrequest, responseOrError);
+        WaitForSubresponse(subrequest);
     }
 
-    template <class T>
-    void OnSubresponse(TSubrequest* subrequest, const TErrorOr<T>& result)
+    void WaitForSubresponse(TSubrequest* subrequest)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // Optimize for the (typical) case of synchronous response.
+        const auto& context = subrequest->RpcContext;
+        if (context->IsReplied()) {
+            OnSuccessfullSubresponse(subrequest);
+        } else {
+            context->GetAsyncResponseMessage().Subscribe(
+                BIND(&TExecuteSession::OnSubresponse, MakeStrong(this), subrequest));
+        }
+    }
+
+    void OnSubresponse(TSubrequest* subrequest, const TErrorOr<TSharedRefArray>& result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -735,6 +771,13 @@ private:
             Reply(result);
             return;
         }
+
+        OnSuccessfullSubresponse(subrequest);
+    }
+
+    void OnSuccessfullSubresponse(TSubrequest* subrequest)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (subrequest->TraceContext) {
             subrequest->TraceContext->Finish();
@@ -779,8 +822,8 @@ private:
 
             for (auto index = 0; index < CurrentSubrequestIndex_; ++index) {
                 const auto& subrequest = Subrequests_[index];
-                if (subrequest.Context) {
-                    const auto& subresponseMessage = subrequest.Context->GetResponseMessage();
+                if (subrequest.RpcContext) {
+                    const auto& subresponseMessage = subrequest.RpcContext->GetResponseMessage();
                     response.add_part_counts(subresponseMessage.Size());
                     attachments.insert(
                         attachments.end(),
@@ -810,6 +853,36 @@ private:
         if (FinishScheduled_.compare_exchange_strong(expected, true)) {
             Owner_->EnqueueFinishedSession(this);
         }
+    }
+
+    bool SyncIfNeeded()
+    {
+        if (!NeedsSync_) {
+            return true;
+        }
+        NeedsSync_ = false;
+
+        std::vector<TFuture<void>> asyncResults;
+
+        if (!SuppressUpstreamSync_) {
+            auto result = HydraManager_->SyncWithUpstream();
+            if (!result.IsSet() || !result.Get().IsOK()) {
+                asyncResults.push_back(std::move(result));
+            }
+        }
+
+        for (auto cellTag : CellTagsToSyncWith_) {
+            asyncResults.push_back(Owner_->SyncWithCell(cellTag));
+        }
+
+        if (asyncResults.empty()) {
+            return true;
+        }
+
+        Combine(std::move(asyncResults))
+            .Subscribe(BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+
+        return false;
     }
 
     bool ScheduleFinishIfCanceled()
@@ -910,8 +983,8 @@ void TObjectService::EnqueueProcessSessionsCallback()
 
 void TObjectService::ProcessSessions()
 {
-    auto startTime = NProfiling::GetCpuInstant();
-    auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
+    auto startTime = GetCpuInstant();
+    auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
 
@@ -934,7 +1007,7 @@ void TObjectService::ProcessSessions()
         bucket->Sessions.push(std::move(session));
     });
 
-    while (!BucketHeap_.empty() && NProfiling::GetCpuInstant() < deadlineTime) {
+    while (!BucketHeap_.empty() && GetCpuInstant() < deadlineTime) {
         auto* bucket = BucketHeap_.front();
         YT_ASSERT(bucket->InHeap);
 
@@ -987,6 +1060,27 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
 {
     StickyUserErrorCache_.Put(userName, error);
+}
+
+TFuture<void> TObjectService::SyncWithCell(TCellTag cellTag)
+{
+    auto it = CellTagSyncBatcher_.find(cellTag);
+    if (it == CellTagSyncBatcher_.end()) {
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto invoker = Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
+        auto batcher = New<TAsyncBatcher<void>>(
+            BIND([cellId, hiveManager = Bootstrap_->GetHiveManager()] {
+                auto* mailbox = hiveManager->FindMailbox(cellId);
+                if (!mailbox) {
+                    return MakeFuture<void>(TError("Unable to sync with an unknown cell %v",
+                        cellId));
+                }
+                return hiveManager->SyncWith(mailbox);
+            }).AsyncVia(invoker),
+            Config_->CrossCellSyncDelay);
+        it = CellTagSyncBatcher_.emplace(cellTag, std::move(batcher)).first;
+    }
+    return it->second->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

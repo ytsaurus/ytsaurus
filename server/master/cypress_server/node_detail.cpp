@@ -1,6 +1,8 @@
 #include "node_detail.h"
 #include "helpers.h"
 #include "node_proxy_detail.h"
+#include "portal_exit_node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config.h>
@@ -50,9 +52,12 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap_(bootstrap)
 { }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable() const
+ETypeFlags TNontemplateCypressNodeTypeHandlerBase::GetFlags() const
 {
-    return false;
+    return
+        ETypeFlags::ReplicateAttributes |
+        ETypeFlags::ReplicateDestroy |
+        ETypeFlags::Creatable;
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
@@ -70,7 +75,7 @@ const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::G
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
+void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
 {
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
@@ -79,13 +84,19 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
     node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
+    // Reset reference to shard.
+    if (node->IsTrunk()) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->ResetShard(node);
+    }
+
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
-    TCypressNodeBase* originatingNode,
-    TCypressNodeBase* branchedNode,
+    TCypressNode* originatingNode,
+    TCypressNode* branchedNode,
     TTransaction* transaction,
     const TLockRequest& lockRequest)
 {
@@ -118,8 +129,8 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
-    TCypressNodeBase* originatingNode,
-    TCypressNodeBase* branchedNode)
+    TCypressNode* originatingNode,
+    TCypressNode* branchedNode)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -136,22 +147,30 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
 }
 
-TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
+TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactory* factory,
     TNodeId hintId,
-    TCellTag externalCellTag)
+    TCypressNode* sourceNode,
+    TAccount* account)
 {
     auto type = GetObjectType();
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto clonedId = hintId
         ? hintId
         : objectManager->GenerateId(type, NullObjectId);
-    return factory->InstantiateNode(clonedId, externalCellTag);
+
+    auto* clonedNode = factory->InstantiateNode(clonedId, sourceNode->GetExternalCellTag());
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* transaction = clonedNode->IsTrunk() ? nullptr : factory->GetTransaction();
+    securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
+
+    return clonedNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
-    TCypressNodeBase* sourceNode,
-    TCypressNodeBase* clonedNode,
+    TCypressNode* sourceNode,
+    TCypressNode* clonedNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
@@ -236,7 +255,7 @@ bool TCompositeNodeBase::TAttributes::AreEmpty() const
 
 void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     TUniquePtrSerializer<>::Save(context, Attributes_);
@@ -244,7 +263,7 @@ void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 
 void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     TUniquePtrSerializer<>::Load(context, Attributes_);
@@ -430,7 +449,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ChildCountDelta_);
 
     // COMPAT(shakurov)
-    if (context.GetVersion() < 835) {
+    if (context.GetVersion() < EMasterSnapshotVersion::SnapshotLockableMapNodes) {
         Children_.ResetToDefaultConstructed();
         // Passing a nullptr as the object manager is a dirty hack: in this
         // particular case, we're sure there's no CoW sharing, and the object
@@ -455,32 +474,36 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
 
 int TMapNode::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + KeyToChild().size();
+    return TObject::GetGCWeight() + KeyToChild().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectType TMapNodeTypeHandler::GetObjectType() const
+template <class TImpl>
+EObjectType TMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
 {
     return EObjectType::MapNode;
 }
 
-ENodeType TMapNodeTypeHandler::GetNodeType() const
+template <class TImpl>
+ENodeType TMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
 {
     return ENodeType::Map;
 }
 
-void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 {
     TBase::DoDestroy(node);
 
     node->ChildCountDelta_ = 0;
-    node->Children_.Reset(Bootstrap_->GetObjectManager());
+    node->Children_.Reset(this->Bootstrap_->GetObjectManager());
 }
 
-void TMapNodeTypeHandler::DoBranch(
-    const TMapNode* originatingNode,
-    TMapNode* branchedNode,
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
+    const TImpl* originatingNode,
+    TImpl* branchedNode,
     const TLockRequest& lockRequest)
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
@@ -488,18 +511,18 @@ void TMapNodeTypeHandler::DoBranch(
     YT_VERIFY(!branchedNode->Children_);
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
         if (originatingNode->IsTrunk()) {
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
             branchedNode->Children_.Assign(originatingNode->Children_, objectManager);
         } else {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
-            THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+            THashMap<TString, TCypressNode*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
                 cypressManager,
-                originatingNode->GetTrunkNode(),
+                originatingNode->GetTrunkNode()->template As<TMapNode>(),
                 originatingNode->GetTransaction(),
                 &keyToChildStorage);
 
@@ -516,13 +539,14 @@ void TMapNodeTypeHandler::DoBranch(
     // Non-snapshot branches only hold changes, i.e. deltas. Which are empty at first.
 }
 
-void TMapNodeTypeHandler::DoMerge(
-    TMapNode* originatingNode,
-    TMapNode* branchedNode)
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
@@ -580,20 +604,22 @@ void TMapNodeTypeHandler::DoMerge(
     branchedNode->Children_.Reset(objectManager);
 }
 
-ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
-    TMapNode* trunkNode,
+template <class TImpl>
+ICypressNodeProxyPtr TMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
+    TImpl* trunkNode,
     TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
-        Bootstrap_,
-        &Metadata_,
+        this->Bootstrap_,
+        &this->Metadata_,
         transaction,
         trunkNode);
 }
 
-void TMapNodeTypeHandler::DoClone(
-    TMapNode* sourceNode,
-    TMapNode* clonedNode,
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
+    TImpl* sourceNode,
+    TImpl* clonedNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
@@ -602,19 +628,19 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* transaction = factory->GetTransaction();
 
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
-    THashMap<TString, TCypressNodeBase*> keyToChildMapStorage;
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
-        sourceNode->GetTrunkNode(),
+        sourceNode->GetTrunkNode()->template As<TMapNode>(),
         transaction,
         &keyToChildMapStorage);
     auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
     auto& clonedNodeKeyToChild = clonedNode->MutableKeyToChild(objectManager);
     auto& clonedNodeChildToKey = clonedNode->MutableChildToKey(objectManager);
 
@@ -636,7 +662,8 @@ void TMapNodeTypeHandler::DoClone(
     }
 }
 
-bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMapNode* branchedNode)
+template <class TImpl>
+bool TMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode)
 {
     if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
         return true;
@@ -648,6 +675,10 @@ bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMap
 
     return !branchedNode->KeyToChild().empty();
 }
+
+// Explicit instantiations.
+template class TMapNodeTypeHandlerImpl<TMapNode>;
+template class TMapNodeTypeHandlerImpl<TPortalExitNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -683,7 +714,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
 int TListNode::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + IndexToChild_.size();
+    return TObject::GetGCWeight() + IndexToChild_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -797,7 +828,7 @@ ENodeType TLinkNode::GetNodeType() const
 
 void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, TargetPath_);
@@ -805,7 +836,7 @@ void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 
 void TLinkNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     Load(context, TargetPath_);
@@ -913,7 +944,7 @@ bool TLinkNodeTypeHandler::HasBranchedChangesImpl(
 ////////////////////////////////////////////////////////////////////////////////
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
+    : TCypressNode(id)
     , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }
 
@@ -924,7 +955,7 @@ ENodeType TDocumentNode::GetNodeType() const
 
 void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(context);
+    TCypressNode::Save(context);
 
     using NYT::Save;
     auto serializedValue = ConvertToYsonStringStable(Value_);
@@ -933,7 +964,7 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
 
 void TDocumentNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context);
+    TCypressNode::Load(context);
 
     using NYT::Load;
     auto serializedValue = Load<TString>(context);

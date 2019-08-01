@@ -94,6 +94,7 @@ DEFINE_ENUM(EControlQueue,
     (MasterConnector)
     (Orchid)
     (PeriodicActivity)
+    (CollectProfiling)
     (Operation)
     (AgentTracker)
     (NodeTracker)

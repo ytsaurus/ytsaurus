@@ -87,8 +87,7 @@ private:
                 YT_VERIFY(idToVersion.emplace(info.CellId, info.ConfigVersion).second);
             }
 
-            // XXX(babenko): a temporarily workaround
-            WaitFor(HydraManager_->SyncWithUpstream().WithTimeout(TDuration::Seconds(15)))
+            WaitFor(HydraManager_->SyncWithUpstream())
                 .ThrowOnError();
 
             for (const auto& pair : TabletManager_->TabletCells()) {

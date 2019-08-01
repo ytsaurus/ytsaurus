@@ -38,17 +38,17 @@ class TestTabletTransactions(YTEnvSetup):
 
         assert select_rows("* from [//tmp/t]") == []
 
-        tx1 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
         insert_rows("//tmp/t", _rows(0, 1), tx=tx1)
 
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet")
         delete_rows("//tmp/t", _keys(0, 1), tx=tx2)
 
         # cannot see transaction effects until not committed
         assert select_rows("* from [//tmp/t]") == []
         assert lookup_rows("//tmp/t", _keys(0, 1)) == []
 
-        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx1)
         assert select_rows("* from [//tmp/t]") == _rows(0, 1)
         assert lookup_rows("//tmp/t", _keys(0, 1)) == _rows(0, 1)
 
@@ -57,8 +57,8 @@ class TestTabletTransactions(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 1), tx=tx2) == []
 
         # cannot commit transaction twice
-        with pytest.raises(YtError): commit_transaction(tx1, sticky=True)
+        with pytest.raises(YtError): commit_transaction(tx1)
 
         # cannot commit conflicting transaction
-        with pytest.raises(YtError): commit_transaction(tx2, sticky=True)
+        with pytest.raises(YtError): commit_transaction(tx2)
 

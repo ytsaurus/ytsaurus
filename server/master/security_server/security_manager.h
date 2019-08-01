@@ -32,7 +32,7 @@ namespace NYT::NSecurityServer {
 //! was carried out.
 struct TPermissionCheckTarget
 {
-    NObjectServer::TObjectBase* Object;
+    NObjectServer::TObject* Object;
     std::optional<TString> Column;
 };
 
@@ -52,7 +52,7 @@ struct TPermissionCheckResult
 
     //! The object whose ACL contains the matching ACE.
     //! Can be |nullptr|.
-    NObjectServer::TObjectBase* Object = nullptr;
+    NObjectServer::TObject* Object = nullptr;
 
     //! Subject to which the decision applies.
     //! Can be |nullptr|.
@@ -140,20 +140,20 @@ public:
 
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
-    void UpdateTabletResourceUsage(NCypressServer::TCypressNodeBase* node, const TClusterResources& resourceUsageDelta);
+    void UpdateTabletResourceUsage(NCypressServer::TCypressNode* node, const TClusterResources& resourceUsageDelta);
 
     //! Adds the #chunk to the resource usage of its staging transaction.
     void UpdateTransactionResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
 
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
-        NCypressServer::TCypressNodeBase* node,
+        NCypressServer::TCypressNode* node,
         TAccount* oldAccount,
         TAccount* newAccount,
         NTransactionServer::TTransaction* transaction);
 
     //! Removes account association (if any) from the node.
-    void ResetAccount(NCypressServer::TCypressNodeBase* node);
+    void ResetAccount(NCypressServer::TCypressNode* node);
 
     //! Updates the name of the account.
     void RenameAccount(TAccount* account, const TString& newName);
@@ -208,14 +208,14 @@ public:
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    TAccessControlDescriptor* FindAcd(NObjectServer::TObjectBase* object);
+    TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object);
 
     //! Returns the object ACD. Fails if no ACD exists.
-    TAccessControlDescriptor* GetAcd(NObjectServer::TObjectBase* object);
+    TAccessControlDescriptor* GetAcd(NObjectServer::TObject* object);
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object);
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
 
 
     //! Sets the authenticated user.
@@ -236,7 +236,7 @@ public:
 
     //! Checks if #object ACL allows access with #permission.
     TPermissionCheckResponse CheckPermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
@@ -253,14 +253,14 @@ public:
      *  If NHiveServer::IsHiveMutation returns |true| then this check is suppressed.
      */
     void ValidatePermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
 
     //! Another overload that uses the current user.
     void ValidatePermission(
-        NObjectServer::TObjectBase* object,
+        NObjectServer::TObject* object,
         EPermission permission,
         const TPermissionCheckOptions& options = {});
 

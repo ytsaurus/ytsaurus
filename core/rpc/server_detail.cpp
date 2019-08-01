@@ -99,15 +99,21 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 
 void TServiceContextBase::ReplyEpilogue()
 {
-    Replied_ = true;
+    {
+        auto responseGuard = Guard(ResponseLock_);
 
-    BuildResponseMessage();
+        YT_ASSERT(!ResponseMessage_);
+        ResponseMessage_ = BuildResponseMessage();
 
-    if (AsyncResponseMessage_) {
-        AsyncResponseMessage_.Set(ResponseMessage_);
+        if (AsyncResponseMessage_) {
+            responseGuard.Release();
+            AsyncResponseMessage_.Set(ResponseMessage_);
+        }
     }
 
     DoReply();
+
+    Replied_.store(true);
 
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
@@ -119,9 +125,14 @@ void TServiceContextBase::SetComplete()
 
 TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto responseGuard  = Guard(ResponseLock_);
+
     if (!AsyncResponseMessage_) {
         AsyncResponseMessage_ = NewPromise<TSharedRefArray>();
         if (ResponseMessage_) {
+            responseGuard.Release();
             AsyncResponseMessage_.Set(ResponseMessage_);
         }
     }
@@ -135,10 +146,8 @@ const TSharedRefArray& TServiceContextBase::GetResponseMessage() const
     return ResponseMessage_;
 }
 
-void TServiceContextBase::BuildResponseMessage()
+TSharedRefArray TServiceContextBase::BuildResponseMessage()
 {
-    YT_ASSERT(!ResponseMessage_);
-
     NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), RequestId_);
     ToProto(header.mutable_error(), Error_);
@@ -156,7 +165,7 @@ void TServiceContextBase::BuildResponseMessage()
         header.set_codec(static_cast<int>(ResponseCodec_));
     }
 
-    ResponseMessage_ = Error_.IsOK()
+    auto message = Error_.IsOK()
         ? CreateResponseMessage(
             header,
             ResponseBody_,
@@ -165,13 +174,16 @@ void TServiceContextBase::BuildResponseMessage()
 
     auto responseMessageError = CheckBusMessageLimits(ResponseMessage_);
     if (!responseMessageError.IsOK()) {
-        ResponseMessage_ = CreateErrorResponseMessage(responseMessageError);
+        return CreateErrorResponseMessage(responseMessageError);
     }
+
+    return message;
 }
 
 bool TServiceContextBase::IsReplied() const
 {
-    return Replied_;
+    VERIFY_THREAD_AFFINITY_ANY();
+    return Replied_.load();
 }
 
 void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)

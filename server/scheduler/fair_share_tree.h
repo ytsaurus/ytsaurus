@@ -34,29 +34,21 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
 
 public:
-    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host)
-        : Host_(host)
-        , Controller_(New<TFairShareStrategyOperationController>(host))
-    { }
+    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host);
 
-    TPoolName GetPoolNameByTreeId(const TString& treeId) const
-    {
-        auto it = TreeIdToPoolNameMap_.find(treeId);
-        YT_VERIFY(it != TreeIdToPoolNameMap_.end());
-        return it->second;
-    }
+    TPoolName GetPoolNameByTreeId(const TString& treeId) const;
 
-    void EraseTree(const TString& treeId)
-    {
-        ErasedTrees_.push_back(treeId);
-        YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
-    }
+    void EraseTree(const TString& treeId);
 };
 
-using TFairShareStrategyOperationStatePtr = TIntrusivePtr<TFairShareStrategyOperationState>;
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
+
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams);
+
+TFairShareStrategyOperationStatePtr
+CreateFairShareStrategyOperationState(IOperationStrategyHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,9 +62,27 @@ NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJob
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class represents fair share tree.
+//!
+//! We maintain following entities:
+//!
+//!   * Actual tree, it contains the latest and consistent stucture of pools and operations.
+//!     This tree represented by fields #RootElement_, #OperationIdToElement_, #Pools_.
+//!     Update of this tree performed in sequentual manner from #Control thread.
+//!
+//!   * Snapshot of the tree with scheduling attributes (fair share ratios, best leaf descendants et. c).
+//!     It is built repeatedly from actual tree by taking snapshot and calculating scheduling attributes.
+//!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree 
+//!     are used in orchid and for profiling.
+//!     This tree represented by fields #GlobalDynamicAttributes_, #ElementIndexes_, #RootElementSnapshot_.
+//!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
+//!     (corresponding operation or pool can be already deleted from all other scheduler structures).
+//!
+//!   * Resource tree, it is thread safe tree that maintain shared attributes of tree elements.
+//!     More details can be find at #TResourceTree.
 class TFairShareTree
     : public TIntrinsicRefCounted
-      , public IFairShareTreeHost
+    , public IFairShareTreeHost
 {
 public:
     TFairShareTree(
@@ -81,7 +91,6 @@ public:
         ISchedulerStrategyHost* host,
         const std::vector<IInvokerPtr>& feasibleInvokers,
         const TString& treeId);
-    IFairShareTreeSnapshotPtr CreateSnapshot();
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
@@ -138,21 +147,19 @@ public:
 
     void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent);
 
-    // NB: This function is public for testing purposes.
-    TError OnFairShareUpdateAt(TInstant now);
-
     void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const;
-
-    void ResetTreeIndexes();
 
     void LogOperationsInfo();
 
     void LogPoolsInfo();
 
-    // NB: This function is public for testing purposes.
+    // NB: This function is public for scheduler simulator.
+    TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now);
+
+    // NB: This function is public for scheduler simulator.
     void OnFairShareLoggingAt(TInstant now);
 
-    // NB: This function is public for testing purposes.
+    // NB: This function is public for scheduler simulator.
     void OnFairShareEssentialLoggingAt(TInstant now);
 
     void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs);
@@ -199,7 +206,6 @@ private:
 
     const NLogging::TLogger Logger;
 
-    using TPoolMap = THashMap<TString, TPoolPtr>;
     TPoolMap Pools_;
 
     THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId_;
@@ -209,8 +215,7 @@ private:
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
 
-    using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
-    TOperationElementPtrByIdMap OperationIdToElement_;
+    TOperationElementMap OperationIdToElement_;
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
 
@@ -234,20 +239,25 @@ private:
         : public TIntrinsicRefCounted
     {
         TRootElementPtr RootElement;
-        TOperationElementByIdMap OperationIdToElement;
+        TRawOperationElementMap OperationIdToElement;
+        TRawPoolMap PoolNameToElement;
         TFairShareStrategyTreeConfigPtr Config;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const;
+        TPool* FindPool(const TString& poolName) const;
     };
 
     typedef TIntrusivePtr<TRootElementSnapshot> TRootElementSnapshotPtr;
-    TRootElementSnapshotPtr RootElementSnapshot_;
 
     class TFairShareTreeSnapshot
         : public IFairShareTreeSnapshot
     {
     public:
-        TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot, const NLogging::TLogger& logger);
+        TFairShareTreeSnapshot(
+            TFairShareTreePtr tree,
+            TRootElementSnapshotPtr rootElementSnapshot,
+            TSchedulingTagFilter nodesFilter,
+            const NLogging::TLogger& logger);
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
 
@@ -264,11 +274,15 @@ private:
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;
         const TRootElementSnapshotPtr RootElementSnapshot_;
-        const NLogging::TLogger Logger;
         const TSchedulingTagFilter NodesFilter_;
+        const NLogging::TLogger Logger;
     };
 
+    NConcurrency::TReaderWriterSpinLock GlobalDynamicAttributesLock_;
     TDynamicAttributesList GlobalDynamicAttributes_;
+    THashMap<TString, int> ElementIndexes_;
+
+    TRootElementSnapshotPtr RootElementSnapshot_;
 
     TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
@@ -283,7 +297,9 @@ private:
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
-    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const;
+    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElement* element) const;
+
+    std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now);
 
     void DoScheduleJobsWithoutPreemptionImpl(
         const TRootElementSnapshotPtr& rootElementSnapshot,
@@ -332,23 +348,25 @@ private:
     void UnregisterSchedulingTagFilter(int index);
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
-    TPoolPtr FindPool(const TString& id);
-    TPoolPtr GetPool(const TString& id);
+    TPoolPtr FindPool(const TString& id) const;
+    TPoolPtr GetPool(const TString& id) const;
+    TPool* FindRecentPoolSnapshot(const TString& id) const;
 
     TPoolPtr GetOrCreatePool(const TPoolName& poolName, TString userName);
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
 
-    TOperationElementPtr FindOperationElement(TOperationId operationId);
-    TOperationElementPtr GetOperationElement(TOperationId operationId);
+    TOperationElementPtr FindOperationElement(TOperationId operationId) const;
+    TOperationElementPtr GetOperationElement(TOperationId operationId) const;
+    TOperationElement* FindRecentOperationElementSnapshot(TOperationId operationId) const;
 
-    TRootElementSnapshotPtr CreateRootElementSnapshot();
+    TCompositeSchedulerElement* GetRecentRootSnapshot() const;
 
     void BuildEssentialPoolsInformation(NYTree::TFluentMap fluent);
-    void BuildElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
-    void BuildEssentialElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent, bool shouldPrintResourceUsage);
-    void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
-    void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
+    void BuildElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
+    void BuildEssentialElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent, bool shouldPrintResourceUsage);
+    void BuildEssentialPoolElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
+    void BuildEssentialOperationElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
 
     NYTree::TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element);
     TCompositeSchedulerElementPtr GetDefaultParentPool();
