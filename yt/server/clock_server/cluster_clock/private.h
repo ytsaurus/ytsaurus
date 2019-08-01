@@ -1,15 +1,16 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/core/logging/log.h>
 
-namespace NYT::NTimestampServer {
+#include <yt/core/profiling/profiler.h>
+
+namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger TimestampServerLogger;
+extern const NLogging::TLogger ClusterClockLogger;
+extern const NProfiling::TProfiler ClusterClockProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTransactionServer
+} // namespace NYT::NClusterClock

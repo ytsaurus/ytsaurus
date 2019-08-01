@@ -1,12 +1,8 @@
+#include "automaton.h"
+#include "bootstrap.h"
+#include "config.h"
 #include "hydra_facade.h"
 #include "private.h"
-#include "automaton.h"
-#include "config.h"
-
-#include <yt/server/master/cell_master/bootstrap.h>
-
-#include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/server/lib/election/election_manager.h>
 #include <yt/server/lib/election/distributed_election_manager.h>
@@ -22,18 +18,7 @@
 #include <yt/server/lib/hydra/private.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/master/object_server/private.h>
-
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
-
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/ytlib/election/cell_manager.h>
-
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -48,7 +33,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT::NCellMaster {
+namespace NYT::NClusterClock {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -58,16 +43,12 @@ using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class THydraFacade::TImpl
     : public TRefCounted
 {
 public:
     TImpl(
-        TCellMasterConfigPtr config,
+        TClusterClockConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -76,15 +57,13 @@ public:
         YT_VERIFY(Bootstrap_);
 
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
-        Automaton_ = New<TMasterAutomaton>(Bootstrap_);
-
-        TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
+        Automaton_ = New<TClockAutomaton>(Bootstrap_);
 
         ResponseKeeper_ = New<TResponseKeeper>(
             Config_->HydraManager->ResponseKeeper,
             GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            NObjectServer::ObjectServerLogger,
-            NObjectServer::ObjectServerProfiler);
+            ClusterClockLogger,
+            ClusterClockProfiler);
 
         auto electionManagerThunk = New<TElectionManagerThunk>();
 
@@ -152,7 +131,8 @@ public:
         Automaton_->LoadSnapshot(reader);
     }
 
-    const TMasterAutomatonPtr& GetAutomaton() const
+
+    const TClockAutomatonPtr& GetAutomaton() const
     {
         return Automaton_;
     }
@@ -188,38 +168,15 @@ public:
         return GuardedInvokers_[queue];
     }
 
-
-    IInvokerPtr GetTransactionTrackerInvoker() const
-    {
-        return TransactionTrackerQueue_->GetInvoker();
-    }
-
-
-    void RequireLeader() const
-    {
-        if (!HydraManager_->IsLeader()) {
-            if (HasMutationContext()) {
-                // Just a precaution, not really expected to happen.
-                auto error = TError("Request can only be served at leaders");
-                YT_LOG_ERROR_UNLESS(HydraManager_->IsRecovery(), error, "Unexpected error");
-                THROW_ERROR error;
-            } else {
-                throw TLeaderFallbackException();
-            }
-        }
-    }
-
 private:
-    const TCellMasterConfigPtr Config_;
+    const TClusterClockConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     IElectionManagerPtr ElectionManager_;
 
     TFairShareActionQueuePtr AutomatonQueue_;
-    TMasterAutomatonPtr Automaton_;
+    TClockAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
-
-    TActionQueuePtr TransactionTrackerQueue_;
 
     TResponseKeeperPtr ResponseKeeper_;
 
@@ -227,7 +184,6 @@ private:
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
 
     ILocalSnapshotJanitorPtr SnapshotJanitor_;
-
 
     void OnStartEpoch()
     {
@@ -247,7 +203,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraFacade::THydraFacade(
-    TCellMasterConfigPtr config,
+    TClusterClockConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
@@ -264,7 +220,7 @@ void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
     Impl_->LoadSnapshot(reader, dump);
 }
 
-const TMasterAutomatonPtr& THydraFacade::GetAutomaton() const
+const TClockAutomatonPtr& THydraFacade::GetAutomaton() const
 {
     return Impl_->GetAutomaton();
 }
@@ -299,17 +255,6 @@ IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue
     return Impl_->GetGuardedAutomatonInvoker(queue);
 }
 
-IInvokerPtr THydraFacade::GetTransactionTrackerInvoker() const
-{
-    return Impl_->GetTransactionTrackerInvoker();
-}
-
-void THydraFacade::RequireLeader() const
-{
-    Impl_->RequireLeader();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellMaster
-
+} // namespace NYT::NClusterClock
