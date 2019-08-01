@@ -1494,8 +1494,7 @@ public:
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
             auto* appendChunkList = branchedChunkList->Children()[index];
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
-            //ResetChunkTreeParent(branchedChunkList, appendChunkList);
-            
+
             chunkManager->AttachToChunkList(tabletChunkList, static_cast<TChunkTree*>(appendChunkList));
 
             auto* tablet = originatingNode->Tablets()[index];
@@ -1518,6 +1517,8 @@ public:
             auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
             hiveManager->PostMessage(mailbox, req);
         }
+
+        originatingNode->RemoveDynamicTableLock(transaction->GetId());
 
         chunkManager->ClearChunkList(branchedChunkList);
     }
@@ -3312,6 +3313,8 @@ public:
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
                 hiveManager->PostMessage(mailbox, req);
             }
+
+            table->RemoveDynamicTableLock(transaction->GetId());
         }
 
         transaction->LockedDynamicTables().clear();
