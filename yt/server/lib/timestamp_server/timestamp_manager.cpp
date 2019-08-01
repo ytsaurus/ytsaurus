@@ -8,7 +8,7 @@
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/transaction_server/proto/timestamp_manager.pb.h>
+#include <yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h>
 
 #include <yt/client/transaction_client/timestamp_service_proxy.h>
 
@@ -24,13 +24,13 @@
 
 #include <time.h>
 
-namespace NYT::NTransactionServer {
+namespace NYT::NTimestampServer {
 
 using namespace NRpc;
 using namespace NHydra;
 using namespace NTransactionClient;
 using namespace NConcurrency;
-using namespace NTransactionServer::NProto;
+using namespace NTimestampServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +48,7 @@ public:
             // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
-            TransactionServerLogger)
+            TimestampServerLogger)
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -364,4 +364,4 @@ IServicePtr TTimestampManager::GetRpcService()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTransactionServer
+} // namespace NYT::NTimestampServer

@@ -24,6 +24,8 @@
 
 #include <yt/server/master/journal_server/config.h>
 
+#include <yt/server/lib/timestamp_server/config.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/election/config.h>
@@ -151,7 +153,7 @@ public:
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
-    NTransactionServer::TTimestampManagerConfigPtr TimestampManager;
+    NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 

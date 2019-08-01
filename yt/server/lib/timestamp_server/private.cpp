@@ -1,11 +1,11 @@
-package NYT.NTransactionServer.NProto;
+#include "private.h"
+
+namespace NYT::NTimestampServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCommitTimestamp
-{
-    required int64 timestamp = 1;
-}
+const NLogging::TLogger TimestampServerLogger("TimestampServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NYT::NTimestampServer
