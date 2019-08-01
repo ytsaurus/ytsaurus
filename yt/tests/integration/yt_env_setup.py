@@ -466,6 +466,7 @@ class Restarter(object):
 
 class YTEnvSetup(object):
     NUM_MASTERS = 3
+    NUM_CLOCKS = 0
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
@@ -559,6 +560,7 @@ class YTEnvSetup(object):
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
+            clock_count=cls.get_param("NUM_CLOCKS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
