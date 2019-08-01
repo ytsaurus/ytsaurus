@@ -185,8 +185,13 @@ NODE_CONFIG_PATCHES = [
             },
             "hydra_manager": {
                 "leader_lease_check_period": 100,
-                "leader_lease_timeout": 500,
-                "leader_lease_grace_delay": 600,
+                "leader_lease_timeout": 20000,
+                "disable_leader_lease_grace_delay": True,
+                "response_keeper": {
+                    "enable_warmup": False,
+                    "expiration_time": 25000,
+                    "warmup_time": 30000,
+                }
             }
         },
         "exec_agent": {
