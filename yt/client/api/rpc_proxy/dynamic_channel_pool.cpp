@@ -237,7 +237,6 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
         }
     }
 
-
     // Assuming `addresses` are only needed for `replaced`.
     if (!replaced.empty()) {
         ShuffleRange(addresses);
@@ -247,7 +246,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
 
         YT_LOG_DEBUG("Proxy address list prepared (Addresses: %v)", addresses);
 
-        for (int i = 0; i < replaced.size(); i++) {
+        for (int i = 0; i < replaced.size(); ++i) {
             const auto& address = addresses[i % addresses.size()];
             auto channel = CreateChannel(address);
             channel = CreateFailureDetectingChannel(
@@ -262,7 +261,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
             replaced[i]->Channel.TrySet(channel);
         }
     }
-    
+
     TerminateIdleChannels();
 }
 

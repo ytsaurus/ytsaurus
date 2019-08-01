@@ -5,6 +5,7 @@
 #include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/http/config.h>
+
 #include <yt/core/re2/re2.h>
 
 #include <yt/client/api/client.h>
@@ -21,7 +22,6 @@ public:
     std::optional<TString> ClusterUrl;
     std::optional<TString> ProxyRole;
     std::vector<TString> Addresses;
-
     std::vector<NRe2::TRe2Ptr> ProxyHostOrder;
 
     //! Number of open connection to rpc proxies.

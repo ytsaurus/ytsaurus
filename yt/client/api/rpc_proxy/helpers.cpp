@@ -1450,7 +1450,7 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes)
 {
     auto valueToRank = [&] (const TString& value) -> size_t {
-        for (size_t index = 0; index < regexes.size(); index++) {
+        for (size_t index = 0; index < regexes.size(); ++index) {
             if (NRe2::TRe2::FullMatch(NRe2::StringPiece(value), *regexes[index])) {
                 return index;
             }

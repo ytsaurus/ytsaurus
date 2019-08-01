@@ -12,7 +12,6 @@ TConnectionConfig::TConnectionConfig()
         .Optional();
     RegisterParameter("addresses", Addresses)
         .Default();
-
     RegisterParameter("proxy_host_order", ProxyHostOrder)
         .Default();
 
