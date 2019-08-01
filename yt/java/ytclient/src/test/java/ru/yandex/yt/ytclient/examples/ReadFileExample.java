@@ -55,7 +55,9 @@ public class ReadFileExample {
 
                 reader.read((data) -> {
                     try {
-                        fo.write(data);
+                        if (data != null) {
+                            fo.write(data);
+                        }
                     } catch (Exception ex) {
                         throw ExceptionUtils.translate(ex);
                     }
