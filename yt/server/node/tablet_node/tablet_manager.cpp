@@ -945,7 +945,7 @@ private:
         for (const auto& lock : request->locks()) {
             auto transactionId = FromProto<TTabletId>(lock.transaction_id());
             auto lockTimestamp = static_cast<TTimestamp>(lock.timestamp());
-            lockManager->Lock(lockTimestamp, transactionId);
+            lockManager->Lock(lockTimestamp, transactionId, true);
         }
 
         {
@@ -1118,7 +1118,7 @@ private:
         auto lockTimestamp = static_cast<TTimestamp>(request->lock().timestamp());
 
         const auto& lockManager = tablet->GetLockManager();
-        lockManager->Lock(lockTimestamp, transactionId);
+        lockManager->Lock(lockTimestamp, transactionId, false);
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet locked (TabletId: %v, TransactionId: %v)",
             tabletId,

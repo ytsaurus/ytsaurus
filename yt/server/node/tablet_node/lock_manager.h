@@ -14,7 +14,7 @@ class TLockManager
 public:
     TLockManager();
 
-    void Lock(TTimestamp timestamp, TTransactionId transactionId);
+    void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed);
     std::vector<TTransactionId> RemoveUnconfirmedTransactions();
     void Unlock(TTransactionId transactionId);
     void Wait(TTimestamp timestamp);
