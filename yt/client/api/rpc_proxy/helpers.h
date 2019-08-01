@@ -243,7 +243,8 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     NProto::TRowsetDescriptor* descriptor,
     NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
 
-// ! stable_sort using regexes: order of value is equal to position of the first regex it matches.
+//! Invokes std::stable_sort reordering addesses by the index of the first regex they match;
+//! addresses no matching any regex are placed at the very end.
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes);
 
 ////////////////////////////////////////////////////////////////////////////////
