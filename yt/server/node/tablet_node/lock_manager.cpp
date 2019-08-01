@@ -24,11 +24,13 @@ class TLockManager::TImpl
     : public TRefCounted
 {
 public:
-    void Lock(TTimestamp timestamp, TTransactionId transactionId)
+    void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed)
     {
         LockCounter_++;
         YT_VERIFY(Transactions_.emplace(transactionId, timestamp).second);
-        UnconfirmedTransactions_.push_back(transactionId);
+        if (!confirmed) {
+            UnconfirmedTransactions_.push_back(transactionId);
+        }
 
         {
             TGuard guard(SpinLock_);
@@ -158,9 +160,9 @@ TLockManager::TLockManager()
     : Impl_(New<TImpl>())
 { }
 
-void TLockManager::Lock(TTimestamp timestamp, TTransactionId transactionId)
+void TLockManager::Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed)
 {
-    Impl_->Lock(timestamp, transactionId);
+    Impl_->Lock(timestamp, transactionId, confirmed);
 }
 
 std::vector<TTransactionId> TLockManager::RemoveUnconfirmedTransactions()
