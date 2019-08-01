@@ -7,12 +7,11 @@
 #include <yt/server/master/cypress_server/node_detail.h>
 #include <yt/server/master/cypress_server/portal_entrance_node.h>
 #include <yt/server/master/cypress_server/helpers.h>
+#include <yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/client/object_client/helpers.h>
-
-#include <yt/core/ytree/node.h>
 
 namespace NYT::NObjectServer {
 
@@ -56,19 +55,16 @@ TPathResolver::TPathResolver(
     const TString& service,
     const TString& method,
     const NYPath::TYPath& path,
-    TTransactionToken transactionToken,
-    const TPathResolverOptions& options)
+    TTransactionToken transactionToken)
     : Bootstrap_(bootstrap)
     , Service_(service)
     , Method_(method)
     , Path_(path)
     , TransactionId_(GetTransactionIdFromToken(transactionToken))
-    , Options_(options)
-    , Tokenizer_(path)
     , Transaction_(GetTransactionFromToken(transactionToken))
 { }
 
-TPathResolver::TResolveResult TPathResolver::Resolve()
+TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions& options)
 {
     if (Service_ == TMasterYPathProxy::GetDescriptor().ServiceName) {
         return TResolveResult{
@@ -76,16 +72,27 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             TLocalObjectPayload{
                 Bootstrap_->GetObjectManager()->GetMasterObject(),
                 GetTransaction()
-            }
+            },
+            false
         };
     }
 
-    static const auto EmptyYPath = TYPath("");
+    Tokenizer_.Reset(Path_);
+
+    static const auto EmptyYPath = TYPath();
     static const auto SlashYPath = TYPath("/");
     static const auto AmpersandYPath = TYPath("&");
 
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& resolveCache = cypressManager->GetResolveCache();
+
     // Nullptr indicates that one must resolve the root.
     TObject* currentObject = nullptr;
+
+    TResolveCacheNodePtr parentCacheNode;
+    TString parentChildKey;
+
+    bool canCacheResolve = true;
 
     for (int resolveDepth = 0; ; ++resolveDepth) {
         ValidateYPathResolutionDepth(Path_, resolveDepth);
@@ -95,7 +102,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             if (!std::holds_alternative<TLocalObjectPayload>(rootPayload)) {
                 return {
                     TYPath(Tokenizer_.GetInput()),
-                    std::move(rootPayload)
+                    std::move(rootPayload),
+                    false
                 };
             }
             currentObject = std::get<TLocalObjectPayload>(rootPayload).Object;
@@ -117,7 +125,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
                 TLocalObjectPayload{
                     trunkObject,
                     GetTransaction()
-                }
+                },
+                false
             };
         };
 
@@ -125,8 +134,24 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             return makeCurrentLocalObjectResult();
         }
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* currentNode = currentObject->As<TCypressNode>();
+        canCacheResolve &= currentNode->CanCacheResolve();
+
+        TResolveCacheNodePtr currentCacheNode;
+        if (options.PopulateResolveCache) {
+            currentCacheNode = resolveCache->FindNode(currentNode->GetId());
+            if (!currentCacheNode) {
+                auto* currentTrunkNode = currentNode->GetTrunkNode();
+                auto currentNodePath = cypressManager->GetNodePath(currentTrunkNode, nullptr);
+                currentCacheNode = resolveCache->InsertNode(currentTrunkNode, currentNodePath);
+            }
+            if (parentCacheNode) {
+                resolveCache->AddNodeChild(parentCacheNode, currentCacheNode, parentChildKey);
+                parentCacheNode.Reset();
+                parentChildKey.clear();
+            }
+        }
+
         if (currentNode->GetNodeType() == ENodeType::Map || currentNode->GetNodeType() == ENodeType::List) {
             if (!slashSkipped) {
                 return makeCurrentLocalObjectResult();
@@ -141,41 +166,46 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
             if (currentNode->GetNodeType() == ENodeType::List &&
                 IsSpecialListKey(token))
             {
-                if (!Options_.EnablePartialResolve) {
+                if (!options.EnablePartialResolve) {
                     Tokenizer_.ThrowUnexpected();
                 }
                 return makeCurrentLocalObjectResult();
             }
 
-            TObject* child;
-            if (Options_.EnablePartialResolve) {
-                child = currentNode->GetNodeType() == ENodeType::Map
+            TObject* childNode;
+            TResolveCacheNodePtr childCacheNode;
+            if (options.EnablePartialResolve) {
+                childNode = currentNode->GetNodeType() == ENodeType::Map
                     ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
                     : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
             } else {
-                child = currentNode->GetNodeType() == ENodeType::Map
+                childNode = currentNode->GetNodeType() == ENodeType::Map
                     ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
                     : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
             }
 
-            if (!IsObjectAlive(child)) {
+            if (options.PopulateResolveCache && currentNode->GetNodeType() == ENodeType::Map) {
+                parentCacheNode = currentCacheNode;
+                parentChildKey = token;
+            }
+
+            if (!IsObjectAlive(childNode)) {
                 return makeCurrentLocalObjectResult();
             }
 
             Tokenizer_.Advance();
 
-            currentObject = child;
+            currentObject = childNode;
         } else if (currentNode->GetType() == EObjectType::Link) {
             if (ampersandSkipped) {
                 return makeCurrentLocalObjectResult();
             }
 
-            if (!slashSkipped) {
-                if (Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream ||
-                    (Method_ == "Remove" || Method_ == "Create" || Method_ == "Copy"))
-                {
-                    return makeCurrentLocalObjectResult();
-                }
+            if (!slashSkipped &&
+                (Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream ||
+                 Method_ == "Remove" || Method_ == "Create" || Method_ == "Copy"))
+            {
+                return makeCurrentLocalObjectResult();
             }
 
             const auto* link = currentNode->As<TLinkNode>();
@@ -201,7 +231,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve()
 
             return TResolveResult{
                 makeCurrentUnresolvedPath(),
-                TRemoteObjectPayload{portalExitNodeId}
+                TRemoteObjectPayload{portalExitNodeId},
+                canCacheResolve
             };
         } else  {
             return makeCurrentLocalObjectResult();
@@ -235,7 +266,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
         }
 
         case ETokenType::Literal: {
-            const auto& token = Tokenizer_.GetToken();
+            auto token = Tokenizer_.GetToken();
             if (!token.StartsWith(ObjectIdPathPrefix)) {
                 Tokenizer_.ThrowUnexpected();
             }
@@ -243,7 +274,9 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
             TObjectId objectId;
             if (!TObjectId::FromString(objectIdString, &objectId)) {
-                THROW_ERROR_EXCEPTION("Error parsing object id %v",
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::ResolveError,
+                    "Error parsing object id %v",
                     objectIdString);
             }
             Tokenizer_.Advance();
@@ -270,15 +303,6 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             Tokenizer_.ThrowUnexpected();
             YT_ABORT();
     }
-}
-
-bool TPathResolver::IsSpecialListKey(TStringBuf key)
-{
-    return
-        key == ListBeginToken ||
-        key == ListEndToken ||
-        key.StartsWith(ListBeforeToken) ||
-        key.StartsWith(ListAfterToken);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

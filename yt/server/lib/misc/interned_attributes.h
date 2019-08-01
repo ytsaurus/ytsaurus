@@ -304,7 +304,8 @@
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
     XX(RootNodeId, root_node_id) \
-    XX(AccountStatistics, account_statistics)
+    XX(AccountStatistics, account_statistics) \
+    XX(ResolveCached, resolve_cached)
 
 namespace NYT {
 

@@ -173,8 +173,6 @@ public:
 
     bool IsOrphaned(TCypressNode* trunkNode);
 
-    const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
-
     //! Returns the list consisting of the trunk node
     //! and all of its existing versioned overrides up to #transaction;
     //! #trunkNode is the last element.
@@ -187,6 +185,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNode* trunkNode);
 
+    const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
+    const TResolveCachePtr& GetResolveCache();
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);

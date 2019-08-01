@@ -159,6 +159,10 @@ public:
     //! Always null for foreign and non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TCypressShard*, Shard);
 
+    //! The corresponding node in Resolve Cache, if any.
+    //! Always null for non-trunk nodes.
+    DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
+
     explicit TCypressNode(const TVersionedNodeId& id);
     virtual ~TCypressNode();
 
@@ -208,6 +212,14 @@ public:
 
     //! Returns |true| if object is being created.
     bool IsBeingCreated() const;
+
+    //! Returns true if the node can be cached for resolve.
+    /*!
+     *  The following conditions must be met:
+     *  - node has no shared or exclusive locks
+     *  - node is either either map-like, a link, or a portal entrance
+     */
+    bool CanCacheResolve() const;
 
     // Similar methods are also declared in TObjectBase but starting from TCypressNode
     // they become virtual.
