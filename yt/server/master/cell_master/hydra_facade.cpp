@@ -156,7 +156,6 @@ public:
         Automaton_->LoadSnapshot(reader);
     }
 
-
     const TMasterAutomatonPtr& GetAutomaton() const
     {
         return Automaton_;
