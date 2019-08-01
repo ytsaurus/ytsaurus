@@ -1,5 +1,7 @@
 #include "job_metrics.h"
 
+#include <yt/server/lib/controller_agent/serialize.h>
+
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -8,8 +10,6 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
-
-#include <yt/server/controller_agent/serialize.h>
 
 #include <util/generic/cast.h>
 

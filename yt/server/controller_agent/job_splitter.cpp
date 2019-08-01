@@ -2,9 +2,10 @@
 #include "private.h"
 #include "operation_controller.h"
 #include "config.h"
-#include "serialize.h"
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/scheduler/config.h>
 
