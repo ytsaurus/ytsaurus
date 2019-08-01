@@ -2761,6 +2761,37 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         _check(stores=3, overlaps=2)
 
+    def test_expired_timestamp_read_remount(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", min_data_ttl=0, min_data_versions=0)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        ts = generate_timestamp()
+        assert lookup_rows("//tmp/t", keys, timestamp=ts) == rows
+
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+
+        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+
+        remount_table("//tmp/t")
+
+        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+
+
 ##################################################################
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
@@ -2993,38 +3024,6 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         self._sync_mount_table("//tmp/t")
         actual = lookup_rows("//tmp/t", [{"key": 0}])
         assert actual == []
-
-    def test_expired_timestamp_read_remount(self):
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t", min_data_ttl=0, min_data_versions=0)
-
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        ts = generate_timestamp()
-        assert lookup_rows("//tmp/t", keys, timestamp=ts) == rows
-
-        sync_flush_table("//tmp/t")
-        sync_compact_table("//tmp/t")
-
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
-
-        remount_table("//tmp/t")
-
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
-
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
-
-
 
 ##################################################################
 
