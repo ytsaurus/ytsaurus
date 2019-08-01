@@ -8,7 +8,7 @@ message TReqExecute
     // Each of these requests is represented by a message.
     // Each message, in turn, is a sequence of parts.
     // This array contains the lengths of those part sequences.
-    // In particular, its length is just the number of encaplusated YPath requests.
+    // In particular, its length is just the number of encapsulated YPath requests.
     repeated int32 part_counts = 1;
 
     // If |true|, the master responding to the query will make no attempt to synchronize
