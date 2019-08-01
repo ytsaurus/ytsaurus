@@ -63,6 +63,7 @@ public class TableReaderImpl implements RpcStreamConsumer {
     }
 
     private void parseDescriptorDeltaRefSize(ByteBuffer bb, int size) throws Exception {
+        /*
         int endPosition = bb.position() + size;
         TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.parseFrom(bb.slice().limit(size));
         ApiServiceUtil.validateRowsetDescriptor(rowsetDescriptor);
@@ -82,6 +83,7 @@ public class TableReaderImpl implements RpcStreamConsumer {
 
         logger.debug("{}", rowsetDescriptor);
         bb.position(endPosition);
+        */
     }
 
     private void parseMergedRowRefs(ByteBuffer bb, int size) {
@@ -112,10 +114,12 @@ public class TableReaderImpl implements RpcStreamConsumer {
     }
 
     private void parsePayload(ByteBuffer bb, int size) throws Exception {
+        /*
         int endPosition = bb.position() + size;
         TTableReaderPayload payload = TTableReaderPayload.parseFrom(bb.slice().limit(size));
         logger.debug("{}", payload);
         bb.position(endPosition);
+        */
     }
 
     private void parseRowsWithPayload(byte[] attachment) throws Exception {
