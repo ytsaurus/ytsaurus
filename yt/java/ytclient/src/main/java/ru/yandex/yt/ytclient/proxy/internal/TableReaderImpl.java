@@ -32,8 +32,8 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class TableReader implements RpcStreamConsumer {
-    private static final Logger logger = LoggerFactory.getLogger(TableReader.class);
+public class TableReaderImpl implements RpcStreamConsumer {
+    private static final Logger logger = LoggerFactory.getLogger(TableReaderImpl.class);
 
     private final static RpcMessageParser<TRspReadTable> responseParser = RpcServiceMethodDescriptor.makeMessageParser(TRspReadTable.class);
     private final CompletableFuture<RpcClientResponse<TRspReadTable>> result;
@@ -47,7 +47,7 @@ public class TableReader implements RpcStreamConsumer {
     private TableSchema currentReadSchema = null;
     private UnversionedRowsetDeserializer deserializer = null;
 
-    public TableReader(RpcClientStreamControl control) {
+    public TableReaderImpl(RpcClientStreamControl control) {
         this.control = control;
         this.control.subscribe(this);
         this.control.sendEof();
