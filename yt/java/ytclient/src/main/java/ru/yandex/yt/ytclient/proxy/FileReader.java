@@ -4,7 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public interface FileReader {
-    Long revision() throws Exception;
+    long revision() throws Exception;
 
     // async
     CompletableFuture<Void> read(Consumer<byte[]> consumer);

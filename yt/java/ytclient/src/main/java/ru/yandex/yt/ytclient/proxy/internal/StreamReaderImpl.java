@@ -1,7 +1,13 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
-import com.google.protobuf.Message;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+
+import com.google.protobuf.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,26 +24,24 @@ import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-
 public abstract class StreamReaderImpl<RspType extends Message> implements RpcStreamConsumer {
     protected static final Logger logger = LoggerFactory.getLogger(StreamReaderImpl.class);
-    protected final RpcClientStreamControl control;
+    private final RpcClientStreamControl control;
 
     private final CompletableFuture<RpcClientResponse<RspType>> result;
 
     private final Object lock = new Object();
     private StreamStash<byte[]> stash;
     private boolean started = false;
+    private boolean syncReadStarted = false;
     private long offset = 0;
+    private int currentSequenceNumber = -1;
 
-    public StreamReaderImpl(RpcClientStreamControl control) {
+    StreamReaderImpl(RpcClientStreamControl control) {
         this.control = control;
         this.control.subscribe(this);
         this.result = new CompletableFuture<>();
+        this.start();
     }
 
     private void start() {
@@ -62,7 +66,7 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
     private void maybeReinitCodec(int codecId) {
         if (currentCodecId != codecId) {
             compression = Compression.fromValue(codecId);
-            Codec.codecFor(compression);
+            codec = Codec.codecFor(compression);
             currentCodecId = codecId;
         }
     }
@@ -76,7 +80,11 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
         } else {
             decompressed = new ArrayList<>();
             for (byte[] attachment : attachments) {
-                decompressed.add(codec.decompress(attachment));
+                if (attachment == null) {
+                    decompressed.add(attachment);
+                } else {
+                    decompressed.add(codec.decompress(attachment));
+                }
             }
         }
 
@@ -86,11 +94,16 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
     @Override
     public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
         if (attachments.isEmpty()) {
-            onError(sender, new IllegalArgumentException("Empty attachments"));
-            return;
+            throw new IllegalArgumentException("Empty attachments");
         }
 
-        attachments = decomressedAttachments(header.getCodec(), attachments);
+        int sequenceNumber = header.getSequenceNumber();
+        if (currentSequenceNumber >= 0 && sequenceNumber - currentSequenceNumber != 1) {
+            throw new IllegalArgumentException("protocol error");
+        }
+        currentSequenceNumber = sequenceNumber;
+
+        maybeReinitCodec(header.getCodec());
 
         for (byte [] attachment : attachments) {
             long size = attachment == null
@@ -100,7 +113,10 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
             offset += size;
 
             synchronized (lock) {
-                stash.push(attachment, offset);
+                byte [] attachmentDecompressed = attachment != null
+                        ? codec.decompress(attachment)
+                        : null;
+                stash.push(attachmentDecompressed, offset);
             }
         }
 
@@ -133,13 +149,11 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
         }
 
         synchronized (lock) {
-            if (stash != null) {
-                stash.push(null, 0);
-            }
+            stash.push(null, 0);
         }
     }
 
-    public CompletableFuture<Void> waitResult() {
+    private CompletableFuture<Void> waitResult() {
         return result.thenApply((unused) -> null);
     }
 
@@ -149,9 +163,9 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
 
     byte[] doRead() throws Exception {
         synchronized (lock) {
-            if (!started) {
-                start();
-                this.stash = StreamStash.syncStash();
+            if (!syncReadStarted) {
+                this.stash = StreamStash.syncStash(stash.messages());
+                syncReadStarted = true;
             }
         }
 
@@ -172,12 +186,38 @@ public abstract class StreamReaderImpl<RspType extends Message> implements RpcSt
         return message.data;
     }
 
-    CompletableFuture<Void> doRead(Consumer<byte[]> consumer) {
+    CompletableFuture<Void> doRead(Function<byte[], Boolean> function) {
         synchronized (lock) {
-            start();
-            this.stash = StreamStash.asyncStash(consumer);
+            if (syncReadStarted) {
+                throw new IllegalArgumentException();
+            }
+            this.stash = StreamStash.asyncStash(function,
+                    stash != null
+                            ? stash.messages()
+                            : new LinkedList<>()
+            );
         }
 
         return waitResult();
+    }
+
+    CompletableFuture<byte[]> readHead() {
+        CompletableFuture<byte[]> headResult = new CompletableFuture<>();
+
+        CompletableFuture<Void> maybeError = doRead((data) -> {
+            if (headResult.isDone()) {
+                return false;
+            }
+            headResult.complete(data);
+            return true;
+        });
+
+        maybeError.whenComplete((unused, ex) -> {
+            if (ex != null) {
+                headResult.completeExceptionally(ex);
+            }
+        });
+
+        return headResult;
     }
 }
