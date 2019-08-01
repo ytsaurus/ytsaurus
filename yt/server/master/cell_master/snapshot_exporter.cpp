@@ -1,4 +1,4 @@
-#include "export_snapshot.h"
+#include "snapshot_exporter.h"
 #include "hydra_facade.h"
 
 #include <yt/core/ytree/fluent.h>
@@ -20,10 +20,11 @@ DEFINE_ENUM(EPresetAttributes,
     ((Large)      (002))
 );
 
-DECLARE_REFCOUNTED_CLASS(ExportArgumentsConfig)
+DECLARE_REFCOUNTED_CLASS(TExportArgumentsConfig)
 
-class ExportArgumentsConfig
-    : public TYsonSerializable {
+class TExportArgumentsConfig
+    : public TYsonSerializable
+{
 public:
     std::optional<int> LowerIndex;
     std::optional<int> UpperIndex;
@@ -31,7 +32,8 @@ public:
     std::vector<TString> UserAttributes;
     std::optional<EPresetAttributes> PresetAttributes;
 
-    ExportArgumentsConfig() {
+    TExportArgumentsConfig()
+    {
         RegisterParameter("lower_index", LowerIndex)
                 .Default();
         RegisterParameter("upper_index", UpperIndex)
@@ -45,7 +47,7 @@ public:
     };
 };
 
-DEFINE_REFCOUNTED_TYPE(ExportArgumentsConfig)
+DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +167,7 @@ void ParseAndValidate(
     std::optional<int>* lowerIndex,
     std::optional<int>* upperIndex)
 {
-    auto config = ConvertTo<ExportArgumentsConfigPtr>(TYsonString(exportConfig));
+    auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(exportConfig));
 
     *lowerIndex = config->LowerIndex;
     *upperIndex = config->UpperIndex;
@@ -210,7 +212,7 @@ void ParseAndValidate(
 
 //////////////////////////////////////////////////////////////////////////
 
-void ExportSnapshot (const TString& fileName, const TString& exportConfig, TBootstrap* bootstrap)
+void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TString& configPath)
 {
     THashSet<EObjectType> searchedTypes;
     std::vector<TString> searchedAttributes;
@@ -218,9 +220,9 @@ void ExportSnapshot (const TString& fileName, const TString& exportConfig, TBoot
     std::optional<int> lowerIndex;
     std::optional<int> upperIndex;
 
-    ParseAndValidate(exportConfig, &searchedTypes, &searchedAttributes, &lowerIndex, &upperIndex);
+    ParseAndValidate(configPath, &searchedTypes, &searchedAttributes, &lowerIndex, &upperIndex);
 
-    bootstrap->TryLoadSnapshot(fileName, false);
+    bootstrap->TryLoadSnapshot(snapshotPath, false);
     BIND(&DoExportSnapshot, bootstrap, lowerIndex, upperIndex, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()

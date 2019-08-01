@@ -1,6 +1,6 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/export_snapshot.h>
+#include <yt/server/master/cell_master/snapshot_exporter.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -101,7 +101,7 @@ protected:
         } else if (validateSnapshot) {
             bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
         } else if (exportSnapshot) {
-            ExportSnapshot(ExportSnapshot_, ExportSnapshotConfig_, bootstrap);
+            ExportSnapshot(bootstrap, ExportSnapshot_, ExportSnapshotConfig_);
         } else {
             bootstrap->Run();
         }
