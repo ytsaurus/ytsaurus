@@ -149,8 +149,9 @@ public:
 
     void LockDynamicTable(
         NTableServer::TTableNode* table,
-        NTransactionServer::TTransaction* transaction);
-        
+        NTransactionServer::TTransaction* transaction,
+        NTransactionClient::TTimestamp timestamp);
+
     void CheckDynamicTableLock(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction,

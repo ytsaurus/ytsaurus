@@ -3204,7 +3204,8 @@ public:
 
     void LockDynamicTable(
         TTableNode* table,
-        TTransaction* transaction)
+        TTransaction* transaction,
+        TTimestamp timestamp)
     {
         Y_ASSUME(table->IsTrunk());
 
@@ -3218,8 +3219,6 @@ public:
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto* mutationContext = GetCurrentMutationContext();
-        auto mutationTimestamp = InstantToTimestamp(mutationContext->GetTimestamp()).first;
         int pendingTabletCount = 0;
 
         for (auto* tablet : table->Tablets()) {
@@ -3235,12 +3234,12 @@ public:
             TReqLockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_lock()->mutable_transaction_id(), transaction->GetId());
-            req.mutable_lock()->set_timestamp(static_cast<i64>(mutationTimestamp));
+            req.mutable_lock()->set_timestamp(static_cast<i64>(timestamp));
             hiveManager->PostMessage(mailbox, req);
         }
 
         transaction->LockedDynamicTables().insert(table);
-        table->AddDynamicTableLock(transaction->GetId(), mutationTimestamp, pendingTabletCount);
+        table->AddDynamicTableLock(transaction->GetId(), timestamp, pendingTabletCount);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
             table->GetId(),
@@ -6857,11 +6856,12 @@ void TTabletManager::MakeTableStatic(TTableNode* table)
 
 void TTabletManager::LockDynamicTable(
     TTableNode* table,
-    TTransaction* transaction)
+    TTransaction* transaction,
+    TTimestamp timestamp)
 {
-    Impl_->LockDynamicTable(table, transaction);
+    Impl_->LockDynamicTable(table, transaction, timestamp);
 }
-    
+
 void TTabletManager::CheckDynamicTableLock(
     TTableNode* table,
     TTransaction* transaction,
