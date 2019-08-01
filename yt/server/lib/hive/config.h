@@ -40,6 +40,9 @@ public:
     //! Amount of time TMailbox is allowed to keep a cached channel.
     TDuration CachedChannelTimeout;
 
+    //! Maximum time to wait before syncing with another instance.
+    TDuration SyncDelay;
+
     THiveManagerConfig()
     {
         RegisterParameter("ping_period", PingPeriod)
@@ -60,6 +63,8 @@ public:
             .Default(16_MB);
         RegisterParameter("cached_channel_timeout", CachedChannelTimeout)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("sync_delay", SyncDelay)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 
