@@ -1,5 +1,6 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/export_snapshot.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -39,6 +40,14 @@ public:
             .AddLongOption("validate-snapshot", "validate master snapshot and exit")
             .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("export-snapshot", "export master snapshot\nexpects path to snapshot")
+            .StoreMappedResult(&ExportSnapshot_, &CheckPathExistsArgMapper)
+            .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("export-config", "user config for master snapshot exporting\nexpects yson which may have keys 'attributes', 'first_key', 'last_key', 'types'")
+            .StoreResult(&ExportSnapshotConfig_)
+            .RequiredArgument("CONFIG_YSON");
     }
 
 protected:
@@ -48,6 +57,7 @@ protected:
 
         bool dumpSnapshot = parseResult.Has("dump-snapshot");
         bool validateSnapshot = parseResult.Has("validate-snapshot");
+        bool exportSnapshot = parseResult.Has("export-snapshot");
 
         ConfigureUids();
         ConfigureSignals();
@@ -74,7 +84,7 @@ protected:
 
         if (dumpSnapshot) {
             config->Logging = NLogging::TLogConfig::CreateSilent();
-        } else if (validateSnapshot) {
+        } else if (validateSnapshot || exportSnapshot) {
             config->Logging = NLogging::TLogConfig::CreateQuiet();
         }
 
@@ -90,6 +100,8 @@ protected:
             bootstrap->TryLoadSnapshot(DumpSnapshot_, true);
         } else if (validateSnapshot) {
             bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
+        } else if (exportSnapshot) {
+            ExportSnapshot(ExportSnapshot_, ExportSnapshotConfig_, bootstrap);
         } else {
             bootstrap->Run();
         }
@@ -98,6 +110,8 @@ protected:
 private:
     TString DumpSnapshot_;
     TString ValidateSnapshot_;
+    TString ExportSnapshot_;
+    TString ExportSnapshotConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,4 +122,3 @@ int main(int argc, const char** argv)
 {
     return NYT::TCellMasterProgram().Run(argc, argv);
 }
-
