@@ -15,8 +15,6 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReqExecuteBatchWithRetriesConfig)
-
 class TReqExecuteBatchWithRetriesConfig
     : public NYTree::TYsonSerializable
 {
