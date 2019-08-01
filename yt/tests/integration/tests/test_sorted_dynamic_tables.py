@@ -2749,7 +2749,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def _check(stores, overlaps):
             orchid = self._find_tablet_orchid(address, tablet_id)
-            lambda: stores == len(orchid["eden"]["stores"])
+            assert(stores == len(orchid["eden"]["stores"]))
             wait(lambda: overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
         _check(stores=1, overlaps=1)
 
