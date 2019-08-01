@@ -58,7 +58,7 @@ public:
     void ResetRowBlockedHandler();
 
     //! Checks if a given #row has any locks from #lockMask with prepared timestamp
-    //! less that #timestamp. If so, raises |RowBlocked| signal and loops.
+    //! less than #timestamp. If so, raises |RowBlocked| signal and loops.
     void WaitOnBlockedRow(
         TSortedDynamicRow row,
         TLockMask lockMask,

@@ -18,6 +18,9 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
+
 #include <yt/core/ytree/proto/attributes.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
@@ -51,6 +54,53 @@ static constexpr int ProtobufMapValueFieldNumber = 2;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+bool IsSignedIntegralType(FieldDescriptor::Type type)
+{
+    switch (type) {
+        case FieldDescriptor::TYPE_INT32:
+        case FieldDescriptor::TYPE_INT64:
+        case FieldDescriptor::TYPE_SFIXED32:
+        case FieldDescriptor::TYPE_SFIXED64:
+        case FieldDescriptor::TYPE_SINT32:
+        case FieldDescriptor::TYPE_SINT64:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsUnsignedIntegralType(FieldDescriptor::Type type)
+{
+    switch (type) {
+        case FieldDescriptor::TYPE_UINT32:
+        case FieldDescriptor::TYPE_UINT64:
+        case FieldDescriptor::TYPE_FIXED64:
+        case FieldDescriptor::TYPE_FIXED32:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsStringType(FieldDescriptor::Type type)
+{
+    switch (type) {
+        case FieldDescriptor::TYPE_BYTES:
+        case FieldDescriptor::TYPE_STRING:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsMapKeyType(FieldDescriptor::Type type)
+{
+    return
+        IsStringType(type) ||
+        IsSignedIntegralType(type) ||
+        IsUnsignedIntegralType(type);
+}
 
 TString ToUnderscoreCase(const TString& protobufName)
 {
@@ -108,13 +158,27 @@ public:
             descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name));
     }
 
-    const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor);
-    const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor);
+    const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor)
+    {
+        auto guard = Guard(TypeMapsLock_);
+        return ReflectMessageTypeInternal(descriptor);
+    }
+
+    const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor)
+    {
+        auto guard = Guard(TypeMapsLock_);
+        return ReflectEnumTypeInternal(descriptor);
+    }
 
     static TProtobufTypeRegistry* Get()
     {
         return Singleton<TProtobufTypeRegistry>();
     }
+
+    // These are called while reflecting the types recursively;
+    // the caller must be holding TypeMapsLock_.
+    const TProtobufMessageType* ReflectMessageTypeInternal(const Descriptor* descriptor);
+    const TProtobufEnumType* ReflectEnumTypeInternal(const EnumDescriptor* descriptor);
 
 private:
     Y_DECLARE_SINGLETON_FRIEND();
@@ -129,16 +193,18 @@ private:
 
     TStringBuf InternString(const TString& str)
     {
-        auto guard = Guard(SpinLock_);
+        auto guard = Guard(InternedStringsLock_);
         InternedStrings_.push_back(str);
         return InternedStrings_.back();
     }
 
 private:
-    TSpinLock SpinLock_;
-    std::vector<TString> InternedStrings_;
+    NConcurrency::TForkAwareSpinLock TypeMapsLock_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+
+    NConcurrency::TForkAwareSpinLock InternedStringsLock_;
+    std::vector<TString> InternedStrings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,9 +216,9 @@ public:
         : Underlying_(descriptor)
         , YsonName_(registry->GetYsonName(descriptor))
         , YsonNameAliases_(registry->GetYsonNameAliases(descriptor))
-        , MessageType_(descriptor->type() == FieldDescriptor::TYPE_MESSAGE ? registry->ReflectMessageType(
+        , MessageType_(descriptor->type() == FieldDescriptor::TYPE_MESSAGE ? registry->ReflectMessageTypeInternal(
             descriptor->message_type()) : nullptr)
-        , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
+        , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumTypeInternal(
             descriptor->enum_type()) : nullptr)
         , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
         , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
@@ -164,9 +230,7 @@ public:
 
         if (YsonMap_) {
             const auto* keyField = descriptor->message_type()->FindFieldByNumber(ProtobufMapKeyFieldNumber);
-            if (keyField->type() != FieldDescriptor::TYPE_STRING &&
-                keyField->type() != FieldDescriptor::TYPE_BYTES)
-            {
+            if (!IsMapKeyType(keyField->type())) {
                 THROW_ERROR_EXCEPTION("Map field %v has invalid key type",
                     GetFullName());
             }
@@ -233,6 +297,7 @@ public:
         return YsonMap_;
     }
 
+    const TProtobufField* GetYsonMapKeyField() const;
     const TProtobufField* GetYsonMapValueField() const;
 
     const TProtobufMessageType* GetMessageType() const
@@ -373,6 +438,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TProtobufField* TProtobufField::GetYsonMapKeyField() const
+{
+    return MessageType_->GetFieldByNumber(ProtobufMapKeyFieldNumber);
+}
+
 const TProtobufField* TProtobufField::GetYsonMapValueField() const
 {
     return MessageType_->GetFieldByNumber(ProtobufMapValueFieldNumber);
@@ -451,32 +521,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageType(const Descriptor* descriptor)
+const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageTypeInternal(const Descriptor* descriptor)
 {
-    auto guard = Guard(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+
     auto it = MessageTypeMap_.find(descriptor);
     if (it != MessageTypeMap_.end()) {
         return it->second.get();
     }
+
     auto typeHolder = std::make_unique<TProtobufMessageType>(this, descriptor);
     auto* type = typeHolder.get();
     it = MessageTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
-    guard.Release();
     type->Build();
     return type;
 }
 
-const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumType(const EnumDescriptor* descriptor)
+const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumTypeInternal(const EnumDescriptor* descriptor)
 {
-    auto guard = Guard(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+
     auto it = EnumTypeMap_.find(descriptor);
     if (it != EnumTypeMap_.end()) {
         return it->second.get();
     }
+
     auto typeHolder = std::make_unique<TProtobufEnumType>(this, descriptor);
     auto* type = typeHolder.get();
     it = EnumTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
-    guard.Release();
     type->Build();
     return type;
 }
@@ -687,18 +759,14 @@ private:
 
     struct TFieldEntry
     {
-        TFieldEntry(
-            const TProtobufField* field,
-            int currentListIndex,
-            bool inList)
+        explicit TFieldEntry(const TProtobufField* field)
             : Field(field)
-            , CurrentListIndex(currentListIndex)
-            , InList(inList)
         { }
 
         const TProtobufField* Field;
-        int CurrentListIndex;
-        bool InList;
+        int CurrentListIndex = 0;
+        bool ParsingList = false;
+        bool ParsingYsonMapFromList = false;
     };
     std::vector<TFieldEntry> FieldStack_;
 
@@ -831,21 +899,19 @@ private:
 
         const auto* field = FieldStack_.back().Field;
         if (field->IsYsonMap()) {
-            THROW_ERROR_EXCEPTION("Map %v cannot be parsed from \"list\" values",
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_field", field->GetFullName());
+            // We do allow parsing map from lists to ease migration; cf. YT-11055.
+            FieldStack_.back().ParsingYsonMapFromList = true;
+        } else {
+            ValidateRepeated();
         }
-
-        ValidateRepeated();
     }
 
     virtual void OnMyListItem() override
     {
         YT_ASSERT(!TypeStack_.empty());
-        const auto* field = FieldStack_.back().Field;
         int index = FieldStack_.back().CurrentListIndex++;
-        FieldStack_.emplace_back(field, index, true);
+        FieldStack_.push_back(FieldStack_.back());
+        FieldStack_.back().ParsingList = true;
         YPathStack_.Push(index);
     }
 
@@ -860,14 +926,14 @@ private:
     {
         if (TypeStack_.empty()) {
             TypeStack_.emplace_back(RootType_);
-            FieldStack_.emplace_back(nullptr, 0, false);
+            FieldStack_.emplace_back(nullptr);
             return;
         }
 
         const auto* field = FieldStack_.back().Field;
         TypeStack_.emplace_back(field->GetMessageType());
 
-        if (!field->IsYsonMap()) {
+        if (!field->IsYsonMap() || FieldStack_.back().ParsingYsonMapFromList) {
             if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
                 THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
                     YPathStack_.GetPath())
@@ -884,8 +950,8 @@ private:
     virtual void OnMyKeyedItem(TStringBuf key) override
     {
         const auto* field = FieldStack_.back().Field;
-        if (field && field->IsYsonMap()) {
-            OnMyKeyedItemYsonMap(key);
+        if (field && field->IsYsonMap() && !FieldStack_.back().ParsingYsonMapFromList) {
+            OnMyKeyedItemYsonMap(field, key);
         } else {
             YT_ASSERT(!TypeStack_.empty());
             const auto* type = TypeStack_.back().Type;
@@ -897,7 +963,7 @@ private:
         }
     }
 
-    void OnMyKeyedItemYsonMap(TStringBuf key)
+    void OnMyKeyedItemYsonMap(const TProtobufField* field, TStringBuf key)
     {
         auto& typeEntry = TypeStack_.back();
         if (typeEntry.CurrentMapIndex > 0) {
@@ -908,15 +974,59 @@ private:
         WriteTag();
         BeginNestedMessage();
 
+        const auto* keyField = field->GetYsonMapKeyField();
+        auto keyType = keyField->GetType();
         BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(
             ProtobufMapKeyFieldNumber,
-            WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-        BodyCodedStream_.WriteVarint64(key.length());
-        BodyCodedStream_.WriteRaw(key.data(), static_cast<int>(key.length()));
+            WireFormatLite::WireTypeForFieldType(static_cast<WireFormatLite::FieldType>(keyType))));
 
-        const auto* field = FieldStack_.back().Field;
+        switch (keyType) {
+            case FieldDescriptor::TYPE_SFIXED32:
+            case FieldDescriptor::TYPE_SFIXED64:
+            case FieldDescriptor::TYPE_SINT32:
+            case FieldDescriptor::TYPE_SINT64:
+            case FieldDescriptor::TYPE_INT32:
+            case FieldDescriptor::TYPE_INT64: {
+                i64 keyValue; // the widest singed integral type
+                if (!TryFromString(key, keyValue)) {
+                    THROW_ERROR_EXCEPTION("Cannot parse a signed integral key of map %v from %Qv",
+                        YPathStack_.GetPath(),
+                        key)
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                WriteIntegerScalar(keyField, keyValue);
+                break;
+            }
+
+            case FieldDescriptor::TYPE_UINT32:
+            case FieldDescriptor::TYPE_UINT64:
+            case FieldDescriptor::TYPE_FIXED64:
+            case FieldDescriptor::TYPE_FIXED32: {
+                ui64 keyValue; // the widest unsigned integral type
+                if (!TryFromString(key, keyValue)) {
+                    THROW_ERROR_EXCEPTION("Cannot parse an unsigned integral key of map %v from %Qv",
+                        YPathStack_.GetPath(),
+                        key)
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                WriteIntegerScalar(keyField, keyValue);
+                break;
+            }
+
+            case FieldDescriptor::TYPE_STRING:
+            case FieldDescriptor::TYPE_BYTES:
+                BodyCodedStream_.WriteVarint64(key.length());
+                BodyCodedStream_.WriteRaw(key.data(), static_cast<int>(key.length()));
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
         const auto* valueField = field->GetYsonMapValueField();
-        FieldStack_.emplace_back(valueField, 0, false);
+        FieldStack_.emplace_back(valueField);
         YPathStack_.Push(TString(key));
     }
 
@@ -958,7 +1068,7 @@ private:
         } else {
             typeEntry.NonRequiredFieldNumbers.push_back(number);
         }
-        FieldStack_.emplace_back(field, 0, false);
+        FieldStack_.emplace_back(field);
         YPathStack_.Push(field);
 
         if (field->IsYsonString()) {
@@ -991,7 +1101,7 @@ private:
         const auto* type = typeEntry.Type;
 
         const auto* field = FieldStack_.back().Field;
-        if (field && field->IsYsonMap()) {
+        if (field && field->IsYsonMap()  && !FieldStack_.back().ParsingYsonMapFromList) {
             if (typeEntry.CurrentMapIndex > 0) {
                 EndNestedMessage();
             }
@@ -1155,7 +1265,7 @@ private:
 
     void ValidateNotRepeated()
     {
-        if (FieldStack_.back().InList) {
+        if (FieldStack_.back().ParsingList) {
             return;
         }
         const auto* field = FieldStack_.back().Field;
@@ -1175,7 +1285,7 @@ private:
 
     void ValidateRepeated()
     {
-        if (FieldStack_.back().InList) {
+        if (FieldStack_.back().ParsingList) {
             THROW_ERROR_EXCEPTION("Items of list %v cannot be lists themselves",
                 YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath());
@@ -1233,83 +1343,88 @@ private:
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
-            switch (field->GetType()) {
-                case FieldDescriptor::TYPE_INT32: {
-                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
-                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_INT64: {
-                    auto i64Value = CheckedCast<i64>(value, AsStringBuf("i64"));
-                    BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_SINT32: {
-                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
-                    BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_SINT64: {
-                    auto i64Value = CheckedCast<i64>(value, AsStringBuf("i64"));
-                    BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_UINT32: {
-                    auto ui32Value = CheckedCast<ui32>(value, AsStringBuf("ui32"));
-                    BodyCodedStream_.WriteVarint32(ui32Value);
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_UINT64: {
-                    auto ui64Value = CheckedCast<ui64>(value, AsStringBuf("ui64"));
-                    BodyCodedStream_.WriteVarint64(ui64Value);
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_FIXED32: {
-                    auto ui32Value = CheckedCast<ui32>(value, AsStringBuf("ui32"));
-                    BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_FIXED64: {
-                    auto ui64Value = CheckedCast<ui64>(value, AsStringBuf("ui64"));
-                    BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_ENUM: {
-                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
-                    const auto* enumType = field->GetEnumType();
-                    auto literal = enumType->FindLiteralByValue(i32Value);
-                    if (!literal) {
-                        THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
-                            i32Value,
-                            YPathStack_.GetHumanReadablePath())
-                            << TErrorAttribute("ypath", YPathStack_.GetPath())
-                            << TErrorAttribute("proto_field", field->GetFullName());
-                    }
-                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
-                    break;
-                }
-
-                default:
-                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
-                        YPathStack_.GetHumanReadablePath())
-                        << TErrorAttribute("ypath", YPathStack_.GetPath())
-                        << TErrorAttribute("proto_field", field->GetFullName());
-            }
+            WriteIntegerScalar(field, value);
         });
     }
 
-    template <class TTo, class TFrom>
-    TTo CheckedCast(TFrom value, TStringBuf toTypeName)
+    template <class T>
+    void WriteIntegerScalar(const TProtobufField* field, T value)
     {
-        const auto* field = FieldStack_.back().Field;
+        switch (field->GetType()) {
+            case FieldDescriptor::TYPE_INT32: {
+                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                break;
+            }
+
+            case FieldDescriptor::TYPE_INT64: {
+                auto i64Value = CheckedCastField<i64>(value, AsStringBuf("i64"), field);
+                BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_SINT32: {
+                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_SINT64: {
+                auto i64Value = CheckedCastField<i64>(value, AsStringBuf("i64"), field);
+                BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_UINT32: {
+                auto ui32Value = CheckedCastField<ui32>(value, AsStringBuf("ui32"), field);
+                BodyCodedStream_.WriteVarint32(ui32Value);
+                break;
+            }
+
+            case FieldDescriptor::TYPE_UINT64: {
+                auto ui64Value = CheckedCastField<ui64>(value, AsStringBuf("ui64"), field);
+                BodyCodedStream_.WriteVarint64(ui64Value);
+                break;
+            }
+
+            case FieldDescriptor::TYPE_FIXED32: {
+                auto ui32Value = CheckedCastField<ui32>(value, AsStringBuf("ui32"), field);
+                BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_FIXED64: {
+                auto ui64Value = CheckedCastField<ui64>(value, AsStringBuf("ui64"), field);
+                BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_ENUM: {
+                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                const auto* enumType = field->GetEnumType();
+                auto literal = enumType->FindLiteralByValue(i32Value);
+                if (!literal) {
+                    THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
+                        i32Value,
+                        YPathStack_.GetHumanReadablePath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+                }
+                BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
+                    YPathStack_.GetHumanReadablePath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath())
+                    << TErrorAttribute("proto_field", field->GetFullName());
+        }
+    }
+
+    template <class TTo, class TFrom>
+    TTo CheckedCastField(TFrom value, TStringBuf toTypeName, const TProtobufField* field)
+    {
         TTo result;
         if (!TryIntegralCast<TTo>(value, &result)) {
             THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into %Qv",
@@ -1520,6 +1635,14 @@ private:
         return true;
     }
 
+    template <class T>
+    void FillPooledStringWithInteger(T value)
+    {
+        PooledString_.resize(64); // enough for any value
+        auto length = ToString(value, PooledString_.data(), PooledString_.size());
+        PooledString_.resize(length);
+    }
+
     bool ParseMapEntry()
     {
         auto& typeEntry = TypeStack_.back();
@@ -1541,25 +1664,94 @@ private:
                         << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
-                if (wireType != WireFormatLite::WIRETYPE_LENGTH_DELIMITED) {
-                    THROW_ERROR_EXCEPTION("Unexpected wire type tag %x for protobuf map key",
-                        tag)
-                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                const auto* field = type->GetFieldByNumber(fieldNumber);
+                switch (wireType) {
+                    case WireFormatLite::WIRETYPE_VARINT: {
+                        ui64 keyValue;
+                        if (!CodedStream_.ReadVarint64(&keyValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for protobuf map key")
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+
+                        switch (field->GetType()) {
+                            case FieldDescriptor::TYPE_INT64:
+                                FillPooledStringWithInteger(static_cast<i64>(keyValue));
+                                break;
+
+                            case FieldDescriptor::TYPE_UINT64:
+                                FillPooledStringWithInteger(keyValue);
+                                break;
+
+                            case FieldDescriptor::TYPE_INT32:
+                                FillPooledStringWithInteger(static_cast<i32>(keyValue));
+                                break;
+
+                            case FieldDescriptor::TYPE_SINT32:
+                                FillPooledStringWithInteger(ZigZagDecode32(static_cast<ui32>(keyValue)));
+                                break;
+
+                            case FieldDescriptor::TYPE_SINT64:
+                                FillPooledStringWithInteger(ZigZagDecode64(keyValue));
+                                break;
+
+                            default:
+                                YT_ABORT();
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED32: {
+                        ui32 keyValue;
+                        if (!CodedStream_.ReadRaw(&keyValue, sizeof(keyValue))) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for protobuf map key")
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+
+                        if (IsSignedIntegralType(field->GetType())) {
+                            FillPooledStringWithInteger(static_cast<i32>(keyValue));
+                        } else {
+                            FillPooledStringWithInteger(keyValue);
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED64:  {
+                        ui64 keyValue;
+                        if (!CodedStream_.ReadRaw(&keyValue, sizeof(keyValue))) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for protobuf map key")
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+
+                        if (IsSignedIntegralType(field->GetType())) {
+                            FillPooledStringWithInteger(static_cast<i64>(keyValue));
+                        } else {
+                            FillPooledStringWithInteger(keyValue);
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
+                        ui64 keyLength;
+                        if (!CodedStream_.ReadVarint64(&keyLength)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for protobuf map key length")
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+
+                        PooledString_.resize(keyLength);
+                        if (!CodedStream_.ReadRaw(PooledString_.data(), keyLength)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"string\" value for protobuf map key")
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected wire type tag %x for protobuf map key",
+                            tag)
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
-                ui64 length;
-                if (!CodedStream_.ReadVarint64(&length)) {
-                    THROW_ERROR_EXCEPTION("Error reading \"varint\" value for protobuf map key")
-                        << TErrorAttribute("ypath", YPathStack_.GetPath());
-                }
-
-                PooledString_.resize(length);
-                if (!CodedStream_.ReadRaw(PooledString_.data(), length)) {
-                    THROW_ERROR_EXCEPTION("Error reading \"string\" value for protobuf map key")
-                        << TErrorAttribute("ypath", YPathStack_.GetPath());
-                }
-
-                OnKeyedItem(TString(PooledString_.data(), length));
+                OnKeyedItem(TString(PooledString_.data(), PooledString_.size()));
                 break;
             }
 

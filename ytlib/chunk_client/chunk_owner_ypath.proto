@@ -46,6 +46,8 @@ message TRspGetUploadParams
     optional NYT.NProto.TGuid chunk_list_id = 1;
     optional bytes last_key = 2;
     optional NYT.NCrypto.NProto.TMD5Hasher md5_hasher = 3;
+    repeated NYT.NProto.TGuid tablet_chunk_list_ids = 4;
+    repeated bytes pivot_keys = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

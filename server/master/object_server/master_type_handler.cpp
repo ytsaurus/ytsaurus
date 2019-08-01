@@ -22,19 +22,19 @@ public:
         return EObjectType::Master;
     }
 
-    virtual TObjectBase* FindObject(TObjectId id) override
+    virtual TObject* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
+private:
+    virtual void DoDestroyObject(TMasterObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }
 
-private:
     virtual TString DoGetName(const TMasterObject* /*object*/) override
     {
         return "master";

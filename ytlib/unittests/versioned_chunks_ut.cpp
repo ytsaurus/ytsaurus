@@ -244,6 +244,7 @@ protected:
                 GetNullBlockCache(),
                 TChunkSpec(),
                 nullptr,
+                NullTimestamp,
                 nullptr,
                 New<TChunkReaderPerformanceCounters>(),
                 KeyComparer_);
@@ -378,6 +379,7 @@ protected:
             GetNullBlockCache(),
             TChunkSpec(),
             nullptr,
+            NullTimestamp,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);

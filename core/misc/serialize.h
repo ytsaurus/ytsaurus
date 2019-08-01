@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "assert.h"
-#include "enum.h"
 #include "error.h"
 #include "guid.h"
 #include "mpl.h"
@@ -189,7 +188,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSaveContext, class TLoadContext>
+template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 class TCustomPersistenceContext
 {
 public:
@@ -231,7 +230,7 @@ public:
         return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
     }
 
-    int GetVersion() const
+    TSnapshotVersion GetVersion() const
     {
         return IsSave() ? SaveContext().GetVersion() : LoadContext().GetVersion();
     }
@@ -622,7 +621,7 @@ struct TVariantSerializerTraits<Index, T, Ts...>
     static void Save(C& context, const V& variant)
     {
         if (Index == variant.index()) {
-            NYT::Save(context, std::get<T>(variant));
+            NYT::Save(context, std::get<Index>(variant));
         } else {
             TVariantSerializerTraits<Index + 1, Ts...>::Save(context, variant);
         }
@@ -633,7 +632,7 @@ struct TVariantSerializerTraits<Index, T, Ts...>
     {
         if (Index == index) {
             variant = V(std::in_place_index_t<Index>());
-            NYT::Load(context, std::get<T>(variant));
+            NYT::Load(context, std::get<Index>(variant));
         } else {
             TVariantSerializerTraits<Index + 1, Ts...>::Load(context, index, variant);
         }

@@ -344,7 +344,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
             EPermission::Read);
 
         const auto& objectId = userObject.ObjectId;
-        tableCellTag = userObject.CellTag;
+        tableCellTag = userObject.ExternalCellTag;
         objectIdPath = FromObjectId(objectId);
         if (userObject.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",

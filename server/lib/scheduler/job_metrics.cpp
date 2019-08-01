@@ -1,6 +1,6 @@
 #include "job_metrics.h"
 
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/metrics_accumulator.h>
@@ -54,7 +54,7 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statisitcs_path").Value(customJobMetricDescription.StatisticsPath)
+            .Item("statistics_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
             .Item("aggregate_type").Value(FormatEnum<EAggregateType>(customJobMetricDescription.AggregateType))
         .EndMap();
@@ -110,6 +110,10 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
         metrics.Values()[EJobMetricName::TotalTimeAborted] =
             FindNumericValue(statistics, "/time/total").value_or(0);
     }
+
+    metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = 0;
+    metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = 0;
+    metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = 0;
 
     metrics.Values()[EJobMetricName::AggregatedSmoothedCpuUsageX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").value_or(0);
@@ -207,7 +211,7 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs)
     return result;
 }
 
-void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
+void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
 {
     ToProto(protoJobMetrics->mutable_values(), jobMetrics.Values());
 
@@ -220,7 +224,7 @@ void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler:
     }
 }
 
-void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJobMetrics& protoJobMetrics)
+void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NProto::TJobMetrics& protoJobMetrics)
 {
     FromProto(&jobMetrics->Values(), protoJobMetrics.values());
 
@@ -234,7 +238,7 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJ
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
-    NScheduler::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
+    NControllerAgent::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
     const NScheduler::TTreeTaggedJobMetrics& jobMetrics)
 {
     protoJobMetrics->set_tree_id(jobMetrics.TreeId);
@@ -243,7 +247,7 @@ void ToProto(
 
 void FromProto(
     NScheduler::TTreeTaggedJobMetrics* jobMetrics,
-    const NScheduler::NProto::TTreeTaggedJobMetrics& protoJobMetrics)
+    const NControllerAgent::NProto::TTreeTaggedJobMetrics& protoJobMetrics)
 {
     jobMetrics->TreeId = protoJobMetrics.tree_id();
     FromProto(&jobMetrics->Metrics, protoJobMetrics.metrics());

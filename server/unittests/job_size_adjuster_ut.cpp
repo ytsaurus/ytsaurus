@@ -1,9 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/config.h>
-#include <yt/server/controller_agent/job_size_adjuster.h>
+#include <yt/server/lib/chunk_pools/job_size_adjuster.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NChunkPools {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////

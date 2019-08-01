@@ -55,7 +55,7 @@ struct TSendOptions
 
     EDeliveryTrackingLevel TrackingLevel;
     int ChecksummedPartCount;
-    EMemoryZone MemoryZone = EMemoryZone::Normal;
+    NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
 };
 
 //! A bus, i.e. something capable of transmitting messages.

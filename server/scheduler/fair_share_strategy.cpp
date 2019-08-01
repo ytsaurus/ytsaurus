@@ -48,27 +48,29 @@ public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
-        IInvokerPtr controlInvoker,
         const std::vector<IInvokerPtr>& feasibleInvokers)
         : Config(config)
         , Host(host)
-        , ControlInvoker(controlInvoker)
         , FeasibleInvokers(feasibleInvokers)
         , Logger(SchedulerLogger)
-        , LastProfilingTime_(TInstant::Zero())
     {
+        FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
+            Host->GetControlInvoker(EControlQueue::CollectProfiling),
+            BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
+            Config->FairShareProfilingPeriod);
+
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            ControlInvoker,
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
             Config->MinNeededResourcesUpdatePeriod);
     }
@@ -77,6 +79,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        FairShareProfilingExecutor_->Start();
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
@@ -86,6 +89,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        FairShareProfilingExecutor_->Stop();
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
@@ -99,6 +103,11 @@ public:
             TWriterGuard guard(TreeIdToSnapshotLock_);
             TreeIdToSnapshot_.clear();
         }
+    }
+
+    void OnFairShareProfiling()
+    {
+        OnFairShareProfilingAt(TInstant::Now());
     }
 
     void OnFairShareUpdate()
@@ -134,11 +143,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto snapshot = FindTreeSnapshotByNodeDescriptor(schedulingContext->GetNodeDescriptor());
-
-        // Can happen if all trees are removed.
         if (!snapshot) {
-            YT_LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
-                schedulingContext->GetNodeDescriptor().Address);
             return VoidFuture;
         }
 
@@ -150,8 +155,8 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto spec = ParseSpec(operation);
-        auto state = New<TFairShareStrategyOperationState>(operation);
-        state->TreeIdToPoolNameMap() = GetOperationPools(operation->GetRuntimeParameters());
+
+        auto state = CreateFairShareStrategyOperationState(operation);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
@@ -278,8 +283,8 @@ public:
         }
 
         // Update configs and pools structure of all trees.
-        int updatedTreeCount;
-        UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeCount);
+        std::vector<TString> updatedTreeIds;
+        UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeIds);
 
         // Abort orphaned operations.
         AbortOrphanedOperations(treeIdsToRemove);
@@ -288,19 +293,6 @@ public:
         DefaultTreeId_ = defaultTreeId;
         std::swap(IdToTree_, idToTree);
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        for (const auto& pair : IdToTree_) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
-            YT_VERIFY(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
-        }
-
-        {
-            TWriterGuard guard(TreeIdToSnapshotLock_);
-            std::swap(TreeIdToSnapshot_, snapshots);
-            ++SnapshotRevision_;
-        }
-
         // Setting alerts.
         if (!errors.empty()) {
             auto error = TError("Error updating pool trees")
@@ -308,7 +300,7 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
         } else {
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
-            if (updatedTreeCount > 0 || treeIdsToRemove.size() > 0 || treeIdsToAdd.size() > 0) {
+            if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
                 Host->LogEventFluently(ELogEventType::PoolsInfo)
                     .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
                         const auto& treeId = value.first;
@@ -369,7 +361,7 @@ public:
     {
         std::vector<std::pair<TOperationId, TError>> result;
         for (const auto& operationStatePair : OperationIdToOperationState_) {
-            const auto& operationId = operationStatePair.first;
+            auto operationId = operationStatePair.first;
             const auto& operationState = operationStatePair.second;
 
             if (operationState->TreeIdToPoolNameMap().empty()) {
@@ -413,6 +405,7 @@ public:
             tree->UpdateControllerConfig(config);
         }
 
+        FairShareProfilingExecutor_->SetPeriod(Config->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
@@ -446,8 +439,8 @@ public:
 
         YT_VERIFY(newPools.size() == state->TreeIdToPoolNameMap().size());
 
-        //tentative trees can be removed from state, we must apply these changes to new state
-        for (const auto& erasedTree : state->ErasedTrees()) {
+        // Tentative trees can be removed from state, we must apply these changes to new state.
+        for (const auto& erasedTree : state->GetHost()->ErasedTrees()) {
             newPools.erase(erasedTree);
         }
 
@@ -521,20 +514,18 @@ public:
 
         if (validatePools) {
             ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
-            ValidatePoolLimits(operation, runtimeParams);
             ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+
+            auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParams);
+            if (!poolLimitViolations.empty()) {
+                THROW_ERROR poolLimitViolations.begin()->second;
+            }
         }
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
-        if (DefaultTreeId_) {
-            GetTree(*DefaultTreeId_)->BuildPoolsInformation(fluent);
-        }
-
 
         THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
         for (const auto& pair : IdToTree_) {
@@ -561,10 +552,6 @@ public:
         fluent
             .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    // COMPAT(asaitgalin): Remove it when UI will use scheduling_info_per_pool_tree
-                    .Item("fair_share_info").BeginMap()
-                        .Do(BIND(&TFairShareTree::BuildFairShareInfo, GetTree(*DefaultTreeId_)))
-                    .EndMap()
                     .Item("default_fair_share_tree").Value(*DefaultTreeId_);
             })
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
@@ -594,7 +581,7 @@ public:
         }
 
         for (const auto& pair : operationIdToOperationJobMetrics) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             for (const auto& metrics : pair.second) {
                 auto snapshotIt = snapshots.find(metrics.TreeId);
                 if (snapshotIt == snapshots.end()) {
@@ -616,7 +603,7 @@ public:
             .Run(operation, operation->GetRuntimeParameters());
     }
 
-    virtual void ValidatePoolLimits(
+    virtual THashMap<TString, TError> GetPoolLimitViolations(
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -624,10 +611,18 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        for (const auto& pair : pools) {
-            auto tree = GetTree(pair.first);
-            tree->ValidatePoolLimits(operation, pair.second);
+        THashMap<TString, TError> result;
+
+        for (const auto& [treeId, pool] : pools) {
+            auto tree = GetTree(treeId);
+            try {
+                tree->ValidatePoolLimits(operation, pool);
+            } catch (TErrorException& ex) {
+                result.emplace(treeId, std::move(ex.Error()));
+            }
         }
+
+        return result;
     }
 
     virtual void ValidateMaxRunningOperationsCountOnPoolChange(
@@ -644,6 +639,26 @@ public:
         }
     }
 
+    virtual void OnFairShareProfilingAt(TInstant now) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        if (!ProfilingCompleted_.IsSet()) {
+            return;
+        }
+
+        TMetricsAccumulator accumulator;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            tree->ProfileFairShare(accumulator);
+        }
+
+        ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
+                accumulator.BuildAndPublish(&profiler);
+            })
+            .AsyncVia(Host->GetProfilingInvoker())
+            .Run();
+    }
+
     // NB: This function is public for testing purposes.
     virtual void OnFairShareUpdateAt(TInstant now) override
     {
@@ -651,44 +666,34 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
+        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
+        }
+
+        auto result = WaitFor(Combine(asyncUpdates));
+        if (!result.IsOK()) {
+            Host->Disconnect(result);
+            return;
+        }
+
+        const auto& updateResults = result.Value();
+
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         std::vector<TError> errors;
 
-        for (const auto& pair : IdToTree_) {
-            const auto& tree = pair.second;
-            auto error = tree->OnFairShareUpdateAt(now);
+        for (const auto& [treeId, updateResult] : updateResults) {
+            const auto& [snapshot, error] = updateResult;
+            snapshots.emplace(treeId, snapshot);
             if (!error.IsOK()) {
                 errors.push_back(error);
             }
-        }
-
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-
-        for (const auto& pair : IdToTree_) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
-            YT_VERIFY(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
         }
 
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
             std::swap(TreeIdToSnapshot_, snapshots);
             ++SnapshotRevision_;
-        }
-
-        if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now && ProfilingCompleted_.IsSet()) {
-            LastProfilingTime_ = now;
-
-            TMetricsAccumulator accumulator;
-            for (const auto& pair : IdToTree_) {
-                const auto& tree = pair.second;
-                tree->ProfileFairShare(accumulator);
-            }
-
-            ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
-                    accumulator.BuildAndPublish(&profiler);
-                })
-                .AsyncVia(Host->GetProfilingInvoker())
-                .Run();
         }
 
         if (!errors.empty()) {
@@ -806,7 +811,7 @@ public:
 
     virtual void EnableOperation(IOperationStrategyHost* host) override
     {
-        const auto& operationId = host->GetId();
+        auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
         for (const auto& pair : state->TreeIdToPoolNameMap()) {
             const auto& treeId = pair.first;
@@ -842,18 +847,17 @@ private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
-    const IInvokerPtr ControlInvoker;
     const std::vector<IInvokerPtr> FeasibleInvokers;
 
     mutable NLogging::TLogger Logger;
 
+    TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    TInstant LastProfilingTime_;
     TFuture<void> ProfilingCompleted_ = VoidFuture;
 
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
@@ -868,7 +872,7 @@ private:
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {
         try {
-            return ConvertTo<TStrategyOperationSpecPtr>(operation->GetSpec());
+            return ConvertTo<TStrategyOperationSpecPtr>(operation->GetSpecString());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing strategy spec of operation")
                 << ex;
@@ -936,13 +940,37 @@ private:
         return result;
     }
 
-    THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams) const
+    IFairShareTreeSnapshotPtr FindTreeSnapshotByNodeDescriptor(const TExecNodeDescriptor& descriptor) const
     {
-        THashMap<TString, TPoolName> pools;
-        for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, pair.second->Pool);
+        IFairShareTreeSnapshotPtr matchingSnapshot;
+
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        {
+            TReaderGuard guard(TreeIdToSnapshotLock_);
+            snapshots = TreeIdToSnapshot_;
         }
-        return pools;
+
+        for (const auto& [treeId, snapshot] : snapshots) {
+            if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
+                // NB: ValidateNodeTags does not guarantee that this check will not success,
+                // since node filters of snapshots updated asynchronously.
+                if (matchingSnapshot) {
+                    // Found second matching snapshot, skip scheduling.
+                    YT_LOG_INFO("Node belong to multiple fair-share trees, scheduling skipped (Address: %v)",
+                        descriptor.Address);
+                    return nullptr;
+                }
+                matchingSnapshot = snapshot;
+            }
+        }
+
+        if (!matchingSnapshot) {
+            YT_LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
+                descriptor.Address);
+            return nullptr;
+        }
+
+        return matchingSnapshot;
     }
 
     void ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
@@ -1000,23 +1028,6 @@ private:
         return tree;
     }
 
-    IFairShareTreeSnapshotPtr FindTreeSnapshotByNodeDescriptor(const TExecNodeDescriptor& descriptor) const
-    {
-        IFairShareTreeSnapshotPtr result;
-
-        TReaderGuard guard(TreeIdToSnapshotLock_);
-
-        for (const auto& pair : TreeIdToSnapshot_) {
-            const auto& snapshot = pair.second;
-            if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
-                YT_VERIFY(!result);  // Only one snapshot should be found
-                result = snapshot;
-            }
-        }
-
-        return result;
-    }
-
     void DoBuildOperationProgress(
         void (TFairShareTree::*method)(TOperationId operationId, TFluentMap fluent),
         TOperationId operationId,
@@ -1038,7 +1049,7 @@ private:
 
     void ActivateOperations(const std::vector<TOperationId>& operationIds) const
     {
-        for (const auto& operationId : operationIds) {
+        for (auto operationId : operationIds) {
             const auto& state = GetOperationState(operationId);
             if (!state->GetHost()->GetActivated()) {
                 Host->ActivateOperation(operationId);
@@ -1151,10 +1162,8 @@ private:
         const IMapNodePtr& poolsMap,
         const TFairShareTreeMap& trees,
         std::vector<TError>* errors,
-        int* updatedTreeCount) const
+        std::vector<TString>* updatedTreeIds) const
     {
-        *updatedTreeCount = 0;
-
         for (const auto& pair : trees) {
             const auto& treeId = pair.first;
             const auto& tree = pair.second;
@@ -1177,7 +1186,7 @@ private:
                 errors->push_back(updateResult.Error);
             }
             if (updateResult.Updated) {
-                *updatedTreeCount = *updatedTreeCount + 1;
+                updatedTreeIds->push_back(treeId);
             }
         }
     }
@@ -1192,7 +1201,7 @@ private:
         THashMap<TString, THashSet<TOperationId>> treeIdToOperationSet;
 
         for (const auto& pair : OperationIdToOperationState_) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& poolsMap = pair.second->TreeIdToPoolNameMap();
 
             for (const auto& treeAndPool : poolsMap) {
@@ -1212,7 +1221,7 @@ private:
             }
 
             // Unregister operations in removed tree and update their tree set.
-            for (const auto& operationId : it->second) {
+            for (auto operationId : it->second) {
                 const auto& state = GetOperationState(operationId);
                 GetTree(treeId)->UnregisterOperation(state);
                 YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
@@ -1225,7 +1234,7 @@ private:
 
         // Aborting orphaned operations.
         for (const auto& pair : operationIdToTreeSet) {
-            const auto& operationId = pair.first;
+            auto operationId = pair.first;
             const auto& treeSet = pair.second;
             bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
             if (treeSet.empty() && isOperationExists) {
@@ -1266,10 +1275,9 @@ private:
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const IInvokerPtr& controlInvoker,
     const std::vector<IInvokerPtr>& feasibleInvokers)
 {
-    return New<TFairShareStrategy>(config, host, controlInvoker, feasibleInvokers);
+    return New<TFairShareStrategy>(config, host, feasibleInvokers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

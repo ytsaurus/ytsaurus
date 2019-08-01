@@ -227,6 +227,8 @@ message TSchedulerJobSpecExt
     optional string acl = 21;
 
     optional string job_cpu_monitor_config = 22;
+
+    optional int64 waiting_job_timeout = 23;
 }
 
 message TSchedulerJobResultExt

@@ -127,7 +127,18 @@ private:
                     Options_.TransactionId))
         {
             if (Options_.TransactionId) {
-                Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
+                TTransactionAttachOptions attachOptions{
+                    .Ping = true
+                };
+                Transaction_ = Client_->AttachTransaction(Options_.TransactionId, attachOptions);
+            }
+
+            for (auto transactionId : Options_.PrerequisiteTransactionIds) {
+                TTransactionAttachOptions attachOptions{
+                    .Ping = false
+                };
+                auto transaction = Client_->AttachTransaction(transactionId, attachOptions);
+                StartProbeTransaction(transaction, Config_->PrerequisiteTransactionProbePeriod);
             }
 
             // Spawn the actor.
@@ -223,6 +234,9 @@ private:
         TString PrimaryMedium_;
 
         TObjectId ObjectId_;
+        TCellTag NativeCellTag_ = InvalidCellTag;
+        TCellTag ExternalCellTag_ = InvalidCellTag;
+
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
@@ -368,8 +382,9 @@ private:
                     EPermission::Write);
             }
 
-            auto cellTag = userObject.CellTag;
             ObjectId_ = userObject.ObjectId;
+            NativeCellTag_ = CellTagFromId(ObjectId_);
+            ExternalCellTag_ = userObject.ExternalCellTag;
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
@@ -380,14 +395,14 @@ private:
                     userObject.Type);
             }
 
-            UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+            UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, ExternalCellTag_);
 
             {
                 TTimingGuard timingGuard(&Profiler, "/time/get_extended_attributes");
 
                 YT_LOG_INFO("Requesting extended journal attributes");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, NativeCellTag_);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
@@ -429,7 +444,7 @@ private:
 
                 YT_LOG_INFO("Starting journal upload");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
                 TObjectServiceProxy proxy(channel);
 
                 auto batchReq = proxy.ExecuteBatch();
@@ -481,7 +496,7 @@ private:
 
                 YT_LOG_INFO("Requesting journal upload parameters");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, ExternalCellTag_);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);
@@ -512,7 +527,7 @@ private:
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();

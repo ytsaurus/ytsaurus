@@ -615,8 +615,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YT_VERIFY(SnapshotStore_);
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-
-    StopEpoch();
 }
 
 void TDecoratedAutomaton::Initialize()
@@ -813,12 +811,14 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
 
     auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
     if (!asyncResponseData) {
-        PendingMutationIds_.push(request.MutationId);
         return TFuture<TMutationResponse>();
     }
 
     return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
-        return TMutationResponse{data};
+        return TMutationResponse{
+            EMutationResponseOrigin::ResponseKeeper,
+            data
+        };
     }));
 }
 
@@ -981,7 +981,10 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             DoApplyMutation(&context);
 
             if (commitPromise) {
-                commitPromise.Set(context.Response());
+                commitPromise.Set(TMutationResponse{
+                    EMutationResponseOrigin::Commit,
+                    context.GetResponseData()
+                });
             }
 
             PendingMutations_.pop();
@@ -1015,7 +1018,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
     auto automatonVersion = GetAutomatonVersion();
 
-    // Cannot access #request after the handler has been invoked since the latter
+    // Cannot access the request after the handler has been invoked since the latter
     // could submit more mutations and cause #PendingMutations_ to be reallocated.
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
@@ -1026,13 +1029,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Automaton_->ApplyMutation(context);
     }
 
-    if (Options_.ResponseKeeper && mutationId) {
-        if (State_ == EPeerState::Leading) {
-            YT_VERIFY(mutationId == PendingMutationIds_.front());
-            PendingMutationIds_.pop();
-        }
-        const auto& response = context->Response();
-        Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
+    if (Options_.ResponseKeeper && mutationId && !context->GetResponseKeeperSuppressed()) {
+        Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
 
     AutomatonVersion_ = automatonVersion.Advance();
@@ -1196,9 +1194,8 @@ void TDecoratedAutomaton::StopEpoch()
         PendingMutations_.pop();
     }
 
-    while (!PendingMutationIds_.empty()) {
-        Options_.ResponseKeeper->CancelRequest(PendingMutationIds_.front(), error);
-        PendingMutationIds_.pop();
+    if (Options_.ResponseKeeper) {
+        Options_.ResponseKeeper->CancelPendingRequests(error);
     }
 
     RotatingChangelog_ = false;

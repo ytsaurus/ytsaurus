@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT::NProfiling {
 
@@ -15,7 +16,6 @@ class TTimer;
 class TMonotonicCounter;
 class TSimpleGauge;
 class TAggregateGauge;
-
 
 struct TQueuedSample;
 
@@ -46,8 +46,8 @@ extern const TTagIdList EmptyTagIds;
  *  like the number of running goroutines.
  */
 DEFINE_ENUM(EMetricType,
-    (Counter)
-    (Gauge)
+    ((Counter) (0))
+    ((Gauge)   (1))
 );
 
 DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)

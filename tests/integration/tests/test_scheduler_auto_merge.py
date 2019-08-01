@@ -57,7 +57,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     with Restarter(self.Env, SCHEDULERS_SERVICE):
                         pass
                     i = 0
-        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+        print_debug("peak_chunk_count =", peak_chunk_count)
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
@@ -479,12 +479,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                             continue
                         data = read_table(path, verbose=False, table_reader={"unavailable_chunk_strategy": "skip"})
                         if len(data) > 0 and not live_preview_appeared[vertex][i]:
-                            print >>sys.stderr, "Live preview of type {0} and index {1} appeared".format(vertex, i)
+                            print_debug("Live preview of type {0} and index {1} appeared".format(vertex, i))
                         live_preview_appeared[vertex][i] = True
                     except YtError:
                         pass
             time.sleep(0.5)
-            print >>sys.stderr, "{0} jobs completed".format(op.get_job_count("completed"))
+            print_debug("{0} jobs completed".format(op.get_job_count("completed")))
 
             if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
                 break

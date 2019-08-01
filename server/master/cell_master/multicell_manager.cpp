@@ -31,7 +31,7 @@
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/cell_master/multicell_manager.pb.h>
+#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 namespace NYT::NCellMaster {
 
@@ -158,28 +158,36 @@ public:
 
     TCellTag PickSecondaryMasterCell(double bias)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        // List candidates.
+        SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
+        if (Bootstrap_->IsSecondaryMaster()) {
+            candidates.emplace_back(
+                Bootstrap_->GetCellTag(),
+                Bootstrap_->GetChunkManager()->Chunks().size());
+        }
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+            if (cellTag != Bootstrap_->GetPrimaryCellTag()) {
+                candidates.emplace_back(cellTag, entry.Statistics.chunk_count());
+            }
+        }
 
-        if (RegisteredMasterMap_.empty()) {
+        // Sanity check.
+        if (candidates.empty()) {
             return InvalidCellTag;
         }
 
         // Compute the average number of chunks.
-        int chunkCountSum = 0;
-        for (const auto& pair : RegisteredMasterMap_) {
-            const auto& entry = pair.second;
-            chunkCountSum += entry.Statistics.chunk_count();
+        i64 totalChunkCount = 0;
+        for (auto [cellTag, chunkCount] : candidates) {
+            totalChunkCount += chunkCount;
         }
-
-        int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
+        i64 avgChunkCount = totalChunkCount / candidates.size();
 
         // Split the candidates into two subsets: less-that-avg and more-than-avg.
         SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
         SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
-        for (const auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            const auto& entry = pair.second;
-            if (entry.Statistics.chunk_count() < avgChunkCount) {
+        for (auto [cellTag, chunkCount] : candidates) {
+            if (chunkCount < avgChunkCount) {
                 loCandidates.push_back(cellTag);
             } else {
                 hiCandidates.push_back(cellTag);
@@ -268,6 +276,7 @@ private:
     {
         int Index = -1;
         NProto::TCellStatistics Statistics;
+        TMailbox* Mailbox = nullptr;
 
         void Save(NCellMaster::TSaveContext& context) const
         {
@@ -287,9 +296,8 @@ private:
     // NB: Must ensure stable order.
     std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
     TCellTagList RegisteredMasterCellTags_;
-    EPrimaryRegisterState RegisterState_;
+    EPrimaryRegisterState RegisterState_ = EPrimaryRegisterState::None;
 
-    THashMap<TCellTag, TMailbox*> MasterMailboxCache_;
     TMailbox* PrimaryMasterMailbox_ = nullptr;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
@@ -304,20 +312,23 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
-        for (const auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            const auto& entry = pair.second;
+
+        const auto& hiveManager  = Bootstrap_->GetHiveManager();
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
             ValidateCellTag(cellTag);
+
             RegisteredMasterCellTags_[entry.Index] = cellTag;
+
+            auto cellId = Bootstrap_->GetCellId(cellTag);
+            entry.Mailbox = hiveManager->GetMailbox(cellId);
+
+            if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+                PrimaryMasterMailbox_ = entry.Mailbox;
+            }
+
             YT_LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
                 cellTag,
                 entry.Index);
-        }
-
-        if (RegisterState_ == EPrimaryRegisterState::Registered) {
-            YT_VERIFY(!PrimaryMasterMailbox_);
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
-            PrimaryMasterMailbox_ = hiveManager->GetMailbox(Bootstrap_->GetPrimaryCellId());
         }
     }
 
@@ -327,11 +338,6 @@ private:
 
         RegisteredMasterMap_.clear();
         RegisteredMasterCellTags_.clear();
-
-        if (Bootstrap_->IsSecondaryMaster()) {
-            RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
-        }
-
         RegisterState_ = EPrimaryRegisterState::None;
         PrimaryMasterMailbox_ = nullptr;
     }
@@ -401,7 +407,6 @@ private:
     void ClearCaches()
     {
         MasterChannelCache_.clear();
-        MasterMailboxCache_.clear();
     }
 
 
@@ -497,11 +502,7 @@ private:
         YT_LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
-
-        if (!PrimaryMasterMailbox_) {
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
-            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
-        }
+        RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
 
         NProto::TReqRegisterSecondaryMasterAtPrimary request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -548,11 +549,22 @@ private:
     {
         YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
         int index = static_cast<int>(RegisteredMasterMap_.size());
+        RegisteredMasterCellTags_.push_back(cellTag);
+
         auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
         YT_VERIFY(pair.second);
+
         auto& entry = pair.first->second;
         entry.Index = index;
-        RegisteredMasterCellTags_.push_back(cellTag);
+
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        entry.Mailbox = hiveManager->GetOrCreateMailbox(cellId);
+
+        if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+            PrimaryMasterMailbox_ = entry.Mailbox;
+        }
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
@@ -573,22 +585,17 @@ private:
 
     TMailbox* FindMasterMailbox(TCellTag cellTag)
     {
+        // Fast path.
         if (cellTag == PrimaryMasterCellTag) {
-            // This may be null.
             return PrimaryMasterMailbox_;
         }
 
-        YT_VERIFY(cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag);
-        auto it = MasterMailboxCache_.find(cellTag);
-        if (it != MasterMailboxCache_.end()) {
-            return it->second;
+        const auto* entry = FindMasterEntry(cellTag);
+        if (!entry) {
+            return nullptr;
         }
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto cellId = Bootstrap_->GetCellId(cellTag);
-        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-        YT_VERIFY(MasterMailboxCache_.emplace(cellTag, mailbox).second);
-        return mailbox;
+        return entry->Mailbox;
     }
 
 
@@ -673,18 +680,18 @@ private:
         const TCellTagList& cellTags,
         bool reliable)
     {
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
         TMailboxList mailboxes;
         for (auto cellTag : cellTags) {
+            if (cellTag == PrimaryMasterCellTag) {
+                cellTag = Bootstrap_->GetPrimaryCellTag();
+            }
             auto* mailbox = FindMasterMailbox(cellTag);
             if (mailbox) {
                 mailboxes.push_back(mailbox);
-            } else {
-                // Failure here indicates an attempt to send a reliable message to the primary master
-                // before registering.
-                YT_VERIFY(!reliable);
             }
         }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->PostMessage(mailboxes, std::move(message), reliable);
     }
 

@@ -1,9 +1,9 @@
 #include "timing.h"
-#include "profiler.h"
 
 #include <yt/core/misc/singleton.h>
 
 #include <util/system/sanitizers.h>
+#include <util/system/spinlock.h>
 
 #include <array>
 
@@ -20,7 +20,7 @@ class TClockConverter
 public:
     static TClockConverter* Get()
     {
-        return ImmortalSingleton<TClockConverter>();
+        return LeakySingleton<TClockConverter>();
     }
 
     // TDuration is unsigned and does not support negative values,
@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    DECLARE_IMMORTAL_SINGLETON_FRIEND()
+    DECLARE_LEAKY_SINGLETON_FRIEND()
 
     const double ClockRate_;
 
@@ -259,47 +259,11 @@ TCpuDuration TWallTimer::GetCurrentDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuTimer::TCpuTimer()
+TFiberWallTimer::TFiberWallTimer()
     : NConcurrency::TContextSwitchGuard(
         [this] () noexcept { Stop(); },
         [this] () noexcept { Start(); })
 { }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TWallTimingGuard::TWallTimingGuard(TDuration* value)
-    : Value_(value)
-{ }
-
-TWallTimingGuard::~TWallTimingGuard()
-{
-    *Value_ += TWallTimer::GetElapsedTime();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCpuTimingGuard::TCpuTimingGuard(TDuration* value)
-    : Value_(value)
-{ }
-
-TCpuTimingGuard::~TCpuTimingGuard()
-{
-    *Value_ += TCpuTimer::GetElapsedTime();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TProfilingTimingGuard::TProfilingTimingGuard(const TProfiler& profiler, TMonotonicCounter* counter)
-    : Profiler_(profiler)
-    , Counter_(counter)
-    , StartInstant_(GetCpuInstant())
-{ }
-
-TProfilingTimingGuard::~TProfilingTimingGuard()
-{
-    auto duration = CpuDurationToDuration(GetCpuInstant() - StartInstant_);
-    Profiler_.Increment(*Counter_, duration.MicroSeconds());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

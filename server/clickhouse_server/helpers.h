@@ -66,3 +66,14 @@ NTableClient::TTableSchema ConvertToTableSchema(
 
 } // namespace NYT::NClickHouseServer
 
+namespace DB {
+
+/////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const DB::IAST& ast);
+
+void Serialize(const DB::QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
+
+/////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB

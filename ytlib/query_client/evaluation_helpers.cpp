@@ -191,11 +191,13 @@ TMultiJoinClosure::TItem::TItem(
 
 TGroupByClosure::TGroupByClosure(
     IMemoryChunkProviderPtr chunkProvider,
+    TComparerFunction* prefixEqComparer,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
     bool checkNulls)
     : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
+    , PrefixEqComparer(prefixEqComparer)
     , Lookup(
         InitialGroupOpHashtableCapacity,
         groupHasher,

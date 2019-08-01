@@ -12,7 +12,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NDataNode {
 

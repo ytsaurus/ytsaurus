@@ -871,7 +871,7 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     const auto& handler = objectManager->GetHandler(Object_);
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
     if (!replicationCellTags.empty()) {
-        context->CellTag = replicationCellTags[0];
+        context->ExternalCellTag = replicationCellTags[0];
     }
 
     if (context->PopulateSecurityTags) {
@@ -994,27 +994,47 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             } else {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
-                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                newChunkList->AddOwningNode(lockedNode);
+                if (snapshotChunkList->GetKind() == EChunkListKind::Static) {
+                    auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                    newChunkList->AddOwningNode(lockedNode);
 
-                snapshotChunkList->RemoveOwningNode(lockedNode);
-                lockedNode->SetChunkList(newChunkList);
-                objectManager->RefObject(newChunkList);
+                    snapshotChunkList->RemoveOwningNode(lockedNode);
+                    lockedNode->SetChunkList(newChunkList);
+                    objectManager->RefObject(newChunkList);
 
-                chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+                    chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
-                auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+                    auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                    chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
-                objectManager->UnrefObject(snapshotChunkList);
+                    objectManager->UnrefObject(snapshotChunkList);
 
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
-                    "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
-                    node->GetId(),
-                    newChunkList->GetId(),
-                    snapshotChunkList->GetId(),
-                    deltaChunkList->GetId());
+                    YT_LOG_DEBUG_UNLESS(
+                        IsRecovery(),
+                        "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
+                        node->GetId(),
+                        newChunkList->GetId(),
+                        snapshotChunkList->GetId(),
+                        deltaChunkList->GetId());
+
+                } else if (snapshotChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                    auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
+                    newChunkList->AddOwningNode(lockedNode);
+                    lockedNode->SetChunkList(newChunkList);
+                    objectManager->RefObject(newChunkList);
+
+                    for (int index = 0; index < snapshotChunkList->Children().size(); ++index) {
+                        auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
+                        chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                    }
+
+                    snapshotChunkList->RemoveOwningNode(lockedNode);
+                    objectManager->UnrefObject(snapshotChunkList);
+
+                } else {
+                    YT_ABORT();
+                }
+
             }
             break;
         }
@@ -1053,7 +1073,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
-    response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetPrimaryCellTag() : externalCellTag);
+    response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetCellTag() : externalCellTag);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
@@ -1087,36 +1107,53 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     ValidateNotExternal();
     ValidateInUpdate();
 
+
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto* snapshotChunkList = node->GetSnapshotChunkList();
-    auto* deltaChunkList = node->GetDeltaChunkList();
+    if (node->GetChunkList()->GetKind() == EChunkListKind::Static) {
+        auto* snapshotChunkList = node->GetSnapshotChunkList();
+        auto* deltaChunkList = node->GetDeltaChunkList();
 
-    const auto& uploadChunkListId = deltaChunkList->GetId();
-    ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
+        const auto& uploadChunkListId = deltaChunkList->GetId();
+        ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
 
-    if (fetchLastKey) {
-        TOwningKey lastKey;
-        if (!IsEmpty(snapshotChunkList)) {
-            lastKey = GetUpperBoundKey(snapshotChunkList);
+        if (fetchLastKey) {
+            TOwningKey lastKey;
+            if (!IsEmpty(snapshotChunkList)) {
+                lastKey = GetUpperBoundKeyOrThrow(snapshotChunkList);
+            }
+            ToProto(response->mutable_last_key(), lastKey);
         }
-        ToProto(response->mutable_last_key(), lastKey);
+
+        std::optional<TMD5Hasher> md5Hasher;
+        node->GetUploadParams(&md5Hasher);
+        ToProto(response->mutable_md5_hasher(), md5Hasher);
+
+        context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v",
+            uploadChunkListId,
+            response->has_last_key());
+
+    } else if (node->GetChunkList()->GetKind() == EChunkListKind::SortedDynamicRoot) {
+        auto* chunkList = node->GetChunkList();
+        auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
+
+        for (auto* tabletList : trunkChunkList->Children()) {
+            ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
+        }
+
+        for (auto* tabletList : chunkList->Children()) {
+            YT_VERIFY(tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+            ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
+        }
+    } else {
+        THROW_ERROR_EXCEPTION("Unsupported chunk list kind");
     }
 
-    std::optional<TMD5Hasher> md5Hasher;
-    node->GetUploadParams(&md5Hasher);
-    ToProto(response->mutable_md5_hasher(), md5Hasher);
-
-    context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v",
-        uploadChunkListId,
-        response->has_last_key());
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 {
     DeclareMutating();
-    ValidateTransaction();
-    ValidateInUpdate();
 
     TChunkOwnerBase::TEndUploadContext uploadContext;
 
@@ -1159,6 +1196,18 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
     }
 
+    context->SetRequestInfo("SchemaMode: %v, Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, OptimizeFor: %v, "
+        "MD5Hasher: %v",
+        uploadContext.SchemaMode,
+        uploadContext.Statistics,
+        uploadContext.CompressionCodec,
+        uploadContext.ErasureCodec,
+        uploadContext.OptimizeFor,
+        uploadContext.MD5Hasher.has_value());
+
+    ValidateTransaction();
+    ValidateInUpdate();
+
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction);
 
@@ -1170,7 +1219,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     SetModified();
 
-    if (Bootstrap_->IsPrimaryMaster()) {
+    if (!node->IsForeign()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitTransaction(Transaction, NullTimestamp);
     }

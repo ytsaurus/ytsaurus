@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/controller_agent/private.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -48,13 +50,6 @@ struct TLivePreviewTableBase;
 
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const double ApproximateSizesBoostFactor;
-extern const double JobSizeBoostFactor;
-
-extern const TDuration PrepareYieldPeriod;
 
 ////////////////////////////////////////////////////////////////////////////////
 

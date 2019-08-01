@@ -237,7 +237,40 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
 ISchemafulReaderPtr CreateOrderedSchemafulReader(
     std::function<ISchemafulReaderPtr()> getNextReader)
 {
-    return CreateUnorderedSchemafulReader(getNextReader, 1);
+    std::queue<ISchemafulReaderPtr> nextReaders;
+
+    nextReaders.push(getNextReader());
+
+    auto readerGenerator = [
+        createNextReaders = true,
+        nextReaders = std::move(nextReaders),
+        getNextReader = std::move(getNextReader)
+    ] () mutable -> ISchemafulReaderPtr {
+        if (nextReaders.empty()) {
+            return nullptr;
+        }
+
+        auto currentReader = nextReaders.front();
+        nextReaders.pop();
+
+        if (createNextReaders) {
+            // Create two new readers.
+            if (auto nextReader = getNextReader()) {
+                nextReaders.push(nextReader);
+                if (auto nextReader = getNextReader()) {
+                    nextReaders.push(nextReader);
+                } else {
+                    createNextReaders = false;
+                }
+            } else {
+                createNextReaders = false;
+            }
+        }
+
+        return currentReader;
+    };
+
+    return CreateUnorderedSchemafulReader(readerGenerator, 1);
 }
 
 ISchemafulReaderPtr CreatePrefetchingOrderedSchemafulReader(

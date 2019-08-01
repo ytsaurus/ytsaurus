@@ -30,6 +30,9 @@ public:
 
     using TSavedInternedObjectsMap = THashMap<const void*, NHydra::TEntitySerializationKey>;
     DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
+
+public:
+    NCellMaster::EMasterSnapshotVersion GetVersion();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,10 +51,12 @@ public:
 public:
     explicit TLoadContext(TBootstrap* bootstrap);
 
-    NObjectServer::TObjectBase* GetWeakGhostObject(NObjectServer::TObjectId id) const;
+    NObjectServer::TObject* GetWeakGhostObject(NObjectServer::TObjectId id) const;
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
+
+    NCellMaster::EMasterSnapshotVersion GetVersion();
 };
 
 template <>

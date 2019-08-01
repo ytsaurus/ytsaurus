@@ -6,6 +6,7 @@
 
 #include <yt/client/table_client/schemaless_reader.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -43,12 +44,23 @@ public:
         return HeaderBlock_;
     }
 
+    virtual void readPrefixImpl() override
+    {
+        YT_LOG_DEBUG("readPrefixImpl() is called");
+    }
+
+    virtual void readSuffixImpl() override
+    {
+        YT_LOG_DEBUG("readSuffixImpl() is called");
+    }
+
 private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
     TLogger Logger;
     DB::Block HeaderBlock_;
     std::vector<int> IdToColumnIndex_;
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     DB::Block readImpl() override
     {
@@ -63,8 +75,13 @@ private:
             if (!Reader_->Read(&rows)) {
                 return {};
             } else if (rows.empty()) {
+                NProfiling::TWallTimer wallTime;
                 WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
+                auto elapsed = wallTime.GetElapsedTime();
+                if (elapsed > TDuration::Seconds(1)) {
+                    YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+                }
             } else {
                 break;
             }
@@ -72,10 +89,10 @@ private:
 
         for (const auto& row : rows) {
             for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-                const auto& value = row[index];
+                auto value = row[index];
                 auto id = value.Id;
                 int columnIndex = (id < IdToColumnIndex_.size()) ? IdToColumnIndex_[id] : -1;
-                Y_VERIFY(columnIndex != -1);
+                YT_VERIFY(columnIndex != -1);
                 switch (value.Type) {
                     case EValueType::Null:
                         // TODO(max42): consider transforming to Y_ASSERT.
@@ -91,6 +108,9 @@ private:
                     case EValueType::Uint64:
                     case EValueType::Double:
                     case EValueType::Boolean: {
+                        if (ReadSchema_.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
+                            ToAny(RowBuffer_.Get(), &value, &value);
+                        }
                         auto field = ConvertToField(value);
                         block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
                         break;
@@ -100,6 +120,9 @@ private:
                 }
             }
         }
+
+        // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
+        RowBuffer_->Clear();
 
         return block;
     }
@@ -135,6 +158,99 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     TLogger logger)
 {
     return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlockInputStreamLoggingAdapter
+    : public DB::IBlockInputStream
+{
+public:
+    TBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+        : UnderlyingStream_(std::move(stream))
+        , Logger(logger)
+    {
+        Logger.AddTag("UnderlyingStream: %v", static_cast<void*>(UnderlyingStream_.get()));
+        YT_LOG_DEBUG("Stream created");
+        addChild(UnderlyingStream_);
+    }
+
+    virtual void readPrefix() override
+    {
+        YT_LOG_DEBUG("readPrefix() is called");
+        UnderlyingStream_->readPrefix();
+    }
+
+    virtual void readSuffix() override
+    {
+        YT_LOG_DEBUG("readSuffix() is called");
+        UnderlyingStream_->readSuffix();
+    }
+
+    virtual DB::Block readImpl() override
+    {
+        NProfiling::TWallTimer wallTimer;
+        auto result = UnderlyingStream_->read();
+        auto elapsed = wallTimer.GetElapsedTime();
+        if (elapsed > TDuration::Seconds(1)) {
+            YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+        }
+        return result;
+    }
+
+    virtual DB::String getName() const override
+    {
+        return "TBlockInputStreamLoggingAdapter";
+    }
+
+    virtual DB::Block getHeader() const override
+    {
+        YT_LOG_DEBUG("Started getting header from the underlying stream");
+        auto result = UnderlyingStream_->getHeader();
+        YT_LOG_DEBUG("Finished getting header from the underlying stream");
+        return result;
+    }
+
+    virtual const DB::BlockMissingValues& getMissingValues() const override
+    {
+        return UnderlyingStream_->getMissingValues();
+    }
+
+    virtual bool isSortedOutput() const override
+    {
+        return UnderlyingStream_->isSortedOutput();
+    }
+
+    virtual const DB::SortDescription& getSortDescription() const override
+    {
+        return UnderlyingStream_->getSortDescription();
+    }
+
+    virtual DB::Block getTotals() override
+    {
+        return UnderlyingStream_->getTotals();
+    }
+
+    virtual void progress(const DB::Progress& value) override
+    {
+        UnderlyingStream_->progress(value);
+    }
+
+    virtual void cancel(bool kill) override
+    {
+        UnderlyingStream_->cancel(kill);
+    }
+
+private:
+    DB::BlockInputStreamPtr UnderlyingStream_;
+    TLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+{
+    return std::make_shared<TBlockInputStreamLoggingAdapter>(std::move(stream), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

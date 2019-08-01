@@ -140,21 +140,21 @@ private:
 
             case EInternedAttributeKey::StagedNodeIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
                         fluent.Item().Value(node->GetId());
                     });
                 return true;
 
             case EInternedAttributeKey::BranchedNodeIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
                         fluent.Item().Value(node->GetId());
                     });
                 return true;
 
             case EInternedAttributeKey::LockedNodeIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
                         fluent.Item().Value(node->GetId());
                     });
                 return true;
@@ -257,7 +257,7 @@ private:
                 return FetchMergeableAttribute(
                     GetUninternedAttributeKey(key),
                     BIND([=, this_ = MakeStrong(this)] {
-                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
                     }));
@@ -274,7 +274,7 @@ private:
                 return FetchMergeableAttribute(
                     GetUninternedAttributeKey(key),
                     BIND([=, this_ = MakeStrong(this)] {
-                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
                     }));

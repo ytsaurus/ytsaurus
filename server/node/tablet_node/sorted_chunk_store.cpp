@@ -159,6 +159,7 @@ TSortedChunkStore::TSortedChunkStore(
     TStoreId id,
     NChunkClient::TChunkId chunkId,
     const NChunkClient::TReadRange& readRange,
+    TTimestamp chunkTimestamp,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -171,6 +172,7 @@ TSortedChunkStore::TSortedChunkStore(
         config,
         id,
         chunkId,
+        chunkTimestamp,
         tablet,
         blockCache,
         chunkRegistry,
@@ -510,6 +512,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         BlockCache_,
         std::move(chunkSpec),
         std::move(chunkMeta),
+        ChunkTimestamp_,
         nullptr,
         PerformanceCounters_,
         GetKeyComparer());

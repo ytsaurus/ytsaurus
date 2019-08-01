@@ -326,6 +326,88 @@ TEST_F(TBatchRequestTest, TestBatchRequestWith1151Subrequests)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBatchWithRetriesTest
+    : public TApiTestBase
+{
+protected:
+    TString GenerateTablePath()
+    {
+        return Format("//tmp/%v", TGuid::Create());
+    }
+
+    static TYPathRequestPtr GetRequest(const TString& tablePath)
+    {
+        return TCypressYPathProxy::Get(tablePath + "/@");
+    }
+
+    static TYPathRequestPtr CreateRequest(const TString& tablePath)
+    {
+        auto request = TCypressYPathProxy::Create(tablePath);
+        request->set_type(static_cast<int>(EObjectType::Table));
+        request->set_recursive(false);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", 1);
+        ToProto(request->mutable_node_attributes(), *attributes);
+        GenerateMutationId(request);
+
+        return request;
+    }
+
+    int InvokeAndGetRetryCount(TYPathRequestPtr request, TErrorCode errorCode, int maxRetryCount)
+    {
+        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        config->RetryCount = maxRetryCount;
+        config->StartBackoff = TDuration::MilliSeconds(100);
+        config->BackoffMultiplier = 1;
+
+        int retryCount = 0;
+        auto needRetry = [&retryCount, errorCode] (int currentRetry, const TError& error) {
+            if (error.FindMatching(errorCode)) {
+                retryCount = currentRetry + 1;
+                return true;
+            }
+            return false;
+        };
+
+        auto channel = dynamic_cast<NApi::NNative::IClient*>(Client_.Get())->
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchRequest = proxy.ExecuteBatchWithRetries(config, BIND(needRetry));
+        batchRequest->AddRequest(std::move(request));
+
+        auto response = WaitFor(batchRequest->Invoke());
+        response.ThrowOnError();
+
+        return retryCount;
+    }
+};
+
+TEST_F(TBatchWithRetriesTest, TestRetryCount)
+{
+    auto tablePath = GenerateTablePath();
+    auto request = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(request, NYTree::EErrorCode::ResolveError, 5), 5);
+}
+
+TEST_F(TBatchWithRetriesTest, TestCorrectRequest)
+{
+    auto tablePath = GenerateTablePath();
+    auto badRequest = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(badRequest, NYTree::EErrorCode::ResolveError, 5), 5);
+
+    auto createRequest = CreateRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(createRequest, NYTree::EErrorCode::AlreadyExists, 5), 0);
+
+    auto createRequest2 = CreateRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(createRequest2, NYTree::EErrorCode::AlreadyExists, 5), 5);
+
+    auto goodRequest = GetRequest(tablePath);
+    ASSERT_EQ(InvokeAndGetRetryCount(goodRequest, NYTree::EErrorCode::ResolveError, 5), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedWriteTest
     : public TDynamicTablesTestBase
 {
@@ -333,7 +415,7 @@ public:
     static void SetUpTestCase()
     {
         TDynamicTablesTestBase::SetUpTestCase();
-        CreateTableAndClient(
+        CreateTable(
             "//tmp/write_test", // tablePath
             "[" // schema
             "{name=k0;type=int64;sort_order=ascending};"
@@ -341,9 +423,15 @@ public:
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]",
-            ReplicatorUserName // userName
+            "{name=v5;type=int64}]"
         );
+
+        ReplicatorClient_ = CreateClient(ReplicatorUserName);
+    }
+
+    static void TearDownTestCase()
+    {
+        ReplicatorClient_.Reset();
     }
 
 protected:
@@ -355,7 +443,11 @@ protected:
     {
         return YsonToVersionedRow(Buffer_, keyYson, valueYson);
     }
+
+    static IClientPtr ReplicatorClient_;
 };
+
+IClientPtr TVersionedWriteTest::ReplicatorClient_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,11 +456,13 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
     WriteVersionedRow(
         {"k0", "k1", "k2", "v5", "v3", "v4"},
         "<id=0> 30; <id=1> 30; <id=2> 30;",
-        "<id=3;ts=1> 15; <id=4;ts=1> 13; <id=5;ts=1> 14;");
+        "<id=3;ts=1> 15; <id=4;ts=1> 13; <id=5;ts=1> 14;",
+        ReplicatorClient_);
     WriteVersionedRow(
         {"k0", "k1", "k2", "v4", "v5", "v3"},
         "<id=0> 30; <id=1> 30; <id=2> 30;",
-        "<id=3;ts=2> 24; <id=4;ts=2> 25; <id=5;ts=2> 23;");
+        "<id=3;ts=2> 24; <id=4;ts=2> 25; <id=5;ts=2> 23;",
+        ReplicatorClient_);
 
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3", "v4", "v5"},
@@ -392,14 +486,16 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
         WriteVersionedRow(
             {"k0", "k2", "k1", "v3"},
             "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=3;ts=3> 100;"),
+            "<id=3;ts=3> 100;",
+            ReplicatorClient_),
         TErrorException);
 
     EXPECT_THROW(
         WriteVersionedRow(
             {"k0", "k1", "v3", "k2"},
             "<id=0> 30; <id=1> 30; <id=3> 30;",
-            "<id=2;ts=3> 100;"),
+            "<id=2;ts=3> 100;",
+            ReplicatorClient_),
         TErrorException);
 }
 
@@ -409,7 +505,8 @@ TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
         WriteVersionedRow(
             {"k0", "k1", "k2", "v3"},
             "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=2;ts=3> %true;"),
+            "<id=2;ts=3> %true;",
+            ReplicatorClient_),
         TErrorException);
 }
 
@@ -422,7 +519,8 @@ TEST_F(TVersionedWriteTest, TestInsertDuplicateKeyColumns)
     EXPECT_THROW(
         WriteUnversionedRow(
             {"k0", "k1", "k2", "v3", "v4", "v5"},
-            "<id=0> 20; <id=1> 21; <id=2> 22; <id=3> 13; <id=4> 14; <id=5> 15; <id=5> 25"),
+            "<id=0> 20; <id=1> 21; <id=2> 22; <id=3> 13; <id=4> 14; <id=5> 15; <id=5> 25",
+            ReplicatorClient_),
         TErrorException);
 }
 
@@ -435,7 +533,7 @@ public:
     static void SetUpTestCase()
     {
         TDynamicTablesTestBase::SetUpTestCase();
-        CreateTableAndClient(
+        CreateTable(
             "//tmp/write_test_required", // tablePath
             "[" // schema
             "{name=k0;type=int64;sort_order=ascending};"
@@ -443,9 +541,10 @@ public:
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64;required=%true};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]",
-            ReplicatorUserName // userName
+            "{name=v5;type=int64}]"
         );
+
+        ReplicatorClient_ = CreateClient(ReplicatorUserName);
     }
 };
 
@@ -457,27 +556,31 @@ TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
         WriteVersionedRow(
             {"k0", "k1", "k2", "v4"},
             "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=3;ts=1> 10"),
+            "<id=3;ts=1> 10",
+            ReplicatorClient_),
         TErrorException);
 
     EXPECT_THROW(
         WriteVersionedRow(
             {"k0", "k1", "k2", "v3", "v4"},
             "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=3;ts=2> 10; <id=4;ts=2> 10; <id=4;ts=1> 15"),
+            "<id=3;ts=2> 10; <id=4;ts=2> 10; <id=4;ts=1> 15",
+            ReplicatorClient_),
         TErrorException);
 
     EXPECT_THROW(
         WriteVersionedRow(
             {"k0", "k1", "k2", "v3", "v4"},
             "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=4;ts=2> 10; <id=4;ts=1> 15"),
+            "<id=4;ts=2> 10; <id=4;ts=1> 15",
+            ReplicatorClient_),
         TErrorException);
 
     WriteVersionedRow(
         {"k0", "k1", "k2", "v3", "v4"},
         "<id=0> 40; <id=1> 40; <id=2> 40;",
-        "<id=3;ts=2> 10; <id=3;ts=1> 20; <id=4;ts=1> 15");
+        "<id=3;ts=2> 10; <id=3;ts=1> 20; <id=4;ts=1> 15",
+        ReplicatorClient_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

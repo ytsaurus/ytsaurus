@@ -39,36 +39,43 @@ int ParseListIndex(TStringBuf token)
     try {
         return FromString<int>(token);
     } catch (const std::exception&) {
-        THROW_ERROR_EXCEPTION("Invalid list index: %v",
+        THROW_ERROR_EXCEPTION("Invalid list index %Qv",
             token);
     }
 }
 
 TString ToYPathLiteral(TStringBuf value)
 {
-    //! Keep it synchronized with the same functions in python, C++ and other APIs.
-    static const char* HexChars = "0123456789abcdef";
-    TString result;
-    result.reserve(value.length() + 16);
-    for (unsigned char ch : value) {
-        if (ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{') {
-            result.append('\\');
-            result.append(ch);
-        } else if (ch < 32 || ch > 127) {
-            result.append('\\');
-            result.append('x');
-            result.append(HexChars[ch >> 4]);
-            result.append(HexChars[ch & 15]);
-        } else {
-            result.append(ch);
-        }
-    }
-    return result;
+    TStringBuilder builder;
+    AppendYPathLiteral(&builder, value);
+    return builder.Flush();
 }
 
 TString ToYPathLiteral(i64 value)
 {
     return ToString(value);
+}
+
+void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value)
+{
+    builder->Preallocate(value.length() + 16);
+    for (unsigned char ch : value) {
+        if (ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{') {
+            builder->AppendChar('\\');
+            builder->AppendChar(ch);
+        } else if (ch < 32 || ch > 127) {
+            builder->AppendString(AsStringBuf("\\x"));
+            builder->AppendChar(Int2Hex[ch >> 4]);
+            builder->AppendChar(Int2Hex[ch & 0xf]);
+        } else {
+            builder->AppendChar(ch);
+        }
+    }
+}
+
+void AppendYPathLiteral(TStringBuilderBase* builder, i64 value)
+{
+    builder->AppendFormat("%v", value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

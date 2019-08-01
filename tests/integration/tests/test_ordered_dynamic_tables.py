@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -32,6 +32,16 @@ class TestOrderedDynamicTables(DynamicTablesBase):
                 return all(s["preload_state"] == "complete" for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
             wait(lambda: all_preloaded())
 
+    def _verify_cumulative_statistics_match_statistics(self, chunk_list_id):
+        attrs = get("#{}/@".format(chunk_list_id), attributes=["statistics", "cumulative_statistics"])
+        statistics = attrs["statistics"]
+        cumulative_statistics = attrs["cumulative_statistics"]
+        assert len(cumulative_statistics) > 0
+        assert cumulative_statistics[-1]["chunk_count"] == statistics["logical_chunk_count"]
+        assert cumulative_statistics[-1]["row_count"] == statistics["logical_row_count"]
+        # Intentionally not compared because it is not "logical" and contains garbage after trim.
+        # assert cumulative_statistics[-1]["data_size"] == statistics["uncompressed_data_size"]
+
     def _verify_chunk_tree_statistics(self, table):
         chunk_list_id = get(table + "/@chunk_list_id")
         statistics = get("#{0}/@statistics".format(chunk_list_id))
@@ -41,6 +51,10 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert statistics["chunk_count"] == sum([c["chunk_count"] for c in tablet_statistics])
         assert statistics["logical_row_count"] == sum([c["logical_row_count"] for c in tablet_statistics])
         assert statistics["logical_chunk_count"] == sum([c["logical_chunk_count"] for c in tablet_statistics])
+
+        self._verify_cumulative_statistics_match_statistics(chunk_list_id)
+        for tablet_chunk_list in tablet_chunk_lists:
+            self._verify_cumulative_statistics_match_statistics(tablet_chunk_list)
 
     def test_mount(self):
         sync_create_cells(1)
@@ -466,7 +480,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert len(tablets) == 4
         for i in xrange(4):
             tablet = tablets[i]
-            print i, '->', tablet
+            print_debug(i, '->', tablet)
             if i == 2:
                 assert tablet["flushed_row_count"] == 4
                 assert tablet["trimmed_row_count"] == 0
@@ -563,6 +577,114 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         insert_rows("//tmp/t", [{"$tablet_index": 1, "a": 5}])
         sync_flush_table("//tmp/t")
 
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    def test_chunk_read_limit_after_chunk_list_cow(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": 0}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 2}])
+        sync_flush_table("//tmp/t")
+
+        path = "<ranges=[{lower_limit={chunk_index=0};upper_limit={chunk_index=2}}]>//tmp/t"
+
+        assert list(read_table(path)) == [{"a": 0}, {"a": 1}]
+
+        trim_rows("//tmp/t", 0, 1)
+        wait(lambda: list(read_table(path)) == [{"a": 1}])
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        insert_rows("//tmp/t", [{"a": 3}])
+        sync_flush_table("//tmp/t")
+        assert list(read_table(path)) == [{"a": 1}]
+
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    @skip_if_rpc_driver_backend
+    def test_chunk_read_limit_after_trim(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
+        sync_mount_table("//tmp/t")
+
+        expected_rows = []
+        trimmed_row_count = [0] # Cannot otherwise modify this variable from _trim_chunks.
+
+        def _add_chunk():
+            idx = len(expected_rows)
+            expected_rows.append(idx)
+            insert_rows("//tmp/t", [{"a": idx}])
+            sync_flush_table("//tmp/t")
+
+        def _trim_chunks(count):
+            while trimmed_row_count[0] < count:
+                expected_rows[trimmed_row_count[0]] = None
+                trimmed_row_count[0] += 1
+            trim_rows("//tmp/t", 0, trimmed_row_count[0])
+
+        def _validate_read(lower_chunk_index, upper_chunk_index):
+            expected = [i for i in expected_rows[lower_chunk_index:upper_chunk_index] if i is not None]
+            # str.format doesn't like extra {}-s in the format string.
+            ranges = "<ranges=[{lower_limit={chunk_index=" + str(lower_chunk_index) + "};"
+            ranges += "upper_limit={chunk_index=" + str(upper_chunk_index) + "}}]>"
+            actual = [x['a'] for x in read_table(ranges + "//tmp/t")]
+            assert expected == actual
+
+        for i in range(20):
+            _add_chunk()
+
+        _trim_chunks(8)
+        sync_flush_table("//tmp/t")
+        _validate_read(3, 5)
+        _validate_read(5, 15)
+        _validate_read(0, 20)
+        _validate_read(10, 18)
+        _validate_read(17, 20)
+        _validate_read(16, 17)
+        _validate_read(18, 18)
+        _validate_read(18, 20)
+
+        # NB: chunks are physically removed from the chunk list in portions of at least 17 pcs.
+        _trim_chunks(17)
+        sync_flush_table("//tmp/t")
+        _validate_read(10, 18)
+        _validate_read(17, 20)
+        _validate_read(16, 17)
+        _validate_read(18, 18)
+        _validate_read(18, 20)
+
+    def test_cumulative_statistics_after_cow(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": 0}])
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        sync_unmount_table("//tmp/t")
+
+        def _get_cumulative_statistics():
+            root_chunk_list = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
+            cumulative_statistics = get("#{}/@cumulative_statistics".format(tablet_chunk_list))
+            return cumulative_statistics
+
+        assert len(_get_cumulative_statistics()) == 2
+
+        sync_reshard_table("//tmp/t", 1)
+        assert len(_get_cumulative_statistics()) == 1
+        assert get("//tmp/t/@chunk_ids") == []
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 0}])
+        sync_flush_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")
 
     def test_freeze_empty(self):

@@ -29,6 +29,7 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NYT::FromProto;
@@ -132,9 +133,9 @@ public:
         return Underlying_->Revive();
     }
 
-    virtual void Abort() override
+    virtual void Terminate(EControllerState finalState) override
     {
-        Underlying_->Abort();
+        Underlying_->Terminate(finalState);
     }
 
     virtual void Cancel() override
@@ -285,9 +286,9 @@ public:
         return Underlying_->ExtractJobSpec(jobId);
     }
 
-    virtual TOperationJobMetrics PullJobMetricsDelta() override
+    virtual TOperationJobMetrics PullJobMetricsDelta(bool force) override
     {
-        return Underlying_->PullJobMetricsDelta();
+        return Underlying_->PullJobMetricsDelta(force);
     }
 
     virtual TOperationAlertMap GetAlerts() override

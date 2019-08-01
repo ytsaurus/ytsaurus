@@ -10,10 +10,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-std::vector<T> SortedAndUnique(TRange<T> range)
+template <class T, size_t N>
+std::vector<T> SortedAndUnique(std::array<T, N> array)
 {
-    std::vector<T> result(range.begin(), range.end());
+    std::vector<T> result(array.begin(), array.end());
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;

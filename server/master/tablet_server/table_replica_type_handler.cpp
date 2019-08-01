@@ -43,10 +43,12 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return ETypeFlags::Creatable;
+        return
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -102,8 +104,7 @@ private:
 
     virtual void DoZombifyObject(TTableReplica* replica) override
     {
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(replica);
-
+        TObjectTypeHandlerWithMapBase::DoZombifyObject(replica);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTableReplica(replica);
     }

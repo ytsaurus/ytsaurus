@@ -1528,6 +1528,36 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sleep(10)
         assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
+    def test_chunk_view_accounting(self):
+        create_account("test_account")
+        create_account("other_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
+        set("//sys/accounts/other_account/@resource_limits/tablet_count", 10)
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", account="test_account")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}, {"key": 2, "value": "b"}])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [2]])
+        assert any(
+            "//tmp/t" in value.attributes["owning_nodes"]
+            for value in get("//sys/chunk_views", attributes=["owning_nodes"]).values())
+
+        def _verify(account, disk_space):
+            def wait_func():
+                usage = get("//sys/accounts/{}/@resource_usage".format(account))
+                committed_usage = get("//sys/accounts/{}/@committed_resource_usage".format(account))
+                return usage == committed_usage and usage["disk_space"] == disk_space
+            wait(wait_func)
+
+
+        disk_space = get("//sys/accounts/test_account/@resource_usage/disk_space")
+        _verify("test_account", disk_space)
+
+        set("//tmp/t/@account", "other_account")
+        _verify("test_account", 0)
+        _verify("other_account", disk_space)
 
 ##################################################################
 

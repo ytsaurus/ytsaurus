@@ -24,7 +24,7 @@ protected:
 
     static void TearDownTestCase();
 
-    static void CreateClient(const TString& userName);
+    static NApi::IClientPtr CreateClient(const TString& userName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,10 +40,9 @@ protected:
 
     static void SetUpTestCase();
 
-    static void CreateTableAndClient(
+    static void CreateTable(
         const TString& tablePath,
-        const TString& schema,
-        const TString& userName = NRpc::RootUserName);
+        const TString& schema);
 
     static void SyncMountTable(const NYPath::TYPath& path);
 
@@ -58,13 +57,16 @@ protected:
     static std::tuple<TSharedRange<NTableClient::TUnversionedRow>, NTableClient::TNameTablePtr> PrepareUnversionedRow(
         const std::vector<TString>& names,
         const TString& rowString);
+
     static void WriteUnversionedRow(
         std::vector<TString> names,
-        const TString& rowString);
+        const TString& rowString,
+        const NApi::IClientPtr& client = Client_);
 
     static void WriteRows(
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TUnversionedRow> rows);
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const NApi::IClientPtr& client = Client_);
 
     static std::tuple<TSharedRange<NTableClient::TVersionedRow>, NTableClient::TNameTablePtr> PrepareVersionedRow(
         const std::vector<TString>& names,
@@ -74,11 +76,13 @@ protected:
     static void WriteVersionedRow(
         std::vector<TString> names,
         const TString& keyYson,
-        const TString& valueYson);
+        const TString& valueYson,
+        const NApi::IClientPtr& client = Client_);
 
     static void WriteRows(
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TVersionedRow> rows);
+        TSharedRange<NTableClient::TVersionedRow> rows,
+        const NApi::IClientPtr& client = Client_);
 
 private:
     static void RemoveSystemObjects(

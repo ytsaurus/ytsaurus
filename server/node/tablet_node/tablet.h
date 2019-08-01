@@ -1,9 +1,10 @@
 #pragma once
 
+#include "lock_manager.h"
+#include "object_detail.h"
+#include "partition.h"
 #include "public.h"
 #include "sorted_dynamic_comparer.h"
-#include "partition.h"
-#include "object_detail.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -106,7 +107,6 @@ struct TTabletSnapshot
 {
     NHydra::TCellId CellId;
     NHydra::IHydraManagerPtr HydraManager;
-    TTabletManagerPtr TabletManager;
     TTabletId TabletId;
     TString LoggingId;
     i64 MountRevision = 0;
@@ -162,6 +162,8 @@ struct TTabletSnapshot
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler;
 
+    TLockManagerPtr LockManager;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TKey& lowerBound,
@@ -180,6 +182,7 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
     bool IsProfilingEnabled() const;
+    void WaitOnLocks(TTimestamp timestamp) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -384,6 +387,8 @@ public:
     const IStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(IStoreManagerPtr storeManager);
 
+    const TLockManagerPtr& GetLockManager() const;
+
     using TPartitionList = std::vector<std::unique_ptr<TPartition>>;
     const TPartitionList& PartitionList() const;
     TPartition* GetEden() const;
@@ -489,6 +494,8 @@ private:
 
     TTabletCounters* ProfilerCounters_ = nullptr;
 
+    TLockManagerPtr LockManager_;
+
     NLogging::TLogger Logger;
 
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler_;
@@ -499,6 +506,7 @@ private:
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
+    int ComputeEdenOverlappingStoreCount() const;
     void UpdateOverlappingStoreCount();
 };
 

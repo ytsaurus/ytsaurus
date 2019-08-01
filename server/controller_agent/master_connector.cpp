@@ -209,7 +209,7 @@ private:
 
     struct TLivePreviewRequest
     {
-        TChunkListId TableId;
+        TNodeId TableId;
         TChunkTreeId ChildId;
     };
 
@@ -581,7 +581,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& operationId = operation->GetId();
+        auto operationId = operation->GetId();
 
         std::vector<TCreateJobNodeRequest> jobRequests;
         std::vector<TLivePreviewRequest> livePreviewRequests;
@@ -591,7 +591,13 @@ private:
             if (!update) {
                 return;
             }
-            std::swap(jobRequests, update->JobRequests);
+
+            if (Config_->EnableCypressJobNodes) {
+                std::swap(jobRequests, update->JobRequests);
+            } else {
+                update->JobRequests.clear();
+            }
+
             std::swap(livePreviewRequests, update->LivePreviewRequests);
             livePreviewTransactionId = update->LivePreviewTransactionId;
         }
@@ -603,56 +609,59 @@ private:
             livePreviewTransactionId,
             livePreviewRequests.size());
 
-        std::vector<TCreateJobNodeRequest> successfulJobRequests;
-        try {
-            successfulJobRequests = CreateJobNodes(operation, jobRequests);
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
-                operationId);
-            auto error = TError("Error creating job nodes for operation %v",
-                operationId)
-                << ex;
-            if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                THROW_ERROR error;
-            }
-        }
-
-        try {
-            std::vector<TJobFile> files;
-            for (const auto& request : successfulJobRequests) {
-                if (request.StderrChunkId) {
-                    auto path = GetJobPath(
-                        operationId,
-                        request.JobId,
-                        "stderr");
-
-                    files.push_back({
-                        request.JobId,
-                        path,
-                        request.StderrChunkId,
-                        "stderr"
-                    });
-                }
-                if (request.FailContextChunkId) {
-                    auto path = GetJobPath(
-                        operationId,
-                        request.JobId,
-                        "fail_context");
-
-                    files.push_back({
-                        request.JobId,
-                        path,
-                        request.FailContextChunkId,
-                        "fail_context"
-                    });
+        if (Config_->EnableCypressJobNodes)
+        {
+            std::vector<TCreateJobNodeRequest> successfulJobRequests;
+            try {
+                successfulJobRequests = CreateJobNodes(operation, jobRequests);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
+                    operationId);
+                auto error = TError("Error creating job nodes for operation %v",
+                    operationId)
+                    << ex;
+                if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                    THROW_ERROR error;
                 }
             }
-            SaveJobFiles(operationId, files);
-        } catch (const std::exception& ex) {
-            // NB: Don' treat this as a critical error.
-            // Some of these chunks could go missing for a number of reasons.
-            YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
-                operationId);
+
+            try {
+                std::vector<TJobFile> files;
+                for (const auto& request : successfulJobRequests) {
+                    if (request.StderrChunkId) {
+                        auto path = GetJobPath(
+                            operationId,
+                            request.JobId,
+                            "stderr");
+
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.StderrChunkId,
+                            "stderr"
+                        });
+                    }
+                    if (request.FailContextChunkId) {
+                        auto path = GetJobPath(
+                            operationId,
+                            request.JobId,
+                            "fail_context");
+
+                        files.push_back({
+                            request.JobId,
+                            path,
+                            request.FailContextChunkId,
+                            "fail_context"
+                        });
+                    }
+                }
+                SaveJobFiles(operationId, files);
+            } catch (const std::exception& ex) {
+                // NB: Don' treat this as a critical error.
+                // Some of these chunks could go missing for a number of reasons.
+                YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
+                    operationId);
+            }
         }
 
         try {
@@ -665,7 +674,7 @@ private:
         }
 
         try {
-            UpdateOperationNodes(operationId);
+            UpdateOperationNodeAttributes(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -699,7 +708,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodes(TOperationId operationId)
+    void UpdateOperationNodeAttributes(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -766,7 +775,7 @@ private:
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
         for (const auto& request : requests) {
-            const auto& jobId = request.JobId;
+            auto jobId = request.JobId;
 
             auto path = GetJobPath(operation->GetId(), jobId);
             auto attributes = ConvertToAttributes(request.Attributes);
@@ -784,7 +793,7 @@ private:
 
         std::vector<TCreateJobNodeRequest> successfulRequests;
         for (const auto& request : requests) {
-            const auto& jobId = request.JobId;
+            auto jobId = request.JobId;
             auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
             bool allOK = true;
             for (const auto& rspOrError : rspsOrError) {
@@ -821,19 +830,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (requests.empty()) {
+            return;
+        }
+
         struct TTableInfo
         {
             TNodeId TableId;
-            TCellTag CellTag;
+            TCellTag ExternalCellTag;
             std::vector<TChunkId> ChildIds;
             TTransactionId UploadTransactionId;
             TChunkListId UploadChunkListId;
             NChunkClient::NProto::TDataStatistics Statistics;
         };
 
-        THashMap<TNodeId, TTableInfo> tableIdToInfo;
+        THashMap<TNodeId, TTableInfo> nodeIdToTableInfo;
         for (const auto& request : requests) {
-            auto& tableInfo = tableIdToInfo[request.TableId];
+            auto& tableInfo = nodeIdToTableInfo[request.TableId];
             tableInfo.TableId = request.TableId;
             tableInfo.ChildIds.push_back(request.ChildId);
 
@@ -843,26 +856,24 @@ private:
                 tableInfo.ChildIds.size());
         }
 
-        if (tableIdToInfo.empty()) {
-            return;
+        THashMap<TCellTag, std::vector<TTableInfo*>> nativeCellTagToTableInfos;
+        for (auto& [nodeId, tableInfo] : nodeIdToTableInfo) {
+            nativeCellTagToTableInfos[CellTagFromId(nodeId)].push_back(&tableInfo);
         }
 
         // BeginUpload
-        {
-            auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
+            auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
 
-            for (const auto& pair : tableIdToInfo) {
-                auto tableId = pair.first;
-                {
-                    auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableId));
-                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                    req->set_lock_mode(static_cast<int>(ELockMode::Shared));
-                    req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
-                        operationId));
-                    SetTransactionId(req, transactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "begin_upload");
-                }
+            for (const auto* tableInfo : tableInfos) {
+                auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableInfo->TableId));
+                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_lock_mode(static_cast<int>(ELockMode::Shared));
+                req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
+                    operationId));
+                SetTransactionId(req, transactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "begin_upload");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -871,25 +882,20 @@ private:
 
             auto rsps = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspBeginUpload>("begin_upload");
             int rspIndex = 0;
-            for (auto& pair : tableIdToInfo) {
-                auto& tableInfo = pair.second;
+            for (auto* tableInfo : tableInfos) {
                 const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo.CellTag = rsp->cell_tag();
-                tableInfo.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                tableInfo->ExternalCellTag = rsp->cell_tag();
+                tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
         }
 
-        THashMap<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
-        for (auto& pair : tableIdToInfo) {
-            auto& tableInfo  = pair.second;
-            cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
+        THashMap<TCellTag, std::vector<TTableInfo*>> externalCellTagToTableInfos;
+        for (auto& [nodeId, tableInfo] : nodeIdToTableInfo) {
+            externalCellTagToTableInfos[tableInfo.ExternalCellTag].push_back(&tableInfo);
         }
 
         // GetUploadParams
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
+        for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
@@ -910,10 +916,7 @@ private:
         }
 
         // Attach
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
+        for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
             auto batchReq = StartChunkBatchRequest(cellTag);
             GenerateMutationId(batchReq);
             batchReq->set_suppress_upstream_sync(true);
@@ -951,19 +954,15 @@ private:
         }
 
         // EndUpload
-        {
-            auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
+            auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
 
-            for (const auto& pair : tableIdToInfo) {
-                auto tableId = pair.first;
-                const auto& tableInfo = pair.second;
-                {
-                    auto req = TTableYPathProxy::EndUpload(FromObjectId(tableId));
-                    *req->mutable_statistics() = tableInfo.Statistics;
-                    SetTransactionId(req, tableInfo.UploadTransactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "end_upload");
-                }
+            for (const auto* tableInfo : tableInfos) {
+                auto req = TTableYPathProxy::EndUpload(FromObjectId(tableInfo->TableId));
+                *req->mutable_statistics() = tableInfo->Statistics;
+                SetTransactionId(req, tableInfo->UploadTransactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "end_upload");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

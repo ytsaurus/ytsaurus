@@ -62,6 +62,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, LockDynamicTable);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, CheckDynamicTableLock);
 
 private:
     void CallViaNativeClient(const TString& user, std::function<TFuture<void>(const NApi::IClientPtr&)> callback);

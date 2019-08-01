@@ -368,15 +368,7 @@ public:
             return VoidFuture;
         }
 
-        if (!epochContext->PendingUpstreamSyncPromise) {
-            epochContext->PendingUpstreamSyncPromise = NewPromise<void>();
-            TDelayedExecutor::Submit(
-                BIND(&TDistributedHydraManager::OnUpsteamSyncDeadlineReached, MakeStrong(this))
-                    .Via(epochContext->EpochUserAutomatonInvoker),
-                Config_->UpstreamSyncDelay);
-        }
-
-        return epochContext->PendingUpstreamSyncPromise;
+        return epochContext->UpstreamSyncBatcher->Run();
     }
 
     virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
@@ -466,6 +458,7 @@ private:
     const IElectionCallbacksPtr ElectionCallbacks_;
 
     const NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
 
     std::atomic<bool> ReadOnly_ = {false};
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
@@ -1493,6 +1486,9 @@ private:
             epochContext->EpochUserAutomatonInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
+        epochContext->UpstreamSyncBatcher = New<TAsyncBatcher<void>>(
+            BIND(&TDistributedHydraManager::DoSyncWithUpstream, MakeWeak(this), MakeWeak(epochContext)),
+            Config_->UpstreamSyncDelay);
 
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
@@ -1560,43 +1556,40 @@ private:
         }
 
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-        auto trySetPromise = [&] (auto& promise) {
-            if (promise) {
-                promise.TrySet(error);
-            }
-        };
-        trySetPromise(AutomatonEpochContext_->ActiveUpstreamSyncPromise);
-        trySetPromise(AutomatonEpochContext_->PendingUpstreamSyncPromise);
-        trySetPromise(AutomatonEpochContext_->LeaderSyncPromise);
+        AutomatonEpochContext_->UpstreamSyncBatcher->Cancel(error);
+        if (AutomatonEpochContext_->LeaderSyncPromise) {
+            AutomatonEpochContext_->LeaderSyncPromise.TrySet(error);
+        }
 
         AutomatonEpochContext_.Reset();
     }
 
 
-    void OnUpsteamSyncDeadlineReached()
+    static TFuture<void> DoSyncWithUpstream(
+        const TWeakPtr<TDistributedHydraManager>& weakThis,
+        const TWeakPtr<TEpochContext>& weakEpochContext)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = AutomatonEpochContext_;
-        epochContext->UpstreamSyncDeadlineReached = true;
-
-        if (!epochContext->ActiveUpstreamSyncPromise) {
-            DoSyncWithUpstream();
+        auto this_ = weakThis.Lock();
+        auto epochContext = weakEpochContext.Lock();
+        if (!this_ || !epochContext) {
+            return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
-    }
 
-    void DoSyncWithUpstream()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
+        const auto& Logger = this_->Logger;
         YT_LOG_DEBUG("Synchronizing with upstream");
 
-        auto epochContext = AutomatonEpochContext_;
-        epochContext->UpstreamSyncDeadlineReached = false;
-        epochContext->UpstreamSyncStartTime = NProfiling::GetCpuInstant();
+        epochContext->UpstreamSyncTimer.Restart();
 
-        YT_VERIFY(!epochContext->ActiveUpstreamSyncPromise);
-        swap(epochContext->ActiveUpstreamSyncPromise, epochContext->PendingUpstreamSyncPromise);
+        return BIND(&TDistributedHydraManager::DoSyncWithUpstreamCore, this_, epochContext)
+            .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+            .Run();
+    }
+
+    TFuture<void> DoSyncWithUpstreamCore(const TEpochContextPtr& epochContext)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TFuture<void>> asyncResults;
         if (GetAutomatonState() == EPeerState::Following) {
@@ -1606,16 +1599,15 @@ private:
             asyncResults.push_back(callback.Run());
         }
 
-        CombineAll(asyncResults).Subscribe(
-            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this))
-                .Via(epochContext->EpochUserAutomatonInvoker));
+        return CombineAll(asyncResults).Apply(
+            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext));
     }
 
-    void OnUpstreamSyncReached(const TErrorOr<std::vector<TError>>& resultsOrError)
+    TError OnUpstreamSyncReached(
+        const TEpochContextPtr& epochContext,
+        const TErrorOr<std::vector<TError>>& resultsOrError)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto epochContext = AutomatonEpochContext_;
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TError combinedError;
         if (resultsOrError.IsOK()) {
@@ -1635,18 +1627,10 @@ private:
 
         if (combinedError.IsOK()) {
             YT_LOG_DEBUG("Upstream synchronization complete");
-            auto syncTime = NProfiling::CpuDurationToDuration(
-                NProfiling::GetCpuInstant() -
-                epochContext->UpstreamSyncStartTime);
-            Profiler.Enqueue("/upstream_sync_time", syncTime.MilliSeconds(), NProfiling::EMetricType::Gauge);
+            Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
         }
 
-        epochContext->ActiveUpstreamSyncPromise.Set(combinedError);
-        epochContext->ActiveUpstreamSyncPromise.Reset();
-
-        if (epochContext->UpstreamSyncDeadlineReached) {
-            DoSyncWithUpstream();
-        }
+        return combinedError;
     }
 
     TFuture<void> DoSyncWithLeader()
@@ -1744,8 +1728,17 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        // Fire-and-forget.
-        CommitMutation(TMutationRequest());
+        CommitMutation(TMutationRequest())
+            .WithTimeout(Config_->HeartbeatMutationTimeout)
+            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+                if (result.IsOK()) {
+                    YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
+                } else {
+                    Restart(
+                        weakEpochContext,
+                        TError("Heartbeat mutation commit failed") << result);
+                }
+            }));
     }
 
 

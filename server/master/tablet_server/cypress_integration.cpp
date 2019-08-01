@@ -93,7 +93,7 @@ class TTabletCellNodeTypeHandler
 {
 public:
     explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
+        : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() const override
@@ -136,7 +136,7 @@ private:
         return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(TObject* object) const
     {
         return object->GetType() == EObjectType::Tablet;
     }
@@ -240,7 +240,7 @@ private:
         return ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit));
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(TObject* object) const
     {
         return object->GetType() == EObjectType::TabletAction;
     }

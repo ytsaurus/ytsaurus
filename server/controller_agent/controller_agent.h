@@ -115,7 +115,7 @@ public:
     const TOperationIdToOperationMap& GetOperations();
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
-    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId);
+    TFuture<TOperationControllerUnregisterResult> DisposeAndUnregisterOperation(TOperationId operationId);
     TFuture<void> UpdateOperationRuntimeParameters(
         TOperationId operationId,
         NScheduler::TOperationRuntimeParametersUpdatePtr update);
@@ -127,7 +127,7 @@ public:
     TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation);
     TFuture<void> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
-    TFuture<void> AbortOperation(const TOperationPtr& operation);
+    TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState);
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);

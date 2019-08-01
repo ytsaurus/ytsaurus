@@ -14,65 +14,94 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
+const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
-    THashMap<TString, TCypressNodeBase*>* storage);
+    THashMap<TString, TCypressNode*>* storage);
 
-std::vector<TCypressNodeBase*> GetMapNodeChildList(
+std::vector<TCypressNode*> GetMapNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-const std::vector<TCypressNodeBase*>& GetListNodeChildList(
+const std::vector<TCypressNode*>& GetListNodeChildList(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-std::vector<std::pair<TString, TCypressNodeBase*>> SortKeyToChild(
-    const THashMap<TString, TCypressNodeBase*>& keyToChildMap);
+std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
+    const THashMap<TString, TCypressNode*>& keyToChildMap);
 
-TCypressNodeBase* FindMapNodeChild(
+TCypressNode* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TMapNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
+
+TCypressNode* GetMapNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
     TStringBuf key);
 
 TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
-    TCypressNodeBase* trunkChildNode);
+    TCypressNode* trunkChildNode);
+
+TCypressNode* FindListNodeChild(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
+
+TCypressNode* GetListNodeChildOrThrow(
+    const TCypressManagerPtr& cypressManager,
+    TListNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
 
 int FindListNodeChildIndex(
     TListNode* parentNode,
-    TCypressNodeBase* trunkChildNode);
+    TCypressNode* trunkChildNode);
 
 THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,
-    TCypressNodeBase* trunkNode,
+    TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 void AttachChild(
     const NObjectServer::TObjectManagerPtr& objectManager,
-    TCypressNodeBase* trunkParent,
-    TCypressNodeBase* child);
+    TCypressNode* trunkParent,
+    TCypressNode* child);
 
 void DetachChild(
     const NObjectServer::TObjectManagerPtr& objectManager,
-    TCypressNodeBase* trunkParent,
-    TCypressNodeBase* child,
+    TCypressNode* trunkParent,
+    TCypressNode* child,
     bool unref);
 
-bool NodeHasKey(const TCypressNodeBase* node);
+bool NodeHasKey(const TCypressNode* node);
 
 bool IsAncestorOf(
-    const TCypressNodeBase* trunkAncestor,
-    const TCypressNodeBase* trunkDescendant);
+    const TCypressNode* trunkAncestor,
+    const TCypressNode* trunkDescendant);
+
+TNodeId MakePortalExitNodeId(
+    TNodeId entranceNodeId,
+    NObjectClient::TCellTag exitCellTag);
+
+TNodeId MakePortalEntranceNodeId(
+    TNodeId exitNodeId,
+    NObjectClient::TCellTag entranceCellTag);
+
+NObjectClient::TObjectId MakeCypressShardId(
+    TNodeId rootNodeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

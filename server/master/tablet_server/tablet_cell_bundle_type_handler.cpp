@@ -42,10 +42,12 @@ public:
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable |
+            ETypeFlags::TwoPhaseRemoval;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {

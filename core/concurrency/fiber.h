@@ -5,8 +5,9 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/memory_tag.h>
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_tag.h>
+#include <yt/core/ytalloc/memory_zone.h>
+
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/profiling/public.h>
@@ -162,16 +163,16 @@ public:
     void InvokeContextInHandlers();
 
     //! Returns memory tag currently used in this fiber.
-    TMemoryTag GetMemoryTag() const;
+    NYTAlloc::TMemoryTag GetMemoryTag() const;
 
     //! Sets the memory tag used in this fiber.
-    void SetMemoryTag(TMemoryTag tag);
+    void SetMemoryTag(NYTAlloc::TMemoryTag tag);
 
     //! Returns memory zone currently used in this fiber.
-    EMemoryZone GetMemoryZone() const;
+    NYTAlloc::EMemoryZone GetMemoryZone() const;
 
     //! Sets the memory zone used in this fiber.
-    void SetMemoryZone(EMemoryZone zone);
+    void SetMemoryZone(NYTAlloc::EMemoryZone zone);
 
     //! Returns |true| if there is enough remaining stack space.
     /*!
@@ -213,8 +214,8 @@ private:
 
     SmallVector<uintptr_t, 8> Fsd_;
 
-    TMemoryTag MemoryTag_ = NullMemoryTag;
-    EMemoryZone MemoryZone_ = EMemoryZone::Normal;
+    NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
+    NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
 
     TContextSwitchHandlersList SwitchHandlers_;
 

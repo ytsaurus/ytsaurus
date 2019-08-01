@@ -110,6 +110,61 @@ class TestLocks(YTEnvSetup):
         else:
             assert node_id not in locked_node_ids
 
+    @pytest.mark.parametrize("mode", ["exclusive", "shared"])
+    def test_acquired_lock_promotion(self, mode):
+        create("map_node", "//tmp/m1")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        lock("//tmp/m1", mode=mode, tx=tx2)
+        commit_transaction(tx2)
+
+        self._assert_locked("//tmp/m1", tx1, mode)
+        locks = get("//tmp/m1/@locks")
+        assert len(locks) == 1
+        assert locks[0]["state"] == "acquired"
+        assert locks[0]["transaction_id"] == tx1
+        assert locks[0]["mode"] == mode
+
+        commit_transaction(tx1) # mustn't crash
+
+    def test_pending_lock_promotion(self):
+        create("map_node", "//tmp/m1")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        other_tx = start_transaction()
+
+        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=other_tx)["lock_id"]
+        pending_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        assert get("#" + acquired_lock_id + "/@state") == "acquired"
+        assert get("#" + pending_lock_id + "/@state") == "pending"
+
+        commit_transaction(tx2)
+
+        self._assert_locked("//tmp/m1", other_tx, "exclusive")
+        locks = get("//tmp/m1/@locks")
+        assert len(locks) == 2
+        locks = {l["id"]: {"state": l["state"], "transaction_id": l["transaction_id"], "mode": l["mode"]} for l in locks}
+        assert locks[acquired_lock_id]["state"] == "acquired"
+        assert locks[acquired_lock_id]["transaction_id"] == other_tx
+        assert locks[acquired_lock_id]["mode"] == "exclusive"
+        assert locks[pending_lock_id]["state"] == "pending"
+        assert locks[pending_lock_id]["transaction_id"] == tx1
+        assert locks[pending_lock_id]["mode"] == "exclusive"
+
+        commit_transaction(other_tx)
+
+        locks = get("//tmp/m1/@locks")
+        assert len(locks) == 1
+        assert locks[0]["state"] == "acquired"
+        assert locks[0]["transaction_id"] == tx1
+        assert locks[0]["mode"] == "exclusive"
+
+        commit_transaction(tx1) # mustn't crash
+
     @pytest.mark.parametrize("mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"])
     def test_unlock_explicit(self, mode):
         create("map_node", "//tmp/m1")
@@ -455,6 +510,40 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/m1", tx=tx, mode="exclusive")
         assert get("//tmp/m1/@lock_mode", tx=tx) == "exclusive"
         with pytest.raises(YtError): unlock("//tmp/m1")
+
+    def test_snapshot_lock_patch_up(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx31 = start_transaction(tx=tx2)
+        tx32 = start_transaction(tx=tx2)
+
+        create("table", "//tmp/t")
+        lock("//tmp/t", mode="exclusive", tx=tx31)
+        lock("//tmp/t", mode="snapshot", tx=tx32)
+        unlock("//tmp/t", tx=tx31)
+
+        # Must not crash.
+        get("//tmp/t/@", tx=tx32)
+        get("//tmp/t/@", tx=tx31)
+        get("//tmp/t/@", tx=tx2)
+        get("//tmp/t/@", tx=tx1)
+        assert get("//tmp/t/@lock_mode", tx=tx32) == "snapshot"
+        assert get("//tmp/t/@lock_mode", tx=tx31) == "none"
+        assert get("//tmp/t/@lock_mode", tx=tx2) == "none"
+        assert get("//tmp/t/@lock_mode", tx=tx1) == "none"
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 1
+
+        commit_transaction(tx2)
+
+        assert get("//tmp/t/@lock_mode", tx=tx1) == "none"
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 0
+
+        commit_transaction(tx1)
+
+        assert get("//tmp/t/@lock_mode") == "none"
+        assert get("//tmp/t/@lock_count") == 0
 
     def test_remove_map_subtree_lock(self):
         set("//tmp/a", {"b" : 1})
@@ -1151,6 +1240,35 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         lock("//tmp/x/y", tx=tx1, mode="shared", child_key="a")
         lock("//tmp/x", tx=tx2, mode="shared", child_key="a")
+
+    def test_forked_tx_abort1(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        tx1 = start_transaction(tx=tx)
+        tx2 = start_transaction(tx=tx)
+        tx3 = start_transaction(tx=tx2)
+
+        lock("//tmp/t1", tx=tx1, mode="shared", child_key="a")
+        lock("//tmp/t1", tx=tx2, mode="shared", child_key="b")
+        lock("//tmp/t1", tx=tx3, mode="snapshot")
+
+        # Must not crash.
+        abort_transaction(tx)
+
+    def test_forked_tx_abort2(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        tx1 = start_transaction(tx=tx)
+        tx2 = start_transaction(tx=tx)
+        tx3 = start_transaction(tx=tx2)
+
+        lock("//tmp/t1", tx=tx1, mode="shared", child_key="a")
+        lock("//tmp/t1", tx=tx2, mode="shared", child_key="b")
+        lock("//tmp/t1", tx=tx3, mode="snapshot")
+
+        # Must not crash.
+        abort_transaction(tx1)
+        abort_transaction(tx)
 
 ##################################################################
 

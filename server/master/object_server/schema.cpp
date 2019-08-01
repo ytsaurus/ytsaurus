@@ -67,22 +67,22 @@ public:
         return SchemaTypeFromType(Type_);
     }
 
-    virtual TObjectBase* FindObject(TObjectId id) override
+    virtual TObject* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
-    {
-        YT_ABORT();
-    }
-
 private:
     typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
 
     const EObjectType Type_;
+
+    virtual void DoDestroyObject(TSchemaObject* /*object*/) noexcept override
+    {
+        YT_ABORT();
+    }
 
     virtual TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
     {
@@ -106,7 +106,7 @@ private:
         return &object->Acd();
     }
 
-    virtual TObjectBase* DoGetParent(TSchemaObject* /*object*/) override
+    virtual TObject* DoGetParent(TSchemaObject* /*object*/) override
     {
         return nullptr;
     }

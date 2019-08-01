@@ -272,7 +272,7 @@ private:
             YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
             auto* codec = NCompression::GetCodec(codecId);
 
-            NProfiling::TCpuTimer timer;
+            NProfiling::TFiberWallTimer timer;
             auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
             DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 

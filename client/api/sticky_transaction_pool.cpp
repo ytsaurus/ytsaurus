@@ -7,6 +7,26 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NTransactionClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITransactionPtr IStickyTransactionPool::GetTransactionAndRenewLeaseOrThrow(
+    TTransactionId transactionId)
+{
+    auto transaction = GetTransactionAndRenewLease(transactionId);
+    if (!transaction) {
+        THROW_ERROR_EXCEPTION(
+            NTransactionClient::EErrorCode::NoSuchTransaction,
+            "Sticky transaction %v is not found",
+            transactionId);
+    }
+
+    return transaction;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStickyTransactionPool
     : public IStickyTransactionPool
 {
@@ -41,8 +61,7 @@ public:
         return transaction;
     }
 
-    virtual ITransactionPtr GetTransactionAndRenewLease(
-        NTransactionClient::TTransactionId transactionId) override
+    virtual ITransactionPtr GetTransactionAndRenewLease(TTransactionId transactionId) override
     {
         ITransactionPtr transaction;
         NConcurrency::TLease lease;
@@ -50,10 +69,7 @@ public:
             NConcurrency::TReaderGuard guard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
-                THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::NoSuchTransaction,
-                    "Sticky transaction %v is not found",
-                    transactionId);
+                return nullptr;
             }
             const auto& entry = it->second;
             transaction = entry.Transaction;
@@ -73,11 +89,11 @@ private:
     };
 
     NConcurrency::TReaderWriterSpinLock StickyTransactionLock_;
-    THashMap<NTransactionClient::TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
+    THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     const NLogging::TLogger& Logger;
 
-    void OnStickyTransactionLeaseExpired(NTransactionClient::TTransactionId transactionId)
+    void OnStickyTransactionLeaseExpired(TTransactionId transactionId)
     {
         ITransactionPtr transaction;
         {
@@ -95,7 +111,7 @@ private:
 
         transaction->Abort();
     }
-    void OnStickyTransactionFinished(NTransactionClient::TTransactionId transactionId)
+    void OnStickyTransactionFinished(TTransactionId transactionId)
     {
         NConcurrency::TLease lease;
         {

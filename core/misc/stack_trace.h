@@ -1,15 +1,11 @@
 #pragma once
 
-#include "raw_formatter.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetStackTrace(void** frames, int maxFrames, int skipFrames);
-
 template <class TCallback>
-void FormatStackTrace(void** frames, int frameCount, TCallback writeCallback);
+void FormatStackTrace(void** frames, int frameCount, const TCallback& writeCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 

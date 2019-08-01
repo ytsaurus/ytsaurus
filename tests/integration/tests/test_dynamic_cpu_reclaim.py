@@ -65,9 +65,9 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         assert smoothed_cpu_diff > 0
         assert smoothed_cpu_diff < max_cpu.update_profile().differentiate()
 
-        print preemptable_cpu.differentiate()
-        print smoothed_cpu.differentiate()
-        print max_cpu.differentiate()
+        print_debug(preemptable_cpu.differentiate())
+        print_debug(smoothed_cpu.differentiate())
+        print_debug(max_cpu.differentiate())
 
     @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
     def test_busy(self):
@@ -83,9 +83,9 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             time.sleep(0.2)
             op.abort()
 
-        print smoothed_cpu.differentiate()
-        print max_cpu.differentiate()
-        print preemptable_cpu.differentiate()
+        print_debug(smoothed_cpu.differentiate())
+        print_debug(max_cpu.differentiate())
+        print_debug(preemptable_cpu.differentiate())
 
         assert smoothed_cpu.differentiate() > 0
         assert smoothed_cpu.differentiate() < max_cpu.differentiate()

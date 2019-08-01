@@ -20,6 +20,15 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TParseOperationSpecResult
+{
+    TOperationSpecBasePtr Spec;
+    NYTree::IMapNodePtr SpecNode;
+    NYson::TYsonString SpecString;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: Control unless noted otherwise
  */
@@ -88,12 +97,14 @@ public:
     TOperationPtr FindOperation(TOperationId id) const;
     TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const;
 
+    TFuture<TParseOperationSpecResult> ParseSpec(NYson::TYsonString specString) const;
+
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         NTransactionClient::TTransactionId transactionId,
         NRpc::TMutationId mutationId,
-        NYTree::IMapNodePtr spec,
-        const TString& user);
+        const TString& user,
+        TParseOperationSpecResult parseSpecResult);
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user);
     TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs);
@@ -131,7 +142,7 @@ public:
      */
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
-    NSecurityClient::TSerializableAccessControlList GetBaseOperationAcl() const;
+    NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
 private:
     class TImpl;

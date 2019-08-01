@@ -14,6 +14,8 @@
 #include <yt/server/master/security_server/cluster_resources.h>
 #include <yt/server/master/security_server/public.h>
 
+#include <yt/server/master/table_server/public.h>
+
 #include <yt/server/lib/hive/transaction_detail.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -37,34 +39,36 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObject*>, StagedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
 
     struct TExportEntry
     {
-        NObjectServer::TObjectBase* Object;
+        NObjectServer::TObject* Object;
         NObjectClient::TCellTag DestinationCellTag;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectBase*>, ImportedObjects);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObject*>, ImportedObjects);
 
     // Cypress stuff
-    typedef THashSet<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
+    typedef THashSet<NCypressServer::TCypressNode*> TLockedNodeSet;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
     typedef THashSet<NCypressServer::TLock*> TLockSet;
     DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
-    typedef std::vector<NCypressServer::TCypressNodeBase*> TBranchedNodeList;
+    typedef std::vector<NCypressServer::TCypressNode*> TBranchedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
-    typedef std::vector<NCypressServer::TCypressNodeBase*> TStagedNodeList;
+    typedef std::vector<NCypressServer::TCypressNode*> TStagedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, LockedDynamicTables);
 
     // Security Manager stuff
     typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
+    // XXX(babenko): weak ref to TAccount?
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
@@ -86,7 +90,7 @@ public:
     bool IsDescendantOf(TTransaction* transaction) const;
 
 private:
-    void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
+    void AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged);
 
 };
 

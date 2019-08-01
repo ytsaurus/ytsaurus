@@ -1,6 +1,7 @@
 #include "protobuf.h"
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
@@ -12,6 +13,8 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::FileDescriptor;
 using ::google::protobuf::Message;
 using ::google::protobuf::DescriptorPool;
+
+using namespace NYT::NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +86,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TEnumerationDescription CreateEnumerationMap(const TString& enumName, const NYTree::IMapNodePtr& enumerationConfig)
+static TEnumerationDescription CreateEnumerationMap(
+    const TString& enumName,
+    const NYTree::IMapNodePtr& enumerationConfig)
 {
     TEnumerationDescription result(enumName);
     for (const auto& enumValue : enumerationConfig->GetChildren()) {
@@ -105,7 +110,7 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
     return result;
 }
 
-::google::protobuf::FieldDescriptor::Type ConvertFromInternalProtobufType(EProtobufType type)
+static ::google::protobuf::FieldDescriptor::Type ConvertFromInternalProtobufType(EProtobufType type)
 {
     using namespace ::google::protobuf;
     switch (type) {
@@ -148,6 +153,7 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
             return FieldDescriptor::TYPE_ENUM;
 
         case EProtobufType::Message:
+        case EProtobufType::StructuredMessage:
             return FieldDescriptor::TYPE_MESSAGE;
 
         case EProtobufType::Any:
@@ -157,7 +163,9 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
     YT_ABORT();
 }
 
-std::optional<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
+static std::optional<EProtobufType> ConvertToInternalProtobufType(
+    ::google::protobuf::FieldDescriptor::Type type,
+    bool enumAsStrings)
 {
     using namespace ::google::protobuf;
     switch (type) {
@@ -201,7 +209,7 @@ std::optional<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::F
     return std::nullopt;
 }
 
-TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescriptor& enumDescriptor)
+static TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescriptor& enumDescriptor)
 {
     TEnumerationDescription result(enumDescriptor.full_name());
     for (int i = 0; i < enumDescriptor.value_count(); ++i) {
@@ -214,21 +222,152 @@ TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui32 TProtobufFieldDescription::GetFieldNumber() const
+ui32 TProtobufFieldDescriptionBase::GetFieldNumber() const
 {
     return ::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(WireTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProtobufFormatDescription::Init(const TProtobufFormatConfigPtr& config)
+namespace {
+
+DEFINE_ENUM(EIntegerSignednessKind,
+    (SignedInteger)
+    (UnsignedInteger)
+    (Other)
+);
+
+} // namespace
+
+void ValidateSimpleType(
+    EProtobufType protobufType,
+    NTableClient::ESimpleLogicalValueType logicalType)
+{
+    if (logicalType == ESimpleLogicalValueType::Any) {
+        return;
+    }
+
+    using EKind = EIntegerSignednessKind;
+
+    auto getLogicalTypeKind = [] (ESimpleLogicalValueType type) {
+        switch (type) {
+            case ESimpleLogicalValueType::Int8:
+            case ESimpleLogicalValueType::Int16:
+            case ESimpleLogicalValueType::Int32:
+            case ESimpleLogicalValueType::Int64:
+                return EKind::SignedInteger;
+            case ESimpleLogicalValueType::Uint8:
+            case ESimpleLogicalValueType::Uint16:
+            case ESimpleLogicalValueType::Uint32:
+            case ESimpleLogicalValueType::Uint64:
+                return EKind::UnsignedInteger;
+            default:
+                return EKind::Other;
+        }
+    };
+
+    auto getProtobufTypeKind = [] (EProtobufType type) {
+        switch (type) {
+            case EProtobufType::Fixed64:
+            case EProtobufType::Uint64:
+            case EProtobufType::Uint32:
+            case EProtobufType::Fixed32:
+                return EKind::UnsignedInteger;
+
+            case EProtobufType::Int64:
+            case EProtobufType::Sint64:
+            case EProtobufType::Sfixed64:
+            case EProtobufType::Sfixed32:
+            case EProtobufType::Sint32:
+            case EProtobufType::Int32:
+            case EProtobufType::EnumInt:
+                return EKind::SignedInteger;
+
+            default:
+                return EKind::Other;
+        }
+    };
+
+    auto throwMismatchError = [&] (TStringBuf message) {
+        THROW_ERROR_EXCEPTION("Simple logical type (%Qv) and protobuf type (%Qv) mismatch: %v",
+            FormatEnum(logicalType),
+            FormatEnum(protobufType),
+            message);
+    };
+
+    auto validateLogicalType = [&] (ESimpleLogicalValueType expected) {
+        if (Y_UNLIKELY(logicalType != expected)) {
+            throwMismatchError(Format("expected logical type %Qv", FormatEnum(expected)));
+        }
+    };
+
+    switch (protobufType) {
+        case EProtobufType::String:
+        case EProtobufType::Bytes:
+        case EProtobufType::Message:
+            validateLogicalType(ESimpleLogicalValueType::String);
+            return;
+
+        case EProtobufType::Fixed64:
+        case EProtobufType::Uint64:
+        case EProtobufType::Uint32:
+        case EProtobufType::Fixed32:
+        case EProtobufType::Int64:
+        case EProtobufType::Sint64:
+        case EProtobufType::Sfixed64:
+        case EProtobufType::Sfixed32:
+        case EProtobufType::Sint32:
+        case EProtobufType::Int32: {
+            if (getLogicalTypeKind(logicalType) != getProtobufTypeKind(protobufType)) {
+                throwMismatchError("signedness of both types must be the same");
+            }
+            return;
+        }
+
+        case EProtobufType::Float:
+        case EProtobufType::Double:
+            validateLogicalType(ESimpleLogicalValueType::Double);
+            return;
+
+        case EProtobufType::Bool:
+            validateLogicalType(ESimpleLogicalValueType::Boolean);
+            return;
+
+        case EProtobufType::EnumInt:
+            if (getLogicalTypeKind(logicalType) != EKind::SignedInteger) {
+                throwMismatchError("logical type must be signed integer type");
+            }
+            return;
+        case EProtobufType::EnumString:
+            if (logicalType != ESimpleLogicalValueType::String &&
+                getLogicalTypeKind(logicalType) != EKind::SignedInteger)
+            {
+                throwMismatchError("logical type must be either signed integer type or string");
+            }
+            return;
+
+        case EProtobufType::Any:
+            // No check here: every type would be OK.
+            return;
+
+        case EProtobufType::StructuredMessage:
+        case EProtobufType::OtherColumns:
+            throwMismatchError("protobuf type cannot match any simple type");
+    }
+    YT_ABORT();
+}
+
+void TProtobufFormatDescription::Init(
+    const TProtobufFormatConfigPtr& config,
+    const std::vector<NTableClient::TTableSchema>& schemas,
+    bool validateMissingFieldsOptionality)
 {
     const bool tablesSpecified = !config->Tables.empty();
     const bool fileDescriptorSetSpecified = !config->FileDescriptorSet.empty();
     if (tablesSpecified && fileDescriptorSetSpecified) {
         THROW_ERROR_EXCEPTION(R"("tables" and "file_descriptor_set" must not be used together in protobuf format)");
     } else if (tablesSpecified) {
-        InitFromProtobufSchema(config);
+        InitFromProtobufSchema(config, schemas, validateMissingFieldsOptionality);
     } else if (fileDescriptorSetSpecified) {
         InitFromFileDescriptors(config);
     } else {
@@ -351,54 +490,211 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
     }
 }
 
-void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatConfigPtr& config)
+void TProtobufFormatDescription::InitFromProtobufSchema(
+    const TProtobufFormatConfigPtr& config,
+    const std::vector<NTableClient::TTableSchema>& schemas,
+    bool validateMissingFieldsOptionality)
 {
     if (config->Enumerations) {
         const auto& enumerationConfigMap = config->Enumerations;
-        for (const auto& [name, node] : enumerationConfigMap->GetChildren()) {
-            if (node->GetType() != NYTree::ENodeType::Map) {
+        for (const auto& [name, field] : enumerationConfigMap->GetChildren()) {
+            if (field->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(R"(Invalid enumeration specification type, expected "map" found %Qv)",
-                    node->GetType());
+                    field->GetType());
             }
-            const auto& enumerationConfig = node->AsMap();
+            const auto& enumerationConfig = field->AsMap();
             EnumerationDescriptionMap_.emplace(name, CreateEnumerationMap(name, enumerationConfig));
         }
     }
 
-    const auto& tableConfigList = config->Tables;
+    const auto& tableConfigs = config->Tables;
+    if (tableConfigs.size() < schemas.size()) {
+        THROW_ERROR_EXCEPTION("Number of schemas is greater than number of tables in protobuf config: %v > %v",
+            schemas.size(),
+            tableConfigs.size());
+    }
 
-    for (const auto& tableConfig : tableConfigList) {
-        Tables_.emplace_back();
-        auto& columns = Tables_.back().Columns;
+    for (size_t tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
+        const auto& tableConfig = tableConfigs[tableIndex];
+        const auto& tableSchema = schemas[tableIndex];
+        auto& columns = Tables_.emplace_back().Columns;
         for (const auto& columnConfig : tableConfig->Columns) {
             auto [fieldIt, inserted] = columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
-            if (Y_UNLIKELY(!inserted)) {
+            if (!inserted) {
                 THROW_ERROR_EXCEPTION("Multiple fields with same column name (%Qv) are forbidden in protobuf format",
                     columnConfig->Name);
             }
-            auto& field = fieldIt->second;
+            auto columnSchema = tableSchema.FindColumn(columnConfig->Name);
+            TLogicalTypePtr logicalType = columnSchema ? columnSchema->LogicalType() : nullptr;
 
-            field.Name = columnConfig->Name;
-            field.Type = columnConfig->ProtoType;
+            if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
+                if (columnConfig->Repeated) {
+                    THROW_ERROR_EXCEPTION("Protobuf field of type %Qlv (%Qv) can not be repeated",
+                        EProtobufType::OtherColumns,
+                        columnConfig->Name);
+                }
+                if (logicalType) {
+                    THROW_ERROR_EXCEPTION("Protobuf field of type %Qlv (%Qv) should not match actual column in schema",
+                        EProtobufType::OtherColumns,
+                        columnConfig->Name);
+                }
+            }
 
-            auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(ConvertFromInternalProtobufType(field.Type));
-            field.WireTag = ::google::protobuf::internal::WireFormatLite::MakeTag(
-                columnConfig->FieldNumber,
-                ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
-            field.TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(columnConfig->FieldNumber, wireFieldType);
-            if (field.Type == EProtobufType::EnumString) {
-                if (!columnConfig->EnumerationName) {
-                    THROW_ERROR_EXCEPTION("Invalid format: enumeration_name for column %Qv is not specified",
-                        field.Name);
-                }
-                auto it = EnumerationDescriptionMap_.find(*columnConfig->EnumerationName);
-                if (it == EnumerationDescriptionMap_.end()) {
-                    THROW_ERROR_EXCEPTION("Invalid format: cannot find enumeration with name %Qv",
-                        *columnConfig->EnumerationName);
-                }
-                field.EnumerationDescription = &it->second;
+            bool needSchema = columnConfig->Repeated || columnConfig->ProtoType == EProtobufType::StructuredMessage;
+            if (!logicalType && needSchema) {
+                THROW_ERROR_EXCEPTION("Schema is required for repeated and %Qlv protobuf fields",
+                    EProtobufType::StructuredMessage);
+            }
+
+            if (logicalType) {
+                InitField(
+                    &fieldIt->second,
+                    columnConfig,
+                    logicalType,
+                    /* elementIndex */ 0,
+                    validateMissingFieldsOptionality);
+            } else {
+                InitSchemalessField(&fieldIt->second, columnConfig);
             }
         }
+    }
+}
+
+void TProtobufFormatDescription::InitSchemalessField(
+    TProtobufFieldDescription* field,
+    const TProtobufColumnConfigPtr& columnConfig)
+{
+    field->Name = columnConfig->Name;
+    field->Type = columnConfig->ProtoType;
+
+    auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(
+        ConvertFromInternalProtobufType(field->Type));
+    field->WireTag = ::google::protobuf::internal::WireFormatLite::MakeTag(
+            columnConfig->FieldNumber,
+            ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
+    field->TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(columnConfig->FieldNumber, wireFieldType);
+
+    if (field->Type == EProtobufType::EnumString) {
+        if (!columnConfig->EnumerationName) {
+            THROW_ERROR_EXCEPTION("Invalid format: enumeration_name for column %Qv is not specified",
+                columnConfig->Name);
+        }
+        auto it = EnumerationDescriptionMap_.find(*columnConfig->EnumerationName);
+        if (it == EnumerationDescriptionMap_.end()) {
+            THROW_ERROR_EXCEPTION("Invalid format: cannot find enumeration with name %Qv",
+                *columnConfig->EnumerationName);
+        }
+        field->EnumerationDescription = &it->second;
+    }
+}
+
+void TProtobufFormatDescription::InitField(
+    TProtobufFieldDescription* field,
+    const TProtobufColumnConfigPtr& columnConfig,
+    TLogicalTypePtr logicalType,
+    int elementIndex,
+    bool validateMissingFieldsOptionality)
+{
+    YT_VERIFY(logicalType);
+
+    std::vector<TErrorAttribute> errorAttributes = {
+        {"config", NYTree::ConvertToYsonString(columnConfig, NYson::EYsonFormat::Text)},
+        {"logical_type", NYTree::ConvertToYsonString(logicalType, NYson::EYsonFormat::Text)},
+    };
+
+    if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
+        THROW_ERROR_EXCEPTION("Protobuf field of type %Qlv is not allowed inside complex types",
+            EProtobufType::OtherColumns)
+            << errorAttributes;
+    }
+
+    InitSchemalessField(field, columnConfig);
+
+    field->StructElementIndex = elementIndex;
+    field->Repeated = columnConfig->Repeated;
+    if (logicalType->GetMetatype() == ELogicalMetatype::Optional) {
+        logicalType = logicalType->AsOptionalTypeRef().GetElement();
+        field->Optional = true;
+    } else {
+        field->Optional = false;
+    }
+
+    if (field->Repeated) {
+        if (Y_UNLIKELY(field->Optional)) {
+            THROW_ERROR_EXCEPTION("Optional list is not supported in protobuf")
+                << errorAttributes;
+        }
+        if (Y_UNLIKELY(logicalType->GetMetatype() != ELogicalMetatype::List)) {
+            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+                ELogicalMetatype::List,
+                logicalType->GetMetatype())
+                << errorAttributes;
+        }
+        logicalType = logicalType->AsListTypeRef().GetElement();
+    }
+
+    if (field->Type != EProtobufType::StructuredMessage) {
+        if (Y_UNLIKELY(logicalType->GetMetatype() != ELogicalMetatype::Simple)) {
+            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+                ELogicalMetatype::Simple,
+                logicalType->GetMetatype())
+                << errorAttributes;
+        }
+        ValidateSimpleType(field->Type, logicalType->AsSimpleTypeRef().GetElement());
+        return;
+    }
+
+    if (Y_UNLIKELY(logicalType->GetMetatype() != ELogicalMetatype::Struct)) {
+        THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+            ELogicalMetatype::Struct,
+            logicalType->GetMetatype())
+            << errorAttributes;
+    }
+
+    const auto& structElements = logicalType->AsStructTypeRef().GetFields();
+
+    THashMap<TStringBuf, TProtobufColumnConfigPtr> nameToConfig;
+    for (const auto& config : columnConfig->Fields) {
+        auto inserted = nameToConfig.emplace(config->Name, config).second;
+        if (Y_UNLIKELY(!inserted)) {
+            THROW_ERROR_EXCEPTION("Multiple fields with same column name (%Qv) are forbidden in protobuf format",
+                config->Name)
+                << errorAttributes;
+        }
+    }
+
+    field->Children.reserve(columnConfig->Fields.size());
+    field->StructElementCount = static_cast<int>(structElements.size());
+    for (int childElementIndex = 0; childElementIndex != static_cast<int>(structElements.size()); ++childElementIndex) {
+        const auto& element = structElements[childElementIndex];
+        auto configIt = nameToConfig.find(element.Name);
+        if (configIt == nameToConfig.end()) {
+            if (validateMissingFieldsOptionality && element.Type->GetMetatype() != ELogicalMetatype::Optional) {
+                THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: "
+                    "non-optional field %Qv in schema is missing from protobuf config",
+                    element.Name)
+                    << errorAttributes;
+            }
+            continue;
+        }
+        field->Children.emplace_back();
+        InitField(
+            &field->Children.back(),
+            configIt->second,
+            element.Type,
+            childElementIndex,
+            validateMissingFieldsOptionality);
+        nameToConfig.erase(configIt);
+    }
+
+    if (Y_UNLIKELY(!nameToConfig.empty())) {
+        std::vector<TString> notFoundKeys;
+        for (const auto& [name, config] : nameToConfig) {
+            notFoundKeys.push_back(Format("%Qv", name));
+        }
+        THROW_ERROR_EXCEPTION("Fields %v from protobuf config not found in schema",
+            notFoundKeys)
+            << errorAttributes;
     }
 }
 

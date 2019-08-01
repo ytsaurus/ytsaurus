@@ -13,6 +13,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/misc/range_formatters.h>
+
 #include <util/system/fs.h>
 
 #include <util/stream/zlib.h>

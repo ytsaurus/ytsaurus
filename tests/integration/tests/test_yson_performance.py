@@ -1,4 +1,4 @@
-from yt_commands import is_debug
+from yt_commands import is_debug, print_debug
 
 from yt.wrapper.client import YtClient
 
@@ -45,9 +45,9 @@ class Timer(object):
 
     def dump_stats(self):
         def dump_stats_line(key, value):
-            print >>sys.stderr, "  {0:>30s} | {1}".format(key, value)
+            print_debug("  {0:>30s} | {1}".format(key, value))
 
-        print >>sys.stderr, "\n=== {0}".format(self._extra_info or repr(self))
+        print_debug("\n=== {0}".format(self._extra_info or repr(self)))
         dump_stats_line(
             "wall clock time",
             "{0:.3f}s".format(self.finish_wall_clock - self.start_wall_clock))

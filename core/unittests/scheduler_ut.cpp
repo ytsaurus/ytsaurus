@@ -347,8 +347,7 @@ TEST_F(TSchedulerTest, Intercept)
                 EXPECT_EQ(counter2, 0);
                 ++counter2;
             });
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(SleepQuantum);
     })
     .AsyncVia(invoker).Run()
     .Get();
@@ -368,20 +367,16 @@ TEST_F(TSchedulerTest, InterceptEnclosed)
             TContextSwitchGuard guard(
                 [&] { ++counter1; },
                 [&] { ++counter2; });
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(SleepQuantum);
             {
                 TContextSwitchGuard guard2(
                     [&] { ++counter3; },
                     [&] { ++counter4; });
-                WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(SleepQuantum);
             }
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(SleepQuantum);
         }
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(SleepQuantum);
     })
     .AsyncVia(invoker).Run()
     .Get();
@@ -425,8 +420,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(SleepQuantum);
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
@@ -441,8 +435,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
 
     bool finishedFirstAction = false;
     futures.emplace_back(BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(SleepQuantum);
         finishedFirstAction = true;
     }).AsyncVia(invoker).Run());
 
@@ -460,8 +453,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(SleepQuantum);
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
@@ -707,8 +699,7 @@ TEST_W(TSchedulerTest, FiberTiming)
     CheckCurrentFiberRunDuration(TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
     Sleep(TDuration::Seconds(1));
     CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-        .ThrowOnError();
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
     CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
@@ -749,8 +740,7 @@ TEST_W(TSchedulerTest, TraceContextFiberSleepTiming)
 
     {
         NTracing::TTraceContextGuard guard(traceContext);
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-            .ThrowOnError();
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
     }
 
     CheckTraceContextTime(traceContext, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));

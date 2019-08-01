@@ -3,7 +3,7 @@
 #include "config.h"
 #include "cypress_manager.h"
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/lib/hydra/mutation.h>
 
@@ -70,10 +70,14 @@ void TExpirationTracker::Clear()
     ExpiredNodes_.clear();
 }
 
-void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -90,10 +94,14 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
     }
 }
 
-void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -103,10 +111,14 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
     ExpiredNodes_.erase(trunkNode);
 }
 
-void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
 
     if (trunkNode->GetExpirationIterator()) {
         return;
@@ -123,7 +135,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
     RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
 }
 
-void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
+void TExpirationTracker::RegisterNodeExpiration(TCypressNode* trunkNode, TInstant expirationTime)
 {
     if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
         auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
@@ -131,7 +143,7 @@ void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TIn
     }
 }
 
-void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
+void TExpirationTracker::UnregisterNodeExpiration(TCypressNode* trunkNode)
 {
     ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
     trunkNode->SetExpirationIterator(std::nullopt);

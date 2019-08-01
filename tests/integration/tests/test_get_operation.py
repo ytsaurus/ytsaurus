@@ -2,9 +2,13 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+
 from yt.test_helpers import wait
+from yt.common import uuid_to_parts
 
 import pytest
+
+from copy import deepcopy
 
 def _get_orchid_operation_path(op_id):
     return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
@@ -16,6 +20,7 @@ def _get_operation_from_cypress(op_id):
     result["type"] = result["operation_type"]
     result["id"] = op_id
     return result
+
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -118,6 +123,50 @@ class TestGetOperation(YTEnvSetup):
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
+    def test_progress_merge(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            dont_track=True,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+        wait_breakpoint()
+
+        id_hi, id_lo = uuid_to_parts(op.id)
+        archive_table_path = "//sys/operations_archive/ordered_by_id"
+        brief_progress = {"ivan": "ivanov"}
+        progress = {"semen": "semenych", "semenych": "gorbunkov"}
+
+        insert_rows(
+            archive_table_path,
+            [{"id_hi": id_hi, "id_lo": id_lo, "brief_progress": brief_progress, "progress": progress}],
+            update=True)
+
+        wait(lambda: lookup_rows(archive_table_path, [{"id_hi": id_hi, "id_lo": id_lo}]))
+
+        res_get_operation_new = get_operation(op.id)
+        assert res_get_operation_new["brief_progress"] == {"ivan": "ivanov"}
+        assert res_get_operation_new["progress"] == {"semen": "semenych", "semenych": "gorbunkov"}
+
+        release_breakpoint()
+        op.track()
+
+        clean_operations()
+        res_get_operation_new = get_operation(op.id)
+        assert res_get_operation_new["brief_progress"] != {"ivan": "ivanov"}
+        assert res_get_operation_new["progress"] != {"semen": "semenych", "semenych": "gorbunkov"}
+
+
     def test_attributes(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -189,6 +238,11 @@ class TestGetOperation(YTEnvSetup):
             wait(lambda: "state" in get_operation(op.id))
         finally:
             set(cleaner_path + "/enable", False)
+
+    def test_not_existing_operation(self):
+        with raises_yt_error(NoSuchOperation):
+            get_operation("00000000-00000000-0000000-00000001")
+
 
 ##################################################################
 

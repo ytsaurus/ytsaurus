@@ -10,6 +10,8 @@
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NConcurrency;

@@ -63,6 +63,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
+    def test_no_outputs(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"key": "value"}])
+        op = map(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2")
+        check_all_stderrs(op, "stderr\n", 1)
+
     def test_empty_range(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -485,38 +491,48 @@ print row + table_index
             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat",
                 spec={"mapper": {"memory_limit": 1000000000000}})
 
-    def test_check_input_fully_consumed(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"foo": "bar"})
+    def check_input_fully_consumed_statistics_base(self, cmd, throw_on_failure=False, expected_value=1, expected_output=None):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
 
-        command = 'python -c "import os; os.read(0, 5);"'
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(10000)])
 
-        # If all jobs failed then operation is also failed
-        with pytest.raises(YtError):
-            map(in_="//tmp/t1",
-                out="//tmp/t2",
-                command=command,
-                spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}})
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            dont_track=True,
+            command=cmd,
+            spec={
+                "mapper": {
+                    "input_format": "dsv",
+                    "output_format": "dsv",
+                    "max_failed_job_count": 1,
+                    "check_input_fully_consumed": throw_on_failure
+                }
+            }
+        )
 
-        assert read_table("//tmp/t2") == []
+        statistics_path = op.get_path() + "/@progress/job_statistics/data/input/not_fully_consumed/$/{}/map/max".format("failed" if throw_on_failure else "completed")
+        if throw_on_failure:
+            with pytest.raises(YtError):
+                op.track()
+        else:
+            op.track()
 
-    def test_check_input_not_fully_consumed(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
+        if expected_output is not None:
+            assert read_table("//tmp/t_out") == expected_output
+        assert get(statistics_path) == expected_value
 
-        data = [{"foo": "bar"} for _ in xrange(10000)]
-        write_table("//tmp/t1", data)
 
-        map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="head -1",
-            spec={"mapper": {"input_format": "dsv", "output_format": "dsv"}})
+    def test_check_input_fully_consumed_statistics_simple(self):
+        self.check_input_fully_consumed_statistics_base("python3 -c 'print(input())'", expected_output=[{"foo": "bar"}])
 
-        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+    def test_check_input_fully_consumed_statistics_all_consumed(self):
+        self.check_input_fully_consumed_statistics_base("cat", expected_value=0)
 
-    @flaky(max_runs=3)
+    def test_check_input_fully_consumed_statistics_throw_on_failure(self):
+        self.check_input_fully_consumed_statistics_base("exit 0", throw_on_failure=True, expected_output=[])
+
     def test_live_preview(self):
         create_user("u")
 
@@ -935,7 +951,7 @@ print row + table_index
             command='cat')
 
         assert read_table("//tmp/t_output") == rows
-        
+
 
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):
@@ -979,7 +995,7 @@ print row + table_index
 
         result = read_table("//tmp/output", verbose=False)
         for row in result:
-            print "key:", row["key"], "value:", row["value"]
+            print_debug("key:", row["key"], "value:", row["value"])
         assert len(result) == 5
         if not ordered:
             result.sort()
@@ -1583,7 +1599,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert read_table("//tmp/t_out") == [row]
 
         # FIXME(savrus) investigate test flapping
-        print get("//tmp/t/@compression_statistics")
+        print_debug(get("//tmp/t/@compression_statistics"))
 
         for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
             op = map(
@@ -1599,17 +1615,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
             else:
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
-
-    @parametrize_external
-    def test_output_to_dynamic_table_fails(self, external):
-        create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output", external=external)
-
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                command="cat")
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_dynamic_table_simple(self, optimize_for):
@@ -1627,6 +1632,64 @@ class TestMapOnDynamicTables(YTEnvSetup):
             command="cat")
 
         assert read_table("//tmp/t_out") == [{"first": 1, "second": str(2)}]
+
+    def _print_chunk_list_recursive(self, chunk_list):
+        result = []
+        def recursive(chunk_list, level):
+            t = get("#{0}/@type".format(chunk_list))
+            result.append([level, chunk_list, t, None, None])
+            if t == "chunk":
+                r = get("#{0}/@row_count".format(chunk_list))
+                u = get("#{0}/@uncompressed_data_size".format(chunk_list))
+                result[-1][3] = {"row_count": r, "data_size": u}
+            if t == "chunk_list":
+                s = get("#{0}/@statistics".format(chunk_list))
+                #cs = get("#{0}/@cumulative_statistics".format(chunk_list))
+                cs = None
+                result[-1][3] = s
+                result[-1][4] = cs
+                for c in get("#{0}/@child_ids".format(chunk_list)):
+                    recursive(c, level + 1)
+        recursive(chunk_list, 0)
+        for r in result:
+            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
+
+    @parametrize_external
+    def test_output_to_dynamic_table(self, external):
+        set("//sys/@config/tablet_manager/enable_bulk_insert", True)
+
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output", external=external)
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+        
+        ts_before = generate_timestamp()
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=true>//tmp/t_output",
+            command="cat")
+
+        assert read_table("//tmp/t_output") == rows
+        assert select_rows("* from [//tmp/t_output]") == rows
+
+        actual = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
+        assert len(actual) == 1
+
+        row = actual[0]
+        assert len(row.attributes["write_timestamps"]) == 1
+        ts_write = row.attributes["write_timestamps"][0]
+        assert ts_write > ts_before
+        assert ts_write < generate_timestamp()
+
+        assert row["key"] == 1
+        assert str(row["value"][0]) ==  "1"
+
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
 
 ##################################################################
 

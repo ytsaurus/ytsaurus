@@ -18,7 +18,7 @@
 #include <yt/core/http/helpers.h>
 #include <yt/core/http/server.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -79,6 +79,42 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMonitoringHandler
+    : public IHttpHandler
+{
+public:
+    virtual void HandleRequest(
+        const IRequestPtr& req,
+        const IResponseWriterPtr& rsp) override
+    {
+        //! The following protocol is supported:
+        //! #start_sample_index parameter is expected.
+        //! All samples in deque with #id more than #start_sample_index are returned (or empty vector if none).
+        //! Also #index of the first corresponding sample is returned, or #start_sample_index if none).
+        std::optional<i64> startSample;
+        TCgiParameters params(req->GetUrl().RawQuery);
+        if (auto sample = FromString<i64>(params.Get("start_sample_index"))) {
+            startSample = sample;
+        }
+        auto [index, msg] = NProfiling::TProfileManager::Get()->GetSamples(startSample);
+        rsp->GetHeaders()->Add("X-YT-Response-Start-Index", ToString(index));
+        rsp->GetHeaders()->Add("X-YT-Process-Id", ToString(ProcessId_));
+        rsp->SetStatus(EStatusCode::OK);
+        WaitFor(rsp->WriteBody(SerializeProtoToRef(msg)))
+            .ThrowOnError();
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+    }
+
+private:
+    const TGuid ProcessId_ = TGuid::Create();
+};
+
+DECLARE_REFCOUNTED_CLASS(TMonitoringHandler)
+DEFINE_REFCOUNTED_TYPE(TMonitoringHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     TMonitoringManagerPtr* manager,
@@ -107,6 +143,10 @@ void Initialize(
         monitoringServer->AddHandler(
             "/tracing/traces/v2",
             New<TTracingHttpHandler>());
+
+        monitoringServer->AddHandler(
+            "/profiling/proto",
+            New<TMonitoringHandler>());
     }
 }
 
@@ -125,14 +165,14 @@ public:
         const IResponseWriterPtr& rsp) override
     {
         const auto orchidPrefix = AsStringBuf("/orchid");
-    
+
         TString path{req->GetUrl().Path};
         if (!path.StartsWith(orchidPrefix)) {
             THROW_ERROR_EXCEPTION("HTTP request must start with %Qv prefix",
                 orchidPrefix)
                 << TErrorAttribute("path", path);
         }
-        
+
         path = path.substr(orchidPrefix.size(), TString::npos);
         TCgiParameters params(req->GetUrl().RawQuery);
 

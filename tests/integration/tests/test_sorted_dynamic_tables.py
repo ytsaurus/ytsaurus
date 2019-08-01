@@ -580,8 +580,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            # Validate against @chunk_count just to make sure that statistics arrive from secondary master to pimary one.
+            # Validate against @chunk_count just to make sure that statistics arrive from secondary master to primary one.
             assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
@@ -955,14 +956,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_table_with_aggregate_column("//tmp/t", aggregate="sum", atomicity="none")
         sync_mount_table("//tmp/t")
 
-        tx1 = start_transaction(type="tablet", sticky=True, atomicity="none")
-        tx2 = start_transaction(type="tablet", sticky=True, atomicity="none")
+        tx1 = start_transaction(type="tablet", atomicity="none")
+        tx2 = start_transaction(type="tablet", atomicity="none")
 
         insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True, atomicity="none", tx=tx1)
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True, atomicity="none", tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
 
@@ -1025,22 +1026,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         create_dynamic_table("//tmp/t", **attributes)
         sync_mount_table("//tmp/t")
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
         lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
 
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
-        tx3 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
         lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
@@ -1050,35 +1051,35 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3, lock_type="shared_weak")
 
-        commit_transaction(tx1, sticky=True)
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
 
         with pytest.raises(YtError):
-            commit_transaction(tx3, sticky=True)
+            commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
-        commit_transaction(tx2, sticky=True)
+        commit_transaction(tx2)
 
         with pytest.raises(YtError):
-            commit_transaction(tx1, sticky=True)
+            commit_transaction(tx1)
 
-        tx1 = start_transaction(type="tablet", sticky=True)
-        tx2 = start_transaction(type="tablet", sticky=True)
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
 
         lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx1)
 
         with pytest.raises(YtError):
-            commit_transaction(tx2, sticky=True)
+            commit_transaction(tx2)
 
 
     def test_reshard_data(self):
@@ -1616,7 +1617,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             rows = [{"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)]
             for row in rows:
                 values[row["key"]] = row["value"]
-            print "Write rows ", rows
+            print_debug("Write rows ", rows)
             insert_rows("//tmp/t", rows)
 
             verify()
@@ -1627,7 +1628,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             verify()
 
             keys = sorted(list(values.keys()))[::(wave * 12345) % items]
-            print "Delete keys ", keys
+            print_debug("Delete keys ", keys)
             rows = [{"key": key} for key in keys]
             delete_rows("//tmp/t", rows)
             for key in keys:
@@ -1925,8 +1926,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_save_chunk_view_to_snapshot(self):
         [cell_id] = sync_create_cells(1)
-        print get("//sys/cluster_nodes", attributes=["tablet_slots"])
-        print get("//sys/tablet_cell_bundles/default/@options")
+        print_debug(get("//sys/cluster_nodes", attributes=["tablet_slots"]))
+        print_debug(get("//sys/tablet_cell_bundles/default/@options"))
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
 
@@ -1938,7 +1939,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        print get("//sys/tablet_cells/{}/@peers".format(cell_id))
+        print_debug(get("//sys/tablet_cells/{}/@peers".format(cell_id)))
         build_snapshot(cell_id=cell_id)
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
@@ -2730,6 +2731,36 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
+    def test_overlapping_store_count(self):
+        def check_all(address, tablet_id, stores, overlaps):
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            assert(stores == len(orchid["eden"]["stores"]))
+            assert(overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
+
+        # This magic combination of parameters makes flushed insertion to be stored in eden stores
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            max_partition_data_size=640,
+            desired_partition_data_size=512,
+            min_partition_data_size=256,
+            compression_codec="none",
+            chunk_writer={"block_size": 1},
+        )
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        check_all(address, tablet_id, stores=1, overlaps=1)
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12)])
+        sync_flush_table("//tmp/t")
+        check_all(address, tablet_id, stores=2, overlaps=2)
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12, 24)])
+        sync_flush_table("//tmp/t")
+        check_all(address, tablet_id, stores=3, overlaps=2)
+
 ##################################################################
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
@@ -2871,12 +2902,12 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
     def _sync_mount_table(self, path, **kwargs):
         self._mount_table(path, **kwargs)
-        print "Waiting for tablets to become mounted..."
+        print_debug("Waiting for tablets to become mounted...")
         wait_for_tablet_state(path, "mounted", **kwargs)
 
     def _sync_unmount_table(self, path, **kwargs):
         self._unmount_table(path, **kwargs)
-        print "Waiting for tablets to become unmounted..."
+        print_debug("Waiting for tablets to become unmounted...")
         wait_for_tablet_state(path, "unmounted", **kwargs)
 
 

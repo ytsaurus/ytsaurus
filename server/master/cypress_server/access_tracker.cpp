@@ -60,7 +60,7 @@ void TAccessTracker::Stop()
 }
 
 void TAccessTracker::SetModified(
-    TCypressNodeBase* trunkNode,
+    TCypressNode* trunkNode,
     TTransaction* transaction,
     EModificationType modificationType)
 {
@@ -88,7 +88,7 @@ void TAccessTracker::SetModified(
     }
 }
 
-void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
+void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(FlushExecutor_);

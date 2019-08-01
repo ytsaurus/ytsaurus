@@ -205,7 +205,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         auto item = ConvertToNode(NYson::TYsonString(getRsp->value()));
         auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
-        auto cellTag = basicAttrsRsp->cell_tag();
+        auto cellTag = basicAttrsRsp->external_cell_tag();
 
         YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
             function.second,

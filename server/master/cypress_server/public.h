@@ -17,6 +17,7 @@ using NCypressClient::TLockId;
 using NCypressClient::ELockMode;
 using NCypressClient::ELockState;
 using NCypressClient::TVersionedNodeId;
+using NCypressClient::TCypressShardId;
 
 using NObjectClient::TTransactionId;
 
@@ -27,15 +28,20 @@ DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
+DECLARE_REFCOUNTED_CLASS(TPortalManager)
+
+DECLARE_REFCOUNTED_STRUCT(TPortalTreeNode)
+DECLARE_REFCOUNTED_CLASS(TPortalTree)
 
 struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
 
-DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
+DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TDirectObjectIdHash)
 
-using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
-using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNodeBase*>;
+using TCypressNodeList = SmallVector<TCypressNode*, 8>;
+using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
 
 struct TLockRequest;
 
@@ -49,6 +55,11 @@ using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
+
+class TLinkNode;
+class TDocumentNode;
+class TPortalEntranceNode;
+class TPortalExitNode;
 
 template <class T>
 class TScalarNodeTypeHandler;

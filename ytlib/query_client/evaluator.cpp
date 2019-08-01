@@ -25,6 +25,7 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeMemoryTracker;
 
@@ -220,7 +221,7 @@ public:
 
         TQueryStatistics statistics;
         NProfiling::TWallTimer wallTime;
-        NProfiling::TCpuTimer syncTime;
+        NProfiling::TFiberWallTimer syncTime;
 
         auto finalLogger = Finally([&] () {
             YT_LOG_DEBUG("Finalizing evaluation");
@@ -333,7 +334,7 @@ private:
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
 
             YT_LOG_DEBUG("Started compiling fragment");
-            NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
             auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
             YT_LOG_DEBUG("Finished compiling fragment");
             return cgQuery;

@@ -28,7 +28,7 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
 
-#include <yt/server/master/transaction_server/transaction_manager.pb.h>
+#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -306,7 +306,7 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
@@ -358,6 +358,8 @@ public:
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
 
+        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+
         FinishTransaction(transaction);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
@@ -390,7 +392,7 @@ public:
 
         auto transactionId = transaction->GetId();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
@@ -473,7 +475,7 @@ public:
         }
     }
 
-    void StageObject(TTransaction* transaction, TObjectBase* object)
+    void StageObject(TTransaction* transaction, TObject* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -482,7 +484,7 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TTransaction* transaction, TObjectBase* object, bool recursive)
+    void UnstageObject(TTransaction* transaction, TObject* object, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -496,7 +498,7 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
+    void StageNode(TTransaction* transaction, TCypressNode* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -506,7 +508,7 @@ public:
         objectManager->RefObject(trunkNode);
     }
 
-    void ImportObject(TTransaction* transaction, TObjectBase* object)
+    void ImportObject(TTransaction* transaction, TObject* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -516,7 +518,7 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, TObjectBase* object, TCellTag destinationCellTag)
+    void ExportObject(TTransaction* transaction, TObject* object, TCellTag destinationCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -592,7 +594,7 @@ public:
                 prepareTimestamp);
         }
 
-        if (persistent && Bootstrap_->IsPrimaryMaster()) {
+        if (persistent && !transaction->SecondaryCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
@@ -650,13 +652,61 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    void CreateOrRefTimestampHolder(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            ++it->second.RefCount;
+        }
+        TimestampHolderMap_.emplace(transactionId, TTimestampHolder{});
+    }
+
+    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            it->second.Timestamp = timestamp;
+        }
+    }
+
+    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            return it->second.Timestamp;
+        }
+        return NullTimestamp;
+    }
+
+    void UnrefTimestampHolder(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            --it->second.RefCount;
+            if (it->second.RefCount == 0) {
+                TimestampHolderMap_.erase(it);
+            }
+        }
+    }
+
 private:
+    struct TTimestampHolder
+    {
+        TTimestamp Timestamp = NullTimestamp;
+        i64 RefCount = 1;
+
+        void Persist(NCellMaster::TPersistenceContext& context)
+        {
+            using ::NYT::Persist;
+            Persist(context, Timestamp);
+            Persist(context, RefCount);
+        }
+    };
+
     friend class TTransactionTypeHandler;
 
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransaction> TransactionMap_;
+
+    THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
@@ -863,6 +913,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context)
     {
         TransactionMap_.SaveValues(context);
+        Save(context, TimestampHolderMap_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -877,6 +928,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadValues(context);
+
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+            Load(context, TimestampHolderMap_);
+        }
     }
 
 
@@ -1072,14 +1128,14 @@ void TTransactionManager::SetTransactionTimeout(
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObject* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
 void TTransactionManager::UnstageObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    TObject* object,
     bool recursive)
 {
     Impl_->UnstageObject(transaction, object, recursive);
@@ -1087,14 +1143,14 @@ void TTransactionManager::UnstageObject(
 
 void TTransactionManager::StageNode(
     TTransaction* transaction,
-    TCypressNodeBase* trunkNode)
+    TCypressNode* trunkNode)
 {
     Impl_->StageNode(transaction, trunkNode);
 }
 
 void TTransactionManager::ExportObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    TObject* object,
     TCellTag destinationCellTag)
 {
     Impl_->ExportObject(transaction, object, destinationCellTag);
@@ -1102,7 +1158,7 @@ void TTransactionManager::ExportObject(
 
 void TTransactionManager::ImportObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObject* object)
 {
     Impl_->ImportObject(transaction, object);
 }
@@ -1164,6 +1220,26 @@ void TTransactionManager::PingTransaction(
     bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+void TTransactionManager::CreateOrRefTimestampHolder(TTransactionId transactionId)
+{
+    Impl_->CreateOrRefTimestampHolder(transactionId);
+}
+
+void TTransactionManager::SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
+{
+    Impl_->SetTimestampHolderTimestamp(transactionId, timestamp);
+}
+
+TTimestamp TTransactionManager::GetTimestampHolderTimestamp(TTransactionId transactionId)
+{
+    return Impl_->GetTimestampHolderTimestamp(transactionId);
+}
+
+void TTransactionManager::UnrefTimestampHolder(TTransactionId transactionId)
+{
+    Impl_->UnrefTimestampHolder(transactionId);
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

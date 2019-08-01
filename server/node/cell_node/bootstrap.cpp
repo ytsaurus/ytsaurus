@@ -115,7 +115,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/core/alloc/statistics_producer.h>
+#include <yt/core/ytalloc/statistics_producer.h>
+#include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -129,7 +130,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
 
-#include <yt/core/alloc/alloc.h>
+#include <library/ytalloc/api/ytalloc.h>
 
 namespace NYT::NCellNode {
 
@@ -1060,7 +1061,7 @@ void TBootstrap::OnMasterDisconnected()
 
 void TBootstrap::UpdateFootprintMemoryUsage()
 {
-    auto bytesCommitted = NYTAlloc::GetTotalCounters()[NYTAlloc::ETotalCounter::BytesCommitted];
+    auto bytesCommitted = NYTAlloc::GetTotalAllocationCounters()[NYTAlloc::ETotalCounter::BytesCommitted];
     auto newFootprint = Config_->FootprintMemorySize + bytesCommitted;
     for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {

@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "table.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -35,8 +35,8 @@ struct TLivePreviewTableBase
 };
 
 struct TInputTable
-    : public TLockedUserObject
-    , public TIntrinsicRefCounted
+    : public TIntrinsicRefCounted
+    , public NChunkClient::TUserObject
 {
     //! Number of chunks in the whole table (without range selectors).
     int ChunkCount = -1;
@@ -44,16 +44,15 @@ struct TInputTable
     NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
     NTableClient::TTableSchema Schema;
     NTableClient::ETableSchemaMode SchemaMode;
-    bool IsDynamic;
+    bool Dynamic = false;
     ui64 ContentRevision = 0;
 
     //! Set to true when schema of the table is compatible with the output
     //! teleport table and when no special options set that disallow chunk
     //! teleporting (like force_transform = %true).
-    bool IsTeleportable = false;
+    bool Teleportable = false;
 
     bool IsForeign() const;
-
     bool IsPrimary() const;
 
     void Persist(const TPersistenceContext& context);
@@ -97,6 +96,13 @@ struct TOutputTable
 
     //! Corresponding sink.
     NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
+
+    bool IsDynamic = false;
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+    std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
+
+    std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
+    int ChunkCount;
 
     TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 

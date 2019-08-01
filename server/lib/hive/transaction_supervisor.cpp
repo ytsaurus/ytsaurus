@@ -1397,7 +1397,7 @@ private:
 
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage)
     {
-        const auto& mutationId = commit->GetMutationId();
+        auto mutationId = commit->GetMutationId();
         if (mutationId) {
             ResponseKeeper_->EndRequest(mutationId, responseMessage);
         }
@@ -1467,7 +1467,7 @@ private:
 
     void SetAbortResponse(TAbort* abort, TSharedRefArray responseMessage)
     {
-        const auto& mutationId = abort->GetMutationId();
+        auto mutationId = abort->GetMutationId();
         if (mutationId) {
             ResponseKeeper_->EndRequest(mutationId, responseMessage);
         }

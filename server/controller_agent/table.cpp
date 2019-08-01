@@ -2,7 +2,7 @@
 
 #include "serialize.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
@@ -40,7 +40,7 @@ void TInputTable::Persist(const TPersistenceContext& context)
     Persist(context, Chunks);
     Persist(context, Schema);
     Persist(context, SchemaMode);
-    Persist(context, IsDynamic);
+    Persist(context, Dynamic);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +66,11 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
     Persist(context, ChunkPoolInput);
+    Persist(context, IsDynamic);
+    Persist(context, PivotKeys);
+    Persist(context, TabletChunkListIds);
+    Persist(context, OutputChunks);
+    Persist(context, ChunkCount);
 }
 
 TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
@@ -80,7 +85,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
     // Output tables never lose data (hopefully), so we do not need to store
     // recovery info for chunks that get there.
     descriptor.RequiresRecoveryInfo = false;
-    descriptor.CellTag = CellTag;
+    descriptor.CellTag = ExternalCellTag;
     descriptor.ImmediatelyUnstageChunkLists = false;
     return descriptor;
 }

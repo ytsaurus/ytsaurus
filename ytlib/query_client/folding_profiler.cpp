@@ -36,7 +36,6 @@ DEFINE_ENUM(EFoldingObjectType,
     (TableSchema)
     (IsFinal)
     (IsMerge)
-    (UseDisjointGroupBy)
     (TotalsMode)
 );
 
@@ -665,17 +664,15 @@ void TQueryProfiler::Profile(
     size_t dummySlot = (*slotCount)++;
 
     bool isFinal = query->IsFinal;
-    bool useDisjointGroupBy = query->UseDisjointGroupBy;
 
     Fold(static_cast<int>(EFoldingObjectType::IsFinal));
     Fold(static_cast<int>(isFinal));
     Fold(static_cast<int>(EFoldingObjectType::IsMerge));
     Fold(static_cast<int>(isMerge));
-    Fold(static_cast<int>(EFoldingObjectType::UseDisjointGroupBy));
-    Fold(static_cast<int>(useDisjointGroupBy));
 
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
+        Fold(static_cast<int>(groupClause->CommonPrefixWithPrimaryKey));
 
         std::vector<EValueType> keyTypes;
         std::vector<EValueType> stateTypes;
@@ -715,7 +712,14 @@ void TQueryProfiler::Profile(
         expressionFragments.DumpArgs(aggregateExprIds);
         expressionFragments.DumpArgs(groupExprIds);
 
-        intermediateSlot = MakeCodegenGroupOp(
+        // If group key contains primary key prefix, full grouped rowset is not keeped till the end but flushed
+        // every time prefix changes (scan is ordered by primary key, bottom queries are always evaluated along
+        // each tablet). Grouped rows with inner primary key prefix are transfered to final slot (they are
+        // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transfered to
+        // intermediate slot and needs final grouping.
+
+        size_t newFinalSlot;
+        std::tie(intermediateSlot, newFinalSlot) = MakeCodegenGroupOp(
             codegenSource,
             slotCount,
             intermediateSlot,
@@ -727,6 +731,7 @@ void TQueryProfiler::Profile(
             stateTypes,
             isMerge,
             groupClause->TotalsMode != ETotalsMode::None,
+            groupClause->CommonPrefixWithPrimaryKey,
             ComparerManager_);
 
         Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
@@ -737,7 +742,9 @@ void TQueryProfiler::Profile(
         TCodegenFragmentInfosPtr havingFragmentsInfos;
 
         size_t havingPredicateId;
-        if (query->HavingClause) {
+        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
+
+        if (addHaving) {
             TExpressionFragments havingExprFragments;
             havingPredicateId = TExpressionProfiler::Profile(query->HavingClause, schema, &havingExprFragments);
 
@@ -745,54 +752,78 @@ void TQueryProfiler::Profile(
             havingExprFragments.DumpArgs(std::vector<size_t>{havingPredicateId});
         }
 
-        if (useDisjointGroupBy && !isMerge || isFinal) {
-            size_t newFinalSlot;
-            size_t totalsSlotNew;
+        // COMPAT(lukyan)
+        if (isFinal || query->UseDisjointGroupBy) {
+            // Boundary segments are also final
+            newFinalSlot = MakeCodegenMergeOp(
+                codegenSource,
+                slotCount,
+                intermediateSlot,
+                newFinalSlot);
 
-            if (groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-                if (query->HavingClause && !IsTrue(query->HavingClause)) {
-                    Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                    intermediateSlot = MakeCodegenFilterFinalizedOp(
-                        codegenSource,
-                        slotCount,
-                        intermediateSlot,
-                        havingFragmentsInfos,
-                        havingPredicateId,
-                        keyTypes.size(),
-                        codegenAggregates,
-                        stateTypes);
-                }
+             intermediateSlot = dummySlot;
+        } else if (isMerge) {
+            intermediateSlot = MakeCodegenMergeOp(
+                codegenSource,
+                slotCount,
+                intermediateSlot,
+                newFinalSlot);
+
+             newFinalSlot = dummySlot;
+        }
+
+        size_t keySize = groupClause->GroupItems.size();
+
+        if (!isMerge || isFinal) {
+            if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
+                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+
+                // Finalizes row to evaluate predicate and filters source values.
+                newFinalSlot = MakeCodegenFilterFinalizedOp(
+                    codegenSource,
+                    slotCount,
+                    newFinalSlot,
+                    havingFragmentsInfos,
+                    havingPredicateId,
+                    keySize,
+                    codegenAggregates,
+                    stateTypes);
             }
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
+                size_t totalsSlotNew;
                 std::tie(totalsSlotNew, newFinalSlot) = MakeCodegenSplitOp(
                     codegenSource,
                     slotCount,
-                    intermediateSlot);
-            } else {
-                newFinalSlot = intermediateSlot;
-            }
+                    newFinalSlot);
 
-            intermediateSlot = dummySlot;
+                if (isMerge) {
+                    totalsSlot = MakeCodegenMergeOp(
+                        codegenSource,
+                        slotCount,
+                        totalsSlot,
+                        totalsSlotNew);
+                } else {
+                    totalsSlot = totalsSlotNew;
+                }
+            }
 
             newFinalSlot = MakeCodegenFinalizeOp(
                 codegenSource,
                 slotCount,
                 newFinalSlot,
-                keyTypes.size(),
+                keySize,
                 codegenAggregates,
                 stateTypes);
 
-            if (groupClause->TotalsMode != ETotalsMode::AfterHaving) {
-                if (query->HavingClause && !IsTrue(query->HavingClause)) {
-                    Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                    newFinalSlot = MakeCodegenFilterOp(
-                        codegenSource,
-                        slotCount,
-                        newFinalSlot,
-                        havingFragmentsInfos,
-                        havingPredicateId);
-                }
+            if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
+                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                newFinalSlot = MakeCodegenFilterOp(
+                    codegenSource,
+                    slotCount,
+                    newFinalSlot,
+                    havingFragmentsInfos,
+                    havingPredicateId);
             }
 
             if (isMerge) {
@@ -804,22 +835,12 @@ void TQueryProfiler::Profile(
             } else {
                 finalSlot = newFinalSlot;
             }
-
-            if (groupClause->TotalsMode != ETotalsMode::None) {
-                if (isMerge) {
-                        totalsSlot = MakeCodegenMergeOp(
-                            codegenSource,
-                            slotCount,
-                            totalsSlot,
-                            totalsSlotNew);
-                } else {
-                    totalsSlot = totalsSlotNew;
-                }
-            }
         }
 
         if (groupClause->TotalsMode != ETotalsMode::None) {
-            totalsSlot = MakeCodegenGroupOp(
+            // TODO(lukyan): Optimize. Assign empty consumer to totalsSlotEmpty and remove MergeOp
+            size_t totalsSlotEmpty;
+            std::tie(totalsSlot, totalsSlotEmpty) = MakeCodegenGroupOp(
                 codegenSource,
                 slotCount,
                 totalsSlot,
@@ -831,14 +852,21 @@ void TQueryProfiler::Profile(
                 stateTypes,
                 true,
                 false,
+                0,
                 ComparerManager_);
+
+            totalsSlot = MakeCodegenMergeOp(
+                codegenSource,
+                slotCount,
+                totalsSlot,
+                totalsSlotEmpty);
 
             if (isFinal) {
                 totalsSlot = MakeCodegenFinalizeOp(
                     codegenSource,
                     slotCount,
                     totalsSlot,
-                    keyTypes.size(),
+                    keySize,
                     codegenAggregates,
                     stateTypes);
             }

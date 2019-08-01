@@ -34,6 +34,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -686,6 +687,10 @@ private:
                     TError(NRpc::EErrorCode::TransportError, "Request resent"));
             }
 
+            if (options.SendDelay) {
+                Sleep(*options.SendDelay);
+            }
+
             const auto& requestMessage = requestMessageOrError.Value();
 
             NBus::TSendOptions busOptions;
@@ -794,6 +799,13 @@ private:
             if (!responseHandler) {
                 YT_LOG_ERROR("Received streaming payload for an unknown request; ignored (RequestId: %v)",
                     requestId);
+                return;
+            }
+
+            if (attachments.empty()) {
+                responseHandler->HandleError(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Streaming payload without attachments"));
                 return;
             }
 

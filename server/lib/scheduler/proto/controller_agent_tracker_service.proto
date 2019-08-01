@@ -5,6 +5,7 @@ import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,30 +17,6 @@ message TExecNodeDescriptor
     required bool online = 6;
     required TJobResources resource_limits = 4;
     repeated string tags = 5;
-}
-
-message TJobMetrics
-{
-    message TEntry
-    {
-        required int64 key = 1;
-        required int64 value = 2;
-    }
-    message TCustomEntry
-    {
-        required string statistics_path = 1;
-        required string profiling_name = 2;
-        required int64 value = 3;
-    }
-
-    repeated TEntry values = 1;
-    repeated TCustomEntry custom_values = 2;
-}
-
-message TTreeTaggedJobMetrics
-{
-    required string tree_id = 1;
-    optional TJobMetrics metrics = 2;
 }
 
 message TOperationAlert
@@ -56,7 +33,7 @@ message TOperationAlerts
 message TOperationInfo
 {
     required NYT.NProto.TGuid operation_id = 1;
-    repeated TTreeTaggedJobMetrics job_metrics = 2;
+    repeated NYT.NControllerAgent.NProto.TTreeTaggedJobMetrics job_metrics = 2;
     optional TOperationAlerts alerts = 3;
     optional bytes suspicious_jobs = 4;
     required int32 pending_job_count = 5;

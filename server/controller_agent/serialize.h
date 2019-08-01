@@ -2,18 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/misc/phoenix.h>
-
-#include <yt/client/table_client/serialize.h>
-
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NTableClient::TSaveContext;
-using NTableClient::TLoadContext;
-using NTableClient::TPersistenceContext;
-using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +19,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobMetricsAggregationType) (300107))
     ((SaveJobPhase)           (300108))
     ((JobSplitterPrepareDuration) (300109))
+    ((ForceAdvanceBefore19_6)     (300150))
+    ((JobMetricsByOperationState)     (300151))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

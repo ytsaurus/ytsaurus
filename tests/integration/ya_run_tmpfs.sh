@@ -12,12 +12,18 @@ else
     echo "!!! tests.sandbox already mounted as tmpfs"
 fi
 
+for arg in "$@"; do
+  case "$arg" in
+    "--clear") (echo -e "Cleaning tests.sandbox"; rm -rf ./tests.sandbox/*) ;;
+  esac
+done
+
 ulimit -c unlimited
 ../../../scripts/run-py-test.py -sv --ignore tests.sandbox "$@"
 exit_code=$?
 
 echo "==========================================================="
-cores=`find tests.sandbox/ -name "core*" -printf "%C+ %p\n" | sort -r`
+cores=`find tests.sandbox/ -name "core.*" -printf "%C+ %p\n" | sort -r`
 if [[ "$cores" != "" ]]; then
     echo "Core dumps in tests.sandbox (sorted by creation time)"
     echo "$cores"

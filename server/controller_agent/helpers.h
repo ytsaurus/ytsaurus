@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "data_flow_graph.h"
 
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -32,18 +32,8 @@ TString TrimCommandForBriefSpec(const TString& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Common pattern in scheduler is to lock input object and
-//! then request attributes of this object by id.
-struct TLockedUserObject
-    : public NChunkClient::TUserObject
-{
-    virtual TString GetPath() const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TUserFile
-    : public TLockedUserObject
+    : public NChunkClient::TUserObject
 {
     std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
     TString FileName;

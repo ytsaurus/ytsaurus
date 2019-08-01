@@ -111,7 +111,7 @@ private:
 
 Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
 {
-    return ImmortalSingleton<TRefCountedTracker>();
+    return LeakySingleton<TRefCountedTracker>();
 }
 
 #define INCREMENT_COUNTER(fallback, name, delta) \

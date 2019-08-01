@@ -68,6 +68,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     std::vector<ISortedStorePtr> stores;
     std::vector<TSharedRange<TRowRange>> boundsPerStore;
 
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
     auto takePartition = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
         for (const auto& store : candidateStores) {
@@ -384,6 +386,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
@@ -457,6 +461,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
     }
+
+    // XXX will this work?
+    tabletSnapshot->WaitOnLocks(majorTimestamp);
 
     YT_LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "

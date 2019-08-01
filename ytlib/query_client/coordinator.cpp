@@ -82,9 +82,6 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
     topQuery->IsFinal = query->IsFinal;
     topQuery->ProjectClause = query->ProjectClause;
-
-    // Use groupClause->KeyPrefix
-
     topQuery->Schema = subqueryPattern->GetTableSchema();
 
     std::vector<TConstQueryPtr> subqueries;

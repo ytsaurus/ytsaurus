@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/profiling/proto/profiling.pb.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +95,8 @@ public:
     //! Registers a tag and returns its unique id.
     template <class T>
     TTagId RegisterTag(const TString& key, const T& value);
+
+    std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> cnt = std::nullopt);
 
 private:
     TProfileManager();

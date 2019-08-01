@@ -212,7 +212,7 @@ private:
             .ValueOrThrow();
 
         StartRowIndex_ = OpenResult_->Reader->GetTableRowIndex();
-        
+
         if (Transaction_) {
             StartListenTransaction(Transaction_);
         }
@@ -298,7 +298,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         getUserObjectBasicAttributesOptions);
 
     auto objectId = userObject->ObjectId;
-    auto tableCellTag = userObject->CellTag;
+    auto tableCellTag = userObject->ExternalCellTag;
 
     TYPath objectIdPath;
     if (objectId) {

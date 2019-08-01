@@ -129,6 +129,8 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMonitoringManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMonitoringManager::TMonitoringManager()

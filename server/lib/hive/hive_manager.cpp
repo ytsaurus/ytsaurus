@@ -43,6 +43,7 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
+using namespace NProfiling;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -265,7 +266,7 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
-    NProfiling::TMonotonicCounter PostingTimeCounter_{"/posting_time"};
+    TMonotonicCounter PostingTimeCounter_{"/posting_time"};
 
 
     // RPC handlers.
@@ -508,7 +509,7 @@ private:
 
     NRpc::IChannelPtr FindMailboxChannel(TMailbox* mailbox)
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         auto cachedChannel = mailbox->GetCachedChannel();
         if (cachedChannel && now < mailbox->GetCachedChannelDeadline()) {
             return cachedChannel;
@@ -520,7 +521,7 @@ private:
         }
 
         mailbox->SetCachedChannel(channel);
-        mailbox->SetCachedChannelDeadline(now + NProfiling::DurationToCpuDuration(Config_->CachedChannelTimeout));
+        mailbox->SetCachedChannelDeadline(now + DurationToCpuDuration(Config_->CachedChannelTimeout));
 
         return channel;
     }
@@ -571,7 +572,7 @@ private:
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
@@ -867,7 +868,7 @@ private:
 
     void OnIdlePostOutcomingMessages(TCellId cellId)
     {
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -885,7 +886,7 @@ private:
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
             BIND([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
-                NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
                 auto* mailbox = FindMailbox(cellId);
                 if (!mailbox) {
@@ -971,7 +972,7 @@ private:
 
         void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1018,7 +1019,7 @@ private:
 
     void OnSendMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
-        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {

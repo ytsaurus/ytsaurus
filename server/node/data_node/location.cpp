@@ -105,11 +105,11 @@ TLocation::TLocation(
     PerformanceCounters_.Full = {"/full"};
 
     PerformanceCounters_.PendingIOSize.resize(
-        TEnumTraits<EIODirection>::GetDomainSize() *
-        TEnumTraits<EIOCategory>::GetDomainSize());
+        TEnumTraits<EIODirection>::DomainSize *
+        TEnumTraits<EIOCategory>::DomainSize);
     PerformanceCounters_.CompletedIOSize.resize(
-        TEnumTraits<EIODirection>::GetDomainSize() *
-        TEnumTraits<EIOCategory>::GetDomainSize());
+        TEnumTraits<EIODirection>::DomainSize *
+        TEnumTraits<EIOCategory>::DomainSize);
 
     IOEngine_ = CreateIOEngine(
         Config_->IOEngineType,
@@ -385,7 +385,7 @@ NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
 {
     int index =
         static_cast<int>(direction) +
-        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+        TEnumTraits<EIODirection>::DomainSize * static_cast<int>(category);
     return PerformanceCounters_.PendingIOSize[index];
 }
 
@@ -395,7 +395,7 @@ NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
 {
     int index =
         static_cast<int>(direction) +
-        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+        TEnumTraits<EIODirection>::DomainSize * static_cast<int>(category);
     return PerformanceCounters_.CompletedIOSize[index];
 }
 
@@ -686,7 +686,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     // Also "repair" half-alive chunks (e.g. those having some of their essential parts missing)
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
-    for (const auto& chunkId : chunkIds) {
+    for (auto chunkId : chunkIds) {
         auto optionalDescriptor = RepairChunk(chunkId);
         if (optionalDescriptor) {
             descriptors.push_back(*optionalDescriptor);
@@ -1144,7 +1144,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
             trashChunkIds.insert(chunkId);
         }
 
-        for (const auto& chunkId : trashChunkIds) {
+        for (auto chunkId : trashChunkIds) {
             RegisterTrashChunk(chunkId);
         }
     }

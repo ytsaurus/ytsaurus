@@ -84,6 +84,8 @@
     XX(EffectiveAcl, effective_acl) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
+    XX(EntranceCellTag, entrance_cell_tag) \
+    XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \
@@ -91,6 +93,8 @@
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(Executable, executable) \
+    XX(ExitCellTag, exit_cell_tag) \
+    XX(ExitNodeId, exit_node_id) \
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
@@ -275,6 +279,7 @@
     XX(TrimmedRowCount, trimmed_row_count) \
     XX(Type, type) \
     XX(UncompressedDataSize, uncompressed_data_size) \
+    XX(UnconfirmedDynamicTableLocks, unconfirmed_dynamic_table_locks) \
     XX(UnflushedTimestamp, unflushed_timestamp) \
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
@@ -296,7 +301,10 @@
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
     XX(WriteRequestTime, write_request_time) \
-    XX(SecurityTags, security_tags)
+    XX(SecurityTags, security_tags) \
+    XX(ShardId, shard_id) \
+    XX(RootNodeId, root_node_id) \
+    XX(AccountStatistics, account_statistics)
 
 namespace NYT {
 

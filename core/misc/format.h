@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "string_builder.h"
 
 namespace NYT {
 
@@ -53,8 +53,6 @@ namespace NYT {
  *  Emitted as strings by calling |ToString|.
  *
  */
-
-extern const TStringBuf DefaultRangeEllipsisFormat;
 
 template <class... TArgs, size_t FormatLength>
 void Format(TStringBuilderBase* builder, const char (&format)[FormatLength], TArgs&&... args);

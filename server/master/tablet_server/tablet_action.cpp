@@ -51,7 +51,7 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, Error_);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 823) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::SynchronousHandlesForTabletBalancer) {
         Load(context, CorrelationId_);
         Load(context, ExpirationTime_);
         Load(context, TabletCellBundle_);

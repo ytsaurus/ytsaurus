@@ -11,6 +11,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 import pytest
 from flaky import flaky
 
+import os
 import pprint
 import random
 import socket
@@ -62,12 +63,14 @@ def get_pool_metrics(metric_key, start_time):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
-    print >>sys.stderr, "Pool metrics: ", result
+    print_debug("Pool metrics: ", result)
     return result
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
     statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return get_statistics(statistics, "{0}.$.completed.map.{1}".format(key, aggr))
+    return sum(filter(lambda x: x is not None,
+                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+                       for job_state in ("completed", "failed", "aborted")]))
 
 ##################################################################
 
@@ -802,8 +805,8 @@ class TestSchedulerCommon(YTEnvSetup):
             op.track()
 
         for job_desc in ls(op.get_path() + "/jobs", attributes=["error"]):
-            print >>sys.stderr, job_desc.attributes
-            print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
+            print_debug(job_desc.attributes)
+            print_debug(job_desc.attributes["error"]["inner_errors"][0]["message"])
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
     def test_job_progress(self):
@@ -1972,9 +1975,9 @@ class TestJobRevival(TestJobRevivalBase):
                 completed_job_count = get_total_job_count("completed/total")
                 aborted_job_count = get_total_job_count("aborted/total")
                 aborted_on_revival_job_count = get_total_job_count("aborted/scheduled/revival_confirmation_timeout")
-                print >>sys.stderr, "completed_job_count =", completed_job_count
-                print >>sys.stderr, "aborted_job_count =", aborted_job_count
-                print >>sys.stderr, "aborted_on_revival_job_count =", aborted_on_revival_job_count
+                print_debug("completed_job_count =", completed_job_count)
+                print_debug("aborted_job_count =", aborted_job_count)
+                print_debug("aborted_on_revival_job_count =", aborted_on_revival_job_count)
                 if completed_job_count >= switch_job_count:
                     if (switch_job_count // 40) % 2 == 0:
                         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -1992,7 +1995,7 @@ class TestJobRevival(TestJobRevivalBase):
             op.track()
 
         if aborted_job_count != aborted_on_revival_job_count:
-            print >>sys.stderr, "There were aborted jobs other than during the revival process:"
+            print_debug("There were aborted jobs other than during the revival process:")
             for op in ops:
                 pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=sys.stderr)
 
@@ -3083,8 +3086,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
 
         err = op.get_error()
-        print >>sys.stderr, "=== error ==="
-        print >>sys.stderr, err
+        print_debug("=== error ===")
+        print_debug(err)
 
         assert err.contains_code(212)  # NScheduler::EErrorCode::OperationControllerCrashed
 
@@ -3098,9 +3101,9 @@ class TestSafeAssertionsMode(YTEnvSetup):
         
         def check_core():
             if not os.path.exists(core_path):
-                print >>sys.stderr, "size = n/a"
+                print_debug("size = n/a")
             else:
-                print >>sys.stderr, "size =", os.stat(core_path).st_size
+                print_debug("size =", os.stat(core_path).st_size)
             return get("//sys/controller_agents/instances/{}/orchid/core_dumper/active_count".format(controller_agent_address)) == 0
 
         wait(check_core, iter=200, sleep_backoff=5)
@@ -3111,10 +3114,10 @@ class TestSafeAssertionsMode(YTEnvSetup):
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
         stdout, stderr = child.communicate()
-        print >>sys.stderr, "=== stderr ==="
-        print >>sys.stderr, stderr
-        print >>sys.stderr, "=== stdout ==="
-        print >>sys.stderr, stdout
+        print_debug("=== stderr ===")
+        print_debug(stderr)
+        print_debug("=== stdout ===")
+        print_debug(stdout)
         assert child.returncode == 0
         assert "OperationControllerBase" in stdout
 
@@ -3131,7 +3134,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             command="cat")
         with pytest.raises(YtError):
             op.track()
-        print >>sys.stderr, op.get_error()
+        print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
 
 ##################################################################
@@ -3343,12 +3346,217 @@ class TestPoolMetrics(YTEnvSetup):
             metrics = get_metrics()
             for p in ("parent", "child"):
                 if metrics[p] == 0:
-                    continue
+                    return False
             return metrics["parent"] - start_metrics["parent"] == metrics["child"] - start_metrics["child"]
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_completed", start_time), start_completed_metrics))
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_aborted", start_time), start_aborted_metrics))
+
+    def test_total_time_operation_by_state(self):
+        create("map_node", "//sys/pools/parent")
+        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+        for i in xrange(3):
+            create("map_node", "//sys/pools/parent/child" + str(i + 1))
+            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+
+
+        create("table", "//tmp/t_input")
+        for i in xrange(3):
+            create("table", "//tmp/t_output_" + str(i + 1))
+
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        start_time = time.time()
+
+        start_total_time_metrics = get_pool_metrics("total_time", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, dont_track=True)
+        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, dont_track=True)
+        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, dont_track=True)
+
+        # Wait until at least some metrics are reported for op3
+        wait(lambda: get_pool_metrics("total_time", start_time)["child3"] - start_total_time_metrics["child3"] > 0)
+        op3.abort()
+
+        op1.track()
+        op2.track(raise_on_failed=False)
+        op3.track(raise_on_aborted=False)
+
+        # Wait for metrics update.
+        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["child1"] > 0)
+        wait(lambda: get_pool_metrics("total_time_operation_failed", start_time)["child2"] > 0)
+        wait(lambda: get_pool_metrics("total_time_operation_aborted", start_time)["child3"] > 0)
+
+        def check_metrics(get_metrics, child, start_metrics):
+            metrics = get_metrics()
+            for p in ("parent", child):
+                if metrics[p] - start_metrics[p] == 0:
+                    return False
+            return metrics["parent"] - start_metrics["parent"] == metrics[child] - start_metrics[child]
+
+        # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_completed", start_time),
+                                   "child1",
+                                   start_operation_completed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_failed", start_time),
+                                   "child2",
+                                   start_operation_failed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_aborted", start_time),
+                                   "child3",
+                                   start_operation_aborted_metrics))
+        assert get_pool_metrics("total_time", start_time)["parent"] - start_total_time_metrics["parent"] == \
+            get_pool_metrics("total_time_operation_completed", start_time)["parent"] - start_operation_completed_metrics["parent"] + \
+            get_pool_metrics("total_time_operation_failed", start_time)["parent"] - start_operation_failed_metrics["parent"] + \
+            get_pool_metrics("total_time_operation_aborted", start_time)["parent"] - start_operation_aborted_metrics["parent"]
+
+    def test_total_time_operation_completed_several_jobs(self):
+        create("map_node", "//sys/pools/unique_pool")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        start_time = time.time()
+
+        start_completed_metrics = get_pool_metrics("total_time_completed", start_time)
+        start_aborted_metrics = get_pool_metrics("total_time_aborted", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        op = map(
+            command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"data_size_per_job": 1, "pool": "unique_pool", "max_speculative_job_count_per_task": 0},
+            dont_track=True)
+
+        jobs = wait_breakpoint(job_count=2)
+        assert len(jobs) == 2
+
+        release_breakpoint(job_id=jobs[0])
+
+        # Wait until short job is completed.
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        running_jobs = list(op.get_running_jobs())
+        assert len(running_jobs) == 1
+
+        job_to_abort = running_jobs[0]
+        release_breakpoint(job_id=job_to_abort)
+        abort_job(job_to_abort)
+
+        # Wait for restarted job to reach breakpoint.
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1 and jobs[0] != job_to_abort
+        release_breakpoint(job_id=jobs[0])
+
+        op.track()
+
+        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] ==
+             get_pool_metrics("total_time_completed", start_time)["unique_pool"] - start_completed_metrics["unique_pool"] +
+             get_pool_metrics("total_time_aborted", start_time)["unique_pool"] - start_aborted_metrics["unique_pool"] > 0)
+        assert get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] == 0
+        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+
+    def test_total_time_operation_failed_several_jobs(self):
+        create("map_node", "//sys/pools/unique_pool")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input",
+                    [{"sleep": 2, "exit": 0},
+                     {"sleep": 5, "exit": 1}],
+                    output_format="json")
+
+        start_time = time.time()
+
+        start_total_time_metrics = get_pool_metrics("total_time", start_time)
+        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
+        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
+        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+
+        map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
+
+        op = map(
+            command=map_cmd,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"data_size_per_job": 1,
+                  "max_failed_job_count": 1,
+                  "pool": "unique_pool",
+                  "mapper": {"input_format": "json",
+                             "check_input_fully_consumed": True}},
+            dont_track=True)
+        op.track(raise_on_failed=False)
+
+        wait(lambda: get_pool_metrics("total_time", start_time)["unique_pool"] - start_total_time_metrics["unique_pool"] ==
+             get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"]) > 0
+        assert get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] == 0
+        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+
+    def test_total_time_operation_completed_per_tree(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(9):
+            write_table("<append=%true>//tmp/t_in", [{"x": i}])
+        create("table", "//tmp/t_out")
+
+        # Set up second tree
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+
+        time.sleep(1.0)
+
+        def get_pool_metric_per_tree_root_(metric_key, start_time):
+            result = {}
+            for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
+                                      options={"from_time": int(start_time) * 1000000}, verbose=False)):
+                if entry["tags"]["pool"] != "<Root>":
+                    continue
+                tree = entry["tags"]["tree"]
+                if tree not in result:
+                    result[tree] = entry["value"]
+            print >>sys.stderr, "Root metrics per tree: ", result
+            return result
+
+        start_time = time.time()
+        start_total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
+        start_total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
+
+        map(command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]})
+
+        time.sleep(2)
+
+        wait(lambda: all([value > 0 for _, value in get_pool_metric_per_tree_root_("total_time", start_time).iteritems()]))
+        total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
+        total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
+
+        for tree in ("default", "other"):
+            assert total_time_metrics[tree] - start_total_time_metrics[tree] == \
+                total_time_operation_completed_metrics[tree] - start_total_time_operation_completed_metrics[tree]
+
+        # Go back to one default tree
+        remove("//sys/pool_trees/*")
+        create("map_node", "//sys/pool_trees/default")
+        set("//sys/pool_trees/@default_tree", "default")
+        time.sleep(0.5)  # Give scheduler some time to reload trees
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
@@ -3770,7 +3978,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: exists(small_usage_path))
         usage = get(small_usage_path)
 
-        print >>sys.stderr, "small_usage =", usage
+        print_debug("small_usage =", usage)
         assert usage < 4 * 10**6
 
         wait(lambda: check("0", op_small, 0, 4 * 10**6))
@@ -3793,7 +4001,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: exists(large_usage_path))
         usage = get(large_usage_path)
 
-        print >>sys.stderr, "large_usage =", usage
+        print_debug("large_usage =", usage)
         assert usage > 10 * 10**6
         wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
@@ -3877,10 +4085,10 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
         operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
-        print >>sys.stderr, "BALANCE_RATIO", balance_ratio
+        print_debug("BALANCE_RATIO", balance_ratio)
         if not (0.5 <= balance_ratio <= 0.8):
             for op in ops:
-                print >>sys.stderr, op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False)
+                print_debug(op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False))
         assert 0.5 <= balance_ratio <= 0.8
 
 class TestPorts(YTEnvSetup):
@@ -4141,9 +4349,9 @@ class TestNewLivePreview(YTEnvSetup):
         position = 0
         for i, range_ in enumerate(expected_all_ranges_data):
             if all_ranges_data[position:position + len(range_)] != range_:
-                print >>sys.stderr, "position =", position, ", range =", all_ranges[i]
-                print >>sys.stderr, "expected:", range_
-                print >>sys.stderr, "actual:", all_ranges_data[position:position + len(range_)]
+                print_debug("position =", position, ", range =", all_ranges[i])
+                print_debug("expected:", range_)
+                print_debug("actual:", all_ranges_data[position:position + len(range_)])
                 assert all_ranges_data[position:position + len(range_)] == range_
             position += len(range_)
 
@@ -4331,6 +4539,7 @@ class TestContainerCpuLimit(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    @flaky(max_runs=3)
     def test_container_cpu_limit(self):
         op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
                                               "job_count": 1,

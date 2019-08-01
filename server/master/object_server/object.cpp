@@ -14,41 +14,66 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectLifeStage NextStage(EObjectLifeStage lifeStage)
+EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage)
 {
     switch (lifeStage) {
         case EObjectLifeStage::CreationStarted:
             return EObjectLifeStage::CreationPreCommitted;
         case EObjectLifeStage::CreationPreCommitted:
             return EObjectLifeStage::CreationCommitted;
+        case EObjectLifeStage::RemovalStarted:
+            return EObjectLifeStage::RemovalPreCommitted;
+        case EObjectLifeStage::RemovalPreCommitted:
+            return EObjectLifeStage::RemovalCommitted;
         default:
             YT_ABORT();
     }
 }
 
+bool IsStableLifeStage(EObjectLifeStage lifeStage)
+{
+    switch (lifeStage) {
+        case EObjectLifeStage::CreationCommitted:
+        case EObjectLifeStage::RemovalCommitted:
+            return true;
+        default:
+            return false;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectType TObjectBase::GetType() const
+EObjectType TObject::GetType() const
 {
     return TypeFromId(Id_);
 }
 
-bool TObjectBase::IsBuiltin() const
+bool TObject::IsBuiltin() const
 {
     return IsWellKnownId(Id_);
 }
 
-int TObjectBase::IncrementLifeStageVoteCount()
+int TObject::GetLifeStageVoteCount() const
+{
+    return LifeStageVoteCount_;
+}
+
+void TObject::ResetLifeStageVoteCount()
+{
+    LifeStageVoteCount_ = 0;
+}
+
+int TObject::IncrementLifeStageVoteCount()
 {
     return ++LifeStageVoteCount_;
 }
 
-const TAttributeSet* TObjectBase::GetAttributes() const
+const TAttributeSet* TObject::GetAttributes() const
 {
     return Attributes_.get();
 }
 
-TAttributeSet* TObjectBase::GetMutableAttributes()
+TAttributeSet* TObject::GetMutableAttributes()
 {
     if (!Attributes_) {
         Attributes_ = std::make_unique<TAttributeSet>();
@@ -56,17 +81,17 @@ TAttributeSet* TObjectBase::GetMutableAttributes()
     return Attributes_.get();
 }
 
-void TObjectBase::ClearAttributes()
+void TObject::ClearAttributes()
 {
     Attributes_.reset();
 }
 
-int TObjectBase::GetGCWeight() const
+int TObject::GetGCWeight() const
 {
     return 10;
 }
 
-void TObjectBase::Save(NCellMaster::TSaveContext& context) const
+void TObject::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter_);
@@ -83,7 +108,7 @@ void TObjectBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, IsForeign());
 }
 
-void TObjectBase::Load(NCellMaster::TLoadContext& context)
+void TObject::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
@@ -102,7 +127,25 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObjectBase* object) const
+TString TNonversionedObjectBase::GetObjectName() const
+{
+    return Format("Object %v", Id_);
+}
+
+void TNonversionedObjectBase::ValidateCreationCommitted() const
+{
+    if (LifeStage_ != EObjectLifeStage::CreationCommitted) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InvalidObjectLifeStage,
+            "%v cannot be used since it is in %Qlv life stage",
+            GetObjectName(),
+            LifeStage_);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObject* object) const
 {
     FormatValue(builder, object->GetId(), TStringBuf());
 }

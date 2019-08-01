@@ -28,6 +28,9 @@ struct TTableYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, ReshardAutomatic);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Alter);
+
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, LockDynamicTable);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CheckDynamicTableLock);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

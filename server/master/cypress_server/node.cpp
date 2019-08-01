@@ -1,4 +1,5 @@
 #include "node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/serialize.h>
 
@@ -18,8 +19,8 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
-    : TObjectBase(id.ObjectId)
+TCypressNode::TCypressNode(const TVersionedNodeId& id)
+    : TObject(id.ObjectId)
     , Acd_(this)
     , TransactionId_(id.TransactionId)
 {
@@ -28,14 +29,14 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     }
 }
 
-TCypressNodeBase::~TCypressNodeBase() = default;
+TCypressNode::~TCypressNode() = default;
 
-TCypressNodeBase* TCypressNodeBase::GetParent() const
+TCypressNode* TCypressNode::GetParent() const
 {
     return Parent_;
 }
 
-void TCypressNodeBase::SetParent(TCypressNodeBase* parent)
+void TCypressNode::SetParent(TCypressNode* parent)
 {
     if (Parent_ == parent)
         return;
@@ -53,27 +54,27 @@ void TCypressNodeBase::SetParent(TCypressNodeBase* parent)
     }
 }
 
-void TCypressNodeBase::ResetParent()
+void TCypressNode::ResetParent()
 {
     Parent_ = nullptr;
 }
 
-TCypressNodeBase* TCypressNodeBase::GetOriginator() const
+TCypressNode* TCypressNode::GetOriginator() const
 {
     return Originator_;
 }
 
-void TCypressNodeBase::SetOriginator(TCypressNodeBase* originator)
+void TCypressNode::SetOriginator(TCypressNode* originator)
 {
     Originator_ = originator;
 }
 
-const TCypressNodeLockingState& TCypressNodeBase::LockingState() const
+const TCypressNodeLockingState& TCypressNode::LockingState() const
 {
     return LockingState_ ? *LockingState_ : TCypressNodeLockingState::Empty;
 }
 
-TCypressNodeLockingState* TCypressNodeBase::MutableLockingState()
+TCypressNodeLockingState* TCypressNode::MutableLockingState()
 {
     if (!LockingState_) {
         LockingState_ = std::make_unique<TCypressNodeLockingState>();
@@ -81,34 +82,34 @@ TCypressNodeLockingState* TCypressNodeBase::MutableLockingState()
     return LockingState_.get();
 }
 
-bool TCypressNodeBase::HasLockingState() const
+bool TCypressNode::HasLockingState() const
 {
     return LockingState_.operator bool();
 }
 
-void TCypressNodeBase::ResetLockingState()
+void TCypressNode::ResetLockingState()
 {
     LockingState_.reset();
 }
 
-void TCypressNodeBase::ResetLockingStateIfEmpty()
+void TCypressNode::ResetLockingStateIfEmpty()
 {
     if (LockingState_ && LockingState_->IsEmpty()) {
         LockingState_.reset();
     }
 }
 
-TVersionedNodeId TCypressNodeBase::GetVersionedId() const
+TVersionedNodeId TCypressNode::GetVersionedId() const
 {
     return TVersionedNodeId(Id_, TransactionId_);
 }
 
-bool TCypressNodeBase::IsExternal() const
+bool TCypressNode::IsExternal() const
 {
     return ExternalCellTag_ >= MinValidCellTag && ExternalCellTag_ <= MaxValidCellTag;
 }
 
-TClusterResources TCypressNodeBase::GetDeltaResourceUsage() const
+TClusterResources TCypressNode::GetDeltaResourceUsage() const
 {
     YT_VERIFY(!IsExternal());
 
@@ -117,26 +118,26 @@ TClusterResources TCypressNodeBase::GetDeltaResourceUsage() const
     return result;
 }
 
-TClusterResources TCypressNodeBase::GetTotalResourceUsage() const
+TClusterResources TCypressNode::GetTotalResourceUsage() const
 {
     NSecurityServer::TClusterResources result;
     result.NodeCount = 1;
     return result;
 }
 
-ui64 TCypressNodeBase::GetRevision() const
+ui64 TCypressNode::GetRevision() const
 {
     return Max(AttributesRevision_, ContentRevision_);
 }
 
-bool TCypressNodeBase::IsBeingCreated() const
+bool TCypressNode::IsBeingCreated() const
 {
     return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
 }
 
-void TCypressNodeBase::Save(TSaveContext& context) const
+void TCypressNode::Save(TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
@@ -158,11 +159,12 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     Save(context, Opaque_);
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
+    Save(context, Shard_);
 }
 
-void TCypressNodeBase::Load(TLoadContext& context)
+void TCypressNode::Load(TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, ExternalCellTag_);
@@ -173,7 +175,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 831) {
+    if (context.GetVersion() < EMasterSnapshotVersion::VersionedExpirationTime) {
         auto oldExpirationTime = Load<std::optional<TInstant>>(context);
         if (oldExpirationTime) {
             ExpirationTime_.Set(*oldExpirationTime);
@@ -186,7 +188,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < 811) {
+    if (context.GetVersion() < EMasterSnapshotVersion::AddAttributesRevisionContentRevision) {
         ui64 revision = Load<ui64>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;
@@ -199,9 +201,13 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, Opaque_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        Load(context, Shard_);
+    }
 }
 
-TVersionedObjectId GetObjectId(const TCypressNodeBase* object)
+TVersionedObjectId GetObjectId(const TCypressNode* object)
 {
     return object ? object->GetVersionedId() : TVersionedObjectId(NullObjectId, NullTransactionId);
 }

@@ -1074,4 +1074,51 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient::NYT
+void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* value)
+{
+    TStringStream stream;
+    NYson::TYsonWriter writer(&stream);
+
+    switch (value->Type) {
+        case EValueType::Null: {
+            result->Type = EValueType::Null;
+            return;
+        }
+        case EValueType::Any: {
+            *result = *value;
+            return;
+        }
+        case EValueType::String: {
+            writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));
+            break;
+        }
+        case EValueType::Int64: {
+            writer.OnInt64Scalar(value->Data.Int64);
+            break;
+        }
+        case EValueType::Uint64: {
+            writer.OnUint64Scalar(value->Data.Uint64);
+            break;
+        }
+        case EValueType::Double: {
+            writer.OnDoubleScalar(value->Data.Double);
+            break;
+        }
+        case EValueType::Boolean: {
+            writer.OnBooleanScalar(value->Data.Boolean);
+            break;
+        }
+        default:
+            YT_ABORT();
+    }
+
+    writer.Flush();
+    result->Type = EValueType::Any;
+    result->Length = stream.Size();
+    result->Data.String = stream.Data();
+    *result = rowBuffer->Capture(*result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTableClient

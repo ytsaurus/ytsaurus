@@ -42,7 +42,7 @@ public:
         TSecurityManagerPtr securityManager,
         IInvokerPtr invoker,
         ICypressNodeVisitorPtr visitor,
-        TCypressNodeBase* trunkRootNode,
+        TCypressNode* trunkRootNode,
         TTransaction* transaction)
         : CypressManager_(std::move(cypressManager))
         , TransactionManager_(std::move(transactionManager))
@@ -85,11 +85,11 @@ private:
 
     struct TStackEntry
     {
-        TCypressNodeBase* TrunkNode;
+        TCypressNode* TrunkNode;
         int ChildIndex = -1; // -1 means the node itself
-        std::vector<TCypressNodeBase*> TrunkChildren;
+        std::vector<TCypressNode*> TrunkChildren;
 
-        explicit TStackEntry(TCypressNodeBase* trunkNode)
+        explicit TStackEntry(TCypressNode* trunkNode)
             : TrunkNode(trunkNode)
         { }
     };
@@ -105,12 +105,12 @@ private:
         }
     }
 
-    void PushEntry(TCypressNodeBase* trunkNode)
+    void PushEntry(TCypressNode* trunkNode)
     {
         ObjectManager_->EphemeralRefObject(trunkNode);
         Stack_.push_back(TStackEntry(trunkNode));
 
-        auto addChildren = [&] (std::vector<TCypressNodeBase*> children) {
+        auto addChildren = [&] (std::vector<TCypressNode*> children) {
             auto& entry = Stack_.back();
             entry.TrunkChildren = std::move(children);
             for (auto* child : entry.TrunkChildren) {
@@ -120,11 +120,11 @@ private:
 
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map:
-                addChildren(GetMapNodeChildList(CypressManager_, trunkNode, Transaction_));
+                addChildren(GetMapNodeChildList(CypressManager_, trunkNode->As<TMapNode>(), Transaction_));
                 break;
 
             case ENodeType::List:
-                addChildren(GetListNodeChildList(CypressManager_, trunkNode, Transaction_));
+                addChildren(GetListNodeChildList(CypressManager_, trunkNode->As<TListNode>(), Transaction_));
                 break;
 
             default:
@@ -144,7 +144,7 @@ private:
             }
 
             {
-                NProfiling::TWallTimingGuard timingGuard(&TotalTime_);
+                NProfiling::TValueIncrementingTimingGuard<NProfiling::TWallTimer> timingGuard(&TotalTime_);
                 int currentNodeCount = 0;
                 while (currentNodeCount < MaxNodesPerIteration && !Stack_.empty()) {
                     auto& entry = Stack_.back();
@@ -208,7 +208,7 @@ void TraverseCypress(
     TObjectManagerPtr objectManager,
     TSecurityManagerPtr securityManager,
     IInvokerPtr invoker,
-    TCypressNodeBase* trunkRootNode,
+    TCypressNode* trunkRootNode,
     TTransaction* transaction,
     ICypressNodeVisitorPtr visitor)
 {

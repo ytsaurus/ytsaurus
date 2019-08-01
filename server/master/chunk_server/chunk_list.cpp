@@ -122,7 +122,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, Statistics_);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() < 828) {
+    if (context.GetVersion() < EMasterSnapshotVersion::TCumulativeStatisticsInChunkLists) {
         LoadCumulativeStatisticsCompat(context);
     } else {
         Load(context, CumulativeStatistics_);
@@ -190,7 +190,7 @@ ui64 TChunkList::GenerateVisitMark()
 
 int TChunkList::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + Children_.size();
+    return TObject::GetGCWeight() + Children_.size();
 }
 
 void TChunkList::SetKind(EChunkListKind kind)
@@ -210,17 +210,27 @@ bool TChunkList::IsOrdered() const
 
 bool TChunkList::HasCumulativeStatistics() const
 {
-    return HasAppendableCumulativeStatistics() || HasModifyableCumulativeStatistics();
+    return HasAppendableCumulativeStatistics() ||
+        HasModifyableCumulativeStatistics() ||
+        HasTrimmableCumulativeStatistics();
 }
 
 bool TChunkList::HasAppendableCumulativeStatistics() const
 {
-    return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
+    return Kind_ == EChunkListKind::Static;
 }
 
 bool TChunkList::HasModifyableCumulativeStatistics() const
 {
-    return false;
+    return Kind_ == EChunkListKind::SortedDynamicRoot ||
+        Kind_ == EChunkListKind::OrderedDynamicRoot ||
+        Kind_ == EChunkListKind::SortedDynamicTablet ||
+        Kind_ == EChunkListKind::SortedDynamicSubtablet;
+}
+
+bool TChunkList::HasTrimmableCumulativeStatistics() const
+{
+    return Kind_ == EChunkListKind::OrderedDynamicTablet;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

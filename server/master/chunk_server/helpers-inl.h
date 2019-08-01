@@ -13,14 +13,15 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class F>
-void VisitUniqueAncestors(TChunkList* chunkList, F functor)
+void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child)
 {
     while (chunkList != nullptr) {
-        functor(chunkList);
+        functor(chunkList, child);
         const auto& parents = chunkList->Parents();
         if (parents.Empty())
             break;
         YT_VERIFY(parents.Size() == 1);
+        child = chunkList;
         chunkList = *parents.begin();
     }
 }

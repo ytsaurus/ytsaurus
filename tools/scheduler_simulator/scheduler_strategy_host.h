@@ -13,7 +13,8 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/size_literals.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NSchedulerSimulator {
 
@@ -28,11 +29,14 @@ public:
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream);
 
+    virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
     virtual IInvokerPtr GetProfilingInvoker() const override;
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
 
-    TInstant GetConnectionTime() const override;
+    virtual void Disconnect(const TError& error) override;
+    virtual TInstant GetConnectionTime() const override;
 
     virtual NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
         const NScheduler::TSchedulingTagFilter& filter) const override;

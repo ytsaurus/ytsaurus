@@ -8,12 +8,14 @@
 
 #include <yt/core/misc/cast.h>
 #include <yt/core/misc/checksum.h>
-#include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
+using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -57,7 +59,7 @@ TClientRequest::TClientRequest(
 {
     YT_ASSERT(Channel_);
 
-    Header_.set_service(serviceDescriptor.ServiceName);
+    Header_.set_service(serviceDescriptor.GetFullServiceName());
     Header_.set_method(methodDescriptor.MethodName);
     Header_.set_protocol_version_major(serviceDescriptor.ProtocolVersion.Major);
     Header_.set_protocol_version_minor(serviceDescriptor.ProtocolVersion.Minor);
@@ -109,6 +111,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
+    options.SendDelay = SendDelay_;
     auto control = Channel_->Send(
         this,
         std::move(responseHandler),

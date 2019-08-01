@@ -462,6 +462,7 @@ TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
+    TTimestamp chunkTimestamp,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -478,6 +479,7 @@ TChunkStoreBase::TChunkStoreBase(
     , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , ChunkId_(chunkId)
+    , ChunkTimestamp_(chunkTimestamp)
 {
     /* If store is over chunk, chunkId == storeId.
      * If store is over chunk view, chunkId and storeId are different,
@@ -864,6 +866,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         PreloadedBlockCache_,
         TChunkSpec(),
         chunkData->ChunkMeta,
+        ChunkTimestamp_,
         chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer());

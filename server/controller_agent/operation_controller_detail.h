@@ -17,10 +17,10 @@
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/event_log.h>
 
-#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
-#include <yt/server/controller_agent/chunk_pools/public.h>
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/controller_agent/chunk_pools/input_stream.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/public.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/lib/chunk_pools/input_stream.h>
 
 #include <yt/server/lib/misc/release_queue.h>
 
@@ -64,7 +64,6 @@
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
@@ -72,6 +71,8 @@
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/yson/string.h>
+
+#include <yt/core/ytalloc/memory_tag.h>
 
 namespace NYT::NControllerAgent {
 
@@ -107,7 +108,7 @@ class TOperationControllerBase
     // In order to make scheduler more stable, we do not allow
     // pure YT_VERIFY to be executed from the controller code (directly
     // or indirectly). Thus, all interface methods of IOperationController
-    // are divided into two groups: those that involve YCHECKs
+    // are divided into two groups: those that involve YT_VERIFYs
     // to make assertions essential for further execution, and pure ones.
 
     // All potentially faulty controller interface methods are
@@ -156,7 +157,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
-    IMPLEMENT_SAFE_METHOD(void, Abort, (), (), false)
+    IMPLEMENT_SAFE_METHOD(void, Terminate, (EControllerState finalState), (finalState), false)
 
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
@@ -196,7 +197,7 @@ private: \
 #undef IMPLEMENT_SAFE_METHOD
 
 public:
-    // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
+    // These are "pure" interface methods, i. e. those that do not involve YT_VERIFYs.
     // If some of these methods still fails due to unnoticed YT_VERIFY, consider
     // moving it to the section above.
 
@@ -339,7 +340,10 @@ public:
 
     virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
 
-    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
+    //! Returns the aggregated delta of job metrics and resets it to zero.
+    //! When `force` is true, the delta is returned unconditionally, otherwise a zero delta is
+    //! returned within a certain period since last call.
+    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) override;
 
     virtual TOperationAlertMap GetAlerts() override;
 
@@ -442,7 +446,7 @@ protected:
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
-    THashMap<TString, std::vector<TInputTablePtr>> InputTablesByPath_;
+    THashMap<TString, std::vector<TInputTablePtr>> PathToInputTables_;
 
     TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
@@ -602,11 +606,13 @@ protected:
 
     // Completion.
     void TeleportOutputChunks();
-    void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& updatingTables);
+    void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
-    void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tableList);
+    void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
+    void LockDynamicTables();
     void CommitTransactions();
     virtual void CustomCommit();
+    void VerifySortedOutput(TOutputTablePtr table);
 
     void StartOutputCompletionTransaction();
     void CommitOutputCompletionTransaction();
@@ -728,8 +734,11 @@ protected:
         const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
 
-    virtual bool IsOutputLivePreviewSupported() const;
-    virtual bool IsIntermediateLivePreviewSupported() const;
+    bool IsOutputLivePreviewSupported() const;
+    bool IsIntermediateLivePreviewSupported() const;
+
+    virtual bool DoCheckOutputLivePreviewSupported() const;
+    virtual bool DoCheckIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
@@ -899,7 +908,7 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    const TMemoryTag MemoryTag_;
+    const NYTAlloc::TMemoryTag MemoryTag_;
 
     NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 
@@ -957,6 +966,11 @@ private:
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
+    // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
+    // are not accumulated, and (2) job statistics don't provide per tree granularity.
+    //! Aggregated total time of jobs per tree.
+    THashMap<TString, i64> TotalTimePerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
@@ -1185,7 +1199,7 @@ private:
 
         virtual void Suspend(TCookie cookie) override;
         virtual void Resume(TCookie cookie) override;
-        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, TInputChunkMappingPtr chunkMapping) override;
+        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
         virtual void Finish() override;
 
         void Persist(const TPersistenceContext& context);

@@ -495,6 +495,7 @@ TFuture<void> TClient::AddMember(
     req->set_group(group);
     req->set_member(member);
     ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().As<void>();
 }
@@ -512,6 +513,7 @@ TFuture<void> TClient::RemoveMember(
     req->set_group(group);
     req->set_member(member);
     ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().As<void>();
 }
@@ -823,6 +825,9 @@ TFuture<TListOperationsResult> TClient::ListOperations(
     }
     if (options.WithFailedJobs) {
         req->set_with_failed_jobs(*options.WithFailedJobs);
+    }
+    if (options.ArchiveFetchingTimeout) {
+        req->set_archive_fetching_timeout(NYT::ToProto<i64>(options.ArchiveFetchingTimeout));
     }
     req->set_include_archive(options.IncludeArchive);
     req->set_include_counters(options.IncludeCounters);

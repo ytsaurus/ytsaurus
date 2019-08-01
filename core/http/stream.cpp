@@ -55,6 +55,7 @@ void THttpParser::Reset()
     Trailers_.Reset();
 
     ShouldKeepAlive_ = false;
+    HeaderBuffered_ = false;
     State_ = EParserState::Initialized;
 
     FirstLine_.Reset();
@@ -140,6 +141,11 @@ bool THttpParser::ShouldKeepAlive() const
 
 void THttpParser::MaybeFlushHeader(bool trailer)
 {
+    if (!HeaderBuffered_) {
+        return;
+    }
+
+    HeaderBuffered_ = false;
     if (NextField_.GetLength() == 0) {
         return;
     }
@@ -180,6 +186,7 @@ int THttpParser::OnHeaderValue(http_parser* parser, const char *at, size_t lengt
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->NextValue_.AppendString(TStringBuf(at, length));
+    that->HeaderBuffered_ = true;
 
     return 0;
 }

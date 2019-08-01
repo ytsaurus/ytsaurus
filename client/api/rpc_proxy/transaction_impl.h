@@ -178,6 +178,7 @@ private:
     const NTransactionClient::EDurability Durability_;
     const TDuration Timeout_;
     const std::optional<TDuration> PingPeriod_;
+    // COMPAT(kiselyovp) remove Sticky_ (YT-10654)
     const bool Sticky_;
 
     std::atomic<i64> ModifyRowsRequestSequenceCounter_;

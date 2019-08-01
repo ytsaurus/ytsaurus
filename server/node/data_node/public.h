@@ -2,7 +2,6 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
 namespace NYT::NDataNode {

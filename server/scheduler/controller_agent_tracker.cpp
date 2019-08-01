@@ -266,7 +266,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Abort() override
+    virtual TFuture<void> Terminate(EOperationState finalState) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -276,10 +276,16 @@ public:
             return VoidFuture;
         }
 
-        auto req = AgentProxy_->AbortOperation();
+        YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
+        EControllerState controllerFinalState = finalState == EOperationState::Aborted
+            ? EControllerState::Aborted
+            : EControllerState::Failed;
+
+        auto req = AgentProxy_->TerminateOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->set_controller_final_state(static_cast<int>(controllerFinalState));
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspAbortOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspTerminateOperation>(req).As<void>();
     }
 
     virtual TFuture<void> Complete() override
@@ -293,18 +299,21 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Unregister() override
+    virtual TFuture<TOperationControllerUnregisterResult> Unregister() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!IncarnationId_) {
-            return VoidFuture;
+            return MakeFuture<TOperationControllerUnregisterResult>({});
         }
 
         auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).Apply(
+            BIND([] (const TControllerAgentServiceProxy::TRspUnregisterOperationPtr& rsp){
+                return TOperationControllerUnregisterResult{FromProto<TOperationJobMetrics>(rsp->residual_job_metrics())};
+            }));
     }
 
     virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override
@@ -742,12 +751,10 @@ public:
         auto req = proxy.RegisterOperation();
         req->SetTimeout(Config_->HeavyRpcTimeout);
 
-        auto spec = CloneNode(operation->GetSpec());
-
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());
         descriptor->set_operation_type(static_cast<int>(operation->GetType()));
-        descriptor->set_spec(ConvertToYsonString(spec).GetData());
+        descriptor->set_spec(operation->GetSpecString().GetData());
         descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
         descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
         if (operation->GetSecureVault()) {

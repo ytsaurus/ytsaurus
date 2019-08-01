@@ -2,8 +2,8 @@
 
 #include <yt/server/controller_agent/config.h>
 #include <yt/server/controller_agent/job_splitter.h>
-#include <yt/server/controller_agent/chunk_pools/public.h>
-#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/public.h>
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/controller_agent/structs.h>
 
 namespace NYT::NControllerAgent {

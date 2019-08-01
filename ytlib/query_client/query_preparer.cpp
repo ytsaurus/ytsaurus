@@ -42,6 +42,14 @@ struct TQueryPreparerBufferTag
 
 namespace {
 
+void CheckStackDepth()
+{
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
     std::vector<TString>* functions);
@@ -80,6 +88,8 @@ void ExtractFunctionNames(
     if (!exprs) {
         return;
     }
+
+    CheckStackDepth();
 
     for (const auto& expr : *exprs) {
         ExtractFunctionNames(expr, functions);
@@ -1210,10 +1220,7 @@ struct TTypedExpressionBuilder
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema) const
     {
-        auto* scheduler = TryGetCurrentScheduler();
-        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
-            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
-        }
+        CheckStackDepth();
 
         ++Depth;
         auto depthGuard = Finally([&] {
@@ -1265,13 +1272,28 @@ struct TTypedExpressionBuilder
 
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
-        ISchemaProxyPtr schema) const
+        ISchemaProxyPtr schema,
+        TTypeSet feasibleTypes = TTypeSet({
+            EValueType::Null,
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::String,
+            EValueType::Any})) const
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
 
+        if (!Unify(&feasibleTypes, expressionTyper.FeasibleTypes)) {
+            THROW_ERROR_EXCEPTION("Type mismatch in expression: expected %Qv, got %Qv",
+                feasibleTypes,
+                expressionTyper.FeasibleTypes)
+                << TErrorAttribute("source", expr->GetSource(Source));
+        }
+
         auto result = expressionTyper.Generator(
-            GetFrontWithCheck(expressionTyper.FeasibleTypes, expr->GetSource(Source)));
+            GetFrontWithCheck(feasibleTypes, expr->GetSource(Source)));
 
         result = TCastEliminator().Visit(result);
         result = TExpressionSimplifier().Visit(result);
@@ -2161,8 +2183,8 @@ TConstExpressionPtr BuildPredicate(
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("%v is not a boolean expression")
-            << TErrorAttribute("source", FormatExpression(expressionAst))
+        THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
+            << TErrorAttribute("source", expressionAst.front().Get()->GetSource(builder.Source))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -2170,7 +2192,7 @@ TConstExpressionPtr BuildPredicate(
     return typedPredicate;
 }
 
-TConstGroupClausePtr BuildGroupClause(
+TGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
     TSchemaProxyPtr& schemaProxy,
@@ -2179,8 +2201,15 @@ TConstGroupClausePtr BuildGroupClause(
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
 
+    TTypeSet groupItemTypes({
+        EValueType::Boolean,
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String});
+
     for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
+        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy, groupItemTypes);
 
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
@@ -2191,29 +2220,6 @@ TConstGroupClausePtr BuildGroupClause(
         &groupClause->AggregateItems);
 
     return groupClause;
-}
-
-TConstExpressionPtr BuildHavingClause(
-    const NAst::TExpressionList& expressionsAst,
-    const TSchemaProxyPtr& schemaProxy,
-    const TTypedExpressionBuilder& builder)
-{
-    if (expressionsAst.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", FormatExpression(expressionsAst));
-    }
-
-    auto typedPredicate = builder.BuildTypedExpression(expressionsAst.front().Get(), schemaProxy);
-
-    auto actualType = typedPredicate->Type;
-    EValueType expectedType(EValueType::Boolean);
-    if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("HAVING clause is not a boolean expression")
-            << TErrorAttribute("actual_type", actualType)
-            << TErrorAttribute("expected_type", expectedType);
-    }
-
-    return typedPredicate;
 }
 
 TConstProjectClausePtr BuildProjectClause(
@@ -2248,11 +2254,82 @@ void PrepareQuery(
     }
 
     if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(
+        auto groupClause = BuildGroupClause(
             ast.GroupExprs->first,
             ast.GroupExprs->second,
             schemaProxy,
             builder);
+
+        auto keyColumns = query->GetKeyColumns();
+
+
+        TNamedItemList groupItems = std::move(groupClause->GroupItems);
+
+        std::vector<int> touchedKeyColumns(keyColumns.size(), -1);
+        for (size_t index = 0; index < groupItems.size(); ++index) {
+            const auto& item = groupItems[index];
+            if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0) {
+                    touchedKeyColumns[keyPartIndex] = index;
+                }
+            }
+        }
+
+        size_t keyPrefix = 0;
+        for (; keyPrefix < touchedKeyColumns.size(); ++keyPrefix) {
+            if (touchedKeyColumns[keyPrefix] >= 0) {
+                continue;
+            }
+
+            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
+
+            if (!expression) {
+                break;
+            }
+
+            THashSet<TString> references;
+            auto evaluatedColumnExpression = PrepareExpression(
+                *expression,
+                query->OriginalSchema,
+                builder.Functions,
+                &references);
+
+            auto canEvaluate = true;
+            for (const auto& reference : references) {
+                int referenceIndex = query->OriginalSchema.GetColumnIndexOrThrow(reference);
+                if (touchedKeyColumns[referenceIndex] < 0) {
+                    canEvaluate = false;
+                }
+            }
+
+            if (!canEvaluate) {
+                break;
+            }
+        }
+
+        touchedKeyColumns.resize(keyPrefix);
+        for (int index : touchedKeyColumns) {
+            if (index >= 0) {
+                groupClause->GroupItems.push_back(std::move(groupItems[index]));
+            }
+        }
+
+        groupClause->CommonPrefixWithPrimaryKey = groupClause->GroupItems.size();
+
+        for (auto& item : groupItems) {
+            if (item.Expression) {
+                groupClause->GroupItems.push_back(std::move(item));
+            }
+        }
+
+        query->GroupClause = groupClause;
+
+        // not prefix, because of equal prefixes near borders
+        bool containsPrimaryKey = keyPrefix == query->GetKeyColumns().size();
+        // COMPAT(lukyan)
+        query->UseDisjointGroupBy = containsPrimaryKey;
+
         builder.AfterGroupBy = true;
     }
 
@@ -2260,10 +2337,11 @@ void PrepareQuery(
         if (!query->GroupClause) {
             THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
         }
-        query->HavingClause = BuildHavingClause(
+        query->HavingClause = BuildPredicate(
             *ast.HavingPredicate,
             schemaProxy,
-            builder);
+            builder,
+            "HAVING-clause");
     }
 
     if (!ast.OrderExpressions.empty()) {
@@ -2277,7 +2355,34 @@ void PrepareQuery(
             }
         }
 
-        query->OrderClause = std::move(orderClause);
+        size_t keyPrefix = 0;
+        while (keyPrefix < orderClause->OrderItems.size()) {
+            const auto& item = orderClause->OrderItems[keyPrefix];
+
+            if (item.second) {
+                break;
+            }
+
+            const auto* referenceExpr = item.first->As<TReferenceExpression>();
+
+            if (!referenceExpr) {
+                break;
+            }
+
+            auto columnIndex = ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName);
+
+            if (keyPrefix != columnIndex) {
+                break;
+            }
+            ++keyPrefix;
+        }
+
+        if (keyPrefix < orderClause->OrderItems.size()) {
+            query->OrderClause = std::move(orderClause);
+
+        }
+
+        // Use ordered scan otherwise
     }
 
     if (ast.SelectExprs) {
@@ -2646,60 +2751,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     PrepareQuery(query, ast, schemaProxy, builder);
 
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
-
-    if (auto groupClause = query->GroupClause) {
-        auto keyColumns = query->GetKeyColumns();
-
-        std::vector<bool> touchedKeyColumns(keyColumns.size(), false);
-        for (const auto& item : groupClause->GroupItems) {
-            if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
-                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                if (keyPartIndex >= 0) {
-                    touchedKeyColumns[keyPartIndex] = true;
-                }
-            }
-        }
-
-        size_t keyPrefix = 0;
-        for (; keyPrefix < touchedKeyColumns.size(); ++keyPrefix) {
-            if (touchedKeyColumns[keyPrefix]) {
-                continue;
-            }
-
-            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
-
-            if (!expression) {
-                break;
-            }
-
-            THashSet<TString> references;
-            auto evaluatedColumnExpression = PrepareExpression(
-                *expression,
-                query->OriginalSchema,
-                functions,
-                &references);
-
-            auto canEvaluate = true;
-            for (const auto& reference : references) {
-                int referenceIndex = query->OriginalSchema.GetColumnIndexOrThrow(reference);
-                if (!touchedKeyColumns[referenceIndex]) {
-                    canEvaluate = false;
-                }
-            }
-
-            if (!canEvaluate) {
-                break;
-            }
-        }
-
-        bool containsPrimaryKey = keyPrefix == keyColumns.size();
-        // not prefix, because of equal prefixes near borders
-
-        query->UseDisjointGroupBy = containsPrimaryKey;
-
-        YT_LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
-    }
-
 
     if (ast.Limit) {
         query->Limit = *ast.Limit;

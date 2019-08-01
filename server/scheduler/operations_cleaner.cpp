@@ -65,11 +65,11 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     State = operation->GetState();
     AuthenticatedUser = operation->GetAuthenticatedUser();
     OperationType = operation->GetType();
-    Spec = ConvertToYsonString(operation->GetSpec());
+    Spec = operation->GetSpecString();
     Result = operation->BuildResultString();
     Events = ConvertToYsonString(operation->Events());
     Alerts = operation->BuildAlertsString();
-    BriefSpec = operation->BriefSpec();
+    BriefSpec = operation->BriefSpecString();
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
     Alias = operation->Alias();
     SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
@@ -756,7 +756,7 @@ private:
                 std::vector<TUnversionedRow> rows;
                 rows.reserve(operationIds.size());
 
-                for (const auto& operationId : operationIds) {
+                for (auto operationId : operationIds) {
                     const auto& request = GetRequest(operationId);
                     auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
                     rows.push_back(row);
@@ -776,7 +776,7 @@ private:
                 std::vector<TUnversionedRow> rows;
                 rows.reserve(operationIds.size());
 
-                for (const auto& operationId : operationIds) {
+                for (auto operationId : operationIds) {
                     const auto& request = GetRequest(operationId);
                     auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
                     rows.push_back(row);
@@ -796,7 +796,7 @@ private:
                 std::vector<TUnversionedRow> rows;
                 rows.reserve(operationIds.size());
 
-                for (const auto& operationId : operationIds) {
+                for (auto operationId : operationIds) {
                     const auto& request = GetRequest(operationId);
 
                     if (request.Alias) {
@@ -865,17 +865,10 @@ private:
                 }
             }
 
-            std::vector<TArchiveOperationRequest> archivedOperationRequests;
-            archivedOperationRequests.reserve(batch.size());
-            for (const auto& operationId : batch) {
-                auto it = OperationMap_.find(operationId);
-                YT_VERIFY(it != OperationMap_.end());
-                archivedOperationRequests.emplace_back(std::move(it->second));
-                OperationMap_.erase(it);
+            ProcessCleanedOperation(batch);
+            for (auto operationId : batch) {
                 EnqueueForRemoval(operationId);
             }
-
-            OperationsArchived_.Fire(archivedOperationRequests);
 
             Profiler.Increment(ArchivePendingCounter_, -batch.size());
         }
@@ -894,6 +887,7 @@ private:
             YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
 
             std::vector<TOperationId> failedOperationIds;
+            std::vector<TOperationId> removedOperationIds;
             std::vector<TOperationId> operationIdsToRemove;
 
             {
@@ -904,7 +898,7 @@ private:
                 TObjectServiceProxy proxy(channel);
                 auto batchReq = proxy.ExecuteBatch();
 
-                for (const auto& operationId : batch) {
+                for (auto operationId : batch) {
                     auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
                     batchReq->AddRequest(req, "get_lock_count");
                 }
@@ -926,7 +920,7 @@ private:
                             }
                         }
 
-                        const auto& operationId = batch[index];
+                        auto operationId = batch[index];
                         if (isLocked) {
                             failedOperationIds.push_back(operationId);
                         } else {
@@ -951,7 +945,7 @@ private:
                 TObjectServiceProxy proxy(channel);
                 auto batchReq = proxy.ExecuteBatch();
 
-                for (const auto& operationId : operationIdsToRemove) {
+                for (auto operationId : operationIdsToRemove) {
                     auto req = TYPathProxy::Remove(GetOperationPath(operationId));
                     req->set_recursive(true);
                     batchReq->AddRequest(req, "remove_operation");
@@ -964,10 +958,12 @@ private:
                     YT_VERIFY(rsps.size() == operationIdsToRemove.size());
 
                     for (int index = 0; index < operationIdsToRemove.size(); ++index) {
-                        const auto& operationId = operationIdsToRemove[index];
+                        auto operationId = operationIdsToRemove[index];
 
                         auto rsp = rsps[index];
-                        if (!rsp.IsOK()) {
+                        if (rsp.IsOK()) {
+                            removedOperationIds.push_back(operationId);
+                        } else {
                             YT_LOG_DEBUG(
                                 rsp,
                                 "Failed to remove finished operation from Cypress (OperationId: %v)",
@@ -982,24 +978,27 @@ private:
                         "Failed to remove finished operations from Cypress (OperationCount: %v)",
                         operationIdsToRemove.size());
 
-                    for (const auto& operationId : operationIdsToRemove) {
+                    for (auto operationId : operationIdsToRemove) {
                         failedOperationIds.push_back(operationId);
                     }
                 }
             }
 
-            YT_VERIFY(batch.size() >= failedOperationIds.size());
-            int removedCount = batch.size() - failedOperationIds.size();
-            YT_LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
+            YT_VERIFY(batch.size() == failedOperationIds.size() + removedOperationIds.size());
+            int removedCount = removedOperationIds.size();
 
-            Profiler.Increment(RemovedCounter_, removedCount);
+            Profiler.Increment(RemovedCounter_, removedOperationIds.size());
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
+            
+            ProcessCleanedOperation(removedOperationIds);
 
-            for (const auto& operationId : failedOperationIds) {
+            for (auto operationId : failedOperationIds) {
                 RemoveBatcher_.Enqueue(operationId);
             }
 
             Profiler.Increment(RemovePendingCounter_, -removedCount);
+
+            YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
         }
 
         auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
@@ -1084,6 +1083,21 @@ private:
         auto it = OperationMap_.find(operationId);
         YT_VERIFY(it != OperationMap_.end());
         return it->second;
+    }
+
+    void ProcessCleanedOperation(const std::vector<TOperationId>& cleanedOperationIds)
+    {
+        std::vector<TArchiveOperationRequest> archivedOperationRequests;
+        archivedOperationRequests.reserve(cleanedOperationIds.size());
+        for (const auto& operationId : cleanedOperationIds) {
+            auto it = OperationMap_.find(operationId);
+            if (it != OperationMap_.end()) {
+                archivedOperationRequests.emplace_back(std::move(it->second));
+                OperationMap_.erase(it);
+            }
+        }
+
+        OperationsArchived_.Fire(archivedOperationRequests);
     }
 };
 
@@ -1199,7 +1213,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     auto fetchBatch = [&] (const std::vector<TOperationId>& batch) {
         auto batchReq = createBatchRequest();
 
-        for (const auto& operationId : batch) {
+        for (auto operationId : batch) {
             auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
             ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
             batchReq->AddRequest(req, "get_op_attributes");

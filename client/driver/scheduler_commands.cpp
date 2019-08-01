@@ -141,6 +141,8 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("enable_ui_mode", EnableUIMode)
         .Optional();
+    RegisterParameter("archive_fetching_timeout", Options.ArchiveFetchingTimeout)
+        .Optional();
 }
 
 void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)

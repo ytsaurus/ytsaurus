@@ -75,7 +75,7 @@ void TOperationDescription::Persist(const TPersistenceContext& context)
     Persist(context, Type);
     Persist(context, State);
     Persist(context, InTimeframe);
-    Persist<TYTreeSerializer>(context, Spec);
+    Persist(context, Spec);
 }
 
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
@@ -89,7 +89,7 @@ void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
     value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChild("operation_type"));
     value.State = ConvertTo<TString>(mapNode->GetChild("state"));
     value.InTimeframe = ConvertTo<bool>(mapNode->GetChild("in_timeframe"));
-    value.Spec = mapNode->GetChild("spec")->AsMap();
+    value.Spec = ConvertToYsonString(mapNode->GetChild("spec"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

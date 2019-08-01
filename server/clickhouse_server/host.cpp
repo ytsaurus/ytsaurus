@@ -14,13 +14,16 @@
 #include "tcp_handler.h"
 #include "private.h"
 #include "query_context.h"
+#include "query_registry.h"
 #include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
-#include "storage_table.h"
+#include "storage_distributor.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/misc/proc.h>
+#include <yt/core/logging/log_manager.h>
 
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/CurrentMetrics.h>
@@ -71,7 +74,7 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NProfiling;
 
-const auto& Logger = ServerLogger;
+static const auto& Logger = ServerLogger;
 
 namespace {
 
@@ -124,6 +127,8 @@ private:
 
     std::atomic<bool> Cancelled { false };
 
+    TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -147,14 +152,20 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
 
+        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TImpl::CheckMemoryUsage, MakeWeak(this)),
+            Config_->MemoryWatchdog->Period);
+        MemoryWatchdogExecutor_->Start();
+
         SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        SetupExecutionClusterNodeTracker();
         SetupContext();
         WarmupDictionaries();
-        EnterExecutionCluster();
         SetupHandlers();
+        SetupExecutionClusterNodeTracker();
+        EnterExecutionCluster();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -195,21 +206,7 @@ public:
 
         YT_LOG_DEBUG("Flushing profiling");
 
-        for (const auto& [user, runningQueryCount] : UserToRunningInitialQueryCount_) {
-            ServerProfiler.Enqueue(
-                "/running_initial_query_count",
-                runningQueryCount,
-                EMetricType::Gauge,
-                {TProfileManager::Get()->RegisterTag("user", user)});
-        }
-
-        for (const auto& [user, runningQueryCount] : UserToRunningSecondaryQueryCount_) {
-            ServerProfiler.Enqueue(
-                "/running_secondary_query_count",
-                runningQueryCount,
-                EMetricType::Gauge,
-                {TProfileManager::Get()->RegisterTag("user", user)});
-        }
+        Bootstrap_->GetQueryRegistry()->OnProfiling();
 
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
@@ -223,26 +220,6 @@ public:
         YT_LOG_DEBUG("Profiling flushed");
     }
 
-    void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)
-    {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        auto& queryCountMap = (queryKind == EQueryKind::InitialQuery)
-            ? UserToRunningInitialQueryCount_
-            : UserToRunningSecondaryQueryCount_;
-        THashMap<TString, int>::insert_ctx ctx;
-        auto it = queryCountMap.find(user, ctx);
-        if (it == queryCountMap.end()) {
-            it = queryCountMap.emplace_direct(ctx, user, delta);
-        } else {
-            it->second += delta;
-        }
-        YT_VERIFY(it->second >= 0);
-        if (it->second == 0) {
-            queryCountMap.erase(it);
-        }
-    }
-
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlInvoker_;
@@ -250,8 +227,6 @@ public:
 
 private:
     TPeriodicExecutorPtr ProfilingExecutor_;
-    THashMap<TString, int> UserToRunningInitialQueryCount_;
-    THashMap<TString, int> UserToRunningSecondaryQueryCount_;
 
     void SetupLogger()
     {
@@ -305,7 +280,7 @@ private:
         RegisterTableFunctions();
         RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Bootstrap_);
-        RegisterStorageTable();
+        RegisterStorageDistributor();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
@@ -485,6 +460,26 @@ private:
 
         ExecutionClusterNodeTracker->StartTrack(*Context);
     }
+
+    void CheckMemoryUsage()
+    {
+        auto usage = GetProcessMemoryUsage();
+        auto total = usage.Rss + usage.Shared;
+        YT_LOG_INFO(
+            "Checking memory usage "
+            "(Rss: %v, Shared: %v, Total: %v, MemoryLimit: %v, CodicilWatermark: %v)",
+            usage.Rss,
+            usage.Shared,
+            total,
+            Config_->MemoryWatchdog->MemoryLimit,
+            Config_->MemoryWatchdog->CodicilWatermark);
+        if (total + Config_->MemoryWatchdog->CodicilWatermark > Config_->MemoryWatchdog->MemoryLimit) {
+            YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
+            NYT::NLogging::TLogManager::Get()->Shutdown();
+            Bootstrap_->GetQueryRegistry()->DumpCodicils();
+            _exit(MemoryLimitExceededExitCode);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -512,14 +507,14 @@ void TClickHouseHost::Start()
     Impl_->Start();
 }
 
-void TClickHouseHost::AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)
-{
-    Impl_->AdjustQueryCount(user, queryKind, delta);
-}
-
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const
 {
     return Impl_->GetControlInvoker();
+}
+
+DB::Context& TClickHouseHost::GetContext() const
+{
+    return Impl_->context();
 }
 
 IClusterNodeTrackerPtr TClickHouseHost::GetExecutionClusterNodeTracker() const

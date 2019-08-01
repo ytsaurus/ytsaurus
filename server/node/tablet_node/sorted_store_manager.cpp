@@ -38,7 +38,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 
@@ -55,6 +55,7 @@ using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode::NProto;
 using namespace NHydra;
+using namespace NYTAlloc;
 
 using NTableClient::TKey;
 

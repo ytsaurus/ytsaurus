@@ -40,6 +40,7 @@ using namespace NYT::NBus;
 using namespace NYT::NRpc::NBus;
 using namespace NConcurrency;
 using namespace NCrypto;
+using namespace NYTAlloc;
 
 static const TString DefaultAddress = "localhost:2000";
 
@@ -227,8 +228,7 @@ public:
     {
         try {
             context->SetRequestInfo();
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)))
-                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
             context->Reply();
         } catch (const TFiberCanceledException&) {
             SlowCallCanceled_.Set();
@@ -274,7 +274,7 @@ public:
                     .ThrowOnError();
             }
         }
-        
+
         WaitFor(response->GetAttachmentsStream()->Close())
             .ThrowOnError();
 
@@ -321,8 +321,7 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
 
             WaitFor(context->GetRequestAttachmentsStream()->Read())
@@ -345,8 +344,7 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
-                    .ThrowOnError();
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
 
             WaitFor(context->GetResponseAttachmentsStream()->Close())
@@ -969,6 +967,61 @@ TYPED_TEST(TNotGrpcTest, ServerNotWriting)
 
     WaitFor(this->Service_->GetSlowCallCanceled())
         .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, LaggyStreamingRequest)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(500);
+    proxy.DefaultClientAttachmentsStreamingParameters().WriteTimeout = TDuration::MilliSeconds(500);
+
+    auto req = proxy.StreamingEcho();
+    req->SetHeavy(true);
+    req->SetSendDelay(TDuration::MilliSeconds(250));
+    req->SetTimeout(TDuration::Seconds(2));
+    auto invokeResult = req->Invoke();
+
+    WaitFor(req->GetRequestAttachmentsStream()->Close())
+        .ThrowOnError();
+    WaitFor(ExpectEndOfStream(req->GetResponseAttachmentsStream()))
+        .ThrowOnError();
+    WaitFor(invokeResult)
+        .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, VeryLaggyStreamingRequest)
+{
+    auto configText = R"({
+        services = {
+            MyService = {
+                pending_payloads_timeout = 250;
+            };
+        };
+    })";
+    auto config = NYTree::ConvertTo<TServerConfigPtr>(
+        NYson::TYsonString(configText));
+    this->Server_->Configure(config);
+
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(500);
+
+    auto start = Now();
+
+    auto req = proxy.StreamingEcho();
+    req->SetHeavy(true);
+    req->SetSendDelay(TDuration::MilliSeconds(500));
+    auto invokeResult = req->Invoke();
+
+    auto closeError = WaitFor(req->GetRequestAttachmentsStream()->Close());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, closeError.GetCode());
+    auto streamError = WaitFor(req->GetResponseAttachmentsStream()->Read());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, streamError.GetCode());
+    auto rspOrError = WaitFor(invokeResult);
+    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+
+    auto end = Now();
+    int duration = (end - start).MilliSeconds();
+    EXPECT_LE(duration, 2000);
 }
 
 TYPED_TEST(TRpcTest, ManyAsyncRequests)

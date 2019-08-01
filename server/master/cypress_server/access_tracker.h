@@ -4,7 +4,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
@@ -27,11 +27,11 @@ public:
     void Stop();
 
     void SetModified(
-        TCypressNodeBase* trunkNode,
+        TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         EModificationType modificationType);
 
-    void SetAccessed(TCypressNodeBase* trunkNode);
+    void SetAccessed(TCypressNode* trunkNode);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -39,7 +39,7 @@ private:
     const TClosure DynamicConfigChangedCallback_ = BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
-    std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate_;
+    std::vector<TCypressNode*> NodesWithAccessStatisticsUpdate_;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 

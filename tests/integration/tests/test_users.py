@@ -244,6 +244,19 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@member_of") == ["users"]
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
 
+    def test_prerequisite_transactions(self):
+        create_group("g8")
+
+        with pytest.raises(YtError):
+            add_member("root", "g8", prerequisite_transaction_ids=["a-b-c-d"])
+
+        with pytest.raises(YtError):
+            remove_member("root", "g8", prerequisite_transaction_ids=["a-b-c-d"])
+
+        tx = start_transaction()
+        add_member("root", "g8", prerequisite_transaction_ids=[tx])
+        remove_member("root", "g8", prerequisite_transaction_ids=[tx])
+
     def test_usable_accounts(self):
         create_user("u")
 

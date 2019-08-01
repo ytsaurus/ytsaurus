@@ -5,7 +5,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.pb.h>
+#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/server/master/object_server/object.h>
 
@@ -120,9 +120,9 @@ struct TCypressNodeDynamicData
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a common base for all versioned (aka Cypress) nodes.
-class TCypressNodeBase
-    : public NObjectServer::TObjectBase
-    , public TRefTracked<TCypressNodeBase>
+class TCypressNode
+    : public NObjectServer::TObject
+    , public TRefTracked<TCypressNode>
 {
 public:
     //! For external nodes, this is the tag of the cell were the node
@@ -131,11 +131,11 @@ public:
 
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNodeBase*>, ImmediateDescendants);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNode*>, ImmediateDescendants);
 
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode, ELockMode::None);
 
-    DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
+    DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
@@ -143,7 +143,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNodeBase, TInstant, ExpirationTime)
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime)
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
@@ -155,8 +155,12 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
 
-    explicit TCypressNodeBase(const TVersionedNodeId& id);
-    virtual ~TCypressNodeBase();
+    //! The shard this node belongs to.
+    //! Always null for foreign and non-trunk nodes.
+    DEFINE_BYVAL_RW_PROPERTY(TCypressShard*, Shard);
+
+    explicit TCypressNode(const TVersionedNodeId& id);
+    virtual ~TCypressNode();
 
     ui64 GetRevision() const;
 
@@ -174,12 +178,12 @@ public:
      */
     virtual NYTree::ENodeType GetNodeType() const = 0;
 
-    TCypressNodeBase* GetParent() const;
-    void SetParent(TCypressNodeBase* parent);
+    TCypressNode* GetParent() const;
+    void SetParent(TCypressNode* parent);
     void ResetParent();
 
-    TCypressNodeBase* GetOriginator() const;
-    void SetOriginator(TCypressNodeBase* originator);
+    TCypressNode* GetOriginator() const;
+    void SetOriginator(TCypressNode* originator);
 
     const TCypressNodeLockingState& LockingState() const;
     TCypressNodeLockingState* MutableLockingState();
@@ -205,14 +209,14 @@ public:
     //! Returns |true| if object is being created.
     bool IsBeingCreated() const;
 
-    // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
+    // Similar methods are also declared in TObjectBase but starting from TCypressNode
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
 
 private:
-    TCypressNodeBase* Parent_ = nullptr;
-    TCypressNodeBase* Originator_ = nullptr;
+    TCypressNode* Parent_ = nullptr;
+    TCypressNode* Originator_ = nullptr;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
 
@@ -222,10 +226,10 @@ private:
 
 struct TCypressNodeRefComparer
 {
-    static bool Compare(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs);
+    static bool Compare(const TCypressNode* lhs, const TCypressNode* rhs);
 };
 
-NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
+NObjectServer::TVersionedObjectId GetObjectId(const TCypressNode* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 

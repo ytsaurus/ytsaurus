@@ -522,7 +522,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                     sum += value["max_size"]["sum"]
                 return sum
             except KeyError:
-                print >>sys.stderr, "JOB_INFO", job_info
+                print_debug("JOB_INFO", job_info)
                 return 0
 
         wait(lambda: get_tmpfs_size() >= 4 * 1024 ** 3)

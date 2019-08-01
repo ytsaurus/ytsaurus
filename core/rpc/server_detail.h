@@ -3,7 +3,7 @@
 #include "server.h"
 #include "service.h"
 
-#include <yt/core/misc/memory_zone.h>
+#include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -17,6 +17,7 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! \note Thread affinity: single-threaded (unless noted otherwise)
 class TServiceContextBase
     : public IServiceContext
 {
@@ -38,6 +39,7 @@ public:
     virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
+    //! \note Thread affinity: any
     virtual bool IsReplied() const override;
 
     virtual void Reply(const TError& error) override;
@@ -46,7 +48,9 @@ public:
 
     virtual void SetComplete() override;
 
+    //! \note Thread affinity: any
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
+
     virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
@@ -96,7 +100,7 @@ protected:
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
 
-    bool Replied_ = false;
+    std::atomic<bool> Replied_ = {false};
     TError Error_;
 
     TSharedRef ResponseBody_;
@@ -124,12 +128,13 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    mutable TSharedRefArray ResponseMessage_; // cached
+    mutable TSpinLock ResponseLock_;
+    TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
 
     void Initialize();
-    void BuildResponseMessage();
+    TSharedRefArray BuildResponseMessage();
     void ReplyEpilogue();
 };
 

@@ -8,6 +8,8 @@
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/subject.h>
 
+#include <yt/server/master/table_server/table_node.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -63,6 +65,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
     Save(context, Deadline_);
+    Save(context, LockedDynamicTables_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -88,14 +91,18 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 702 && context.GetVersion() < 804) {
+    if (context.GetVersion() < EMasterSnapshotVersion::RemoveTTransactionSystem) {
         Load<bool>(context); // drop System_
     }
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
     // COMPAT(ignat)
-    if (context.GetVersion() >= 810) {
+    if (context.GetVersion() >= EMasterSnapshotVersion::PersistTransactionDeadline) {
         Load(context, Deadline_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, LockedDynamicTables_);
     }
 }
 
@@ -111,7 +118,7 @@ void TTransaction::RecomputeResourceUsage()
     }
 }
 
-void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged)
+void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged)
 {
     if (node->IsExternal()) {
         return;

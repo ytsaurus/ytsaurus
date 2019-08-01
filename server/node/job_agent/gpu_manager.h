@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/server/lib/job_agent/config.h>
+#include <yt/server/lib/job_agent/gpu_helpers.h>
 
 #include <yt/server/node/cell_node/public.h>
 
@@ -27,6 +28,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuStatistics
+{
+    TInstant LastUpdateTime;
+    i64 CumulativeUtilizationGpu = 0;
+    i64 CumulativeUtilizationMemory = 0;
+    i64 MaxMemoryUsed = 0;
+    // Number of microseconds when GPU was busy.
+    i64 CumulativeLoad = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGpuManager
     : public TRefCounted
 {
@@ -38,6 +51,7 @@ public:
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     const std::vector<TString>& ListGpuDevices() const;
+    THashMap<int, TGpuInfo> GetGpuInfoMap() const;
 
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
@@ -50,7 +64,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
 
     TSpinLock SpinLock_;
-    THashSet<int> HealthyGpuDeviceNumbers_;
+    THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
     std::vector<TGpuSlot> FreeSlots_;
     bool Disabled_ = false;
 

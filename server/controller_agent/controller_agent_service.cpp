@@ -45,7 +45,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReviveOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TerminateOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteOperationControllerCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationRuntimeParameters));
@@ -291,13 +291,15 @@ private:
         });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
+    DECLARE_RPC_SERVICE_METHOD(NProto, TerminateOperation)
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
+        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %Qlv",
             incarnationId,
-            operationId);
+            operationId,
+            controllerFinalState);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -311,7 +313,7 @@ private:
                 return;
             }
 
-            WaitFor(controllerAgent->AbortOperation(operation))
+            WaitFor(controllerAgent->TerminateOperation(operation, controllerFinalState))
                 .ThrowOnError();
 
             context->Reply();
@@ -349,9 +351,11 @@ private:
         controllerAgent->ValidateIncarnation(incarnationId);
 
         WrapAgentException([&] {
-            context->ReplyFrom(
-                controllerAgent->DisposeAndUnregisterOperation(operationId)
-            );
+            auto result = WaitFor(controllerAgent->DisposeAndUnregisterOperation(operationId))
+                .ValueOrThrow();
+            ToProto(response->mutable_residual_job_metrics(), result.ResidualJobMetrics);
+
+            context->Reply();
         });
     }
 

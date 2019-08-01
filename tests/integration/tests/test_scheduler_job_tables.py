@@ -9,7 +9,6 @@ import binascii
 import itertools
 import pytest
 import os
-import psutil
 import subprocess
 import time
 import threading
@@ -572,8 +571,8 @@ class TestCoreTable(YTEnvSetup):
             args = ["ytserver-core-forwarder", str(pid), str(uid), exec_name,
                     "1", # rlimit_core is always 1 when core forwarder is called in our case.
                     self.JOB_PROXY_UDS_NAME_DIR, fallback_path]
-            print >>sys.stderr, repr(args)
-            process = psutil.Popen(args, bufsize=0, stdin=subprocess.PIPE)
+            print_debug(repr(args))
+            process = subprocess.Popen(args, bufsize=0, stdin=subprocess.PIPE)
             size = 0
             core_data = ""
             for chunk in input_data:
