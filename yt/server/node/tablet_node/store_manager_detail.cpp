@@ -52,7 +52,8 @@ TStoreManagerBase::TStoreManagerBase(
 
 bool TStoreManagerBase::HasActiveLocks() const
 {
-    if (const auto* activeStore = GetActiveStore(); activeStore->GetLockCount() > 0) {
+    const auto* activeStore = GetActiveStore();
+    if (activeStore && activeStore->GetLockCount() > 0) {
         return true;
     }
 
