@@ -67,8 +67,6 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     ICoreDumperPtr CoreDumper_;
 
-    ICoordinationServicePtr CoordinationService_;
-
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
 
     void DoRun();

@@ -2,7 +2,6 @@
 
 #include "table.h"
 #include "query_context.h"
-#include "format_helpers.h"
 #include "storage_distributor.h"
 #include "type_helpers.h"
 #include "helpers.h"
