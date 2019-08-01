@@ -39,7 +39,7 @@ public abstract class StreamStash<DataType> {
     }
 
     public static <DataType> StreamStash<DataType> asyncStash(Consumer<DataType> consumer) {
-        return new StreamStash<>() {
+        return new StreamStash<DataType>() { // jdk8 compatibilty
             private long offset = 0;
 
             @Override
