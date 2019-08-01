@@ -50,6 +50,7 @@ protected:
     THashMap<TString, NRpc::IChannelPtr> OpenChannels_;
     NRpc::IChannelPtr CreateChannel(const TString& address);
     void TerminateIdleChannels();
+
 };
 
 DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)

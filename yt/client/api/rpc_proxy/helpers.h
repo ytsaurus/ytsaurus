@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/re2/re2.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -241,6 +242,9 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     const NTableClient::TNameTablePtr& nameTable,
     NProto::TRowsetDescriptor* descriptor,
     NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+
+// ! stable_sort using regexes: order of value is equal to position of the first regex it matches.
+void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
