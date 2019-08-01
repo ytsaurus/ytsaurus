@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,8 @@ public:
     void Wait(TTimestamp timestamp);
 
     bool IsLocked();
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
     void Persist(const TStreamPersistenceContext& context);
 

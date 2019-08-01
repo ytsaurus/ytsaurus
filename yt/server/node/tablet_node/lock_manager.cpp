@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/client/transaction_client/public.h>
 
 #include <util/generic/map.h>
@@ -14,6 +16,7 @@ namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +78,24 @@ public:
     bool IsLocked()
     {
         return LockCounter_ > 0;
+    }
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const
+    {
+        THashSet<TTransactionId> unconfirmedTransactionsSet(
+            UnconfirmedTransactions_.begin(),
+            UnconfirmedTransactions_.end());
+
+        fluent
+            .DoFor(
+                Transactions_,
+                [&] (TFluentMap fluent, const std::pair<TTransactionId, TTimestamp>& pair) {
+                    fluent
+                        .Item(ToString(pair.first)).BeginMap()
+                            .Item("timestamp").Value(pair.second)
+                            .Item("confirmed").Value(!unconfirmedTransactionsSet.contains(pair.first))
+                        .EndMap();
+                });
     }
 
     void Persist(const TStreamPersistenceContext& context)
@@ -160,6 +181,11 @@ void TLockManager::Wait(TTimestamp timestamp)
 bool TLockManager::IsLocked()
 {
     return Impl_->IsLocked();
+}
+
+void TLockManager::BuildOrchidYson(NYTree::TFluentMap fluent) const
+{
+    Impl_->BuildOrchidYson(fluent);
 }
 
 void TLockManager::Persist(const TStreamPersistenceContext& context)
