@@ -13,6 +13,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <util/random/shuffle.h>
+
 #include <util/string/split.h>
 #include <util/string/vector.h>
 
@@ -237,17 +238,17 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
     }
 
 
-    if (!replaced.empty()) {  // Assuming `addresses` are only needed for `replaced`.
-
+    // Assuming `addresses` are only needed for `replaced`.
+    if (!replaced.empty()) {
         ShuffleRange(addresses);
         if (!Config_->ProxyHostOrder.empty()) {
             SortByRegexes(addresses, Config_->ProxyHostOrder);
         }
 
-        YT_LOG_DEBUG("SetAddressList sorted addresses: %v)", addresses);
+        YT_LOG_DEBUG("Proxy address list prepared (Addresses: %v)", addresses);
 
         for (int i = 0; i < replaced.size(); i++) {
-            auto address = addresses[i % addresses.size()];
+            const auto& address = addresses[i % addresses.size()];
             auto channel = CreateChannel(address);
             channel = CreateFailureDetectingChannel(
                 std::move(channel),
@@ -261,6 +262,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
             replaced[i]->Channel.TrySet(channel);
         }
     }
+    
     TerminateIdleChannels();
 }
 

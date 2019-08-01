@@ -1449,18 +1449,17 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
 
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes)
 {
-  auto valueToRank = [&](const TString& value) -> int {
-    for (int idx = 0; idx < regexes.size(); idx++) {
-      if (NRe2::TRe2::FullMatch(NRe2::StringPiece(value), *regexes[idx])) {
-        return idx;
-      }
-    }
-    return regexes.size();
-  };
-  auto valueComparator = [&](const TString& lhs, const TString& rhs) -> bool {
-    return valueToRank(lhs) < valueToRank(rhs);
-  };
-  std::stable_sort(values.begin(), values.end(), valueComparator);
+    auto valueToRank = [&] (const TString& value) -> size_t {
+        for (size_t index = 0; index < regexes.size(); index++) {
+            if (NRe2::TRe2::FullMatch(NRe2::StringPiece(value), *regexes[index])) {
+                return index;
+            }
+        }
+        return regexes.size();
+    };
+    std::stable_sort(values.begin(), values.end(), [&] (const auto& lhs, const auto& rhs) {
+        return valueToRank(lhs) < valueToRank(rhs);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
