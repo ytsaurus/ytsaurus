@@ -42,7 +42,6 @@
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
-#include <yt/core/concurrency/async_batcher.h>
 
 #include <atomic>
 #include <queue>
@@ -202,8 +201,6 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
-
-    THashMap<TCellTag, TIntrusivePtr<TAsyncBatcher<void>>> CellTagSyncBatcher_;
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -1152,23 +1149,9 @@ void TObjectService::SetStickyUserError(const TString& userName, const TError& e
 
 TFuture<void> TObjectService::SyncWithCell(TCellTag cellTag)
 {
-    auto it = CellTagSyncBatcher_.find(cellTag);
-    if (it == CellTagSyncBatcher_.end()) {
-        auto cellId = Bootstrap_->GetCellId(cellTag);
-        auto invoker = Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
-        auto batcher = New<TAsyncBatcher<void>>(
-            BIND([cellId, hiveManager = Bootstrap_->GetHiveManager()] {
-                auto* mailbox = hiveManager->FindMailbox(cellId);
-                if (!mailbox) {
-                    return MakeFuture<void>(TError("Unable to sync with an unknown cell %v",
-                        cellId));
-                }
-                return hiveManager->SyncWith(mailbox);
-            }).AsyncVia(invoker),
-            Config_->CrossCellSyncDelay);
-        it = CellTagSyncBatcher_.emplace(cellTag, std::move(batcher)).first;
-    }
-    return it->second->Run();
+    auto cellId = Bootstrap_->GetCellId(cellTag);
+    const auto& hiveManager = Bootstrap_->GetHiveManager();
+    return hiveManager->SyncWith(cellId, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

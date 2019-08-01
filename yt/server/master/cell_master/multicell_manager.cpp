@@ -670,12 +670,11 @@ private:
     // XXX(babenko): tx cells
     TFuture<void> SyncWithPrimaryCell()
     {
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = FindPrimaryMasterMailbox();
-        if (!mailbox) {
+        if (!IsLocalMasterCellRegistered()) {
             return VoidFuture;
         }
-        return hiveManager->SyncWith(mailbox);
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId(), false);
     }
 
     TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
