@@ -530,6 +530,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardId)
         .SetPresent(node->GetTrunkNode()->GetShard() != nullptr));
+    descriptors->push_back(EInternedAttributeKey::ResolveCached);
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -686,6 +687,11 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 return true;
             }
             break;
+
+        case EInternedAttributeKey::ResolveCached:
+            BuildYsonFluently(consumer)
+                .Value(node->GetTrunkNode()->GetResolveCacheNode().operator bool());
+            return true;
 
         default:
             break;

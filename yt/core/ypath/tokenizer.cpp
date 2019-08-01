@@ -10,12 +10,8 @@ namespace NYT::NYPath {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTokenizer::TTokenizer(const TYPath& path)
-    : Path_(path)
-    , Type_(ETokenType::StartOfStream)
-    , PreviousType_(ETokenType::StartOfStream)
-    , Input_(Path_)
 {
-    LiteralValue_.reserve(Path_.length());
+    Reset(path);
 }
 
 void TTokenizer::Reset(TYPath path)

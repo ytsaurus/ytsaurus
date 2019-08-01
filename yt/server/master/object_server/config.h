@@ -63,6 +63,9 @@ public:
     //! Maximum time to wait before syncing with another cell.
     TDuration CrossCellSyncDelay;
 
+    //! Default timeout for ObjectService::Execute (if a client has not provided one).
+    TDuration DefaultExecuteTimeout;
+
     TObjectServiceConfig()
     {
         RegisterParameter("yield_timeout", YieldTimeout)
@@ -76,6 +79,9 @@ public:
 
         RegisterParameter("cross_cell_sync_delay", CrossCellSyncDelay)
             .Default(TDuration::MilliSeconds(10));
+
+        RegisterParameter("default_execute_timeout", DefaultExecuteTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 
