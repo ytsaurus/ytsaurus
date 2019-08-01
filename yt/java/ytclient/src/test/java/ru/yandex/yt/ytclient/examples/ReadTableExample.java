@@ -24,7 +24,7 @@ public class ReadTableExample {
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read table");
-                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy"));
+                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy")).join();
 
                 UnversionedRowset rowset;
                 while ((rowset = reader.read()) != null) {
@@ -41,7 +41,7 @@ public class ReadTableExample {
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read table 2");
-                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy"));
+                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy")).join();
 
                 reader.read((rowset) -> {
                     if (rowset != null) {

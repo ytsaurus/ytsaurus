@@ -161,30 +161,29 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         }
     }
 
+    public CompletableFuture<TableReader> waitMetadata() {
+        TableReaderImpl self = this;
+        return readHead().thenApply((data) -> {
+            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, metaParser, compression);
+            return self;
+        });
+    }
+
     @Override
     public UnversionedRowset read() throws Exception {
-        byte[] next = doRead();
-
-        if (metadata == null) {
-            metadata = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
-            return parseRowsWithPayload(doRead());
-        } else {
-            return parseRowsWithPayload(next);
-        }
+        return parseRowsWithPayload(doRead());
     }
 
     @Override
     public CompletableFuture<Void> read(Consumer<UnversionedRowset> consumer) {
         return doRead((next) -> {
-            if (metadata == null) {
-                metadata = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
-            } else {
-                try {
-                    consumer.accept(parseRowsWithPayload(next));
-                } catch (Exception ex) {
-                    throw ExceptionUtils.translate(ex);
-                }
+            try {
+                consumer.accept(parseRowsWithPayload(next));
+            } catch (Exception ex) {
+                throw ExceptionUtils.translate(ex);
             }
+
+            return true;
         });
     }
 }

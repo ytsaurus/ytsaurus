@@ -9,12 +9,13 @@ import ru.yandex.yt.ytclient.proxy.FileReader;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 
 public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
     private final static RpcMessageParser<TReadFileMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadFileMeta.class);
 
-    private CompletableFuture<Long> revision = new CompletableFuture<>();
+    private long revision = -1;
 
     public FileReaderImpl(RpcClientStreamControl control) {
         super(control);
@@ -26,32 +27,29 @@ public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements Fi
     }
 
     @Override
-    public Long revision() {
-        return this.revision.getNow(0L);
+    public long revision() {
+        return this.revision;
+    }
+
+    public CompletableFuture<FileReader> waitMetadata() {
+        FileReaderImpl self = this;
+        return readHead().thenApply((data) -> {
+            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(data, metaParser, Compression.None);
+            self.revision = meta.getRevision();
+            return self;
+        });
     }
 
     @Override
     public CompletableFuture<Void> read(Consumer<byte[]> consumer) {
         return doRead((next) -> {
-            if (!revision.isDone()) {
-                TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
-                revision.complete(meta.getRevision());
-            } else {
-                consumer.accept(next);
-            }
+            consumer.accept(next);
+            return true;
         });
     }
 
     @Override
     public byte[] read() throws Exception {
-        byte[] next = doRead();
-
-        if (!revision.isDone()) {
-            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(next, metaParser, compression);
-            revision.complete(meta.getRevision());
-            return doRead();
-        } else {
-            return next;
-        }
+        return doRead();
     }
 }

@@ -1,18 +1,19 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-
 import java.util.LinkedList;
-import java.util.function.Consumer;
+import java.util.function.Function;
+
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 
 public abstract class StreamStash<DataType> {
     public abstract void push(DataType data, long offset);
     public abstract StashedMessage<DataType> read() throws Exception;
     public abstract void commit(RpcClientStreamControl control);
+    public abstract LinkedList<StashedMessage<DataType>> messages();
 
-    public static <DataType> StreamStash<DataType> syncStash() {
+    static <DataType> StreamStash<DataType> syncStash(LinkedList<StashedMessage<DataType>> oldMessages) {
         return new StreamStash<DataType>() { // jdk8 compatibilty
-            private final LinkedList<StashedMessage<DataType>> messages = new LinkedList<>();
+            private final LinkedList<StashedMessage<DataType>> messages = oldMessages;
 
             @Override
             public void push(DataType data, long offset) {
@@ -34,18 +35,32 @@ public abstract class StreamStash<DataType> {
             }
 
             @Override
+            public LinkedList<StashedMessage<DataType>> messages() {
+                return this.messages;
+            }
+
+            @Override
             public void commit(RpcClientStreamControl control) { }
         };
     }
 
-    public static <DataType> StreamStash<DataType> asyncStash(Consumer<DataType> consumer) {
+    static <DataType> StreamStash<DataType> asyncStash(Function<DataType, Boolean> function, LinkedList<StashedMessage<DataType>> oldMessages) {
         return new StreamStash<DataType>() { // jdk8 compatibilty
+            private final LinkedList<StashedMessage<DataType>> messages = oldMessages;
             private long offset = 0;
 
             @Override
             public void push(DataType data, long offset) {
-                this.offset = offset;
-                consumer.accept(data);
+                if (function.apply(data)) {
+                    this.offset = offset;
+                } else {
+                    messages.push(new StashedMessage<>(data, offset));
+                }
+            }
+
+            @Override
+            public LinkedList<StashedMessage<DataType>> messages() {
+                return this.messages;
             }
 
             @Override

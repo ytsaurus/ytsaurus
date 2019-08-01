@@ -1136,22 +1136,24 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
-    public TableReader readTable(ReadTable req) {
+    public CompletableFuture<TableReader> readTable(ReadTable req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
         req.writeTo(builder.body());
 
-        return new TableReaderImpl(startStream(builder));
+        TableReaderImpl impl = new TableReaderImpl(startStream(builder));
+        return impl.waitMetadata();
     }
 
-    public FileReader readFile(ReadFile req) {
+    public CompletableFuture<FileReader> readFile(ReadFile req) {
         RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
                 builder = service.readFile();
 
         req.writeTo(builder.body());
 
-        return new FileReaderImpl(startStream(builder));
+        FileReaderImpl impl = new FileReaderImpl(startStream(builder));
+        return impl.waitMetadata();
     }
 
     /* */

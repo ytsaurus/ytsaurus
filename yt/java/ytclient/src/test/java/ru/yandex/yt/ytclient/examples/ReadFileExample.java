@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.examples;
 
 import java.io.FileOutputStream;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +24,11 @@ public class ReadFileExample {
     }
 
     private static void mainUnsafe(String[] args) {
+
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read file");
-                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile"));
+                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile")).join();
 
                 FileOutputStream fo = new FileOutputStream("test.txt");
 
@@ -47,7 +49,7 @@ public class ReadFileExample {
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read file");
-                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile"));
+                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile")).join();
 
                 FileOutputStream fo = new FileOutputStream("test2.txt");
 
@@ -74,9 +76,29 @@ public class ReadFileExample {
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read file 3");
-                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile"));
+                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile")).join();
 
                 FileOutputStream fo = new FileOutputStream("test3.txt");
+
+                byte [] data;
+                while ((data = reader.read()) != null) {
+                    fo.write(data);
+                }
+
+                fo.close();
+
+            } catch (Throwable e) {
+                logger.error("Error {}", e);
+                System.exit(0);
+            }
+        });
+
+        ExamplesUtil.runExample(client -> {
+            try {
+                logger.info("Read file 3");
+                FileReader reader = client.readFile(new ReadFile("//tmp/badfile-" + UUID.randomUUID().toString())).join();
+
+                FileOutputStream fo = new FileOutputStream("test4.txt");
 
                 byte [] data;
                 while ((data = reader.read()) != null) {
