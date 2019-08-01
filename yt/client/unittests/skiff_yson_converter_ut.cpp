@@ -130,6 +130,12 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         CreateSimpleTypeSchema(EWireType::String32),
         "\"foo\"",
         "03000000" "666f6f");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        SimpleLogicalType(ESimpleLogicalValueType::Null),
+        CreateSimpleTypeSchema(EWireType::Nothing),
+        "#",
+        "");
 }
 
 TEST(TYsonSkiffConverterTest, TestYson32)
@@ -391,6 +397,67 @@ TEST(TYsonSkiffConverterTest, TestTuple)
         "02000000" "00000000" "01" "2a000000" "00000000");
 }
 
+TEST(TYsonSkiffConverterTest, TestOptionalVariantSimilarity)
+{
+    auto logicalType = OptionalLogicalType(
+        VariantTupleLogicalType(
+            {
+                SimpleLogicalType(ESimpleLogicalValueType::Null),
+                SimpleLogicalType(ESimpleLogicalValueType::Int64)
+            }
+        )
+    );
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64))),
+        "[1;42;]",
+        "01" "01" "2a000000" "00000000");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64))),
+        "[0;#;]",
+        "01" "00");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64))),
+        "#",
+        "00");
+
+    TYsonToSkiffConverterConfig ysonToSkiffConfig;
+    ysonToSkiffConfig.AllowOmitTopLevelOptional = true;
+
+    TSkiffToYsonConverterConfig skiffToYsonConfig;
+    skiffToYsonConfig.AllowOmitTopLevelOptional = true;
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
+        "[1;42;]",
+        "01" "2a000000" "00000000",
+        ysonToSkiffConfig,
+        skiffToYsonConfig);
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
+        "[0;#;]",
+        "00",
+        ysonToSkiffConfig,
+        skiffToYsonConfig);
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(
+            logicalType,
+            SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
+            "#",
+            ysonToSkiffConfig),
+        "value expected to be nonempty"
+    );
+}
+
 class TYsonSkiffConverterTestVariant
     : public ::testing::TestWithParam<std::tuple<ELogicalMetatype, EWireType>>
 {
@@ -409,7 +476,7 @@ public:
         }
     }
 
-    TSkiffSchemaPtr VariantSkiffSchema(const std::vector<TSkiffSchemaPtr> elements)
+    TSkiffSchemaPtr VariantSkiffSchema(std::vector<TSkiffSchemaPtr> elements)
     {
         for (size_t i = 0; i < elements.size(); ++i) {
             elements[i]->SetName(Format("field%v", i));

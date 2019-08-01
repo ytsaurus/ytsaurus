@@ -109,14 +109,15 @@ void ValidateKeyValueType(EValueType type)
 
 void ValidateSchemaValueType(EValueType type)
 {
-    if (type != EValueType::Int64 &&
+    if (type != EValueType::Null &&
+        type != EValueType::Int64 &&
         type != EValueType::Uint64 &&
         type != EValueType::Double &&
         type != EValueType::Boolean &&
         type != EValueType::String &&
         type != EValueType::Any)
     {
-        THROW_ERROR_EXCEPTION("Invalid schema value type %Qlv", type);
+        THROW_ERROR_EXCEPTION("Invalid value type %Qlv", type);
     }
 }
 

@@ -25,15 +25,19 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(ESimpleLogicalValueType::Int64, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
-        TPair(ESimpleLogicalValueType::Uint64, false));
-
-    EXPECT_EQ(
         SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
         TPair(ESimpleLogicalValueType::Int64, false));
 
     EXPECT_EQ(
         SimplifyLogicalType(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))),
+        TPair(std::nullopt, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)),
+        TPair(ESimpleLogicalValueType::Null, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
         TPair(std::nullopt, false));
 
     EXPECT_EQ(
@@ -50,10 +54,18 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
             SimpleLogicalType(ESimpleLogicalValueType::Uint64)
         })),
         TPair(std::nullopt, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Uint64)
+        })),
+        TPair(std::nullopt, true));
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Simple types
+    SimpleLogicalType(ESimpleLogicalValueType::Null),
     SimpleLogicalType(ESimpleLogicalValueType::Int64),
     SimpleLogicalType(ESimpleLogicalValueType::String),
     SimpleLogicalType(ESimpleLogicalValueType::Utf8),

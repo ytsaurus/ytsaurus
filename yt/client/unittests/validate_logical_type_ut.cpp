@@ -55,12 +55,14 @@ TEST(TValidateLogicalTypeTest, TestBasicTypes)
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 42u ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " 3.14 ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " %false ");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " # ");
 
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::String), " 76 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Int64), " %true ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 14 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " bar ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " 1 ");
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " 0 ");
 }
 
 TEST(TValidateLogicalTypeTest, TestSimpleOptionalTypes)
@@ -72,6 +74,21 @@ TEST(TValidateLogicalTypeTest, TestSimpleOptionalTypes)
     EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " 42u ");
     EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " # ");
     EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " 42 ");
+}
+
+TEST(TValidateLogicalTypeTest, TestOptionalNull)
+{
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " # ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [#] ");
+
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [] ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [[#]] ");
+
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[#]] ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [#] ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " # ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[[#]]] ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[[]]] ");
 }
 
 TEST(TValidateLogicalTypeTest, TestLogicalTypes)
@@ -152,7 +169,7 @@ TEST(TValidateLogicalTypeTest, TestAnyType)
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "[<>1]");
 }
 
-TEST(TValidateLogicalTypeTest, TestComplexOptionalType)
+TEST(TValidateLogicalTypeTest, TestOptionalComplexType)
 {
     const auto optionalOptionalInt = OptionalLogicalType(
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
