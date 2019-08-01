@@ -998,7 +998,7 @@ void TTableNodeProxy::ValidateBeginUpload()
         THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
     }
 
-    if (!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->EnableBulkInsert) {
+    if (table->IsDynamic() && !Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->EnableBulkInsert) {
         THROW_ERROR_EXCEPTION("Bulk insert is disabled");
     }
 }
