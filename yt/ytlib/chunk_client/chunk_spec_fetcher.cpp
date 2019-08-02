@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/client/chunk_client/public.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -21,6 +23,8 @@ using namespace NYPath;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +47,11 @@ TChunkSpecFetcher::TChunkSpecFetcher(
     , SkipUnavailableChunks_(skipUnavailableChunks)
 { }
 
-void TChunkSpecFetcher::Add(const TYPath& path, TCellTag cellTag, i64 chunkCount, const std::vector<TReadRange>& ranges)
+void TChunkSpecFetcher::Add(
+    const TYPath& path,
+    TCellTag cellTag,
+    i64 chunkCount,
+    const std::vector<TReadRange>& ranges)
 {
     auto& state = GetCellState(cellTag);
 
@@ -65,8 +73,9 @@ void TChunkSpecFetcher::Add(const TYPath& path, TCellTag cellTag, i64 chunkCount
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
             auto req = TChunkOwnerYPathProxy::Fetch(path);
+            // XXX(babenko): AddCellTagToSyncWith(req, )
             InitializeFetchRequest_(req.Get());
-            NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
             state.RangeIndices.push_back(rangeIndex);

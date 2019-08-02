@@ -35,9 +35,9 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionId CreateChunk(
-    NApi::NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
     NObjectClient::TCellTag cellTag,
-    TMultiChunkWriterOptionsPtr options,
+    const TMultiChunkWriterOptionsPtr& options,
     NObjectClient::TTransactionId transactionId,
     TChunkListId chunkListId,
     const NLogging::TLogger& logger);
@@ -46,10 +46,10 @@ TSessionId CreateChunk(
 //! issues additional |LocateChunks| requests for foreign chunks.
 //! The resulting chunk specs are appended to #chunkSpecs.
 void ProcessFetchResponse(
-    NApi::NNative::IClientPtr client,
-    TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
+    const NApi::NNative::IClientPtr& client,
+    const TChunkOwnerYPathProxy::TRspFetchPtr& fetchResponse,
     NObjectClient::TCellTag fetchCellTag,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     int maxChunksPerLocateRequest,
     std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
@@ -61,28 +61,27 @@ void ProcessFetchResponse(
 std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    NObjectClient::TCellTag cellTag,
-    const NYPath::TYPath& path,
+    const TUserObject& userObject,
     const std::vector<TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
-    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)> initializeFetchRequest,
+    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
     const NLogging::TLogger& logger,
-    bool skipUnavialableChunks = false);
+    bool skipUnavailableChunks = false);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.
 TChunkReplicaWithMediumList AllocateWriteTargets(
-    NApi::NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
     std::optional<int> replicationFactorOverride,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger);
 
 //! Returns the cumulative error for the whole batch.
@@ -100,9 +99,9 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
  *  about these replicas.
  */
 void LocateChunks(
-    NApi::NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
     int maxChunksPerLocateRequest,
-    const std::vector<NProto::TChunkSpec*> chunkSpecList,
+    const std::vector<NProto::TChunkSpec*>& chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger,
     bool skipUnavailableChunks = false);

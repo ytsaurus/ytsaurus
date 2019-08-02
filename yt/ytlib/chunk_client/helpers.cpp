@@ -9,12 +9,11 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/data_statistics.h>
-
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/hive/helpers.h>
 
@@ -25,6 +24,9 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -122,9 +124,9 @@ void GetUserObjectBasicAttributes(
 }
 
 TSessionId CreateChunk(
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
     TCellTag cellTag,
-    TMultiChunkWriterOptionsPtr options,
+    const TMultiChunkWriterOptionsPtr& options,
     TTransactionId transactionId,
     TChunkListId chunkListId,
     const NLogging::TLogger& logger)
@@ -179,21 +181,21 @@ TSessionId CreateChunk(
 }
 
 void ProcessFetchResponse(
-    NNative::IClientPtr client,
-    TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
+    const NNative::IClientPtr& client,
+    const TChunkOwnerYPathProxy::TRspFetchPtr& fetchResponse,
     TCellTag fetchCellTag,
-    TNodeDirectoryPtr nodeDirectory,
+    const TNodeDirectoryPtr& nodeDirectory,
     int maxChunksPerLocateRequest,
     std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
-    bool skipUnavialableChunks)
+    bool skipUnavailableChunks)
 {
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
     }
 
-    std::vector<NProto::TChunkSpec*> foreignChunkList;
+    std::vector<NProto::TChunkSpec*> foreignChunkSpecs;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         if (rangeIndex) {
             chunkSpec.set_range_index(*rangeIndex);
@@ -201,10 +203,17 @@ void ProcessFetchResponse(
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != fetchCellTag) {
-            foreignChunkList.push_back(&chunkSpec);
+            foreignChunkSpecs.push_back(&chunkSpec);
         }
     }
-    LocateChunks(client, maxChunksPerLocateRequest, foreignChunkList, nodeDirectory, logger, skipUnavialableChunks);
+
+    LocateChunks(
+        client,
+        maxChunksPerLocateRequest,
+        foreignChunkSpecs,
+        nodeDirectory,
+        logger,
+        skipUnavailableChunks);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(NProto::TChunkSpec());
@@ -215,13 +224,12 @@ void ProcessFetchResponse(
 std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
-    TCellTag cellTag,
-    const TYPath& path,
+    const TUserObject& userObject,
     const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
-    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)> initializeFetchRequest,
+    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
     const NLogging::TLogger& logger,
     bool skipUnavailableChunks)
 {
@@ -230,11 +238,10 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 
     auto channel = client->GetMasterChannelOrThrow(
         EMasterChannelKind::Follower,
-        cellTag);
+        userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
-    std::vector<int> rangeIndices;
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
         for (i64 index = 0; index < (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch; ++index) {
             auto adjustedRange = ranges[rangeIndex];
@@ -250,31 +257,34 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             }
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
-            auto req = TChunkOwnerYPathProxy::Fetch(path);
+            // NB: objectId is null for virtual tables.
+            auto req = TChunkOwnerYPathProxy::Fetch(userObject.GetObjectIdPathIfAvailable());
+            AddCellTagToSyncWith(req, userObject.ObjectId);
+            req->Tag() = rangeIndex;
             initializeFetchRequest(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
-            batchReq->AddRequest(req, "fetch");
-            rangeIndices.push_back(rangeIndex);
+            batchReq->AddRequest(req);
         }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
         "Error fetching input table %v",
-        path);
+        userObject.GetPath());
 
     const auto& batchRsp = batchRspOrError.Value();
-    auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
+    auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>();
 
-    for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
-        const auto& rsp = rspsOrError[resultIndex].Value();
+    for (const auto& rspOrError : rspsOrError) {
+        const auto& rsp = rspOrError.Value();
+        auto rangeIndex = std::any_cast<int>(rsp->Tag());
         ProcessFetchResponse(
             client,
-            rsp,
-            cellTag,
+            rspOrError.Value(),
+            userObject.ExternalCellTag,
             nodeDirectory,
             maxChunksPerLocateRequest,
-            rangeIndices[resultIndex],
+            rangeIndex,
             logger,
             &chunkSpecs,
             skipUnavailableChunks);
@@ -284,14 +294,14 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 }
 
 TChunkReplicaWithMediumList AllocateWriteTargets(
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
     std::optional<int> replicationFactorOverride,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
-    TNodeDirectoryPtr nodeDirectory,
+    const TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -508,9 +518,9 @@ IChunkReaderPtr CreateRemoteReader(
 }
 
 void LocateChunks(
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
     int maxChunksPerLocateRequest,
-    const std::vector<NProto::TChunkSpec*> chunkSpecList,
+    const std::vector<NProto::TChunkSpec*>& chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger,
     bool skipUnavailableChunks)
