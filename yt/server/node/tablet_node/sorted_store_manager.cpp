@@ -42,6 +42,7 @@
 #include <yt/core/ytalloc/memory_zone.h>
 
 #include <util/generic/cast.h>
+#include <yt/core/misc/finally.h>
 
 namespace NYT::NTabletNode {
 
@@ -493,8 +494,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
-        TTimestamp currentTimestamp
+        TTimestamp currentTimestamp,
+        TWriterProfilerPtr writerProfiler
     ) {
+        IVersionedChunkWriterPtr tableWriter;
+
+        auto updateProfilerGuard = Finally([&] () {
+            writerProfiler->Update(tableWriter);
+        });
+
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
@@ -531,7 +539,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             nullptr,
             std::move(throttler));
 
-        auto tableWriter = CreateVersionedChunkWriter(
+        tableWriter = CreateVersionedChunkWriter(
             writerConfig,
             writerOptions,
             tabletSnapshot->PhysicalSchema,
@@ -599,12 +607,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
-
-        ProfileChunkWriter(
-            tabletSnapshot,
-            tableWriter->GetDataStatistics(),
-            tableWriter->GetCompressionStatistics(),
-            StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(

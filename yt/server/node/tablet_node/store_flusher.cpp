@@ -9,6 +9,8 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
+#include "public.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
@@ -72,6 +74,8 @@ public:
         , Profiler("/tablet_node/store_flusher")
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes, Profiler, "/running_store_fluhses"))
+        , StoreFlushTag_(NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush"))
+        , StoreFlushFailedTag_(NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush_failed"))
         , DynamicMemoryUsageActiveCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "active")})
         , DynamicMemoryUsagePassiveCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "passive")})
         , DynamicMemoryUsageBackingCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "backing")})
@@ -85,11 +89,15 @@ public:
 
 private:
     const TTabletNodeConfigPtr Config_;
+
     NCellNode::TBootstrap* const Bootstrap_;
 
     const NProfiling::TProfiler Profiler;
     TThreadPoolPtr ThreadPool_;
     TProfiledAsyncSemaphorePtr Semaphore_;
+
+    const NProfiling::TTagId StoreFlushTag_;
+    const NProfiling::TTagId StoreFlushFailedTag_;
 
     NProfiling::TSimpleGauge DynamicMemoryUsageActiveCounter_;
     NProfiling::TSimpleGauge DynamicMemoryUsagePassiveCounter_;
@@ -297,6 +305,7 @@ private:
     {
         const auto& storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
+        TWriterProfilerPtr writerProfiler = New<TWriterProfiler>();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, StoreId: %v",
@@ -310,6 +319,8 @@ private:
             storeManager->BackoffStoreFlush(store);
             return;
         }
+
+        bool failed = false;
 
         try {
             NProfiling::TWallTimer timer;
@@ -345,7 +356,7 @@ private:
 
             auto asyncFlushResult = flushCallback
                 .AsyncVia(ThreadPool_->GetInvoker())
-                .Run(transaction, std::move(throttler), currentTimestamp);
+                .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler);
 
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
@@ -388,7 +399,9 @@ private:
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
+            failed = true;
         }
+        writerProfiler->Profile(tabletSnapshot, failed ? StoreFlushFailedTag_ : StoreFlushTag_);
     }
 };
 

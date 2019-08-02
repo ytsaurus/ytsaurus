@@ -37,6 +37,8 @@
 
 #include <yt/core/ytalloc/memory_zone.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -207,8 +209,15 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
-        TTimestamp currentTimestamp
+        TTimestamp currentTimestamp,
+        TWriterProfilerPtr writerProfiler
     ) {
+        ISchemalessChunkWriterPtr tableWriter;
+
+        auto updateProfilerGuard = Finally([&] () {
+            writerProfiler->Update(tableWriter);
+        });
+
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
@@ -248,7 +257,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
-        auto tableWriter = CreateSchemalessChunkWriter(
+        tableWriter = CreateSchemalessChunkWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
             tabletSnapshot->PhysicalSchema,
@@ -294,17 +303,12 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
-        ProfileChunkWriter(
-            tabletSnapshot,
-            tableWriter->GetDataStatistics(),
-            tableWriter->GetCompressionStatistics(),
-            StoreFlushTag_);
-
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
+
         YT_LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),

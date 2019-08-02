@@ -206,6 +206,7 @@ private:
     TAsyncSemaphorePtr PreloadSemaphore_;
 
     const NProfiling::TTagId PreloadTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload");
+    const NProfiling::TTagId PreloadFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload_failed");
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
@@ -300,6 +301,12 @@ private:
             return;
         }
 
+        bool failed = true;
+        auto readerProfiler = New<TReaderProfiler>();
+        auto profileGuard = Finally([&] () {
+            readerProfiler->Profile(tabletSnapshot, failed ? PreloadFailedTag_ : PreloadTag_);
+        });
+
         try {
             // This call may suspend the current fiber.
             auto chunkData = PreloadInMemoryStore(
@@ -309,7 +316,7 @@ private:
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
                 Throttler_,
-                PreloadTag_);
+                readerProfiler);
 
             std::vector<IInvokerPtr> feasibleInvokers{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
@@ -334,6 +341,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
+            failed = false;
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
@@ -503,7 +511,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag)
+    const TReaderProfilerPtr& readerProfiler)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
@@ -520,6 +528,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     blockReadOptions.ReadSessionId = readSessionId;
+    readerProfiler->SetChunkReaderStatistics(blockReadOptions.ChunkReaderStatistics);
 
     auto reader = store->GetChunkReader(throttler);
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
@@ -598,6 +607,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
+            readerProfiler->SetCompressedDataSize(compressedDataSize);
         }
 
         std::vector<TBlock> cachedBlocks;
@@ -661,15 +671,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     TCodecStatistics decompressionStatistics;
     decompressionStatistics.Append(TCodecDuration{codecId, decompressionTime});
-    NChunkClient::NProto::TDataStatistics dataStatistics;
-    dataStatistics.set_compressed_data_size(compressedDataSize);
-
-    ProfileChunkReader(
-        tabletSnapshot,
-        dataStatistics,
-        decompressionStatistics,
-        blockReadOptions.ChunkReaderStatistics,
-        preloadTag);
+    readerProfiler->SetCodecStatistics(decompressionStatistics);
 
     if (chunkData->MemoryTrackerGuard) {
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);

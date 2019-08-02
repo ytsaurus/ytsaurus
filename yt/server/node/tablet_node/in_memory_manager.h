@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/node/cell_node/public.h>
 
@@ -87,7 +88,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag);
+    const TReaderProfilerPtr& readerProfiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

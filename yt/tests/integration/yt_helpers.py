@@ -159,6 +159,12 @@ class Metric(object):
         return Metric("//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path), *args, **kwargs)
 
     @staticmethod
+    def at_tablet_node(node, path, *args, **kwargs):
+        tablets = get(node + "/@tablets")
+        address = get("#%s/@peers/0/address" % tablets[0]["cell_id"])
+        return Metric("//sys/cluster_nodes/{0}/orchid/profiling/tablet_node/{1}".format(address, path), *args, **kwargs)
+
+    @staticmethod
     def _update_data(data, state, new_samples, aggr):
         new_state = state
 
