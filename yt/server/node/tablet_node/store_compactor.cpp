@@ -1225,7 +1225,11 @@ private:
             partition->SetCompactionTime(beginInstant);
 
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
-            auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
+            auto retainedTimestamp = std::min(
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetConfig()->MinDataTtl).second,
+                currentTimestamp
+            );
+
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
             auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletCompaction);

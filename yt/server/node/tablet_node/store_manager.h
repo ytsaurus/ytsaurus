@@ -21,7 +21,8 @@ namespace NYT::NTabletNode {
 using TStoreFlushResult = std::vector<NTabletNode::NProto::TAddStoreDescriptor>;
 using TStoreFlushCallback = TCallback<TStoreFlushResult(
     NApi::ITransactionPtr transaction,
-    NConcurrency::IThroughputThrottlerPtr)>;
+    NConcurrency::IThroughputThrottlerPtr,
+    TTimestamp currentTimestamp)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!
