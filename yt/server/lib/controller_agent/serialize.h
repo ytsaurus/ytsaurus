@@ -21,6 +21,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobSplitterPrepareDuration) (300109))
     ((ForceAdvanceBefore19_6)     (300150))
     ((JobMetricsByOperationState)     (300151))
+    ((OutputToDynamicTables)          (300152))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
