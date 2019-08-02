@@ -4,28 +4,31 @@
 #include "transaction.h"
 #include "private.h"
 
-#include <yt/client/api/file_reader.h>
-
 #include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
-
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
+
+#include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/api/file_reader.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -182,6 +185,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::Fetch(objectIdPath);
+            AddCellTagToSyncWith(req, CellTagFromId(objectId));
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.value_or(0);

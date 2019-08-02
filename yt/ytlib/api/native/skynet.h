@@ -13,7 +13,7 @@ namespace NYT::NApi::NNative {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
-    IClientPtr client,
+    const IClientPtr& client,
     const NYPath::TRichYPath& path,
     const TLocateSkynetShareOptions& options);
 

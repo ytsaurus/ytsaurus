@@ -155,6 +155,8 @@ DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 class TReadLimit;
 class TReadRange;
 
+struct TUserObject;
+
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 

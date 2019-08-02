@@ -30,6 +30,16 @@ message TPrerequisitesExt
     repeated TPrerequisiteRevision revisions = 2;
 }
 
+message TMulticellSyncExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TMulticellSyncExt multicell_sync_ext = 112;
+    }
+
+    repeated int32 cell_tags_to_sync_with = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetBasicAttributes

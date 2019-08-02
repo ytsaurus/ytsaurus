@@ -75,6 +75,7 @@
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -3385,7 +3386,9 @@ private:
 
                     for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
                         int srcIndex = srcIndexes[localIndex];
-                        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcIds[srcIndex]));
+                        auto srcId = srcIds[srcIndex];
+                        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
+                        AddCellTagToSyncWith(req, CellTagFromId(srcId));
                         SetTransactionId(req, options, true);
                         ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
                         batchReq->AddRequest(req, "fetch");

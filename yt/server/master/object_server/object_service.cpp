@@ -50,10 +50,8 @@ namespace NYT::NObjectServer {
 
 using namespace NHydra;
 using namespace NRpc;
-using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
-using namespace NYTree::NProto;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressServer;
@@ -369,7 +367,7 @@ private:
         IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         TFuture<TMutationResponse> AsyncCommitResult;
-        TRequestHeader RequestHeader;
+        NRpc::NProto::TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
@@ -448,6 +446,13 @@ private:
                     "Error parsing subrequest header");
             }
 
+            const auto& multicellSyncExt = subrequestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+            for (auto cellTag : multicellSyncExt.cell_tags_to_sync_with()) {
+                if (cellTag != Owner_->Bootstrap_->GetCellTag()) {
+                    CellTagsToSyncWith_.push_back(cellTag);
+                }
+            }
+
             // Propagate various parameters to the subrequest.
             ToProto(subrequestHeader.mutable_request_id(), RequestId_);
             subrequestHeader.set_retry(subrequestHeader.retry() || RpcContext_->IsRetry());
@@ -455,7 +460,7 @@ private:
             auto timeout = RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout);
             subrequestHeader.set_timeout(ToProto<i64>(timeout));
 
-            auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
+            auto* ypathExt = subrequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (ypathExt->mutating() && (subrequestHeader.method() == "Mount" ||

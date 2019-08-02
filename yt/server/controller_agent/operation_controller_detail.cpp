@@ -64,6 +64,7 @@
 #include <yt/ytlib/api/native/transaction.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -4770,8 +4771,7 @@ void TOperationControllerBase::FetchInputTables()
         auto chunkSpecs = FetchChunkSpecs(
             InputClient,
             InputNodeDirectory_,
-            table->ExternalCellTag,
-            table->GetObjectIdPath(),
+            *table,
             ranges,
             table->ChunkCount,
             Config->MaxChunksPerFetch,
@@ -5366,21 +5366,20 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
 void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files)
 {
-    auto Logger = TLogger(this->Logger)
-        .AddTag("TaskTitle: %v", userJobSpec->TaskTitle);
     for (auto& file : files) {
-        const auto& path = file.Path.GetPath();
+        auto Logger = TLogger(this->Logger)
+            .AddTag("Path: %v, TaskTitle: %v",
+                file.Path.GetPath(),
+                userJobSpec->TaskTitle);
 
-        YT_LOG_INFO("Fetching user file (Path: %v)",
-            path);
+        YT_LOG_INFO("Fetching user file");
 
         switch (file.Type) {
             case EObjectType::Table:
                 file.ChunkSpecs = FetchChunkSpecs(
                     InputClient,
                     InputNodeDirectory_,
-                    file.ExternalCellTag,
-                    file.GetObjectIdPath(),
+                    file,
                     file.Path.GetRanges(),
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
@@ -5410,6 +5409,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 auto batchReq = proxy.ExecuteBatch();
 
                 auto req = TChunkOwnerYPathProxy::Fetch(file.GetObjectIdPath());
+                AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 SetTransactionId(req, *file.TransactionId);
@@ -5417,7 +5417,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
-                     path);
+                     file.GetPath());
                 const auto& batchRsp = batchRspOrError.Value();
 
                 auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
@@ -5438,8 +5438,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 YT_ABORT();
         }
 
-        YT_LOG_INFO("User file fetched (Path: %v, FileName: %v)",
-            path,
+        YT_LOG_INFO("User file fetched (FileName: %v)",
             file.FileName);
     }
 }
