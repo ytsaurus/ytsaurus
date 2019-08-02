@@ -2,10 +2,11 @@
 
 #include "helpers.h"
 #include "private.h"
-#include "serialize.h"
 #include "table.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 

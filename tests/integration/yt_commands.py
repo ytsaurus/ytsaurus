@@ -41,6 +41,7 @@ default_api_version = 4
 SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
+NoSuchAttribute = 1920
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01

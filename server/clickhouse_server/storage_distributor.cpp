@@ -3,7 +3,6 @@
 #include "config.h"
 #include "bootstrap.h"
 #include "block_input_stream.h"
-#include "format_helpers.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
@@ -251,21 +250,19 @@ public:
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 
-        const auto& cluster = queryContext->Bootstrap->GetHost()->GetExecutionClusterNodeTracker();
-
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
 
-        auto clusterNodes = cluster->GetAvailableNodes();
-        Prepare(clusterNodes.size(), queryInfo, context);
+        auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
+        Prepare(cliqueNodes.size(), queryInfo, context);
 
         YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, StripeCount: %v)",
             columnNames,
             getTableName(),
-            clusterNodes.size(),
+            cliqueNodes.size(),
             static_cast<ui64>(context.getSettings().max_threads),
             StripeList_->Stripes.size());
 
-        if (clusterNodes.empty()) {
+        if (cliqueNodes.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
 
@@ -287,11 +284,11 @@ public:
         // TODO(max42): CHYT-154.
         SpecTemplate_.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
 
-        for (int index = 0; index < static_cast<int>(clusterNodes.size()); ++index) {
-            int firstStripeIndex = index * StripeList_->Stripes.size() / clusterNodes.size();
-            int lastStripeIndex = (index + 1) * StripeList_->Stripes.size() / clusterNodes.size();
+        for (int index = 0; index < static_cast<int>(cliqueNodes.size()); ++index) {
+            int firstStripeIndex = index * StripeList_->Stripes.size() / cliqueNodes.size();
+            int lastStripeIndex = (index + 1) * StripeList_->Stripes.size() / cliqueNodes.size();
 
-            const auto& clusterNode = clusterNodes[index];
+            const auto& cliqueNode = cliqueNodes[index];
             auto spec = SpecTemplate_;
             FillDataSliceDescriptors(
                 spec,
@@ -307,10 +304,10 @@ public:
             YT_LOG_DEBUG("Query rewritten (Subquery: %v)", *subqueryAst);
 
             YT_LOG_DEBUG("Prepared subquery to node (Node: %v, StripeCount: %v)",
-                clusterNode->GetName().ToString(),
+                cliqueNode->GetName().ToString(),
                 lastStripeIndex - firstStripeIndex);
 
-            bool isLocal = clusterNode->IsLocal();
+            bool isLocal = cliqueNode->IsLocal();
             // XXX(max42): weird workaround.
             isLocal = false;
             auto substream = isLocal
@@ -319,7 +316,7 @@ public:
                     newContext,
                     processedStage)
                 : CreateRemoteStream(
-                    clusterNode,
+                    cliqueNode,
                     subqueryAst,
                     newContext,
                     throttler,

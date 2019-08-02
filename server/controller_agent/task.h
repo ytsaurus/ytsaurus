@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include "tentative_tree_eligibility.h"
-#include "serialize.h"
 #include "data_flow_graph.h"
 #include "competitive_job_manager.h"
 
@@ -12,6 +11,7 @@
 #include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 #include <yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>

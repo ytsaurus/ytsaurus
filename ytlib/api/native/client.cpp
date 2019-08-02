@@ -4117,7 +4117,8 @@ private:
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
+                THROW_ERROR_EXCEPTION(
+                    NApi::EErrorCode::NoSuchAttribute,
                     "Operation attribute %Qv is not supported",
                     attribute)
                     << TErrorAttribute("attribute_name", attribute);
@@ -4142,8 +4143,9 @@ private:
         result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION(NApi::EErrorCode::NoSuchAttribute,
-                    "Attribute %Qv is not allowed",
+                THROW_ERROR_EXCEPTION(
+                    NApi::EErrorCode::NoSuchAttribute,
+                    "Operation attribute %Qv is not supported",
                     attribute)
                     << TErrorAttribute("attribute_name", attribute);
             }
@@ -4497,7 +4499,7 @@ private:
             .WithTimeout(options.CypressTimeout);
         getOperationFutures.push_back(cypressFuture);
 
-        TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TError("No such operation in Archive."));
+        TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
         if (DoesOperationsArchiveExist()) {
              archiveFuture = BIND(&TClient::DoGetOperationFromArchive, MakeStrong(this), operationId, deadline, options)
                 .AsyncVia(Connection_->GetInvoker())
@@ -4509,14 +4511,13 @@ private:
         auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
             .ValueOrThrow();
 
-        TErrorOr<TYsonString> cypressResultOrError = cypressFuture.Get();
-        TErrorOr<TYsonString> archiveResultOrError = archiveFuture.Get();
+        auto cypressResult = cypressFuture.Get().ValueOrThrow();
+        auto archiveResult = archiveFuture.Get().ValueOrThrow();
 
-        if (archiveResultOrError.IsOK() && archiveResultOrError.Value() &&
-            cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
+        if (archiveResult && cypressResult) {
             // Merging goes here.
-            auto cypressNode = ConvertToNode(cypressResultOrError.Value())->AsMap();
-            auto archiveNode = ConvertToNode(archiveResultOrError.Value())->AsMap();
+            auto cypressNode = ConvertToNode(cypressResult)->AsMap();
+            auto archiveNode = ConvertToNode(archiveResult)->AsMap();
 
             std::vector<TString> fieldNames = {"brief_progress", "progress"};
             for (const auto& fieldName : fieldNames) {
@@ -4528,10 +4529,10 @@ private:
                 }
             }
             return ConvertToYsonString(cypressNode);
-        } else if (archiveResultOrError.IsOK() && archiveResultOrError.Value()) {
-            return archiveResultOrError.Value();
-        } else if (cypressResultOrError.IsOK() && cypressResultOrError.Value()) {
-            return cypressResultOrError.Value();
+        } else if (archiveResult) {
+            return archiveResult;
+        } else if (cypressResult) {
+            return cypressResult;
         } else {
             THROW_ERROR_EXCEPTION(
                 NApi::EErrorCode::NoSuchOperation,

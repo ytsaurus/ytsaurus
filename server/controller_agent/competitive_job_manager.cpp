@@ -1,6 +1,7 @@
 #include "competitive_job_manager.h"
 #include "job_info.h"
-#include "serialize.h"
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 namespace NYT::NControllerAgent {
 

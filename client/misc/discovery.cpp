@@ -26,7 +26,7 @@ TDiscovery::TDiscovery(
     , Invoker_(invoker)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
-        BIND(&TDiscovery::UpdateList, MakeWeak(this)),
+        BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
         config->UpdatePeriod))
     , Logger(logger)
 {
@@ -34,6 +34,10 @@ TDiscovery::TDiscovery(
         extraAttributes.push_back("locks");
     }
     ListOptions_.Attributes = std::move(extraAttributes);
+    // TMasterReadOptions
+    ListOptions_.ReadFrom = Config_->ReadFrom;
+    ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;
+    ListOptions_.ExpireAfterFailedUpdateTime = Config_->MasterCacheExpireTime;
     Logger.AddTag("Group: %v", Config_->Directory);
 }
 
@@ -51,16 +55,36 @@ TFuture<void> TDiscovery::Leave()
         .Run();
 }
 
+TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
+{
+    TWriterGuard guard(Lock_);
+    if (LastUpdate_ + ageThreshold >= TInstant::Now()) {
+        return VoidFuture;
+    }
+    if (!ScheduledForceUpdate_ || ScheduledForceUpdate_.IsSet()) {
+        ScheduledForceUpdate_ = BIND(&TDiscovery::DoUpdateList, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run();
+        YT_LOG_DEBUG("Force update scheduled");
+    }
+    return ScheduledForceUpdate_;
+}
+
 THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List() const
 {
     THashMap<TString, TAttributeDictionary> result;
     THashMap<TString, TInstant> bannedSince;
+    decltype(SelfAttributes_) selfAttributes;
     {
         TReaderGuard guard(Lock_);
         result = List_;
         bannedSince = BannedSince_;
+        selfAttributes = SelfAttributes_;
     }
     auto now = TInstant::Now();
+    if (selfAttributes) {
+        result.insert(*selfAttributes);
+    }
     for (auto it = result.begin(); it != result.end();) {
         auto banIt = bannedSince.find(it->first);
         if (banIt != bannedSince.end() && (banIt->second + Config_->BanTimeout) > now) {
@@ -79,20 +103,28 @@ void TDiscovery::Ban(TString name)
     YT_LOG_INFO("Participant banned (Name: %v, Duration: %v)", name, Config_->BanTimeout);
 }
 
-void TDiscovery::StartPolling()
+TFuture<void> TDiscovery::StartPolling()
 {
     PeriodicExecutor_->Start();
+    return PeriodicExecutor_->GetExecutedEvent();
 }
 
-void TDiscovery::StopPolling()
+TFuture<void> TDiscovery::StopPolling()
 {
-    WaitFor(PeriodicExecutor_->Stop())
-        .ThrowOnError();
+    return PeriodicExecutor_->Stop();
+}
+
+i64 TDiscovery::GetWeight()
+{
+    TReaderGuard guard(Lock_);
+    return List_.size();
 }
 
 void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
 {
     YT_VERIFY(!Transaction_);
+
+    YT_LOG_INFO("Entering the group");
 
     TCreateNodeOptions createOptions;
     createOptions.IgnoreExisting = true;
@@ -101,8 +133,22 @@ void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
     WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
         .ThrowOnError();
         
-    Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+    YT_LOG_DEBUG("Instance node created (Name: %v)",
+        name);
+
+    TTransactionStartOptions transactionOptions {
+        .Timeout = Config_->TransactionTimeout,
+    };
+    Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, transactionOptions))
         .ValueOrThrow();
+
+    YT_LOG_DEBUG("Transaction for lock started (TransactionId: %v)",
+        name);
+
+    {
+        TWriterGuard guard(Lock_);
+        SelfAttributes_ = {name, attributes};
+    }
 
     TLockNodeOptions lockOptions;
     lockOptions.ChildKey = "lock";
@@ -125,9 +171,14 @@ void TDiscovery::DoLeave()
     YT_LOG_INFO("Left the group (TransactionId: %v)", Transaction_->GetId());
 
     Transaction_.Reset();
+
+    {
+        TWriterGuard guard(Lock_);
+        SelfAttributes_.reset();
+    }
 }
     
-void TDiscovery::UpdateList()
+void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
         .ValueOrThrow());
@@ -136,18 +187,22 @@ void TDiscovery::UpdateList()
     i64 aliveCount = 0;
     i64 deadCount = 0;
 
-    for (const auto &node : list->AsList()->GetChildren()) {
-        auto locks = node->Attributes().Find<IListNodePtr>("locks");
-        bool isAlive = false;
-        
-        for (const auto& lockNode : locks->GetChildren()) {
-            auto lock = lockNode->AsMap();
-            auto childKey = lock->FindChild("child_key");
-            if (childKey && childKey->AsString()->GetValue() == "lock") {
-                isAlive = true;
-                break;
+    for (const auto& node : list->AsList()->GetChildren()) {
+        bool isAlive = true;
+
+        if (Config_->SkipUnlockedParticipants) {
+            isAlive = false;
+            auto locks = node->Attributes().Find<IListNodePtr>("locks");
+            for (const auto& lockNode : locks->GetChildren()) {
+                auto lock = lockNode->AsMap();
+                auto childKey = lock->FindChild("child_key");
+                if (childKey && childKey->AsString()->GetValue() == "lock") {
+                    isAlive = true;
+                    break;
+                }
             }
         }
+
         if (isAlive) {
             ++aliveCount;
             auto stringNode = node->AsString();
@@ -160,6 +215,7 @@ void TDiscovery::UpdateList()
     {
         TWriterGuard guard(Lock_);
         swap(List_, newList);
+        LastUpdate_ = TInstant::Now();
     }
     YT_LOG_INFO("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
 }

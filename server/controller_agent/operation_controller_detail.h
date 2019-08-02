@@ -7,12 +7,13 @@
 #include "tentative_tree_eligibility.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
-#include "serialize.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "task_host.h"
 
 #include <yt/server/controller_agent/job_memory.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/event_log.h>

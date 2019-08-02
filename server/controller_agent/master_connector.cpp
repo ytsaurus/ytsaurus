@@ -4,12 +4,13 @@
 #include "snapshot_builder.h"
 #include "controller_agent.h"
 #include "operation.h"
-#include "serialize.h"
 #include "helpers.h"
 #include "bootstrap.h"
 #include "config.h"
 
 #include <yt/server/lib/scheduler/config.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/misc/update_executor.h>
 

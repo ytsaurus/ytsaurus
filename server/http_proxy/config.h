@@ -103,6 +103,29 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCliqueCacheConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSlruCacheConfigPtr CacheBase;
+    TDuration AgeThreshold;
+    TDuration MasterCacheExpireTime;
+
+    TCliqueCacheConfig()
+    {
+        RegisterParameter("cache_base", CacheBase)
+            .DefaultNew();
+        RegisterParameter("age_threshold", AgeThreshold)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCliqueCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClickHouseConfig
     : public NYTree::TYsonSerializable
 {
@@ -110,6 +133,8 @@ public:
     TString DiscoveryPath;
     NHttp::TClientConfigPtr HttpClient;
     TDuration ProfilingPeriod;
+    TCliqueCacheConfigPtr CliqueCache;
+    bool IgnoreMissingCredentials;
 
     TClickHouseConfig()
     {
@@ -119,6 +144,10 @@ public:
             .DefaultNew();
         RegisterParameter("profiling_period", ProfilingPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("clique_cache", CliqueCache)
+            .DefaultNew();
+        RegisterParameter("ignore_missing_credentials", IgnoreMissingCredentials)
+            .Default(false);
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);

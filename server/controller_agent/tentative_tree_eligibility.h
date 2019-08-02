@@ -1,7 +1,8 @@
 #pragma once
 
-#include "serialize.h"
 #include "helpers.h"
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 

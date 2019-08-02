@@ -2,10 +2,11 @@
 
 #include "private.h"
 
-#include "serialize.h"
 #include "data_flow_graph.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 

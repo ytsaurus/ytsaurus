@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "serialize.h"
 
 #include <yt/server/lib/chunk_pools/public.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/scheduler/public.h>
 

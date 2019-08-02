@@ -1,8 +1,12 @@
 #include "structs.h"
 
+#include <yt/server/lib/controller_agent/serialize.h>
+
 #include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent {
 
@@ -75,12 +79,11 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ArchiveFailContext);
     Persist(context, ArchiveProfile);
 
-    // ESnapshotVersion::PrepareRootFSDuration - used raw value here to avoid includes outside server/lib.
-    if (context.GetVersion() >= 300106) {
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::PrepareRootFSDuration)) {
         Persist(context, PrepareRootFSDuration);
     }
 
-    if (context.GetVersion() >= 300108) {
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::SaveJobPhase)) {
         Persist(context, Phase);
     }
 }

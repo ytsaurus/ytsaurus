@@ -17,6 +17,8 @@ class TDiscovery
 public:
     using TAttributeDictionary = THashMap<TString, NYTree::INodePtr>; 
 
+    static constexpr int Version = 1;
+
     TDiscovery(
         TDiscoveryConfigPtr config,
         NApi::IClientPtr client,
@@ -29,14 +31,24 @@ public:
     //! Make this participant unexposed to the group.
     TFuture<void> Leave();
 
+    //! Return the list of participants stored in data structure.
     THashMap<TString, TAttributeDictionary> List() const;
     //! Temporary exclude |name| from the list of available participants.
-    void Ban(TString name); 
+    void Ban(TString name);
+
+    //! Force update the list of participants if stored data is older than |maxDivergency|.
+    //! Returns a future that becomes set when data is up to date.
+    TFuture<void> UpdateList(TDuration maxDivergency = TDuration::Zero());
 
     //! Start updating the list of available participants.
-    void StartPolling();
+    //! Returns a future that becomes set after first update.
+    TFuture<void> StartPolling();
     //! Stop updating the list of available participants.
-    void StopPolling();
+    //! Returns a future that becomes set after stopping PeriodicExecutor.
+    TFuture<void> StopPolling();
+
+    //! Return weight of TDiscovery in units. Can be used in Cache.
+    i64 GetWeight();
 
 private:
     TDiscoveryConfigPtr Config_;
@@ -49,11 +61,14 @@ private:
     mutable NConcurrency::TReaderWriterSpinLock Lock_;
     NApi::ITransactionPtr Transaction_;
     NLogging::TLogger Logger;
+    std::optional<std::pair<TString, TAttributeDictionary>> SelfAttributes_;
+    TFuture<void> ScheduledForceUpdate_;
+    TInstant LastUpdate_;
     
     void DoEnter(TString name, TAttributeDictionary attributes);
     void DoLeave();
     
-    void UpdateList();
+    void DoUpdateList();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscovery)

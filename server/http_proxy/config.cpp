@@ -121,6 +121,10 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
         config->AsMap()->GetChild("coordinator")->AsMap()->AddChild("show_ports", CloneNode(node));
     }
 
+    if (auto node = proxy->FindChild("clickhouse")) {
+        config->AsMap()->AddChild("clickhouse", CloneNode(node));
+    }
+
     config = PatchNode(config, ConvertAuthFromLegacyConfig(legacyConfig));
     config = PatchNode(config, ConvertHttpsFromLegacyConfig(legacyConfig));
 
