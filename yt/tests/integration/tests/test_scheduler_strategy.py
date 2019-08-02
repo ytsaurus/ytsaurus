@@ -2495,6 +2495,8 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
             .format(op.id)) == "superpool"
 
+    # It's just flapping sheet YT-11156
+    @flaky(max_runs=5)
     @authors("shakurov")
     def test_tentative_pool_tree_sampling(self):
         other_nodes = self._prepare_pool_trees()
