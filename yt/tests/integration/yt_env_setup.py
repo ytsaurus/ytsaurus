@@ -235,7 +235,7 @@ def find_ut_file(file_name):
         if os.path.exists(result_path):
             return result_path
     else:
-        raise RuntimeErorr("Cannot find '{0}'".format(file_name))
+        raise RuntimeError("Cannot find '{0}'".format(file_name))
 
 ##################################################################
 
