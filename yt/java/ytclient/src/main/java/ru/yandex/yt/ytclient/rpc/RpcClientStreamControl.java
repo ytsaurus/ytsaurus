@@ -13,8 +13,7 @@ public interface RpcClientStreamControl extends RpcClientRequestControl {
     CompletableFuture<Void> feedback(long offset);
     CompletableFuture<Void> sendEof();
 
-    byte[] preparePayloadHeader();
-    CompletableFuture<Void> send(List<byte[]> attachments);
+    CompletableFuture<Void> sendPayload(List<byte[]> attachments);
 
     void wakeUp();
 }

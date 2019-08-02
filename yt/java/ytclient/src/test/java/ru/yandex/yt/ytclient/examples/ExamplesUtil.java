@@ -128,7 +128,7 @@ public final class ExamplesUtil {
         try (BusConnector connector = createConnector()) {
             try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
-                        new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
+                        new RpcOptions().setDefaultTimeout(Duration.ofSeconds(15)));
                 consumer.accept(serviceClient);
             }
         }
