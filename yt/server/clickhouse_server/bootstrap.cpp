@@ -166,8 +166,8 @@ void TBootstrap::DoRun()
     // Configure clique's directory.
     Config_->Discovery->Directory += "/" + CliqueId_;
     TCreateNodeOptions createCliqueNodeOptions {
-        .IgnoreExisting = true,
         .Recursive = true,
+        .IgnoreExisting = true,
     };
     createCliqueNodeOptions.Attributes = ConvertToAttributes(
         THashMap<TString, i64>{{"discovery_version", TDiscovery::Version}});
