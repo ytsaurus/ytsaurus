@@ -9,6 +9,7 @@ import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
+// WIP: This Api may change in the near future
 public interface TableReader {
     //! Returns the starting row index within the table.
     long getStartRowIndex();
