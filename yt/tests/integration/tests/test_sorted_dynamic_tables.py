@@ -3,6 +3,7 @@ import __builtin__
 
 from test_dynamic_tables import DynamicTablesBase
 
+from yt_helpers import Metric
 from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity, loads, dumps
@@ -1958,6 +1959,25 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
         with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
 
+    @authors("avmatrosov")
+    def test_chunk_profiling(self):
+        path = "//tmp/t"
+        sync_create_cells(1)
+        self._create_simple_table(path)
+        sync_mount_table(path)
+
+        filter = {"table_path": path, "method": "compaction"}
+
+        disk_space_metric = Metric.at_tablet_node(path, "chunk_writer/disk_space", with_tags=filter)
+        data_weight_metric = Metric.at_tablet_node(path, "chunk_writer/data_weight", with_tags=filter)
+        data_bytes_metric = Metric.at_tablet_node(path, "chunk_reader_statistics/data_bytes_read_from_disk", with_tags=filter)
+
+        insert_rows(path, [{"key": 0, "value": "test"}])
+        sync_compact_table(path)
+
+        assert disk_space_metric.update().get() > 0
+        assert data_weight_metric.update().get() > 0
+        assert data_bytes_metric.update().get() > 0
 
 ##################################################################
 
