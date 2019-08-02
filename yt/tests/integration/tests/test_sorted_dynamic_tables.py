@@ -2900,6 +2900,25 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
         with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
 
+    def test_expired_timestamp_read_flush(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", min_data_ttl=0, min_data_versions=0, merge_rows_on_flush=True)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        ts = generate_timestamp()
+
+        assert lookup_rows("//tmp/t", keys, timestamp=ts) == rows
+        
+        sync_flush_table("//tmp/t")
+
+        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+
 
 ##################################################################
 
