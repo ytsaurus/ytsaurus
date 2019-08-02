@@ -130,7 +130,7 @@ void DoExportSnapshot(
         auto writer = CreateYsonWriter(
             &Cout,
             EYsonFormat::Text,
-            EYsonType::Node,
+            EYsonType::MapFragment,
             /* enableRaw */ false,
             /* booleanAsString */ false);
 
@@ -154,9 +154,7 @@ void DoExportSnapshot(
                     });
             });
 
-        // TODO(akozhikhov): Add new format to avoid implicit use of newline symbol
         writer->Flush();
-        Cout << ";" << Endl;
     }
 }
 
