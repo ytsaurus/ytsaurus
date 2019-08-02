@@ -378,6 +378,7 @@ public:
         RecomputePendingRegisterNodeMutationCounters();
         ReconfigureGossipPeriods();
         ReconfigureNodeSemaphores();
+        RebuildTotalNodeStatistics();
     }
 
 
@@ -807,34 +808,7 @@ public:
             return TotalNodeStatistics_;
         }
 
-        TotalNodeStatistics_ = TTotalNodeStatistics();
-        for (const auto& pair : NodeMap_) {
-            const auto* node = pair.second;
-            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
-            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
-            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
-
-            if (node->GetAggregatedState() != ENodeState::Online) {
-                ++TotalNodeStatistics_.OfflineNodeCount;
-                continue;
-            }
-            TotalNodeStatistics_.OnlineNodeCount += 1;
-
-            const auto& statistics = node->Statistics();
-            for (const auto& location : statistics.locations()) {
-                int mediumIndex = location.medium_index();
-                if (!node->GetDecommissioned()) {
-                    TotalNodeStatistics_.SpacePerMedium[mediumIndex].Available += location.available_space();
-                    TotalNodeStatistics_.TotalSpace.Available += location.available_space();
-                }
-                TotalNodeStatistics_.SpacePerMedium[mediumIndex].Used += location.used_space();
-                TotalNodeStatistics_.TotalSpace.Used += location.used_space();
-            }
-            TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
-            TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
-        }
-
-        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
+        RebuildTotalNodeStatistics();
 
         return TotalNodeStatistics_;
     }
@@ -1894,6 +1868,40 @@ private:
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
         DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
+    }
+
+    void RebuildTotalNodeStatistics()
+    {
+        TotalNodeStatistics_ = TTotalNodeStatistics();
+        for (const auto& pair : NodeMap_) {
+            const auto* node = pair.second;
+            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
+            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
+            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
+
+            if (node->GetAggregatedState() != ENodeState::Online) {
+                ++TotalNodeStatistics_.OfflineNodeCount;
+                continue;
+            }
+            TotalNodeStatistics_.OnlineNodeCount += 1;
+
+            const auto& statistics = node->Statistics();
+            for (const auto& location : statistics.locations()) {
+                int mediumIndex = location.medium_index();
+                if (!node->GetDecommissioned()) {
+                    TotalNodeStatistics_.SpacePerMedium[mediumIndex].Available += location.available_space();
+                    TotalNodeStatistics_.TotalSpace.Available += location.available_space();
+                }
+                TotalNodeStatistics_.SpacePerMedium[mediumIndex].Used += location.used_space();
+                TotalNodeStatistics_.TotalSpace.Used += location.used_space();
+            }
+            TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
+            TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
+        }
+
+        TotalNodeStatisticsUpdateDeadline_ =
+            NProfiling::GetCpuInstant() +
+            DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
     }
 };
 
