@@ -986,7 +986,6 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     if (Snapshot.Blocks.empty()) {
         YT_LOG_INFO("Snapshot data is missing, preparing operation from scratch");
-        InitializeStructures();
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
         static_cast<TOperationControllerPrepareResult&>(result) = Prepare();
