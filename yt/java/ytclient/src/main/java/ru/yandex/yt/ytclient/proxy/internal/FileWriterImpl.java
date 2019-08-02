@@ -17,16 +17,83 @@ import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 
+interface DataSupplier extends Supplier<byte[]>
+{
+    byte[] get();
+
+    default void put(byte[] data) {
+        throw new IllegalArgumentException();
+    }
+
+    default boolean hasData() {
+        return true;
+    }
+}
+
+class MessagesSupplier implements DataSupplier {
+    private final LinkedList<byte[]> messages = new LinkedList<>();
+
+    @Override
+    public byte[] get() {
+        return messages.removeFirst();
+    }
+
+    @Override
+    public boolean hasData() {
+        return !messages.isEmpty();
+    }
+
+    @Override
+    public void put(byte[] data) {
+        messages.add(data);
+    }
+}
+
+class WrappedSupplier implements DataSupplier {
+    private final DataSupplier supplier;
+    private final Codec codec;
+    private boolean eof;
+
+    WrappedSupplier(DataSupplier supplier, Codec codec) {
+        this.supplier = supplier;
+        this.codec = codec;
+    }
+
+    @Override
+    public byte[] get() {
+        byte[] data = supplier.get();
+        eof = data == null;
+        if (data != null) {
+            return codec.compress(data);
+        } else {
+            return data;
+        }
+    }
+
+    @Override
+    public void put(byte[] data) {
+        if (eof) {
+            throw new IllegalArgumentException();
+        }
+
+        supplier.put(data);
+    }
+
+    @Override
+    public boolean hasData() {
+        return !eof && supplier.hasData();
+    }
+}
+
 public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
     private final CompletableFuture<FileWriter> startUpload = new CompletableFuture<>();
 
     private final Codec codec;
 
     private final Object lock = new Object();
-    private final LinkedList<byte[]> messages = new LinkedList<>();
+    private DataSupplier supplier = null;
     private long writePosition = 0;
     private long readPosition = 0;
-    private Supplier<byte[]> supplier = null;
 
     private final long windowSize;
     private final long packetSize;
@@ -56,41 +123,27 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
 
     private void uploadSome() {
         synchronized (lock) {
-            if (messages.isEmpty()) {
+            if (!supplier.hasData() || writePosition - readPosition >= windowSize) {
                 return;
             }
         }
-
-        byte[] head;
 
         final LinkedList<byte[]> readyToUpload = new LinkedList<>();
 
         long sendSize = 0;
 
         synchronized (lock) {
-            while (messages.size() > 0 && attachmentSize((head = messages.peekFirst())) + sendSize + writePosition - readPosition < windowSize) {
-                readyToUpload.add(head);
-                sendSize += attachmentSize(head);
-                messages.removeFirst();
+            while (supplier.hasData() && sendSize + writePosition - readPosition < windowSize) {
+                byte[] next = supplier.get();
 
-                if (head == null && !messages.isEmpty()) {
-                    throw new IllegalArgumentException("protocol error");
-                }
+                readyToUpload.add(next);
+                sendSize += attachmentSize(next);
             }
         }
 
         while (!readyToUpload.isEmpty()) {
             final List<byte[]> packet = new ArrayList<>();
             long currentPacketSize = 0;
-
-            byte[] header;
-
-            synchronized (codec) {
-                header = codec.compress(control.preparePayloadHeader());
-            }
-
-            currentPacketSize += header.length;
-            packet.add(header);
 
             while (!readyToUpload.isEmpty() && currentPacketSize < packetSize) {
                 byte[] data = readyToUpload.peekFirst();
@@ -111,7 +164,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
                 logger.debug("Packet: {}", stringBuilder.toString());
             }
 
-            control.send(packet);
+            control.sendPayload(packet);
 
             synchronized (lock) {
                 writePosition += currentPacketSize;
@@ -133,6 +186,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
 
         synchronized (lock) {
             readPosition = header.getReadPosition();
+            lock.notify();
         }
 
         uploadSome();
@@ -155,8 +209,6 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         }
 
         control.feedback(1);
-
-        uploadSome();
     }
 
     @Override
@@ -169,16 +221,6 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
     }
 
     private void push(byte[] data) {
-        byte[] compressedData;
-
-        synchronized (codec) {
-            if (data == null) {
-                compressedData = null;
-            } else {
-                compressedData = codec.compress(data);
-            }
-        }
-
         synchronized (lock) {
             while (writePosition - readPosition > windowSize) {
                 try {
@@ -193,11 +235,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         }
 
         synchronized (lock) {
-            if (supplier != null) {
-                throw new IllegalArgumentException();
-            }
-
-            messages.add(compressedData);
+            supplier.put(data);
         }
 
         control.wakeUp();
@@ -206,11 +244,11 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
     @Override
     public CompletableFuture<Void> write(Supplier<byte[]> supplier) {
         synchronized (lock) {
-            if (!messages.isEmpty()) {
+            if (this.supplier != null) {
                 throw new IllegalArgumentException();
             }
 
-            this.supplier = supplier;
+            this.supplier = new WrappedSupplier(supplier::get, codec);
         }
 
         control.wakeUp();
@@ -220,6 +258,12 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
 
     @Override
     public void write(byte[] data, int offset, int len) {
+        synchronized (lock) {
+            if (supplier == null) {
+                supplier = new WrappedSupplier(new MessagesSupplier(), codec);
+            }
+        }
+
         if (data != null) {
             byte[] newdata = new byte [len - offset];
             System.arraycopy(data, offset, newdata, 0, len);

@@ -767,14 +767,14 @@ public class DefaultRpcBusClient implements RpcClient {
             return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE);
         }
 
-        @Override
-        public byte[] preparePayloadHeader() {
+        private byte[] preparePayloadHeader() {
             TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
             TRequestHeaderOrBuilder header = request.header();
             builder.setRequestId(header.getRequestId());
             builder.setService(header.getService());
             builder.setMethod(header.getMethod());
             builder.setSequenceNumber(sequenceNumber.getAndIncrement());
+            builder.setCodec(request.header().getRequestCodec());
             if (header.hasRealmId()) {
                 builder.setRealmId(header.getRealmId());
             }
@@ -783,9 +783,13 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
-        public CompletableFuture<Void> send(List<byte[]> attachments)
+        public CompletableFuture<Void> sendPayload(List<byte[]> attachments)
         {
-            return session.bus.send(attachments, BusDeliveryTracking.NONE).thenAccept((unused) -> {
+            List<byte[]> message = new ArrayList<>(1+attachments.size());
+            message.add(preparePayloadHeader());
+            message.addAll(attachments);
+
+            return session.bus.send(message, BusDeliveryTracking.NONE).thenAccept((unused) -> {
                 lock.lock();
                 try {
                     resetTimeout();
