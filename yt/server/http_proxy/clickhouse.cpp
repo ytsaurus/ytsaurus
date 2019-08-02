@@ -340,7 +340,12 @@ private:
         const auto& [id, attributes] = *it;
         InstanceId_ = id;
         InstanceHost_ = attributes.at("host")->GetValue<TString>();
-        InstanceHttpPort_ = ToString(attributes.at("http_port")->GetValue<ui64>());
+        auto port = attributes.at("http_port");
+        if (port->GetType() == ENodeType::String) {
+            InstanceHttpPort_ = port->GetValue<TString>();
+        } else {
+            InstanceHttpPort_ = ToString(port->GetValue<ui64>());
+        }
         return true;
     }
 };
