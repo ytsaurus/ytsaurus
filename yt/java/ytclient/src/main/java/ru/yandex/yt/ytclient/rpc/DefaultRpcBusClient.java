@@ -37,6 +37,7 @@ import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusFactory;
 import ru.yandex.yt.ytclient.bus.BusListener;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 
@@ -589,6 +590,15 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
+        public Compression compression() {
+            if (request.header().hasRequestCodec()) {
+                return Compression.fromValue(request.header().getRequestCodec());
+            } else {
+                return Compression.None;
+            }
+        }
+
+        @Override
         void handleAcknowledgement(RpcClient sender) {
             logger.debug("Ack {}", requestId);
         }
@@ -619,7 +629,6 @@ public class DefaultRpcBusClient implements RpcClient {
         public void streamingPayload(TStreamingPayloadHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
-            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
 
             lock.lock();
             try {
@@ -653,7 +662,6 @@ public class DefaultRpcBusClient implements RpcClient {
         public void streamingFeedback(TStreamingFeedbackHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
-            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
 
             lock.lock();
             try {
@@ -732,7 +740,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
-        public void feedback(long offset) {
+        public CompletableFuture<Void> feedback(long offset) {
             TStreamingFeedbackHeader.Builder builder = TStreamingFeedbackHeader.newBuilder();
             TRequestHeaderOrBuilder header = request.header();
             builder.setRequestId(header.getRequestId());
@@ -742,11 +750,11 @@ public class DefaultRpcBusClient implements RpcClient {
                 builder.setRealmId(header.getRealmId());
             }
             builder.setReadPosition(offset);
-            session.bus.send(Collections.singletonList(RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())), BusDeliveryTracking.NONE);
+            return session.bus.send(Collections.singletonList(RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())), BusDeliveryTracking.NONE);
         }
 
         @Override
-        public void sendEof() {
+        public CompletableFuture<Void> sendEof() {
             TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
             TRequestHeaderOrBuilder header = request.header();
             builder.setRequestId(header.getRequestId());
@@ -756,7 +764,48 @@ public class DefaultRpcBusClient implements RpcClient {
             if (header.hasRealmId()) {
                 builder.setRealmId(header.getRealmId());
             }
-            session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE);
+            return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE);
+        }
+
+        @Override
+        public byte[] preparePayloadHeader() {
+            TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
+            TRequestHeaderOrBuilder header = request.header();
+            builder.setRequestId(header.getRequestId());
+            builder.setService(header.getService());
+            builder.setMethod(header.getMethod());
+            builder.setSequenceNumber(sequenceNumber.getAndIncrement());
+            if (header.hasRealmId()) {
+                builder.setRealmId(header.getRealmId());
+            }
+
+            return RpcUtil.createMessageHeader(RpcMessageType.STREAMING_PAYLOAD, builder.build());
+        }
+
+        @Override
+        public CompletableFuture<Void> send(List<byte[]> attachments)
+        {
+            return session.bus.send(attachments, BusDeliveryTracking.NONE).thenAccept((unused) -> {
+                lock.lock();
+                try {
+                    resetTimeout();
+                } finally {
+                    lock.unlock();
+                }
+            });
+        }
+
+        private void doConsumerWakeup() {
+            try {
+                consumer.onWakeup();
+            } catch (Throwable ex) {
+                error(ex);
+            }
+        }
+
+        @Override
+        public void wakeUp() {
+            session.eventLoop().schedule(this::doConsumerWakeup, 0, TimeUnit.MILLISECONDS);
         }
     }
 

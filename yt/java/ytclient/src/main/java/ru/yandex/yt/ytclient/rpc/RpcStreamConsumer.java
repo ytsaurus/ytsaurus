@@ -11,4 +11,5 @@ public interface RpcStreamConsumer {
     void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments);
     void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments);
     void onError(RpcClient sender, Throwable cause);
+    default void onWakeup() { }
 }
