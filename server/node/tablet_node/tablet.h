@@ -368,7 +368,8 @@ public:
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
-        NTabletClient::TTableReplicaId upstreamReplicaId);
+        NTabletClient::TTableReplicaId upstreamReplicaId,
+        TTimestamp retainedTimestamp);
 
     ETabletState GetPersistentState() const;
 

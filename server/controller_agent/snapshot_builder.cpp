@@ -2,9 +2,10 @@
 #include "private.h"
 #include "helpers.h"
 #include "operation_controller.h"
-#include "serialize.h"
 #include "config.h"
 #include "operation.h"
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/transaction.h>

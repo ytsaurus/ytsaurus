@@ -28,6 +28,8 @@ private:
 
     THashMap<TString, int> UserToRunningQueryCount_;
 
+    TCliqueCachePtr CliqueCache_;
+
     //! Change internal user -> query count mapping value, which is used in profiling.
     /*!
      *  \note Invoker affinity: Control invoker
@@ -37,7 +39,7 @@ private:
     void OnProfiling();
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseHandler);
+DEFINE_REFCOUNTED_TYPE(TClickHouseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

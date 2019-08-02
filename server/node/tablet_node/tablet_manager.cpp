@@ -883,6 +883,9 @@ private:
         bool freeze = request->freeze();
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
+        auto retainedTimestamp = request->has_retained_timestamp()
+            ? FromProto<TTimestamp>(request->retained_timestamp())
+            : MinTimestamp;
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -899,7 +902,9 @@ private:
             nextPivotKey,
             atomicity,
             commitOrdering,
-            upstreamReplicaId);
+            upstreamReplicaId,
+            retainedTimestamp);
+
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
@@ -916,7 +921,7 @@ private:
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v)",
             tablet->GetLoggingId(),
             mountRevision,
             pivotKey,
@@ -928,7 +933,8 @@ private:
             tablet->GetAtomicity(),
             tablet->GetCommitOrdering(),
             freeze,
-            upstreamReplicaId);
+            upstreamReplicaId,
+            retainedTimestamp);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);

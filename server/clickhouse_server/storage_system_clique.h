@@ -1,18 +1,16 @@
 #pragma once
 
-#include <util/generic/string.h>
+#include <yt/client/misc/public.h>
 
-#include <string>
-#include <vector>
+#include <Storages/IStorage_fwd.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string Quoted(const TString& name);
-std::string Quoted(const std::string& name);
-
-std::string JoinStrings(const TString& delimiter, const std::vector<TString>& strings);
+DB::StoragePtr CreateStorageSystemClique(
+    TDiscoveryPtr discovery,
+    std::string tableName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

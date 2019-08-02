@@ -2,6 +2,8 @@
 
 #include "workload.h"
 
+#include <yt/client/api/public.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -32,6 +34,12 @@ public:
     NYPath::TYPath Directory;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
+    TDuration TransactionTimeout;
+    bool SkipUnlockedParticipants;
+
+    NApi::EMasterChannelKind ReadFrom;
+    // Used only for ReadFrom == Cache.
+    TDuration MasterCacheExpireTime;
 
     TDiscoveryConfig()
     {
@@ -39,7 +47,15 @@ public:
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("ban_timeout", BanTimeout)
-            .Default(TDuration::Seconds(31));
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("transaction_timeout", TransactionTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("skip_unlocked_participants", SkipUnlockedParticipants)
+            .Default(true);
+        RegisterParameter("read_from", ReadFrom)
+            .Default(NApi::EMasterChannelKind::Follower);
+        RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)
+            .Default(TDuration::Seconds(15));
     }
 };
 

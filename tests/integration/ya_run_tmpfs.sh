@@ -18,6 +18,12 @@ for arg in "$@"; do
   esac
 done
 
+for arg do
+  shift
+  [ "$arg" = "--clear" ] && continue
+  set -- "$@" "$arg"
+done
+
 ulimit -c unlimited
 ../../../scripts/run-py-test.py -sv --ignore tests.sandbox "$@"
 exit_code=$?

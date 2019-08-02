@@ -1,10 +1,11 @@
 #include "helpers.h"
 #include "config.h"
 
-#include "serialize.h"
 #include "table.h"
 
 #include <yt/server/lib/scheduler/config.h>
+
+#include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>

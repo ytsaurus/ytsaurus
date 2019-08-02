@@ -893,11 +893,8 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
         op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] > 0)
-        pool_metrics = self._get_pool_metrics(metric_name, start_time)
-        op_writes = self._get_cypress_metrics(op.id, statistics_name)
-
-        assert pool_metrics["unique_pool"] - start_pool_metrics["unique_pool"] == op_writes > 0
+        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
+             self._get_cypress_metrics(op.id, statistics_name) > 0)
 
     @unix_only
     @require_ytserver_root_privileges
@@ -919,11 +916,8 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] > 0)
-        pool_metrics = self._get_pool_metrics(metric_name, start_time)
-        op_writes = self._get_cypress_metrics(op.id, statistics_name, job_state="failed")
-
-        assert pool_metrics["unique_pool"] - start_pool_metrics["unique_pool"] == op_writes > 0
+        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
+             self._get_cypress_metrics(op.id, statistics_name, job_state="failed") > 0)
 
 
 ##################################################################

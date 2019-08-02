@@ -1,6 +1,7 @@
 #include "clickhouse.h"
 
 #include "bootstrap.h"
+#include "clique_cache.h"
 #include "config.h"
 #include "coordinator.h"
 
@@ -37,7 +38,7 @@ using namespace NYPath;
 TLogger ClickHouseLogger("ClickHouseProxy");
 TProfiler ClickHouseProfiler("/clickhouse_proxy");
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseContext
     : public TIntrinsicRefCounted
@@ -49,7 +50,9 @@ public:
         const TClickHouseConfigPtr& config,
         const NAuth::ITokenAuthenticatorPtr& tokenAuthenticator,
         const NApi::IClientPtr& client,
-        const NHttp::IClientPtr& httpClient)
+        const NHttp::IClientPtr& httpClient,
+        const TCliqueCachePtr cliqueCache,
+        IInvokerPtr controlInvoker)
         : Logger(TLogger(ClickHouseLogger).AddTag("RequestId: %v", req->GetRequestId()))
         , Request_(req)
         , Response_(rsp)
@@ -57,6 +60,8 @@ public:
         , TokenAuthenticator_(tokenAuthenticator)
         , Client_(client)
         , HttpClient_(httpClient)
+        , CliqueCache_(cliqueCache)
+        , ControlInvoker_(controlInvoker)
     { }
 
     bool TryPrepare()
@@ -173,6 +178,8 @@ private:
     const NAuth::ITokenAuthenticatorPtr& TokenAuthenticator_;
     const NApi::IClientPtr& Client_;
     const NHttp::IClientPtr& HttpClient_;
+    const TCliqueCachePtr CliqueCache_;
+    IInvokerPtr ControlInvoker_;
 
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
@@ -260,7 +267,7 @@ private:
             Token_ = CgiParameters_.Get("password");
             CgiParameters_.EraseAll("password");
             CgiParameters_.EraseAll("user");
-        } else {
+        } else if (!Config_->IgnoreMissingCredentials) {
             ReplyWithError(EStatusCode::Unauthorized,
                 TError("Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
                        "or `password` CGI parameter"));
@@ -292,20 +299,53 @@ private:
 
     bool TryPickRandomInstance()
     {
-        NApi::TListNodeOptions listOptions;
-        listOptions.Attributes = {"http_port", "host"};
-        auto listingYson = WaitFor(Client_->ListNode(Config_->DiscoveryPath + "/" + CliqueId_, listOptions))
+        auto cookie = CliqueCache_->BeginInsert(CliqueId_);
+        if (cookie.IsActive()) {
+            YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueId_);
+            TString path = Config_->DiscoveryPath + "/" + CliqueId_;
+            NApi::TGetNodeOptions options;
+            options.ReadFrom = NApi::EMasterChannelKind::Cache;
+            auto node = ConvertToNode(WaitFor(Client_->GetNode(path + "/@", options))
+                .ValueOrThrow())->AsMap()->FindChild("discovery_version");
+            i64 version = (node ? node->GetValue<i64>() : 0);
+
+            auto config = New<TDiscoveryConfig>();
+            config->Directory = path;
+            config->ReadFrom = NApi::EMasterChannelKind::Cache;
+            config->MasterCacheExpireTime = Config_->CliqueCache->MasterCacheExpireTime;
+            if (version == 0) {
+                config->SkipUnlockedParticipants = false;
+            }
+            cookie.EndInsert(New<TCachedDiscovery>(
+                CliqueId_,
+                config,
+                Client_,
+                ControlInvoker_,
+                std::vector<TString>{"host", "http_port"},
+                Logger));
+        }
+
+        auto discovery = WaitFor(cookie.GetValue())
             .ValueOrThrow();
-        auto listingVector = ConvertTo<std::vector<IStringNodePtr>>(listingYson);
-        if (listingVector.empty()) {
+        WaitFor(discovery->UpdateList(Config_->CliqueCache->AgeThreshold))
+            .ThrowOnError();
+        
+        auto instances = discovery->List();
+        if (instances.empty()) {
             ReplyWithError(EStatusCode::NotFound, TError("Clique %v has no running instances", CliqueId_));
             return false;
         }
-        const auto& randomEntry = listingVector[RandomNumber(listingVector.size())];
-        const auto& attributes = randomEntry->Attributes();
-        InstanceId_ = randomEntry->GetValue();
-        InstanceHost_ = attributes.Get<TString>("host");
-        InstanceHttpPort_ = attributes.Get<TString>("http_port");
+        auto it = instances.begin();
+        std::advance(it, RandomNumber(instances.size()));
+        const auto& [id, attributes] = *it;
+        InstanceId_ = id;
+        InstanceHost_ = attributes.at("host")->GetValue<TString>();
+        auto port = attributes.at("http_port");
+        if (port->GetType() == ENodeType::String) {
+            InstanceHttpPort_ = port->GetValue<TString>();
+        } else {
+            InstanceHttpPort_ = ToString(port->GetValue<ui64>());
+        }
         return true;
     }
 };
@@ -321,7 +361,11 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
+    , CliqueCache_(New<TCliqueCache>(Config_->CliqueCache))
 {
+    if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
+        Config_->IgnoreMissingCredentials = true;
+    }
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TClickHouseHandler::OnProfiling, MakeWeak(this)),
@@ -346,7 +390,9 @@ void TClickHouseHandler::HandleRequest(
             Config_,
             Bootstrap_->GetTokenAuthenticator(),
             Bootstrap_->GetClickHouseClient(),
-            HttpClient_);
+            HttpClient_,
+            CliqueCache_,
+            ControlInvoker_);
         if (!context->TryPrepare()) {
             // TODO(max42): profile something here.
             return;

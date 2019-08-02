@@ -349,7 +349,8 @@ TTablet::TTablet(
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
-    TTableReplicaId upstreamReplicaId)
+    TTableReplicaId upstreamReplicaId,
+    TTimestamp retainedTimestamp)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -362,7 +363,7 @@ TTablet::TTablet(
     , CommitOrdering_(commitOrdering)
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
-    , RetainedTimestamp_(MinTimestamp)
+    , RetainedTimestamp_(retainedTimestamp)
     , Config_(config)
     , ReaderConfig_(readerConfig)
     , WriterConfig_(writerConfig)

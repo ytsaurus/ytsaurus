@@ -201,6 +201,9 @@ class TestGetOperation(YTEnvSetup):
             if "alerts" in res_get_operation and "alerts" in res_cypress:
                 assert res_get_operation["alerts"] == res_cypress["alerts"]
 
+        with raises_yt_error(NoSuchAttribute):
+            get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
+
         release_breakpoint()
         op.track()
 
@@ -212,8 +215,9 @@ class TestGetOperation(YTEnvSetup):
         assert res_get_operation_archive["state"] == "completed"
         assert res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
         assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
-        with pytest.raises(YtError):
-            get_operation(op.id, attributes=["PYSCH"])
+
+        with raises_yt_error(NoSuchAttribute):
+            get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")

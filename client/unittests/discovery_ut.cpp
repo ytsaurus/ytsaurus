@@ -3,6 +3,8 @@
 
 #include <yt/client/misc/discovery.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -58,14 +60,14 @@ TEST(TDiscoveryTest, Simple)
     config->Directory = path;
     config->UpdatePeriod = TDuration::Seconds(1);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
-    discovery->StartPolling();
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();
 
-    // Time for TDiscovery to do UpdateList
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
     std::vector<TString> expected = {"alive_node"};
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
-    discovery->StopPolling();
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
 }
 
 TYsonString GetLockYson(bool created, bool locked)
@@ -123,21 +125,22 @@ TEST(TDiscoveryTest, Enter)
 
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
-    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
-    discovery->StartPolling();
-
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    WaitFor(discovery->Enter("test_node", TDiscovery::TAttributeDictionary())).ThrowOnError();
+    WaitFor(discovery->Enter("test_node", TDiscovery::TAttributeDictionary()))
+        .ThrowOnError();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     std::vector<TString> expected = {"test_node"};
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
-    discovery->StopPolling();
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
 }
 
 THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
@@ -195,16 +198,17 @@ TEST(TDiscoveryTest, Leave) {
 
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
-    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
-    discovery->StartPolling();
-
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
     
-    WaitFor(discovery->Enter("test_node", attrs)).ThrowOnError();
-    WaitFor(discovery->Leave()).ThrowOnError();
+    WaitFor(discovery->Enter("test_node", attrs))
+        .ThrowOnError();
+    WaitFor(discovery->Leave())
+        .ThrowOnError();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
 
@@ -212,7 +216,8 @@ TEST(TDiscoveryTest, Leave) {
     EXPECT_THAT(created, true);
     EXPECT_THAT(locked, false);
 
-    discovery->StopPolling();
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
 }
 
 TEST(TDiscoveryTest, Ban)
@@ -235,12 +240,11 @@ TEST(TDiscoveryTest, Ban)
 
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
-    config->UpdatePeriod = TDuration::MilliSeconds(100);
-    config->BanTimeout = TDuration::MilliSeconds(100);
+    config->UpdatePeriod = TDuration::MilliSeconds(50);
+    config->BanTimeout = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
-    discovery->StartPolling();
-
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();;
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
@@ -249,11 +253,12 @@ TEST(TDiscoveryTest, Ban)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(101));
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     expected.push_back("alive_node2");
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
-    discovery->StopPolling();
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
 }
 
 THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TDiscovery::TAttributeDictionary> listResult)
@@ -300,17 +305,80 @@ TEST(TDiscoveryTest, Attributes)
 
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
-    config->UpdatePeriod = TDuration::MilliSeconds(100);
+    config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
-    discovery->StartPolling();
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();
 
     THashMap<TString, std::vector<TString>> expected;
     expected["alive_node1"] = expected["alive_node2"] = {"a1", "a2", "locks"};
 
-    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
     EXPECT_THAT(discovery->List(), ResultOf(GetAttributesKeys, expected));
 
-    discovery->StopPolling();
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
+}
+
+TEST(TDiscoveryTest, CreationRace)
+{
+    auto MockClient = New<StrictMockClient>();
+    auto MockTransaction = New<StrictMockTransaction>();
+
+    NYPath::TYPath path = "/test/1234";
+    std::vector<TString> keys = {};
+
+    bool locked = false;
+    bool created = false;
+
+    auto allowLockResponse = NewPromise<void>();
+    auto lockWait = allowLockResponse.ToFuture();
+
+    EXPECT_CALL(*MockClient, ListNode(path, _))
+        .WillRepeatedly(InvokeWithoutArgs([&] {
+                return MakeFuture(GetLockYson(created, locked));
+            }));
+
+    EXPECT_CALL(*MockClient, StartTransaction(_, _))
+        .WillOnce(Return(MakeFuture(MockTransaction).As<ITransactionPtr>()));
+
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+                created = true;
+                return MakeFuture(NCypressClient::TNodeId());
+            }
+        ));
+
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+                WaitFor(lockWait)
+                    .ThrowOnError();
+                locked = true;
+                return MakeFuture(TLockNodeResult());
+            }));
+
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    config->Directory = path;
+    config->UpdatePeriod = TDuration::MilliSeconds(50);
+
+    TActionQueuePtr ActionQueue(New<TActionQueue>("TDiscovery"));
+
+    auto discovery = New<TDiscovery>(config, MockClient, ActionQueue->GetInvoker(), keys, TLogger("Test"));
+    WaitFor(discovery->StartPolling())
+        .ThrowOnError();
+
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+
+    discovery->Enter("test_node", TDiscovery::TAttributeDictionary());
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
+
+    std::vector<TString> expected = {"test_node"};
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
+
+    allowLockResponse.Set();
+
+    WaitFor(discovery->StopPolling())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
