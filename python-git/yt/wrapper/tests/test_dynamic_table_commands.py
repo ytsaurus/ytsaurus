@@ -149,6 +149,10 @@ class TestDynamicTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
 
+            #with pytest.raises(yt.YtError):
+            with yt.Transaction(type="tablet"):
+                yt.lock_rows(table, [{"x": "b"}, {"x": "c"}], raw=False)
+
     def test_read_from_dynamic_table(self):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
