@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, SCHEDULERS_SERVICE
 from yt_commands import *
 
 import sys
@@ -16,6 +16,7 @@ class TestChunkCache(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     selected_node = None
+    prev_obj = None
 
     def select_node(self):
         if self.selected_node is None:
@@ -32,11 +33,25 @@ class TestChunkCache(YTEnvSetup):
 
         for chunk in cached_chunks:
             location = get(os.path.join(path, chunk, "location"))
-            # If chunk location method is changed, check this line
+            # If chunk store layout is changed, check this line
             file_loc = os.path.join(location, chunk[-2:], chunk)
             assert os.path.isfile(file_loc)
             trim(file_loc)
             assert os.path.getsize(file_loc) == 0
+
+    def get_online_nodes_count(self):
+        count = 0
+        nodes = get("//sys/scheduler/orchid/scheduler/nodes")
+        for node in nodes.values():
+            if node["state"] == "online":
+                count += 1
+        return count
+
+    def restart(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: self.get_online_nodes_count() == 0, "Scheduler doesn't know that nodes are dead", sleep_backoff=1)
+
+        wait(lambda: self.get_online_nodes_count() == self.NUM_NODES, "Scheduler doesn't know that nodes are alive", sleep_backoff=1)
 
     def run_map(self):
         return map(
@@ -73,9 +88,7 @@ for line in sys.stdin:
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
         self.damage_chunks()
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
+        self.restart()
 
         self.run_map()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
