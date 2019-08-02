@@ -84,6 +84,7 @@ import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
@@ -140,8 +141,10 @@ import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
+import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
@@ -170,6 +173,7 @@ import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
+import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -1154,6 +1158,15 @@ public class ApiServiceClient implements TransactionalClient {
 
         FileReaderImpl impl = new FileReaderImpl(startStream(builder));
         return impl.waitMetadata();
+    }
+
+    public CompletableFuture<FileWriter> writeFile(WriteFile req) {
+        RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
+                builder = service.writeFile();
+
+        req.writeTo(builder.body());
+
+        return new FileWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize()).startUpload();
     }
 
     /* */
