@@ -107,8 +107,6 @@ class TestNodesCreatedBanned(YTEnvSetup):
     DEFER_NODE_START = True
 
     def test_new_nodes_created_banned(self):
-        set("//sys/@config/node_tracker/total_node_statistics_update_period", 1000)
-
         assert get("//sys/cluster_nodes/@count") == 0
         assert get("//sys/cluster_nodes/@online_node_count") == 0
 
