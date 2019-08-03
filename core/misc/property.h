@@ -137,7 +137,7 @@ public: \
 
 //! Forwards a trivial public read-write property that is passed by value.
 #define DELEGATE_BYVAL_RW_PROPERTY(declaringType, type, name, delegateTo) \
-    type declaringType::Get##name() \
+    type declaringType::Get##name() const \
     { \
         return (delegateTo).Get##name(); \
     } \

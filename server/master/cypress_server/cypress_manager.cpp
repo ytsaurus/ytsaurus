@@ -15,6 +15,7 @@
 #include "portal_node_map_type_handler.h"
 #include "shard_type_handler.h"
 #include "shard_map_type_handler.h"
+#include "resolve_cache.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -546,6 +547,7 @@ public:
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
         RootShardId_ = MakeCypressShardId(RootNodeId_);
+        ResolveCache_ = New<TResolveCache>(RootNodeId_);
 
         RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap_));
@@ -1108,7 +1110,7 @@ public:
         YT_VERIFY(transaction);
 
         auto result = ELockMode::Snapshot;
-        for (auto* nestedTransaction : transaction->NestedTransactions()) {
+        for (auto* nestedTransaction : transaction->NestedNativeTransactions()) {
             auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
             if (!versionedNode) {
                 continue;
@@ -1501,12 +1503,12 @@ public:
         return result;
     }
 
+    DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
+    DEFINE_BYREF_RO_PROPERTY(TResolveCachePtr, ResolveCache);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
     DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
-
-    DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
 
     DEFINE_SIGNAL(void(TCypressNode*), NodeCreated);
 
@@ -1834,8 +1836,8 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
-        AccessTracker_->Stop();
         ExpirationTracker_->Stop();
+        OnStopEpoch();
     }
 
     virtual void OnStopFollowing() override
@@ -1843,8 +1845,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopFollowing();
+        OnStopEpoch();
+    }
 
+    void OnStopEpoch()
+    {
         AccessTracker_->Stop();
+        ResolveCache_->Clear();
     }
 
 
@@ -1927,7 +1934,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_VERIFY(transaction->NestedTransactions().empty());
+        YT_VERIFY(transaction->NestedNativeTransactions().empty());
+        YT_VERIFY(transaction->NestedExternalTransactionIds().empty());
 
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
@@ -3355,6 +3363,11 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
 const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTableSchemaRegistry() const
 {
     return Impl_->SharedTableSchemaRegistry();
+}
+
+const TResolveCachePtr& TCypressManager::GetResolveCache()
+{
+    return Impl_->ResolveCache();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, *Impl_);

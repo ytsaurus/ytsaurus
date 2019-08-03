@@ -430,6 +430,19 @@ private:
             GetTransactionId(context));
         auto result = resolver.Resolve();
 
+        if (result.CanCacheResolve) {
+            // XXX(babenko): profiling
+            auto populateResult = resolver.Resolve(TPathResolverOptions{
+                .PopulateResolveCache = true
+            });
+            YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
+            auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
+            YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
+                path,
+                payload.ObjectId,
+                populateResult.UnresolvedPathSuffix);
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto proxy = Visit(result.Payload,
             [&] (const TPathResolver::TLocalObjectPayload& payload) -> IYPathServicePtr {
@@ -1162,12 +1175,11 @@ TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransac
         NullService,
         NullMethod,
         path,
-        transaction,
-        TPathResolverOptions{
-            .EnablePartialResolve = false
-        });
+        transaction);
 
-    auto result = resolver.Resolve();
+    auto result = resolver.Resolve(TPathResolverOptions{
+        .EnablePartialResolve = false
+    });
     const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
     if (!payload) {
         THROW_ERROR_EXCEPTION("%v is not a local object",
@@ -1241,14 +1253,13 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     EPeerKind peerKind,
     std::optional<TDuration> timeout)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(ParseRequestHeader(requestMessage, &header));
 
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
@@ -1256,19 +1267,20 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetTimeout(timeout);
-    batchReq->SetUser(user->GetName());
+    batchReq->SetUser(header.user());
     // NB: since single-subrequest batches are never backed off, this flag will
     // have no effect. Still, let's keep it correct just in case.
     bool needsSettingRetry = !header.retry() && FromProto<TMutationId>(header.mutation_id());
-    batchReq->AddRequestMessage(requestMessage, needsSettingRetry);
+    batchReq->AddRequestMessage(std::move(requestMessage), needsSettingRetry);
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, Mutating: %v, "
+    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, User: %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
         requestId,
         batchReq->GetRequestId(),
         header.service(),
         header.method(),
         ypathExt.path(),
+        header.user(),
         ypathExt.mutating(),
         cellTag,
         peerKind);

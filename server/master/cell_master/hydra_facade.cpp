@@ -132,11 +132,6 @@ public:
 
     void Initialize()
     {
-        if (Bootstrap_->IsSecondaryMaster()) {
-            // NB: This causes a cyclic reference but we don't care.
-            HydraManager_->SubscribeUpstreamSync(BIND(&TImpl::OnUpstreamSync, MakeStrong(this)));
-        }
-
         HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
@@ -326,18 +321,6 @@ private:
                 }
             }
         }
-    }
-
-
-    TFuture<void> OnUpstreamSync()
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto* mailbox = multicellManager->FindPrimaryMasterMailbox();
-        if (!mailbox) {
-            return VoidFuture;
-        }
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        return hiveManager->SyncWith(mailbox);
     }
 };
 

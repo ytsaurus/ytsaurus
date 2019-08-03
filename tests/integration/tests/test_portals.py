@@ -83,12 +83,19 @@ class TestPortals(YTEnvSetup):
         set("//tmp/p/map/key", "value", force=True, recursive=True)
         assert get("//tmp/p/map/key") == "value"
 
-    @pytest.mark.parametrize("external_cell_tag", [1, 2])
-    def test_table_in_portal(self, external_cell_tag):
+    @pytest.mark.parametrize("with_outer_tx,external_cell_tag",
+                             [(with_outer_tx, external_cell_tag) for with_outer_tx in [False, True] for external_cell_tag in [1, 2]])
+    def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": external_cell_tag})
         PAYLOAD = [{"key": "value"}]
-        write_table("//tmp/p/t", PAYLOAD)
+        write_args = dict()
+        if with_outer_tx:
+            tx = start_transaction()
+            write_args["tx"] = tx
+        write_table("//tmp/p/t", PAYLOAD, **write_args)
+        if with_outer_tx:
+            commit_transaction(tx)
         assert get("//tmp/p/t/@row_count") == len(PAYLOAD)
         assert get("//tmp/p/t/@chunk_count") == 1
         chunk_ids = get("//tmp/p/t/@chunk_ids")
@@ -96,12 +103,19 @@ class TestPortals(YTEnvSetup):
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/t"]
         assert read_table("//tmp/p/t") == PAYLOAD
 
-    @pytest.mark.parametrize("external_cell_tag", [1, 2])
-    def test_file_in_portal(self, external_cell_tag):
+    @pytest.mark.parametrize("with_outer_tx,external_cell_tag",
+                             [(with_outer_tx, external_cell_tag) for with_outer_tx in [False, True] for external_cell_tag in [1, 2]])
+    def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("file", "//tmp/p/f", attributes={"external": True, "external_cell_tag": external_cell_tag})
         PAYLOAD = "a" *  100
-        write_file("//tmp/p/f", PAYLOAD)
+        write_args = dict()
+        if with_outer_tx:
+            tx = start_transaction()
+            write_args["tx"] = tx
+        write_file("//tmp/p/f", PAYLOAD, **write_args)
+        if with_outer_tx:
+            commit_transaction(tx)
         assert get("//tmp/p/f/@uncompressed_data_size") == len(PAYLOAD)
         assert get("//tmp/p/f/@chunk_count") == 1
         chunk_ids = get("//tmp/p/f/@chunk_ids")

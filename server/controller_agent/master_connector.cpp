@@ -835,6 +835,10 @@ private:
             return;
         }
 
+        TChunkUploadSynchronizer uploadSynchronizer(
+            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+            transactionId);
+
         struct TTableInfo
         {
             TNodeId TableId;
@@ -887,6 +891,7 @@ private:
                 const auto& rsp = rsps[rspIndex++].Value();
                 tableInfo->ExternalCellTag = rsp->cell_tag();
                 tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                uploadSynchronizer.AfterBeginUpload(tableInfo->TableId, tableInfo->ExternalCellTag);
             }
         }
 
@@ -947,12 +952,14 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             const auto& rsps = batchRsp->attach_chunk_trees_subresponses();
-            for (int tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
+            for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
                 auto* tableInfo = tableInfos[tableIndex];
                 const auto& rsp = rsps.Get(tableIndexToRspIndex[tableIndex]);
                 tableInfo->Statistics = rsp.statistics();
             }
         }
+
+        uploadSynchronizer.BeforeEndUpload();
 
         // EndUpload
         for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
@@ -969,6 +976,8 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
+
+        uploadSynchronizer.AfterEndUpload();
     }
 
     void DoAttachToLivePreview(

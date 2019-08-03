@@ -135,6 +135,23 @@ bool TCypressNode::IsBeingCreated() const
     return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
 }
 
+bool TCypressNode::CanCacheResolve() const
+{
+    if (!TrunkNode_->LockingState().KeyToSharedLocks.empty()) {
+        return false;
+    }
+    if (!TrunkNode_->LockingState().TransactionToExclusiveLocks.empty()) {
+        return false;
+    }
+    if (GetNodeType() != NYTree::ENodeType::Map &&
+        GetType() != EObjectType::Link &&
+        GetType() != EObjectType::PortalEntrance)
+    {
+        return false;
+    }
+    return true;
+}
+
 void TCypressNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);
