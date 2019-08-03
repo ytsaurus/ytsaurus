@@ -23,6 +23,9 @@ bool IsHiveMutation();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \note Thread affinity: single (unless noted otherwise)
+ */
 class THiveManager
     : public TRefCounted
 {
@@ -37,8 +40,19 @@ public:
 
     ~THiveManager();
 
+    /*!
+     *  \note Thread affinity: any
+     */
     NRpc::IServicePtr GetRpcService();
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    NYTree::IYPathServicePtr GetOrchidService();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     TCellId GetSelfCellId() const;
 
     TMailbox* CreateMailbox(TCellId cellId);
@@ -68,9 +82,16 @@ public:
     //! When called at instant T, returns a future which gets set
     //! when all mutations enqueued at the remote side (represented by #mailbox)
     //! prior to T, are received and applied.
-    TFuture<void> SyncWith(TMailbox* mailbox);
+    //! If #enableBatching is |true| then syncs are additionally batched.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TFuture<void> SyncWith(TCellId cellId, bool enableBatching);
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    //! Raised upon receiving incoming messages from another Hive instance.
+    //! The handler must start an appropriate synchronization process and return a future
+    //! that gets set when sync is reached.
+    DECLARE_SIGNAL(TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
 

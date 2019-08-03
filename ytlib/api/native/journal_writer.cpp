@@ -237,6 +237,8 @@ private:
         TCellTag NativeCellTag_ = InvalidCellTag;
         TCellTag ExternalCellTag_ = InvalidCellTag;
 
+        std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
+
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
@@ -386,6 +388,10 @@ private:
             NativeCellTag_ = CellTagFromId(ObjectId_);
             ExternalCellTag_ = userObject.ExternalCellTag;
 
+            UploadSynchronizer_.emplace(
+                Client_->GetNativeConnection(),
+                Options_.TransactionId);
+
             auto objectIdPath = FromObjectId(ObjectId_);
 
             if (userObject.Type != EObjectType::Journal) {
@@ -462,7 +468,7 @@ private:
                     req->set_update_mode(static_cast<int>(EUpdateMode::Append));
                     req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
                     req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                    req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
+                    req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                     GenerateMutationId(req);
                     SetTransactionId(req, Transaction_);
                     batchReq->AddRequest(req, "begin_upload");
@@ -474,6 +480,8 @@ private:
                     "Error starting upload to journal %v",
                     Path_);
                 const auto& batchRsp = batchRspOrError.Value();
+
+                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
 
                 {
                     auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
@@ -542,6 +550,8 @@ private:
 
             StopListenTransaction(UploadTransaction_);
 
+            UploadSynchronizer_->BeforeEndUpload();
+
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
@@ -555,11 +565,13 @@ private:
                 "Error finishing upload to journal %v",
                 Path_);
 
-            YT_LOG_INFO("Journal closed");
+            UploadSynchronizer_->AfterEndUpload();
 
             UploadTransaction_->Detach();
 
             ClosedPromise_.TrySet(TError());
+
+            YT_LOG_INFO("Journal closed");
         }
 
         bool TryOpenChunk()

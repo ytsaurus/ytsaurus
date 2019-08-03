@@ -265,10 +265,10 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     const IClientPtr& client,
     const NYPath::TRichYPath& richPath,
     const TTableReaderOptions& options,
-    TNameTablePtr nameTable,
+    const TNameTablePtr& nameTable,
     const TColumnFilter& columnFilter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
+    const IThroughputThrottlerPtr& bandwidthThrottler,
+    const IThroughputThrottlerPtr& rpsThrottler)
 {
     const auto& path = richPath.GetPath();
     auto readSessionId = TReadSessionId::Create();
@@ -297,12 +297,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         EPermission::Read,
         getUserObjectBasicAttributesOptions);
 
-    auto objectId = userObject->ObjectId;
-    auto tableCellTag = userObject->ExternalCellTag;
-
-    TYPath objectIdPath;
-    if (objectId) {
-        objectIdPath = FromObjectId(objectId);
+    if (userObject->ObjectId) {
         if (userObject->Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 path,
@@ -310,25 +305,23 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 userObject->Type);
         }
     } else {
-        YT_LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
-        objectIdPath = path;
+        YT_LOG_INFO("Table is virtual");
     }
 
     int chunkCount;
     bool dynamic;
     TTableSchema schema;
-    auto timestamp = richPath.GetTimestamp();
-
     {
         YT_LOG_INFO("Requesting table schema");
 
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
-            CellTagFromId(objectId));
+            CellTagFromId(userObject->ObjectId));
 
         TObjectServiceProxy proxy(channel);
 
-        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        // NB: objectId is null for virtual tables.
+        auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
         SetTransactionId(req, options.TransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
         std::vector<TString> attributeKeys{
@@ -363,8 +356,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         chunkSpecs = FetchChunkSpecs(
             client,
             client->GetNativeConnection()->GetNodeDirectory(),
-            tableCellTag,
-            objectIdPath,
+            *userObject,
             richPath.GetRanges(),
             chunkCount,
             config->MaxChunksPerFetch,
@@ -403,7 +395,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             schema,
             richPath.GetColumns(),
             userObject->OmittedInaccessibleColumns,
-            timestamp.value_or(AsyncLastCommittedTimestamp)));
+            richPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp)));
 
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 

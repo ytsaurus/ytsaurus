@@ -41,14 +41,15 @@ using namespace NNodeTrackerClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
-    IClientPtr client,
-    const NYPath::TRichYPath& path,
+    const IClientPtr& client,
+    const NYPath::TRichYPath& richPath,
     const TLocateSkynetShareOptions& options)
 {
-    const auto& Logger = ApiLogger;
+    auto Logger = NLogging::TLogger(ApiLogger)
+        .AddTag("Path: %v", richPath.GetPath());
 
     TUserObject userObject;
-    userObject.Path = path;
+    userObject.Path = richPath;
 
     GetUserObjectBasicAttributes(
         client,
@@ -57,13 +58,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         ChunkClientLogger,
         EPermission::Read);
 
-    auto objectId = userObject.ObjectId;
-    auto tableCellTag = userObject.ExternalCellTag;
-    auto objectIdPath = FromObjectId(objectId);
-
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-            path,
+            richPath,
             EObjectType::Table,
             userObject.Type);
     }
@@ -75,7 +72,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetSuppressAccessTracking(req, false);
         std::vector<TString> attributeKeys{
             "chunk_count",
@@ -84,7 +81,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table chunk count %v",
-            path);
+            richPath);
 
         const auto& rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -99,9 +96,8 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     skynetShareLocations->ChunkSpecs = FetchChunkSpecs(
         client,
         skynetShareLocations->NodeDirectory,
-        tableCellTag,
-        objectIdPath,
-        path.GetRanges(),
+        userObject,
+        richPath.GetRanges(),
         chunkCount,
         options.Config->MaxChunksPerFetch,
         options.Config->MaxChunksPerLocateRequest,
@@ -110,13 +106,13 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             req->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
             SetSuppressAccessTracking(req, false);
         },
-        ChunkClientLogger);
+        Logger);
 
     return skynetShareLocations;
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
-    IClientPtr client,
+    const IClientPtr& client,
     const NYPath::TRichYPath& path,
     const TLocateSkynetShareOptions& options)
 {

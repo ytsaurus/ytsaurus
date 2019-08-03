@@ -23,6 +23,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -44,6 +45,7 @@ namespace NYT::NQueryClient {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NFileClient;
 using namespace NYPath;
@@ -183,7 +185,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
-    THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
+    THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> externalCellTagToInfo;
 
     for (int index = 0; index < functionNames.size(); ++index) {
         const auto& function = functionNames[index];
@@ -193,7 +195,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             getRspOrError,
-            "Failed to find implementation of function %v at path %v in Cypress",
+            "Failed to find implementation of function %Qv at %v in Cypress",
             function.second,
             function.first);
 
@@ -216,18 +218,16 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         result.push_back(cypressInfo);
 
-        infoByCellTags[cellTag].emplace_back(objectId, index);
+        externalCellTagToInfo[cellTag].emplace_back(objectId, index);
     }
 
-    for (const auto& infoByCellTag : infoByCellTags) {
-        const auto& cellTag = infoByCellTag.first;
-        const auto& functionSpecs = infoByCellTag.second;
-
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
+    for (const auto& [externalCellTag, infos] : externalCellTagToInfo) {
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag));
         auto fetchBatchReq = proxy.ExecuteBatch();
 
-        for (auto functionSpec : functionSpecs) {
-            auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(functionSpec.first));
+        for (auto [objectId, index] : infos) {
+            auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));
+            AddCellTagToSyncWith(fetchReq, CellTagFromId(objectId));
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             fetchBatchReq->AddRequest(fetchReq);
@@ -236,8 +236,8 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto fetchBatchRsp = WaitFor(fetchBatchReq->Invoke())
             .ValueOrThrow();
 
-        for (size_t rspIndex = 0; rspIndex < functionSpecs.size(); ++rspIndex) {
-            auto resultIndex = functionSpecs[rspIndex].second;
+        for (size_t rspIndex = 0; rspIndex < infos.size(); ++rspIndex) {
+            auto resultIndex = infos[rspIndex].second;
 
             auto fetchRsp = fetchBatchRsp->GetResponse<TFileYPathProxy::TRspFetch>(rspIndex)
                 .ValueOrThrow();
@@ -247,7 +247,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
             NChunkClient::ProcessFetchResponse(
                 client,
                 fetchRsp,
-                cellTag,
+                externalCellTag,
                 nodeDirectory,
                 10000,
                 std::nullopt,

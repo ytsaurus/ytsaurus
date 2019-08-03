@@ -6,6 +6,8 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
+#include <yt/server/master/cypress_server/public.h>
+
 #include <yt/server/master/cell_master/public.h>
 
 #include <yt/core/ypath/tokenizer.h>
@@ -19,6 +21,7 @@ namespace NYT::NObjectServer {
 struct TPathResolverOptions
 {
     bool EnablePartialResolve = true;
+    bool PopulateResolveCache = false;
 };
 
 class TPathResolver
@@ -32,8 +35,7 @@ public:
         const TString& service,
         const TString& method,
         const NYPath::TYPath& path,
-        TTransactionToken transactionToken,
-        const TPathResolverOptions& options = {});
+        TTransactionToken transactionToken);
 
     struct TLocalObjectPayload
     {
@@ -59,9 +61,10 @@ public:
     {
         NYPath::TYPath UnresolvedPathSuffix;
         TResolvePayload Payload;
+        bool CanCacheResolve;
     };
 
-    TResolveResult Resolve();
+    TResolveResult Resolve(const TPathResolverOptions& options = {});
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -69,7 +72,6 @@ private:
     const TString& Method_;
     const NYPath::TYPath& Path_;
     const NTransactionClient::TTransactionId TransactionId_;
-    const TPathResolverOptions Options_;
 
     NYPath::TTokenizer Tokenizer_;
 
@@ -79,8 +81,7 @@ private:
     std::optional<NTransactionServer::TTransaction*> Transaction_;
 
     NTransactionServer::TTransaction* GetTransaction();
-    TPathResolver::TResolvePayload ResolveRoot();
-    static bool IsSpecialListKey(TStringBuf key);
+    TResolvePayload ResolveRoot();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

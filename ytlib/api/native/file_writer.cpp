@@ -3,6 +3,7 @@
 #include "client.h"
 #include "config.h"
 #include "transaction.h"
+#include "connection.h"
 #include "private.h"
 
 #include <yt/client/api/file_writer.h>
@@ -10,7 +11,6 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -23,6 +23,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
+
+#include <yt/ytlib/hive/helpers.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -52,6 +54,7 @@ using namespace NChunkClient::NProto;
 using namespace NApi;
 using namespace NTransactionClient;
 using namespace NFileClient;
+using namespace NHiveClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +71,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
+        , UploadSynchronizer_()
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("Path: %v, TransactionId: %v",
                 Path_.GetPath(),
@@ -113,6 +117,8 @@ private:
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
+    std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
+
     NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
 
@@ -152,13 +158,17 @@ private:
         GetUserObjectBasicAttributes(
             Client_,
             {&userObject},
-            Transaction_ ? Transaction_->GetId() : NullTransactionId,
+            Options_.TransactionId,
             Logger,
             EPermission::Write);
 
         ObjectId_ = userObject.ObjectId;
         NativeCellTag_ = CellTagFromId(ObjectId_);
         ExternalCellTag_ = userObject.ExternalCellTag;
+
+        UploadSynchronizer_.emplace(
+            Client_->GetNativeConnection(),
+            Options_.TransactionId);
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -231,7 +241,7 @@ private:
                 auto lockMode = (append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
                 req->set_lock_mode(static_cast<int>(lockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_.GetPath()));
-                req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
                 batchReq->AddRequest(req, "begin_upload");
@@ -248,12 +258,13 @@ private:
                 auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspBeginUpload>("begin_upload").Value();
                 auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
-                TTransactionAttachOptions options;
-                options.PingAncestors = Options_.PingAncestors;
-                options.AutoAbort = true;
-
-                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
+                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
+                    .AutoAbort = true,
+                    .PingAncestors = Options_.PingAncestors
+                });
                 StartListenTransaction(UploadTransaction_);
+
+                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
 
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
@@ -337,6 +348,8 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
+        UploadSynchronizer_->BeforeEndUpload();
+
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = Writer_->GetDataStatistics();
@@ -366,6 +379,8 @@ private:
             Path_.GetPath());
 
         UploadTransaction_->Detach();
+
+        UploadSynchronizer_->AfterEndUpload();
 
         YT_LOG_INFO("File closed");
     }

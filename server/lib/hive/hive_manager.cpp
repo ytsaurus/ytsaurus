@@ -20,6 +20,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/async_batcher.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -53,8 +54,6 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = HiveServerProfiler;
-static const auto HiveTracingService = TString("HiveManager");
-static const auto ClientHostAnnotation = TString("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,15 +104,17 @@ public:
             automaton,
             automatonInvoker)
         , SelfCellId_(selfCellId)
-        , Config_(config)
-        , CellDirectory_(cellDirectory)
-        , AutomatonInvoker_(automatonInvoker)
-        , HydraManager_(hydraManager)
+        , Config_(std::move(config))
+        , CellDirectory_(std::move(cellDirectory))
+        , AutomatonInvoker_(std::move(automatonInvoker))
+        , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
+        , HydraManager_(std::move(hydraManager))
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));
@@ -141,16 +142,29 @@ public:
 
     IServicePtr GetRpcService()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return this;
+    }
+
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return OrchidService_;
     }
 
     TCellId GetSelfCellId() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return SelfCellId_;
     }
 
     TMailbox* CreateMailbox(TCellId cellId)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
 
@@ -166,6 +180,8 @@ public:
 
     TMailbox* GetOrCreateMailbox(TCellId cellId)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* mailbox = MailboxMap_.Find(cellId);
         if (!mailbox) {
             mailbox = CreateMailbox(cellId);
@@ -175,6 +191,8 @@ public:
 
     TMailbox* GetMailboxOrThrow(TCellId cellId)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
             THROW_ERROR_EXCEPTION("No such mailbox %v",
@@ -185,6 +203,8 @@ public:
 
     void RemoveMailbox(TMailbox* mailbox)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto cellId = mailbox->GetCellId();
         MailboxMap_.Remove(cellId);
         YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
@@ -194,11 +214,15 @@ public:
 
     void PostMessage(TMailbox* mailbox, TRefCountedEncapsulatedMessagePtr message, bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         PostMessage(TMailboxList{mailbox}, std::move(message), reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, TRefCountedEncapsulatedMessagePtr message, bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (reliable) {
             ReliablePostMessage(mailboxes, std::move(message));
         } else {
@@ -208,57 +232,41 @@ public:
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto encapsulatedMessage = SerializeMessage(message);
         PostMessage(mailbox, std::move(encapsulatedMessage), reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto encapsulatedMessage = SerializeMessage(message);
         PostMessage(mailboxes, std::move(encapsulatedMessage), reliable);
     }
 
-
-    TFuture<void> SyncWith(TMailbox* mailbox)
+    TFuture<void> SyncWith(TCellId cellId, bool enableBatching)
     {
-        YT_VERIFY(EpochAutomatonInvoker_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto cellId = mailbox->GetCellId();
-        auto channel = FindMailboxChannel(mailbox);
-        if (!channel) {
-            return MakeFuture(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Cannot synchronize with cell %v since it is not connected",
-                cellId));
+        if (enableBatching) {
+            return GetOrCreateSyncBatcher(cellId)->Run();
+        } else {
+            return DoSyncWithCore(cellId);
         }
-
-        YT_LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
-            SelfCellId_,
-            cellId);
-
-        THiveServiceProxy proxy(std::move(channel));
-        auto req = proxy.Ping();
-        req->SetTimeout(Config_->PingRpcTimeout);
-        ToProto(req->mutable_src_cell_id(), SelfCellId_);
-
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
-                .AsyncVia(EpochAutomatonInvoker_));
     }
 
-    IYPathServicePtr GetOrchidService()
-    {
-        return OrchidService_;
-    }
+    DEFINE_SIGNAL(TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync);
 
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox)
 
 private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
     const IInvokerPtr AutomatonInvoker_;
+    const IInvokerPtr GuardedAutomatonInvoker_;
     const IHydraManagerPtr HydraManager_;
 
     IYPathServicePtr OrchidService_;
@@ -266,13 +274,20 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
+    TReaderWriterSpinLock CellToIdToBatcherLock_;
+    THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
+
     TMonotonicCounter PostingTimeCounter_{"/posting_time"};
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
     // RPC handlers.
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, Ping)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
         context->SetRequestInfo("SrcCellId: %v, DstCellId: %v",
@@ -298,6 +313,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncCells)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         context->SetRequestInfo();
 
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -362,6 +379,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PostMessages)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
         int messageCount = request->messages_size();
@@ -373,6 +392,7 @@ private:
             firstMessageId + messageCount - 1);
 
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstreamOnIncomingMessage(srcCellId);
 
         auto* nextTransientIncomingMessageId = GetNextTransientIncomingMessageIdPtr(srcCellId);
         if (*nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
@@ -402,6 +422,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SendMessages)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         int messageCount = request->messages_size();
 
@@ -411,6 +433,7 @@ private:
             messageCount);
 
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstreamOnIncomingMessage(srcCellId);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
             "MessageCount: %v)",
@@ -422,11 +445,32 @@ private:
             ->CommitAndReply(context);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
+
+        context->SetRequestInfo("SrcCellIds: %v",
+            srcCellIds);
+
+        ValidatePeer(EPeerKind::Leader);
+
+        std::vector<TFuture<void>> asyncResults;
+        for (auto cellId : srcCellIds) {
+            asyncResults.push_back(SyncWith(cellId, true));
+        }
+
+        context->ReplyFrom(Combine(asyncResults));
+    }
+
 
     // Hydra handlers.
 
     void HydraAcknowledgeMessages(NHiveServer::NProto::TReqAcknowledgeMessages* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -471,6 +515,8 @@ private:
 
     void HydraPostMessages(NHiveClient::NProto::TReqPostMessages* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
@@ -492,6 +538,8 @@ private:
         NHiveClient::NProto::TReqSendMessages* request,
         NHiveClient::NProto::TRspSendMessages* /*response*/)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto* mailbox = GetMailboxOrThrow(srcCellId);
         ApplyUnreliableIncomingMessages(mailbox, request);
@@ -499,6 +547,8 @@ private:
 
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
         if (mailbox) {
@@ -525,17 +575,6 @@ private:
 
         return channel;
     }
-
-    std::unique_ptr<THiveServiceProxy> FindHiveProxy(TCellId cellId)
-    {
-        auto channel = CellDirectory_->FindChannel(cellId);
-        if (!channel) {
-            return nullptr;
-        }
-
-        return std::make_unique<THiveServiceProxy>(channel);
-    }
-
 
     void ReliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
@@ -649,8 +688,18 @@ private:
 
     void ResetMailboxes()
     {
-        for (const auto& pair : MailboxMap_) {
-            auto* mailbox = pair.second;
+        decltype(CellToIdToBatcher_) cellToIdToBatcher;
+        {
+            TWriterGuard guard(CellToIdToBatcherLock_);
+            std::swap(cellToIdToBatcher, CellToIdToBatcher_);
+        }
+
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        for (const auto& [cellId, batcher] : cellToIdToBatcher) {
+            batcher->Cancel(error);
+        }
+
+        for (auto [id, mailbox] : MailboxMap_) {
             SetMailboxDisconnected(mailbox);
             mailbox->SetAcknowledgeInProgress(false);
             mailbox->SetCachedChannel(nullptr);
@@ -783,8 +832,67 @@ private:
     }
 
 
+    TIntrusivePtr<TAsyncBatcher<void>> GetOrCreateSyncBatcher(TCellId cellId)
+    {
+        {
+            TReaderGuard readerGuard(CellToIdToBatcherLock_);
+            auto it = CellToIdToBatcher_.find(cellId);
+            if (it != CellToIdToBatcher_.end()) {
+                return it->second;
+            }
+        }
+
+        auto batcher = New<TAsyncBatcher<void>>(
+            BIND(&TImpl::DoSyncWith, MakeWeak(this), cellId),
+            Config_->SyncDelay);
+
+        {
+            TWriterGuard writerGuard(CellToIdToBatcherLock_);
+            auto it = CellToIdToBatcher_.emplace(cellId, std::move(batcher)).first;
+            return it->second;
+        }
+    }
+
+    static TFuture<void> DoSyncWith(const TWeakPtr<TImpl>& weakThis, TCellId cellId)
+    {
+        auto this_ = weakThis.Lock();
+        if (!this_) {
+            return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
+        }
+
+        return this_->DoSyncWithCore(cellId);
+    }
+
+    TFuture<void> DoSyncWithCore(TCellId cellId)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto channel = CellDirectory_->FindChannel(cellId, EPeerKind::Leader);
+        if (!channel) {
+            return MakeFuture(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot synchronize with cell %v since it is not connected",
+                cellId));
+        }
+
+        YT_LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
+            cellId,
+            SelfCellId_);
+
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.Ping();
+        req->SetTimeout(Config_->PingRpcTimeout);
+        ToProto(req->mutable_src_cell_id(), SelfCellId_);
+
+        return req->Invoke().Apply(
+            BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
+                .AsyncVia(GuardedAutomatonInvoker_));
+    }
+
     TFuture<void> OnSyncPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
@@ -970,7 +1078,7 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-        void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+    void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
@@ -1326,6 +1434,24 @@ private:
     }
 
 
+    void SyncWithUpstreamOnIncomingMessage(TCellId srcCellId)
+    {
+        auto handlers =  IncomingMessageUpstreamSync_.ToVector();
+        if (handlers.empty()) {
+            return;
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& handler : handlers) {
+            asyncResults.push_back(handler.Run(srcCellId));
+        }
+
+        auto result = WaitFor(Combine(asyncResults));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error synchronizing with upstream upon receiving message from cell %v",
+            srcCellId);
+    }
+
+
     // THydraServiceBase overrides.
     virtual IHydraManagerPtr GetHydraManager() override
     {
@@ -1391,6 +1517,11 @@ IServicePtr THiveManager::GetRpcService()
     return Impl_->GetRpcService();
 }
 
+IYPathServicePtr THiveManager::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
+}
+
 TCellId THiveManager::GetSelfCellId() const
 {
     return Impl_->GetSelfCellId();
@@ -1436,16 +1567,12 @@ void THiveManager::PostMessage(const TMailboxList& mailboxes, const ::google::pr
     Impl_->PostMessage(mailboxes, message, reliable);
 }
 
-TFuture<void> THiveManager::SyncWith(TMailbox* mailbox)
+TFuture<void> THiveManager::SyncWith(TCellId cellId, bool enableBatching)
 {
-    return Impl_->SyncWith(mailbox);
+    return Impl_->SyncWith(cellId, enableBatching);
 }
 
-IYPathServicePtr THiveManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
+DELEGATE_SIGNAL(THiveManager, TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////

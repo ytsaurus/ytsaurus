@@ -9,7 +9,7 @@ namespace NYT::NYPath {
 class TTokenizer
 {
 public:
-    explicit TTokenizer(const TYPath& path);
+    explicit TTokenizer(const TYPath& path = {});
 
     TTokenizer(const TTokenizer&) = delete;
     TTokenizer& operator=(const TTokenizer&) = delete;

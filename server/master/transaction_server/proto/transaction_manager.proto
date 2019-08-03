@@ -41,5 +41,17 @@ message TReqAbortTransaction
     required bool force = 2;
 }
 
+message TReqRegisterExternalNestedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid nested_transaction_id = 2;
+}
+
+message TReqUnregisterExternalNestedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid nested_transaction_id = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

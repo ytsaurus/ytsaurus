@@ -170,6 +170,8 @@
     XX(MulticellStatistics, multicell_statistics) \
     XX(Name, name) \
     XX(NestedTransactionIds, nested_transaction_ids) \
+    XX(NestedNativeTransactionIds, nested_native_transaction_ids) \
+    XX(NestedExternalTransactionIds, nested_external_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
     XX(Nodes, nodes) \
@@ -304,7 +306,8 @@
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
     XX(RootNodeId, root_node_id) \
-    XX(AccountStatistics, account_statistics)
+    XX(AccountStatistics, account_statistics) \
+    XX(ResolveCached, resolve_cached)
 
 namespace NYT {
 

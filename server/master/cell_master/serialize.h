@@ -82,6 +82,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
     ((BulkInsert)                                                    (902))  // savrus
+    ((ShardedUploads)                                                (903))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

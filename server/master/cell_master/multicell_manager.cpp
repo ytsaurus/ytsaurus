@@ -91,6 +91,15 @@ public:
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
+        if (Bootstrap_->IsSecondaryMaster()) {
+            // NB: This causes a cyclic reference but we don't care.
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            hiveManager->SubscribeIncomingMessageUpstreamSync(BIND(&TImpl::OnIncomingMessageUpstreamSync, MakeStrong(this)));
+
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            hydraManager->SubscribeUpstreamSync(BIND(&TImpl::OnHydraUpstreamSync, MakeStrong(this)));
+        }
     }
 
 
@@ -223,6 +232,8 @@ public:
 
     IChannelPtr GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto channel = FindMasterChannel(cellTag, peerKind);
         if (!channel) {
             THROW_ERROR_EXCEPTION("Unknown cell tag %v",
@@ -233,11 +244,18 @@ public:
 
     IChannelPtr FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto key = std::make_tuple(cellTag, peerKind);
-        auto it = MasterChannelCache_.find(key);
-        if (it != MasterChannelCache_.end()) {
-            return it->second;
+
+        {
+            TReaderGuard guard(MasterChannelCacheLock_);
+            auto it = MasterChannelCache_.find(key);
+            if (it != MasterChannelCache_.end()) {
+                return it->second;
+            }
         }
+
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto cellId = Bootstrap_->GetCellId(cellTag);
@@ -246,6 +264,7 @@ public:
             return nullptr;
         }
 
+        // XXX(babenko): is this needed during forwarding?
         auto isRetryableError = BIND([] (const TError& error) {
             return
                 error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded ||
@@ -254,7 +273,11 @@ public:
         channel = CreateRetryingChannel(Config_->MasterConnection, channel, isRetryableError);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
-        YT_VERIFY(MasterChannelCache_.emplace(key, channel).second);
+        {
+            // NB: Insertions are racy.
+            TWriterGuard guard(MasterChannelCacheLock_);
+            MasterChannelCache_.emplace(key, channel);
+        }
 
         return channel;
     }
@@ -304,7 +327,8 @@ private:
     TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
-    std::map<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
+    NConcurrency::TReaderWriterSpinLock MasterChannelCacheLock_;
+    THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
 
     virtual void OnAfterSnapshotLoaded()
@@ -406,6 +430,7 @@ private:
 
     void ClearCaches()
     {
+        TWriterGuard guard(MasterChannelCacheLock_);
         MasterChannelCache_.clear();
     }
 
@@ -640,6 +665,29 @@ private:
         result.set_chunk_count(chunkManager->Chunks().GetSize());
         result.set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
         return result;
+    }
+
+    // XXX(babenko): tx cells
+    TFuture<void> SyncWithPrimaryCell()
+    {
+        if (!IsLocalMasterCellRegistered()) {
+            return VoidFuture;
+        }
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId(), false);
+    }
+
+    TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
+    {
+        if (srcCellId == Bootstrap_->GetPrimaryCellId()) {
+            return VoidFuture;
+        }
+        return SyncWithPrimaryCell();
+    }
+
+    TFuture<void> OnHydraUpstreamSync()
+    {
+        return SyncWithPrimaryCell();
     }
 
 

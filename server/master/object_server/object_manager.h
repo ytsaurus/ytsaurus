@@ -181,6 +181,7 @@ public:
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
     //! Forwards an object request to a given cell.
+    // XXX(babenko): consider taking timeout from requestMessage
     TFuture<TSharedRefArray> ForwardObjectRequest(
         TSharedRefArray requestMessage,
         TCellTag cellTag,

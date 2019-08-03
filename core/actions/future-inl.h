@@ -1507,6 +1507,14 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
     std::vector<TFuture<T>> futures)
 {
     auto size = futures.size();
+    if constexpr(std::is_same_v<T, void>) {
+        if (size == 0) {
+            return VoidFuture;
+        }
+        if (size == 1) {
+            return std::move(futures[0]);
+        }
+    }
     return New<NDetail::TFutureCombiner<T, NDetail::TFutureCombinerVectorResultHolder<T>>>(std::move(futures), size)
         ->Run();
 }

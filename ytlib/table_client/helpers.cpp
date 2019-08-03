@@ -325,47 +325,38 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     TTransactionId transactionId,
     const TLogger& logger)
 {
-    const auto& Logger = logger;
+    auto Logger = NLogging::TLogger(logger)
+        .AddTag("Path: %v", path.GetPath());
 
-    YT_LOG_INFO("Getting table attributes (Path: %v)",
-        path);
+    TUserObject userObject;
+    userObject.Path = path;
 
-    TYPath objectIdPath;
-    TCellTag tableCellTag;
-    {
-        TUserObject userObject;
-        userObject.Path = path;
+    GetUserObjectBasicAttributes(
+        client,
+        {&userObject},
+        transactionId,
+        Logger,
+        EPermission::Read);
 
-        GetUserObjectBasicAttributes(
-            client,
-            {&userObject},
-            transactionId,
-            Logger,
-            EPermission::Read);
-
-        const auto& objectId = userObject.ObjectId;
-        tableCellTag = userObject.ExternalCellTag;
-        objectIdPath = FromObjectId(objectId);
-        if (userObject.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject.Type);
-        }
+    if (userObject.Type != EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+            path.GetPath(),
+            EObjectType::Table,
+            userObject.Type);
     }
 
-    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)",
-        tableCellTag,
-        objectIdPath);
+    YT_LOG_INFO("Requesting table chunk count");
 
     int chunkCount;
     {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetTransactionId(req, transactionId);
-        std::vector<TString> attributeKeys{"chunk_count"};
+        std::vector<TString> attributeKeys{
+            "chunk_count"
+        };
         NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -383,8 +374,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     auto chunkSpecs = FetchChunkSpecs(
         client,
         nodeDirectory,
-        tableCellTag,
-        objectIdPath,
+        userObject,
         path.GetRanges(),
         chunkCount,
         config->MaxChunksPerFetch,

@@ -3,6 +3,7 @@
 #include "node_proxy_detail.h"
 #include "portal_exit_node.h"
 #include "shard.h"
+#include "resolve_cache.h"
 
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config.h>
@@ -84,10 +85,14 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
     node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
-    // Reset reference to shard.
     if (node->IsTrunk()) {
+        // Reset reference to shard.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->ResetShard(node);
+
+        // Invalidate resolve cache.
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        resolveCache->InvalidateNode(node);
     }
 
     // Clear ACD to unregister the node from linked objects.
@@ -101,6 +106,13 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     const TLockRequest& lockRequest)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    // Invalidate resolve cache.
+    if (lockRequest.Mode != ELockMode::Snapshot) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        resolveCache->InvalidateNode(originatingNode);
+    }
 
     // Copy basic properties.
     branchedNode->SetParent(originatingNode->GetParent());

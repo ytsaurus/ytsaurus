@@ -34,10 +34,10 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     const IClientPtr& client,
     const NYPath::TRichYPath& richPath,
     const TTableReaderOptions& options,
-    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TNameTablePtr& nameTable,
     const NTableClient::TColumnFilter& columnFilter = {},
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    const NConcurrency::IThroughputThrottlerPtr& rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

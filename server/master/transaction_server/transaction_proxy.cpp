@@ -133,9 +133,26 @@ private:
 
             case EInternedAttributeKey::NestedTransactionIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                    .BeginList()
+                        .DoFor(transaction->NestedNativeTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                            fluent.Item().Value(nestedTransaction->GetId());
+                        })
+                        .DoFor(transaction->NestedExternalTransactionIds(), [=] (TFluentList fluent, TTransactionId id) {
+                            fluent.Item().Value(id);
+                        })
+                    .EndList();
+                return true;
+
+            case EInternedAttributeKey::NestedNativeTransactionIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->NestedNativeTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
                         fluent.Item().Value(nestedTransaction->GetId());
                     });
+                return true;
+
+            case EInternedAttributeKey::NestedExternalTransactionIds:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->NestedExternalTransactionIds());
                 return true;
 
             case EInternedAttributeKey::StagedNodeIds:

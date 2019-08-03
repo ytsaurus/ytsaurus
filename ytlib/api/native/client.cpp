@@ -75,6 +75,7 @@
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -3185,6 +3186,10 @@ private:
 
         const auto& simpleDstPath = dstPath.GetPath();
 
+        TChunkUploadSynchronizer uploadSynchronizer(
+            Connection_,
+            options.TransactionId);
+
         bool append = dstPath.GetAppend();
 
         try {
@@ -3381,7 +3386,9 @@ private:
 
                     for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
                         int srcIndex = srcIndexes[localIndex];
-                        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcIds[srcIndex]));
+                        auto srcId = srcIds[srcIndex];
+                        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
+                        AddCellTagToSyncWith(req, CellTagFromId(srcId));
                         SetTransactionId(req, options, true);
                         ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
                         batchReq->AddRequest(req, "fetch");
@@ -3422,7 +3429,7 @@ private:
                 // NB: Replicate upload transaction to each secondary cell since we have
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
-                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->UploadTransactionTimeout));
                 NRpc::GenerateMutationId(req);
                 SetTransactionId(req, options, true);
 
@@ -3433,12 +3440,14 @@ private:
 
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
                 dstExternalCellTag = rsp->cell_tag();
+
+                uploadSynchronizer.AfterBeginUpload(dstId, dstExternalCellTag);
             }
 
-            NTransactionClient::TTransactionAttachOptions attachOptions;
-            attachOptions.PingAncestors = options.PingAncestors;
-            attachOptions.AutoAbort = true;
-            auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, attachOptions);
+            auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
+                .AutoAbort = true,
+                .PingAncestors = options.PingAncestors
+            });
 
             // Flatten chunk ids.
             std::vector<TChunkId> flatChunkIds;
@@ -3502,6 +3511,8 @@ private:
                 dataStatistics = rsp.statistics();
             }
 
+            uploadSynchronizer.BeforeEndUpload();
+
             // End upload.
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
@@ -3536,6 +3547,10 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v",
                     simpleDstPath);
             }
+
+            uploadSynchronizer.AfterEndUpload();
+
+            uploadTransaction->Detach();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 simpleSrcPaths,
