@@ -658,6 +658,11 @@ void TBootstrap::DoRun()
         "/job_controller",
         CreateVirtualNode(JobController_->GetOrchidService()
             ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/cluster_connection",
+        CreateVirtualNode(MasterConnection_->GetOrchidService()));
+    
     SetBuildAttributes(OrchidRoot_, "node");
 
     SkynetHttpServer_->AddHandler(

@@ -3915,6 +3915,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     req->set_populate_node_directory(options.PopulateNodeDirectory);
     req->set_populate_cluster_directory(options.PopulateClusterDirectory);
     req->set_populate_medium_directory(options.PopulateMediumDirectory);
+    req->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
     SetCachingHeader(req, options);
     batchReq->AddRequest(req);
 
@@ -3935,6 +3936,9 @@ TClusterMeta TClient::DoGetClusterMeta(
     if (options.PopulateMediumDirectory) {
         meta.MediumDirectory = std::make_shared<NChunkClient::NProto::TMediumDirectory>();
         meta.MediumDirectory->Swap(rsp->mutable_medium_directory());
+    }
+    if (options.PopulateMasterCacheNodeAddresses) {
+        meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(rsp->master_cache_node_addresses());
     }
     return meta;
 }

@@ -235,10 +235,10 @@ class Metric(object):
                         return False
                 return True
 
-            data = filter(check_tags, data)
+            return filter(check_tags, data)
 
         if self.grouped_by_tags is not None:
-            data_by_tags = defaultdict(list)
+            data_by_tags = defaultdict()
             for sample in data:
                 tag_values = tuple(sample["tags"][tag_name] if tag_name in sample["tags"] else None
                                    for tag_name in self.grouped_by_tags)
@@ -248,8 +248,7 @@ class Metric(object):
                 data_by_tags[tag_values].append(sample)
 
             return data_by_tags
-        else:
-            return data
+        return data
 
 
 def from_sandbox(resource_id):

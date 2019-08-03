@@ -24,6 +24,12 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 {
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(15));
+
+    RegisterParameter("enable_master_cache_discovery", EnableMasterCacheDiscovery)
+        .Default(false);
+
+    RegisterParameter("master_cache_discovery_period", MasterCacheDiscoveryPeriod)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

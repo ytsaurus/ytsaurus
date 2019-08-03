@@ -44,6 +44,9 @@ public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
+    bool EnableMasterCacheDiscovery;
+    TDuration MasterCacheDiscoveryPeriod;
+
     TMasterConnectionConfig();
 };
 

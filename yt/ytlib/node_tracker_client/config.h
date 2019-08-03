@@ -23,7 +23,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TNodeDirectorySynchronizerConfig)
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient

@@ -103,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixClusterNodeForeignFlag)                                     (920))  // babenko
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((FixParentTxForConcatUpload)                                    (922))  // babenko
+    ((DynamicMasterCacheDiscovery)                                   (923))  // aleksandra-zh
     ((CellServer)                                                   (1000))  // savrus
     ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
     ((NetworkProject)                                               (1002))  // gritukan

@@ -793,6 +793,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/hive",
         CreateVirtualNode(HiveManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/node_tracker",
+        CreateVirtualNode(NodeTracker_->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "master");
 

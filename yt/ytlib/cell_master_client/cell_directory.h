@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/logging/log.h>
 #include <yt/core/rpc/public.h>
 
@@ -23,6 +25,7 @@ public:
         TCellDirectoryConfigPtr config,
         const NApi::NNative::TConnectionOptions& options,
         const NRpc::IChannelFactoryPtr& channelFactory,
+        const NNodeTrackerClient::TMasterCacheSynchronizerPtr& masterCacheSynchronizer,
         const NLogging::TLogger& logger);
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);

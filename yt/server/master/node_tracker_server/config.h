@@ -10,6 +10,34 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterCacheManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration UpdatePeriod;
+    int PeerCount;
+    int MaxPeersPerRack;
+    TBooleanFormula NodeTagFilter;
+
+    TMasterCacheManagerConfig()
+    {
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("peer_count", PeerCount)
+            .GreaterThanOrEqual(0)
+            .Default(10);
+        RegisterParameter("max_peers_per_rack", MaxPeersPerRack)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("node_tag_filter", NodeTagFilter)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeTrackerConfig
     : public NYTree::TYsonSerializable
 { };
@@ -69,6 +97,8 @@ public:
     int MaxConcurrentFullHeartbeats;
     int MaxConcurrentIncrementalHeartbeats;
 
+    TMasterCacheManagerConfigPtr MasterCacheManager;
+
     TDynamicNodeTrackerConfig()
     {
         RegisterParameter("node_groups", NodeGroups)
@@ -98,6 +128,9 @@ public:
         RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
             .Default(10)
             .GreaterThan(0);
+
+        RegisterParameter("master_cache_manager", MasterCacheManager)
+            .DefaultNew();
     }
 };
 
