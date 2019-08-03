@@ -127,8 +127,7 @@ private:
     {
         YT_LOG_INFO("Opening file reader");
 
-        TUserObject userObject;
-        userObject.Path = Path_;
+        TUserObject userObject(Path_);
 
         GetUserObjectBasicAttributes(
             Client_,

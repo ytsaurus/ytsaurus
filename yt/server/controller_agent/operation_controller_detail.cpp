@@ -581,47 +581,41 @@ void TOperationControllerBase::InitializeStructures()
     // NB: keep it sync with GetNonTrivialInputTransactionIds.
     int nestedInputTransactionIndex = 0;
     for (const auto& path : GetInputTablePaths()) {
-        auto table = New<TInputTable>();
-        table->Path = path;
-        if (path.GetTransactionId()) {
-            table->TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
-        } else {
-            table->TransactionId = InputTransaction->GetId();
-        }
+        auto table = New<TInputTable>(
+            path,
+            path.GetTransactionId()
+            ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
+            : InputTransaction->GetId());
         table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
-        InputTables_.emplace_back(std::move(table));
+        InputTables_.push_back(std::move(table));
     }
 
     InitOutputTables();
 
     if (auto stderrTablePath = GetStderrTablePath()) {
-        StderrTable_ = New<TOutputTable>();
-        StderrTable_->Path = *stderrTablePath;
-        StderrTable_->OutputType = EOutputTableType::Stderr;
+        StderrTable_ = New<TOutputTable>(*stderrTablePath, EOutputTableType::Stderr);
     }
 
     if (auto coreTablePath = GetCoreTablePath()) {
-        CoreTable_ = New<TOutputTable>();
-        CoreTable_->Path = *coreTablePath;
-        CoreTable_->OutputType = EOutputTableType::Core;
+        CoreTable_ = New<TOutputTable>(*coreTablePath, EOutputTableType::Core);
     }
 
     InitUpdatingTables();
 
     for (const auto& userJobSpec : GetUserJobSpecs()) {
         auto& files = UserJobFiles_[userJobSpec];
+
+        // Add regular files.
         for (const auto& path : userJobSpec->FilePaths) {
-            TUserFile file;
-            file.Path = path;
-            if (path.GetTransactionId()) {
-                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
-            } else {
-                file.TransactionId = InputTransaction->GetId();
-            }
-            file.Layer = false;
-            files.emplace_back(std::move(file));
+            files.push_back(TUserFile(
+                path,
+                path.GetTransactionId()
+                ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
+                : InputTransaction->GetId(),
+                false));
         }
 
+        // Add layer files.
         auto layerPaths = userJobSpec->LayerPaths;
         if (Config->DefaultLayerPath && layerPaths.empty()) {
             // If no layers were specified, we insert the default one.
@@ -632,21 +626,16 @@ void TOperationControllerBase::InitializeStructures()
             layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
         }
         for (const auto& path : layerPaths) {
-            TUserFile file;
-            file.Path = path;
-            file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
-            if (path.GetTransactionId()) {
-                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
-            } else {
-                file.TransactionId = InputTransaction->GetId();
-            }
-            file.Layer = true;
-            files.emplace_back(std::move(file));
+            files.push_back(TUserFile(
+                path,
+                path.GetTransactionId()
+                ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
+                : InputTransaction->GetId(),
+                true));
         }
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
-
     if (InputTables_.size() > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
@@ -4885,7 +4874,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
         Logger,
         EPermission::Read,
         TGetUserObjectBasicAttributesOptions{
-            OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns,
+            .OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns,
             .PopulateSecurityTags = true
         });
 
@@ -8159,8 +8148,7 @@ TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& 
         }
         return it->second;
     }
-    auto table = New<TOutputTable>();
-    table->Path = outputTablePath;
+    auto table = New<TOutputTable>(outputTablePath, EOutputTableType::Output);
     auto rowCountLimit = table->Path.GetRowCountLimit();
     if (rowCountLimit) {
         if (RowCountLimitTableIndex) {
