@@ -1,4 +1,5 @@
 #include "node_tracker.h"
+#include "master_cache_manager.h"
 #include "private.h"
 #include "config.h"
 #include "node.h"
@@ -21,8 +22,11 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/server/master/cell_master/automaton.h>
+
 #include <yt/server/master/object_server/attribute_set.h>
 #include <yt/server/master/object_server/object_manager.h>
+#include <yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
@@ -43,6 +47,7 @@
 #include <yt/core/net/address.h>
 
 #include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/ypath/token.h>
 
@@ -78,8 +83,10 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
+
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 
+static NProfiling::TSimpleGauge MasterCacheNodeCount("/master_cache_node_count");
 static NProfiling::TAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
 static NProfiling::TAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
 static NProfiling::TAggregateGauge NodeUnregisterTimeCounter("/node_unregister_time");
@@ -104,6 +111,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateNodeResources, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateMasterCacheNodes, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -123,6 +131,10 @@ public:
 
         auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetMulticellManager()->GetCellTag()));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            MasterCacheManager_ = New<TMasterCacheManager>(Bootstrap_);
+        }
     }
 
     void Initialize()
@@ -254,6 +266,8 @@ public:
         RemoveFromAddressMaps(node);
 
         RecomputePendingRegisterNodeMutationCounters();
+
+        RemoveFromMasterCache(node);
     }
 
     TObjectId ObjectIdFromNodeId(TNodeId nodeId)
@@ -680,6 +694,23 @@ public:
         return AggregatedOnlineNodeCount_;
     }
 
+    const THashSet<TNode*>& GetMasterCacheNodes()
+    {
+        return MasterCacheNodes_;
+    }
+
+    const std::vector<TString>& GetMasterCacheNodeAddresses()
+    {
+        return MasterCacheNodeAddresses_;
+    }
+
+    IYPathServicePtr GetOrchidService()
+    {
+        auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
+        return IYPathService::FromProducer(producer)
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::NodeTracker));
+    }
+
 private:
     const TNodeTrackerConfigPtr Config_;
 
@@ -716,6 +747,9 @@ private:
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
+    THashSet<TNode*> MasterCacheNodes_;
+    std::vector<TString> MasterCacheNodeAddresses_;
+
     struct TNodeGroup
     {
         TString Id;
@@ -727,10 +761,10 @@ private:
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
     THashSet<TString> PendingRegisterNodeAddreses_;
+    TMasterCacheManagerPtr MasterCacheManager_;
 
     using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
 
-private:
     TNodeId GenerateNodeId()
     {
         TNodeId id;
@@ -1055,6 +1089,32 @@ private:
         node->SetResourceLimits(request->resource_limits());
     }
 
+    void UpdateMasterCacheNodeAddresses()
+    {
+        MasterCacheNodeAddresses_.clear();
+        for (const auto* node : MasterCacheNodes_) {
+            MasterCacheNodeAddresses_.push_back(node->GetDefaultAddress());
+        }
+        Profiler.Update(MasterCacheNodeCount, MasterCacheNodeAddresses_.size());
+    }
+
+    void HydraUpdateMasterCacheNodes(NProto::TReqUpdateMasterCacheNodes* request)
+    {
+        MasterCacheNodes_.clear();
+
+        for (auto nodeId: request->node_ids()) {
+            auto* node = FindNode(nodeId);
+            if (IsObjectAlive(node)) {
+                YT_VERIFY(MasterCacheNodes_.insert(node).second);
+            } else {
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "New master cache node is dead, ignoring (NodeId: %v)", node->GetId());
+            }
+        }
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Update master cache nodes (Nodes: %v)",
+             MakeFormattableView(MasterCacheNodes_, TNodePtrAddressFormatter()));
+        UpdateMasterCacheNodeAddresses();
+    }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
@@ -1066,6 +1126,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         Save(context, NodeIdGenerator_);
+        Save(context, MasterCacheNodes_);
         NodeMap_.SaveValues(context);
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
@@ -1081,6 +1142,10 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator_);
+        // COMPAT(aleksandra-zh)
+        if (context.GetVersion() >= EMasterReign::DynamicMasterCacheDiscovery) {
+            Load(context, MasterCacheNodes_);
+        }
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
@@ -1119,6 +1184,8 @@ private:
 
         NodeGroups_.clear();
         DefaultNodeGroup_ = nullptr;
+        MasterCacheNodes_.clear();
+        MasterCacheNodeAddresses_.clear();
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1655,6 +1722,13 @@ private:
         }
     }
 
+    void RemoveFromMasterCache(TNode* node)
+    {
+        if (MasterCacheNodes_.erase(node) > 0) {
+            UpdateMasterCacheNodeAddresses();
+        }
+    }
+
 
     void OnProfiling()
     {
@@ -1819,7 +1893,6 @@ private:
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
     }
 
-
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
@@ -1832,6 +1905,21 @@ private:
         ReconfigureGossipPeriods();
         ReconfigureNodeSemaphores();
         RebuildTotalNodeStatistics();
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .DoIf(Bootstrap_->IsPrimaryMaster(), [&] (auto fluent) {
+                fluent
+                    .Item("master_cache")
+                    .BeginMap()
+                        .Item("addresses")
+                        .Value(GetMasterCacheNodeAddresses())
+                    .EndMap();
+            })
+            .EndMap();
     }
 };
 
@@ -2023,6 +2111,21 @@ TDataCenter* TNodeTracker::CreateDataCenter(const TString& name, TObjectId hintI
 void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
 {
     Impl_->ZombifyDataCenter(dc);
+}
+
+const THashSet<TNode*>& TNodeTracker::GetMasterCacheNodes()
+{
+    return Impl_->GetMasterCacheNodes();
+}
+
+const std::vector<TString>& TNodeTracker::GetMasterCacheNodeAddresses()
+{
+    return Impl_->GetMasterCacheNodeAddresses();
+}
+
+IYPathServicePtr TNodeTracker::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)

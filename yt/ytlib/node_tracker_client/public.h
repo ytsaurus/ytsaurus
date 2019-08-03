@@ -31,6 +31,8 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TMasterCacheSynchronizer)
+
 DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 
 DEFINE_ENUM(EMemoryCategory,

@@ -156,15 +156,19 @@ private:
         auto populateClusterDirectory = request->populate_cluster_directory();
         auto populateMediumDirectory = request->populate_medium_directory();
         auto populateCellDirectory = request->populate_cell_directory();
+        auto populateMasterCacheNodeAddresses = request->populate_master_cache_node_addresses();
+
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
             "PopulateMediumDirectory: %v",
             "PopulateCellDirectory: %v",
+            "PopulateMasterCacheNodeAddresses: %v",
             populateNodeDirectory,
             populateClusterDirectory,
             populateMediumDirectory,
-            populateCellDirectory);
+            populateCellDirectory,
+            populateMasterCacheNodeAddresses);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -229,6 +233,11 @@ private:
             for (const auto& secondaryMasterConfig : cellMasterConfig->SecondaryMasters) {
                 addCell(secondaryMasterConfig);
             }
+        }
+
+        if (populateMasterCacheNodeAddresses) {
+            const auto& masterCacheNodeAddresses = Bootstrap_->GetNodeTracker()->GetMasterCacheNodeAddresses();
+            ToProto(response->mutable_master_cache_node_addresses(), masterCacheNodeAddresses);
         }
 
         context->Reply();

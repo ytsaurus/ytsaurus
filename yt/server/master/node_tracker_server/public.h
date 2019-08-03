@@ -42,6 +42,8 @@ DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TNodeGroupConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterCacheManager)
+DECLARE_REFCOUNTED_CLASS(TMasterCacheManagerConfig)
 
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
