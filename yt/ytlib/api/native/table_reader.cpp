@@ -281,8 +281,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
     YT_LOG_INFO("Opening table reader");
 
-    auto userObject = std::make_unique<TUserObject>();
-    userObject->Path = richPath;
+    auto userObject = std::make_unique<TUserObject>(richPath);
 
     auto config = options.Config ? options.Config : New<TTableReaderConfig>();
 

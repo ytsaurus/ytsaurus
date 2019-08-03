@@ -129,6 +129,11 @@ IChunkReaderPtr CreateRemoteReader(
 
 struct TUserObject
 {
+    TUserObject() = default;
+    explicit TUserObject(
+        NYPath::TRichYPath path,
+        std::optional<NObjectClient::TTransactionId> transactionId = {});
+
     // Input
     NYPath::TRichYPath Path;
     // TODO(babenko): consider making non-optional

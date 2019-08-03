@@ -45,6 +45,11 @@ void TInputTable::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOutputTable::TOutputTable(NYPath::TRichYPath path, EOutputTableType outputType)
+    : TUserObject(std::move(path))
+    , OutputType(outputType)
+{ }
+
 bool TOutputTable::IsBeginUploadCompleted() const
 {
     return static_cast<bool>(UploadTransactionId);

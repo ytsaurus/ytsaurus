@@ -39,6 +39,8 @@ struct TInputTable
     : public TIntrinsicRefCounted
     , public NChunkClient::TUserObject
 {
+    using NChunkClient::TUserObject::TUserObject;
+
     //! Number of chunks in the whole table (without range selectors).
     int ChunkCount = -1;
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
@@ -66,6 +68,11 @@ struct TOutputTable
     , public TLivePreviewTableBase
     , public TIntrinsicRefCounted
 {
+    TOutputTable() = default;
+    TOutputTable(
+        NYPath::TRichYPath path,
+        EOutputTableType outputType);
+
     NTableClient::TTableWriterOptionsPtr TableWriterOptions = New<NTableClient::TTableWriterOptions>();
     NTableClient::TTableUploadOptions TableUploadOptions;
     EOutputTableType OutputType = EOutputTableType::Output;

@@ -36,6 +36,12 @@ TString TrimCommandForBriefSpec(const TString& command);
 struct TUserFile
     : public NChunkClient::TUserObject
 {
+    TUserFile() = default;
+    TUserFile(
+        NYPath::TRichYPath path,
+        std::optional<NObjectClient::TTransactionId> transactionId,
+        bool layer);
+
     std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
     TString FileName;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
