@@ -651,6 +651,7 @@ int TObjectManager::TImpl::RefObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
+    // XXX(babenko): switch back to trace
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
@@ -659,7 +660,9 @@ int TObjectManager::TImpl::RefObject(TObject* object)
 
     if (refCounter == 1) {
         GarbageCollector_->UnregisterZombie(object);
-        if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted || object->GetLifeStage() == EObjectLifeStage::RemovalCommitted) {
+        if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
+            object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
+        {
             YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: references to object reappeared after removal "
                 "has been pre-committed (ObjectId: %v, LifeStage: %v)",
                 object->GetId(),
@@ -677,6 +680,7 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
+    // XXX(babenko): switch back to trace
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
@@ -693,7 +697,7 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
         if (Any(flags & ETypeFlags::ReplicateDestroy) &&
             None(flags & ETypeFlags::TwoPhaseRemoval))
         {
-            NProto::TReqRemoveForeignObject request;
+            NProto::    TReqRemoveForeignObject request;
             ToProto(request.mutable_object_id(), object->GetId());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
