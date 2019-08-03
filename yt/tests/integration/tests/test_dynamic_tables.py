@@ -188,20 +188,24 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 return False
 
             peers = get("#{0}/@peers".format(cell_id))
+            expected_config_version = get("#{0}/@config_version".format(cell_id))
+            
             for peer in peers:
                 if "address" not in peer:
                     return False
+                
                 address = peer["address"]
                 if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
                     return False
 
                 try:
                     actual_config_version = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id))
+                    if actual_config_version != expected_config_version:
+                        return False
+                    state = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/state".format(address, cell_id))
+                    if state != "leading" and state != "following":
+                        return False
                 except:
-                    return False
-
-                expected_config_version = get("//sys/tablet_cells/{0}/@config_version".format(cell_id))
-                if actual_config_version != expected_config_version:
                     return False
 
             return True
