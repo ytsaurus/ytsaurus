@@ -45,7 +45,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     const NYPath::TRichYPath& richPath,
     const TLocateSkynetShareOptions& options)
 {
-    const auto& Logger = NLogging::TLogger(ApiLogger)
+    auto Logger = NLogging::TLogger(ApiLogger)
         .AddTag("Path: %v", richPath.GetPath());
 
     TUserObject userObject;
