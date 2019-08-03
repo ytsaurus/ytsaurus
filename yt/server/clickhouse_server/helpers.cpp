@@ -145,8 +145,8 @@ std::unique_ptr<TTableObject> GetTableAttributes(
         Logger,
         permission,
         TGetUserObjectBasicAttributesOptions{
-            .ChannelKind = EMasterChannelKind::Cache,
-            .SuppressAccessTracking = true
+            .SuppressAccessTracking = true,
+            .ChannelKind = EMasterChannelKind::Cache
         });
 
     if (userObject->Type != EObjectType::Table) {
