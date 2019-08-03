@@ -286,16 +286,16 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
     auto config = options.Config ? options.Config : New<TTableReaderConfig>();
 
-    TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
-    getUserObjectBasicAttributesOptions.SuppressAccessTracking = config->SuppressAccessTracking;
-    getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = options.OmitInaccessibleColumns;
     GetUserObjectBasicAttributes(
         client,
         {userObject.get()},
         options.TransactionId,
         Logger,
         EPermission::Read,
-        getUserObjectBasicAttributesOptions);
+        TGetUserObjectBasicAttributesOptions{
+            .SuppressAccessTracking = config->SuppressAccessTracking,
+            .OmitInaccessibleColumns = options.OmitInaccessibleColumns
+        });
 
     if (userObject->ObjectId) {
         if (userObject->Type != EObjectType::Table) {
@@ -312,11 +312,11 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     bool dynamic;
     TTableSchema schema;
     {
-        YT_LOG_INFO("Requesting table schema");
+        YT_LOG_INFO("Requesting extended table attributes");
 
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
-            CellTagFromId(userObject->ObjectId));
+            userObject->ExternalCellTag);
 
         TObjectServiceProxy proxy(channel);
 
@@ -334,7 +334,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table schema %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
             path);
 
         const auto& rsp = rspOrError.Value();
@@ -344,14 +344,14 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
 
-        // Validate that timestamp is correct.
         ValidateDynamicTableTimestamp(richPath, dynamic, schema, *attributes);
     }
 
     std::vector<TChunkSpec> chunkSpecs;
 
     {
-        YT_LOG_INFO("Fetching table chunks");
+        YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
+            chunkCount);
 
         chunkSpecs = FetchChunkSpecs(
             client,

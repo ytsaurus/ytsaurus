@@ -53,6 +53,8 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NTableClient;
 
+using NYT::ToProto;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,18 +106,18 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 // TODO(max42): unify with remaining functions.
 std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<NYPath::TRichYPath>& paths)
 {
+    // XXX(babenko): fetch from external cells
     TObjectServiceProxy proxy(queryContext->Client()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
     auto batchReq = proxy.ExecuteBatch();
 
-    for (auto& path : paths) {
+    for (const auto& path : paths) {
         auto req = TYPathProxy::Get(path.GetPath() + "/@");
         SetSuppressAccessTracking(req, true);
-        std::vector<TString> attributeKeys {
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "schema",
             "type",
             "dynamic",
-        };
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
         batchReq->AddRequest(req);
     }
 

@@ -118,10 +118,6 @@ private:
             Logger,
             EPermission::Read);
 
-        auto cellTag = userObject.ExternalCellTag;
-        auto objectId = userObject.ObjectId;
-        auto objectIdPath = FromObjectId(objectId);
-
         if (userObject.Type != EObjectType::Journal) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 Path_,
@@ -132,11 +128,11 @@ private:
         {
             YT_LOG_INFO("Fetching journal chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TJournalYPathProxy::Fetch(objectIdPath);
-            AddCellTagToSyncWith(req, CellTagFromId(objectId));
+            auto req = TJournalYPathProxy::Fetch(userObject.GetObjectIdPath());
+            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
 
             TReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
@@ -164,7 +160,7 @@ private:
             ProcessFetchResponse(
                 Client_,
                 rsp,
-                cellTag,
+                userObject.ExternalCellTag,
                 NodeDirectory_,
                 std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
                 std::nullopt,
@@ -220,7 +216,7 @@ private:
                 CurrentRowIndex_ = BeginRowIndex_;
             }
 
-            // TODO(savrus) profile chunk reader statistics.
+            // TODO(savrus): profile chunk reader statistics.
             TClientBlockReadOptions options;
             options.WorkloadDescriptor = Config_->WorkloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -228,7 +224,7 @@ private:
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
                 options,
                 CurrentRowIndex_,
-                EndRowIndex_ - CurrentRowIndex_));
+                static_cast<int>(EndRowIndex_ - CurrentRowIndex_)));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
 
             const auto& rowsBlocks = rowsOrError.Value();
@@ -241,7 +237,6 @@ private:
             CurrentChunkReader_.Reset();
         }
     }
-
 };
 
 IJournalReaderPtr CreateJournalReader(

@@ -98,7 +98,7 @@ struct TOutputTable
     //! Corresponding sink.
     NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
 
-    bool IsDynamic = false;
+    bool Dynamic = false;
     std::vector<NTableClient::TOwningKey> PivotKeys;
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
 

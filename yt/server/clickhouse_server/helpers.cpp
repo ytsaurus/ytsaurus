@@ -42,6 +42,8 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 KeyCondition CreateKeyCondition(
@@ -129,56 +131,48 @@ std::unique_ptr<TTableObject> GetTableAttributes(
     EPermission permission,
     const TLogger& logger)
 {
-    const auto& Logger = logger;
+    auto Logger = NLogging::TLogger(logger)
+        .AddTag("Path: %v", path);
 
     auto userObject = std::make_unique<TTableObject>();
     userObject->Path = path;
 
-    YT_LOG_INFO("Requesting object attributes (Path: %v)", path);
+    // TODO(max42): YT-10402, columnar ACL
+    GetUserObjectBasicAttributes(
+        client,
+        {userObject.get()},
+        NullTransactionId,
+        Logger,
+        permission,
+        TGetUserObjectBasicAttributesOptions{
+            .ChannelKind = EMasterChannelKind::Cache,
+            .SuppressAccessTracking = true
+        });
 
-    {
-        TGetUserObjectBasicAttributesOptions options;
-        options.ChannelKind = EMasterChannelKind::Cache;
-        options.SuppressAccessTracking = true;
-        // TODO(max42): YT-10402, columnar ACL
-        GetUserObjectBasicAttributes(
-            client,
-            {userObject.get()},
-            NullTransactionId,
-            Logger,
-            permission,
-            options);
-
-        if (userObject->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject->Type);
-        }
+    if (userObject->Type != EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+            path,
+            EObjectType::Table,
+            userObject->Type);
     }
 
-    YT_LOG_INFO("Requesting table attributes (Path: %v)", path);
+    YT_LOG_INFO("Requesting extended table attributes");
 
     {
-        auto objectIdPath = FromObjectId(userObject->ObjectId);
-
-        auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject->ExternalCellTag);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        auto req = TYPathProxy::Get(userObject->GetObjectIdPath() + "/@");
         SetSuppressAccessTracking(req, true);
-        std::vector<TString> attributeKeys {
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",
             "schema",
-        };
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR(rspOrError).Wrap("Error getting table schema")
-                << TErrorAttribute("path", path);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
+            path);
 
         const auto& rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -219,7 +213,8 @@ TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyC
 
     for (const auto& keyColumnName : keyColumns) {
         if (!columns.has(keyColumnName)) {
-            THROW_ERROR_EXCEPTION("Column %v is specified as key column, but is missing", keyColumnName);
+            THROW_ERROR_EXCEPTION("Column %Qv is specified as key column but is missing",
+                keyColumnName);
         }
         columnOrder.emplace_back(keyColumnName);
         usedColumns.emplace(keyColumnName);
