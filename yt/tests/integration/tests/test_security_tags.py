@@ -123,7 +123,7 @@ class TestSecurityTags(YTEnvSetup):
                 },
                 "additional_security_tags": ["tag0"]
             })
-        assert_items_equal(get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2"])
+        assert_items_equal(get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2", "tag4"])
         assert_items_equal(get("//tmp/t_out2/@security_tags"), ["tag5"])
         assert_items_equal(get("//tmp/t_out3/@security_tags"), ["tag3", "tag6"])
 

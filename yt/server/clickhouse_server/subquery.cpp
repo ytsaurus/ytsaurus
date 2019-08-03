@@ -69,6 +69,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace DB;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInputTable
@@ -187,7 +189,7 @@ private:
     // TODO(max42): get rid of duplicating code.
     void CollectBasicAttributes()
     {
-        YT_LOG_DEBUG("Collecting basic object attributes");
+        YT_LOG_DEBUG("Requesting basic object attributes");
 
         InputTables_.resize(InputTablePaths_.size());
         for (size_t i = 0; i < InputTablePaths_.size(); ++i) {
@@ -221,7 +223,8 @@ private:
 
     void CollectTableSpecificAttributes()
     {
-        YT_LOG_DEBUG("Collecting table specific attributes");
+        // XXX(babenko): fetch from external cells
+        YT_LOG_DEBUG("Requesting extended table attributes");
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
 
@@ -229,23 +232,18 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : InputTables_) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
-
-            {
-                auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-                std::vector<TString> attributeKeys{
-                    "dynamic",
-                    "chunk_count",
-                    "schema",
-                };
-                NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, NullTransactionId);
-                batchReq->AddRequest(req, "get_attributes");
-            }
+            auto req = TTableYPathProxy::Get(table.GetObjectIdPath() + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                "dynamic",
+                "chunk_count",
+                "schema",
+            });
+            SetTransactionId(req, NullTransactionId);
+            batchReq->AddRequest(req, "get_attributes");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of tables");
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error requesting extended attributes of tables");
         const auto& batchRsp = batchRspOrError.Value();
 
         auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
