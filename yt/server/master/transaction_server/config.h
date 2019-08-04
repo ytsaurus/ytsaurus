@@ -13,11 +13,15 @@ class TTransactionManagerConfig
 {
 public:
     TDuration MaxTransactionTimeout;
+    int MaxTransactionDepth;
 
     TTransactionManagerConfig()
     {
         RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
             .Default(TDuration::Minutes(60));
+        RegisterParameter("max_transaction_depth", MaxTransactionDepth)
+            .GreaterThan(0)
+            .Default(16);
     }
 };
 

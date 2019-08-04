@@ -192,8 +192,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (parent && parent->GetPersistentState() != ETransactionState::Active) {
-            parent->ThrowInvalidState();
+        if (parent) {
+            if (parent->GetPersistentState() != ETransactionState::Active) {
+                parent->ThrowInvalidState();
+            }
+
+            if (parent->GetDepth() >= Config_->MaxTransactionDepth) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::TransactionDepthLimitReached,
+                    "Transaction depth limit reached")
+                    << TErrorAttribute("limit", Config_->MaxTransactionDepth);
+            }
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -209,6 +218,7 @@ public:
 
         if (parent) {
             transaction->SetParent(parent);
+            transaction->SetDepth(parent->GetDepth() + 1);
             YT_VERIFY(parent->NestedNativeTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
         } else {
