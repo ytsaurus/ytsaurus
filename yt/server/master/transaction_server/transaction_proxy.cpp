@@ -88,6 +88,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
             .SetPresent(transaction->GetDeadline().operator bool()));
+        descriptors->push_back(EInternedAttributeKey::Depth);
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -203,6 +204,11 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(transaction->GetDeadline());
+                return true;
+
+            case EInternedAttributeKey::Depth:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetDepth());
                 return true;
 
             default:
