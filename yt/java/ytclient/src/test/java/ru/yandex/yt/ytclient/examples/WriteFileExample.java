@@ -1,14 +1,14 @@
 package ru.yandex.yt.ytclient.examples;
 
+import java.io.FileInputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.yandex.misc.ExceptionUtils;
+
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
-
-import java.io.FileInputStream;
 
 public class WriteFileExample {
     private static final Logger logger = LoggerFactory.getLogger(WriteFileExample.class);
@@ -38,10 +38,14 @@ public class WriteFileExample {
 
                 FileInputStream fi = new FileInputStream("test.txt");
                 byte[] data = new byte[40960];
-                int size;
-                while ((size = fi.read(data)) > 0) {
+
+                int size = fi.read(data);
+                while (size > 0) {
+                    while (size > 0 && writer.write(data, 0, size)) {
+                        size = fi.read(data);
+                    }
+
                     writer.readyEvent().join();
-                    writer.write(data, 0, size);
                 }
                 writer.close().join();
                 fi.close();
@@ -69,10 +73,13 @@ public class WriteFileExample {
 
                 FileInputStream fi = new FileInputStream("test.txt");
                 byte[] data = new byte[40960];
-                int size;
-                while ((size = fi.read(data)) > 0) {
+                int size = fi.read(data);
+                while (size > 0) {
+                    while (size > 0 && writer.write(data, 0, size)) {
+                        size = fi.read(data);
+                    }
+
                     writer.readyEvent().join();
-                    writer.write(data, 0, size);
                 }
                 writer.close().join();
                 fi.close();
