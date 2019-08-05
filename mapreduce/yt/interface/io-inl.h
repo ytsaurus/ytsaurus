@@ -227,11 +227,6 @@ public:
         return Reader_->GetRowIndex();
     }
 
-    void Abort()
-    {
-        Reader_->Abort();
-    }
-
 private:
     ::TIntrusivePtr<IReaderImpl> Reader_;
     ui64 ReadRowCount_ = 0;
@@ -781,7 +776,7 @@ public:
     { }
 };
 
-template<>
+template <>
 class TTableWriter<NDetail::TYdlGenericRowType>
     : public TTableWriterBase<TNode>
 {
@@ -794,7 +789,7 @@ public:
         : TBase(writer)
     { }
 
-    template<class U>
+    template<class U, std::enable_if_t<NYdl::TIsYdlGenerated<U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
         TNode node;
@@ -824,43 +819,20 @@ public:
 
 template <>
 class TTableWriter<Message>
-    : public TThrRefBase
+    : public TTableWriterBase<Message>
 {
 public:
-    using TRowType = Message;
+    using TBase = TTableWriterBase<Message>;
 
-    explicit TTableWriter(::TIntrusivePtr<IProtoWriterImpl> writer)
-        : Writer_(writer)
-        , Locks_(writer->GetStreamCount())
+    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
+        : TBase(writer)
     { }
-
-    ~TTableWriter() override
-    {
-        try {
-            Finish();
-        } catch (...) {
-            // no guarantees
-        }
-    }
 
     template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
-        auto guard = Guard(Locks_[tableIndex]);
-        Writer_->AddRow(row, tableIndex);
+        TBase::AddRow(row, tableIndex);
     }
-
-    void Finish()
-    {
-        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
-            auto guard = Guard(Locks_[i]);
-            Writer_->GetStream(i)->Finish();
-        }
-    }
-
-private:
-    ::TIntrusivePtr<IProtoWriterImpl> Writer_;
-    TVector<TMutex> Locks_;
 };
 
 template <class T>
@@ -871,7 +843,7 @@ public:
     using TRowType = T;
     using TBase = TTableWriter<Message>;
 
-    explicit TTableWriter(::TIntrusivePtr<IProtoWriterImpl> writer)
+    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
         : TBase(writer)
     { }
 
