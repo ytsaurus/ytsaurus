@@ -85,6 +85,7 @@ import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
+import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
@@ -142,6 +143,7 @@ import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
+import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
@@ -174,6 +176,7 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -1148,6 +1151,15 @@ public class ApiServiceClient implements TransactionalClient {
 
         TableReaderImpl impl = new TableReaderImpl(startStream(builder));
         return impl.waitMetadata();
+    }
+
+    public CompletableFuture<TableWriter> writeTable(WriteTable req) {
+        RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
+                builder = service.writeTable();
+
+        req.writeTo(builder.body());
+
+        return CompletableFuture.completedFuture(null); // TODO: implement
     }
 
     public CompletableFuture<FileReader> readFile(ReadFile req) {

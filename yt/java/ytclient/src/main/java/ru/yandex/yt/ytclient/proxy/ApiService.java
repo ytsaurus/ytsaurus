@@ -57,6 +57,7 @@ import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
+import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
@@ -114,6 +115,7 @@ import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
+import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.rpc.DiscoverableRpcService;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -240,6 +242,8 @@ public interface ApiService extends DiscoverableRpcService {
     /* */
 
     RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>> readTable();
+
+    RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>> writeTable();
 
     RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>> readFile();
 

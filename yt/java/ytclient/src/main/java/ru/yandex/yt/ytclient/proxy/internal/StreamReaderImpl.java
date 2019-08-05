@@ -6,6 +6,8 @@ import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.Message;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
@@ -13,9 +15,12 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 
 class Stash {
+    protected static final Logger logger = LoggerFactory.getLogger(StreamReaderImpl.class);
+
     private final CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
     private CompletableFuture<Void> readyEvent = new CompletableFuture<>();
     private Throwable ex = null;
+    private boolean eof = false;
 
     private final LinkedList<Tuple2<byte[], Long>> attachments = new LinkedList<>();
 
@@ -25,28 +30,39 @@ class Stash {
                 throw ex;
             }
 
-            boolean wasEmpty = attachments.isEmpty();
+            boolean needWakeup = attachments.isEmpty() && !eof;
 
             attachments.push(new Tuple2<>(attachment, offset));
 
-            if (wasEmpty) {
+            if (needWakeup) {
                 this.readyEvent.complete(null);
                 readyEvent = new CompletableFuture<>();
             }
         }
     }
 
+    boolean isEof() {
+        synchronized (attachments) {
+            return eof;
+        }
+    }
+
     byte[] pop(RpcClientStreamControl control) {
         synchronized (attachments) {
-            Tuple2<byte[], Long> message = attachments.removeFirst();
-            control.feedback(message._2);
-            return message._1;
+            if (attachments.isEmpty()) {
+                return null;
+            } else {
+                Tuple2<byte[], Long> message = attachments.removeFirst();
+                control.feedback(message._2);
+                eof = message._1 == null;
+                return message._1;
+            }
         }
     }
 
     CompletableFuture<Void> readyEvent() {
         synchronized (attachments) {
-            if (attachments.isEmpty()) {
+            if (attachments.isEmpty() && !eof) {
                 return this.readyEvent;
             } else {
                 return completedFuture;
@@ -130,6 +146,10 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
 
     CompletableFuture<byte[]> readHead() {
         return getReadyEvent().thenApply((unused) -> stash.pop(control));
+    }
+
+    boolean doCanRead() {
+        return ! stash.isEof();
     }
 
     byte[] doRead() throws Exception {
