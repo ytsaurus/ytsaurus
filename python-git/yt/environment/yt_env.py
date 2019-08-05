@@ -28,6 +28,7 @@ import shutil
 import sys
 import getpass
 import random
+import copy
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -70,6 +71,7 @@ def _parse_version(s):
 def _add_binaries_to_path():
     return
     for binary, server_dir in [("master", "cell_master_program"),
+                               ("clock", "cell_clock_program"),
                                ("scheduler", "programs/scheduler"),
                                ("node", "cell_node_program"),
                                ("proxy", "cell_proxy_program"),
@@ -82,7 +84,7 @@ def _add_binaries_to_path():
 
 def _which_yt_binaries():
     result = {}
-    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
+    binaries = ["ytserver-master", "ytserver-clock", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
         if which(binary):
             version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
@@ -167,7 +169,7 @@ def _get_cgroup_path(cgroup_type, *args):
 
 
 class YTInstance(object):
-    def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
+    def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
                  node_count=1, defer_node_start=False, scheduler_count=1, controller_agent_count=None,
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
@@ -194,10 +196,12 @@ class YTInstance(object):
 
         self._binaries = _which_yt_binaries()
         if ("ytserver-master" in self._binaries and
+            "ytserver-clock" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
             logger.info("Using multiple YT binaries with the following versions:")
             logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
+            logger.info("  ytserver-clock      %s", self._binaries["ytserver-clock"].literal)
             logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
             logger.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
 
@@ -276,6 +280,7 @@ class YTInstance(object):
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
         self.secondary_master_cell_count = secondary_master_cell_count
+        self.clock_count = clock_count
         self.node_count = node_count
         self.defer_node_start = defer_node_start
         self.scheduler_count = scheduler_count
@@ -342,6 +347,16 @@ class YTInstance(object):
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
+        clock_dirs = [os.path.join(self.runtime_data_path, "clock", str(i)) for i in xrange(self.clock_count)]
+        for dir_ in clock_dirs:
+            makedirp(dir_)
+
+        clock_tmpfs_dirs = None
+        if self._tmpfs_path is not None and not self._load_existing_environment:
+            clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.clock_count)]
+            for dir_ in clock_tmpfs_dirs:
+                makedirp(dir_)
+
         scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.scheduler_count)]
         for dir_ in scheduler_dirs:
             makedirp(dir_)
@@ -374,6 +389,8 @@ class YTInstance(object):
 
         return {"master": master_dirs,
                 "master_tmpfs": master_tmpfs_dirs,
+                "clock": clock_dirs,
+                "clock_tmpfs": clock_tmpfs_dirs,
                 "scheduler": scheduler_dirs,
                 "controller_agent": controller_agent_dirs,
                 "node": node_dirs,
@@ -387,6 +404,7 @@ class YTInstance(object):
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  uuid               %s", self._uuid)
+        logger.info("  clocks             %d", self.clock_count)
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
         logger.info("  schedulers         %d", self.scheduler_count)
@@ -411,6 +429,7 @@ class YTInstance(object):
         provision["master"]["secondary_cell_count"] = self.secondary_master_cell_count
         provision["master"]["primary_cell_tag"] = self._cell_tag
         provision["master"]["cell_nonvoting_master_count"] = self.nonvoting_master_count
+        provision["clock"]["cell_size"] = self.clock_count
         provision["scheduler"]["count"] = self.scheduler_count
         provision["controller_agent"]["count"] = self.controller_agent_count
         provision["node"]["count"] = self.node_count
@@ -447,7 +466,10 @@ class YTInstance(object):
         self._cluster_configuration = cluster_configuration
 
         self._prepare_cgroups()
-        self._prepare_masters(cluster_configuration["master"], dirs["master"])
+        if self.master_count + self.secondary_master_cell_count > 0:
+            self._prepare_masters(cluster_configuration["master"], dirs["master"])
+        if self.clock_count > 0:
+            self._prepare_clocks(cluster_configuration["clock"], dirs["clock"])
         if self.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"], dirs["node"])
         if self.scheduler_count > 0:
@@ -468,6 +490,7 @@ class YTInstance(object):
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
+            cluster_configuration["clock"],
             http_proxy_url)
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
@@ -495,6 +518,9 @@ class YTInstance(object):
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
 
             self.start_master_cell(sync=False)
+
+            if self.clock_count > 0:
+                self.start_clock(sync=False)
 
             if self.has_rpc_proxy:
                 self.start_rpc_proxy(sync=False)
@@ -915,6 +941,43 @@ class YTInstance(object):
         for i in xrange(self.secondary_master_cell_count):
             self.start_master_cell(i + 1, sync=sync)
 
+    def _prepare_clocks(self, clock_configs, clock_dirs):
+        for clock_index in xrange(self.clock_count):
+            clock_config_name = "clock-{0}.yson".format(clock_index)
+            config_path = os.path.join(self.configs_path, clock_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Clock config {0} not found. It is possible that you requested "
+                                  "more clocks than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = clock_configs[clock_configs["cell_tag"]][clock_index]
+                write_config(config, config_path)
+
+            self.configs["clock"].append(config)
+            self.config_paths["clock"].append(config_path)
+
+    def start_clock(self, sync=True):
+        self._run_yt_component("clock")
+
+        def quorum_ready():
+            self._validate_processes_are_running("clock")
+
+            logger = logging.getLogger("Yt")
+            old_level = logger.level
+            logger.setLevel(logging.ERROR)
+            try:
+                client = self.create_native_client("clock_driver")
+                client.generate_timestamp()
+                return True
+            except (requests.RequestException, YtError) as err:
+                return False, err
+            finally:
+                logger.setLevel(old_level)
+
+        self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
+
+
     def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
             node_config_name = "node-" + str(node_index) + ".yson"
@@ -1113,7 +1176,7 @@ class YTInstance(object):
             if not error.is_resolve_error():
                 raise
 
-    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, http_proxy_url):
+    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, clock_configs, http_proxy_url):
         driver_types = ["native"]
         if self.has_rpc_proxy:
             driver_types.append("rpc")
@@ -1159,6 +1222,16 @@ class YTInstance(object):
 
                 self.configs[prefix + name] = config
                 self.config_paths[prefix + name] = config_path
+
+        if self.clock_count > 0:
+            name = "clock_driver"
+            config_path = os.path.join(self.configs_path, "clock-driver.yson")
+
+            config = driver_configs[clock_configs["cell_tag"]]
+            write_config(config, config_path)
+
+            self.configs[name] = config
+            self.config_paths[name] = config_path
 
         self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
         self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging)
@@ -1395,7 +1468,7 @@ class YTInstance(object):
         with open(config_path, "w") as config_file:
             if self._enable_debug_logging:
                 for service, configs in iteritems(self.configs):
-                    if service.startswith("driver") or service.startswith("rpc_driver"):
+                    if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
                         continue
 
                     for config in flatten(configs):

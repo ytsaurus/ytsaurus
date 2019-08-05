@@ -203,6 +203,29 @@ b"""
 }
 """)
 
+def get_clock_config():
+    return yson.loads(
+b"""
+{
+    timestamp_provider = {
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
+        update_period = 500;
+    };
+
+    changelogs = {
+        flush_period = 10;
+    };
+
+    timestamp_manager = {
+        commit_advance = 2000;
+        request_backoff_time = 10;
+        calibration_period = 10;
+    };
+}
+""")
+
+
 def get_controller_agent_config():
     return yson.loads(
 b"""

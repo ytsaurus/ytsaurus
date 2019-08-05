@@ -82,6 +82,10 @@ _default_provision = {
         "cell_size": 1,
         "cell_nonvoting_master_count": 0
     },
+    "clock": {
+        "cell_tag": 1000,
+        "cell_size": 1,
+    },
     "scheduler": {
         "count": 1
     },
@@ -137,6 +141,13 @@ class ConfigsProvider(object):
             ports_generator,
             logs_dir)
 
+        clock_configs, clock_connection_configs = self._build_clock_configs(
+            provision,
+            dirs["clock"],
+            dirs["clock_tmpfs"],
+            ports_generator,
+            logs_dir)
+
         scheduler_configs = self._build_scheduler_configs(provision, dirs["scheduler"], deepcopy(connection_configs),
                                                           ports_generator, logs_dir)
 
@@ -167,7 +178,7 @@ class ConfigsProvider(object):
             }
 
         driver_configs, rpc_driver_configs = \
-            self._build_driver_configs(provision, deepcopy(connection_configs),
+            self._build_driver_configs(provision, deepcopy(connection_configs), deepcopy(clock_connection_configs),
                                        master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
 
         if provision["driver"]["backend"] == "rpc":
@@ -182,6 +193,7 @@ class ConfigsProvider(object):
 
         cluster_configuration = {
             "master": master_configs,
+            "clock": clock_configs,
             "driver": driver_configs,
             "rpc_driver": rpc_driver_configs,
             "scheduler": scheduler_configs,
@@ -197,6 +209,10 @@ class ConfigsProvider(object):
 
     @abc.abstractmethod
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+        pass
+
+    @abc.abstractmethod
+    def _build_clock_configs(self, provision, clock_dirs, clock_tmpfs_dirs, ports_generator, master_logs_dir):
         pass
 
     @abc.abstractmethod
@@ -218,7 +234,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes, rpc_proxy_addresses):
+    def _build_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes, rpc_proxy_addresses):
         pass
 
     @abc.abstractmethod
@@ -403,6 +419,69 @@ class ConfigsProvider_19(ConfigsProvider):
 
         configs["primary_cell_tag"] = cell_tags[0]
         configs["secondary_cell_tags"] = cell_tags[1:]
+
+        return configs, connection_configs
+
+    def _build_clock_configs(self, provision, clock_dirs, clock_tmpfs_dirs, ports_generator, clock_logs_dir):
+        cell_tag = str(provision["clock"]["cell_tag"])
+        random_part = random.randint(0, 2 ** 32 - 1)
+        cell_id = canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(cell_tag)))
+
+        ports = []
+        cell_addresses = []
+
+        for i in xrange(provision["clock"]["cell_size"]):
+            rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
+            address = to_yson_type("{0}:{1}".format(provision["fqdn"], rpc_port))
+            cell_addresses.append(address)
+            ports.append((rpc_port, monitoring_port))
+
+        connection_config = {
+            "addresses": cell_addresses,
+            "cell_id": cell_id
+        }
+
+        connection_configs = {}
+        connection_configs[cell_tag] = connection_config
+
+        configs = {}
+
+        instance_configs = []
+
+        for clock_index in xrange(provision["clock"]["cell_size"]):
+            config = default_configs.get_clock_config()
+
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+
+            config["hydra_manager"] = _get_hydra_manager_config()
+
+            config["rpc_port"], config["monitoring_port"] = ports[clock_index]
+
+            config["clock_cell"] = connection_config
+
+            set_at(config, "timestamp_provider/addresses", connection_config["addresses"])
+            set_at(config, "snapshots/path",
+                   os.path.join(clock_dirs[clock_index], "snapshots"))
+
+            if clock_tmpfs_dirs is None:
+                set_at(config, "changelogs/path",
+                       os.path.join(clock_dirs[clock_index], "changelogs"))
+            else:
+                set_at(config, "changelogs/path",
+                       os.path.join(clock_tmpfs_dirs[clock_index], "changelogs"))
+
+            config["logging"] = init_logging(config.get("logging"), clock_logs_dir,
+                                             "clock-{0}".format(clock_index),
+                                             provision["enable_debug_logging"])
+
+            _set_bind_retry_options(config, key="bus_server")
+
+            instance_configs.append(config)
+
+        configs[cell_tag] = instance_configs
+
+        configs["cell_tag"] = cell_tag
+        connection_configs["cell_tag"] = cell_tag
 
         return configs, connection_configs
 
@@ -615,7 +694,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, addresses
 
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes, rpc_proxy_addresses):
+    def _build_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes, rpc_proxy_addresses):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
@@ -650,6 +729,16 @@ class ConfigsProvider_19(ConfigsProvider):
                     update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
                     update_inplace(config, cell_connection_config)
+
+                if driver_type == "rpc":
+                    rpc_configs[tag] = config
+                else:
+                    configs[tag] = config
+
+            if clock_connection_configs:
+                tag = clock_connection_configs["cell_tag"]
+                config = deepcopy(configs[primary_cell_tag])
+                update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
 
                 if driver_type == "rpc":
                     rpc_configs[tag] = config
