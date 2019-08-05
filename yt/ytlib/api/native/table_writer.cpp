@@ -34,7 +34,7 @@ TFuture<ITableWriterPtr> CreateTableWriter(
     }
 
     auto asyncSchemalessWriter = CreateSchemalessTableWriter(
-        options.Config,
+        options.Config ? options.Config : New<TTableWriterConfig>(),
         writerOptions,
         path,
         nameTable,
