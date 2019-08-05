@@ -47,6 +47,8 @@ public:
 
     void Unlock(TTransactionId transactionId)
     {
+        ++Epoch_;
+
         if (auto it = Transactions_.find(transactionId)) {
             auto timestamp = it->second;
             Transactions_.erase(it);
@@ -63,12 +65,23 @@ public:
         }
     }
 
-    void Wait(TTimestamp timestamp)
+    TLockManagerEpoch GetEpoch() const
+    {
+        return Epoch_.load();
+    }
+
+    void Wait(TTimestamp timestamp, TLockManagerEpoch epoch)
     {
         if (timestamp == AsyncLastCommittedTimestamp ||
             timestamp == AllCommittedTimestamp)
         {
             return;
+        }
+
+        if (epoch < GetEpoch()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::TabletSnapshotExpired,
+                "Query should be retried to use new tablet snapshot");
         }
 
         if (LockCounter_ > 0) {
@@ -117,6 +130,7 @@ public:
 
 private:
     std::atomic<int> LockCounter_;
+    std::atomic<TLockManagerEpoch> Epoch_;
     THashMap<TTransactionId, TTimestamp> Transactions_;
     std::vector<TTransactionId> UnconfirmedTransactions_;
 
@@ -148,7 +162,7 @@ private:
 
         if (waited) {
             THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::QueryRetryRequested,
+                NTabletClient::EErrorCode::TabletSnapshotExpired,
                 "Query should be retried to use new tablet snapshot");
         }
     }
@@ -175,9 +189,14 @@ void TLockManager::Unlock(TTransactionId transactionId)
     Impl_->Unlock(transactionId);
 }
 
-void TLockManager::Wait(TTimestamp timestamp)
+TLockManagerEpoch TLockManager::GetEpoch() const
 {
-    Impl_->Wait(timestamp);
+    return Impl_->GetEpoch();
+}
+
+void TLockManager::Wait(TTimestamp timestamp, TLockManagerEpoch epoch)
+{
+    Impl_->Wait(timestamp, epoch);
 }
 
 bool TLockManager::IsLocked()

@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT::NQueryAgent {
@@ -14,7 +16,8 @@ bool IsRetriableError(const TError& error)
 {
     return
         error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed) ||
-        error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk);
+        error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk) ||
+        error.FindMatching(NTabletClient::EErrorCode::TabletSnapshotExpired);
 }
 
 void ExecuteRequestWithRetries(

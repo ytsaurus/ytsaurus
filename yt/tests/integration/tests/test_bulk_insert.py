@@ -290,36 +290,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: not exists("#{}".format(subtablet_chunk_list)))
 
-    @pytest.mark.parametrize("query_type", ["lookup", "select"])
-    def test_query_retry_requested(self, query_type):
-        sync_create_cells(1)
-        create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
-        sync_mount_table("//tmp/t_output")
-
-        rows = [{"key": 1, "value": "1"}]
-        write_table("//tmp/t_input", rows)
-
-        op = map(
-            in_="//tmp/t_input",
-            out="<append=true>//tmp/t_output",
-            command="cat",
-            spec={
-                "testing": {
-                    "delay_inside_operation_commit": 5000,
-                    "delay_inside_operation_commit_stage": "stage6",
-                },
-            },
-            dont_track=True)
-
-        op.wait_for_state("completing")
-
-        with raises_yt_error(QueryRetryRequested):
-            if query_type == "lookup":
-                select_rows("* from [//tmp/t_output]")
-            else:
-                lookup_rows("//tmp/t_output", [{"key": 1}])
-
     @pytest.mark.parametrize("stage", ["stage5", "stage6"])
     def test_abort_operation(self, stage):
         sync_create_cells(1)

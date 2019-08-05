@@ -42,7 +42,6 @@ SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
-QueryRetryRequested = 1707
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01

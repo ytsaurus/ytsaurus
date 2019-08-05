@@ -197,7 +197,7 @@ bool TTabletSnapshot::IsProfilingEnabled() const
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
 {
-    LockManager->Wait(timestamp);
+    LockManager->Wait(timestamp, LockManagerEpoch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1058,7 +1058,7 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     return EpochAutomatonInvokers_[queue];
 }
 
-TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
+TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLockManagerEpoch> epoch) const
 {
     auto snapshot = New<TTabletSnapshot>();
 
@@ -1095,6 +1095,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->CompactionThrottler = CompactionThrottler_;
     snapshot->PartitioningThrottler = PartitioningThrottler_;
     snapshot->LockManager = LockManager_;
+    snapshot->LockManagerEpoch = epoch.value_or(LockManager_->GetEpoch());
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {

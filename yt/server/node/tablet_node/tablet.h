@@ -164,6 +164,7 @@ struct TTabletSnapshot
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler;
 
     TLockManagerPtr LockManager;
+    TLockManagerEpoch LockManagerEpoch;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -447,7 +448,9 @@ public:
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    TTabletSnapshotPtr BuildSnapshot(TTabletSlotPtr slot) const;
+    TTabletSnapshotPtr BuildSnapshot(
+        TTabletSlotPtr slot,
+        std::optional<TLockManagerEpoch> epoch = std::nullopt) const;
 
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
