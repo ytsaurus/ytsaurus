@@ -2,13 +2,12 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 
 import ru.yandex.bolts.collection.Cf;
-import ru.yandex.misc.ExceptionUtils;
 import ru.yandex.yt.rpcproxy.TReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
@@ -155,6 +154,11 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     }
 
     @Override
+    public List<String> getOmittedInaccessibleColumns() {
+        return metadata.getOmittedInaccessibleColumnsList();
+    }
+
+    @Override
     public TRowsetDescriptor getRowsetDescriptor() {
         synchronized (lock) {
             return currentRowsetDescriptor;
@@ -175,15 +179,12 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     }
 
     @Override
-    public CompletableFuture<Void> read(Consumer<UnversionedRowset> consumer) {
-        return doRead((next) -> {
-            try {
-                consumer.accept(parseRowsWithPayload(next));
-            } catch (Exception ex) {
-                throw ExceptionUtils.translate(ex);
-            }
+    public CompletableFuture<Void> close() {
+        return doClose();
+    }
 
-            return true;
-        });
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return getReadyEvent();
     }
 }

@@ -14,14 +14,16 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 
 interface DataSupplier extends Supplier<byte[]>
 {
     byte[] get();
 
-    default void put(byte[] data) {
+    default int put(byte[] data) {
         throw new IllegalArgumentException();
     }
 
@@ -44,19 +46,22 @@ class MessagesSupplier implements DataSupplier {
     }
 
     @Override
-    public void put(byte[] data) {
+    public int put(byte[] data) {
         messages.add(data);
+        return RpcUtil.attachmentSize(data);
     }
 }
 
 class WrappedSupplier implements DataSupplier {
     private final DataSupplier supplier;
-    private final Codec codec;
+    private final Codec inputCodec;
+    private final Codec outputCodec;
     private boolean eof;
 
-    WrappedSupplier(DataSupplier supplier, Codec codec) {
+    WrappedSupplier(DataSupplier supplier, Codec inputCodec, Codec outputCodec) {
         this.supplier = supplier;
-        this.codec = codec;
+        this.inputCodec = inputCodec;
+        this.outputCodec = outputCodec;
     }
 
     @Override
@@ -64,19 +69,23 @@ class WrappedSupplier implements DataSupplier {
         byte[] data = supplier.get();
         eof = data == null;
         if (data != null) {
-            return codec.compress(data);
+            return outputCodec.compress(data);
         } else {
             return data;
         }
     }
 
     @Override
-    public void put(byte[] data) {
+    public int put(byte[] data) {
         if (eof) {
             throw new IllegalArgumentException();
         }
 
-        supplier.put(data);
+        if (data == null) {
+            return supplier.put(null);
+        } else {
+            return supplier.put(inputCodec.compress(data));
+        }
     }
 
     @Override
@@ -88,10 +97,11 @@ class WrappedSupplier implements DataSupplier {
 public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
     private final CompletableFuture<FileWriter> startUpload = new CompletableFuture<>();
 
-    private final Codec codec;
-
     private final Object lock = new Object();
-    private DataSupplier supplier = null;
+    private final DataSupplier supplier;
+
+    private CompletableFuture<Void> readyEvent;
+    private final CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
     private long writePosition = 0;
     private long readPosition = 0;
 
@@ -104,7 +114,11 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         this.windowSize = windowSize;
         this.packetSize = packetSize;
 
-        this.codec = Codec.codecFor(control.compression());
+        Codec codec = Codec.codecFor(control.compression());
+
+        this.supplier = new WrappedSupplier(new MessagesSupplier(), codec, Codec.codecFor(Compression.None));
+
+        initReadyEvent();
 
         result.whenComplete((unused, ex) -> {
             if (ex != null) {
@@ -113,12 +127,13 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         });
     }
 
-    private int attachmentSize(byte[] attachment) {
-        if (attachment == null) {
-            return 1;
-        } else {
-            return attachment.length;
-        }
+    private void initReadyEvent() {
+        this.readyEvent = new CompletableFuture<>();
+    }
+
+    private void reinitReadyEvent() {
+        this.readyEvent.complete(null);
+        initReadyEvent();
     }
 
     private void uploadSome() {
@@ -137,7 +152,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
                 byte[] next = supplier.get();
 
                 readyToUpload.add(next);
-                sendSize += attachmentSize(next);
+                sendSize += RpcUtil.attachmentSize(next);
             }
         }
 
@@ -148,7 +163,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
             while (!readyToUpload.isEmpty() && currentPacketSize < packetSize) {
                 byte[] data = readyToUpload.peekFirst();
                 packet.add(data);
-                currentPacketSize += attachmentSize(data);
+                currentPacketSize += RpcUtil.attachmentSize(data);
                 readyToUpload.removeFirst();
             }
 
@@ -156,20 +171,15 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
                 StringBuilder stringBuilder = new StringBuilder();
                 stringBuilder.append("[");
                 for (byte[] data : packet) {
-                    stringBuilder.append(attachmentSize(data));
+                    stringBuilder.append(RpcUtil.attachmentSize(data));
                     stringBuilder.append(", ");
                 }
                 stringBuilder.append("]");
 
-                logger.debug("Packet: {}", stringBuilder.toString());
+                logger.debug("Packet: {} {}", stringBuilder.toString(), writePosition - readPosition);
             }
 
             control.sendPayload(packet);
-
-            synchronized (lock) {
-                writePosition += currentPacketSize;
-                lock.notify();
-            }
         }
     }
 
@@ -185,8 +195,11 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         }
 
         synchronized (lock) {
+            long oldReadPosition = readPosition;
             readPosition = header.getReadPosition();
-            lock.notify();
+            if (writePosition - oldReadPosition >= windowSize && writePosition - readPosition < windowSize) {
+                reinitReadyEvent();
+            }
         }
 
         uploadSome();
@@ -221,49 +234,36 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
     }
 
     private void push(byte[] data) {
-        synchronized (lock) {
-            while (writePosition - readPosition > windowSize) {
-                try {
-                    lock.wait();
-                } catch (Throwable ex) {
-                }
-
-                if (result.isCompletedExceptionally()) {
-                    result.join();
-                }
-            }
+        if (result.isCompletedExceptionally()) {
+            result.join();
         }
 
         synchronized (lock) {
-            supplier.put(data);
+            long oldWritePosition = writePosition;
+
+            writePosition += supplier.put(data);
+
+            if (oldWritePosition - readPosition >= windowSize && writePosition - readPosition < windowSize) {
+                reinitReadyEvent();
+            }
         }
 
         control.wakeUp();
     }
 
     @Override
-    public CompletableFuture<Void> write(Supplier<byte[]> supplier) {
+    public CompletableFuture<Void> readyEvent() {
         synchronized (lock) {
-            if (this.supplier != null) {
-                throw new IllegalArgumentException();
+            if (writePosition - readPosition < windowSize) {
+                return completedFuture;
+            } else {
+                return this.readyEvent;
             }
-
-            this.supplier = new WrappedSupplier(supplier::get, codec);
         }
-
-        control.wakeUp();
-
-        return waitResult();
     }
 
     @Override
     public void write(byte[] data, int offset, int len) {
-        synchronized (lock) {
-            if (supplier == null) {
-                supplier = new WrappedSupplier(new MessagesSupplier(), codec);
-            }
-        }
-
         if (data != null) {
             byte[] newdata = new byte [len - offset];
             System.arraycopy(data, offset, newdata, 0, len);
@@ -282,13 +282,14 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
         super.onError(sender, error);
 
         synchronized (lock) {
-            lock.notify();
+            reinitReadyEvent();
         }
     }
 
     @Override
-    public void close() {
-        byte[] data = null;
-        write(data, 0, 0);
+    public CompletableFuture<Void> close() {
+        push(null);
+
+        return result.thenApply((unused) -> null);
     }
 }

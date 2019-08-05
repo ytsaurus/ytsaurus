@@ -6,7 +6,6 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.misc.ExceptionUtils;
 import ru.yandex.yt.ytclient.proxy.FileReader;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 
@@ -33,35 +32,16 @@ public class ReadFileExample {
                 FileOutputStream fo = new FileOutputStream("test.txt");
 
                 byte [] data;
+
+                reader.readyEvent().join();
+
                 while ((data = reader.read()) != null) {
                     fo.write(data);
+
+                    reader.readyEvent().join();
                 }
 
-                fo.close();
-
-            } catch (Throwable e) {
-                logger.error("Error {}", e);
-                System.exit(0);
-            }
-        });
-
-
-        ExamplesUtil.runExample(client -> {
-            try {
-                logger.info("Read file");
-                FileReader reader = client.readFile(new ReadFile("//tmp/bigfile")).join();
-
-                FileOutputStream fo = new FileOutputStream("test2.txt");
-
-                reader.read((data) -> {
-                    try {
-                        if (data != null) {
-                            fo.write(data);
-                        }
-                    } catch (Exception ex) {
-                        throw ExceptionUtils.translate(ex);
-                    }
-                }).get();
+                reader.close().join();
 
                 fo.close();
 
@@ -70,6 +50,7 @@ public class ReadFileExample {
                 System.exit(0);
             }
         });
+
 
         ExamplesUtil.enableCompression();
 
@@ -81,9 +62,16 @@ public class ReadFileExample {
                 FileOutputStream fo = new FileOutputStream("test3.txt");
 
                 byte [] data;
+
+                reader.readyEvent().join();
+
                 while ((data = reader.read()) != null) {
                     fo.write(data);
+
+                    reader.readyEvent().join();
                 }
+
+                reader.close().join();
 
                 fo.close();
 
@@ -101,9 +89,16 @@ public class ReadFileExample {
                 FileOutputStream fo = new FileOutputStream("test4.txt");
 
                 byte [] data;
+
+                reader.readyEvent().join();
+
                 while ((data = reader.read()) != null) {
                     fo.write(data);
+
+                    reader.readyEvent().join();
                 }
+
+                reader.close().join();
 
                 fo.close();
 

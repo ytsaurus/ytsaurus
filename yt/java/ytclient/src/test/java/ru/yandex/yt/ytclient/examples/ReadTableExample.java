@@ -27,28 +27,17 @@ public class ReadTableExample {
                 TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy")).join();
 
                 UnversionedRowset rowset;
+
+                reader.readyEvent().join();
+
                 while ((rowset = reader.read()) != null) {
                     logger.info("rows {}", rowset.getRows().size());
                     logger.info("stat {}", reader.getDataStatistics());
+
+                    reader.readyEvent().join();
                 }
 
-            } catch (Throwable e) {
-                logger.error("error {}", e);
-                System.exit(0);
-            }
-        });
-
-        ExamplesUtil.runExample(client -> {
-            try {
-                logger.info("Read table 2");
-                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy")).join();
-
-                reader.read((rowset) -> {
-                    if (rowset != null) {
-                        logger.info("rows {}", rowset.getRows().size());
-                        logger.info("stat {}", reader.getDataStatistics());
-                    }
-                }).get();
+                reader.close().join();
 
             } catch (Throwable e) {
                 logger.error("error {}", e);

@@ -65,6 +65,13 @@ public class RpcUtil {
         return codec.compress(baos.toByteArray());
     }
 
+    public static int attachmentSize(byte[] attachment) {
+        if (attachment == null) {
+            return 1;
+        } else {
+            return attachment.length;
+        }
+    }
 
     public static byte[] createMessageBodyWithEnvelope(MessageLite body) {
         TSerializedMessageEnvelope header = TSerializedMessageEnvelope.getDefaultInstance();
