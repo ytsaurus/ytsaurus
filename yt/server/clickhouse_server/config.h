@@ -327,6 +327,8 @@ public:
 
     TDiscoveryConfigPtr Discovery;
 
+    TDuration GossipPeriod;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -356,6 +358,9 @@ public:
 
         // Note that CliqueId will be added to Directory automatically.
         RegisterParameter("discovery", Discovery);
+
+        RegisterParameter("gossip_period", GossipPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 

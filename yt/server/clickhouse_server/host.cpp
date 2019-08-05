@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "clickhouse_service_proxy.h"
 #include "config_repository.h"
 #include "database.h"
 #include "functions.h"
@@ -27,6 +28,9 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/logging/log_manager.h>
+
+#include <yt/core/rpc/bus/channel.h>
+#include <yt/core/rpc/caching_channel_factory.h>
 
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/CurrentMetrics.h>
@@ -77,6 +81,7 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NRpc::NBus;
 
 static const auto& Logger = ServerLogger;
 
@@ -132,6 +137,10 @@ private:
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
+    TPeriodicExecutorPtr GossipExecutor_;
+
+    NRpc::IChannelFactoryPtr ChannelFactory_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -156,6 +165,8 @@ public:
     void Start()
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+
+        ChannelFactory_ = CreateCachingChannelFactory(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()));
 
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             ControlInvoker_,
@@ -196,6 +207,12 @@ public:
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        GossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::MakeGossip, MakeWeak(this)),
+            Config_->GossipPeriod);
+        GossipExecutor_->Start();
     }
 
     Poco::Logger& logger() const override
@@ -489,6 +506,42 @@ private:
             Bootstrap_->GetQueryRegistry()->DumpCodicils();
             _exit(MemoryLimitExceededExitCode);
         }
+    }
+
+    void MakeGossip()
+    {
+        YT_LOG_INFO("Gossip started");
+        auto nodes = Discovery_->List();
+        std::vector<TFuture<void>> futures;
+        futures.reserve(nodes.size());
+        for (auto [_, attributes] : nodes) {
+            auto channel = ChannelFactory_->CreateChannel(
+                attributes["host"]->GetValue<TString>() + ":" + ToString(attributes["rpc_port"]->GetValue<ui64>()));
+            TClickHouseServiceProxy proxy(channel);
+            auto req = proxy.ProcessGossip();
+            futures.push_back(req->Invoke().As<void>());
+        }
+        auto responses = WaitFor(CombineAll(futures))
+            .ValueOrThrow();
+
+        i64 bannedCount = 0;
+
+        auto responseIt = responses.begin();
+        for (auto [name, attributes] : nodes) {
+            if (!responseIt->IsOK()) {
+                YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v)",
+                    attributes["host"]->GetValue<TString>(),
+                    attributes["http_port"]->GetValue<ui64>(),
+                    attributes["tcp_port"]->GetValue<ui64>(),
+                    attributes["rpc_port"]->GetValue<ui64>(),
+                    name);
+                Discovery_->Ban(name);
+                ++bannedCount;
+            }
+            ++responseIt;
+        }
+
+        YT_LOG_INFO("Gossip completed (Alive: %v, Banned: %v)", nodes.size() - bannedCount, bannedCount);
     }
 };
 
