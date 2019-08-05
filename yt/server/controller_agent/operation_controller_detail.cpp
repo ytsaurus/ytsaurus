@@ -89,6 +89,7 @@
 #include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/error.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/numeric_helpers.h>
@@ -1665,7 +1666,7 @@ void TOperationControllerBase::LockDynamicTables()
     YT_LOG_INFO("Locking dynamic tables");
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TTagId> cellTags;
+    std::vector<TCellTag> cellTags;
 
     const auto& timestampProvider = OutputClient->GetNativeConnection()->GetTimestampProvider();
     auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
@@ -1740,10 +1741,13 @@ void TOperationControllerBase::LockDynamicTables()
 
         for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
             auto& batchRspOrError = combinedResult[cellIndex];
-            auto error = GetCumulativeError(batchRspOrError);
-            if (!error.IsOK()) {
-                innerErrors.push_back(error);
-                YT_LOG_DEBUG(error, "Error while checking dynamic table lock");
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                if (cumulativeError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                    cumulativeError.ThrowOnError();
+                }
+                innerErrors.push_back(cumulativeError);
+                YT_LOG_DEBUG(cumulativeError, "Error while checking dynamic table lock");
                 continue;
             }
 
@@ -1757,8 +1761,11 @@ void TOperationControllerBase::LockDynamicTables()
                 const auto& rspOrError = checkLockRspsOrError[index];
 
                 if (!rspOrError.IsOK()) {
+                    if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                        rspOrError.ThrowOnError();
+                    }
                     innerErrors.push_back(rspOrError);
-                    YT_LOG_DEBUG(error, "Error while checking dynamic table lock");
+                    YT_LOG_DEBUG(rspOrError, "Error while checking dynamic table lock");
                 }
 
                 if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
