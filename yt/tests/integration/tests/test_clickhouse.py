@@ -387,6 +387,44 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert responses2[1] == responses2[2]
             assert responses != responses2
 
+    def test_ban_nodes(self):
+        patch = {
+            "discovery": {
+                # Set big value to prevent unlocking node.
+                "transaction_timeout": 1000000,
+            }
+        }
+        with Clique(2, config_patch=patch) as clique:
+            time.sleep(1)
+            old_instances = clique.get_active_instances()
+            assert len(old_instances) == 2
+
+            for instance in old_instances:
+                assert len(clique.make_direct_query(instance, "select * from system.clique")) == 2
+
+            jobs = list(clique.op.get_running_jobs())
+            assert len(jobs) == 2
+            abort_job(jobs[0])
+            time.sleep(2)
+
+            counter = 0
+            while clique.get_active_instance_count() < 3 and counter < 40:
+                time.sleep(0.5)
+                counter += 1
+
+            time.sleep(2)
+
+            instances = clique.get_active_instances()
+            # One instnace is dead, but the lock should be alive.
+            assert len(instances) == 3
+
+            for instance in instances:
+                if instance in old_instances:
+                    # Avoid sending request to the dead instance.
+                    continue
+                response = clique.make_direct_query(instance, "select * from system.clique")
+                assert len(response) == 2
+
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

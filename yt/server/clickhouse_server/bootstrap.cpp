@@ -4,6 +4,7 @@
 
 #include "host.h"
 
+#include "clickhouse_service.h"
 #include "config.h"
 #include "query_context.h"
 #include "query_registry.h"
@@ -148,6 +149,9 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
+        GetControlInvoker()));
+
+    RpcServer_->RegisterService(CreateClickHouseService(
         GetControlInvoker()));
 
     RpcServer_->Configure(Config_->RpcServer);
