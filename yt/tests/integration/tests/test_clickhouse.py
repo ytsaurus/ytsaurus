@@ -360,7 +360,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 responses.append(sorted(clique.make_direct_query(instance, "select * from system.clique")))
             assert len(responses[0]) == 3
             for node in responses[0]:
-                assert "host" in node and "rpc_port" in node and "monitoring_port" in node and "tcp_port" in node and "http_port" in node
+                assert "host" in node and "rpc_port" in node and "monitoring_port" in node
+                assert "tcp_port" in node and "http_port" in node and "job_id" in node
             assert responses[0] == responses[1]
             assert responses[1] == responses[2]
 
@@ -369,8 +370,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            while clique.get_active_instance_count() < 3:
+            counter = 0
+            while clique.get_active_instance_count() < 3 and counter < 40:
                 time.sleep(0.5)
+                counter += 1
 
             time.sleep(1)
 
@@ -1119,8 +1122,10 @@ class TestHttpProxy(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            while clique.get_active_instance_count() < 1:
+            counter = 0
+            while clique.get_active_instance_count() < 1 and counter < 40:
                 time.sleep(0.5)
+                counter += 1
 
             time.sleep(2)
 

@@ -341,11 +341,7 @@ private:
         InstanceId_ = id;
         InstanceHost_ = attributes.at("host")->GetValue<TString>();
         auto port = attributes.at("http_port");
-        if (port->GetType() == ENodeType::String) {
-            InstanceHttpPort_ = port->GetValue<TString>();
-        } else {
-            InstanceHttpPort_ = ToString(port->GetValue<ui64>());
-        }
+        InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
         return true;
     }
 };
