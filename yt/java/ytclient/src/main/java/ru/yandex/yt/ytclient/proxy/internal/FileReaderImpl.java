@@ -40,6 +40,11 @@ public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements Fi
     }
 
     @Override
+    public boolean canRead() {
+        return doCanRead();
+    }
+
+    @Override
     public byte[] read() throws Exception {
         return doRead();
     }

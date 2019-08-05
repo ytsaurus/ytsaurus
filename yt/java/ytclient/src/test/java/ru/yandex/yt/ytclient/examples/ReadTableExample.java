@@ -28,12 +28,12 @@ public class ReadTableExample {
 
                 UnversionedRowset rowset;
 
-                reader.readyEvent().join();
+                while (reader.canRead()) {
+                    while ((rowset = reader.read()) != null) {
+                        logger.info("rows {}", rowset.getRows().size());
+                        logger.info("stat {}", reader.getDataStatistics());
 
-                while ((rowset = reader.read()) != null) {
-                    logger.info("rows {}", rowset.getRows().size());
-                    logger.info("stat {}", reader.getDataStatistics());
-
+                    }
                     reader.readyEvent().join();
                 }
 

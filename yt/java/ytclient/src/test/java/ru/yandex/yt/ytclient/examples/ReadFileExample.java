@@ -33,10 +33,10 @@ public class ReadFileExample {
 
                 byte [] data;
 
-                reader.readyEvent().join();
-
-                while ((data = reader.read()) != null) {
-                    fo.write(data);
+                while (reader.canRead()) {
+                    while ((data = reader.read()) != null) {
+                        fo.write(data);
+                    }
 
                     reader.readyEvent().join();
                 }
@@ -63,10 +63,10 @@ public class ReadFileExample {
 
                 byte [] data;
 
-                reader.readyEvent().join();
-
-                while ((data = reader.read()) != null) {
-                    fo.write(data);
+                while (reader.canRead()) {
+                    while ((data = reader.read()) != null) {
+                        fo.write(data);
+                    }
 
                     reader.readyEvent().join();
                 }
@@ -90,10 +90,10 @@ public class ReadFileExample {
 
                 byte [] data;
 
-                reader.readyEvent().join();
-
-                while ((data = reader.read()) != null) {
-                    fo.write(data);
+                while (reader.canRead()) {
+                    while ((data = reader.read()) != null) {
+                        fo.write(data);
+                    }
 
                     reader.readyEvent().join();
                 }

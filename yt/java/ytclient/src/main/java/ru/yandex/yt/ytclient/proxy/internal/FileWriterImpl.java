@@ -263,7 +263,13 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
     }
 
     @Override
-    public void write(byte[] data, int offset, int len) {
+    public boolean write(byte[] data, int offset, int len) {
+        synchronized (lock) {
+            if (writePosition - readPosition >= windowSize) {
+                return false;
+            }
+        }
+
         if (data != null) {
             byte[] newdata = new byte [len - offset];
             System.arraycopy(data, offset, newdata, 0, len);
@@ -272,9 +278,7 @@ public class FileWriterImpl extends StreamBase<TRspWriteFile> implements FileWri
 
         push(data);
 
-        if (data == null) {
-            result.join();
-        }
+        return true;
     }
 
     @Override

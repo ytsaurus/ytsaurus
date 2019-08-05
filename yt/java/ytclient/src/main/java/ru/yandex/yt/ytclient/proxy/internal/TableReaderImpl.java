@@ -174,6 +174,11 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     }
 
     @Override
+    public boolean canRead() {
+        return doCanRead();
+    }
+
+    @Override
     public UnversionedRowset read() throws Exception {
         return parseRowsWithPayload(doRead());
     }

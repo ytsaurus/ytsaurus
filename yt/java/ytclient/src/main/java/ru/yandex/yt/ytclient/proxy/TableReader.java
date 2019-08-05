@@ -28,6 +28,8 @@ public interface TableReader {
 
     CompletableFuture<Void> readyEvent();
 
+    boolean canRead();
+
     UnversionedRowset read() throws Exception;
 
     CompletableFuture<Void> close();
