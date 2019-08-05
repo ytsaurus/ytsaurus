@@ -1184,15 +1184,18 @@ private:
             storeManager->AddStore(store, false);
         }
 
-        UpdateTabletSnapshot(tablet);
-
         const auto& lockManager = tablet->GetLockManager();
+
+        auto nextEpoch = lockManager->GetEpoch() + 1;
+        UpdateTabletSnapshot(tablet, nextEpoch);
         lockManager->Unlock(transactionId);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(),
+            "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
             tabletId,
             transactionId,
-            addedStoreIds);
+            addedStoreIds,
+            lockManager->GetEpoch());
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -3161,11 +3164,11 @@ private:
     }
 
 
-    void UpdateTabletSnapshot(TTablet* tablet)
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
     {
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->RegisterTabletSnapshot(Slot_, tablet);
+            slotManager->RegisterTabletSnapshot(Slot_, tablet, epoch);
         }
     }
 

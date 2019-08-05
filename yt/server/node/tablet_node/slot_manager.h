@@ -71,7 +71,10 @@ public:
 
     //! Informs the manager that some slot now serves #tablet.
     //! It is fine to update an already registered snapshot.
-    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
+    void RegisterTabletSnapshot(
+        TTabletSlotPtr slot,
+        TTablet* tablet,
+        std::optional<TLockManagerEpoch> epoch = std::nullopt);
 
     //! Informs the manager that #tablet is no longer served.
     //! It is fine to attempt to unregister a snapshot that had never been registered.
