@@ -24,7 +24,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
 
     protected final CompletableFuture<RpcClientResponse<RspType>> result = new CompletableFuture<>();
 
-    final protected RpcClientStreamControl control;
+    final RpcClientStreamControl control;
 
     protected Compression compression;
     protected Codec codec = null;
@@ -37,7 +37,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
 
     protected abstract RpcMessageParser<RspType> responseParser();
 
-    protected void maybeReinitCodec(int codecId) {
+    void maybeReinitCodec(int codecId) {
         if (currentCodecId != codecId) {
             compression = Compression.fromValue(codecId);
             codec = Codec.codecFor(compression);
@@ -45,7 +45,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
         }
     }
 
-    protected List<byte[]> decomressedAttachments(int codecId, List<byte[]> attachments) {
+    List<byte[]> decomressedAttachments(int codecId, List<byte[]> attachments) {
         maybeReinitCodec(codecId);
 
         List<byte[]> decompressed;

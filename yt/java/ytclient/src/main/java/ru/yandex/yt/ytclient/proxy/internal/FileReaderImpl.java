@@ -1,7 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import ru.yandex.yt.rpcproxy.TReadFileMeta;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
@@ -41,15 +40,17 @@ public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements Fi
     }
 
     @Override
-    public CompletableFuture<Void> read(Consumer<byte[]> consumer) {
-        return doRead((next) -> {
-            consumer.accept(next);
-            return true;
-        });
+    public byte[] read() throws Exception {
+        return doRead();
     }
 
     @Override
-    public byte[] read() throws Exception {
-        return doRead();
+    public CompletableFuture<Void> close() {
+        return doClose();
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return getReadyEvent();
     }
 }

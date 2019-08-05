@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 
@@ -9,7 +9,6 @@ import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
-// WIP: This Api may change in the near future
 public interface TableReader {
     //! Returns the starting row index within the table.
     long getStartRowIndex();
@@ -23,9 +22,13 @@ public interface TableReader {
     //! Returns schema of the table.
     TableSchema getTableSchema();
 
+    List<String> getOmittedInaccessibleColumns();
+
     TRowsetDescriptor getRowsetDescriptor();
+
+    CompletableFuture<Void> readyEvent();
 
     UnversionedRowset read() throws Exception;
 
-    CompletableFuture<Void> read(Consumer<UnversionedRowset> consumer);
+    CompletableFuture<Void> close();
 }

@@ -3,26 +3,83 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 import com.google.protobuf.Message;
 
+import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 
+class Stash {
+    private final CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
+    private CompletableFuture<Void> readyEvent = new CompletableFuture<>();
+    private Throwable ex = null;
+
+    private final LinkedList<Tuple2<byte[], Long>> attachments = new LinkedList<>();
+
+    void push(byte[] attachment, long offset) throws Throwable {
+        synchronized (attachments) {
+            if (ex != null) {
+                throw ex;
+            }
+
+            boolean wasEmpty = attachments.isEmpty();
+
+            attachments.push(new Tuple2<>(attachment, offset));
+
+            if (wasEmpty) {
+                this.readyEvent.complete(null);
+                readyEvent = new CompletableFuture<>();
+            }
+        }
+    }
+
+    byte[] pop(RpcClientStreamControl control) {
+        synchronized (attachments) {
+            Tuple2<byte[], Long> message = attachments.removeFirst();
+            control.feedback(message._2);
+            return message._1;
+        }
+    }
+
+    CompletableFuture<Void> readyEvent() {
+        synchronized (attachments) {
+            if (attachments.isEmpty()) {
+                return this.readyEvent;
+            } else {
+                return completedFuture;
+            }
+        }
+    }
+
+    void error(Throwable ex) {
+        synchronized (attachments) {
+            this.ex = ex;
+
+            if (!this.readyEvent.isDone()) {
+                this.readyEvent.completeExceptionally(ex);
+            }
+        }
+    }
+}
+
 public abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspType> {
-    private final Object lock = new Object();
-    private StreamStash<byte[]> stash;
+    private Stash stash = new Stash();
     private boolean started = false;
-    private boolean syncReadStarted = false;
     private long offset = 0;
     private int currentSequenceNumber = -1;
 
     StreamReaderImpl(RpcClientStreamControl control) {
         super(control);
         this.start();
+
+        result.whenComplete((unused, ex) -> {
+            if (ex != null) {
+                stash.error(ex);
+            }
+        });
     }
 
     private void start() {
@@ -52,92 +109,43 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
 
         maybeReinitCodec(header.getCodec());
 
-        for (byte [] attachment : attachments) {
-            long size = attachment == null
-                    ? 1
-                    : attachment.length;
+        try {
+            for (byte[] attachment : attachments) {
+                long size = attachment == null
+                        ? 1
+                        : attachment.length;
 
-            offset += size;
+                offset += size;
 
-            synchronized (lock) {
-                byte [] attachmentDecompressed = attachment != null
+                byte[] attachmentDecompressed = attachment != null
                         ? codec.decompress(attachment)
                         : null;
+
                 stash.push(attachmentDecompressed, offset);
             }
+        } catch (Throwable ex) {
+            onError(sender, ex);
         }
-
-        synchronized (lock) {
-            stash.commit(control);
-        }
-    }
-
-    @Override
-    public void onError(RpcClient sender, Throwable error) {
-        super.onError(sender, error);
-
-        synchronized (lock) {
-            stash.push(null, 0);
-        }
-    }
-
-    byte[] doRead() throws Exception {
-        synchronized (lock) {
-            if (!syncReadStarted) {
-                this.stash = StreamStash.syncStash(stash.messages());
-                syncReadStarted = true;
-            }
-        }
-
-
-        if (result.isCompletedExceptionally()) {
-            result.get();
-            return null;
-        }
-
-        StashedMessage<byte[]> message = stash.read();
-
-        if (result.isCompletedExceptionally()) {
-            result.get();
-            return null;
-        }
-
-        control.feedback(message.offset);
-        return message.data;
-    }
-
-    CompletableFuture<Void> doRead(Function<byte[], Boolean> function) {
-        synchronized (lock) {
-            if (syncReadStarted) {
-                throw new IllegalArgumentException();
-            }
-            this.stash = StreamStash.asyncStash(function,
-                    stash != null
-                            ? stash.messages()
-                            : new LinkedList<>()
-            );
-        }
-
-        return waitResult();
     }
 
     CompletableFuture<byte[]> readHead() {
-        CompletableFuture<byte[]> headResult = new CompletableFuture<>();
+        return getReadyEvent().thenApply((unused) -> stash.pop(control));
+    }
 
-        CompletableFuture<Void> maybeError = doRead((data) -> {
-            if (headResult.isDone()) {
-                return false;
-            }
-            headResult.complete(data);
-            return true;
-        });
+    byte[] doRead() throws Exception {
+        if (result.isCompletedExceptionally()) {
+            result.get();
+            return null;
+        }
 
-        maybeError.whenComplete((unused, ex) -> {
-            if (ex != null) {
-                headResult.completeExceptionally(ex);
-            }
-        });
+        return stash.pop(control);
+    }
 
-        return headResult;
+    CompletableFuture<Void> getReadyEvent() {
+        return stash.readyEvent();
+    }
+
+    CompletableFuture<Void> doClose() {
+        return result.thenAccept((unused) -> {});
     }
 }
