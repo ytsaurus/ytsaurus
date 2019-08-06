@@ -21,7 +21,7 @@ public:
             .Default(TDuration::Minutes(60));
         RegisterParameter("max_transaction_depth", MaxTransactionDepth)
             .GreaterThan(0)
-            .Default(16);
+            .Default(32);
     }
 };
 
