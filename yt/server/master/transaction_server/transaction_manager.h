@@ -37,9 +37,7 @@ public:
     DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, TopmostTransactions);
 
 public:
-    TTransactionManager(
-        TTransactionManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTransactionManager(NCellMaster::TBootstrap* bootstrap);
 
     void Initialize();
 

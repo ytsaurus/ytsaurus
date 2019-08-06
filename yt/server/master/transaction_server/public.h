@@ -21,7 +21,7 @@ using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterT
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 DECLARE_REFCOUNTED_CLASS(TTimestampManager)
 
-DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, NObjectClient::TDirectObjectIdHash)

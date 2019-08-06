@@ -558,7 +558,7 @@ void TBootstrap::DoInitialize()
 
     SecurityManager_ = New<TSecurityManager>(this);
 
-    TransactionManager_ = New<TTransactionManager>(Config_->TransactionManager, this);
+    TransactionManager_ = New<TTransactionManager>(this);
 
     NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
