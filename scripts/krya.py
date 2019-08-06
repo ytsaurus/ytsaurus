@@ -233,6 +233,7 @@ def invoke_build(build_cmd, args, rest_args):
         tmpf.seek(0)
         subprocess.check_call([
             "rsync",
+            "--progress",
             "--del",
             "--compress",
             "-a",
