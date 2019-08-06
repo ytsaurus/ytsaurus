@@ -23,6 +23,7 @@ struct TTableUploadOptions
     NChunkClient::EUpdateMode UpdateMode;
     NCypressClient::ELockMode LockMode;
     TTableSchema TableSchema;
+    EOutputChunkFormat OutputChunkFormat;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
     NCompression::ECodec CompressionCodec;

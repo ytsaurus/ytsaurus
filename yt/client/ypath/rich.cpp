@@ -608,6 +608,14 @@ bool TRichYPath::GetBypassArtifactCache() const
     return GetAttribute<bool>(*this, "bypass_artifact_cache", false);
 }
 
+EOutputChunkFormat TRichYPath::GetOutputChunkFormat() const
+{
+    return GetAttribute<EOutputChunkFormat>(
+        *this,
+        "output_chunk_format",
+        EOutputChunkFormat::Unversioned);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)

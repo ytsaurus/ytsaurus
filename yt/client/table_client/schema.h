@@ -217,6 +217,12 @@ public:
     //! Returns the ordered schema used in replication logs.
     TTableSchema ToReplicationLog() const;
 
+    //! Only applies to sorted dynamic tables.
+    //! Returns the static schema used for unversioned updates from bulk insert.
+    //! Key columns remain unchanged. Additional column |($change_type)| is prepended.
+    //! Each value column |name| is replaced with two columns |($value:name)| and |($flags:name)|.
+    TTableSchema ToUnversionedUpdate() const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 

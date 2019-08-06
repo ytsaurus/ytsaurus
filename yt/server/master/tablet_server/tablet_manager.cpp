@@ -6572,7 +6572,7 @@ private:
         }
 
         descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
-        descriptor->set_starting_row_index(*startingRowIndex); 
+        descriptor->set_starting_row_index(*startingRowIndex);
         *startingRowIndex += chunk->MiscExt().row_count();
     }
 

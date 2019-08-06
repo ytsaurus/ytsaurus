@@ -195,6 +195,13 @@ TTableUploadOptions GetTableUploadOptions(
         result.ErasureCodec = erasureCodec;
     }
 
+    if (!dynamic && path.GetOutputChunkFormat() != EOutputChunkFormat::Unversioned) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" cah have value %Qlv only for dynamic tables",
+            path.GetOutputChunkFormat())
+            << TErrorAttribute("path", path);
+    }
+    result.OutputChunkFormat = path.GetOutputChunkFormat();
+
     result.SecurityTags = path.GetSecurityTags();
 
     return result;
