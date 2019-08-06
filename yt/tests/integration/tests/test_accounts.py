@@ -158,34 +158,27 @@ class TestAccounts(YTEnvSetup):
         wait(lambda: not exists("//sys/accounts/max"))
 
     def test_file1(self):
-        assert get_account_disk_space("tmp") == 0
+        wait(lambda: get_account_disk_space("tmp") == 0)
 
         create("file", "//tmp/f1")
         write_file("//tmp/f1", "some_data")
 
-        self._replicator_sleep()
-
+        wait(lambda: get_account_disk_space("tmp") > 0)
         space = get_account_disk_space("tmp")
         assert space > 0
 
         create("file", "//tmp/f2")
         write_file("//tmp/f2", "some_data")
 
-        self._replicator_sleep()
-
-        assert get_account_disk_space("tmp") == 2 * space
+        wait(lambda: get_account_disk_space("tmp") == 2 * space)
 
         remove("//tmp/f1")
 
-        gc_collect()
-        self._replicator_sleep()
-        assert get_account_disk_space("tmp") == space
+        wait(lambda: get_account_disk_space("tmp") == space)
 
         remove("//tmp/f2")
 
-        gc_collect()
-        self._replicator_sleep()
-        assert get_account_disk_space("tmp") == 0
+        wait(lambda: get_account_disk_space("tmp") == 0)
 
     def test_file2(self):
         create("file", "//tmp/f")
@@ -1261,7 +1254,7 @@ class TestAccounts(YTEnvSetup):
             return result
 
         def resources_equal(a, b):
-            return (a["disk_space_per_medium"]["default"] == b["disk_space_per_medium"].get("default", 0) and
+            return (a["disk_space_per_medium"].get("default", 0) == b["disk_space_per_medium"].get("default", 0) and
                     a["disk_space"] == b["disk_space"] and
                     a["chunk_count"] == b["chunk_count"] and
                     a["node_count"] == b["node_count"] and
