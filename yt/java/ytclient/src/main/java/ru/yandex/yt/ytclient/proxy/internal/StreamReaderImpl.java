@@ -32,7 +32,7 @@ class Stash {
 
             boolean needWakeup = attachments.isEmpty() && !eof;
 
-            attachments.push(new Tuple2<>(attachment, offset));
+            attachments.addLast(new Tuple2<>(attachment, offset));
 
             if (needWakeup) {
                 this.readyEvent.complete(null);
