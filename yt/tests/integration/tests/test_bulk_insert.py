@@ -6,6 +6,8 @@ from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external, Rest
     NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 from yt.test_helpers import assert_items_equal
 
 from flaky import flaky
@@ -50,7 +52,7 @@ class TestBulkInsert(DynamicTablesBase):
             command="cat")
 
         assert read_table("//tmp/t_output") == rows
-        assert select_rows("* from [//tmp/t_output]") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
         actual = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
         assert len(actual) == 1
@@ -184,7 +186,7 @@ class TestBulkInsert(DynamicTablesBase):
         
         insert_rows("//tmp/t_output", [rows[2]])
 
-        assert select_rows("* from [//tmp/t_output]") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
         sync_compact_table("//tmp/t_output")
         assert read_table("//tmp/t_output") == rows
@@ -209,7 +211,7 @@ class TestBulkInsert(DynamicTablesBase):
             operations.append(op)
 
         assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
-        assert select_rows("* from [//tmp/t_output]") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": i, "value": str(i)} for i in range(len(operations))])
 
     @parametrize_external
     def test_simultaneous_bulk_inserts(self, external):
@@ -235,7 +237,7 @@ class TestBulkInsert(DynamicTablesBase):
             op.wait_for_state("completed")
 
         assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
-        assert select_rows("* from [//tmp/t_output]") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": i, "value": str(i)} for i in range(len(operations))])
 
     def test_timestamp_preserved_after_mount_unmount(self):
         sync_create_cells(1)
@@ -353,9 +355,9 @@ class TestBulkInsert(DynamicTablesBase):
         op.wait_for_state("failed")
 
         assert get("//tmp/t_output/@chunk_count") == 0
-        assert select_rows("* from [//tmp/t_output]") == [rows[1]]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [rows[1]])
         insert_rows("//tmp/t_output", [rows[2]])
-        assert select_rows("* from [//tmp/t_output]") == rows[1:3]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[1:3])
 
     def test_competing_tablet_transaction_lost(self):
         cell_id = sync_create_cells(1)[0]
@@ -383,7 +385,7 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tablet_tx)
 
-        assert select_rows("* from [//tmp/t_output]") == rows[:1]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
 
     # TODO(ifsmirnov): I promise to do it tomorrow (or at least in August).
     def _test_competing_tablet_transaction_won(self):
@@ -424,7 +426,7 @@ class TestBulkInsert(DynamicTablesBase):
         commit_transaction(tablet_tx)
 
         op.wait_for_state("completed")
-        assert select_rows("* from [//tmp/t_output]") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
         rows = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
         assert len(rows) == 1
