@@ -64,6 +64,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     def _access(cls):
         read_table("//tmp/t")
 
+    @authors("max42")
     @clear_everything_after_test
     def test_no_distribution(self):
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
@@ -73,6 +74,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             time.sleep(2)
         assert p.differentiate() == 0
 
+    @authors("max42", "psushin")
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
@@ -86,6 +88,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             time.sleep(2)
         assert p.differentiate() > 0
 
+    @authors("max42")
     @clear_everything_after_test
     def test_node_filter_tags(self):
         for non_seed in self.non_seeds:
@@ -127,6 +130,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     }
 
     # Test relies on timing of rpc calls and periods of node directory synchronizer and distribution iteration.
+    @authors("max42")
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_wow_block_so_hot_such_many_requests(self):

@@ -41,6 +41,7 @@ class TestGetJob(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
+    @authors("levysotsky")
     def test_get_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

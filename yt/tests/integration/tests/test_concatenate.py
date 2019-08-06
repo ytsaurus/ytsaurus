@@ -10,6 +10,7 @@ class TestConcatenate(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    @authors("ermolovd")
     def test_simple_concatenate(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"key": "x"})
@@ -27,6 +28,7 @@ class TestConcatenate(YTEnvSetup):
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
 
+    @authors("ermolovd")
     def test_sorted(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"key": "x"})
@@ -48,6 +50,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
 
+    @authors("ermolovd")
     def test_infer_schema(self):
         create("table", "//tmp/t1",
            attributes = {
@@ -67,6 +70,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
         assert get("//tmp/union/@schema") == get("//tmp/t1/@schema")
 
+    @authors("ermolovd")
     def test_infer_schema_many_columns(self):
         row = {"a": "1", "b": "2", "c": "3", "d": "4"}
         for table_path in ["//tmp/t1", "//tmp/t2"]:
@@ -92,6 +96,7 @@ class TestConcatenate(YTEnvSetup):
             {"name": "d", "type": "string", "required": False},
         ], strict=True, unique_keys=False)
 
+    @authors("ermolovd")
     def test_conflict_missing_output_schema_append(self):
         create("table", "//tmp/t1",
            attributes = {
@@ -112,6 +117,7 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == empty_schema
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("append", [False, True])
     def test_output_schema_same_as_input(self, append):
         schema =  [{"name": "key", "type": "string"}]
@@ -132,6 +138,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
         assert get("//tmp/union/@schema") == old_schema
 
+    @authors("ermolovd")
     def test_impossibility_to_concatenate_into_sorted_table(self):
         schema =  [{"name": "key", "type": "string"}]
         create("table", "//tmp/t1", attributes = {"schema": schema})
@@ -146,6 +153,7 @@ class TestConcatenate(YTEnvSetup):
         with pytest.raises(YtError):
             concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("append", [False, True])
     def test_compatible_schemas(self, append):
         create("table", "//tmp/t1",
@@ -174,6 +182,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"value": "y"}]
         assert get("//tmp/union/@schema") == old_schema
 
+    @authors("ermolovd")
     def test_incompatible_schemas(self):
         create("table", "//tmp/t1",
            attributes = {
@@ -201,6 +210,7 @@ class TestConcatenate(YTEnvSetup):
         with pytest.raises(YtError):
             concatenate(["//tmp/t1", "//tmp/t3"], "//tmp/union")
 
+    @authors("ermolovd")
     def test_different_input_schemas_no_output_schema(self):
         create("table", "//tmp/t1",
            attributes = {
@@ -219,6 +229,7 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == empty_schema
 
+    @authors("ermolovd")
     def test_strong_output_schema_weak_input_schemas(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -231,6 +242,7 @@ class TestConcatenate(YTEnvSetup):
         with pytest.raises(YtError):
             concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
+    @authors("ermolovd")
     def test_append_to_sorted_weak_schema(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"key": "x"})
@@ -249,6 +261,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/t1") == [{"key": "x"}]
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
 
+    @authors("ermolovd")
     def test_concatenate_unique_keys(self):
         create("table", "//tmp/t1",
            attributes = {
@@ -270,6 +283,7 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "x"}]
         assert get("//tmp/union/@schema/@unique_keys", "false")
 
+    @authors("ermolovd", "kiselyovp")
     def test_empty_concatenate(self):
         create("table", "//tmp/union")
         orig_schema = get("//tmp/union/@schema")

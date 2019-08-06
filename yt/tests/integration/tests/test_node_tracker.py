@@ -14,6 +14,7 @@ class TestNodeTracker(YTEnvSetup):
         "tags" : [ "config_tag1", "config_tag2" ]
     }
 
+    @authors("babenko")
     def test_ban(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
@@ -24,10 +25,12 @@ class TestNodeTracker(YTEnvSetup):
         set_node_banned(test_node, True)
         set_node_banned(test_node, False)
 
+    @authors("babenko")
     def test_resource_limits_overrides_defaults(self):
         node = ls("//sys/cluster_nodes")[0]
         assert get("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node)) == {}
 
+    @authors("psushin")
     def test_disable_write_sessions(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
@@ -49,6 +52,7 @@ class TestNodeTracker(YTEnvSetup):
         # Now write must be successful.
         write_table("//tmp/t", {"a" : "b"})
 
+    @authors("psushin", "babenko")
     def test_disable_scheduler_jobs(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
@@ -61,26 +65,31 @@ class TestNodeTracker(YTEnvSetup):
 
         assert get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0
 
+    @authors("babenko")
     def test_resource_limits_overrides_valiation(self):
         node = ls("//sys/cluster_nodes")[0]
         with pytest.raises(YtError): remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))
 
+    @authors("babenko")
     def test_user_tags_validation(self):
         node = ls("//sys/cluster_nodes")[0]
         with pytest.raises(YtError): set("//sys/cluster_nodes/{0}/@user_tags".format(node), 123)
 
+    @authors("babenko")
     def test_user_tags_update(self):
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["user_tag"])
         assert get("//sys/cluster_nodes/{0}/@user_tags".format(node)) == ["user_tag"]
         assert "user_tag" in get("//sys/cluster_nodes/{0}/@tags".format(node))
 
+    @authors("babenko")
     def test_config_tags(self):
         for node in ls("//sys/cluster_nodes"):
             tags = get("//sys/cluster_nodes/{0}/@tags".format(node))
             assert "config_tag1" in tags
             assert "config_tag2" in tags
 
+    @authors("babenko")
     def test_rack_tags(self):
         create_rack("r")
         node = ls("//sys/cluster_nodes")[0]
@@ -90,6 +99,7 @@ class TestNodeTracker(YTEnvSetup):
         remove("//sys/cluster_nodes/{0}/@rack".format(node))
         assert "r" not in get("//sys/cluster_nodes/{0}/@tags".format(node))
 
+    @authors("babenko", "shakurov")
     def test_create_cluster_node(self):
         kwargs = {"type": "cluster_node"}
         with pytest.raises(YtError): execute_command("create", kwargs)
@@ -106,6 +116,7 @@ class TestNodesCreatedBanned(YTEnvSetup):
     NUM_NODES = 3
     DEFER_NODE_START = True
 
+    @authors("shakurov")
     def test_new_nodes_created_banned(self):
         assert get("//sys/cluster_nodes/@count") == 0
         assert get("//sys/cluster_nodes/@online_node_count") == 0

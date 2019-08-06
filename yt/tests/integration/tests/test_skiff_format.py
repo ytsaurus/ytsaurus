@@ -48,6 +48,7 @@ class TestSkiffFormat(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    @authors("ermolovd")
     @unix_only
     def test_id_map(self):
         create("table", "//tmp/t_in")
@@ -184,6 +185,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    @authors("ermolovd")
     def test_id_map_complex_types(self):
         schema = [
             {
@@ -262,6 +264,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    @authors("ermolovd")
     def test_id_map_complex_types(self):
         schema = [
             {
@@ -340,6 +343,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    @authors("ermolovd")
     def test_read_complex_types(self):
         schema = [
             {

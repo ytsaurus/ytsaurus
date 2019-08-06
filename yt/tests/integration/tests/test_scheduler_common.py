@@ -110,6 +110,7 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = cgroups_delta_node_config
 
+    @authors("babenko", "ostyakov")
     def test_scheduler_event_log(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -153,6 +154,7 @@ class TestEventLog(YTEnvSetup):
             return True
         wait(check)
 
+    @authors("ostyakov")
     def test_scheduler_event_log_buffering(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -204,6 +206,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_time_based_throttling(self):
         create("table", "//tmp/input")
 
@@ -266,6 +269,7 @@ class TestJobStderr(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -278,6 +282,7 @@ class TestJobStderr(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"operation": op.id}, {"job_index": 0}]
         check_all_stderrs(op, "stderr\n", 1)
 
+    @authors("ostyakov")
     def test_stderr_failed(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -292,6 +297,7 @@ class TestJobStderr(YTEnvSetup):
 
         check_all_stderrs(op, "stderr\n", 10)
 
+    @authors("ostyakov")
     def test_stderr_limit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -310,6 +316,7 @@ class TestJobStderr(YTEnvSetup):
 
         check_all_stderrs(op, "stderr\n", 5)
 
+    @authors("ostyakov")
     def test_stderr_max_size(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -332,6 +339,7 @@ class TestJobStderr(YTEnvSetup):
         assert stderr[-1004:] == "1" * 1000 + "tail"
         assert "skipped" in stderr
 
+    @authors("prime")
     def test_stderr_chunks_not_created_for_completed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -366,6 +374,7 @@ class TestJobStderr(YTEnvSetup):
         staged_objects = get("//sys/transactions/{0}/@staged_object_ids".format(stderr_tx))
         assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
 
+    @authors("ostyakov")
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -401,6 +410,7 @@ class TestJobStderr(YTEnvSetup):
         # that is last one.
         check_all_stderrs(op, "stderr\n", 11)
 
+    @authors("ostyakov")
     def test_stderr_with_missing_tmp_quota(self):
         create_account("test_account")
 
@@ -483,6 +493,7 @@ class TestUserFiles(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_file_with_integer_name(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -501,6 +512,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    @authors("ostyakov")
     def test_file_with_subdir(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -527,6 +539,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    @authors("levysotsky")
     def test_unlinked_file(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -558,6 +571,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"value": 42}, {"hello": "world"}]
 
+    @authors("levysotsky")
     def test_file_names_priority(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -579,6 +593,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"name": "//tmp/file1"}, {"name": "//tmp/file2"}, {"name": "//tmp/file3"}]
 
+    @authors("ostyakov")
     @unix_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
@@ -627,6 +642,7 @@ class TestUserFiles(YTEnvSetup):
                 command="cat",
                 file=["//tmp/table_file"])
 
+    @authors("ostyakov")
     @unix_only
     def test_empty_user_files(self):
         create("table", "//tmp/input")
@@ -649,6 +665,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/output") == []
 
+    @authors("ostyakov")
     @unix_only
     def test_multi_chunk_user_files(self):
         create("table", "//tmp/input")
@@ -677,6 +694,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
 
+    @authors("ostyakov")
     def test_erasure_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -732,6 +750,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     @unix_only
     def test_stderr_flush(self):
         create("table", "//tmp/in")
@@ -789,6 +808,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     DELTA_NODE_CONFIG = cgroups_delta_node_config
 
+    @authors("ostyakov")
     def test_failed_jobs_twice(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -809,6 +829,7 @@ class TestSchedulerCommon(YTEnvSetup):
             print_debug(job_desc.attributes["error"]["inner_errors"][0]["message"])
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
+    @authors("ostyakov")
     def test_job_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -833,6 +854,7 @@ class TestSchedulerCommon(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("ermolovd")
     def test_job_stderr_size(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -853,6 +875,7 @@ class TestSchedulerCommon(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("ostyakov")
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -867,6 +890,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert statistics["unavailable_chunk_count"] == 0
         assert statistics["chunk_count"] == 1
 
+    @authors("ostyakov")
     def test_invalid_output_record(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -880,6 +904,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command=command,
                 spec={"mapper": {"format": "yamr"}})
 
+    @authors("ostyakov")
     @unix_only
     def test_fail_context(self):
         create("table", "//tmp/t1")
@@ -902,6 +927,7 @@ class TestSchedulerCommon(YTEnvSetup):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
             assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
 
+    @authors("ostyakov")
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -933,6 +959,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert JsonFormat().loads_row(context)["foo"] == "bar"
 
+    @authors("ignat")
     def test_dump_job_context_permissions(self):
         create_user("abc")
         create("map_node", "//tmp/dir", attributes={"acl": [{"action": "deny", "subjects": ["abc"], "permissions": ["write"]}]})
@@ -967,6 +994,7 @@ class TestSchedulerCommon(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("ostyakov")
     def test_large_spec(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"a": "b"}])
@@ -974,6 +1002,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
+    @authors("ostyakov")
     def test_job_with_exit_immediately_flag(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -997,6 +1026,7 @@ class TestSchedulerCommon(YTEnvSetup):
             assert read_file(jobs_path + "/" + job_id + "/stderr") == \
                 "/bin/bash: /non_existed_command: No such file or directory\n"
 
+    @authors("ostyakov")
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -1011,6 +1041,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
         assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") == 15
 
+    @authors("ostyakov")
     def test_writer_config(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out",
@@ -1031,6 +1062,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
+    @authors("ostyakov")
     def test_invalid_schema_in_path(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
@@ -1040,6 +1072,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 out="<schema=[{name=key; type=int64}; {name=key;type=string}]>//tmp/output",
                 command="cat")
 
+    @authors("ostyakov")
     def test_ypath_attributes_on_output_tables(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b" * 10000})
@@ -1057,6 +1090,7 @@ class TestSchedulerCommon(YTEnvSetup):
             assert compression_codec in stats, str(stats)
             assert stats[compression_codec]["chunk_count"] > 0
 
+    @authors("ostyakov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_unique_keys_validation(self, optimize_for):
         create("table", "//tmp/t1")
@@ -1089,6 +1123,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command=command,
                 spec={"job_count": 1})
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_simple(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1104,6 +1139,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/sorted_table") == [{"key": 1}, {"key": 5}, {"key": 10}, {"key": 30}, {"key": 39}]
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_failed(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1119,6 +1155,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command="echo '{key=7};{key=39}'",
                 spec={"job_count": 1})
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_unique_keys(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1134,6 +1171,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/sorted_table") == [{"key": 1}, {"key": 5}, {"key": 10}, {"key": 10}, {"key": 39}]
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_unique_keys_failed(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1149,6 +1187,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command="echo '{key=10};{key=39}'",
                 spec={"job_count": 1})
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_empty_table(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1165,6 +1204,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/sorted_table") == [{"key": 30}, {"key": 39}]
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_empty_row_empty_table(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1181,6 +1221,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/sorted_table") == [{"key": YsonEntity()}]
 
+    @authors("dakovalkov")
     def test_append_to_sorted_table_exclusive_lock(self):
         create("table", "//tmp/sorted_table", attributes={
             "schema": make_schema([
@@ -1206,6 +1247,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 out="<append=%true>//tmp/sorted_table",
                 command="cat")
 
+    @authors("ostyakov")
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
@@ -1256,6 +1298,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert records[0]["objects_alive"] == 0
         assert records[1]["objects_alive"] == 0
 
+    @authors("ostyakov")
     def test_concurrent_fail(self):
         create("table", "//tmp/input")
 
@@ -1272,6 +1315,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command="sleep 0.250; exit 1",
                 spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options})
 
+    @authors("ostyakov")
     @unix_only
     def test_YT_5629(self):
         create("table", "//tmp/t1")
@@ -1284,6 +1328,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/t2") == data
 
+    @authors("ostyakov")
     def test_range_count_limit(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -1301,6 +1346,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 out="//tmp/out",
                 command="cat")
 
+    @authors("ostyakov")
     def test_complete_op(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1333,6 +1379,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 3
         assert "operation_completed_by_user_request" in op.get_alerts()
 
+    @authors("ostyakov")
     def test_abort_op(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"foo": "bar"})
@@ -1345,6 +1392,7 @@ class TestSchedulerCommon(YTEnvSetup):
         op.abort()
         assert op.get_state() == "aborted"
 
+    @authors("ignat")
     def test_input_with_custom_transaction(self):
         custom_tx = start_transaction()
         create("table", "//tmp/in", tx=custom_tx)
@@ -1359,6 +1407,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
 
+    @authors("ignat")
     def test_nested_input_transactions(self):
         custom_tx = start_transaction()
         create("table", "//tmp/in", tx=custom_tx)
@@ -1400,6 +1449,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
 
+    @authors("babenko")
     def test_ban_nodes_with_failed_jobs(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"foo": i} for i in range(10)])
@@ -1425,6 +1475,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert all(job.attributes["state"] == "failed" for job in jobs)
         assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
 
+    @authors("babenko")
     def test_update_lock_transaction_timeout(self):
         lock_tx = get("//sys/scheduler/lock/@locks/0/transaction_id")
         new_timeout = get("#{}/@timeout".format(lock_tx)) + 1234
@@ -1456,6 +1507,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         }
     }
 
+    @authors("babenko")
     def test_ignore_job_failures_at_banned_nodes(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         write_table("//tmp/t1", [{"foo": i} for i in range(10)])
@@ -1485,6 +1537,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@progress/jobs/failed") == 1)
         wait(lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned") == 9)
 
+    @authors("babenko")
     def test_fail_on_all_nodes_banned(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         write_table("//tmp/t1", [{"foo": i} for i in range(10)])
@@ -1515,6 +1568,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
+    @authors("ostyakov", "ignat")
     def test_non_trivial_error_code(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         write_table("//tmp/t1", [{"foo": i} for i in range(10)])
@@ -1565,6 +1619,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         }
     }
 
+    @authors("ostyakov")
     def test_preserve_slot_index_after_revive(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
@@ -1648,6 +1703,7 @@ class TestSchedulerRevive(YTEnvSetup):
             self._create_table("//tmp/t_out" + str(index))
             self._create_table("//tmp/t_err" + str(index))
 
+    @authors("ostyakov")
     def test_many_operations(self):
         self._prepare_tables()
 
@@ -1675,6 +1731,7 @@ class TestSchedulerRevive(YTEnvSetup):
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
 
+    @authors("ignat")
     def test_many_operations_hard(self):
         self._prepare_tables()
 
@@ -1709,6 +1766,7 @@ class TestSchedulerRevive(YTEnvSetup):
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
 
+    @authors("ignat")
     def test_many_operations_controller_disconnections(self):
         self._prepare_tables()
 
@@ -1743,6 +1801,7 @@ class TestSchedulerRevive(YTEnvSetup):
                 break
         assert ok
 
+    @authors("ignat")
     def test_live_preview(self):
         create_user("u")
 
@@ -1792,6 +1851,7 @@ class TestSchedulerRevive(YTEnvSetup):
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    @authors("max42", "ignat")
     def test_brief_spec(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"foo": 0}])
@@ -1892,6 +1952,7 @@ class TestJobRevival(TestJobRevivalBase):
         }
     }
 
+    @authors("max42")
     @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
     def test_job_revival_simple(self, components_to_kill):
         create("table", "//tmp/t_in")
@@ -1928,6 +1989,7 @@ class TestJobRevival(TestJobRevivalBase):
         assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @authors("max42")
     @pytest.mark.skipif("True", reason="YT-8635")
     @pytest.mark.timeout(600)
     def test_many_jobs_and_operations(self):
@@ -2002,6 +2064,7 @@ class TestJobRevival(TestJobRevivalBase):
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
 
+    @authors("max42", "ignat")
     @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
     def test_user_slots_limit(self, components_to_kill):
         create("table", "//tmp/t_in")
@@ -2096,6 +2159,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         }
     }
 
+    @authors("max42", "ostyakov")
     @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
     def test_disabled_job_revival(self, components_to_kill):
         create("table", "//tmp/t_in")
@@ -2166,6 +2230,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
                 return scheduler_transaction
             time.sleep(0.01)
 
+    @authors("ostyakov")
     def test_hot_standby(self):
         self._prepare_tables()
 
@@ -2221,6 +2286,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_max_data_slices_per_job(self):
         data = [{"foo": i} for i in xrange(5)]
         create("table", "//tmp/in1")
@@ -2259,6 +2325,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_max_children_per_attach_request(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
@@ -2270,6 +2337,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         assert sorted(read_table("//tmp/out")) == sorted(data)
         assert get("//tmp/out/@row_count") == 3
 
+    @authors("ignat", "ostyakov")
     def test_max_children_per_attach_request_in_live_preview(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
@@ -2358,6 +2426,7 @@ class TestSchedulingTags(YTEnvSetup):
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)
 
+    @authors("ostyakov")
     def test_tag_filters(self):
         self._prepare()
 
@@ -2381,6 +2450,7 @@ class TestSchedulingTags(YTEnvSetup):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
 
 
+    @authors("ignat")
     def test_pools(self):
         self._prepare()
 
@@ -2400,6 +2470,7 @@ class TestSchedulingTags(YTEnvSetup):
         #    map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
         #        spec={"pool": "test_pool"})
 
+    @authors("ostyakov")
     def test_tag_correctness(self):
         def get_job_nodes(op):
             nodes = __builtin__.set()
@@ -2421,6 +2492,7 @@ class TestSchedulingTags(YTEnvSetup):
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
 
+    @authors("ostyakov", "ignat")
     def test_missing_nodes_after_revive(self):
         self._prepare()
 
@@ -2510,6 +2582,7 @@ class TestSchedulerConfig(YTEnvSetup):
         ],
     }
 
+    @authors("ostyakov")
     def test_basic(self):
         orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
@@ -2527,11 +2600,13 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
+    @authors("ostyakov")
     def test_adresses(self):
         adresses = get("//sys/scheduler/@addresses")
         assert adresses["ipv4"].startswith("127.0.0.1:")
         assert adresses["ipv6"].startswith("::1:")
 
+    @authors("ignat", "ostyakov")
     def test_specs(self):
         create("table", "//tmp/t_in")
         write_table("<append=true;sorted_by=[foo]>//tmp/t_in", {"foo": "bar"})
@@ -2569,6 +2644,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
         op.abort()
 
+    @authors("ignat")
     def test_unrecognized_spec(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
@@ -2578,6 +2654,7 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
         assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
 
+    @authors("ignat")
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
@@ -2587,6 +2664,7 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         assert list(get(op.get_path() + "/@brief_progress")) == ["jobs"]
 
+    @authors("ignat", "ostyakov")
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -2636,6 +2714,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_snapshots(self):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
@@ -2664,6 +2743,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("ostyakov")
     def test_parallel_snapshots(self):
         create("table", "//tmp/input")
 
@@ -2699,6 +2779,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         for op in ops:
             op.track()
 
+    @authors("ostyakov")
     def test_suspend_time_limit(self):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
@@ -2756,6 +2837,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 0
 
+    @authors("renadeen", "ostyakov")
     def test_job_count(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
@@ -2800,6 +2882,7 @@ class TestSchedulerGpu(YTEnvSetup):
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
             config["exec_agent"]["job_controller"]["test_gpu"] = True
 
+    @authors("renadeen")
     def test_job_count(self):
         gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
         assert len(gpu_nodes) == 1
@@ -2822,6 +2905,7 @@ class TestSchedulerGpu(YTEnvSetup):
         assert len(jobs) == 1
         assert jobs.values()[0]["address"] == gpu_node
 
+    @authors("ostyakov")
     def test_min_share_resources(self):
         create("map_node", "//sys/pools/gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
         gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
@@ -2848,6 +2932,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         create("table", table)
         set(table + "/@replication_factor", 1)
 
+    @authors("ostyakov")
     def test_scheduler_job_by_id(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -2877,6 +2962,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         for key in job_info:
             assert key in job_info2
 
+    @authors("ostyakov")
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -2930,6 +3016,7 @@ class TestCustomControllerQueues(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_run_operation(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
@@ -2993,6 +3080,7 @@ class TestSecureVault(YTEnvSetup):
         assert res[6] == {"YT_SECURE_VAULT_composite": ""}
 
 
+    @authors("ostyakov")
     def test_secure_vault_not_visible(self):
         op = self.run_map_with_secure_vault()
         cypress_info = str(op.get_path() + "/@")
@@ -3005,12 +3093,14 @@ class TestSecureVault(YTEnvSetup):
             for sensible_text in ["42424243", "SeNsItIvE", "InFo"]:
                 assert info.find(sensible_text) == -1
 
+    @authors("ostyakov")
     def test_secure_vault_simple(self):
         op = self.run_map_with_secure_vault()
         op.track()
         res = read_table("//tmp/t_out")
         self.check_content(res)
 
+    @authors("ostyakov")
     def test_secure_vault_with_revive(self):
         op = self.run_map_with_secure_vault()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -3019,6 +3109,7 @@ class TestSecureVault(YTEnvSetup):
         res = read_table("//tmp/t_out")
         self.check_content(res)
 
+    @authors("ignat")
     def test_secure_vault_with_revive_with_new_storage_scheme(self):
         op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -3027,6 +3118,7 @@ class TestSecureVault(YTEnvSetup):
         res = read_table("//tmp/t_out")
         self.check_content(res)
 
+    @authors("ostyakov")
     def test_allowed_variable_names(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -3069,6 +3161,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             "pattern": "_core.%CORE_PID.%CORE_SIG.%CORE_THREAD_NAME-%CORE_REASON",
         }
 
+    @authors("max42")
     @unix_only
     @pytest.mark.skipif(is_asan_build(), reason="Core dumps + ASAN = no way")
     def test_assertion_failure(self):
@@ -3121,6 +3214,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         assert child.returncode == 0
         assert "OperationControllerBase" in stdout
 
+    @authors("ostyakov")
     def test_unexpected_exception(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -3150,6 +3244,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     @unix_only
     def test_hit_limit(self):
         create("table", "//tmp/t_primary")
@@ -3233,6 +3328,7 @@ class TestPoolMetrics(YTEnvSetup):
         }
     }
 
+    @authors("ignat", "ostyakov")
     @unix_only
     def test_map(self):
         create("map_node", "//sys/pools/parent")
@@ -3303,6 +3399,7 @@ class TestPoolMetrics(YTEnvSetup):
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
 
+    @authors("ignat", "ostyakov")
     def test_time_metrics(self):
         create("map_node", "//sys/pools/parent")
         create("map_node", "//sys/pools/parent/child")
@@ -3353,6 +3450,7 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_completed", start_time), start_completed_metrics))
         wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_aborted", start_time), start_aborted_metrics))
 
+    @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
         create("map_node", "//sys/pools/parent")
         wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
@@ -3413,6 +3511,7 @@ class TestPoolMetrics(YTEnvSetup):
             get_pool_metrics("total_time_operation_failed", start_time)["parent"] - start_operation_failed_metrics["parent"] + \
             get_pool_metrics("total_time_operation_aborted", start_time)["parent"] - start_operation_aborted_metrics["parent"]
 
+    @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
         create("map_node", "//sys/pools/unique_pool")
 
@@ -3467,6 +3566,7 @@ class TestPoolMetrics(YTEnvSetup):
         assert get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] == 0
         assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
 
+    @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
         create("map_node", "//sys/pools/unique_pool")
 
@@ -3507,6 +3607,7 @@ class TestPoolMetrics(YTEnvSetup):
         assert get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] == 0
         assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
 
+    @authors("eshcherbin")
     def test_total_time_operation_completed_per_tree(self):
         create("table", "//tmp/t_in")
         for i in xrange(9):
@@ -3571,6 +3672,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    @authors("ignat")
     def test_get_job_spec_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -3618,6 +3720,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
              "Failed waiting for the first job")
         return get(jobs_path)
 
+    @authors("psushin")
     def test_cpu_override_with_preemption(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -3641,6 +3744,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
 
+    @authors("psushin")
     def test_memory_override_with_preemption(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -3678,6 +3782,7 @@ class DISABLED_TestSchedulerOperationStorage(YTEnvSetup):
         }
     }
 
+    @authors("asaitgalin")
     def test_revive(self):
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
@@ -3726,6 +3831,7 @@ fi
             wait(lambda: get(op.get_path() + "/@state") == "running")
             assert op.get_job_count("failed") == 1
 
+    @authors("asaitgalin")
     @pytest.mark.parametrize("use_owners", [False, True])
     def test_attributes(self, use_owners):
         create_user("u")
@@ -3767,6 +3873,7 @@ fi
         assert not exists("//sys/operations/" + op.id + "/@committed")
         assert exists(op.get_path() + "/@committed")
 
+    @authors("asaitgalin")
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
         write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
@@ -3824,6 +3931,7 @@ fi
         assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
         assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
 
+    @authors("ignat")
     def test_rewrite_operation_path(self):
         get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
 
@@ -3906,6 +4014,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
         return op
 
+    @authors("asaitgalin")
     def test_operation_attributes(self):
         def _check_attributes(op):
             res_get_operation_archive = get_operation(op.id)
@@ -3918,6 +4027,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
         assert not exists(op.get_path())
         _check_attributes(op)
 
+    @authors("max42")
     def test_get_job_stderr(self):
         op = self._run_op()
         jobs_new = ls(op.get_path() + "/jobs")
@@ -3936,6 +4046,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         }
     }
 
+    @authors("ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
         # In this test we rely on the assignment order of memory tags.
@@ -4057,6 +4168,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             cls.controller_agent_counter -= 2
         config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
 
+    @authors("ignat")
     @flaky(max_runs=5)
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
@@ -4109,6 +4221,7 @@ class TestPorts(YTEnvSetup):
         },
     }
 
+    @authors("ignat")
     def test_simple(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("//tmp/t_in", [{"a": 0}])
@@ -4179,6 +4292,7 @@ class TestPorts(YTEnvSetup):
 
         assert all(port >= 20000 and port < 20003 for port in ports)
 
+    @authors("max42")
     def test_preliminary_bind(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -4222,6 +4336,7 @@ class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
 
+    @authors("max42")
     def test_new_live_preview_simple(self):
         data = [{"foo": i} for i in range(3)]
 
@@ -4251,6 +4366,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         assert all(record in data for record in live_preview_data)
 
+    @authors("max42")
     def test_new_live_preview_intermediate_data_acl(self):
         create_user("u1")
         create_user("u2")
@@ -4287,6 +4403,7 @@ class TestNewLivePreview(YTEnvSetup):
         with pytest.raises(YtError):
             read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
 
+    @authors("max42")
     def test_new_live_preview_ranges(self):
         create("table", "//tmp/t1")
         for i in range(3):
@@ -4358,6 +4475,7 @@ class TestNewLivePreview(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("max42")
     def test_disabled_live_preview(self):
         create_user("u")
 
@@ -4388,6 +4506,7 @@ class TestConnectToMaster(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
 
+    @authors("max42")
     def test_scheduler_doesnt_connect_to_master_in_safe_mode(self):
         set("//sys/@config/enable_safe_mode", True)
         self.Env.kill_schedulers()
@@ -4435,6 +4554,7 @@ class TestOperationAliases(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
 
+    @authors("max42")
     def test_aliases(self):
         with pytest.raises(YtError):
             # Alias should start with *.
@@ -4482,6 +4602,7 @@ class TestOperationAliases(YTEnvSetup):
         complete_op("*my_op")
         assert get(op.get_path() + "/@state") == "completed"
 
+    @authors("max42")
     def test_get_operation_latest_archive_version(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
@@ -4539,6 +4660,7 @@ class TestContainerCpuLimit(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    @authors("max42")
     @flaky(max_runs=3)
     def test_container_cpu_limit(self):
         op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",

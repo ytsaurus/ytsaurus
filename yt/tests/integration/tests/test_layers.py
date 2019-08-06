@@ -47,6 +47,7 @@ class TestLayers(YTEnvSetup):
 
         set("//tmp/static_cat/@executable", True)
 
+    @authors("ilpauzner")
     def test_disabled_layer_locations(self):
         with Restarter(self.Env, NODES_SERVICE):
             disabled_path = None
@@ -67,6 +68,7 @@ class TestLayers(YTEnvSetup):
 
         time.sleep(5)
 
+    @authors("prime")
     def test_corrupted_layer(self):
         self.setup_files()
         create("table", "//tmp/t_in")
@@ -86,6 +88,7 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
+    @authors("psushin")
     def test_one_layer(self):
         self.setup_files()
 
@@ -111,6 +114,7 @@ class TestLayers(YTEnvSetup):
             stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
             assert "static-bin" in read_file(stderr_path)
 
+    @authors("psushin")
     def test_two_layers(self):
         self.setup_files()
 
@@ -138,6 +142,7 @@ class TestLayers(YTEnvSetup):
             assert "static-bin" in stderr
             assert "test" in stderr
 
+    @authors("psushin")
     def test_bad_layer(self):
         self.setup_files()
 

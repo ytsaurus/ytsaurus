@@ -48,6 +48,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create_dynamic_table(path, **attributes)
 
     # TODO(max42): eventually remove this test as it duplicates unittest TSortedChunkPoolTest/SortedReduceSimple.
+    @authors("psushin", "klyachin")
     @unix_only
     def test_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
@@ -87,6 +88,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out/@sorted")
 
+    @authors("klyachin")
     @unix_only
     def test_cat(self):
         create("table", "//tmp/in1")
@@ -134,6 +136,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out/@sorted")
 
+    @authors("psushin")
     @unix_only
     def test_column_filter(self):
         create("table", "//tmp/in1")
@@ -173,6 +176,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {"key": 7}
             ]
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_simple(self, optimize_for):
         create("table", "//tmp/t1", attributes={
@@ -212,6 +216,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         completed = get(op.get_path() + "/@progress/jobs/completed")
         assert completed["total"] == 1 # Actualy all rows should be in one job despite job_count > 1
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_foreign_table(self, optimize_for):
         create("table", "//tmp/t1", attributes={
@@ -242,6 +247,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert read_table("//tmp/tout") == [{"a": 42, "b": 1},
                                             {"a": 42, "b": 2}]
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_teleport_table(self, optimize_for):
         create("table", "//tmp/t1", attributes={
@@ -268,6 +274,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command="cat",
                 spec={"reducer": {"format": "dsv"}})
 
+    @authors("psushin", "klyachin")
     @unix_only
     def test_control_attributes_yson(self):
         create("table", "//tmp/in1")
@@ -328,6 +335,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 """
         check_all_stderrs(op, expected_stderr, 1)
 
+    @authors("savrus", "klyachin")
     @unix_only
     def test_cat_teleport(self):
         schema = make_schema([
@@ -407,6 +415,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out1/@sorted")
         assert get("//tmp/out2/@sorted")
 
+    @authors("psushin", "klyachin")
     @unix_only
     def test_maniac_chunk(self):
         create("table", "//tmp/in1")
@@ -448,6 +457,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out/@sorted")
 
+    @authors("panin", "klyachin")
     def test_empty_in(self):
         create("table", "//tmp/in")
 
@@ -465,12 +475,14 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read_table("//tmp/out") == []
 
+    @authors("babenko")
     def test_no_outputs(self):
         create("table", "//tmp/t1")
         write_table("<sorted_by=[key]>//tmp/t1", [{"key": "value"}])
         op = reduce(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"])
         check_all_stderrs(op, "stderr\n", 1)
 
+    @authors("psushin", "klyachin")
     def test_duplicate_key_columns(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -482,6 +494,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = "cat",
                 reduce_by=["a", "b", "a"])
 
+    @authors("panin", "klyachin")
     def test_unsorted_input(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -493,6 +506,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 out = "//tmp/out",
                 command = "cat")
 
+    @authors("panin", "klyachin")
     def test_non_prefix(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -505,6 +519,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = "cat",
                 reduce_by="subkey")
 
+    @authors("psushin", "klyachin")
     def test_short_limits(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
@@ -529,6 +544,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out/@sorted")
 
+    @authors("panin", "klyachin")
     @unix_only
     def test_many_output_tables(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
@@ -559,6 +575,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[1]) == [{"v": 1}]
         assert read_table(output_tables[2]) == [{"v": 2}]
 
+    @authors("ignat", "klyachin")
     def test_job_count(self):
         create("table", "//tmp/in", attributes={"compression_codec": "none"})
         create("table", "//tmp/out")
@@ -584,6 +601,7 @@ echo {v = 2} >&7
         # Check that operation has more than 1 job
         assert get("//tmp/out/@row_count") >= count + 2
 
+    @authors("monster")
     def test_key_switch_yamr(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -621,6 +639,7 @@ echo {v = 2} >&7
 
         assert not get('//tmp/out/@sorted')
 
+    @authors("monster", "klyachin")
     def test_key_switch_yson(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -659,6 +678,7 @@ echo {v = 2} >&7
 {"key"="b";"value"="";};
 """
 
+    @authors("klyachin")
     def test_reduce_with_small_block_size(self):
         create("table", "//tmp/in", attributes={"compression_codec": "none"})
         create("table", "//tmp/out")
@@ -689,6 +709,7 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_join_one_job(self):
         create("table", "//tmp/hosts")
@@ -774,6 +795,7 @@ echo {v = 2} >&7
                 {"host":"4", "url":"4/2", "value":"48", "@table_index":"3"},
             ]
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_skip_joining_rows(self):
         create("table", "//tmp/hosts")
@@ -860,6 +882,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_join_with_ranges(self):
         self._prepare_join_tables()
@@ -893,6 +916,7 @@ echo {v = 2} >&7
                 {"host":"4", "url":"4/1", "value":"19", "@table_index":"2"},
             ]
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_join_multiple_jobs(self):
         self._prepare_join_tables()
@@ -912,6 +936,7 @@ echo {v = 2} >&7
 
         assert len(read_table("//tmp/output")) == 18
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_multiple_jobs(self):
         for i in range(4):
@@ -946,6 +971,7 @@ echo {v = 2} >&7
         assert len(output) > 1
         assert output[0] == {"key":"00017", "value":"10017", "@table_index":"0"}
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_reduce_by_equals_join_by(self):
         self._prepare_join_tables()
@@ -965,6 +991,7 @@ echo {v = 2} >&7
 
         assert len(read_table("//tmp/output")) == 12
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_invalid_reduce_by(self):
         self._prepare_join_tables()
@@ -983,6 +1010,7 @@ echo {v = 2} >&7
                     "job_count": 1,
                 })
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_with_foreign_join_key_switch_yson(self):
         create("table", "//tmp/hosts")
@@ -1063,6 +1091,7 @@ echo {v = 2} >&7
 {"key"="4";"subkey"="4/2";"value"="18";};
 """
 
+    @authors("klyachin")
     @unix_only
     def test_reduce_row_count_limit(self):
         create("table", "//tmp/input")
@@ -1088,6 +1117,7 @@ echo {v = 2} >&7
 
         assert len(read_table("//tmp/output")) == 3
 
+    @authors("dakovalkov")
     @unix_only
     def test_reduce_row_count_limit_teleport(self):
         create("table", "//tmp/in1", attributes = {
@@ -1116,6 +1146,7 @@ echo {v = 2} >&7
 
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 3}]
 
+    @authors("dakovalkov")
     @unix_only
     def test_reduce_row_count_limit_teleport_2(self):
         create("table", "//tmp/in1", attributes = {
@@ -1141,6 +1172,7 @@ echo {v = 2} >&7
         assert sorted(read_table("//tmp/out1")) == [{"key": 5}, {"key" : 7}]
         assert sorted(read_table("//tmp/out2")) == [{"key": 1}, {"key" : 3}, {"key": 6}, {"key" : 10}, {"key" : 11}]
 
+    @authors("savrus")
     @unix_only
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_schema_validation(self, sort_order):
@@ -1175,6 +1207,7 @@ echo {v = 2} >&7
                 reduce_by="key",
                 command="cat")
 
+    @authors("babenko", "klyachin")
     @unix_only
     def test_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
@@ -1209,6 +1242,7 @@ echo {v = 2} >&7
         with pytest.raises(YtError):
             op.track();
 
+    @authors("savrus")
     @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")
@@ -1230,6 +1264,7 @@ echo {v = 2} >&7
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    @authors("savrus")
     @unix_only
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -1264,6 +1299,7 @@ echo {v = 2} >&7
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @authors("savrus")
     @unix_only
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -1297,6 +1333,7 @@ echo {v = 2} >&7
 
         assert_items_equal(read_table("//tmp/t_out"), expected)
 
+    @authors("savrus")
     @parametrize_external
     def test_dynamic_table_index(self, external):
         sync_create_cells(1)
@@ -1336,6 +1373,7 @@ echo {v = 2} >&7
 {"key"=2;"value"="2";};
 """
 
+    @authors("klyachin")
     @unix_only
     @pytest.mark.parametrize("with_foreign", [False, True])
     def test_reduce_interrupt_job(self, with_foreign):
@@ -1411,6 +1449,7 @@ echo {v = 2} >&7
             assert job_indexes[1] == 3
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum") == len(result) - 2
 
+    @authors("savrus")
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -1425,6 +1464,7 @@ echo {v = 2} >&7
                 command="cat",
                 spec={"input_query": "a where a > 0"})
 
+    @authors("klyachin")
     def test_reduce_job_splitter(self):
         create("table", "//tmp/in_1")
         for j in range(5):
@@ -1483,6 +1523,7 @@ done
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
 
+    @authors("max42")
     def test_intermediate_live_preview(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "foo", "type": "string", "sort_order": "ascending"}]})
         write_table("//tmp/t1", {"foo": "bar"})
@@ -1501,6 +1542,7 @@ done
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
+    @authors("max42")
     def test_pivot_keys(self):
         create("table", "//tmp/t1", attributes={"schema": [
             {"name": "key", "type": "string", "sort_order": "ascending"},
@@ -1517,6 +1559,7 @@ done
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [3, 4, 5]
 
+    @authors("max42")
     def test_pivot_keys_incorrect_options(self):
         create("table", "//tmp/t1", attributes={"schema": [
             {"name": "key", "type": "string", "sort_order": "ascending"},
@@ -1537,6 +1580,7 @@ done
                    reduce_by=["key"],
                    spec={"pivot_keys": [["05"], ["10"]]})
 
+    @authors("max42")
     def test_sampling(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
                                                            {"name": "value", "type": "string"}]})
@@ -1580,6 +1624,7 @@ done
         assert get("//tmp/t2/@row_count") in [0, 10000]
         assert get("//tmp/t2/@chunk_count") in [0, 1]
 
+    @authors("renadeen")
     def test_reduce_skewed_key_distribution_one_table(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
@@ -1605,6 +1650,7 @@ done
                     {"key": "b"}]
         assert sorted(list(read_table("//tmp/out"))) == sorted(expected)
 
+    @authors("renadeen")
     def test_reduce_skewed_key_distribution_two_tables(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
@@ -1636,6 +1682,7 @@ done
         assert dct["a"] == 1000
         assert dct["b"] == 1
 
+    @authors("dakovalkov")
     def test_reduce_different_types(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
@@ -1655,6 +1702,7 @@ done
                 command="echo {key=5}",
                 reduce_by="key")
 
+    @authors("dakovalkov")
     def test_reduce_with_any(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
@@ -1675,6 +1723,7 @@ done
 
         assert read_table("//tmp/out") == [{"key": 5}]
 
+    @authors("dakovalkov")
     def test_reduce_different_types_with_any(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
@@ -1698,6 +1747,7 @@ done
                 command="echo {key=5}",
                 reduce_by="key")
 
+    @authors("dakovalkov")
     def test_reduce_with_foreign_table(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "any", "sort_order": "ascending"},
@@ -1722,6 +1772,7 @@ done
 
         assert read_table("//tmp/out") == [{"key": 5}]
 
+    @authors("dakovalkov")
     def test_reduce_with_foreign_table_fail(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "any", "sort_order": "ascending"},
@@ -1749,6 +1800,7 @@ done
                 reduce_by=["key", "subkey"],
                 join_by="key")
 
+    @authors("dakovalkov")
     def test_reduce_different_logical_types(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "int32", "sort_order": "ascending"}]
@@ -1769,6 +1821,7 @@ done
 
         assert read_table("//tmp/out") == [{"key": 1}]
 
+    @authors("dakovalkov")
     def test_reduce_disable_check_key_column_types(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]

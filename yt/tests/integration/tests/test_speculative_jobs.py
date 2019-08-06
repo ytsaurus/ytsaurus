@@ -16,6 +16,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
+    @authors("renadeen")
     def test_both_jobs_ends_simultaneously(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
 
@@ -32,6 +33,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert get(op.get_path() + "/@brief_progress/jobs")["completed"] == 1
         assert get(op.get_path() + "/@brief_progress/jobs")["total"] == 1
 
+    @authors("renadeen")
     def test_original_faster_than_speculative(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
         original, speculative = get_sorted_jobs(op)
@@ -43,6 +45,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] == 1
         assert job_counters["aborted"]["scheduled"]["speculative_run_won"] == 0
 
+    @authors("renadeen")
     def test_speculative_faster_than_original(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
         original, speculative = get_sorted_jobs(op)
@@ -54,6 +57,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] == 0
         assert job_counters["aborted"]["scheduled"]["speculative_run_won"] == 1
 
+    @authors("renadeen")
     def test_speculative_job_fail_fails_whole_operation(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job(
             command="BREAKPOINT;exit 1",
@@ -70,6 +74,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["failed"] == 1
         assert job_counters["total"] == 1
 
+    @authors("renadeen")
     def test_speculative_job_fail_but_regular_job_continues(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job(
             command="BREAKPOINT;exit 1",
@@ -86,6 +91,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["total"] == 1
         op.abort()
 
+    @authors("renadeen")
     def test_speculative_job_aborts_but_regular_job_succeeds(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
         original, speculative = get_sorted_jobs(op)
@@ -107,6 +113,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["completed"] == 1
         assert job_counters["total"] == 1
 
+    @authors("renadeen")
     def test_regular_job_aborts_but_speculative_job_succeeds(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
         original, speculative = get_sorted_jobs(op)
@@ -129,6 +136,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["total"] == 1
 
     # NB(renadeen): if this flaps - call me
+    @authors("renadeen")
     def test_original_succeeds_but_speculative_fails_instead_of_abort(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job(command='BREAKPOINT; if [ "$YT_JOB_INDEX" = "1" ]; then exit 1; fi;')
         original, speculative = get_sorted_jobs(op)
@@ -140,6 +148,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
 
         assert op.get_state() == "completed"
 
+    @authors("renadeen")
     def test_map_with_speculative_job(self):
         create_test_tables()
         op = map(
@@ -211,6 +220,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
     ROW_COUNT_TO_FILL_PIPE = 1000000
 
+    @authors("renadeen")
     def test_speculative_on_residual_job(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -218,6 +228,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint(job_id=speculative["id"])
         op.track()
 
+    @authors("renadeen")
     def test_speculative_with_automerge(self):
         op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
         regular, speculative = get_sorted_jobs(op)
@@ -225,6 +236,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint(job_id=speculative["id"])
         op.track()
 
+    @authors("renadeen")
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -237,6 +249,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     # TODO(renadeen): improve test
+    @authors("renadeen")
     def test_three_speculative_jobs_for_three_regular(self):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 
@@ -257,6 +270,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
     def test_max_speculative_job_count(self):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 

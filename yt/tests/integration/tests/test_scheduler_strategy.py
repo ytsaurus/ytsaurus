@@ -69,9 +69,11 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             time.sleep(0.1)
         assert False
 
+    @authors("ignat")
     def test_root_pool(self):
         wait(lambda: are_almost_equal(get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"), 0.0))
 
+    @authors("ostyakov")
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
@@ -140,6 +142,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         release_breakpoint()
         op.track()
 
+    @authors("ostyakov")
     def test_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
@@ -187,6 +190,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             resource_name = "user_memory" if resource == "memory" else resource
             assert are_almost_equal(op_limits[resource_name], limit)
 
+    @authors("ignat")
     def test_resource_limits_preemption(self):
         create("map_node", "//sys/pools/test_pool2")
         wait(lambda: "test_pool2" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
@@ -211,6 +215,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait(lambda: len(op.get_running_jobs()) == 2)
 
     # Remove flaky after YT-8784.
+    @authors("ostyakov")
     @flaky(max_runs=5)
     def test_resource_limits_runtime(self):
         self._prepare_tables()
@@ -228,6 +233,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         set(op.get_path() + "/@resource_limits", {"user_slots": 2})
         self._check_running_jobs(op, 2)
 
+    @authors("ostyakov")
     def test_max_possible_resource_usage(self):
         create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
         create("map_node", "//sys/pools/low_cpu_pool/subpool_1")
@@ -282,6 +288,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         op2.track()
         op3.track()
 
+    @authors("renadeen", "ignat")
     def test_recursive_fair_share_when_lack_of_resources(self):
         create("map_node", "//sys/pools/parent_pool", attributes={"min_share_ratio": 0.1})
         create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
@@ -298,6 +305,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait(check)
 
+    @authors("renadeen", "ostyakov")
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -341,6 +349,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         }
     }
 
+    @authors("renadeen", "ostyakov")
     def test_strategy_with_slow_controller(self):
         spec = {
             "testing": {
@@ -384,6 +393,7 @@ class TestStrategies(YTEnvSetup):
 
         return replicas[0]
 
+    @authors("ostyakov")
     def test_strategies(self):
         self._prepare_tables()
 
@@ -406,6 +416,7 @@ class TestStrategies(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    @authors("ostyakov")
     def test_strategies_in_sort(self):
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
@@ -442,6 +453,7 @@ class TestStrategies(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
+    @authors("ostyakov")
     def test_strategies_in_merge(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@replication_factor", 1)
@@ -544,11 +556,13 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         assert read_table("//tmp/out2") == []
         assert read_table("//tmp/out3") == []
 
+    @authors("ostyakov")
     def test_operations_pool_limit(self):
         create("map_node", "//sys/pools/test_pool_1")
         create("map_node", "//sys/pools/test_pool_2")
         self._run_operations()
 
+    @authors("ostyakov")
     def test_operations_recursive_pool_limit(self):
         create("map_node", "//sys/pools/research")
         set("//sys/pools/research/@max_running_operation_count", 2)
@@ -556,6 +570,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/research/test_pool_2")
         self._run_operations()
 
+    @authors("asaitgalin")
     def test_operation_count(self):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
@@ -581,6 +596,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/research/operation_count") == 3)
         wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/research/running_operation_count") == 3)
 
+    @authors("ostyakov")
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
@@ -602,6 +618,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         assert sorted(read_table("//tmp/out1")) == sorted(data)
         assert sorted(read_table("//tmp/out2")) == sorted(data)
 
+    @authors("ermolovd", "ostyakov")
     def test_abort_of_pending_operation(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
@@ -631,6 +648,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         assert op2.get_state() == "aborted"
         assert op3.get_state() == "completed"
 
+    @authors("ostyakov")
     def test_reconfigured_pools_operations_limit(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
@@ -666,6 +684,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         op1.track()
         op2.track()
 
+    @authors("ostyakov")
     def test_total_operations_limit(self):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/research_subpool")
@@ -724,6 +743,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    @authors("mrkastep")
     def test_ignoring_tentative_pool_operation_limit(self):
         create("map_node", "//sys/pool_trees/normal", attributes={"nodes_filter": "normal"})
         create("map_node", "//sys/pool_trees/normal/pool", attributes={"max_operation_count": 5})
@@ -780,6 +800,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             op.abort()
 
 
+    @authors("ostyakov")
     def test_pool_changes(self):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/subpool")
@@ -844,6 +865,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         with pytest.raises(YtError):
             _run_op()
 
+    @authors("ostyakov")
     def test_global_pool_acl(self):
         self._test_pool_acl_prologue()
         create("map_node", "//sys/pools/p", attributes={
@@ -852,6 +874,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         })
         self._test_pool_acl_core("p", "/p")
 
+    @authors("ostyakov")
     def test_inner_pool_acl(self):
         self._test_pool_acl_prologue()
         create("map_node", "//sys/pools/p1", attributes={
@@ -861,6 +884,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/p1/p2")
         self._test_pool_acl_core("p2", "/p1")
 
+    @authors("ostyakov")
     def test_forbid_immediate_operations(self):
         self._test_pool_acl_prologue()
 
@@ -911,6 +935,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
         time.sleep(0.5)
 
+    @authors("ostyakov")
     def test_preemption(self):
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
@@ -934,6 +959,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1.abort()
 
+    @authors("ostyakov")
     @pytest.mark.parametrize("interruptible", [False, True])
     @pytest.mark.skipif(True, reason="YT-11083")
     def test_interrupt_job_on_preemption(self, interruptible):
@@ -995,6 +1021,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.track()
         assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
 
+    @authors("ostyakov")
     def test_min_share_ratio(self):
         create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
 
@@ -1040,6 +1067,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             release_breakpoint()
             op.track()
 
+    @authors("ignat")
     def test_infer_weight_from_min_share(self):
         create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"infer_weight_from_min_share_ratio_multiplier": 10, "nodes_filter": "missing"})
         create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool1", attributes={"min_share_ratio": 0.3})
@@ -1058,6 +1086,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: are_almost_equal(get(pools_path + "/subpool1/weight"), 3.0))
         wait(lambda: are_almost_equal(get(pools_path + "/subpool2/weight"), 4.0))
 
+    @authors("ostyakov")
     def test_recursive_preemption_settings(self):
         create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
         create("map_node", "//sys/pools/p1/p2")
@@ -1125,6 +1154,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.abort()
         op2.abort()
 
+    @authors("asaitgalin", "ignat")
     def test_preemption_of_jobs_excessing_resource_limits(self):
         create("table", "//tmp/t_in")
         for i in xrange(3):
@@ -1184,6 +1214,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
         config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
 
+    @authors("ostyakov", "ignat")
     def test_unschedulable_operations(self):
         create("table", "//tmp/t_in")
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -1237,6 +1268,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         for resource in ["cpu", "user_slots"]:
             config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
 
+    @authors("ostyakov")
     def test_aggressive_preemption(self):
         create("table", "//tmp/t_in")
         for i in xrange(3):
@@ -1303,6 +1335,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         for resource in ["cpu", "user_slots"]:
             config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
 
+    @authors("ostyakov")
     def test_allow_aggressive_starvation_preemption(self):
         create("table", "//tmp/t_in")
         for i in xrange(3):
@@ -1402,6 +1435,7 @@ class TestSchedulerPools(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_pools_reconfiguration(self):
         create_test_tables(attributes={"replication_factor": 1})
 
@@ -1424,6 +1458,7 @@ class TestSchedulerPools(YTEnvSetup):
 
         op.track()
 
+    @authors("ostyakov")
     def test_default_parent_pool(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1471,6 +1506,7 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
+    @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
         create("map_node", "//sys/pools/custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
@@ -1483,6 +1519,7 @@ class TestSchedulerPools(YTEnvSetup):
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
 
+    @authors("renadeen")
     def test_ephemeral_pool_scheduling_mode(self):
         create("map_node", "//sys/pools/custom_pool_fifo")
         set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
@@ -1496,6 +1533,7 @@ class TestSchedulerPools(YTEnvSetup):
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
 
+    @authors("renadeen")
     def test_ephemeral_pool_max_operation_count(self):
         create("map_node", "//sys/pools/custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
@@ -1508,6 +1546,7 @@ class TestSchedulerPools(YTEnvSetup):
         with pytest.raises(YtError):
             run_test_vanilla(command="", spec={"pool": "custom_pool"}, dont_track=False)
 
+    @authors("ostyakov")
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1557,6 +1596,7 @@ class TestSchedulerPools(YTEnvSetup):
         for op in ops:
             op.track()
 
+    @authors("renadeen", "babenko")
     def test_event_log(self):
         create_test_tables(attributes={"replication_factor": 1})
 
@@ -1609,6 +1649,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
         wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
 
+    @authors("renadeen")
     def test_add_nested_pool(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
 
@@ -1618,6 +1659,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert self.get_pool_parent("test_parent") == "<Root>"
         assert self.get_pool_parent("test_pool") == "test_parent"
 
+    @authors("renadeen")
     def test_move_to_existing_pool(self):
         create("map_node", "//sys/pools/test_parent")
         create("map_node", "//sys/pools/test_pool")
@@ -1627,6 +1669,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         move("//sys/pools/test_pool", "//sys/pools/test_parent/test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
+    @authors("renadeen")
     def test_move_to_new_pool(self):
         create("map_node", "//sys/pools/test_pool")
         self.wait_pool_exists("test_pool")
@@ -1639,6 +1682,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         self.wait_pool_exists("new_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "new_pool")
 
+    @authors("renadeen")
     def test_move_to_root_pool(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
         self.wait_pool_exists("test_pool")
@@ -1648,6 +1692,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
 
+    @authors("renadeen")
     def test_parent_child_swap_is_forbidden(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
         self.wait_pool_exists("test_pool")
@@ -1663,6 +1708,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Path to pool \"test_parent\" changed in more than one place; make pool tree changes more gradually" == alert_message
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
+    @authors("renadeen")
     def test_duplicate_pools_are_forbidden(self):
         tx = start_transaction()
         set("//sys/pools/test_parent1", {"test_pool": {}}, tx=tx)
@@ -1673,6 +1719,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Duplicate poolId test_pool found in new configuration" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen")
     def test_root_id_are_forbidden(self):
         set("//sys/pools/test_parent", {"<Root>": {}})
 
@@ -1680,6 +1727,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Use of root element id is forbidden" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen")
     def test_invalid_pool_attributes(self):
         create("map_node", "//sys/pools/test_pool", attributes={"max_operation_count": "trash"})
 
@@ -1687,6 +1735,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen")
     def test_invalid_pool_node(self):
         set("//sys/pools/test_pool", 0)
 
@@ -1694,6 +1743,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Found node with type Int64, but only Map is allowed" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen")
     def test_operation_count_validation_on_pool(self):
         create("map_node", "//sys/pools/test_pool", attributes={
             "max_operation_count": 1,
@@ -1704,6 +1754,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen")
     def test_subpools_of_fifo_pools_are_forbidden(self):
         tx = start_transaction()
         create("map_node", "//sys/pools/test_pool", attributes={"mode": "fifo"}, tx=tx)
@@ -1714,6 +1765,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
+    @authors("renadeen", "ostyakov")
     def test_ephemeral_to_explicit_pool_transformation(self):
         create("map_node", "//sys/pools/default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
@@ -1787,6 +1839,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_false_suspicious_jobs(self):
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
@@ -1844,6 +1897,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op1.abort()
         op2.abort()
 
+    @authors("max42")
     def test_true_suspicious_jobs(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -1896,6 +1950,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         assert suspicious
 
+    @authors("ostyakov")
     @pytest.mark.xfail(reason="TODO(max42)")
     def test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
@@ -1990,6 +2045,7 @@ class TestMinNeededResources(YTEnvSetup):
         }
     }
 
+    @authors("ostyakov")
     def test_min_needed_resources(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
@@ -2067,6 +2123,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         time.sleep(0.5)  # Give scheduler some time to reload trees
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
 
+    @authors("asaitgalin")
     def test_basic_sanity(self):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
@@ -2084,6 +2141,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/other_intersecting")
         wait(lambda: "update_pools" not in get("//sys/scheduler/@alerts"))
 
+    @authors("asaitgalin")
     def test_abort_orphaned_operations(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
@@ -2102,6 +2160,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         wait(lambda: op.get_state() in ["aborted", "aborting"])
 
+    @authors("ignat")
     def test_abort_many_orphaned_operations(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
@@ -2133,6 +2192,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         for op in ops:
             wait(lambda: op.get_state() in ["aborted", "aborting"])
 
+    @authors("asaitgalin")
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
         for i in xrange(15):
@@ -2152,6 +2212,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         op.track()
 
+    @authors("asaitgalin")
     def test_revive_multitree_operation(self):
         create("table", "//tmp/t_in")
         for i in xrange(6):
@@ -2177,6 +2238,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: op.get_state() == "running")
         op.track()
 
+    @authors("asaitgalin", "ignat")
     def test_incorrect_node_tags(self):
         create("map_node", "//sys/pool_trees/supertree1", attributes={"nodes_filter": "x|y"})
         create("map_node", "//sys/pool_trees/supertree2", attributes={"nodes_filter": "y|z"})
@@ -2196,6 +2258,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/@alerts"))
         assert get("//sys/scheduler/@alerts")[0]
 
+    @authors("asaitgalin")
     def test_default_tree_manipulations(self):
         assert get("//sys/pool_trees/@default_tree") == "default"
 
@@ -2224,6 +2287,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
         assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
 
+    @authors("asaitgalin")
     def test_fair_share(self):
         create("table", "//tmp/t_in")
         for i in xrange(3):
@@ -2266,6 +2330,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: are_almost_equal(get_fair_share("other", op1.id), 0.5))
         wait(lambda: are_almost_equal(get_fair_share("other", op2.id), 0.5))
 
+    @authors("asaitgalin", "shakurov")
     def test_default_tree_update(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="other")
         time.sleep(0.5)
@@ -2393,6 +2458,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             "min_job_duration": TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_MIN_JOB_DURATION,
         }
 
+    @authors("asaitgalin")
     @pytest.mark.xfail(run = True, reason = "asaitgalin should fix ratios")
     def test_scheduling_options_per_tree(self):
         self._prepare_pool_trees()
@@ -2429,6 +2495,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
             .format(op.id)) == "superpool"
 
+    @authors("shakurov")
     def test_tentative_pool_tree_sampling(self):
         other_nodes = self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2474,6 +2541,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         orchid_other_operations_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations"
         assert get("{}/{}/deactivation_reasons/saturated_in_tentative_tree".format(orchid_other_operations_path, op.id)) > 0
 
+    @authors("shakurov")
     def test_tentative_pool_tree_not_supported(self):
         self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2510,6 +2578,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         wait(lambda: exists(op2_pool_trees_path + "default"))
         wait(lambda: not exists(op2_pool_trees_path + "other"))
 
+    @authors("shakurov")
     def test_tentative_pool_tree_banning(self):
         other_node_list = self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2613,6 +2682,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
+    @authors("ignat")
     def test_tentative_pool_tree_banning_with_hanging_jobs(self):
         other_node_list = self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2696,6 +2766,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             for job_id, tentative in iter_running_jobs():
                 events.notify_event("continue_job_{0}".format(job_id))
 
+    @authors("ignat")
     def test_missing_tentative_pool_trees(self):
         self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2712,6 +2783,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
 
+    @authors("ignat")
     def test_tentative_pool_tree_aborted_jobs(self):
         other_node_list = self._prepare_pool_trees()
         spec = self._create_spec()
@@ -2778,6 +2850,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     events.notify_event("continue_job_{0}".format(job_id))
                     tentative_job_count += 1
 
+    @authors("ignat")
     def test_use_default_tentative_pool_trees(self):
         other_node_list = self._prepare_pool_trees()
 
@@ -2823,6 +2896,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     def test_scheduling_tag_filter_applies_from_per_pool_tree_config(self):
         all_nodes = ls("//sys/cluster_nodes")
         default_node = all_nodes[0]

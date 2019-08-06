@@ -12,10 +12,12 @@ class TestFiles(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
+    @authors("babenko", "ignat")
     def test_invalid_type(self):
         with pytest.raises(YtError): read_file("//tmp")
         with pytest.raises(YtError): write_file("//tmp", "")
 
+    @authors("ignat")
     def test_simple(self):
         content = "some_data"
         create("file", "//tmp/file")
@@ -30,6 +32,7 @@ class TestFiles(YTEnvSetup):
 
         wait(lambda: not exists("#%s" % chunk_id))
 
+    @authors("psushin", "babenko")
     def test_empty(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", "")
@@ -38,6 +41,7 @@ class TestFiles(YTEnvSetup):
         assert get("//tmp/file/@chunk_ids") == []
         assert get("//tmp/file/@uncompressed_data_size") == 0
 
+    @authors("ignat")
     def test_read_interval(self):
         content = "".join(["data"] * 100)
         create("file", "//tmp/file")
@@ -60,6 +64,7 @@ class TestFiles(YTEnvSetup):
 
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
 
+    @authors("acid")
     def test_read_all_intervals(self):
         content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8))
         create("file", "//tmp/file")
@@ -69,6 +74,7 @@ class TestFiles(YTEnvSetup):
             for length in range(0, len(content) - offset):
                 assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
 
+    @authors("babenko", "ignat")
     def test_copy(self):
         content = "some_data"
         create("file", "//tmp/f")
@@ -90,6 +96,7 @@ class TestFiles(YTEnvSetup):
 
         wait(lambda: not exists("#%s" % chunk_id))
 
+    @authors("babenko", "ignat")
     def test_copy_tx(self):
         content = "some_data"
         create("file", "//tmp/f")
@@ -112,6 +119,7 @@ class TestFiles(YTEnvSetup):
         
         wait(lambda: not exists("#%s" % chunk_id))
 
+    @authors("babenko", "ignat")
     def test_replication_factor_attr(self):
         content = "some_data"
         create("file", "//tmp/f")
@@ -126,6 +134,7 @@ class TestFiles(YTEnvSetup):
         tx = start_transaction()
         with pytest.raises(YtError): set("//tmp/f/@replication_factor", 2, tx=tx)
 
+    @authors("psushin", "ignat")
     def test_append(self):
         content = "some_data"
         create("file", "//tmp/f")
@@ -136,6 +145,7 @@ class TestFiles(YTEnvSetup):
         assert get("//tmp/f/@uncompressed_data_size") == 18
         assert read_file("//tmp/f") == content + content
 
+    @authors("ignat")
     def test_overwrite(self):
         content = "some_data"
         create("file", "//tmp/f")
@@ -146,6 +156,7 @@ class TestFiles(YTEnvSetup):
         assert get("//tmp/f/@uncompressed_data_size") == 9
         assert read_file("//tmp/f") == content
 
+    @authors("babenko", "ignat")
     def test_upload_inside_tx(self):
         create("file", "//tmp/f")
 
@@ -161,6 +172,7 @@ class TestFiles(YTEnvSetup):
 
         assert read_file("//tmp/f") == content
 
+    @authors("ignat")
     def test_concatenate(self):
         create("file", "//tmp/fa")
         write_file("//tmp/fa", "a")
@@ -178,6 +190,7 @@ class TestFiles(YTEnvSetup):
         concatenate(["//tmp/fa", "//tmp/fb"], "<append=true>//tmp/f")
         assert read_file("//tmp/f") == "abab"
 
+    @authors("ignat")
     def test_concatenate_incorrect_types(self):
         create("file", "//tmp/f1")
         create("file", "//tmp/f2")
@@ -192,6 +205,7 @@ class TestFiles(YTEnvSetup):
         with pytest.raises(YtError):
             concatenate(["//tmp", "//tmp/t"], "//tmp/t")
 
+    @authors("prime")
     def test_set_compression(self):
         create("file", "//tmp/f")
 
@@ -204,6 +218,7 @@ class TestFiles(YTEnvSetup):
         with pytest.raises(YtError):
             write_file("<append=true;compression_codec=none>//tmp/f", "a")
 
+    @authors("ostyakov", "kiselyovp")
     def test_compute_hash(self):
         create("file", "//tmp/fcache")
         create("file", "//tmp/fcache2")
@@ -275,6 +290,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 
             return result
 
+    @authors("kiselyovp")
     def test_faulty_client(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", "abacaba")
@@ -290,6 +306,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
         assert read_file("//tmp/file") == "abacaba"
 
+    @authors("kiselyovp")
     def test_faulty_server(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", "abacaba")
@@ -318,6 +335,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
 
+    @authors("kiselyovp")
     def test_big_files(self):
         alphabet_size = 25
         data = ""

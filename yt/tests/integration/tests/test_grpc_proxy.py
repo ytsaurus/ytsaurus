@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, wait
 # NOTE(asaitgalin): No full yt_commands import here, only rpc api should be used! :)
-from yt_commands import discover_proxies, print_debug
+from yt_commands import discover_proxies, print_debug, authors
 
 from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
@@ -161,6 +161,7 @@ class TestGrpcProxy(YTEnvSetup):
     def _commit_transaction(self, **kwargs):
         return loads(self._make_light_api_request("commit_transaction", kwargs))
 
+    @authors("asaitgalin")
     def test_cypress_commands(self):
         # 700 = "map_node", see ytlib/object_client/public.h
         self._create_node(type=303, path="//tmp/test")
@@ -189,6 +190,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._mount_table(path=path)
         wait(lambda: all(tablet["state"] == "mounted" for tablet in self._get_node(path=path + "/@tablets")))
 
+    @authors("asaitgalin")
     def test_dynamic_table_commands(self):
         self._sync_create_cell()
 
@@ -237,6 +239,7 @@ class TestGrpcProxy(YTEnvSetup):
 
         assert_items_equal(selected_rows, rows)
 
+    @authors("asaitgalin")
     def test_protocol_version(self):
         msg = api_service_pb2.TReqGetNode(path="//tmp")
 
@@ -260,6 +263,7 @@ class TestGrpcProxy(YTEnvSetup):
 
         assert error_found, "Request should fail!"
 
+    @authors("kiselyovp")
     def test_discovery(self):
         proxies = discover_proxies(type_="grpc", driver=self.driver)
         assert len(proxies) == self.NUM_RPC_PROXIES

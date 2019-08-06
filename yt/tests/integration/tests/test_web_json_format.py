@@ -169,6 +169,7 @@ class TestWebJsonFormat(YTEnvSetup):
 
     USE_DYNAMIC_TABLES = True
 
+    @authors("bidzilya")
     @unix_only
     def test_read_table(self):
         create("table", TABLE_PATH)
@@ -192,6 +193,7 @@ class TestWebJsonFormat(YTEnvSetup):
         assert "incomplete_columns" in output and output["incomplete_columns"] == "true"
 
     # NB! Expect to have |null| value in the output for every schema column not presented in the data.
+    @authors("bidzilya")
     @unix_only
     def test_read_table_schema_column_null_values(self):
         schema = get_schema(strict=False)
@@ -211,6 +213,7 @@ class TestWebJsonFormat(YTEnvSetup):
         assert all(missed_schema_column in row for row in output["rows"])
         assert missed_schema_column in output["all_column_names"]
 
+    @authors("bidzilya")
     @unix_only
     def test_select_rows_from_sorted_dynamic_table(self):
         sync_create_cells(1)
@@ -233,6 +236,7 @@ class TestWebJsonFormat(YTEnvSetup):
 
         sync_unmount_table(TABLE_PATH)
 
+    @authors("ignat")
     @unix_only
     def test_select_rows_from_sorted_dynamic_table_with_duplicate_columns(self):
         sync_create_cells(1)
@@ -251,6 +255,7 @@ class TestWebJsonFormat(YTEnvSetup):
 
         sync_unmount_table(TABLE_PATH)
 
+    @authors("bidzilya")
     @unix_only
     def test_select_rows_from_ordered_dynamic_table(self):
         sync_create_cells(1)

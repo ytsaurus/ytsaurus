@@ -61,6 +61,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
+    @authors("max42")
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     def test_auto_merge_does_not_stuck(self, op_type):
@@ -107,6 +108,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                    (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             assert get("//tmp/t_out/@row_count") == row_count
 
+    @authors("max42")
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     def test_account_chunk_limit(self, op_type):
@@ -142,6 +144,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         assert get("//tmp/t_out/@row_count") == row_count
 
+    @authors("max42")
     def test_several_auto_merge_output_tables(self):
         self._create_account(35)
 
@@ -175,6 +178,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out1/@row_count") == row_count // 2
         assert get("//tmp/t_out2/@row_count") == row_count // 2
 
+    @authors("max42")
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("with_revive", [True, False])
     def test_only_auto_merge_output_table(self, with_revive):
@@ -211,6 +215,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
 
 
+    @authors("max42", "ermolovd")
     @pytest.mark.timeout(240)
     def test_auto_merge_with_schema_and_append(self):
         schema_in = make_schema([
@@ -266,6 +271,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert content[:1] == init_content
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema_out
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_teleport_large_chunks(self):
         create("table", "//tmp/t_in")
@@ -300,6 +306,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         row_counts = sorted(row_counts)
         assert row_counts == [1, 1, 1, 1, 1, 5]
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_erasure_output(self):
         create("table", "//tmp/t_in")
@@ -328,6 +335,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for chunk_id in chunk_ids:
             assert get("#{0}/@erasure_codec".format(chunk_id)) == "lrc_12_2_2"
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_replicated_and_compressed_output(self):
         create("table", "//tmp/t_in")
@@ -358,6 +366,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             assert get("#{0}/@media/default/replication_factor".format(chunk_id)) == 5
             assert get("#{0}/@compression_codec".format(chunk_id)) == "zstd_17"
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_row_count_limit_disables_auto_merge(self):
         create("table", "//tmp/t_in")
@@ -382,6 +391,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_sorted_output_disables_auto_merge(self):
         create("table", "//tmp/t_in")
@@ -433,6 +443,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             })
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
 
+    @authors("max42")
     @pytest.mark.timeout(60)
     def test_live_preview(self):
         self._create_account(35)

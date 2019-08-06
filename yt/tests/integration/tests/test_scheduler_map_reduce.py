@@ -38,6 +38,7 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
 
     @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
                                         "force_reduce_combiners", "ordered_map_reduce"])
+    @authors("ignat")
     def test_simple(self, method):
         text = \
 """
@@ -221,6 +222,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         else:
             assert_items_equal(read_table("//tmp/t_out"), output)
 
+    @authors("ignat")
     @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_many_output_tables(self, ordered):
@@ -235,6 +237,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                    spec={"reducer": {"format": "dsv"},
                          "ordered": ordered})
 
+    @authors("psushin")
     @unix_only
     def test_reduce_with_sort(self):
         create("table", "//tmp/t_in")
@@ -288,6 +291,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert get('//tmp/t_out/@sorted')
 
+    @authors("babenko")
     @unix_only
     def test_row_count_limit(self):
         create("table", "//tmp/t_in")
@@ -308,6 +312,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert len(read_table("//tmp/t_out")) == 1
 
+    @authors("levysotsky")
     def test_intermediate_live_preview(self):
         create_user("admin")
         set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
@@ -350,6 +355,7 @@ print "x={0}\ty={1}".format(x, y)
         finally:
             remove("//sys/operations/@acl/-1")
 
+    @authors("levysotsky")
     def test_intermediate_new_live_preview(self):
         create_user("admin")
         set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
@@ -384,6 +390,7 @@ print "x={0}\ty={1}".format(x, y)
         finally:
             remove("//sys/operations/@acl/-1")
 
+    @authors("ignat")
     def test_intermediate_compression_codec(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -399,6 +406,7 @@ print "x={0}\ty={1}".format(x, y)
         assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()
 
+    @authors("savrus")
     @unix_only
     def test_query_simple(self):
         create("table", "//tmp/t1")
@@ -410,6 +418,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @authors("babenko", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_simple(seld, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -452,6 +461,7 @@ print "x={0}\ty={1}".format(x, y)
         set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
         return [node_id]
 
+    @authors("psushin")
     @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_lost_jobs(self, ordered):
@@ -492,6 +502,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert get(op.get_path() + "/@progress/partition_jobs/lost") == 1
 
+    @authors("psushin")
     @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_unavailable_intermediate_chunks(self, ordered):
@@ -547,6 +558,7 @@ print "x={0}\ty={1}".format(x, y)
         assert get(op.get_path() + "/@progress/partition_reduce_jobs/aborted") > 0
         assert get(op.get_path() + "/@progress/partition_jobs/lost") == 0
 
+    @authors("max42")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_progress_counter(self, ordered):
         create("table", "//tmp/t_in")
@@ -585,6 +597,7 @@ print "x={0}\ty={1}".format(x, y)
         assert partition_reduce_counter["aborted"]["total"] == 1
         assert partition_reduce_counter["pending"] == 0
 
+    @authors("savrus")
     @unix_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
@@ -596,6 +609,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @authors("savrus")
     @unix_only
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
@@ -607,6 +621,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
+    @authors("savrus", "psushin")
     @unix_only
     def test_query_asterisk(self):
         create("table", "//tmp/t1")
@@ -637,6 +652,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t2"), rows)
 
+    @authors("babenko", "ignat", "klyachin")
     def test_bad_control_attributes(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -648,6 +664,7 @@ print "x={0}\ty={1}".format(x, y)
                        sort_by=["foo"],
                        spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
 
+    @authors("savrus")
     def test_schema_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
@@ -680,6 +697,7 @@ print "x={0}\ty={1}".format(x, y)
                 mapper_command="cat",
                 reducer_command="cat")
 
+    @authors("savrus")
     def test_computed_columns(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2",
@@ -701,6 +719,7 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    @authors("klyachin")
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
@@ -727,6 +746,7 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
@@ -777,6 +797,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @authors("max42")
     @pytest.mark.parametrize("sorted", [False, True])
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_output_table(self, sorted, ordered):
@@ -801,6 +822,7 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
         assert len(read_table("//tmp/t_out_map")) == 10
 
+    @authors("max42")
     def test_data_balancing(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -825,6 +847,7 @@ print "x={0}\ty={1}".format(x, y)
         print_debug(values)
         assert max(values) <= 2 * job_count // node_count
 
+    @authors("dakovalkov")
     def test_ordered_map_reduce(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -840,6 +863,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    @authors("babenko")
     def test_commandless_user_job_spec(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -856,6 +880,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
 
+    @authors("max42")
     def test_sampling(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string"},
                                                            {"name": "value", "type": "string"}]})

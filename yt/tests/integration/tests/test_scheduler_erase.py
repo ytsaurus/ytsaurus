@@ -11,6 +11,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    @authors("panin", "ignat")
     def test_empty_in(self):
         create("table", "//tmp/table")
         erase("//tmp/table[#0:#10]")
@@ -30,11 +31,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         for row in self.v:
             write_table("<append=true>" + self.table, row)
 
+    @authors("panin")
     def test_no_selectors(self):
         self._prepare_table()
         erase(self.table)
         assert read_table(self.table) == []
 
+    @authors("ignat")
     def test_by_index(self):
         self._prepare_table()
         erase(self.table + "[#10:]")
@@ -57,6 +60,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
             erase(self.table + "[#1:#2,#3:#4]")
 
     # test combine when actually no data is removed
+    @authors("panin", "ignat")
     def test_combine_without_remove(self):
         self._prepare_table()
         erase(self.table + "[#10:]", combine_chunks=True)
@@ -64,12 +68,14 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert get(self.table + "/@chunk_count") == 1
 
     # test combine when data is removed from the middle
+    @authors("panin", "ignat")
     def test_combine_remove_from_middle(self):
         self._prepare_table()
         erase(self.table + "[#2:#4]", combine_chunks=True)
         assert read_table(self.table) == self.v[:2] + self.v[4:]
         assert get(self.table + "/@chunk_count") == 1
 
+    @authors("panin", "ignat")
     def test_by_key_from_non_sorted(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v" : 42})
@@ -78,6 +84,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
             erase("//tmp/table[:42]")
 
 
+    @authors("ignat")
     def test_by_column(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v" : 42})
@@ -111,12 +118,14 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
         assert get(self.table + "/@chunk_count") == 4
 
+    @authors("panin", "ignat")
     def test_one_side_chunk(self):
         self._prepare_medium_chunks()
         erase(self.table + "[#1:#4]")
         assert read_table(self.table) == [self.v[0]] + self.v[4:]
         assert get(self.table + "/@chunk_count") == 3 # side chunks are not united
 
+    @authors("panin", "ignat")
     def test_two_side_chunks(self):
         self._prepare_medium_chunks()
         erase(self.table + "[#1:#3]")
@@ -124,6 +133,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert get(self.table + "/@chunk_count") == 3 # side chunks are united
 
 
+    @authors("ignat")
     def test_by_key(self):
         v1 = [{"key": -100, "value": 20},
              {"key": -5, "value": 1},
@@ -150,6 +160,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table("//tmp/table") == v[4:5]
         assert get("//tmp/table/@sorted") # check that table is still sorted
 
+    @authors("babenko")
     def test_schema_validation(self):
         create("table", "//tmp/table", attributes={
             "schema": make_schema([
