@@ -382,8 +382,9 @@ class TestMasterTransactions(YTEnvSetup):
         assert get("#{0}/@depth".format(tx3)) == 2
 
     def test_transaction_depth_limit(self):
+        set("//sys/@config/transaction_manager/max_transaction_depth", 5)
         tx = None
-        for _ in xrange(17):
+        for _ in xrange(6):
             if tx is None:
                 tx = start_transaction()
             else:
