@@ -32,7 +32,7 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
     auto promise = response->GetPromise();
     auto requestControl = Send(std::move(response));
     if (requestControl) {
-        auto abortHandler = BIND(&IClientRequestControl::Cancel, MakeWeak(requestControl));
+        auto abortHandler = BIND(&IClientRequestControl::Cancel, requestControl);
         auto subscribeToStreamAbort = [&] (const auto& stream) {
             if (stream) {
                 stream->SubscribeAborted(abortHandler);
