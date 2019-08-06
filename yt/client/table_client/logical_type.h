@@ -23,9 +23,15 @@ DEFINE_ENUM(ELogicalMetatype,
     (Struct)
     (Tuple)
 
+    // Variant with named elements.
     (VariantStruct)
+
+    // Variant with unnamed elements.
     (VariantTuple)
-    // In the future there will be VariantTuple, Map, etc
+
+    // Dict is effectively list of pairs. We have restrictions on the key type.
+    // YT doesn't check uniqueness of the keys.
+    (Dict)
 );
 
 class TLogicalType
@@ -42,6 +48,7 @@ public:
     const TTupleLogicalType& AsTupleTypeRef() const;
     const TVariantTupleLogicalType& AsVariantTupleTypeRef() const;
     const TVariantStructLogicalType& AsVariantStructTypeRef() const;
+    const TDictLogicalType& AsDictTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -165,6 +172,8 @@ public:
     TComplexTypeFieldDescriptor TupleElement(size_t i) const;
     TComplexTypeFieldDescriptor VariantTupleElement(size_t i) const;
     TComplexTypeFieldDescriptor VariantStructField(size_t i) const;
+    TComplexTypeFieldDescriptor DictKey() const;
+    TComplexTypeFieldDescriptor DictValue() const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
@@ -262,6 +271,27 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDictLogicalType
+    : public TLogicalType
+{
+public:
+    TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
+
+    const TLogicalTypePtr& GetKey() const;
+    const TLogicalTypePtr& GetValue() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
+
+private:
+    TLogicalTypePtr Key_;
+    TLogicalTypePtr Value_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,6 +303,7 @@ TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements);
 TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+TLogicalTypePtr DictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
 
 TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 

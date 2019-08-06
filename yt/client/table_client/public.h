@@ -239,6 +239,7 @@ class TStructLogicalType;
 class TTupleLogicalType;
 class TVariantTupleLogicalType;
 class TVariantStructLogicalType;
+class TDictLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

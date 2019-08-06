@@ -450,6 +450,35 @@ class TestComplexTypes(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/table", [{"column": []}])
 
+    @authors("ermolovd")
+    def test_dict(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": dict_type(optional_type("string"), "int64"),
+            }])
+        })
+        assert get("//tmp/table/@schema/0/type") == "any"
+        assert get("//tmp/table/@schema/0/required") == True
+
+        write_table("//tmp/table", [
+            {"column": []},
+            {"column": [["one", 1]]},
+            {"column": [["one", 1], ["two", 2]]},
+            {"column": [[None, 1], [None, 2]]},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+        check_bad(None)
+        check_bad({})
+        check_bad(["one", 1])
+        check_bad([["one"]])
+        check_bad([["one", 1, 1]])
+        check_bad([["one", None]])
 
     @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):

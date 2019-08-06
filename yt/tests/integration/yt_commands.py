@@ -1398,6 +1398,13 @@ def variant_tuple_type(elements):
         "elements": elements,
     }
 
+def dict_type(key_type, value_type):
+    return {
+        "metatype": "dict",
+        "key": key_type,
+        "value": value_type,
+    }
+
 ##################################################################
 
 def get_guid_from_parts(lo, hi):

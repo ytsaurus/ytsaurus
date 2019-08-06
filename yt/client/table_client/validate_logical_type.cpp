@@ -78,8 +78,27 @@ private:
             case ELogicalMetatype::VariantTuple:
                 ValidateVariantTupleType(type->AsVariantTupleTypeRef(), fieldId);
                 return;
+            case ELogicalMetatype::Dict:
+                ValidateDictType(type->AsDictTypeRef(), fieldId);
+                return;
         }
         YT_ABORT();
+    }
+
+    void ThrowUnexpectedYsonToken(EYsonItemType type, const TFieldId& fieldId)
+    {
+        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+            "Cannot parse %Qv; expected: %Qv found: %Qv",
+            GetDescription(fieldId),
+            type,
+            Cursor_.GetCurrent().GetType());
+    }
+
+    Y_FORCE_INLINE void ValidateYsonTokenType(EYsonItemType type, const TFieldId& fieldId)
+    {
+        if (Cursor_.GetCurrent().GetType() != type) {
+            ThrowUnexpectedYsonToken(type, fieldId);
+        }
     }
 
     template <ESimpleLogicalValueType type>
@@ -367,6 +386,23 @@ private:
         ValidateVariantTypeImpl(type, fieldId);
     }
 
+    void ValidateDictType(const TDictLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateYsonTokenType(EYsonItemType::BeginList, fieldId);
+        Cursor_.Next();
+        while (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
+            ValidateYsonTokenType(EYsonItemType::BeginList, fieldId);
+            Cursor_.Next();
+
+            ValidateLogicalType(type.GetKey(), fieldId.DictKey());
+            ValidateLogicalType(type.GetValue(), fieldId.DictValue());
+
+            ValidateYsonTokenType(EYsonItemType::EndList, fieldId);
+            Cursor_.Next();
+        }
+        Cursor_.Next();
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -409,6 +445,16 @@ private:
             return {this, i};
         }
 
+        TFieldId DictKey() const
+        {
+            return {this, 0};
+        }
+
+        TFieldId DictValue() const
+        {
+            return {this, 1};
+        }
+
         TComplexTypeFieldDescriptor GetDescriptor(const TComplexTypeFieldDescriptor& root) const
         {
             std::vector<int> path;
@@ -442,6 +488,16 @@ private:
                     case ELogicalMetatype::VariantTuple:
                         descriptor = descriptor.VariantTupleElement(childIndex);
                         continue;
+                    case ELogicalMetatype::Dict:
+                        switch (childIndex) {
+                            case 0:
+                                descriptor = descriptor.DictKey();
+                                continue;
+                            case 1:
+                                descriptor = descriptor.DictValue();
+                                continue;
+                        }
+                        break;
                 }
                 YT_ABORT();
             }

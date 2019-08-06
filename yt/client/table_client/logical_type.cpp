@@ -58,6 +58,11 @@ const TVariantStructLogicalType& TLogicalType::AsVariantStructTypeRef() const
     return dynamic_cast<const TVariantStructLogicalType&>(*this);
 }
 
+const TDictLogicalType& TLogicalType::AsDictTypeRef() const
+{
+    return dynamic_cast<const TDictLogicalType&>(*this);
+}
+
 static bool operator == (const TStructField& lhs, const TStructField& rhs)
 {
     return (lhs.Name == rhs.Name) && (*lhs.Type == *rhs.Type);
@@ -135,6 +140,12 @@ TString ToString(const TLogicalType& logicalType)
             out << '>';
             return out.Str();
 
+        }
+        case ELogicalMetatype::Dict: {
+            const auto& dictType = logicalType.AsDictTypeRef();
+            TStringStream out;
+            out << "dict<" << ToString(*dictType.GetKey()) << ';' << ToString(*dictType.GetValue()) << '>';
+            return out.Str();
         }
     }
     YT_ABORT();
@@ -306,6 +317,16 @@ TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::VariantStructField(size
     return TComplexTypeFieldDescriptor(Descriptor_ + "." + field.Name, field.Type);
 }
 
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::DictKey() const
+{
+    return TComplexTypeFieldDescriptor(Descriptor_ + ".<key>", Type_->AsDictTypeRef().GetKey());
+}
+
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::DictValue() const
+{
+    return TComplexTypeFieldDescriptor(Descriptor_ + ".<value>", Type_->AsDictTypeRef().GetValue());
+}
+
 const TString& TComplexTypeFieldDescriptor::GetDescription() const
 {
     return Descriptor_;
@@ -349,6 +370,10 @@ void TComplexTypeFieldDescriptor::Walk(std::function<void(const TComplexTypeFiel
             for (size_t i = 0; i < GetType()->AsVariantTupleTypeRef().GetElements().size(); ++i) {
                 VariantTupleElement(i).Walk(onElement);
             }
+            return;
+        case ELogicalMetatype::Dict:
+            DictKey().Walk(onElement);
+            DictValue().Walk(onElement);
             return;
     }
     YT_ABORT();
@@ -482,6 +507,85 @@ TVariantTupleLogicalType::TVariantTupleLogicalType(std::vector<NYT::NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDictLogicalType::TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value)
+    : TLogicalType(ELogicalMetatype::Dict)
+    , Key_(key)
+    , Value_(value)
+{ }
+
+const TLogicalTypePtr& TDictLogicalType::GetKey() const
+{
+    return Key_;
+}
+
+const TLogicalTypePtr& TDictLogicalType::GetValue() const
+{
+    return Value_;
+}
+
+size_t TDictLogicalType::GetMemoryUsage() const
+{
+    return sizeof(*this) + Key_->GetMemoryUsage() + Value_->GetMemoryUsage();
+}
+
+int TDictLogicalType::GetTypeComplexity() const
+{
+    return 1 + Key_->GetTypeComplexity() + Value_->GetTypeComplexity();
+}
+
+void TDictLogicalType::ValidateNode() const
+{
+    TComplexTypeFieldDescriptor descriptor("<dict-key>", GetKey());
+    descriptor.Walk(
+        [](const TComplexTypeFieldDescriptor& descriptor) {
+            const auto& logicalType = descriptor.GetType();
+
+            // NB. We intentionally list all metatypes and simple types here.
+            // We want careful decision if type can be used as dictionary key each time new type is added.
+            // Compiler will warn you (with error) if some enum is not handled.
+            switch (logicalType->GetMetatype()) {
+                case ELogicalMetatype::Simple:
+                    switch (auto simpleType = logicalType->AsSimpleTypeRef().GetElement()) {
+                        case ESimpleLogicalValueType::Any:
+                            THROW_ERROR_EXCEPTION("%Qv is of type %Qv that is not allowed in dict key",
+                                descriptor.GetDescription(),
+                                simpleType);
+                        case ESimpleLogicalValueType::Null:
+                        case ESimpleLogicalValueType::Boolean:
+                        case ESimpleLogicalValueType::Int8:
+                        case ESimpleLogicalValueType::Int16:
+                        case ESimpleLogicalValueType::Int32:
+                        case ESimpleLogicalValueType::Int64:
+                        case ESimpleLogicalValueType::Uint8:
+                        case ESimpleLogicalValueType::Uint16:
+                        case ESimpleLogicalValueType::Uint32:
+                        case ESimpleLogicalValueType::Uint64:
+                        case ESimpleLogicalValueType::Double:
+                        case ESimpleLogicalValueType::String:
+                        case ESimpleLogicalValueType::Utf8:
+                            return;
+                    }
+                    YT_ABORT();
+                case ELogicalMetatype::Optional:
+                case ELogicalMetatype::Struct:
+                case ELogicalMetatype::VariantStruct:
+                case ELogicalMetatype::Tuple:
+                case ELogicalMetatype::VariantTuple:
+                case ELogicalMetatype::List:
+                case ELogicalMetatype::Dict:
+                    return;
+            }
+            YT_ABORT();
+        });
+}
+
+bool TDictLogicalType::IsNullable() const
+{
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
@@ -494,6 +598,7 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
         case ELogicalMetatype::Tuple:
         case ELogicalMetatype::VariantStruct:
         case ELogicalMetatype::VariantTuple:
+        case ELogicalMetatype::Dict:
             return std::make_pair(std::nullopt, true);
     }
     YT_ABORT();
@@ -542,6 +647,10 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
             return lhs.AsVariantStructTypeRef().GetFields() == rhs.AsVariantStructTypeRef().GetFields();
         case ELogicalMetatype::VariantTuple:
             return lhs.AsVariantTupleTypeRef().GetElements() == rhs.AsVariantTupleTypeRef().GetElements();
+        case ELogicalMetatype::Dict:
+            return *lhs.AsDictTypeRef().GetKey() == *rhs.AsDictTypeRef().GetKey() &&
+                *lhs.AsDictTypeRef().GetValue() == *rhs.AsDictTypeRef().GetValue();
+
     }
     YT_ABORT();
 }
@@ -552,7 +661,7 @@ void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
         try {
             descriptor.GetType()->ValidateNode();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("%v has bad type",
+            THROW_ERROR_EXCEPTION("%Qv has bad type",
                 descriptor.GetDescription())
             << ex;
         }
@@ -690,6 +799,13 @@ void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logi
             }
             return;
         }
+        case ELogicalMetatype::Dict: {
+            auto protoDict = protoLogicalType->mutable_dict();
+            const auto& dictLogicalType = logicalType->AsDictTypeRef();
+            ToProto(protoDict->mutable_key(), dictLogicalType.GetKey());
+            ToProto(protoDict->mutable_value(), dictLogicalType.GetValue());
+            return;
+        }
     }
     YT_ABORT();
 }
@@ -748,6 +864,14 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
                 fields.emplace_back(TStructField{protoField.name(), std::move(fieldType)});
             }
             *logicalType = VariantStructLogicalType(std::move(fields));
+            return;
+        }
+        case NProto::TLogicalType::TypeCase::kDict: {
+            TLogicalTypePtr keyType;
+            TLogicalTypePtr valueType;
+            FromProto(&keyType, protoLogicalType.dict().key());
+            FromProto(&valueType, protoLogicalType.dict().value());
+            *logicalType = DictLogicalType(keyType, valueType);
             return;
         }
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
@@ -819,6 +943,17 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
                 .EndMap();
             return;
         }
+        case ELogicalMetatype::Dict: {
+            const auto& key = logicalType->AsDictTypeRef().GetKey();
+            const auto& value = logicalType->AsDictTypeRef().GetValue();
+            NYTree::BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("metatype").Value(metatype)
+                .Item("key").Value(key)
+                .Item("value").Value(value)
+            .EndMap();
+            return;
+        }
     }
     YT_ABORT();
 }
@@ -882,6 +1017,14 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
             auto elementsNode = mapNode->GetChild("elements");
             auto elements = NYTree::ConvertTo<std::vector<TLogicalTypePtr>>(elementsNode);
             logicalType = VariantTupleLogicalType(std::move(elements));
+            return;
+        }
+        case ELogicalMetatype::Dict: {
+            auto keyNode = mapNode->GetChild("key");
+            auto key = NYTree::ConvertTo<TLogicalTypePtr>(keyNode);
+            auto valueNode = mapNode->GetChild("value");
+            auto value = NYTree::ConvertTo<TLogicalTypePtr>(valueNode);
+            logicalType = DictLogicalType(std::move(key), std::move(value));
             return;
         }
     }
@@ -994,6 +1137,11 @@ TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields)
     return New<TVariantStructLogicalType>(std::move(fields));
 }
 
+TLogicalTypePtr DictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value)
+{
+    return New<TDictLogicalType>(std::move(key), std::move(value));
+}
+
 const TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1042,6 +1190,13 @@ size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClien
             return CombineHashes(GetHash(*this, logicalType.AsVariantStructTypeRef().GetFields()), typeHash);
         case ELogicalMetatype::VariantTuple:
             return CombineHashes(GetHash(*this, logicalType.AsVariantTupleTypeRef().GetElements()), typeHash);
+        case ELogicalMetatype::Dict:
+            return CombineHashes(
+                CombineHashes(
+                    (*this)(*logicalType.AsDictTypeRef().GetKey()),
+                    (*this)(*logicalType.AsDictTypeRef().GetValue())
+                ),
+                typeHash);
     }
     YT_ABORT();
 }

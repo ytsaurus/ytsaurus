@@ -338,6 +338,25 @@ TEST(TValidateLogicalTypeTest, TestVariantTupleType)
     TestVariantImpl(ELogicalMetatype::VariantTuple);
 }
 
+TEST(TValidateLogicalTypeTest, TestDictType)
+{
+    const auto stringToInt = DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::String),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64)
+    );
+
+    EXPECT_GOOD_TYPE(stringToInt, "[]");
+    EXPECT_GOOD_TYPE(stringToInt, "[[\"foo\"; 0]]");
+    EXPECT_GOOD_TYPE(stringToInt, "[[foo; 0;]]");
+
+    EXPECT_BAD_TYPE(stringToInt, " # ");
+    EXPECT_BAD_TYPE(stringToInt, " foo ");
+    EXPECT_BAD_TYPE(stringToInt, "[foo; 0]");
+    EXPECT_BAD_TYPE(stringToInt, "[[foo; 0; 0]]");
+    EXPECT_BAD_TYPE(stringToInt, "[[foo;]]");
+    EXPECT_BAD_TYPE(stringToInt, "{foo=0;}"); // <- This is not a dict!
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat
