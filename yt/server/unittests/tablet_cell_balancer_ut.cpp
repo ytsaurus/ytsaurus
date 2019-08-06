@@ -372,6 +372,40 @@ class TTabletCellBalancerTest
     , public ::testing::WithParamInterface<TSettingParam>
 { };
 
+class TTabletCellBalancerRevokeTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TSettingParam>
+{ };
+
+TEST_P(TTabletCellBalancerRevokeTest, TestBalancer)
+{
+    auto setting = New<TSetting>(GetParam());
+    auto balancer = CreateTabletCellBalancer(setting);
+
+    for (auto& unassigned : setting->GetUnassignedPeers()) {
+        balancer->AssignPeer(unassigned.first, unassigned.second);
+    }
+
+    auto moveDescriptors = balancer->GetTabletCellMoveDescriptors();
+    setting->ApplyMoveDescriptors(moveDescriptors);
+    setting->ValidateAssingment();
+
+    for (auto& assigned : setting->GetUnassignedPeers()) {
+        balancer->RevokePeer(assigned.first, assigned.second);
+    }
+
+    moveDescriptors = balancer->GetTabletCellMoveDescriptors();
+    setting->ApplyMoveDescriptors(moveDescriptors);
+
+    for (auto& unassigned : setting->GetUnassignedPeers()) {
+        balancer->AssignPeer(unassigned.first, unassigned.second);
+    }
+
+    moveDescriptors = balancer->GetTabletCellMoveDescriptors();
+    setting->ApplyMoveDescriptors(moveDescriptors);
+    setting->ValidateAssingment();
+}
+
 TEST_P(TTabletCellBalancerTest, TestBalancer)
 {
     auto setting = New<TSetting>(GetParam());
@@ -394,6 +428,20 @@ TEST_P(TTabletCellBalancerTest, TestBalancer)
         tablet_slots_per_node,
         "{node_name: [cell_index; ...]; ...}"
 */
+INSTANTIATE_TEST_CASE_P(
+        TabletCellBalancer,
+        TTabletCellBalancerRevokeTest,
+        ::testing::Values(
+                std::make_tuple (
+                        "{a=1;}",
+                        "{a=[1;2;];}",
+                        "{n1=[a;]; n2=[a;];}",
+                        1,
+                        "{n1=[]; n2=[];}"
+                        )
+                )
+        );
+
 INSTANTIATE_TEST_CASE_P(
     TabletCellBalancer,
     TTabletCellBalancerTest,
