@@ -96,9 +96,6 @@ public class RpcUtil {
             RpcMessageParser<T> parser,
             Compression compression)
     {
-        if (data == null || data.length < 8) {
-            throw new IllegalStateException("Missing fixed envelope header");
-        }
         try {
             CodedInputStream input;
             Codec codec = Codec.codecFor(compression);

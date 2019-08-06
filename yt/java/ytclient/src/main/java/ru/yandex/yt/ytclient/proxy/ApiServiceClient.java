@@ -148,6 +148,7 @@ import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
+import ru.yandex.yt.ytclient.proxy.internal.TableWriterImpl;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -1159,7 +1160,7 @@ public class ApiServiceClient implements TransactionalClient {
 
         req.writeTo(builder.body());
 
-        return CompletableFuture.completedFuture(null); // TODO: implement
+        return new TableWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize()).startUpload();
     }
 
     public CompletableFuture<FileReader> readFile(ReadFile req) {

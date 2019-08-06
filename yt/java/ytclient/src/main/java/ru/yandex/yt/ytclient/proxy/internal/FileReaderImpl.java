@@ -12,8 +12,6 @@ import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 
 public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
-    private final static RpcMessageParser<TReadFileMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadFileMeta.class);
-
     private long revision = -1;
 
     public FileReaderImpl(RpcClientStreamControl control) {
@@ -33,6 +31,7 @@ public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements Fi
     public CompletableFuture<FileReader> waitMetadata() {
         FileReaderImpl self = this;
         return readHead().thenApply((data) -> {
+            RpcMessageParser<TReadFileMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadFileMeta.class);
             TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(data, metaParser, Compression.None);
             self.revision = meta.getRevision();
             return self;
