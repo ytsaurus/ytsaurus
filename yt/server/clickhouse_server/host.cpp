@@ -82,6 +82,7 @@ using namespace DB;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NRpc::NBus;
+using namespace NProto;
 
 static const auto& Logger = ServerLogger;
 
@@ -512,14 +513,14 @@ private:
     {
         YT_LOG_INFO("Gossip started");
         auto nodes = Discovery_->List();
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<NRpc::TTypedClientResponse<TRspProcessGossip>::TResult>> futures;
         futures.reserve(nodes.size());
         for (auto [_, attributes] : nodes) {
             auto channel = ChannelFactory_->CreateChannel(
                 attributes["host"]->GetValue<TString>() + ":" + ToString(attributes["rpc_port"]->GetValue<ui64>()));
             TClickHouseServiceProxy proxy(channel);
             auto req = proxy.ProcessGossip();
-            futures.push_back(req->Invoke().As<void>());
+            futures.push_back(req->Invoke());
         }
         auto responses = WaitFor(CombineAll(futures))
             .ValueOrThrow();
@@ -528,7 +529,7 @@ private:
 
         auto responseIt = responses.begin();
         for (auto [name, attributes] : nodes) {
-            if (!responseIt->IsOK()) {
+            if (!responseIt->IsOK() || responseIt->Value()->instance_id() != name) {
                 YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v)",
                     attributes["host"]->GetValue<TString>(),
                     attributes["http_port"]->GetValue<ui64>(),
