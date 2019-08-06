@@ -5082,6 +5082,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         // NB(psushin): This option must be set before PrepareOutputTables call.
         table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
+        table->TableWriterOptions->OutputChunkFormat = table->TableUploadOptions.OutputChunkFormat;
+
         YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
             table->TableUploadOptions.TableSchema,

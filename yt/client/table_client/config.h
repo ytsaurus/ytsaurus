@@ -260,6 +260,8 @@ public:
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
 
+    EOutputChunkFormat OutputChunkFormat;
+
     EOptimizeFor OptimizeFor;
 
     TChunkWriterOptions()
@@ -286,10 +288,18 @@ public:
             .Default(false);
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
+        RegisterParameter("output_chunk_format", OutputChunkFormat)
+            .Default(EOutputChunkFormat::Unversioned);
 
         RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
+            }
+            if (OutputChunkFormat == EOutputChunkFormat::UnversionedUpdate && (!ValidateSorted || !ValidateUniqueKeys)) {
+                THROW_ERROR_EXCEPTION(
+                    "\"output_chunk_format\" is allowed to be %Qlv only if "
+                    "\"validate_sorted\" and \"validate_unique_keys\" are true",
+                   EOutputChunkFormat::UnversionedUpdate);
             }
         });
     }

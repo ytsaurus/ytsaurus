@@ -699,6 +699,39 @@ TTableSchema TTableSchema::ToReplicationLog() const
     return TTableSchema(std::move(columns), true, false);
 }
 
+TTableSchema TTableSchema::ToUnversionedUpdate() const
+{
+    YT_VERIFY(IsSorted());
+
+    std::vector<TColumnSchema> columns;
+    columns.reserve(GetKeyColumnCount() + 1 + GetValueColumnCount() * 2);
+
+    // Keys.
+    for (int columnIndex = 0; columnIndex < GetKeyColumnCount(); ++columnIndex) {
+        const auto& column = Columns_[columnIndex];
+        columns.push_back(column);
+    }
+
+    // Modification type.
+    columns.emplace_back(
+        TUnversionedUpdateSchema::ChangeTypeColumnName,
+        ESimpleLogicalValueType::Uint64);
+
+    // Values.
+    for (int columnIndex = GetKeyColumnCount(); columnIndex < GetColumnCount(); ++columnIndex) {
+        const auto& column = Columns_[columnIndex];
+        YT_VERIFY(!column.SortOrder());
+        columns.emplace_back(
+            TUnversionedUpdateSchema::ValueColumnNamePrefix + column.Name(),
+            MakeOptionalIfNot(column.LogicalType()));
+        columns.emplace_back(
+            TUnversionedUpdateSchema::FlagsColumnNamePrefix + column.Name(),
+            MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false));
+    }
+
+    return TTableSchema(std::move(columns), /*strict*/ true, /*uniqueKeys*/ true);
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;

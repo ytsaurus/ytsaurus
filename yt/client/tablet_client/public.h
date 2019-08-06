@@ -85,6 +85,23 @@ struct TReplicationLogTable
     static const TString FlagsColumnNamePrefix;
 };
 
+DEFINE_BIT_ENUM(EUnversionedUpdateDataFlags,
+    ((None)      (0x0000))
+    ((Missing)   (0x0001))
+    ((Aggregate) (0x0002))
+);
+
+constexpr EUnversionedUpdateDataFlags MinValidUnversionedUpdateDataFlags = EUnversionedUpdateDataFlags::None;
+constexpr EUnversionedUpdateDataFlags MaxValidUnversionedUpdateDataFlags =
+    EUnversionedUpdateDataFlags::Missing | EUnversionedUpdateDataFlags::Aggregate;
+
+struct TUnversionedUpdateSchema
+{
+    static const TString ChangeTypeColumnName;
+    static const TString ValueColumnNamePrefix;
+    static const TString FlagsColumnNamePrefix;
+};
+
 DEFINE_ENUM(ETabletCellHealth,
     (Initializing)
     (Good)

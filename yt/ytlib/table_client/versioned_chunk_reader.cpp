@@ -1633,9 +1633,15 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), singletonClippingRange.GetHolder());
     };
 
+    if (chunkState->ChunkTimestamp && timestamp < chunkState->ChunkTimestamp) {
+        return CreateEmptyVersionedReader();
+    }
+
+    IVersionedReaderPtr reader;
+
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
-            return New<TSimpleVersionedRangeChunkReader>(
+            reader = New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
                 chunkMeta,
                 std::move(chunkReader),
@@ -1647,13 +1653,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 timestamp,
                 produceAllVersions,
                 singletonClippingRange);
+            break;
 
         case ETableChunkFormat::VersionedColumnar: {
             YT_VERIFY(!ranges.Empty());
-            IVersionedReaderPtr reader;
+            IVersionedReaderPtr unwrappedReader;
 
             if (timestamp == AllCommittedTimestamp) {
-                reader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
+                unwrappedReader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
@@ -1664,7 +1671,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     performanceCounters,
                     timestamp);
             } else {
-                reader = New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
+                unwrappedReader  = New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
@@ -1675,8 +1682,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     performanceCounters,
                     timestamp);
             }
-            return New<TFilteringReader>(reader, ranges);
+            reader = New<TFilteringReader>(unwrappedReader, ranges);
+            break;
         }
+
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             // COMPAT(sandello): Fix me.
@@ -1720,16 +1729,24 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
             };
 
-            auto reader = CreateVersionedReaderAdapter(
+            auto unwrappedReader = CreateVersionedReaderAdapter(
                 schemafulReaderFactory,
                 chunkMeta->Schema(),
                 columnFilter,
                 chunkTimestamp);
 
-            return New<TFilteringReader>(reader, ranges);
+            return New<TFilteringReader>(unwrappedReader, ranges);
         }
         default:
             YT_ABORT();
+    }
+
+    if (chunkState->ChunkTimestamp) {
+        return CreateTimestampResettingAdapter(
+            reader,
+            chunkState->ChunkTimestamp);
+    } else {
+        return reader;
     }
 }
 
@@ -1774,9 +1791,15 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const auto& performanceCounters = chunkState->PerformanceCounters;
     const auto& keyComparer = chunkState->KeyComparer;
 
+    if (chunkState->ChunkTimestamp && timestamp < chunkState->ChunkTimestamp) {
+        return CreateEmptyVersionedReader(keys.Size());
+    }
+
+    IVersionedReaderPtr reader;
+
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
-            return New<TSimpleVersionedLookupChunkReader>(
+            reader = New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
                 chunkMeta,
                 std::move(chunkReader),
@@ -1788,13 +1811,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 keyComparer,
                 timestamp,
                 produceAllVersions);
+            break;
 
         case ETableChunkFormat::VersionedColumnar: {
             if (produceAllVersions) {
                 YT_VERIFY(columnFilter.IsUniversal());
             }
             if (produceAllVersions) {
-                return New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
+                reader = New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
@@ -1805,7 +1829,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     performanceCounters,
                     timestamp);
             } else {
-                return New<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>(
+                reader = New<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
@@ -1816,6 +1840,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     performanceCounters,
                     timestamp);
             }
+            break;
         }
 
         case ETableChunkFormat::UnversionedColumnar:
@@ -1861,6 +1886,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         default:
             YT_ABORT();
+    }
+
+    if (chunkState->ChunkTimestamp) {
+        return CreateTimestampResettingAdapter(
+            reader,
+            chunkState->ChunkTimestamp);
+    } else {
+        return reader;
     }
 }
 

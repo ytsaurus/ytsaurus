@@ -39,6 +39,8 @@ _events_on_fs = None
 default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
+SortOrderViolation = 301
+UniqueKeyViolation = 306
 SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
