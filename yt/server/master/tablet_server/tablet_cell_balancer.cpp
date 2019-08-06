@@ -338,14 +338,16 @@ private:
             const auto& node = Nodes_[nodeIndex];
             NodeToIndex_[node.GetNode()] = nodeIndex;
 
-            if (node.GetTotalSlots() > node.GetSlots().size()) {
-                for (const auto& pair : Provider_->TabletCellBundles()) {
-                    const auto* bundle = pair.second;
-                    if (!IsObjectAlive(bundle)) {
-                        continue;
-                    }
-                    if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
-                        FreeNodes_[pair.second].push_back(nodeIndex);
+            for (const auto& pair : Provider_->TabletCellBundles()) {
+                const auto* bundle = pair.second;
+                if (!IsObjectAlive(bundle)) {
+                    continue;
+                }
+                if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
+                    if (node.GetTotalSlots() > node.GetSlots().size()) {
+                        FreeNodes_[bundle].push_back(nodeIndex);
+                    } else {
+                        FilledNodes_[bundle].push_back(nodeIndex);
                     }
                 }
             }
@@ -401,6 +403,7 @@ private:
                 std::swap(queue[index], queue.back());
                 queue.pop_back();
                 FilledNodes_[bundle].push_back(nodeIndex);
+                --index;
             } else if (!NodeInPeers(cell, node)) {
                 return node;
             } else {
