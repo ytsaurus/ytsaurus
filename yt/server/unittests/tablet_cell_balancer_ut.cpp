@@ -125,7 +125,7 @@ public:
     void ValidateAssingment()
     {
         try {
-            ValidatePeerAssingment();
+            ValidatePeerAssignment();
             ValidateNodeFeasibility();
             ValidateSmoothness();
         } catch (const std::exception& ex) {
@@ -266,7 +266,7 @@ private:
         holder->InsertCell(std::make_pair(cell, peerId));
     }
 
-    void ValidatePeerAssingment()
+    void ValidatePeerAssignment()
     {
         for (const auto& holder : NodeHolders_) {
             THashSet<const TTabletCell*> cellSet;
@@ -421,7 +421,25 @@ INSTANTIATE_TEST_CASE_P(
             "{a=[1;2;3;4;5;6;7;8;9;10]}",
             "{n1=[a]; n2=[a]; n3=[a]}",
             10,
-            "{n1=[1;2;3;4;5;6;7;8;9;10]; n2=[1;2;3;4]; n3=[5;6;7;8;9;10]}")
+            "{n1=[1;2;3;4;5;6;7;8;9;10]; n2=[1;2;3;4]; n3=[5;6;7;8;9;10]}"),
+        std::make_tuple(
+            "{a=2; b=2; c=2}",
+            "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
+            "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
+            6,
+            "{n1=[]; n2=[]; n3=[]}"),
+        std::make_tuple(
+            "{a=2; b=2; c=2}",
+            "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
+            "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
+            6,
+            "{n1=[1;2;3;4;5;6;]; n2=[]; n3=[1;2;3;4;5;6;]}"),
+        std::make_tuple(
+            "{a=2; b=2; c=2}",
+            "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
+            "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
+            6,
+            "{n1=[1;2;3;4;5;6;]; n2=[1;2;7;8;9;]; n3=[3;4;5;6;8;9]}")
     ));
 
 
