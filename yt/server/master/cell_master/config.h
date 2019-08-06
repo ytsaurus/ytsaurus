@@ -141,8 +141,6 @@ public:
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;
 
-    NTransactionServer::TTransactionManagerConfigPtr TransactionManager;
-
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
@@ -187,26 +185,10 @@ public:
     NSecurityServer::TDynamicSecurityManagerConfigPtr SecurityManager;
     NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
     TDynamicMulticellManagerConfigPtr MulticellManager;
+    NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
 
-    TDynamicClusterConfig()
-    {
-        RegisterParameter("enable_safe_mode", EnableSafeMode)
-            .Default(false);
-        RegisterParameter("chunk_manager", ChunkManager)
-            .DefaultNew();
-        RegisterParameter("tablet_manager", TabletManager)
-            .DefaultNew();
-        RegisterParameter("node_tracker", NodeTracker)
-            .DefaultNew();
-        RegisterParameter("object_manager", ObjectManager)
-            .DefaultNew();
-        RegisterParameter("security_manager", SecurityManager)
-            .DefaultNew();
-        RegisterParameter("cypress_manager", CypressManager)
-            .DefaultNew();
-        RegisterParameter("multicell_manager", MulticellManager)
-            .DefaultNew();
-    }
+
+    TDynamicClusterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
