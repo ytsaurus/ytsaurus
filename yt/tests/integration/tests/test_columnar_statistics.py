@@ -57,6 +57,7 @@ class TestColumnarStatistics(YTEnvSetup):
                    "optimize_for": optimize_for
                })
 
+    @authors("max42")
     def test_get_table_columnar_statistics(self):
         create("table", "//tmp/t")
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
@@ -71,6 +72,7 @@ class TestColumnarStatistics(YTEnvSetup):
         self._expect_statistics(2, 5, "a", [1200])
         self._expect_statistics(1, 4, "", [])
 
+    @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
         create("table", "//tmp/t")
         write_table("<append=%true>//tmp/t", [{"a": "x" * 10, "b": 42}, {"c": 1.2}])
@@ -126,6 +128,7 @@ class TestColumnarStatistics(YTEnvSetup):
 
         self._expect_multi_statistics(paths, lower_row_indices, upper_row_indices, all_columns, all_expected_data_weights)
 
+    @authors("max42")
     def test_map_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
@@ -140,6 +143,7 @@ class TestColumnarStatistics(YTEnvSetup):
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
+    @authors("max42")
     def test_sorted_merge_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan", "schema": [{"name": "a", "sort_order": "ascending", "type": "string"},
                                                                                   {"name": "b", "type": "string"}]})
@@ -154,6 +158,7 @@ class TestColumnarStatistics(YTEnvSetup):
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
+    @authors("max42")
     def test_map_thin_column_dynamic(self):
         sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t")
@@ -174,6 +179,7 @@ class TestColumnarStatistics(YTEnvSetup):
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
+    @authors("max42")
     def test_empty_column_selector(self):
         create("table", "//tmp/t")
         create("table", "//tmp/d")
@@ -184,6 +190,7 @@ class TestColumnarStatistics(YTEnvSetup):
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
+    @authors("max42")
     def test_table_file_in_sandbox(self):
         create("table", "//tmp/t")
         s = "x" * 100
@@ -226,6 +233,7 @@ class TestColumnarStatistics(YTEnvSetup):
                 },
             })
 
+    @authors("max42")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_dynamic_tables(self, optimize_for):
         sync_create_cells(1)

@@ -83,6 +83,7 @@ class TestDiskUsage(QuotaMixin):
 
         map(**check_op)
 
+    @authors("astiunov")
     def test_lack_space_node(self):
         tables = self._init_tables()
         options = {
@@ -95,6 +96,7 @@ class TestDiskUsage(QuotaMixin):
 
         self.run_test(tables, options)
 
+    @authors("astiunov")
     def test_lack_space_node_with_quota(self):
         tables = self._init_tables()
         options = {
@@ -108,6 +110,7 @@ class TestDiskUsage(QuotaMixin):
 
         self.run_test(tables, options)
 
+    @authors("ignat")
     def test_not_available_nodes(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -123,6 +126,7 @@ class TestDiskUsage(QuotaMixin):
         for type in ("running", "aborted", "failed"):
             assert op.get_job_count(type) == 0
 
+    @authors("ignat")
     def test_scheduled_after_wait(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

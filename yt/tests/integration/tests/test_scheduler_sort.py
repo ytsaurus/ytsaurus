@@ -24,6 +24,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         }
     }
 
+    @authors("ignat")
     def test_simple(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -44,6 +45,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    @authors("psushin")
     def test_megalomaniac_protection(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -87,6 +89,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                        "partition_count" : 2,
                        "data_size_per_sort_job" : 3})
 
+    @authors("max42")
     def test_sort_with_sampling(self):
         create("table", "//tmp/t_in")
 
@@ -107,6 +110,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert n * 0.5 - 100 <= len(result) <= n * 0.5 + 100
 
+    @authors("psushin")
     def test_simple_read_limits(self):
         v1 = {"key" : "aaa", "value" : "2"}
         v2 = {"key" : "bb", "value" : "5"}
@@ -129,6 +133,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["value"]
 
+    @authors("psushin")
     def test_key_weight_limit(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -144,6 +149,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  sort_by="key",
                  spec={"merge_job_io" : {"table_writer" : {"max_key_weight" : 2}}})
 
+    @authors("psushin")
     def test_foreign(self):
         v1 = {"key" : "aaa"}
 
@@ -157,6 +163,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="//tmp/t_out",
                  sort_by="key")
 
+    @authors("psushin")
     def test_large_values(self):
         a = "".join(["a"] * 10 * 1024)
         b = "".join(["b"] * 100 * 1024)
@@ -179,6 +186,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") ==  ["key", "subkey"]
 
     # the same as test_simple but within transaction
+    @authors("babenko", "ignat")
     def test_simple_transacted(self):
         tx = start_transaction()
 
@@ -204,6 +212,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    @authors("ignat")
     def test_empty_columns(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -215,6 +224,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="//tmp/t_out",
                  sort_by=[])
 
+    @authors("ignat")
     def test_empty_in(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -226,6 +236,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == []
         assert get("//tmp/t_out/@sorted")
 
+    @authors("panin", "ignat")
     def test_non_empty_out(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -238,6 +249,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="<append=true>//tmp/t_out",
              sort_by="foo")
 
+    @authors("ermolovd")
     def test_validate_schema(self):
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema(
@@ -265,6 +277,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="//tmp/t_out",
                  sort_by="field")
 
+    @authors("dakovalkov")
     def test_append_simple(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out", attributes={
@@ -284,6 +297,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    @authors("dakovalkov")
     def test_append_different_key_columns(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out", attributes={
@@ -301,6 +315,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="<append=true>//tmp/t_out",
                  sort_by=["key", "subkey"])
 
+    @authors("dakovalkov")
     def test_append_different_key_columns_2(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out", attributes={
@@ -318,6 +333,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="<append=true>//tmp/t_out",
                  sort_by="key")
 
+    @authors("ignat")
     def test_maniac(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -340,6 +356,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    @authors("psushin", "ignat")
     def test_many_merge(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -366,6 +383,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    @authors("max42")
     def test_several_merge_jobs_per_partition(self):
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
@@ -387,6 +405,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == rows
         assert get("//tmp/t_out/@chunk_count") >= 10
 
+    @authors("dakovalkov")
     def test_sort_with_row_count_limit(self):
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
@@ -410,6 +429,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(output_rows) < 250
         assert len(output_rows) >= 10
 
+    @authors("ignat", "klyachin")
     def test_with_intermediate_account(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -454,6 +474,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key",
              authenticated_user="test_user")
 
+    @authors("panin", "ignat")
     def test_composite_key(self):
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
         v2 = {"key": -7, "subkey": "foo", "value": "v2"}
@@ -479,6 +500,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_another_out") == [v3, v1, v2, v5, v4]
 
+    @authors("ignat")
     def test_many_inputs(self):
         v1 = {"key": -7, "value": "v1"}
         v2 = {"key": -3, "value": "v2"}
@@ -515,25 +537,31 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
         assert read_table(output + '{key}') == [{"key": i} for i in xrange(1, 21)]
 
+    @authors("ignat", "babenko", "psushin")
     def test_one_partition_no_merge(self):
         self.sort_with_options('lookup')
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_one_partition_with_merge(self, optimize_for):
         self.sort_with_options(optimize_for, spec={"data_size_per_sort_job": 1})
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_two_partitions_no_merge(self, optimize_for):
         self.sort_with_options(optimize_for, spec={"partition_count": 2})
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_ten_partitions_no_merge(self, optimize_for):
         self.sort_with_options(optimize_for, spec={"partition_count": 10})
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_two_partitions_with_merge(self, optimize_for):
         self.sort_with_options(optimize_for, spec={"partition_count": 2, "partition_data_size": 1, "data_size_per_sort_job": 1})
 
+    @authors("ignat")
     def test_inplace_sort(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
@@ -545,6 +573,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t/@sorted")
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
+    @authors("ignat")
     def test_inplace_sort_with_schema(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "string"}]})
         write_table("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
@@ -559,6 +588,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             strict = True, unique_keys = False)
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_auto_schema_inference(self, optimize_for):
         loose_schema = make_schema([{"name" : "key", "type" : "int64"}], strict=False)
@@ -615,6 +645,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/output_strict",
                 sort_by="key")
 
+    @authors("savrus")
     def test_unique_keys_inference(self):
         schema_in = make_schema([
                 {"name": "key1", "type": "string", "sort_order": "ascending"},
@@ -647,6 +678,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         _do("//tmp/t_out", ["key3", "key1"], False, [row1, row2])
         _do("//tmp/t_in", ["key2", "key1"], True, [row2, row1])
 
+    @authors("savrus")
     def test_schema_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={"schema":
@@ -675,6 +707,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/output",
                 sort_by="key")
 
+    @authors("ermolovd")
     def test_complex_types_schema_validation(self):
         input_schema = make_schema([
             {"name": "index", "type_v2": "int64"},
@@ -719,6 +752,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         input_sorted_schema[0]["sort_order"] = "ascending"
         assert normalize_schema_v2(input_sorted_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
 
+    @authors("savrus")
     def test_unique_keys_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={"schema":
@@ -759,6 +793,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 sort_by="key",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_sort_on_dynamic_table(self, sort_order, optimize_for):
@@ -830,6 +865,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         verify_sort(["key1", "key2", "value"])
         verify_sort(["value", "key2", "key1"])
 
+    @authors("savrus", "psushin")
     def test_computed_columns(self):
         create("table", "//tmp/t",
             attributes={
@@ -864,6 +900,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/t",
                 sort_by="k1")
 
+    @authors("savrus")
     def test_writer_config(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out",
@@ -884,6 +921,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
+    @authors("savrus")
     def test_column_selectors_schema_inference(self):
         create("table", "//tmp/t", attributes={
             "schema": make_schema([
@@ -926,6 +964,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         ], unique_keys=True, strict=True)
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
+    @authors("savrus")
     def test_column_selectors_output_schema_validation(self):
         create("table", "//tmp/t", attributes={
             "schema": [
@@ -944,6 +983,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
 
+    @authors("savrus")
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]

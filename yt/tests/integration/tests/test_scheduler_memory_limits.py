@@ -57,6 +57,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     }
 
     #pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
+    @authors("psushin")
     @unix_only
     def test_map(self):
         create("table", "//tmp/t_in")
@@ -87,6 +88,7 @@ while True:
         # ToDo: check job error messages.
         check_memory_limit(op)
 
+    @authors("max42", "ignat")
     @unix_only
     def test_dirty_sandbox(self):
         create("table", "//tmp/t_in")
@@ -144,6 +146,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
+    @authors("max42")
     @unix_only
     def test_memory_reserve_factor(self):
         job_count = 30

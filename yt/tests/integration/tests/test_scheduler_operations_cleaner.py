@@ -73,6 +73,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 removed.append(op)
         return removed
 
+    @authors("asaitgalin")
     def test_basic_sanity(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
@@ -104,6 +105,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "alerts" in row
             assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
 
+    @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -138,6 +140,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(scheduler_alert_set)
 
+    @authors("asaitgalin")
     def test_start_stop(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
@@ -163,6 +166,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: len(self._get_removed_operations(ops)) == 4)
 
+    @authors("asaitgalin")
     def test_revive(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
@@ -186,6 +190,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
+    @authors("asaitgalin")
     def test_max_operation_count_per_user(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 

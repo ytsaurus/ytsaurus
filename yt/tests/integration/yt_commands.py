@@ -15,6 +15,7 @@ import contextlib
 import copy as pycopy
 import logging
 import os
+import pytest
 import random
 import stat
 import string
@@ -47,6 +48,9 @@ NoSuchAttribute = 1920
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
+
+def authors(*the_authors):
+    return pytest.mark.authors(*the_authors)
 
 @contextlib.contextmanager
 def raises_yt_error(code):

@@ -34,6 +34,7 @@ class TestMasterCellsSync(YTEnvSetup):
             for cell_index in xrange(self.Env.secondary_master_cell_count):
                 self.Env.start_master_cell(cell_index + 1)
 
+    @authors("asaitgalin")
     def test_users_sync(self):
         create_user("tester")
 
@@ -52,6 +53,7 @@ class TestMasterCellsSync(YTEnvSetup):
         self._check_true_for_secondary(
             lambda driver: "tester" not in ls("//sys/users", driver=driver))
 
+    @authors("asaitgalin")
     def test_groups_sync(self):
         create_user("tester")
         create_group("sudoers")
@@ -80,6 +82,7 @@ class TestMasterCellsSync(YTEnvSetup):
         remove_group("sudoers")
         self._check_true_for_secondary(lambda driver: "sudoers" not in ls("//sys/groups", driver=driver))
 
+    @authors("asaitgalin")
     def test_accounts_sync(self):
         create_account("tst", atomic_creation=False)
 
@@ -94,6 +97,7 @@ class TestMasterCellsSync(YTEnvSetup):
         self._check_true_for_secondary(
             lambda driver: "tst" not in ls("//sys/accounts", driver=driver))
 
+    @authors("asaitgalin")
     def test_schemas_sync(self):
         create_group("testers")
 
@@ -112,6 +116,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    @authors("babenko")
     def test_acl_sync(self):
         create_group("jupiter")
         create_account("jupiter", atomic_creation=False)
@@ -122,6 +127,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    @authors("babenko")
     def test_rack_sync(self):
         create_rack("r")
 
@@ -130,6 +136,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    @authors("savrus")
     def test_tablet_cell_bundle_sync(self):
         create_tablet_cell_bundle("b")
 
@@ -148,6 +155,7 @@ class TestMasterCellsSync(YTEnvSetup):
         self._check_true_for_secondary(
             lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
 
+    @authors("savrus")
     def test_tablet_cell_sync(self):
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
@@ -166,6 +174,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    @authors("asaitgalin", "savrus")
     def test_safe_mode_sync(self):
         set("//sys/@config/enable_safe_mode", True)
 

@@ -100,6 +100,7 @@ class TabletActionsBase(DynamicTablesBase):
 ################################################################################
 
 class TestTabletActions(TabletActionsBase):
+    @authors("savrus")
     def test_create_action_permissions(self):
         create_user("u")
         create_tablet_cell_bundle("b")
@@ -119,6 +120,7 @@ class TestTabletActions(TabletActionsBase):
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
         _create_action()
 
+    @authors("savrus")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_move(self, skip_freezing, freeze):
@@ -143,6 +145,7 @@ class TestTabletActions(TabletActionsBase):
         assert tablets[0]["cell_id"] == cells[1]
         self._validate_state(tablets, state=[e], expected_state=[e])
 
+    @authors("savrus")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_reshard(self, skip_freezing, freeze):
@@ -167,6 +170,7 @@ class TestTabletActions(TabletActionsBase):
         self._validate_tablets("//tmp/t", state=[e, e], expected_state=[e, e])
 
     # TODO(ifsmirnov): YT-10550
+    @authors("ifsmirnov")
     @flaky(max_runs=5)
     def test_action_autoremove(self):
         cells = sync_create_cells(1)
@@ -184,6 +188,7 @@ class TestTabletActions(TabletActionsBase):
         assert get("#{0}/@tablet_ids".format(action)) == []
         wait(lambda: not exists("#{0}".format(action)))
 
+    @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_failed_after_table_removed(self, skip_freezing, freeze):
@@ -204,6 +209,7 @@ class TestTabletActions(TabletActionsBase):
             wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
@@ -248,6 +254,7 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get("//tmp/t/@tablets/0/state") == expected_touch_state)
         self._validate_tablets("//tmp/t", expected_state=[expected_touch_state, expected_state])
 
+    @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_failed_after_cell_destroyed(self, skip_freezing, freeze):
@@ -273,6 +280,7 @@ class TestTabletActions(TabletActionsBase):
         wait_for_tablet_state("//tmp/t", expected_state)
         self._validate_tablets("//tmp/t", expected_state=[expected_state])
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_tablet_static_memory(self, skip_freezing, freeze):
@@ -318,6 +326,7 @@ class TestTabletActions(TabletActionsBase):
         move(cells[1])
         wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
+    @authors("ifsmirnov")
     def test_tablet_cell_decomission(self):
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -339,6 +348,7 @@ class TestTabletActions(TabletActionsBase):
         assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
         assert len(get("//sys/tablet_actions")) == 0
 
+    @authors("ifsmirnov")
     def test_removing_bundle_removes_actions(self):
         create_tablet_cell_bundle("b")
         cell_id, = sync_create_cells(1, "b")
@@ -362,6 +372,7 @@ class TestTabletActions(TabletActionsBase):
 ##################################################################
 
 class TestTabletBalancer(TabletActionsBase):
+    @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False, recursive=True)
@@ -386,6 +397,7 @@ class TestTabletBalancer(TabletActionsBase):
         cell1 = tablets[1]["cell_id"]
         assert cell0 != cell1
 
+    @authors("savrus")
     def test_cells_balance_in_bundle(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False, recursive=True)
         create_tablet_cell_bundle("b")
@@ -411,6 +423,7 @@ class TestTabletBalancer(TabletActionsBase):
             count = [cells.count(cell) for cell in pair[1]]
             assert all(c == count[0] for c in count)
 
+    @authors("ifsmirnov")
     @parametrize_external
     def test_ext_memory_cells_balance(self, external):
         self._configure_bundle("default")
@@ -460,6 +473,7 @@ class TestTabletBalancer(TabletActionsBase):
         wait(wait_func)
         assert self._tablets_distribution("//tmp/t1") == [2, 2, 2, 2, 2, 3]
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("cell_count", [2, 3])
     @pytest.mark.parametrize("tablet_count", [6, 9, 10])
     def test_balancer_new_cell_added(self, cell_count, tablet_count):
@@ -483,6 +497,7 @@ class TestTabletBalancer(TabletActionsBase):
         cell_count += 1
         wait(lambda: check_tablet_count())
 
+    @authors("ifsmirnov")
     def test_balancer_in_memory_types(self):
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
@@ -521,6 +536,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         wait(wait_func)
 
+    @authors("ifsmirnov")
     def test_ordered_tables_balance(self):
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
@@ -546,6 +562,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_in_memory_cell_balancer", True)
         wait(lambda: self._tablets_distribution("//tmp/t2") == [1, 3])
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("is_sorted", [True, False])
     def test_replicated_tables_balance(self, is_sorted):
         self._configure_bundle("default")
@@ -576,6 +593,7 @@ class TestTabletBalancer(TabletActionsBase):
         wait(lambda: self._tablets_distribution("//tmp/t") == [2, 2])
         wait(lambda: self._tablets_distribution("//tmp/r") == [2, 2])
 
+    @authors("ifsmirnov")
     def test_tablet_balancer_with_active_action(self):
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
@@ -636,6 +654,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         _check()
 
+    @authors("ifsmirnov", "shakurov")
     @pytest.mark.parametrize("enable", [False, True])
     def test_tablet_balancer_schedule(self, enable):
         assert get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
@@ -652,6 +671,7 @@ class TestTabletBalancer(TabletActionsBase):
             sleep(1)
             assert get("//tmp/t/@tablet_count") == 2
 
+    @authors("ifsmirnov")
     def test_tablet_balancer_schedule_formulas(self):
         self._configure_bundle("default")
         sync_create_cells(1)
@@ -700,6 +720,7 @@ class TestTabletBalancer(TabletActionsBase):
         sleep(1)
         check_balancer_is_active(False)
 
+    @authors("savrus")
     def test_tablet_merge(self):
         self._configure_bundle("default")
         sync_create_cells(1)
@@ -708,6 +729,7 @@ class TestTabletBalancer(TabletActionsBase):
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
+    @authors("savrus", "ifsmirnov")
     def test_tablet_split(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
@@ -754,6 +776,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//tmp/t/@tablet_balancer_config/desired_tablet_count", 1)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
+    @authors("savrus")
     def test_tablet_balancer_disabled(self):
         self._configure_bundle("default")
         sync_create_cells(1)
@@ -770,6 +793,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", True)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
+    @authors("ifsmirnov")
     def test_tablet_balancer_table_config(self):
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
@@ -797,6 +821,7 @@ class TestTabletBalancer(TabletActionsBase):
         }
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
+    @authors("ifsmirnov")
     def test_tablet_balancer_table_config_compats(self):
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
@@ -835,6 +860,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
         assert get("//tmp/t/@enable_tablet_balancer") == False
 
+    @authors("ifsmirnov")
     def test_sync_reshard(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(1)
@@ -848,6 +874,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert len(tablet_actions) == 1
         assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
 
+    @authors("ifsmirnov")
     def test_sync_move_all_tables(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(2)
@@ -864,6 +891,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2
 
+    @authors("ifsmirnov")
     def test_sync_move_one_table(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(4)
@@ -888,6 +916,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t1/@tablets"))) == 2
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t2/@tablets"))) == 1
 
+    @authors("ifsmirnov")
     def test_sync_tablet_balancer_acl(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         create_user("u")
@@ -912,6 +941,7 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
         sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
 
+    @authors("ifsmirnov")
     def test_sync_tablet_balancer_wrong_type(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", dynamic=False)
@@ -925,6 +955,7 @@ class TestTabletBalancer(TabletActionsBase):
         with pytest.raises(YtError):
             sync_balance_tablet_cells("default", ["//tmp/t"])
 
+    @authors("ifsmirnov")
     def test_sync_move_table_wrong_bundle(self):
         create_tablet_cell_bundle("b")
         sync_create_cells(1)

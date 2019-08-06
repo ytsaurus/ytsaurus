@@ -20,6 +20,7 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     def test_update_runtime_parameters(self):
         create_test_tables()
 
@@ -63,6 +64,7 @@ class TestRuntimeParameters(YTEnvSetup):
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
+    @authors("renadeen")
     def test_change_pool_of_default_pooltree(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
@@ -76,6 +78,7 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
         wait(lambda: get(path) == "changed_pool")
 
+    @authors("renadeen", "ignat")
     def test_running_operation_counts_on_change_pool(self):
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
 
@@ -94,6 +97,7 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 0)
         wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 1)
 
+    @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="custom")
         create("map_node", "//sys/pools/default_pool")
@@ -117,6 +121,7 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(op.id)
         wait(lambda: get(path) == "custom_pool2")
 
+    @authors("renadeen")
     def test_operation_count_validation_on_change_pool(self):
         set("//sys/pools/initial_pool", {})
         set("//sys/pools/full_pool", {})
@@ -132,6 +137,7 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
         assert get(path) == "initial_pool"
 
+    @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
         set("//sys/pools/test_pool", {})
         op = run_sleeping_vanilla(spec={"pool": "test_pool"})
@@ -180,6 +186,7 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
         }
     }
 
+    @authors("renadeen", "antonkikh")
     def test_jobs_are_scheduled_after_pool_change(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
@@ -202,6 +209,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
         return [line for line in open(scheduler_debug_logs_filename, "r") if "Scheduled a job" in line]
 
+    @authors("antonkikh")
     def test_enable_detailed_logs(self):
         create("map_node", "//sys/pool_trees/default/fake_pool")
         set("//sys/pool_trees/default/fake_pool/@resource_limits", {"user_slots": 3})
@@ -255,6 +263,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         op.abort()
 
+    @authors("antonkikh")
     def test_enable_detailed_logs_requires_administer_permission(self):
         create_user("u1")
         op = run_sleeping_vanilla(job_count=10, authenticated_user="u1")

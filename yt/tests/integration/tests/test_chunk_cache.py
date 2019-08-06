@@ -53,6 +53,7 @@ class TestChunkCache(YTEnvSetup):
             }
         )
 
+    @authors("ogorod")
     def test_lazy_chunk_length_validation(self):
         self.config_nodes()
 

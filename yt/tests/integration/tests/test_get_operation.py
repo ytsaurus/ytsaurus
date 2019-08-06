@@ -51,6 +51,7 @@ class TestGetOperation(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
+    @authors("levysotsky", "babenko", "ignat")
     def test_get_operation(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -123,6 +124,7 @@ class TestGetOperation(YTEnvSetup):
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
+    @authors("ilpauzner")
     def test_progress_merge(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -167,6 +169,7 @@ class TestGetOperation(YTEnvSetup):
         assert res_get_operation_new["progress"] != {"semen": "semenych", "semenych": "gorbunkov"}
 
 
+    @authors("ignat")
     def test_attributes(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -219,6 +222,7 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
+    @authors("asaitgalin", "levysotsky")
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -243,6 +247,7 @@ class TestGetOperation(YTEnvSetup):
         finally:
             set(cleaner_path + "/enable", False)
 
+    @authors("kiselyovp", "ilpauzner")
     def test_not_existing_operation(self):
         with raises_yt_error(NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")

@@ -11,6 +11,7 @@ class TestLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
+    @authors("panin", "ignat")
     def test_invalid_cases(self):
         # outside of transaction
         with pytest.raises(YtError): lock("/")
@@ -31,6 +32,7 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
+    @authors("panin", "ignat")
     def test_lock_mode(self):
         tx = start_transaction()
         set("//tmp/map", "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
@@ -42,6 +44,7 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
+    @authors("ignat")
     def test_lock_full_response(self):
         driver = get_driver(api_version=4)
         create("map_node", "//tmp/node", driver=driver)
@@ -55,6 +58,7 @@ class TestLocks(YTEnvSetup):
         assert rsp["node_id"] == get("//tmp/node/@id", tx=tx, driver=driver)
         assert rsp["revision"] == get("//tmp/node/@revision", tx=tx, driver=driver)
 
+    @authors("panin")
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create("table", "//tmp/table", tx=tx_outer)
@@ -62,6 +66,7 @@ class TestLocks(YTEnvSetup):
         tx_inner = start_transaction(tx=tx_outer)
         lock("//tmp/table", mode="shared", tx=tx_inner)
 
+    @authors("shakurov")
     def test_snapshot_lock(self):
         set("//tmp/node", 42)
 
@@ -110,6 +115,7 @@ class TestLocks(YTEnvSetup):
         else:
             assert node_id not in locked_node_ids
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
     def test_acquired_lock_promotion(self, mode):
         create("map_node", "//tmp/m1")
@@ -129,6 +135,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx1) # mustn't crash
 
+    @authors("shakurov")
     def test_pending_lock_promotion(self):
         create("map_node", "//tmp/m1")
 
@@ -165,6 +172,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx1) # mustn't crash
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"])
     def test_unlock_explicit(self, mode):
         create("map_node", "//tmp/m1")
@@ -205,6 +213,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx) # mustn't crash
 
+    @authors("shakurov")
     def test_unlock_implicit_noop(self):
         create("map_node", "//tmp/m1")
 
@@ -225,6 +234,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx) # mustn't crash
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
     def test_unlock_modified(self, mode):
         create("map_node", "//tmp/m1")
@@ -238,6 +248,7 @@ class TestLocks(YTEnvSetup):
 
         with pytest.raises(YtError): unlock("//tmp/m1", tx=tx) # modified and can't be unlocked
 
+    @authors("shakurov")
     def test_unlock_not_locked(self):
         create("map_node", "//tmp/m1")
 
@@ -245,6 +256,7 @@ class TestLocks(YTEnvSetup):
         self._assert_not_locked("//tmp/m1", tx)
         unlock("//tmp/m1", tx=tx) # should be a quiet noop
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
     def test_unlock_promoted_lock(self, mode):
         create("map_node", "//tmp/m1")
@@ -261,6 +273,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx1) # mustn't crash
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
     def test_unlock_and_lock_again(self, mode):
         create("map_node", "//tmp/m1")
@@ -273,6 +286,7 @@ class TestLocks(YTEnvSetup):
         self._assert_locked("//tmp/m1", tx, mode)
         commit_transaction(tx) # mustn't crash
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
     def test_unlock_and_lock_in_parent(self, mode):
         create("map_node", "//tmp/m1")
@@ -289,6 +303,7 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx1) # mustn't crash
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
     def test_unlock_and_lock_in_child(self, mode):
         create("map_node", "//tmp/m1")
@@ -306,6 +321,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2) # mustn't crash
         commit_transaction(tx1)
 
+    @authors("shakurov")
     def test_unlock_pending(self):
         create("map_node", "//tmp/m1")
         tx1 = start_transaction()
@@ -325,6 +341,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2) # mustn't crash
         commit_transaction(tx1)
 
+    @authors("shakurov")
     def test_unlock_promotes_pending(self):
         create("map_node", "//tmp/m1")
         tx1 = start_transaction()
@@ -346,6 +363,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2) # mustn't crash
         commit_transaction(tx1)
 
+    @authors("shakurov")
     def test_unlock_unreachable_node(self):
         create("map_node", "//tmp/m1")
         create("map_node", "//tmp/m1/m2")
@@ -368,6 +386,7 @@ class TestLocks(YTEnvSetup):
 
         assert not exists(node_path)
 
+    @authors("shakurov")
     @pytest.mark.parametrize("mode", ["shared", "snapshot"])
     def test_unlock_deeply_nested_node1(self, mode):
         create("map_node", "//tmp/m1")
@@ -425,6 +444,7 @@ class TestLocks(YTEnvSetup):
         for tx in [tx6, tx5, tx4, tx3, tx2, tx1]:
             commit_transaction(tx) # mustn't throw
 
+    @authors("shakurov")
     @pytest.mark.parametrize("transactions_to_skip", [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, __builtin__.set()])
     @pytest.mark.parametrize("modes", [["exclusive", "shared", "snapshot"], ["shared", "exclusive", "shared"], ["exclusive", "shared", "shared"], ["shared", "shared", "exclusive"]])
     def test_unlock_deeply_nested_node2(self, modes, transactions_to_skip):
@@ -504,6 +524,7 @@ class TestLocks(YTEnvSetup):
             if tx is not None:
                 commit_transaction(tx) # mustn't throw
 
+    @authors("shakurov")
     def test_unlock_without_transaction(self):
         create("map_node", "//tmp/m1")
         tx = start_transaction()
@@ -511,6 +532,7 @@ class TestLocks(YTEnvSetup):
         assert get("//tmp/m1/@lock_mode", tx=tx) == "exclusive"
         with pytest.raises(YtError): unlock("//tmp/m1")
 
+    @authors("shakurov")
     def test_snapshot_lock_patch_up(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -545,18 +567,21 @@ class TestLocks(YTEnvSetup):
         assert get("//tmp/t/@lock_mode") == "none"
         assert get("//tmp/t/@lock_count") == 0
 
+    @authors("babenko", "ignat")
     def test_remove_map_subtree_lock(self):
         set("//tmp/a", {"b" : 1})
         tx = start_transaction()
         lock("//tmp/a/b", mode = "exclusive", tx = tx);
         with pytest.raises(YtError): remove("//tmp/a")
 
+    @authors("babenko", "ignat")
     def test_remove_list_subtree_lock(self):
         set("//tmp/a", [1])
         tx = start_transaction()
         lock("//tmp/a/0", mode = "exclusive", tx = tx);
         with pytest.raises(YtError): remove("//tmp/a")
 
+    @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks1(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -564,6 +589,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/t", mode = "snapshot", tx = tx1)
         lock("//tmp/t", mode = "exclusive", tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks2(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -571,6 +597,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/t", mode = "exclusive", tx = tx2)
         lock("//tmp/t", mode = "snapshot", tx = tx1)
 
+    @authors("babenko", "ignat")
     def test_node_locks(self):
         set("//tmp/a", 1)
 
@@ -586,6 +613,7 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx)
         assert get("//tmp/a/@locks") == []
 
+    @authors("babenko", "ignat")
     def test_lock_propagation_on_commit(self):
         set("//tmp/a", 1)
 
@@ -613,6 +641,7 @@ class TestLocks(YTEnvSetup):
 
         assert get('//tmp/a/@locks') == []
 
+    @authors("babenko", "ignat")
     def test_no_lock_propagation_on_abort(self):
         set("//tmp/a", 1)
 
@@ -631,6 +660,7 @@ class TestLocks(YTEnvSetup):
 
         assert get("//tmp/a/@locks") == []
 
+    @authors("babenko")
     def test_redundant_lock1(self):
         tx = start_transaction()
         set("//tmp/a", "x")
@@ -641,6 +671,7 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", "c", tx=tx)
         assert len(get("//tmp/a/@locks")) == 1
 
+    @authors("babenko")
     def test_redundant_lock2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -656,6 +687,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx3)
         assert len(get("//tmp/@locks")) == 1
 
+    @authors("babenko")
     def test_redundant_lock3(self):
         create("table", "//tmp/t")
         tx = start_transaction()
@@ -663,6 +695,7 @@ class TestLocks(YTEnvSetup):
             write_table("//tmp/t", {"foo": "bar"}, tx = tx)
             assert len(get("//tmp/t/@locks")) == 1
 
+    @authors("babenko", "ignat")
     def test_waitable_lock1(self):
         set("//tmp/a", 1)
 
@@ -682,6 +715,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx2) == "exclusive"
 
+    @authors("babenko", "ignat")
     def test_waitable_lock2(self):
         set("//tmp/a", 1)
 
@@ -698,6 +732,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id3 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
 
+    @authors("babenko", "ignat")
     def test_waitable_lock3(self):
         set("//tmp/a", 1)
 
@@ -709,6 +744,7 @@ class TestLocks(YTEnvSetup):
         lock_id2 = lock("//tmp/a", mode="shared", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "acquired"
 
+    @authors("babenko", "ignat")
     def test_waitable_lock4(self):
         set("//tmp/a", 1)
 
@@ -724,6 +760,7 @@ class TestLocks(YTEnvSetup):
         lock_id3 = lock("//tmp/a", tx=tx3, mode="shared")["lock_id"]
         assert get("#" + lock_id3 + "/@state") == "acquired"
 
+    @authors("babenko", "ignat")
     def test_waitable_lock5(self):
         set("//tmp/a", 1)
 
@@ -762,6 +799,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx4)
         assert not exists("//sys/locks/" + lock_id4)
 
+    @authors("babenko", "ignat")
     def test_waitable_lock6(self):
         set("//tmp/a", 1)
 
@@ -782,6 +820,7 @@ class TestLocks(YTEnvSetup):
         assert not exists("//sys/locks/" + lock_id1)
         assert not exists("//sys/locks/" + lock_id2)
 
+    @authors("babenko", "ignat")
     def test_waitable_lock7(self):
         set("//tmp/a", {"b" : 1 })
 
@@ -802,6 +841,7 @@ class TestLocks(YTEnvSetup):
         assert not exists("//sys/locks/" + lock_id1)
         assert not exists("//sys/locks/" + lock_id2)
 
+    @authors("babenko", "ignat")
     def test_waitable_lock8(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -825,6 +865,7 @@ class TestLocks(YTEnvSetup):
         assert get("//sys/locks/" + lock_id + "/@state") == "acquired"
         assert len(get("//tmp/t/@locks")) == 1
 
+    @authors("babenko", "ignat")
     def test_waitable_lock9(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -841,6 +882,7 @@ class TestLocks(YTEnvSetup):
         lock_id3 = lock("//tmp/t", tx = tx3, mode = "snapshot")["lock_id"]
         assert get("//sys/locks/" + lock_id3 + "/@state") == "acquired"
 
+    @authors("babenko")
     def test_waitable_lock10(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -850,6 +892,7 @@ class TestLocks(YTEnvSetup):
         assert get("//sys/locks/" + lock_id2 + "/@state") == "pending"
         write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx1)
 
+    @authors("babenko")
     def test_waitable_lock11(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -862,6 +905,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id3 + "/@state") == "acquired"
 
+    @authors("babenko")
     def test_waitable_lock12(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -881,6 +925,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id3 + "/@state") == "pending"
         assert get("#" + lock_id4 + "/@state") == "acquired"
 
+    @authors("babenko")
     def test_waitable_lock13(self):
         create("table", "//tmp/t")
 
@@ -907,6 +952,7 @@ class TestLocks(YTEnvSetup):
 
         assert read_table("//tmp/t") == [{"foo": "bar1"}, {"foo": "bar2"}]
 
+    @authors("babenko")
     def test_waitable_lock_14(self):
         create("table", "//tmp/t")
 
@@ -922,6 +968,7 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx2)
         assert not exists("#" + lock_id2)
 
+    @authors("babenko")
     def test_waitable_lock_15(self):
         create("table", "//tmp/t")
 
@@ -939,6 +986,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id2 + "/@transaction_id") == tx2
 
+    @authors("babenko", "ignat")
     def test_yt_144(self):
         create("table", "//tmp/t")
 
@@ -955,6 +1003,7 @@ class TestLocks(YTEnvSetup):
 
         assert get("//tmp/t/@parent_id") == get("//tmp/@id")
 
+    @authors("babenko", "ignat")
     def test_remove_locks(self):
         set("//tmp/a", {"b" : 1})
 
@@ -964,6 +1013,7 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a/b", 2, tx = tx1)
         with pytest.raises(YtError): remove("//tmp/a", tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_map_locks1(self):
         tx = start_transaction()
         set("//tmp/a", 1, tx = tx)
@@ -980,6 +1030,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx)
         assert get("//tmp") == {"a" : 1}
 
+    @authors("babenko", "ignat")
     def test_map_locks2(self):
         tx1 = start_transaction()
         set("//tmp/a", 1, tx = tx1)
@@ -998,6 +1049,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2)
         assert get("//tmp") == {"a" : 1, "b" : 2}
 
+    @authors("babenko")
     def test_map_locks3(self):
         tx1 = start_transaction()
         set("//tmp/a", 1, tx = tx1)
@@ -1005,6 +1057,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         with pytest.raises(YtError): set("//tmp/a", 2, tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_map_locks4(self):
         set("//tmp/a", 1)
 
@@ -1020,6 +1073,7 @@ class TestLocks(YTEnvSetup):
         assert lock["mode"] == "shared"
         assert lock["child_key"] == "a"
 
+    @authors("babenko", "ignat")
     def test_map_locks5(self):
         set("//tmp/a", 1)
 
@@ -1029,6 +1083,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         with pytest.raises(YtError): set("//tmp/a", 2, tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_map_locks6(self):
         tx = start_transaction()
         set("//tmp/a", 1, tx = tx)
@@ -1042,6 +1097,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx)
         assert get("//tmp") == {}
 
+    @authors("babenko", "ignat")
     def test_map_locks7(self):
         set("//tmp/a", 1)
 
@@ -1053,6 +1109,7 @@ class TestLocks(YTEnvSetup):
 
         assert get("//tmp") == {}
 
+    @authors("ignat")
     def test_map_locks8(self):
         tx = start_transaction()
         lock("//tmp", mode="shared", tx=tx, child_key="a")
@@ -1064,6 +1121,7 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YtError):
             lock("//tmp", mode="shared", tx=other_tx, child_key="a")
 
+    @authors("shakurov")
     def test_map_snapshot_lock(self):
         create("map_node", "//tmp/a")
 
@@ -1090,6 +1148,7 @@ class TestLocks(YTEnvSetup):
         assert not exists("//tmp/a/l", tx=tx)
 
 
+    @authors("babenko", "ignat")
     def test_attr_locks1(self):
         tx = start_transaction()
         set("//tmp/@a", 1, tx = tx)
@@ -1106,6 +1165,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx)
         assert get("//tmp/@a") == 1
 
+    @authors("babenko", "ignat")
     def test_attr_locks2(self):
         tx1 = start_transaction()
         set("//tmp/@a", 1, tx = tx1)
@@ -1127,6 +1187,7 @@ class TestLocks(YTEnvSetup):
         assert get("//tmp/@a") == 1
         assert get("//tmp/@b") == 2
 
+    @authors("babenko")
     def test_attr_locks3(self):
         tx1 = start_transaction()
         set("//tmp/@a", 1, tx = tx1)
@@ -1134,6 +1195,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         with pytest.raises(YtError): set("//tmp/@a", 2, tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_attr_locks4(self):
         set("//tmp/@a", 1)
 
@@ -1149,6 +1211,7 @@ class TestLocks(YTEnvSetup):
         assert lock["mode"] == "shared"
         assert lock["attribute_key"] == "a"
 
+    @authors("babenko", "ignat")
     def test_attr_locks5(self):
         set("//tmp/@a", 1)
 
@@ -1158,6 +1221,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         with pytest.raises(YtError): set("//tmp/@a", 2, tx = tx2)
 
+    @authors("babenko", "ignat")
     def test_attr_locks6(self):
         tx = start_transaction()
         set("//tmp/@a", 1, tx = tx)
@@ -1171,6 +1235,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx)
         with pytest.raises(YtError): get("//tmp/@a")
 
+    @authors("ignat")
     def test_attr_locks7(self):
         tx = start_transaction()
         lock("//tmp", mode="shared", tx=tx, attribute_key="a")
@@ -1182,11 +1247,13 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YtError):
             lock("//tmp", mode="shared", tx=other_tx, attribute_key="a")
 
+    @authors("sandello")
     def test_lock_mode_for_child_and_attr_locks(self):
         tx = start_transaction()
         with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, child_key="a")
         with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, attribute_key="a")
 
+    @authors("babenko")
     def test_nested_tx1(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -1195,6 +1262,7 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx2)
         assert len(get("//tmp/@locks")) == 0
 
+    @authors("babenko", "ignat")
     def test_nested_tx2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -1204,6 +1272,7 @@ class TestLocks(YTEnvSetup):
         assert len(get("//tmp/@locks")) == 1
         assert get("//sys/locks/" + lock_id + "/@transaction_id") == tx1
 
+    @authors("babenko", "ignat")
     def test_nested_tx3(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -1212,6 +1281,7 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2)
         assert not exists("//sys/locks/" + lock_id)
 
+    @authors("babenko", "ignat")
     def test_nested_tx4(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -1219,6 +1289,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp", tx = tx2)
         with pytest.raises(YtError): lock("//tmp", tx = tx1)
 
+    @authors("babenko", "ignat")
     def test_nested_tx5(self):
         set("//tmp/x", 1)
         tx1 = start_transaction()
@@ -1227,6 +1298,7 @@ class TestLocks(YTEnvSetup):
         set("//tmp/x", 3, tx = tx2)
         with pytest.raises(YtError): set("//tmp/x", 4, tx = tx1)
 
+    @authors("babenko")
     def test_manual_lock_not_recursive1(self):
         set("//tmp/x", {"y":{}})
         tx = start_transaction()
@@ -1234,6 +1306,7 @@ class TestLocks(YTEnvSetup):
         assert len(get("//tmp/x/@locks")) == 1
         assert len(get("//tmp/x/y/@locks")) == 0
 
+    @authors("babenko")
     def test_manual_lock_not_recursive2(self):
         set("//tmp/x", {"y":{}})
         tx1 = start_transaction()
@@ -1241,6 +1314,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/x/y", tx=tx1, mode="shared", child_key="a")
         lock("//tmp/x", tx=tx2, mode="shared", child_key="a")
 
+    @authors("shakurov")
     def test_forked_tx_abort1(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -1255,6 +1329,7 @@ class TestLocks(YTEnvSetup):
         # Must not crash.
         abort_transaction(tx)
 
+    @authors("shakurov")
     def test_forked_tx_abort2(self):
         create("table", "//tmp/t1")
         tx = start_transaction()

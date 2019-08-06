@@ -20,6 +20,7 @@ class TestUsers(YTEnvSetup):
         }
     }
 
+    @authors("babenko", "ignat")
     def test_user_ban1(self):
         create_user("u")
 
@@ -35,26 +36,32 @@ class TestUsers(YTEnvSetup):
 
         get("//tmp", authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_user_ban2(self):
         with pytest.raises(YtError): set("//sys/users/root/@banned", True)
 
+    @authors("babenko")
     def test_request_rate_limit1(self):
         create_user("u")
         with pytest.raises(YtError): set("//sys/users/u/@read_request_rate_limit", -1)
         with pytest.raises(YtError): set("//sys/users/u/@write_request_rate_limit", -1)
 
+    @authors("babenko")
     def test_request_rate_limit2(self):
         create_user("u")
         set("//sys/users/u/@request_rate_limit", 1)
 
+    @authors("babenko")
     def test_request_queue_size_limit1(self):
         create_user("u")
         with pytest.raises(YtError): set("//sys/users/u/@request_queue_size_limit", -1)
 
+    @authors("babenko")
     def test_request_queue_size_limit2(self):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 1)
 
+    @authors("babenko")
     def test_request_queue_size_limit3(self):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
@@ -62,6 +69,7 @@ class TestUsers(YTEnvSetup):
         set("//sys/users/u/@request_queue_size_limit", 1)
         ls("/", authenticated_user="u")
 
+    @authors("babenko")
     def test_access_counter1(self):
         create_user("u")
         assert get("//sys/users/u/@request_count") == 0
@@ -70,10 +78,12 @@ class TestUsers(YTEnvSetup):
         sleep(1.0)
         assert get("//sys/users/u/@request_count") == 1
 
+    @authors("sandello")
     def test_access_counter2(self):
         create_user('u')
         with pytest.raises(YtError): set('//sys/users/u/@request_count', -1.0)
 
+    @authors("ignat")
     def test_access_counter3(self):
         create_user('u')
 
@@ -85,6 +95,7 @@ class TestUsers(YTEnvSetup):
 
         assert get("//sys/users/u/@request_count") == 0
 
+    @authors("babenko")
     def test_builtin_init(self):
         assert_items_equal(get("//sys/groups/everyone/@members"),
             ["users", "guest"])
@@ -111,34 +122,41 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/application_operations/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/operations_cleaner/@member_of_closure"), ["superusers", "users", "everyone"])
 
+    @authors("babenko", "ignat")
     def test_create_user1(self):
         create_user("max")
         assert get("//sys/users/max/@name") == "max"
         assert "max" in get("//sys/groups/users/@members")
         assert get("//sys/users/max/@member_of") == ["users"]
 
+    @authors("babenko", "ignat")
     def test_create_user2(self):
         create_user("max")
         with pytest.raises(YtError): create_user("max")
         with pytest.raises(YtError): create_group("max")
 
+    @authors("babenko", "ignat")
     def test_create_group1(self):
         create_group("devs")
         assert get("//sys/groups/devs/@name") == "devs"
 
+    @authors("babenko", "ignat")
     def test_create_group2(self):
         create_group("devs")
         with pytest.raises(YtError): create_user("devs")
         with pytest.raises(YtError): create_group("devs")
 
+    @authors("babenko", "ignat")
     def test_user_remove_builtin(self):
         with pytest.raises(YtError): remove_user("root")
         with pytest.raises(YtError): remove_user("guest")
 
+    @authors("babenko", "ignat")
     def test_group_remove_builtin(self):
         with pytest.raises(YtError): remove_group("everyone")
         with pytest.raises(YtError): remove_group("users")
 
+    @authors("ignat")
     def test_membership1(self):
         create_user("max")
         create_group("devs")
@@ -146,6 +164,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/groups/devs/@members") == ["max"]
         assert get("//sys/groups/devs/@members") == ["max"]
 
+    @authors("asaitgalin", "babenko", "ignat")
     def test_membership2(self):
         create_user("u1")
         create_user("u2")
@@ -176,6 +195,7 @@ class TestUsers(YTEnvSetup):
         assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
         assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g2", "users", "everyone"])
 
+    @authors("babenko", "ignat")
     def test_membership3(self):
         create_group("g1")
         create_group("g2")
@@ -185,6 +205,7 @@ class TestUsers(YTEnvSetup):
         add_member("g3", "g2")
         with pytest.raises(YtError): add_member("g1", "g3")
 
+    @authors("ignat")
     def test_membership4(self):
         create_user("u")
         create_group("g")
@@ -192,6 +213,7 @@ class TestUsers(YTEnvSetup):
         remove_user("u")
         assert get("//sys/groups/g/@members") == []
 
+    @authors("ignat")
     def test_membership5(self):
         create_user("u")
         create_group("g")
@@ -200,6 +222,7 @@ class TestUsers(YTEnvSetup):
         remove_group("g")
         assert get("//sys/users/u/@member_of") == ["users"]
 
+    @authors("babenko", "ignat")
     def test_membership6(self):
         create_user("u")
         create_group("g")
@@ -209,10 +232,12 @@ class TestUsers(YTEnvSetup):
         add_member("u", "g")
         with pytest.raises(YtError): add_member("u", "g")
 
+    @authors("babenko")
     def test_membership7(self):
         create_group("g")
         with pytest.raises(YtError): add_member("g", "g")
 
+    @authors("ignat")
     def test_modify_builtin(self):
         create_user("u")
         with pytest.raises(YtError): remove_member("u", "everyone")
@@ -220,6 +245,7 @@ class TestUsers(YTEnvSetup):
         with pytest.raises(YtError): add_member("u", "everyone")
         with pytest.raises(YtError): add_member("u", "users")
 
+    @authors("babenko")
     def test_create_banned_user(self):
         create_user("u", attributes={"banned": True})
         users = ls("//sys/users", attributes=["banned"])
@@ -231,6 +257,7 @@ class TestUsers(YTEnvSetup):
                 found = True
         assert found
 
+    @authors("asaitgalin", "babenko")
     def test_remove_group(self):
         create_user("u")
         create_group("g")
@@ -244,6 +271,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@member_of") == ["users"]
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
 
+    @authors("prime")
     def test_prerequisite_transactions(self):
         create_group("g8")
 
@@ -257,6 +285,7 @@ class TestUsers(YTEnvSetup):
         add_member("root", "g8", prerequisite_transaction_ids=[tx])
         remove_member("root", "g8", prerequisite_transaction_ids=[tx])
 
+    @authors("shakurov")
     def test_usable_accounts(self):
         create_user("u")
 
@@ -280,6 +309,7 @@ class TestUsers(YTEnvSetup):
 
         assert sorted(get("//sys/users/u/@usable_accounts")) == ["a1", "a2", "intermediate", "tmp"]
 
+    @authors("babenko", "kiselyovp")
     def test_delayed_membership_closure(self):
         create_group("g1")
         create_group("g2")

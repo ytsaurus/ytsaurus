@@ -25,6 +25,7 @@ class TestTabletTransactions(YTEnvSetup):
                     {"name": "value", "type": "string"}]
             })
 
+    @authors("sandello")
     def test_sticky_tablet_transactions(self):
         sync_create_cells(1)
         self._create_table("//tmp/t")

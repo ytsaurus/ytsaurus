@@ -22,6 +22,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         }
     }
 
+    @authors("max42")
     def test_simple(self):
         command = " ; ".join([
             events_on_fs().notify_event_cmd("job_started_${YT_JOB_INDEX}"),
@@ -58,6 +59,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
         assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 2
 
+    @authors("max42", "ignat")
     def test_task_job_index(self):
         master_command = " ; ".join([
             events_on_fs().notify_event_cmd("job_started_master_${YT_TASK_JOB_INDEX}"),
@@ -101,6 +103,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
         assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 3
 
+    @authors("max42")
     def test_files(self):
         create("file", "//tmp/a")
         write_file("//tmp/a", "data_a")
@@ -124,6 +127,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "max_failed_job_count": 1,
             })
 
+    @authors("max42")
     def test_stderr(self):
         create("table", "//tmp/stderr")
 
@@ -151,6 +155,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
 
+    @authors("max42")
     def test_fail_on_failed_job(self):
         with pytest.raises(YtError):
             op = vanilla(
@@ -168,6 +173,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "fail_on_job_restart": True,
                 })
 
+    @authors("max42")
     def test_revival_with_fail_on_job_restart(self):
         op = vanilla(
             dont_track=True,
@@ -215,6 +221,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 pass
             op.track()
 
+    @authors("max42")
     def test_abandon_job(self):
         # Abandoning vanilla job is ok.
         op = vanilla(
@@ -235,6 +242,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("max42")
     def test_non_interruptible(self):
         op = vanilla(
             dont_track=True,
@@ -255,6 +263,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             interrupt_job(job_id)
 
     # TODO(max42): add lambda job: signal_job(job, "SIGKILL") when YT-8243 is fixed.
+    @authors("max42")
     @pytest.mark.parametrize("action", [abort_job])
     def test_fail_on_manually_stopped_job(self, action):
         with pytest.raises(YtError):
@@ -283,6 +292,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             events_on_fs().notify_event("finish_b")
             op.track()
 
+    @authors("max42")
     def test_table_output(self):
         create("table", "//tmp/t_ab") # append = %true
         create("table", "//tmp/t_bc") # sorted_by = [a]
@@ -314,6 +324,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert read_table("//tmp/t_ac") in [[{"a": 3}, {"a": 9}],
                                             [{"a": 9}, {"a": 3}]]
 
+    @authors("max42")
     def test_format(self):
         create("table", "//tmp/t")
         vanilla(
@@ -335,6 +346,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             })
         assert sorted(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
+    @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -355,6 +367,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "fail_on_job_restart": True,
                 })
 
+    @authors("max42")
     def test_operation_limits(self):
         with pytest.raises(YtError):
             vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})

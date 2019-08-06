@@ -10,6 +10,7 @@ class TestProtobufFormat(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    @authors("levysotsky")
     @unix_only
     def test_multi_output_map(self):
         create("table", "//tmp/t_in")
@@ -96,6 +97,7 @@ class TestProtobufFormat(YTEnvSetup):
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out1")
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out2")
 
+    @authors("levysotsky")
     @unix_only
     def test_id_map(self):
         create("table", "//tmp/t_in")
@@ -248,6 +250,7 @@ class TestProtobufFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    @authors("levysotsky")
     @unix_only
     def test_id_map_reduce(self):
         create("table", "//tmp/t_in")

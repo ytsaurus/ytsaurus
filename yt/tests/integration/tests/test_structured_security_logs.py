@@ -12,6 +12,7 @@ class TestStructuredSecurityLogs(YTEnvSetup):
 
     LOG_WRITE_WAIT_TIME = 0.2
 
+    @authors("renadeen")
     def test_users_and_groups(self):
         create_group("some_group")
         create_user("some_user")
@@ -27,6 +28,7 @@ class TestStructuredSecurityLogs(YTEnvSetup):
         self.wait_log_event({"event": "user_destroyed", "name": "some_user"})
         self.wait_log_event({"event": "group_destroyed", "name": "some_group"})
 
+    @authors("renadeen")
     def test_acd_update(self):
         create("table", "//tmp/test_table")
         set("//tmp/test_table/@acl", [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}])
@@ -37,6 +39,7 @@ class TestStructuredSecurityLogs(YTEnvSetup):
             "value": [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}]
         })
 
+    @authors("renadeen")
     def test_no_redundant_acd_updated_events(self):
         previous_log_size = len(self.load_structured_master_log())
         create("table", "//tmp/test_table")

@@ -163,6 +163,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     }
 
 
+    @authors("babenko")
     def test_barrier_timestamp(self):
         sync_create_cells(1)
         self._create_ordered_table("//tmp/t")
@@ -170,6 +171,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         ts = generate_timestamp()
         wait(lambda: get_tablet_infos("//tmp/t", [0])["tablets"][0]["barrier_timestamp"] >= ts)
 
+    @authors("babenko")
     def test_follower_start(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -212,6 +214,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         wait(check)
 
+    @authors("kiselyovp")
     def test_follower_catchup(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -231,6 +234,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("kiselyovp")
     def test_run_reassign_leader(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -257,6 +261,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("kiselyovp")
     def test_run_reassign_all_peers(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -274,10 +279,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("savrus")
     def test_tablet_cell_health_statistics(self):
         cell_id = sync_create_cells(1)[0]
         wait(lambda: get("#{0}/@total_statistics/health".format(cell_id)) == "good")
 
+    @authors("kiselyovp")
     def test_distributed_commit(self):
         cell_count = 5
         sync_create_cells(cell_count)
@@ -294,6 +301,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    @authors("kiselyovp")
     def test_update_only_key_columns(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -314,6 +322,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
+    @authors("babenko")
     def test_force_unmount_on_remove(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -326,6 +335,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remove("//tmp/t")
         wait(lambda: self._find_tablet_orchid(address, tablet_id) is None)
 
+    @authors("babenko")
     def test_no_copy_mounted(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t1")
@@ -333,6 +343,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
 
+    @authors("savrus", "babenko")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_no_move_mounted(self, freeze):
         sync_create_cells(1)
@@ -341,6 +352,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2")
 
+    @authors("babenko")
     def test_move_unmounted(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t1")
@@ -360,6 +372,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("#" + tablet_id2 + "/@table_id") == table_id2
         assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id2
 
+    @authors("babenko")
     def test_swap(self):
         self.test_move_unmounted()
 
@@ -376,6 +389,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
 
+    @authors("babenko")
     def test_move_multiple_rollback(self):
         sync_create_cells(1)
 
@@ -402,6 +416,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
+    @authors("babenko")
     def test_move_in_tx_commit(self):
         self._create_sorted_table("//tmp/t1")
         tx = start_transaction()
@@ -411,6 +426,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         commit_transaction(tx)
         assert len(get("//tmp/t2/@tablets")) == 1
 
+    @authors("babenko")
     def test_move_in_tx_abort(self):
         self._create_sorted_table("//tmp/t1")
         tx = start_transaction()
@@ -421,6 +437,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(get("//tmp/t1/@tablets")) == 1
 
 
+    @authors("babenko")
     def test_tablet_assignment(self):
         sync_create_cells(3)
         self._create_sorted_table("//tmp/t")
@@ -434,6 +451,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for cell in cells:
             assert cell.attributes["tablet_count"] == 4
 
+    @authors("lukyan")
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory_flush(self, mode):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
@@ -445,6 +463,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
 
+    @authors("babenko")
     def test_tablet_cell_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell(authenticated_user="u")
@@ -453,6 +472,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
 
+    @authors("savrus")
     def test_tablet_cell_journal_acl(self):
         create_user("u")
         acl = [make_ace("allow", "u", "read")]
@@ -464,6 +484,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
         assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("domain", ["snapshot_acl", "changelog_acl"])
     def test_create_tablet_cell_with_broken_acl(self, domain):
         create_user("u")
@@ -478,12 +499,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1, tablet_cell_bundle="b")
         assert len(ls("//sys/tablet_cells")) == 1
 
+    @authors("babenko")
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell_bundle("b", authenticated_user="u")
         set("//sys/schemas/tablet_cell_bundle/@acl/end", make_ace("allow", "u", "create"))
         create_tablet_cell_bundle("b", authenticated_user="u")
 
+    @authors("babenko")
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
         assert not get("//tmp/t/@dynamic")
@@ -492,6 +515,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): remount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", [[]])
 
+    @authors("babenko")
     def test_dynamic_table_schema_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t",
             attributes={
@@ -499,6 +523,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 "schema": [{"data": "string"}]
             })
 
+    @authors("savrus")
     def test_mount_map_node_failure(self):
         sync_create_cells(1)
         with pytest.raises(YtError): mount_table("//tmp")
@@ -507,6 +532,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): unfreeze_table("//tmp")
         with pytest.raises(YtError): reshard_table("//tmp", [[]])
 
+    @authors("babenko")
     def test_mount_permission_denied(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -516,6 +542,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): remount_table("//tmp/t", authenticated_user="u")
         with pytest.raises(YtError): reshard_table("//tmp/t", [[]], authenticated_user="u")
 
+    @authors("babenko", "levysotsky")
     def test_mount_permission_allowed(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -526,6 +553,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remount_table("//tmp/t", authenticated_user="u")
         sync_reshard_table("//tmp/t", [[]], authenticated_user="u")
 
+    @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
         sync_create_cells(1)
         create("map_node", "//tmp/d")
@@ -537,6 +565,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remount_table("//tmp/d/t", authenticated_user="u")
         sync_reshard_table("//tmp/d/t", [[]], authenticated_user="u")
 
+    @authors("babenko")
     def test_default_cell_bundle(self):
         assert ls("//sys/tablet_cell_bundles") == ["default"]
         sync_create_cells(1)
@@ -546,23 +575,28 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(cells) == 1
         assert list(cells.itervalues())[0].attributes["tablet_cell_bundle"] == "default"
 
+    @authors("babenko")
     def test_cell_bundle_name_validation(self):
         with pytest.raises(YtError): create_tablet_cell_bundle("")
 
+    @authors("babenko")
     def test_cell_bundle_name_create_uniqueness_validation(self):
         create_tablet_cell_bundle("b")
         with pytest.raises(YtError): create_tablet_cell_bundle("b")
 
+    @authors("babenko")
     def test_cell_bundle_rename(self):
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@name", "b1")
         assert get("//sys/tablet_cell_bundles/b1/@name") == "b1"
 
+    @authors("babenko")
     def test_cell_bundle_rename_uniqueness_validation(self):
         create_tablet_cell_bundle("b1")
         create_tablet_cell_bundle("b2")
         with pytest.raises(YtError): set("//sys/tablet_cell_bundles/b1/@name", "b2")
 
+    @authors("babenko")
     def test_table_with_custom_cell_bundle(self):
         create_tablet_cell_bundle("b")
         assert get("//sys/tablet_cell_bundles/@ref_counter") == 1
@@ -573,9 +607,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 1
 
+    @authors("babenko")
     def test_table_with_custom_cell_bundle_name_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
 
+    @authors("babenko")
     def test_cell_bundle_requires_use_permission_on_mount(self):
         create_tablet_cell_bundle("b")
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -599,6 +635,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
         mount_table("//tmp/t", authenticated_user="u")
 
+    @authors("savrus", "babenko")
     def test_cell_bundle_attr_change_requires_use_not_write(self):
         create_tablet_cell_bundle("b")
         create_user("u")
@@ -608,6 +645,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             with pytest.raises(YtError):
                 set("//sys/tablet_cell_bundles/b/@node_tag_filter", "b", authenticated_user="u")
 
+    @authors("babenko")
     def test_cell_bundle_with_custom_peer_count(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 2}})
         get("//sys/tablet_cell_bundles/b/@options")
@@ -617,6 +655,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//sys/tablet_cells/" + cell_id + "/@tablet_cell_bundle") == "b"
         assert len(get("//sys/tablet_cells/" + cell_id + "/@peers")) == 2
 
+    @authors("babenko")
     def test_tablet_ops_require_exclusive_lock(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -628,6 +667,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): freeze_table("//tmp/t")
         with pytest.raises(YtError): unfreeze_table("//tmp/t")
 
+    @authors("babenko")
     def test_no_storage_change_for_mounted(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -636,6 +676,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2)
         with pytest.raises(YtError): set("//tmp/t/@media", {"default": {"replication_factor": 2}})
 
+    @authors("savrus")
     def test_cell_bundle_node_tag_filter(self):
         node = list(get("//sys/cluster_nodes"))[0]
         with pytest.raises(YtError):
@@ -702,13 +743,16 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
         _check(nodes, 1, 1)
 
+    @authors("savrus")
     def test_cell_bundle_distribution_new(self):
         self._test_cell_bundle_distribution(True)
 
+    @authors("savrus")
     @flaky(max_runs=5)
     def test_cell_bundle_distribution_old(self):
         self._test_cell_bundle_distribution(False)
 
+    @authors("savrus")
     def test_cell_bundle_options(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {
             "changelog_read_quorum": 3,
@@ -735,6 +779,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 initialize_options=False,
                 attributes={"options": {}})
 
+    @authors("savrus")
     def test_tablet_count_by_state(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -758,6 +803,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t")
         _verify(3, 0, 0)
 
+    @authors("iskhakovt")
     def test_tablet_table_path_attribute(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -765,6 +811,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
 
+    @authors("iskhakovt")
     def test_tablet_error_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -804,6 +851,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for node in ls("//sys/cluster_nodes"):
             set_node_decommissioned(node, False)
 
+    @authors("ifsmirnov")
     def test_tablet_error_count(self):
         LARGE_STRING = "a" * 15 * 1024 * 1024
         MAX_UNVERSIONED_ROW_WEIGHT = 512 * 1024 * 1024
@@ -855,6 +903,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(get("//tmp/t/@tablet_errors")) == 0
         assert get("//tmp/t/@tablet_error_count") == 0
 
+    @authors("savrus", "babenko")
     def test_disallowed_dynamic_table_alter(self):
         sorted_schema = make_schema([
                 {"name": "key", "type": "string", "sort_order": "ascending"},
@@ -886,10 +935,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             return True
         wait(check)
 
+    @authors("savrus")
     def test_disable_tablet_cells(self):
         cell = sync_create_cells(1)[0]
         self._disable_tablet_cells_on_peer(cell)
 
+    @authors("savrus")
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
 
@@ -915,6 +966,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 0
 
+    @authors("savrus", "babenko")
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -944,6 +996,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("is_sorted", [True, False])
     def test_column_selector_dynamic_tables(self, is_sorted):
         sync_create_cells(1)
@@ -982,6 +1035,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             sync_compact_table("//tmp/t")
             check_reads(True)
 
+    @authors("ifsmirnov")
     @parametrize_external
     def test_mount_with_target_cell_ids(self, external):
         cells = sync_create_cells(4)
@@ -1038,6 +1092,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2, target_cell_ids=[cells[1], cells[2]])
         assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
 
+    @authors("aozeritsky")
     def test_modification_access_time(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1063,11 +1118,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         time_after = get("//tmp/t/@access_time")
         assert time_after > time_before
 
+    @authors("savrus")
     def test_remove_tablet_cell(self):
         cells = sync_create_cells(1)
         remove("#" + cells[0])
         wait(lambda: not exists("//sys/tablet_cells/{0}".format(cells[0])))
 
+    @authors("savrus")
     def test_tablet_cell_decommission(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
@@ -1113,6 +1170,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remove("//sys/@config/tablet_manager/tablet_cell_decommissioner")
         wait(lambda: not exists("#{0}".format(cell)))
 
+    @authors("savrus")
     def test_force_remove_tablet_cell(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
@@ -1121,6 +1179,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remove("#{0}".format(cell), force=True)
         wait(lambda: not exists("#" + cell))
 
+    @authors("savrus")
     def test_force_remove_tablet_cell_after_decommission(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
@@ -1132,6 +1191,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remove("#{0}".format(cell), force=True)
         wait(lambda: not exists("#" + cell))
 
+    @authors("savrus")
     def test_cumulative_statistics(self):
         cell = sync_create_cells(1)[0]
         self._create_sorted_table("//tmp/t")
@@ -1159,6 +1219,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         wait(check)
 
+    @authors("ifsmirnov")
     def test_chunk_view_attributes(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         sync_create_cells(1)
@@ -1194,6 +1255,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 assert len(chunk_view) == 1
                 assert chunk_view[0] == table_chunks[0]
 
+    @authors("savrus", "ifsmirnov")
     def test_select_rows_access_tracking(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t1")
@@ -1228,6 +1290,7 @@ class TestDynamicTablesPermissions(DynamicTablesBase):
         },
     }
 
+    @authors("savrus")
     def test_safe_mode(self):
         sync_create_cells(1)
         create_user("u")
@@ -1278,6 +1341,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
             driver = get_driver(i + 1)
             wait(predicate(driver))
 
+    @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_resource_limits(self, resource):
         create_account("test_account")
@@ -1299,6 +1363,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         sync_unmount_table("//tmp/t")
 
+    @authors("savrus")
     def test_tablet_count_limit_create(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -1323,6 +1388,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
+    @authors("savrus")
     def test_tablet_count_limit_reshard(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -1343,6 +1409,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_reshard_table("//tmp/t2", 2)
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
+    @authors("savrus")
     def test_tablet_count_limit_copy(self):
         create_account("test_account")
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
@@ -1358,6 +1425,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
         self._verify_resource_usage("test_account", "tablet_count", 2)
 
+    @authors("shakurov")
     def test_tablet_count_copy_across_accounts(self):
         create_account("test_account1")
         create_account("test_account2")
@@ -1382,6 +1450,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._verify_resource_usage("test_account1", "tablet_count", 1)
         self._verify_resource_usage("test_account2", "tablet_count", 1)
 
+    @authors("savrus")
     def test_tablet_count_remove(self):
         create_account("test_account")
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
@@ -1391,6 +1460,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         remove("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
+    @authors("savrus")
     def test_tablet_count_set_account(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -1405,6 +1475,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//tmp/t/@account", "test_account")
         self._verify_resource_usage("test_account", "tablet_count", 2)
 
+    @authors("savrus")
     def test_tablet_count_alter_table(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -1423,6 +1494,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         alter_table("//tmp/t", dynamic=True)
         self._verify_resource_usage("test_account", "tablet_count", 1)
 
+    @authors("savrus")
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory_accounting(self, mode):
         create_account("test_account")
@@ -1469,6 +1541,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_unmount_table("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_static_memory", 0)
 
+    @authors("savrus")
     def test_remount_in_memory_accounting(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -1495,6 +1568,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         _test("compressed")
         _test("uncompressed")
 
+    @authors("savrus")
     def test_insert_during_tablet_static_memory_limit_violation(self):
         create_account("test_account")
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
@@ -1512,6 +1586,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
 
+    @authors("lukyan")
     @flaky(max_runs=5)
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_changelog_resource_limits(self, resource):
@@ -1532,6 +1607,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sleep(10)
         assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
+    @authors("savrus", "ifsmirnov")
     def test_chunk_view_accounting(self):
         create_account("test_account")
         create_account("other_account")
@@ -1622,6 +1698,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         ["frozen", "mount"],
         ["unmounted", "freeze"],
         ["unmounted", "unfreeze"]])
+    @authors("savrus")
     def test_initial_incompatible(self, initial, command):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1647,6 +1724,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
             wait_for_tablet_state("//tmp/t", expected)
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
+    @authors("savrus", "levysotsky")
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_mounted(self, first_command, second_command):
@@ -1657,6 +1735,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         sync_create_cells(1)
         self._do_test_transition("mounted", first_command, second_command)
 
+    @authors("savrus", "levysotsky")
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_frozen(self, first_command, second_command):
@@ -1667,6 +1746,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         sync_create_cells(1)
         self._do_test_transition("frozen", first_command, second_command)
 
+    @authors("savrus")
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
     def test_state_transition_conflict_unmounted(self, first_command, second_command):
@@ -1674,6 +1754,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         self._do_test_transition("unmounted", first_command, second_command)
 
+    @authors("savrus")
     @pytest.mark.parametrize("inverse", [False, True])
     def test_freeze_expectations(self, inverse):
         sync_create_cells(1)
@@ -1697,6 +1778,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
 class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t", external_cell_tag=1)
@@ -1747,6 +1829,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
         assert primary_data_size == secondary_data_size
 
+    @authors("savrus")
     def test_peer_change_on_prerequisite_transaction_abort(self):
         cells = sync_create_cells(1)
         driver = get_driver(1)
@@ -1771,6 +1854,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         node = get("#{0}/@peers/0/address".format(cell))
         assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
 
+    @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_mount_orphaned(self, freeze):
         self._create_sorted_table("//tmp/t")
