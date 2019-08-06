@@ -49,7 +49,7 @@ public class WriteTableExample {
     }
 
     private static UnversionedRowset nextRows() {
-        if (currentRowNumber > 100000) {
+        if (currentRowNumber >= 100000) {
             return null;
         }
 
@@ -78,6 +78,38 @@ public class WriteTableExample {
                 logger.info("Write table");
 
                 String path = "//tmp/write-table-example-1";
+
+                client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+
+                TableWriter writer = client.writeTable(new WriteTable(path)).join();
+
+                resetGenerator();
+
+                UnversionedRowset rowset = nextRows();
+
+                while (rowset != null) {
+                    while (rowset != null && writer.write(rowset)) {
+                        rowset = nextRows();
+                    }
+
+                    writer.readyEvent().join();
+                }
+
+                writer.close().join();
+
+            } catch (Throwable ex) {
+                logger.error("Error -> {}", ex);
+                System.exit(-1);
+            }
+        });
+
+        ExamplesUtil.enableCompression();
+
+        ExamplesUtil.runExample(client -> {
+            try {
+                logger.info("Write table");
+
+                String path = "//tmp/write-table-example-2";
 
                 client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 

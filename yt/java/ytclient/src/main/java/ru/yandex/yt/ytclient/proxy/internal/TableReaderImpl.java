@@ -43,7 +43,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         return RpcServiceMethodDescriptor.makeMessageParser(TRspReadTable.class);
     }
 
-    private void parseDescriptorDeltaRefSize(ByteBuffer bb, int size) throws Exception {
+    private void parseDescriptorDelta(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
         TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.parseFrom((ByteBuffer)bb.slice().limit(size)); // (ByteBuffer) for java8 compatibility
         ApiServiceUtil.validateRowsetDescriptor(rowsetDescriptor);
@@ -65,7 +65,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         bb.position(endPosition);
     }
 
-    private UnversionedRowset parseMergedRowRefs(ByteBuffer bb, int size) {
+    private UnversionedRowset parseMergedRow(ByteBuffer bb, int size) {
         byte[] data = new byte[size];
         bb.get(data);
         return new WireProtocolReader(Cf.list(data)).readUnversionedRowset(deserializer).getRowset();
@@ -80,11 +80,11 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
             throw new IllegalArgumentException();
         }
 
-        int descriptorDeltaRefSize = (int)bb.getLong();
-        parseDescriptorDeltaRefSize(bb, descriptorDeltaRefSize);
+        int descriptorDeltaSize = (int)bb.getLong();
+        parseDescriptorDelta(bb, descriptorDeltaSize);
 
-        int mergedRowRefsSize = (int)bb.getLong();
-        UnversionedRowset rowset = parseMergedRowRefs(bb, mergedRowRefsSize);
+        int mergedRowSize = (int)bb.getLong();
+        UnversionedRowset rowset = parseMergedRow(bb, mergedRowSize);
 
         if (bb.position() != endPosition) {
             throw new IllegalArgumentException();
