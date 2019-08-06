@@ -17,29 +17,32 @@ class TClickHouseService
     : public TServiceBase
 {
 public:
-    TClickHouseService(IInvokerPtr invoker)
+    TClickHouseService(IInvokerPtr invoker, TString instanceId)
         : TServiceBase(
             invoker,
             TClickHouseServiceProxy::GetDescriptor(),
             ServerLogger)
+        , InstanceId_(std::move(instanceId))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
     }
 
 private:
+    TString InstanceId_;
+
     DECLARE_RPC_SERVICE_METHOD(NProto, ProcessGossip)
     {
         Y_UNUSED(request);
-        Y_UNUSED(response);
+        response->set_instance_id(InstanceId_);
         context->Reply();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateClickHouseService(IInvokerPtr invoker)
+IServicePtr CreateClickHouseService(IInvokerPtr invoker, TString instanceId)
 {
-    return New<TClickHouseService>(invoker);
+    return New<TClickHouseService>(invoker, std::move(instanceId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

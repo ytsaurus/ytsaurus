@@ -6,6 +6,8 @@ message TReqProcessGossip
 { }
 
 message TRspProcessGossip
-{ }
+{
+    required string instance_id = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

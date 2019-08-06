@@ -10,6 +10,8 @@
 #include "query_registry.h"
 #include "security_manager.h"
 
+#include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
+
 #include <yt/server/lib/admin/admin_service.h>
 #include <yt/server/lib/core_dump/core_dumper.h>
 
@@ -152,7 +154,7 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
 
     RpcServer_->RegisterService(CreateClickHouseService(
-        GetControlInvoker()));
+        GetControlInvoker(), InstanceId_));
 
     RpcServer_->Configure(Config_->RpcServer);
 
