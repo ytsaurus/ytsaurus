@@ -353,6 +353,7 @@ def build(options, build_context):
     ]
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
+
     if options.build_enable_ya_yt_store:
         env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
         args += [
@@ -360,14 +361,21 @@ def build(options, build_context):
             "--yall-dist-cache-put",
             "--yall-dist-cache-no-auto-token",
         ]
+    else:
+        args += [
+            "--yall-disable-dist-cache"
+        ]
+
     if options.build_enable_dist_build:
         args += [
             "--yall-enable-dist-build"
         ]
+
     if options.use_asan:
         args += [
             "--yall-asan-build",
         ]
+
     run(args, env=env, cwd=options.checkout_directory)
 
 
