@@ -325,7 +325,7 @@ class TestBulkInsert(DynamicTablesBase):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output")
-        set("//tmp/t_output/@enable_store_flush", False)
+        set("//tmp/t_output/@enable_store_rotation", False)
         sync_mount_table("//tmp/t_output")
 
         rows = [
