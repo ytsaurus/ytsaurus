@@ -1035,7 +1035,24 @@ private:
     int ActiveCount_= 1;
     bool Evicted_ = false;
 
-    void OnLayerEvicted();
+    void OnLayerEvicted()
+    {
+        // Do not consider this volume being cached any more.
+        std::vector<TArtifactKey> layerKeys;
+        for (const auto& layerKey : VolumeMeta_.layer_artifact_keys()) {
+            TArtifactKey key;
+            key.MergeFrom(layerKey);
+            layerKeys.push_back(key);
+        }
+
+        auto volumeKey = TVolumeKey(std::move(layerKeys));
+
+        auto guard = Guard(SpinLock_);
+        Evicted_ = true;
+        if (ActiveCount_ == 0) {
+            ReleaseLayers(std::move(guard));
+        }
+    }
 
     void ReleaseLayers(TGuard<TSpinLock>&& guard)
     {
@@ -1128,34 +1145,8 @@ public:
             return New<TLayeredVolume>(volumeState, isLocked);
         };
 
-        TPromise<TVolumeStatePtr> promise;
-        {
-            auto guard = Guard(SpinLock_);
-            auto it = Volumes_.find(volumeKey);
+        auto promise = NewPromise<TVolumeStatePtr>();
 
-            if (it != Volumes_.end()) {
-                // Better release guard before calling Apply.
-                guard.Release();
-
-                YT_LOG_DEBUG("Extracting volume from cache (Tag: %v, OriginalVolumeTag: %v)",
-                    tag,
-                    it->second.Tag);
-
-                return it->second.VolumeFuture
-                    .Apply(BIND(createVolume, false))
-                    .As<IVolumePtr>();
-            } else {
-                YT_LOG_DEBUG("Volume is not cached, will be created (Tag: %v)",
-                    tag);
-
-                promise = NewPromise<TVolumeStatePtr>();
-                YT_VERIFY(Volumes_.insert(std::make_pair(volumeKey, TAsyncVolume{promise.ToFuture(), tag})).second);
-            }
-        }
-
-        YT_VERIFY(promise);
-
-        // We have to create a new volume.
         std::vector<TFuture<TLayerPtr>> layerFutures;
         layerFutures.reserve(layers.size());
         for (const auto& layerKey : layers) {
@@ -1173,36 +1164,17 @@ public:
                 tag)
             .Via(GetCurrentInvoker()));
 
-        // This promise is intentionally uncancelable. If we decide to abort job and cancel job preparation
-        // this volume will hopefully be reused by another job.
-        return promise.ToFuture().ToUncancelable()
+        return promise.ToFuture()
             .Apply(BIND(createVolume, true))
             .As<IVolumePtr>();
     }
 
-    bool RemoveVolume(const TVolumeKey& key)
-    {
-        auto guard = Guard(SpinLock_);
-        return Volumes_.erase(key) == 1;
-    }
-
 private:
-    struct TAsyncVolume
-    {
-        TFuture<TVolumeStatePtr> VolumeFuture;
-
-        //! This tag allows to trace the history of a volume being cached.
-        TGuid Tag;
-    };
-
     IPortoExecutorPtr Executor_;
 
     std::vector<TLayerLocationPtr> Locations_;
 
     TLayerCachePtr LayerCache_;
-
-    TSpinLock SpinLock_;
-    THashMap<TVolumeKey, TAsyncVolume> Volumes_;
 
     std::atomic<bool> Enabled_ = { true };
 
@@ -1249,35 +1221,11 @@ private:
             volumeStatePromise.Set(volumeState);
         } catch (const std::exception& ex) {
             volumeStatePromise.Set(TError(ex));
-            YT_VERIFY(RemoveVolume(key));
         }
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// This method is defined after TPortoVolumeManager since it calls RemoveVolume.
-void TVolumeState::OnLayerEvicted()
-{
-    // Do not consider this volume being cached any more.
-    std::vector<TArtifactKey> layerKeys;
-    for (const auto& layerKey : VolumeMeta_.layer_artifact_keys()) {
-        TArtifactKey key;
-        key.MergeFrom(layerKey);
-        layerKeys.push_back(key);
-    }
-
-    auto volumeKey = TVolumeKey(std::move(layerKeys));
-    Owner_->RemoveVolume(volumeKey);
-
-    auto guard = Guard(SpinLock_);
-    Evicted_ = true;
-    if (ActiveCount_ == 0) {
-        ReleaseLayers(std::move(guard));
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
