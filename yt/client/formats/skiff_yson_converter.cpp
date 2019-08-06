@@ -424,7 +424,7 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::Variant8 && skiffSchema->GetWireType() != EWireType::Variant16) {
-            ThrowBadWireType(EWireType::Tuple, skiffSchema->GetWireType());
+            ThrowBadWireType(EWireType::Variant8, skiffSchema->GetWireType());
         }
 
         const auto& fields = descriptor.GetType()->AsVariantStructTypeRef().GetFields();
@@ -450,6 +450,43 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
 
         return result;
     } catch (const std::exception& ex) {
+        RethrowCannotMatchField(descriptor, skiffSchema, ex);
+    }
+}
+
+std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+{
+    try {
+        if (skiffSchema->GetWireType() != EWireType::RepeatedVariant8) {
+            ThrowBadWireType(EWireType::RepeatedVariant8, skiffSchema->GetWireType());
+        }
+
+        if (skiffSchema->GetChildren().size() != 1) {
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
+                EWireType::RepeatedVariant8,
+                skiffSchema->GetChildren().size(),
+                1);
+        }
+
+        auto tupleSchema = skiffSchema->GetChildren()[0];
+        if (tupleSchema->GetWireType() != EWireType::Tuple) {
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected child: %Qv expected: %Qv",
+                EWireType::RepeatedVariant8,
+                tupleSchema->GetWireType(),
+                EWireType::Tuple);
+        }
+
+        if (tupleSchema->GetChildren().size() != 2) {
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
+                EWireType::Tuple,
+                skiffSchema->GetChildren().size(),
+                1);
+        }
+        return {
+            {descriptor.DictKey(), tupleSchema->GetChildren()[0]},
+            {descriptor.DictValue(), tupleSchema->GetChildren()[1]}
+        };
+    } catch (const std::exception & ex) {
         RethrowCannotMatchField(descriptor, skiffSchema, ex);
     }
 }
@@ -883,6 +920,43 @@ TYsonToSkiffConverter CreateVariantYsonToSkiffConverter(
     Y_UNREACHABLE();
 }
 
+TYsonToSkiffConverter CreateDictYsonToSkiffConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TYsonToSkiffConverterConfig& config)
+{
+    const auto [keyMatch, valueMatch] = MatchDictTypes(descriptor, skiffSchema);
+    auto keyConverter = CreateYsonToSkiffConverterImpl(keyMatch.first, keyMatch.second, context, config);
+    auto valueConverter = CreateYsonToSkiffConverterImpl(valueMatch.first, valueMatch.second, context, config);
+
+    return [
+        keyConverter = std::move(keyConverter),
+        valueConverter = std::move(valueConverter),
+        descriptor = std::move(descriptor)
+    ] (TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* writer) {
+        if (cursor->GetCurrent().GetType() != EYsonItemType::BeginList) {
+            ThrowBadYsonToken(descriptor, {EYsonItemType::BeginList}, cursor->GetCurrent().GetType());
+        }
+        cursor->Next();
+        while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+            writer->WriteVariant8Tag(0);
+            if (cursor->GetCurrent().GetType() != EYsonItemType::BeginList) {
+                ThrowBadYsonToken(descriptor, {EYsonItemType::BeginList}, cursor->GetCurrent().GetType());
+            }
+            cursor->Next();
+            keyConverter(cursor, writer);
+            valueConverter(cursor, writer);
+            if (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+                ThrowBadYsonToken(descriptor, {EYsonItemType::EndList}, cursor->GetCurrent().GetType());
+            }
+            cursor->Next();
+        }
+        writer->WriteVariant8Tag(EndOfSequenceTag<ui8>());
+        cursor->Next(); // Skip EYsonItemType::EndList.
+    };
+}
+
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
@@ -907,6 +981,8 @@ TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
             return CreateVariantYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::VariantStruct:
             return CreateVariantYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Dict:
+            return CreateDictYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
     YT_ABORT();
 }
@@ -1232,6 +1308,48 @@ TSkiffToYsonConverter CreateVariantSkiffToYsonConverter(
     }
 }
 
+TSkiffToYsonConverter CreateDictSkiffToYsonConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
+{
+    auto [keyMatch, valueMatch] = MatchDictTypes(descriptor, skiffSchema);
+    auto keyConverter = CreateSkiffToYsonConverterImpl(std::move(keyMatch.first), std::move(keyMatch.second), context, config);
+    auto valueConverter = CreateSkiffToYsonConverterImpl(std::move(valueMatch.first), std::move(valueMatch.second), context, config);
+
+    return [
+        keyConverter = std::move(keyConverter),
+        valueConverter = std::move(valueConverter),
+        descriptor=std::move(descriptor)
+    ] (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
+        consumer->OnBeginList();
+        while (true) {
+            auto tag = parser->ParseVariant8Tag();
+            if (tag == EndOfSequenceTag<ui8>()) {
+                break;
+            } else if (tag != 0) {
+                ThrowSkiffToYsonConversionError(descriptor, "Unexpected %lv tag, expected %Qv or %Qv got %Qv",
+                    EWireType::RepeatedVariant8,
+                    0,
+                    EndOfSequenceTag<ui8>(),
+                    tag);
+            }
+            consumer->OnListItem();
+            consumer->OnBeginList();
+            {
+                consumer->OnListItem();
+                keyConverter(parser, consumer);
+
+                consumer->OnListItem();
+                valueConverter(parser, consumer);
+            }
+            consumer->OnEndList();
+        }
+        consumer->OnEndList();
+    };
+}
+
 TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
@@ -1256,6 +1374,8 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
             return CreateVariantSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::VariantTuple:
             return CreateVariantSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Dict:
+            return CreateDictSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
     YT_ABORT();
 }

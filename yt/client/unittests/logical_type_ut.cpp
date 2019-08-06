@@ -56,12 +56,55 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(std::nullopt, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(TupleLogicalType({
-            SimpleLogicalType(ESimpleLogicalValueType::Int64),
-            SimpleLogicalType(ESimpleLogicalValueType::Uint64)
-        })),
+        SimplifyLogicalType(DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::Uint64))
+        ),
         TPair(std::nullopt, true));
 }
+
+TEST(TLogicalTypeTest, DictValidationTest)
+{
+    EXPECT_NO_THROW(DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::String),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))
+    ));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Any),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))),
+        "is not allowed in dict key");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))),
+        "is not allowed in dict key");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            StructLogicalType({
+                {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"bar", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+            }),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))),
+        "is not allowed in dict key");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            VariantStructLogicalType({
+                {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"bar", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+            }),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))),
+        "is not allowed in dict key");
+}
+
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Simple types
@@ -149,6 +192,20 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
             {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
         }),
+
+    // Dict
+    DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::String),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64)
+    ),
+    DictLogicalType(
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64)
+    ),
+    DictLogicalType(
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+    ),
 };
 
 TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
@@ -246,6 +303,12 @@ std::vector<TCombineTypeFunc> CombineFunctions = {
     },
     [] (const TLogicalTypePtr& type) {
         return VariantTupleLogicalType({type});
+    },
+    [] (const TLogicalTypePtr& type) {
+        return DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String), type);
+    },
+    [] (const TLogicalTypePtr& type) {
+        return DictLogicalType(type, SimpleLogicalType(ESimpleLogicalValueType::String));
     },
 };
 
