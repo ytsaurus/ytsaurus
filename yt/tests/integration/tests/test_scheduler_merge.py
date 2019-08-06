@@ -1389,7 +1389,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"key": 0}, {"key": 0}, {"key": 1}, {"key": 1}]
 
-    @authors("babenko", "ermolovd")
+    @authors("ermolovd")
     def test_schema_compatibility(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64"}]})
         write_table("//tmp/t1", [{"key": None}])
@@ -1399,6 +1399,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2"
             )
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_infer_output_yt_8661_first(self, mode):
         schema = make_schema([{'name': 'x', 'type': 'uint64'}], strict=False)
@@ -1422,6 +1423,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out=schemaful_table,
                 spec={'schema_inference_mode': 'from_output'})
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_infer_output_yt_8661_second(self, mode):
         schema1 = make_schema([
