@@ -195,11 +195,11 @@ private:
 
         std::vector<IStringNodePtr> combinedServiceResults;
         for (const auto& serviceResult : serviceResults) {
-            if (static_cast<i64>(serviceResult.size() + combinedServiceResults.size()) > limit) {
+            if (static_cast<i64>(combinedServiceResults.size() + serviceResult.size()) > limit) {
                 combinedServiceResults.insert(
                     combinedServiceResults.end(),
                     serviceResult.begin(),
-                    std::next(serviceResult.begin(), limit - static_cast<i64>(serviceResult.size())));
+                    std::next(serviceResult.begin(), limit - static_cast<i64>(combinedServiceResults.size())));
                 incomplete = true;
                 break;
             } else {
