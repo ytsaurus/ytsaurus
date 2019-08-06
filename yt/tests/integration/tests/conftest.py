@@ -11,3 +11,14 @@ def pytest_runtest_makereport(item, call, __multicall__):
     if hasattr(item, "cls") and hasattr(item.cls, "Env"):
         rep.environment_path = item.cls.Env.path
     return rep
+
+def _get_closest_marker(item, name):
+    for item in reversed(item.listchain()):
+        if item.get_marker(name) is not None:
+            return item.get_marker
+    return None
+
+def pytest_itemcollected(item):
+    authors = _get_closest_marker(item, name="authors")
+    if authors is None:
+        raise RuntimeError("Test {} is not marked with @authors".format(item.nodeid))

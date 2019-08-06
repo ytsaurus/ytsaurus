@@ -287,7 +287,7 @@ def patch_subclass(parent, skip_condition, reason=""):
                 setattr(cls, attr, build_skipped_method(parent.__dict__[attr],
                                                         cls, skip_condition, reason))
                 for key in parent.__dict__[attr].__dict__:
-                    if key == "parametrize" or "flaky" in key or "skip" in key:
+                    if key == "parametrize" or "flaky" in key or "skip" in key or key == "authors":
                         cls.__dict__[attr].__dict__[key] = parent.__dict__[attr].__dict__[key]
         return cls
 

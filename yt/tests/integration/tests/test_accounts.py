@@ -411,7 +411,7 @@ class TestAccounts(YTEnvSetup):
     def test_node_count_limits2(self):
         create_account("max")
         assert self._get_account_node_count("max") == 0
-        
+
         create("table", "//tmp/t")
         set("//tmp/t/@account", "max")
 
@@ -422,7 +422,7 @@ class TestAccounts(YTEnvSetup):
     def test_node_count_limits3(self):
         create_account("max")
         create("table", "//tmp/t")
-        
+
         self._set_account_node_count_limit("max", 0)
 
         self._replicator_sleep()
@@ -433,7 +433,7 @@ class TestAccounts(YTEnvSetup):
         create_account("max")
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
-        
+
         self._set_account_node_count_limit("max", 0)
         with pytest.raises(YtError): set("//tmp/t/@account", "max")
 
@@ -685,14 +685,14 @@ class TestAccounts(YTEnvSetup):
 
         self._replicator_sleep()
         assert self._get_account_chunk_count("tmp") == 3
-        
+
         assert get("//tmp/t/@update_mode") == "none"
         assert get("//tmp/t/@update_mode", tx=tx1) == "none"
         assert get("//tmp/t/@update_mode", tx=tx2) == "append"
-        
+
         assert self._get_tx_chunk_count(tx1, "tmp") == 0
         assert self._get_tx_chunk_count(tx2, "tmp") == 1
-        
+
         commit_transaction(tx2)
 
         self._replicator_sleep()
@@ -706,7 +706,7 @@ class TestAccounts(YTEnvSetup):
         self._replicator_sleep()
         assert get("//tmp/t/@update_mode") == "none"
         assert self._get_account_chunk_count("tmp") == 3
-        
+
     @authors("babenko", "ignat")
     def test_copy(self):
         create_account("a1")
@@ -972,13 +972,13 @@ class TestAccounts(YTEnvSetup):
         set("//tmp/x/@account", "a")
         create("table", "//tmp/x/t")
         write_table("//tmp/x/t", {"a" : "b"})
-        
+
         # make "a" overcommitted
         self._set_account_zero_limits("a")
 
         # move must succeed
         move("//tmp/x", "//tmp/y", preserve_account=True)
-        
+
     @authors("babenko")
     def test_move_dont_preserve_account_success(self):
         # setup
@@ -990,10 +990,10 @@ class TestAccounts(YTEnvSetup):
         write_table("//tmp/x/t", {"a" : "b"})
         create("map_node", "//tmp/for_y")
         set("//tmp/for_y/@account", "a")
-        
+
         # make "a" overcommitted
         self._set_account_zero_limits("a")
-        
+
         # move must succeed
         move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
 
@@ -1004,10 +1004,10 @@ class TestAccounts(YTEnvSetup):
         create_account("a")
         create("map_node", "//tmp/for_y")
         set("//tmp/for_y/@account", "a")
-        
+
         # make "a" overcommitted
         self._set_account_zero_limits("a")
-        
+
         # move must fail
         with pytest.raises(YtError): move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
 
@@ -1017,13 +1017,13 @@ class TestAccounts(YTEnvSetup):
         create_account("a")
         create("map_node", "//tmp/x")
         set("//tmp/x/@account", "a")
-        
+
         # make "a" overcommitted
         self._set_account_zero_limits("a")
-        
+
         # copy must fail
         with pytest.raises(YtError): copy("//tmp/x", "//tmp/y", preserve_account=True)
-        
+
     @authors("babenko")
     def test_copy_dont_preserve_account_fail(self):
         # setup
@@ -1032,13 +1032,13 @@ class TestAccounts(YTEnvSetup):
         create("map_node", "//tmp/for_y")
         set("//tmp/x/@account", "a")
         set("//tmp/for_y/@account", "a")
-        
+
         # make "a" overcommitted
         self._set_account_zero_limits("a")
-        
+
         # copy must fail
         with pytest.raises(YtError): copy("//tmp/x", "//tmp/for_y/y", preserve_account=False)
-        
+
     @authors("babenko", "ignat")
     def test_rename_success(self):
         create_account("a1")
@@ -1120,7 +1120,7 @@ class TestAccounts(YTEnvSetup):
         assert get("//tmp/t/@resource_usage/disk_space_per_medium/default") == \
                get("#{0}/@statistics/erasure_disk_space".format(chunk_list_id))
 
-    
+
     @authors("babenko")
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError):
