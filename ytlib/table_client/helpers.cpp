@@ -328,8 +328,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     auto Logger = NLogging::TLogger(logger)
         .AddTag("Path: %v", path.GetPath());
 
-    TUserObject userObject;
-    userObject.Path = path;
+    TUserObject userObject(path);
 
     GetUserObjectBasicAttributes(
         client,

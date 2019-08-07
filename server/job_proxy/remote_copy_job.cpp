@@ -159,6 +159,11 @@ public:
             WaitFor(Combine(chunkCopyResults))
                 .ThrowOnError();
 
+            {
+                auto finalizeResult = WaitFor(Combine(ChunkFinalizationResults_));
+                THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
+            }
+
             YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
             AttachChunksToChunkList(outputChunkIds);
         }
@@ -254,6 +259,8 @@ private:
 
     TClientBlockReadOptions BlockReadOptions_;
 
+    std::vector<TFuture<void>> ChunkFinalizationResults_;
+
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
@@ -281,9 +288,7 @@ private:
         auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
         // Copy chunk.
-        TChunkInfo chunkInfo;
         TRefCountedChunkMetaPtr chunkMeta;
-        TChunkReplicaWithMediumList writtenReplicas;
         i64 totalChunkSize;
 
         if (erasureCodecId != NErasure::ECodec::None) {
@@ -355,21 +360,10 @@ private:
             WaitFor(Combine(copyResults))
                 .ThrowOnError();
 
-            i64 diskSpace = 0;
-            for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
-                diskSpace += writers[index]->GetChunkInfo().disk_space();
+            ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
+                .AsyncVia(GetRemoteCopyInvoker())
+                .Run(writers, chunkMeta, outputSessionId));
 
-                auto replicas = writers[index]->GetWrittenChunkReplicas();
-                YT_VERIFY(replicas.size() == 1);
-                auto replica = TChunkReplicaWithMedium(
-                    replicas.front().GetNodeId(),
-                    index,
-                    replicas.front().GetMediumIndex());
-
-                writtenReplicas.push_back(replica);
-            }
-
-            chunkInfo.set_disk_space(diskSpace);
         } else {
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
@@ -416,19 +410,65 @@ private:
             WaitFor(result)
                 .ThrowOnError();
 
-            chunkInfo = writer->GetChunkInfo();
-            writtenReplicas = writer->GetWrittenChunkReplicas();
+            ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeRegularChunk, MakeStrong(this))
+                .AsyncVia(GetRemoteCopyInvoker())
+                .Run(writer, chunkMeta, outputSessionId));
         }
 
         // Update data statistics.
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
 
-        // Confirm chunk.
-        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
-        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
-
         TotalSize_ -= totalChunkSize;
         CopiedChunkCount_ += 1;
+    }
+
+    void FinalizeErasureChunk(
+        const std::vector<IChunkWriterPtr>& writers,
+        const TRefCountedChunkMetaPtr& chunkMeta,
+        NChunkClient::TSessionId outputSessionId)
+    {
+        TChunkInfo chunkInfo;
+        TChunkReplicaWithMediumList writtenReplicas;
+
+        std::vector<TFuture<void>> closeReplicaWriterResults;
+        closeReplicaWriterResults.reserve(writers.size());
+
+        for (const auto& writer : writers) {
+            closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
+        }
+
+        WaitFor(Combine(closeReplicaWriterResults))
+            .ThrowOnError();
+
+        i64 diskSpace = 0;
+        for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
+            diskSpace += writers[index]->GetChunkInfo().disk_space();
+
+            auto replicas = writers[index]->GetWrittenChunkReplicas();
+            YT_VERIFY(replicas.size() == 1);
+            auto replica = TChunkReplicaWithMedium(
+                replicas.front().GetNodeId(),
+                index,
+                replicas.front().GetMediumIndex());
+
+            writtenReplicas.push_back(replica);
+        }
+
+        chunkInfo.set_disk_space(diskSpace);
+
+        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
+    }
+
+    void FinalizeRegularChunk(
+        const IChunkWriterPtr& writer,
+        const TRefCountedChunkMetaPtr& chunkMeta,
+        NChunkClient::TSessionId outputSessionId)
+    {
+        WaitFor(writer->Close(chunkMeta))
+            .ThrowOnError();
+        TChunkInfo chunkInfo = writer->GetChunkInfo();
+        TChunkReplicaWithMediumList writtenReplicas = writer->GetWrittenChunkReplicas();
+        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
     }
 
     void ConfirmChunkReplicas(
@@ -437,6 +477,8 @@ private:
         const TChunkReplicaWithMediumList& writtenReplicas,
         const TRefCountedChunkMetaPtr& inputChunkMeta)
     {
+        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId.ChunkId);
+
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
@@ -544,11 +586,6 @@ private:
             DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + blocksSize);
 
             blockIndex += blocks.size();
-        }
-
-        {
-            auto result = WaitFor(writer->Close(meta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error closing chunk");
         }
     }
 

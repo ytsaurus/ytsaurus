@@ -33,8 +33,6 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("node_tracker", NodeTracker)
         .DefaultNew();
-    RegisterParameter("transaction_manager", TransactionManager)
-        .DefaultNew();
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
     RegisterParameter("object_service", ObjectService)
@@ -84,6 +82,30 @@ TCellMasterConfig::TCellMasterConfig()
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicClusterConfig::TDynamicClusterConfig()
+{
+    RegisterParameter("enable_safe_mode", EnableSafeMode)
+        .Default(false);
+    RegisterParameter("chunk_manager", ChunkManager)
+        .DefaultNew();
+    RegisterParameter("tablet_manager", TabletManager)
+        .DefaultNew();
+    RegisterParameter("node_tracker", NodeTracker)
+        .DefaultNew();
+    RegisterParameter("object_manager", ObjectManager)
+        .DefaultNew();
+    RegisterParameter("security_manager", SecurityManager)
+        .DefaultNew();
+    RegisterParameter("cypress_manager", CypressManager)
+        .DefaultNew();
+    RegisterParameter("multicell_manager", MulticellManager)
+        .DefaultNew();
+    RegisterParameter("transaction_manager", TransactionManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

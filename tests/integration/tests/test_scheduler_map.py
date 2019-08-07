@@ -1654,43 +1654,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
         for r in result:
             print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
 
-    @parametrize_external
-    def test_output_to_dynamic_table(self, external):
-        set("//sys/@config/tablet_manager/enable_bulk_insert", True)
-
-        create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output", external=external)
-
-        sync_create_cells(1)
-        sync_mount_table("//tmp/t_output")
-
-        rows = [{"key": 1, "value": "1"}]
-        write_table("//tmp/t_input", rows)
-        
-        ts_before = generate_timestamp()
-
-        map(
-            in_="//tmp/t_input",
-            out="<append=true>//tmp/t_output",
-            command="cat")
-
-        assert read_table("//tmp/t_output") == rows
-        assert select_rows("* from [//tmp/t_output]") == rows
-
-        actual = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
-        assert len(actual) == 1
-
-        row = actual[0]
-        assert len(row.attributes["write_timestamps"]) == 1
-        ts_write = row.attributes["write_timestamps"][0]
-        assert ts_write > ts_before
-        assert ts_write < generate_timestamp()
-
-        assert row["key"] == 1
-        assert str(row["value"][0]) ==  "1"
-
-        wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
-
 ##################################################################
 
 class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):

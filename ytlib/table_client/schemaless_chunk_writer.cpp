@@ -1582,8 +1582,7 @@ private:
 
         const auto& path = RichPath_.GetPath();
 
-        TUserObject userObject;
-        userObject.Path = path;
+        TUserObject userObject(path);
 
         GetUserObjectBasicAttributes(
             Client_,

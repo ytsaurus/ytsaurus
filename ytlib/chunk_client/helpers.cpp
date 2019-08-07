@@ -593,6 +593,13 @@ void LocateChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserObject::TUserObject(
+    TRichYPath path,
+    std::optional<TTransactionId> transactionId)
+    : Path(std::move(path))
+    , TransactionId(transactionId)
+{ }
+
 bool TUserObject::IsPrepared() const
 {
     return static_cast<bool>(ObjectId);

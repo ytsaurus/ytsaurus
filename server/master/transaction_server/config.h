@@ -8,20 +8,24 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerConfig
+class TDynamicTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TDuration MaxTransactionTimeout;
+    int MaxTransactionDepth;
 
-    TTransactionManagerConfig()
+    TDynamicTransactionManagerConfig()
     {
         RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
             .Default(TDuration::Minutes(60));
+        RegisterParameter("max_transaction_depth", MaxTransactionDepth)
+            .GreaterThan(0)
+            .Default(32);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

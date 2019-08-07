@@ -347,10 +347,10 @@ private:
             candidate->Effect = candidate->StoreIds.size() - 1;
         } else {
             // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-            const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
+            const int edenOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount();
             const int partitionStoreCount = static_cast<int>(partition->Stores().size());
-            candidate->Slack = std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount);
-            if (tablet->GetCriticalPartitionCount() == 1 && edenStoreCount + partitionStoreCount == overlappingStoreCount) {
+            candidate->Slack = std::max(0, overlappingStoreLimit - edenOverlappingStoreCount - partitionStoreCount);
+            if (tablet->GetCriticalPartitionCount() == 1 && edenOverlappingStoreCount + partitionStoreCount == overlappingStoreCount) {
                 candidate->Effect = candidate->StoreIds.size() - 1;
             }
         }
@@ -491,15 +491,14 @@ private:
                 return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
             });
 
-        // Partition is critical if it contributes towards the OSC, and MOSC is reached.
-        bool criticalPartition = false;
         int overlappingStoreCount;
         if (partition->IsEden()) {
             overlappingStoreCount = tablet->GetOverlappingStoreCount();
         } else {
-            overlappingStoreCount = partition->Stores().size() + tablet->GetEden()->Stores().size();
+            overlappingStoreCount = partition->Stores().size() + tablet->GetEdenOverlappingStoreCount();
         }
-        criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(config);
+        // Partition is critical if it contributes towards the OSC, and MOSC is reached.
+        bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(config);
 
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
@@ -767,6 +766,13 @@ private:
 
         std::vector<TOwningKey> pivotKeys;
         for (const auto& partition : tablet->PartitionList()) {
+            if (!partition->GetTablet()->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+                partition->GetState() == EPartitionState::Splitting)
+            {
+                YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
+                     partition->GetId());
+                return;
+            }
             pivotKeys.push_back(partition->GetPivotKey());
         }
 

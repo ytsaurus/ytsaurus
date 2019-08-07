@@ -383,7 +383,7 @@ public:
             YT_LOG_INFO("Artifact is already cached or will be soon");
 
             if (!CanPrepareSingleChunk(key)) {
-                YT_LOG_DEBUG("Skip chunk validation for multi-chunk artifact");
+                YT_LOG_DEBUG("Skipping chunk validation for multi-chunk artifacts");
                 return cookieValue.As<IChunkPtr>();
             }
 
@@ -817,7 +817,6 @@ private:
             ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
-                << TErrorAttribute("key", key)
                 << ex;
             cookie.Cancel(error);
             YT_LOG_WARNING(error);
@@ -889,9 +888,9 @@ private:
             ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
-                << TErrorAttribute("key", key)
                 << ex;
             cookie.Cancel(error);
+            YT_LOG_WARNING(error);
         }
     }
 

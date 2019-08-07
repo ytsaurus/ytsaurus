@@ -8,6 +8,8 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
@@ -127,11 +129,8 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 public:
-    TImpl(
-        TTransactionManagerConfigPtr config,
-        TBootstrap* bootstrap)
+    explicit TImpl(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TransactionManager)
-        , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
             TransactionServerLogger))
@@ -192,8 +191,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (parent && parent->GetPersistentState() != ETransactionState::Active) {
-            parent->ThrowInvalidState();
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        if (parent) {
+            if (parent->GetPersistentState() != ETransactionState::Active) {
+                parent->ThrowInvalidState();
+            }
+
+            if (parent->GetDepth() >= dynamicConfig->MaxTransactionDepth) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::TransactionDepthLimitReached,
+                    "Transaction depth limit reached")
+                    << TErrorAttribute("limit", dynamicConfig->MaxTransactionDepth);
+            }
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -209,6 +219,7 @@ public:
 
         if (parent) {
             transaction->SetParent(parent);
+            transaction->SetDepth(parent->GetDepth() + 1);
             YT_VERIFY(parent->NestedNativeTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
         } else {
@@ -230,7 +241,7 @@ public:
         }
 
         if (!foreign && timeout) {
-            transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
+            transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
 
         transaction->SetDeadline(deadline);
@@ -766,7 +777,6 @@ private:
 
     friend class TTransactionTypeHandler;
 
-    const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransaction> TransactionMap_;
@@ -1172,6 +1182,12 @@ private:
                 TransactionMap_.GetSize());
         }
     }
+
+
+    const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TransactionMap_)
@@ -1187,10 +1203,8 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionManager(
-    TTransactionManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TTransactionManager::TTransactionManager(TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 void TTransactionManager::Initialize()

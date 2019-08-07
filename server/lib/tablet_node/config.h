@@ -120,6 +120,8 @@ public:
 
     bool PreserveTabletIndex;
 
+    bool EnablePartitionSplitWhileEdenPartitioning;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -273,6 +275,9 @@ public:
             .Optional();
 
         RegisterParameter("preserve_tablet_index", PreserveTabletIndex)
+            .Default(false);
+
+        RegisterParameter("enable_partition_split_while_eden_partitioning", EnablePartitionSplitWhileEdenPartitioning)
             .Default(false);
 
         RegisterPostprocessor([&] () {

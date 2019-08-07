@@ -57,12 +57,13 @@ public:
 
         MutableColumns res_columns = getSampleBlock().cloneEmptyColumns();
 
-        for (const auto& [_, attributes] : nodes) {
+        for (const auto& [name, attributes] : nodes) {
             res_columns[0]->insert(std::string(attributes.at("host")->GetValue<TString>()));
             res_columns[1]->insert(attributes.at("rpc_port")->GetValue<ui64>());
             res_columns[2]->insert(attributes.at("monitoring_port")->GetValue<ui64>());
             res_columns[3]->insert(attributes.at("tcp_port")->GetValue<ui64>());
             res_columns[4]->insert(attributes.at("http_port")->GetValue<ui64>());
+            res_columns[5]->insert(std::string(name));
         }
 
         return BlockInputStreams(1, std::make_shared<OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns))));
@@ -91,6 +92,10 @@ private:
             {
                 "http_port",
                 std::make_shared<DataTypeUInt16>(),
+            },
+            {
+                "job_id",
+                std::make_shared<DataTypeString>(),
             },
         });
     }

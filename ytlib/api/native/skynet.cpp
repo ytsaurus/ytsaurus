@@ -48,8 +48,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     auto Logger = NLogging::TLogger(ApiLogger)
         .AddTag("Path: %v", richPath.GetPath());
 
-    TUserObject userObject;
-    userObject.Path = richPath;
+    TUserObject userObject(richPath);
 
     GetUserObjectBasicAttributes(
         client,

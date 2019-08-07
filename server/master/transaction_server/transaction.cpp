@@ -69,6 +69,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, DependentTransactions_);
     Save(context, Deadline_);
     Save(context, LockedDynamicTables_);
+    Save(context, Depth_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -112,6 +113,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
         Load(context, LockedDynamicTables_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterSnapshotVersion::TransactionDepth) {
+        Load(context, Depth_);
     }
 }
 

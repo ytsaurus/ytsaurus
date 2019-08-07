@@ -152,8 +152,7 @@ private:
 
         auto writerOptions = New<TMultiChunkWriterOptions>();
 
-        TUserObject userObject;
-        userObject.Path = Path_;
+        TUserObject userObject(Path_);
 
         GetUserObjectBasicAttributes(
             Client_,
