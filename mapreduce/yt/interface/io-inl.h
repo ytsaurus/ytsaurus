@@ -326,6 +326,7 @@ public:
         Reader_->Next();
         RowState_ = None;
         RowTypeIndex_ = NoIndex_;
+        ++ReadRowCount_;
     }
 
     ui32 GetTableIndex() const
@@ -408,6 +409,11 @@ public:
         : Reader_(reader)
     { }
 
+    ~TTableReader() override
+    {
+        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
+    }
+
     template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
     const U& GetRow() const
     {
@@ -451,6 +457,7 @@ public:
         Reader_->Next();
         CachedRow_.Reset(nullptr);
         RowDone_ = false;
+        ++ReadRowCount_;
     }
 
     ui32 GetTableIndex() const
@@ -484,6 +491,7 @@ public:
 
 private:
     ::TIntrusivePtr<IProtoReaderImpl> Reader_;
+    ui64 ReadRowCount_ = 0;
     mutable THolder<Message> CachedRow_;
     mutable bool RowDone_ = false;
 };
@@ -498,6 +506,11 @@ public:
     explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
         : Reader_(std::move(reader))
     { }
+
+    ~TTableReader() override
+    {
+        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
+    }
 
     const TRowType& GetRow() const
     {
@@ -548,6 +561,7 @@ public:
     {
         Reader_->Next();
         RowState_ = None;
+        ++ReadRowCount_;
     }
 
     ui32 GetTableIndex() const
@@ -572,6 +586,7 @@ public:
 
 private:
     ::TIntrusivePtr<IProtoReaderImpl> Reader_;
+    ui64 ReadRowCount_ = 0;
     mutable TRowType CachedRow_;
 
     enum ERowState {
