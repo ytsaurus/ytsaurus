@@ -3191,7 +3191,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
         # Wait until core is finished. This may take a really long time under debug :(
         controller_agent_address = get(op.get_path() + "/@controller_agent_address")
-        
+
         def check_core():
             if not os.path.exists(core_path):
                 print_debug("size = n/a")
@@ -4651,7 +4651,7 @@ class TestOperationAliases(YTEnvSetup):
 class TestOperationAliasesRpcProxy(TestOperationAliases):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
 
 class TestContainerCpuLimit(YTEnvSetup):

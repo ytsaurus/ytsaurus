@@ -467,5 +467,5 @@ class TestGetJobInput(YTEnvSetup):
 
 class TestGetJobInputRpcProxy(TestGetJobInput):
     DRIVER_BACKEND = "rpc"
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True

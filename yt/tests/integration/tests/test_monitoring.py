@@ -18,7 +18,7 @@ class TestMonitoring(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     DELTA_PROXY_CONFIG = {
         "api": {
             "force_tracing": True,

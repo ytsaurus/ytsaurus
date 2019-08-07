@@ -158,4 +158,4 @@ class TestFileCache(YTEnvSetup):
 class TestFileCacheRpcProxy(TestFileCache):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True

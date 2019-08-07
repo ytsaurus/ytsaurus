@@ -898,7 +898,7 @@ class TestCypressAcls(CheckPermissionBase):
                 ]
             })
         write_table("//tmp/t", [{"public": "a", "secret": "b"}])
-        
+
         assert read_table("//tmp/t{public}") == [{"public": "a"}]
 
         with pytest.raises(YtError):
@@ -941,7 +941,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         public_row = row
         public_row.pop("secret", None)
-        
+
         write_table("//tmp/t", [row])
 
         def do(path, expected_row, expected_omitted_columns):
@@ -1001,7 +1001,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         public_row = row
         public_row.pop("secret", None)
-        
+
         write_table("//tmp/t_in", [row])
 
         def do(input_path, expected_row, expect_alert):
@@ -1045,6 +1045,6 @@ class TestCypressAclsMulticell(TestCypressAcls):
 
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
     DRIVER_BACKEND = "rpc"
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 

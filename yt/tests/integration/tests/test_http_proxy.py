@@ -10,7 +10,7 @@ class TestHttpProxy(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_HTTP_PROXIES = 1
@@ -71,7 +71,7 @@ class TestHttpProxy(YTEnvSetup):
     def test_discover_versions(self):
         rsp = requests.get(self.proxy_address() + "/internal/discover_versions").json()
         service = requests.get(self.proxy_address() + "/service").json()
-        
+
         assert len(rsp["primary_masters"]) == 1
         assert len(rsp["secondary_masters"]) == 2
         assert len(rsp["nodes"]) == 5

@@ -6,7 +6,7 @@ class TestCypressAnnotations(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
     DELTA_SCHEDULER_CONFIG = {

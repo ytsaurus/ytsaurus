@@ -29,7 +29,7 @@ class TestRpcProxyBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     _schema_dicts = [{"name": "index", "type": "int64"},
                      {"name": "str", "type": "string"}]

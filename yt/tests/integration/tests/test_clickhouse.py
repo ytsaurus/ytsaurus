@@ -227,7 +227,7 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NODE_PORT_SET_SIZE = 5
 
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     DELTA_PROXY_CONFIG = {
         "proxy": {

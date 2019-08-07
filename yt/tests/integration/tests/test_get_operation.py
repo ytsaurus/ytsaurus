@@ -259,5 +259,5 @@ class TestGetOperationRpcProxy(TestGetOperation):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

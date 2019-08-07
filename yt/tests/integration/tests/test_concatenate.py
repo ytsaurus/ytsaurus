@@ -298,6 +298,6 @@ class TestConcatenateMulticell(TestConcatenate):
 
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
