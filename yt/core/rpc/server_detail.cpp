@@ -99,6 +99,10 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 
 void TServiceContextBase::ReplyEpilogue()
 {
+    DoReply();
+
+    Replied_.store(true);
+
     {
         auto responseGuard = Guard(ResponseLock_);
 
@@ -110,10 +114,6 @@ void TServiceContextBase::ReplyEpilogue()
             AsyncResponseMessage_.Set(ResponseMessage_);
         }
     }
-
-    DoReply();
-
-    Replied_.store(true);
 
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
