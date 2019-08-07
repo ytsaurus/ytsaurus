@@ -184,7 +184,7 @@ message TXXXMeta
     // Once assigned, object id cannot be changed.
     string id = 1;
 
-    // Univerally unique id; assigned by YP master and is never reused.
+    // Universally unique id; assigned by YP master and is never reused.
     // Helpful to track object identity.
     string uuid = 12;
 
@@ -622,7 +622,7 @@ message TPodDynamicResourceSpec
     // Desired revision of the resource.
     optional uint64 revision = 2;
 
-    // Short label describing resource deploy group 
+    // Short label describing resource deploy group.
     optional string mark = 6;
 
     message TStorageOptions
@@ -1453,6 +1453,24 @@ message TInternetAddressStatus
 {
     optional string pod_id = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "IP4Pool"
+    snake_case_name: "ip4_pool"
+    human_readable_name: "IP4 pool"
+    type_value: 21
+};
+
+message TIP4PoolSpec
+{
+    // CIDR notation for set of ipv4 addresses of pool.
+    repeated string cdir = 1;
+}
+
+message TIP4PoolStatus
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,27 +1,29 @@
 #include "transaction.h"
-#include "object_manager.h"
-#include "node.h"
-#include "node_segment.h"
-#include "pod.h"
-#include "pod_set.h"
-#include "internet_address.h"
-#include "resource.h"
-#include "network_project.h"
-#include "virtual_service.h"
-#include "dns_record_set.h"
+
 #include "account.h"
-#include "schema.h"
+#include "attribute_schema.h"
 #include "config.h"
 #include "db_schema.h"
-#include "type_handler.h"
-#include "private.h"
-#include "attribute_schema.h"
-#include "helpers.h"
-#include "user.h"
-#include "group.h"
+#include "dns_record_set.h"
 #include "geometric_2d_set_cover.h"
-#include "type_info.h"
+#include "group.h"
+#include "helpers.h"
+#include "internet_address.h"
+#include "ip4_pool.h"
+#include "network_project.h"
+#include "node.h"
+#include "node_segment.h"
+#include "object_manager.h"
+#include "pod.h"
 #include "pod_disruption_budget.h"
+#include "pod_set.h"
+#include "private.h"
+#include "resource.h"
+#include "schema.h"
+#include "type_handler.h"
+#include "type_info.h"
+#include "user.h"
+#include "virtual_service.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -732,6 +734,11 @@ public:
     TPodDisruptionBudget* GetPodDisruptionBudget(const TObjectId& id)
     {
         return GetTypedObject<TPodDisruptionBudget>(id);
+    }
+
+    TIP4Pool* GetIP4Pool(const TObjectId& id)
+    {
+        return GetTypedObject<TIP4Pool>(id);
     }
 
 

@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
+#include "public.h"
+
+#include <yp/server/master/public.h>
 
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NYT::NLogging::TLogger Logger;
-
-static constexpr int DBVersion = 35;
+std::unique_ptr<IObjectTypeHandler> CreateIP4PoolsTypeHandler(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

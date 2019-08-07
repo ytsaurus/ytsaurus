@@ -523,6 +523,26 @@ extern const struct TInternetAddressesTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TIP4PoolsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TIP4PoolsTable()
+        : TDBTable("ip4_pools")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec{"spec", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} IP4PoolsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TAccountsTable
     : public TDBTable
     , public TObjectTableBase

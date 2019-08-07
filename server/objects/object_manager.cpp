@@ -1,32 +1,34 @@
 #include "object_manager.h"
+
+#include "account_type_handler.h"
 #include "config.h"
-#include "type_handler.h"
-#include "schema_type_handler.h"
-#include "node_type_handler.h"
-#include "resource_cache_type_handler.h"
+#include "db_schema.h"
+#include "dns_record_set_type_handler.h"
 #include "dynamic_resource_type_handler.h"
-#include "resource_type_handler.h"
-#include "pod_type_handler.h"
-#include "pod_set_type_handler.h"
-#include "endpoint_type_handler.h"
 #include "endpoint_set_type_handler.h"
-#include "network_project_type_handler.h"
-#include "node_segment_type_handler.h"
-#include "virtual_service_type_handler.h"
-#include "user_type_handler.h"
+#include "endpoint_type_handler.h"
 #include "group_type_handler.h"
 #include "internet_address_type_handler.h"
-#include "account_type_handler.h"
-#include "replica_set_type_handler.h"
-#include "dns_record_set_type_handler.h"
+#include "ip4_pool_type_handler.h"
 #include "multi_cluster_replica_set_type_handler.h"
-#include "stage_type_handler.h"
-#include "pod_disruption_budget_type_handler.h"
+#include "network_project_type_handler.h"
+#include "node_segment_type_handler.h"
+#include "node_type_handler.h"
 #include "object.h"
-#include "db_schema.h"
-#include "transaction_manager.h"
-#include "transaction.h"
+#include "pod_disruption_budget_type_handler.h"
+#include "pod_set_type_handler.h"
+#include "pod_type_handler.h"
 #include "private.h"
+#include "replica_set_type_handler.h"
+#include "resource_cache_type_handler.h"
+#include "resource_type_handler.h"
+#include "schema_type_handler.h"
+#include "stage_type_handler.h"
+#include "transaction.h"
+#include "transaction_manager.h"
+#include "type_handler.h"
+#include "user_type_handler.h"
+#include "virtual_service_type_handler.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -87,6 +89,7 @@ public:
         RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateIP4PoolsTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));

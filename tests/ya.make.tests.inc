@@ -28,6 +28,7 @@ SET(YP_TEST_SRCS
     test_http_api.py
     test_ids.py
     test_internet_address.py
+    test_ip4_pool.py
     test_labels.py
     test_local_cli.py
     test_multi_cluster_replica_sets.py
