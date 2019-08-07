@@ -1166,22 +1166,21 @@ private:
     virtual void CustomPrepare() override
     {
         if (Spec_->CopyAttributes) {
-            if (InputTables_.size() > 1) {
+            if (InputTables_.size() != 1) {
                 THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
             }
 
             const auto& table = InputTables_[0];
-            const auto& path = table->GetPath();
 
             auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TObjectYPathProxy::Get(path + "/@");
+            auto req = TObjectYPathProxy::Get(table->GetObjectIdPath() + "/@");
             SetTransactionId(req, *table->TransactionId);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
-                path);
+                table->GetPath());
 
             const auto& rsp = rspOrError.Value();
             InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));

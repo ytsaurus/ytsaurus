@@ -45,6 +45,11 @@ void TInputTable::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOutputTable::TOutputTable(NYPath::TRichYPath path, EOutputTableType outputType)
+    : TUserObject(std::move(path))
+    , OutputType(outputType)
+{ }
+
 bool TOutputTable::IsBeginUploadCompleted() const
 {
     return static_cast<bool>(UploadTransactionId);
@@ -66,7 +71,7 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
     Persist(context, ChunkPoolInput);
-    Persist(context, IsDynamic);
+    Persist(context, Dynamic);
     Persist(context, PivotKeys);
     Persist(context, TabletChunkListIds);
     Persist(context, OutputChunks);

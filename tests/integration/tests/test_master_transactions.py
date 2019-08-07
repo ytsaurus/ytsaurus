@@ -362,7 +362,7 @@ class TestMasterTransactions(YTEnvSetup):
 
     def test_very_deep_transactions_yt_9961(self):
         tx = None
-        for i in xrange(100):
+        for _ in xrange(10):
             if tx is None:
                 tx = start_transaction()
             else:
@@ -372,6 +372,24 @@ class TestMasterTransactions(YTEnvSetup):
 
         another_tx = start_transaction()
         with pytest.raises(YtError): lock("//tmp", tx=another_tx)
+
+    def test_transaction_depth(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+        assert get("#{0}/@depth".format(tx1)) == 0
+        assert get("#{0}/@depth".format(tx2)) == 1
+        assert get("#{0}/@depth".format(tx3)) == 2
+
+    def test_transaction_depth_limit(self):
+        set("//sys/@config/transaction_manager/max_transaction_depth", 5)
+        tx = None
+        for _ in xrange(6):
+            if tx is None:
+                tx = start_transaction()
+            else:
+                tx = start_transaction(tx=tx)
+        with pytest.raises(YtError): start_transaction(tx=tx)
 
 ##################################################################
 

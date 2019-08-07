@@ -66,6 +66,14 @@ NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr orig
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserFile::TUserFile(
+    NYPath::TRichYPath path,
+    std::optional<TTransactionId> transactionId,
+    bool layer)
+    : TUserObject(std::move(path), transactionId)
+    , Layer(layer)
+{ }
+
 void TUserFile::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);

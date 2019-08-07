@@ -635,9 +635,13 @@ void TTableNode::SetDesiredTabletCount(std::optional<int> value)
     MutableTabletBalancerConfig()->DesiredTabletCount = value;
 }
 
-void TTableNode::AddDynamicTableLock(TTransactionId transactionId, TTimestamp timestamp, int pending)
+void TTableNode::AddDynamicTableLock(
+    TTransactionId transactionId,
+    TTimestamp timestamp,
+    int pendingTabletCount)
 {
-    YT_VERIFY(MutableDynamicTableLocks().insert(std::make_pair(transactionId, TDynamicTableLock{timestamp, pending})).second);
+    YT_VERIFY(MutableDynamicTableLocks().emplace(
+        transactionId, TDynamicTableLock{timestamp, pendingTabletCount}).second);
     SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() + 1);
 }
 

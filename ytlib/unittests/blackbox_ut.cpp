@@ -151,6 +151,7 @@ TEST_F(TDefaultBlackboxTest, FailOnBadHost)
     config->Port = 1;
     auto service = CreateDefaultBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
+    Cerr << ToString(result) << Endl;
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("DNS resolve failed"));
 }

@@ -370,8 +370,7 @@ private:
 
         void OpenJournal()
         {
-            TUserObject userObject;
-            userObject.Path = Path_;
+            TUserObject userObject(Path_);
 
             {
                 TTimingGuard timingGuard(&Profiler, "/time/get_basic_attributes");

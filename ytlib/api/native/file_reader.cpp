@@ -34,6 +34,8 @@
 
 #include <yt/core/yson/string.h>
 
+#include <utility>
+
 namespace NYT::NApi::NNative {
 
 using namespace NRpc;
@@ -58,24 +60,24 @@ public:
         IClientPtr client,
         const TYPath& path,
         const TFileReaderOptions& options)
-        : Client_(client)
+        : Client_(std::move(client))
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
-        , Logger(ApiLogger)
+        , BlockReadOptions_{
+            .WorkloadDescriptor = Config_->WorkloadDescriptor,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+            .ReadSessionId = TReadSessionId::Create()
+        }
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+                Path_,
+                Options_.TransactionId,
+                BlockReadOptions_.ReadSessionId))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
-
-        BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
-        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
-
-        Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-            Path_,
-            Options_.TransactionId,
-            BlockReadOptions_.ReadSessionId);
     }
 
     TFuture<void> Open()
@@ -113,36 +115,29 @@ private:
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
 
+    const TClientBlockReadOptions BlockReadOptions_;
+    const NLogging::TLogger Logger;
+
     NApi::ITransactionPtr Transaction_;
-
-    TClientBlockReadOptions BlockReadOptions_;
-
     ui64 Revision_ = 0;
-
     NFileClient::IFileReaderPtr Reader_;
 
-    NLogging::TLogger Logger;
 
     void DoOpen()
     {
         YT_LOG_INFO("Opening file reader");
 
-        TUserObject userObject;
-        userObject.Path = Path_;
+        TUserObject userObject(Path_);
 
-        TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
-        getUserObjectBasicAttributesOptions.SuppressAccessTracking = Options_.SuppressAccessTracking;
         GetUserObjectBasicAttributes(
             Client_,
             {&userObject},
             Transaction_ ? Transaction_->GetId() : NullTransactionId,
             Logger,
             EPermission::Read,
-            getUserObjectBasicAttributesOptions);
-
-        auto cellTag = userObject.ExternalCellTag;
-        auto objectId = userObject.ObjectId;
-        auto objectIdPath = FromObjectId(objectId);
+            TGetUserObjectBasicAttributesOptions{
+                .SuppressAccessTracking = Options_.SuppressAccessTracking
+            });
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -152,21 +147,20 @@ private:
         }
 
         {
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            YT_LOG_INFO("Requesting extended file attributes");
+
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TYPathProxy::Get(objectIdPath + "/@");
-
-            std::vector<TString> attributeKeys{
+            auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "revision"
-            };
-            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
+            });
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting revision of file %v",
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of file %v",
                 Path_);
             const auto& rsp = rspOrError.Value();
 
@@ -177,15 +171,15 @@ private:
         auto nodeDirectory = New<TNodeDirectory>();
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
 
-        bool isEmptyRead = Options_.Length && *Options_.Length == 0;
-        if (!isEmptyRead) {
+        bool emptyRead = Options_.Length && *Options_.Length == 0;
+        if (!emptyRead) {
             YT_LOG_INFO("Fetching file chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TFileYPathProxy::Fetch(objectIdPath);
-            AddCellTagToSyncWith(req, CellTagFromId(objectId));
+            auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
+            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.value_or(0);
@@ -214,7 +208,7 @@ private:
             ProcessFetchResponse(
                 Client_,
                 rsp,
-                cellTag,
+                userObject.ExternalCellTag,
                 nodeDirectory,
                 Config_->MaxChunksPerLocateRequest,
                 std::nullopt,
@@ -239,7 +233,6 @@ private:
 
         YT_LOG_INFO("File reader opened");
     }
-
 };
 
 TFuture<IFileReaderPtr> CreateFileReader(

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,12 +14,14 @@ class TLockManager
 public:
     TLockManager();
 
-    void Lock(TTimestamp timestamp, TTransactionId transactionId);
+    void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed);
     std::vector<TTransactionId> RemoveUnconfirmedTransactions();
     void Unlock(TTransactionId transactionId);
     void Wait(TTimestamp timestamp);
 
     bool IsLocked();
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
     void Persist(const TStreamPersistenceContext& context);
 

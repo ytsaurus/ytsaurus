@@ -158,7 +158,7 @@ void TStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
     fluent
         .Item("store_state").Value(StoreState_)
-        .Item("min_timestamp").Value(GetMaxTimestamp())
+        .Item("min_timestamp").Value(GetMinTimestamp())
         .Item("max_timestamp").Value(GetMaxTimestamp());
 }
 

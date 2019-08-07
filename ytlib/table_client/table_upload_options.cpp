@@ -81,6 +81,7 @@ TTableUploadOptions GetTableUploadOptions(
     auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
     auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+    auto dynamic = cypressTableAttributes.Get<bool>("dynamic");
 
     // Some ypath attributes are not compatible with attribute "schema".
     if (path.GetAppend() && path.GetSchema()) {
@@ -110,7 +111,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
     } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        result.LockMode = schema.IsSorted() ? ELockMode::Exclusive : ELockMode::Shared;
+        result.LockMode = (schema.IsSorted() && !dynamic) ? ELockMode::Exclusive : ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Strong;
         result.TableSchema = schema;

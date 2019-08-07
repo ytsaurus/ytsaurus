@@ -147,19 +147,6 @@ message TRspGetChunkOwningNodes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFetchChunkList
-{
-    required NYT.NProto.TGuid chunk_list_id = 1;
-    required TReqFetch fetch_request = 2;
-}
-
-message TRspFetchChunkList
-{
-    required TRspFetch fetch_response = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqExecuteBatch
 {
     message TCreateChunkSubrequest

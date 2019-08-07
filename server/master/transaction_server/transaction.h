@@ -46,6 +46,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
+    DEFINE_BYVAL_RW_PROPERTY(int, Depth);
 
     struct TExportEntry
     {

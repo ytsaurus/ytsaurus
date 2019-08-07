@@ -23,7 +23,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ExportChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, ImportChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkOwningNodes);
-    DEFINE_RPC_PROXY_METHOD(NProto, FetchChunkList);
     DEFINE_RPC_PROXY_METHOD(NProto, ExecuteBatch);
 };
 

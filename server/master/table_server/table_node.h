@@ -170,7 +170,7 @@ public:
     void AddDynamicTableLock(
         NTransactionClient::TTransactionId transactionId,
         NTransactionClient::TTimestamp timestamp,
-        int pending);
+        int pendingTabletCount);
     void ConfirmDynamicTableLock(NTransactionClient::TTransactionId transactionId);
     void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
 

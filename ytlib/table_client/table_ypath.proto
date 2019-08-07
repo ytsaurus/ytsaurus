@@ -150,7 +150,9 @@ message TRspAlter
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqLockDynamicTable
-{ }
+{
+    required uint64 timestamp = 1;
+}
 
 message TRspLockDynamicTable
 { }
