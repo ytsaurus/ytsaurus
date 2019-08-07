@@ -50,7 +50,7 @@ class _OperationsTrackingThread(Thread):
         self.daemon = True
 
         self.processing_operations_count = 0
-        
+        self.should_abort_all = False
         self.batch_size = batch_size
 
     def add(self, operation):
@@ -70,6 +70,14 @@ class _OperationsTrackingThread(Thread):
             sleep(coef * self._poll_period / 1000.0)
 
     def _check_operations(self):
+        with self._thread_lock:
+            if self.should_abort_all:
+                while self._operations_to_track:
+                    operation = self._operations_to_track.popleft()
+                    operation.abort()
+                    logger.info("Operation %s was aborted", operation.id)
+                self.should_abort_all = False
+
         cluster_to_operations = defaultdict(list)
         cluster_to_states = defaultdict(list)
         with self._thread_lock:
@@ -122,10 +130,8 @@ class _OperationsTrackingThread(Thread):
 
     def abort_operations(self):
         with self._thread_lock:
-            while self._operations_to_track:
-                operation = self._operations_to_track.popleft()
-                operation.abort()
-                logger.info("Operation %s was aborted", operation.id)
+            if self.get_operation_count() > 0:
+                self.should_abort_all = True
 
     def stop(self):
         self.finished = True
@@ -205,7 +211,7 @@ class OperationsTrackerBase(object):
         """Aborts all added operations."""
         logger.info("Aborting all operations")
         self._tracking_thread.abort_operations()
-        self.operations.clear()
+        self.wait_all(check_result=False)
 
     def get_operation_count(self):
         """Return current number of operations in tracker."""
@@ -255,6 +261,7 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
 
         self._pool_size = None
         self._queue = deque()
+        self.should_clear_queue = False
 
     def set_pool_size(self, pool_size):
         self._pool_size = pool_size
@@ -277,6 +284,10 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
 
     def _check_operations(self):
         super(_OperationsTrackingPoolThread, self)._check_operations()
+        with self._thread_lock:
+            if self.should_clear_queue:
+                self._queue.clear()
+                self.should_clear_queue = False
         spec_tasks = []
         operations = []
         with self._thread_lock:
@@ -306,9 +317,9 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
 
     def abort_operations(self):
         with self._thread_lock:
-            self._queue.clear()
-
-            super(_OperationsTrackingPoolThread, self).abort_operations()
+            if self.get_operation_count() > 0:
+                self.should_clear_queue = True
+        super(_OperationsTrackingPoolThread, self).abort_operations()
 
 
 class OperationsTrackerPool(OperationsTrackerBase):
