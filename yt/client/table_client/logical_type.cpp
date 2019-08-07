@@ -919,9 +919,19 @@ TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element)
     return OptionalLogicalType(std::move(element));
 }
 
-TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required)
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element)
 {
-    if (required) {
+    return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
+}
+
+TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType element, bool required)
+{
+    if (element == ESimpleLogicalValueType::Null) {
+        if (required) {
+            THROW_ERROR_EXCEPTION("Null type cannot be required");
+        }
+        return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
+    } else if (required) {
         return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
     } else {
         return Singleton<TSimpleTypeStore>()->GetOptionalType(element);

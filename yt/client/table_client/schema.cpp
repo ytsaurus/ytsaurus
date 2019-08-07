@@ -41,14 +41,14 @@ TColumnSchema::TColumnSchema(
     const TString& name,
     EValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, SimpleLogicalType(GetLogicalType(type), /*required*/ false), sortOrder)
+    : TColumnSchema(name, MakeLogicalType(GetLogicalType(type), /*required*/ false), sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
     const TString& name,
     ESimpleLogicalValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, SimpleLogicalType(type, /*required*/ false), sortOrder)
+    : TColumnSchema(name, MakeLogicalType(type, /*required*/ false), sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
@@ -173,7 +173,7 @@ struct TSerializableColumnSchema
                             *RequiredV1_);
                     }
                 } else if (LogicalTypeV1_) {
-                    SetLogicalType(SimpleLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
+                    SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
                 } else {
                     THROW_ERROR_EXCEPTION("Column type is not specified");
                 }
@@ -311,12 +311,12 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
         schema->SetLogicalType(logicalType);
     } else if (protoSchema.has_simple_logical_type()) {
         schema->SetLogicalType(
-            SimpleLogicalType(
+            MakeLogicalType(
                 CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.simple_logical_type()),
                 protoSchema.required()));
     } else {
         auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
-        schema->SetLogicalType(SimpleLogicalType(GetLogicalType(physicalType), protoSchema.required()));
+        schema->SetLogicalType(MakeLogicalType(GetLogicalType(physicalType), protoSchema.required()));
     }
     YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
 

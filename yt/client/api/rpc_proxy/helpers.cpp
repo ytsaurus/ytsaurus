@@ -426,14 +426,14 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
 {
     schema->SetName(protoSchema.name());
     if (protoSchema.has_logical_type()) {
-        auto logicalType = SimpleLogicalType(
+        auto logicalType = MakeLogicalType(
             CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(protoSchema.logical_type()),
             protoSchema.required());
         schema->SetLogicalType(std::move(logicalType));
         YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
     } else {
         auto physicalType = CheckedEnumCast<NTableClient::EValueType>(protoSchema.type());
-        schema->SetLogicalType(SimpleLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
+        schema->SetLogicalType(MakeLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
     }
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
@@ -1324,10 +1324,10 @@ TTableSchema DeserializeRowsetSchema(
         // TODO (ermolovd) YT-7178, support complex schemas.
         if (descriptor.columns(i).has_logical_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
+            columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         } else if (descriptor.columns(i).has_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
+            columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
     return TTableSchema(std::move(columns));

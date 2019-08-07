@@ -370,11 +370,11 @@ void TestAllWireTypes(bool useSchema)
             TColumnSchema("double", EValueType::Double),
             TColumnSchema("boolean", EValueType::Boolean),
             TColumnSchema("string32", EValueType::String),
-            TColumnSchema("opt_int64", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)),
-            TColumnSchema("opt_uint64", SimpleLogicalType(ESimpleLogicalValueType::Uint64, false)),
-            TColumnSchema("opt_double", SimpleLogicalType(ESimpleLogicalValueType::Double, false)),
-            TColumnSchema("opt_boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
-            TColumnSchema("opt_string32", SimpleLogicalType(ESimpleLogicalValueType::String, false)),
+            TColumnSchema("opt_int64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+            TColumnSchema("opt_uint64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
+            TColumnSchema("opt_double", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))),
+            TColumnSchema("opt_boolean", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
+            TColumnSchema("opt_string32", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
         }));
     }
     auto nameTable = New<TNameTable>();
@@ -1156,13 +1156,13 @@ TEST(TSkiffWriter, TestComplexType)
         auto nameTable = New<TNameTable>();
         auto tableSchema = TTableSchema({
             TColumnSchema("value", StructLogicalType({
-                {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {
                     "points",
                     ListLogicalType(
                         StructLogicalType({
-                            {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-                            {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+                            {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                            {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
                         })
                     )
                 }
@@ -1218,8 +1218,8 @@ TEST(TSkiffWriter, TestEmptyComplexType)
         auto tableSchema = TTableSchema({
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                 }))
             ),
         });
@@ -1265,8 +1265,8 @@ TEST(TSkiffWriter, TestSparseComplexType)
         auto tableSchema = TTableSchema({
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                 }))
             ),
         });
@@ -1317,8 +1317,8 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     auto tableSchema = TTableSchema({
         TColumnSchema("value", OptionalLogicalType(
             StructLogicalType({
-                {"name", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                {"value", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))
         ),
     });
@@ -1634,8 +1634,8 @@ TEST(TSkiffParser, TestComplexColumn)
     TCollectingValueConsumer collectedRows(
         TTableSchema({
             TColumnSchema("column", NTableClient::StructLogicalType({
-                {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}
+                {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
             }))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
@@ -1782,8 +1782,8 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
         TTableSchema({
             TColumnSchema("column", OptionalLogicalType(
                 StructLogicalType({
-                    {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                    {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}
+                    {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
                 })
             ))
         }));

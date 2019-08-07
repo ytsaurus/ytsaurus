@@ -1034,8 +1034,8 @@ TEST_P(TExpressionTest, Evaluate)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
-    columns[1].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", schema);
@@ -1065,8 +1065,8 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
-    columns[1].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, schema);
@@ -1096,8 +1096,8 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
-    columns[1].SetLogicalType(SimpleLogicalType(GetLogicalType(type), false));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", schema);
