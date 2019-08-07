@@ -35,7 +35,7 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(ESimpleLogicalValueType::Int64, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false)),
+        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
         TPair(ESimpleLogicalValueType::Uint64, false));
 
     EXPECT_EQ(
@@ -43,7 +43,7 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(ESimpleLogicalValueType::Int64, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false))),
+        SimplifyLogicalType(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))),
         TPair(std::nullopt, false));
 
     EXPECT_EQ(
@@ -67,14 +67,14 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     SimpleLogicalType(ESimpleLogicalValueType::Int64),
     SimpleLogicalType(ESimpleLogicalValueType::String),
     SimpleLogicalType(ESimpleLogicalValueType::Utf8),
-    SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
 
     // Optionals
     OptionalLogicalType(
-        SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))),
     OptionalLogicalType(
         ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false))),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)))),
 
     // Lists
     ListLogicalType(
@@ -103,10 +103,10 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Tuples
     TupleLogicalType({
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
     }),
     TupleLogicalType({
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
     }),
     TupleLogicalType({

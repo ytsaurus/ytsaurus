@@ -33,7 +33,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  name=x;"
             "  type=int64;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false));
+        EXPECT_EQ(*column.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
     }
 
     {
@@ -100,7 +100,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "}");
         EXPECT_EQ(
             *column.LogicalType(),
-            *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false)));
+            *OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))));
     }
 
     EXPECT_ANY_THROW(
@@ -228,14 +228,14 @@ TEST(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
     TColumnSchema columnSchema;
     FromProto(&columnSchema, columnSchemaProto);
 
-    EXPECT_EQ(*columnSchema.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false));
+    EXPECT_EQ(*columnSchema.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)));
     EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
     EXPECT_EQ(columnSchema.Name(), "foo");
 
     columnSchemaProto.set_simple_logical_type(static_cast<int>(ESimpleLogicalValueType::Uint32));
     FromProto(&columnSchema, columnSchemaProto);
 
-    EXPECT_EQ(*columnSchema.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint32, /*required*/ false));
+    EXPECT_EQ(*columnSchema.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint32)));
     EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
     EXPECT_EQ(columnSchema.Name(), "foo");
 }
@@ -243,15 +243,15 @@ TEST(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
 TEST(TTableSchemaTest, TestEqualIgnoringRequiredness)
 {
     TTableSchema schema1 = TTableSchema({
-        TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)),
+        TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
     });
 
     TTableSchema schema2 = TTableSchema({
-        TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)),
+        TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
     });
 
     TTableSchema schema3 = TTableSchema({
-        TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::String, true)),
+        TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::String)),
     });
 
     EXPECT_TRUE(schema1 != schema2);
