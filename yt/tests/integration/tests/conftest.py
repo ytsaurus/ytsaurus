@@ -6,6 +6,14 @@ sys.path.append(os.path.abspath('.'))
 
 pytest_plugins = "yt.test_runner.plugin"
 
+def pytest_configure(config):
+    for line in [
+        "authors(*authors): mark explicating test authors (owners)",
+        "skip_if(condition)",
+        "timeout(timeout)",
+    ]:
+        config.addinivalue_line("markers", line)
+
 def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
     if hasattr(item, "cls") and hasattr(item.cls, "Env"):
@@ -17,7 +25,7 @@ def _get_closest_marker(item, name):
         return item.get_closest_marker(name=name)
     for item in reversed(item.listchain()):
         if item.get_marker(name) is not None:
-            return item.get_marker
+            return item.get_marker(name)
     return None
 
 def pytest_itemcollected(item):
