@@ -43,7 +43,7 @@ struct IProxyCoordinator
      */
     virtual bool GetAvailableState() const = 0;
 
-    virtual bool IsOperable(const NRpc::IServiceContextPtr& context) const = 0;
+    virtual void ValidateOperable() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProxyCoordinator)

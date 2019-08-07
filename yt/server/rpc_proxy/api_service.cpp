@@ -396,9 +396,7 @@ private:
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
-        if (!Coordinator_->IsOperable(context)) {
-            THROW_ERROR_EXCEPTION("Proxy coordinator is not operable");
-        }
+        Coordinator_->ValidateOperable();
 
         const auto& user = context->GetUser();
 
