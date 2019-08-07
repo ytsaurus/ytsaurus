@@ -658,7 +658,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric))
         return last_metric
 
-    @authors("ignat", "ostyakov")
+    @authors("ignat", "eshcherbin", "ostyakov")
     @require_ytserver_root_privileges
     def test_pool_profiling(self):
         self._prepare_tables()
@@ -921,7 +921,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
              self._get_cypress_metrics(op.id, statistics_name) > 0)
 
-    @authors("ostyakov", "eshcherbin")
+    @authors("eshcherbin")
     @unix_only
     @require_ytserver_root_privileges
     def test_operation_failed(self):
