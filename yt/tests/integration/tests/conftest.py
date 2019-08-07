@@ -13,6 +13,8 @@ def pytest_runtest_makereport(item, call, __multicall__):
     return rep
 
 def _get_closest_marker(item, name):
+    if hasattr(item, "get_closest_marker"):
+        return item.get_closest_marker(name=name)
     for item in reversed(item.listchain()):
         if item.get_marker(name) is not None:
             return item.get_marker
