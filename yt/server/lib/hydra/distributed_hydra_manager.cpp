@@ -375,7 +375,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
