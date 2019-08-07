@@ -8,7 +8,6 @@
 #include <yt/server/node/cell_node/bootstrap.h>
 
 #include <yt/server/node/query_agent/config.h>
-#include <yt/server/node/query_agent/helpers.h>
 
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
@@ -57,6 +56,42 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = QueryAgentProfiler;
+
+/////////////////////////////////////////////////////////////////////////////
+
+bool IsRetriableError(const TError& error)
+{
+    return
+        error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed) ||
+        error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk) ||
+        error.FindMatching(NTabletClient::EErrorCode::TabletSnapshotExpired);
+}
+
+template <class T>
+T ExecuteRequestWithRetries(
+    int maxRetries,
+    const NLogging::TLogger& logger,
+    const std::function<T()>& callback)
+{
+    const auto& Logger = logger;
+    std::vector<TError> errors;
+    for (int retryIndex = 0; retryIndex < maxRetries; ++retryIndex) {
+        try {
+            return callback();
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            if (IsRetriableError(error)) {
+                YT_LOG_INFO(error, "Request failed, retrying");
+                errors.push_back(error);
+                continue;
+            } else {
+                throw;
+            }
+        }
+    }
+    THROW_ERROR_EXCEPTION("Request failed after %v retries", maxRetries)
+        << errors;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,10 +168,10 @@ private:
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         blockReadOptions.ReadSessionId = options.ReadSessionId;
 
-        ExecuteRequestWithRetries(
+        ExecuteRequestWithRetries<void>(
             Config_->MaxQueryRetries,
             Logger,
-            [&] () {
+            [&] {
                 auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
                 auto writer = CreateWireProtocolRowsetWriter(
                     codecId,
@@ -204,7 +239,7 @@ private:
         const auto &slotManager = Bootstrap_->GetTabletSlotManager();
 
         try {
-            ExecuteRequestWithRetries(
+            ExecuteRequestWithRetries<void>(
                 Config_->MaxQueryRetries,
                 Logger,
                 [&] {
@@ -286,51 +321,63 @@ private:
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
+        std::vector<TCallback<TFuture<TSharedRef>()>> batchCallbacks;
         for (size_t index = 0; index < batchCount; ++index) {
             auto tabletId = tabletIds[index];
             auto mountRevision = request->mount_revisions(index);
 
-            try {
-                ExecuteRequestWithRetries(
-                    Config_->MaxQueryRetries,
-                    Logger,
-                    [&] {
-                        auto requestData = requestCodec->Decompress(request->Attachments()[index]);
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-                        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-                        if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                            profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
-                        }
-
-                        slotManager->ValidateTabletAccess(
-                            tabletSnapshot,
-                            EPermission::Read,
-                            timestamp);
-                        tabletSnapshot->ValidateMountRevision(mountRevision);
-
-                        struct TLookupRowBufferTag { };
-                        TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                        TWireProtocolWriter writer;
-
-                        LookupRead(
-                            tabletSnapshot,
-                            timestamp,
-                            user,
-                            blockReadOptions,
-                            retentionConfig,
-                            &reader,
-                            &writer);
-
-                        response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
-                    });
-            } catch (const TErrorException&) {
-                if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
-                    ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
-                }
-
-                throw;
+            if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
             }
+
+            slotManager->ValidateTabletAccess(
+                tabletSnapshot,
+                EPermission::Read,
+                timestamp);
+            tabletSnapshot->ValidateMountRevision(mountRevision);
+
+            auto callback = BIND([&, index, tabletSnapshot] () -> TSharedRef{
+                try {
+                    return ExecuteRequestWithRetries<TSharedRef>(
+                        Config_->MaxQueryRetries,
+                        Logger,
+                        [&] () -> TSharedRef{
+                            auto requestData = requestCodec->Decompress(request->Attachments()[index]);
+
+                            struct TLookupRowBufferTag { };
+                            TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+                            TWireProtocolWriter writer;
+
+                            LookupRead(
+                                tabletSnapshot,
+                                timestamp,
+                                user,
+                                blockReadOptions,
+                                retentionConfig,
+                                &reader,
+                                &writer);
+
+                            return responseCodec->Compress(writer.Finish());
+                        });
+                } catch (const TErrorException&) {
+                    if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                        ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+                    }
+
+                    throw;
+                }
+            }).AsyncVia(Bootstrap_->GetLookupPoolInvoker());
+
+            batchCallbacks.push_back(callback);
+        }
+
+        auto results = WaitFor(RunWithBoundedConcurrency(batchCallbacks, Config_->MaxSubqueries))
+            .ValueOrThrow();
+
+        for (size_t index = 0; index < batchCount; ++index) {
+            response->Attachments().push_back(results[index].ValueOrThrow());
         }
 
         context->Reply();
