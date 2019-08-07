@@ -66,6 +66,7 @@ class TestAccounts(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_init(self):
+        assert False, "Just testing"
         assert sorted(ls("//sys/accounts")) == sorted(["sys", "tmp", "intermediate", "chunk_wise_accounting_migration"])
         assert get("//@account") == "sys"
         assert get("//sys/@account") == "sys"
