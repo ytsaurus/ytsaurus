@@ -191,11 +191,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
             peers = get("#{0}/@peers".format(cell_id))
             expected_config_version = get("#{0}/@config_version".format(cell_id))
-            
+
             for peer in peers:
                 if "address" not in peer:
                     return False
-                
+
                 address = peer["address"]
                 if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
                     return False
@@ -1889,12 +1889,12 @@ class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions
 class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
 class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
@@ -1904,7 +1904,7 @@ class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
 class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",

@@ -116,7 +116,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
-        
+
         wait(lambda: not exists("#%s" % chunk_id))
 
     @authors("babenko", "ignat")
@@ -263,14 +263,14 @@ class TestFilesMulticell(TestFiles):
 class TestFilesRpcProxy(TestFiles):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
 class TestFileErrorsRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     DELTA_DRIVER_CONFIG = {"default_streaming_stall_timeout": 1500}
 
     class FaultyStringStream(TextIOBase):
@@ -333,7 +333,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
     NUM_NODES = 5
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     @authors("kiselyovp")
     def test_big_files(self):

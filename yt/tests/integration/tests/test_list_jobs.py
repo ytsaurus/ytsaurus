@@ -577,5 +577,5 @@ class TestListJobs(YTEnvSetup):
 class TestListJobsRpcProxy(TestListJobs):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

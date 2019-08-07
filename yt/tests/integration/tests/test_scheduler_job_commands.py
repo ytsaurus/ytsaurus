@@ -127,7 +127,7 @@ class TestJobProber(YTEnvSetup):
         jobs = wait_breakpoint()
 
         retry_while_job_missing(lambda: signal_job(jobs[0], "SIGUSR1"))
-        
+
         release_breakpoint()
 
         op.track()
@@ -405,5 +405,5 @@ class TestJobProberPorto(YTEnvSetup):
 class TestJobProberRpcProxy(TestJobProber):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

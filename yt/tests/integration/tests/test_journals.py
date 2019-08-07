@@ -186,5 +186,5 @@ class TestJournalsMulticell(TestJournals):
 class TestJournalsRpcProxy(TestJournals):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

@@ -467,7 +467,7 @@ class YTEnvSetup(object):
     DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
-    ENABLE_PROXY = False
+    ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 1
     HTTP_PROXY_PORTS = None
     ENABLE_RPC_PROXY = None
@@ -556,7 +556,7 @@ class YTEnvSetup(object):
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
-            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_PROXY", index) else 0,
+            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),

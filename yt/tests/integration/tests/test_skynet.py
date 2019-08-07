@@ -331,11 +331,11 @@ class TestSkynetIntegration(YTEnvSetup):
 class TestSkynetManager(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
 
-    
+
     def wait_skynet_manager(self):
         url = "http://localhost:{}/debug/healthcheck".format(self.Env.configs["skynet_manager"][0]["port"])
 
@@ -348,7 +348,7 @@ class TestSkynetManager(YTEnvSetup):
             return True
 
         wait(skynet_manager_ready)
-        
+
 
     def setup(self):
         sync_create_cells(1)
@@ -437,7 +437,7 @@ class TestSkynetManager(YTEnvSetup):
     @flaky(max_runs=5)
     def test_empty_file(self):
         self.wait_skynet_manager()
-        
+
         create("table", "//tmp/table_with_empty_file", attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
