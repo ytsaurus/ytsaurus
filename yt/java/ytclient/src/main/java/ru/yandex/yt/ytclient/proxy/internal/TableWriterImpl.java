@@ -2,7 +2,7 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.ByteOrder;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.CodedOutputStream;
@@ -10,7 +10,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
 import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.SetF;
+import ru.yandex.bolts.collection.MapF;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
@@ -25,7 +25,9 @@ import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
+import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
 public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements TableWriter, RpcStreamConsumer {
@@ -101,31 +103,41 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }
 
+    private final MapF<String, Integer> column2id = Cf.hashMap();
+
     @Override
     public boolean write(UnversionedRowset rows) throws IOException {
         TableSchema schema = rows.getSchema();
         TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
 
-        // TODO: maybe reorder columns here
-
-        SetF<String> exitingColumnts = Cf.hashSet();
-
-        for (TRowsetDescriptor.TColumnDescriptor descriptor : rowsetDescriptor.getColumnsList()) {
-            exitingColumnts.add(descriptor.getName());
-        }
-
         for (ColumnSchema descriptor : schema.getColumns()) {
-            if (!exitingColumnts.containsTs(descriptor.getName())) {
+            if (!column2id.containsKey(descriptor.getName())) {
                 builder.addColumns(TRowsetDescriptor.TColumnDescriptor.newBuilder()
                         .setName(descriptor.getName())
                         .setType(descriptor.getType().getValue())
                         .build());
+
+                column2id.put(descriptor.getName(), column2id.size());
             }
         }
 
         ByteBuf buf = Unpooled.buffer();
 
-        writeRowsdata(buf, builder.build(), rows);
+        TRowsetDescriptor currentDescriptor = builder.build();
+
+        for (UnversionedRow row : rows.getRows()) {
+            List<UnversionedValue> values = row.getValues();
+
+            for (int columnNumber = 0; columnNumber < rows.getSchema().getColumns().size() && columnNumber < values.size(); ++columnNumber) {
+                String columnName = rows.getSchema().getColumnName(columnNumber);
+                UnversionedValue value = values.get(columnNumber);
+                int columnId = column2id.get(columnName);
+
+                value.setId(columnId);
+            }
+        }
+
+        writeRowsdata(buf, currentDescriptor, rows);
 
         byte[] attachment = new byte[buf.readableBytes()];
         buf.readBytes(attachment, 0, attachment.length);
@@ -137,7 +149,7 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
         if (builder.getColumnsCount() > 0) {
             TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
             merged.mergeFrom(rowsetDescriptor);
-            merged.addAllColumns(builder.getColumnsList());
+            merged.addAllColumns(currentDescriptor.getColumnsList());
             rowsetDescriptor = merged.build();
         }
 

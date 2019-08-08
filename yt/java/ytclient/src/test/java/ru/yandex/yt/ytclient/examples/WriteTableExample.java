@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.examples;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,18 +32,22 @@ public class WriteTableExample {
         }
     }
 
-    private static TableSchema createSchema() {
+    private static TableSchema createSchema(String randomColumnName) {
         TableSchema.Builder builder = new TableSchema.Builder();
         builder.setUniqueKeys(false);
         builder.addValue("key", ColumnValueType.STRING);
         builder.addValue("value", ColumnValueType.STRING);
         builder.addValue("int", ColumnValueType.INT64);
+
+        if (randomColumnName != null) {
+            builder.addValue(randomColumnName, ColumnValueType.STRING);
+        }
+
         return builder.build().toWrite();
     }
 
-    private static TableSchema schema = createSchema();
-
     private static long currentRowNumber = 0;
+    private static Random random = new Random();
 
     private static void resetGenerator() {
         currentRowNumber = 0;
@@ -55,12 +60,16 @@ public class WriteTableExample {
 
         List<UnversionedRow> rows = Cf.arrayList();
 
+        String randomColumnName = "column-" + String.valueOf(random.nextInt(10));
+        TableSchema schema = createSchema(randomColumnName);
+
         for (int i = 0; i < 10; ++i) {
             String key = "key-" + String.valueOf(currentRowNumber);
             String value = "value-" + String.valueOf(currentRowNumber);
+            String randomValue = "rnd-" + String.valueOf(currentRowNumber);
             Long integer = currentRowNumber;
 
-            List<?> values = Cf.list(key, value, integer);
+            List<?> values = Cf.list(key, value, integer, randomValue);
             List<UnversionedValue> row = new ArrayList<>(values.size());
 
             ApiServiceUtil.convertValueColumns(row, schema, values, true, false);
