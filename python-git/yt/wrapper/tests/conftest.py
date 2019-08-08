@@ -83,13 +83,6 @@ class YtTestEnvironment(object):
                     "reporting_period": 1000,
                 }
             },
-            "data_node": {
-                "store_locations": [
-                    {
-                        "max_trash_ttl": 2000,
-                    },
-                ]
-            },
         }
         if ENABLE_JOB_CONTROL:
             common_delta_node_config.update({
