@@ -367,10 +367,6 @@ public:
         };
 
         auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
-            // NB: Caching is only possible for the primary master.
-            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag()) {
-                return;
-            }
             MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
         };
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
