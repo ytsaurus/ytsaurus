@@ -150,6 +150,11 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
     return buffer->GetBytesWritten();
 }
 
+void TPlainTextLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) const
+{
+    *outputStream << Endl;
+}
+
 void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
     WriteFormatted(outputStream, GetStartLogEvent());
@@ -188,6 +193,9 @@ size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent&
 
     return counterStream.Counter();
 }
+
+void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) const
+{ }
 
 void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
