@@ -20,10 +20,14 @@ message TReqExecute
 
     // The master will sync with these master cells before processing the request.
     repeated int32 cell_tags_to_sync_with = 4;
+
+    // If |true|, the client supports TRspExecute.subresponses and TRspExecute.uncertain_subrequest_indexes.
+    optional bool supports_portals = 5;
 }
 
 message TRspExecute
 {
+    // COMPAT(babenko)
     // Similar to TReqExecute::part_counts, but denotes the number of parts in each
     // encapsulated response.
     // NB: a batched response may have less subresponses than its corresponding request
@@ -31,7 +35,25 @@ message TRspExecute
     repeated int32 part_counts = 1;
 
     // Hydra revision at the beginning of each YPath request execution.
+    // COMPAT(babenko)
     repeated uint64 revisions = 2;
+
+    message TSubresponse
+    {
+        // The index of the subrequest.
+        required int32 subrequest_index = 1;
+        // The number of parts in this subresponse.
+        required int32 part_count = 2;
+        // Hydra revision at the beginning of the subrequest execution.
+        required uint64 revision = 3;
+    }
+    // If non-empty, gives the detailed subresponse information in the new format.
+    repeated TSubresponse subresponses = 3;
+
+    // The indexes of subrequests that were forwarded to another master but
+    // for which no response was received; the client must annotate the subsequent attempts with
+    // "retry" flag.
+    repeated int32 uncertain_subrequest_indexes = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
