@@ -20,18 +20,21 @@ TString GenerateRandomFileName(const char* prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TFunctor, class TMatcher>
-void EXPECT_THROW_THAT(TFunctor functor, TMatcher matcher)
-{
-    bool exceptionThrown = false;
-    try {
-        functor();
-    } catch (const std::exception& ex) {
-        exceptionThrown = true;
-        EXPECT_THAT(ex.what(), matcher);
-    }
-    EXPECT_TRUE(exceptionThrown);
-}
+// NB. EXPECT_THROW_* are macros not functions so when failure occurres
+// gtest framework points to source code of test not the source code
+// of EXPECT_THROW_* function.
+#define EXPECT_THROW_THAT(expr, matcher) \
+    do { \
+        try { \
+            expr; \
+            ADD_FAILURE() << "Expected exception to be thrown"; \
+        } catch (const std::exception& ex) { \
+            EXPECT_THAT(ex.what(), matcher); \
+        } \
+    } while (0)
+
+#define EXPECT_THROW_WITH_SUBSTRING(expr, exceptionSubstring) \
+    EXPECT_THROW_THAT(expr, testing::HasSubstr(exceptionSubstring))
 
 ////////////////////////////////////////////////////////////////////////////////
 

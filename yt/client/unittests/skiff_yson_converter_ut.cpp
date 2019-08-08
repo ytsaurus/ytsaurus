@@ -92,16 +92,6 @@ TString ConvertHexToTextYson(
         EXPECT_EQ(actualYsonString, ysonString) << "Skiff -> Yson conversion error"; \
     } while (0)
 
-#define CHECK_EXCEPTION_SUBSTR(expr, pattern) \
-do { \
-    try { \
-        expr; \
-        ADD_FAILURE() << "Expected to throw"; \
-    } catch (const std::exception& ex) { \
-        EXPECT_THAT(ex.what(), testing::HasSubstr(pattern)); \
-    } \
-} while (0)
-
 
 TEST(TYsonSkiffConverterTest, TestSimpleTypes)
 {
@@ -237,14 +227,14 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         "[#;]",
         "0100");
 
-    CHECK_EXCEPTION_SUBSTR(
+    EXPECT_THROW_WITH_SUBSTRING(
         ConvertYsonHex(
             OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
             " [ %true ] "),
         "Optional nesting mismatch");
 
-    CHECK_EXCEPTION_SUBSTR(
+    EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
             CreateSimpleTypeSchema(EWireType::Boolean),
@@ -273,7 +263,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         ysonToSkiffConfig,
         skiffToYsonConfig);
 
-    CHECK_EXCEPTION_SUBSTR(
+    EXPECT_THROW_WITH_SUBSTRING(
         ConvertYsonHex(
             OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
@@ -481,11 +471,11 @@ TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
         CreateSimpleTypeSchema(EWireType::Int64),
     });
 
-    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[2; 42]"), "Yson to Skiff conversion error");
-    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[]"), "Yson to Skiff conversion error");
-    CHECK_EXCEPTION_SUBSTR(ConvertYsonHex(logicalType, skiffSchema, "[0]"), "Yson to Skiff conversion error");
+    EXPECT_THROW_WITH_SUBSTRING(ConvertYsonHex(logicalType, skiffSchema, "[2; 42]"), "Yson to Skiff conversion error");
+    EXPECT_THROW_WITH_SUBSTRING(ConvertYsonHex(logicalType, skiffSchema, "[]"), "Yson to Skiff conversion error");
+    EXPECT_THROW_WITH_SUBSTRING(ConvertYsonHex(logicalType, skiffSchema, "[0]"), "Yson to Skiff conversion error");
 
-    CHECK_EXCEPTION_SUBSTR(ConvertHexToTextYson(logicalType, skiffSchema, "02" + VariantTagInfix() + "00"),
+    EXPECT_THROW_WITH_SUBSTRING(ConvertHexToTextYson(logicalType, skiffSchema, "02" + VariantTagInfix() + "00"),
         "Skiff to Yson conversion error");
 }
 
