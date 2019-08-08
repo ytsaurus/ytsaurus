@@ -17,7 +17,10 @@ import subprocess
 import sys
 import tempfile
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="krya :: %(asctime)s %(levelname)s %(message)s"
+)
 
 DEFAULT_CONFIG = """\
 // Lines that starts with double slash are comments.
@@ -260,8 +263,6 @@ def invoke_build(build_cmd, args, rest_args):
         sys.stdout.buffer.write(line)
         sys.stdout.flush()
     p.wait()
-    if p.returncode != 0:
-        exit(p.returncode)
 
     dir_switcher = DirectorySwitcher(REPO_ROOT, cfg.remote_directory)
     if args.output:
@@ -283,6 +284,9 @@ def invoke_build(build_cmd, args, rest_args):
             ]
             log_command(args)
             subprocess.check_call(args)
+
+    if p.returncode != 0:
+        exit(p.returncode)
 
 
 def invoke_ya_make(args, rest_args):
