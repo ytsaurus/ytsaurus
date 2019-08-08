@@ -32,9 +32,9 @@ Y_UNIT_TEST_SUITE(TCypressPathTestSuite) {
         UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#1-2-a-b/child"));
         UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("/"));
         UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("/*"));
-        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#1/child/other/child"));
-        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#1/child/other/child&"));
-        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#1/child/other/@child"));
+        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#1-1-1-1/child/other/child"));
+        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#0-1-c-d/child/other/child&"));
+        UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("#0-1-c-d/child/other/@child"));
         UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("//child/other/@child/*"));
         UNIT_ASSERT_NO_EXCEPTION(TCypressPath::Validate("//some/list/after:5"));
     }
@@ -62,19 +62,22 @@ Y_UNIT_TEST_SUITE(TCypressPathTestSuite) {
     {
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/").IsAbsolute(), true);
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/").IsRelative(), false);
-        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1/file").IsAbsolute(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-1-c-1/file").IsAbsolute(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-1-c-1/file").IsRelative(), false);
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/home/file").IsRelative(), true);
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/home/file").IsAbsolute(), false);
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("//home/file").IsAbsolute(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("//home/file").IsRelative(), false);
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("").IsRelative(), true);
 
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("").GetBasename(), TCypressPath(""));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("").GetParent(), TCypressPath(""));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/").GetBasename(), TCypressPath("/"));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/").GetParent(), TCypressPath("/"));
-        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3").GetBasename(), TCypressPath("#1-2-3"));
-        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3").GetParent(), TCypressPath("#1-2-3"));
-        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1/child/other/child").GetBasename(), TCypressPath("/child"));
-        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1/child/other/child").GetParent(), TCypressPath("#1/child/other"));
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3-4").GetBasename(), TCypressPath("#1-2-3-4"));
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3-4").GetParent(), TCypressPath("#1-2-3-4"));
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3-4/child/other/child").GetBasename(), TCypressPath("/child"));
+        UNIT_ASSERT_VALUES_EQUAL(TCypressPath("#1-2-3-4/child/other").GetParent(), TCypressPath("#1-2-3-4/child"));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/home/child/other/@child").GetBasename(), TCypressPath("/@child"));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("/home/child/other/@child").GetParent(), TCypressPath("/home/child/other"));
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("//home").GetBasename(), TCypressPath("/home"));
