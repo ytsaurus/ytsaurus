@@ -1,6 +1,7 @@
 #include "snapshot_exporter.h"
 #include "hydra_facade.h"
 
+#include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -26,6 +27,8 @@ class TExportArgumentsConfig
     : public TYsonSerializable
 {
 public:
+    std::optional<int> JobIndex;
+    std::optional<int> JobCount;
     std::optional<int> LowerIndex;
     std::optional<int> UpperIndex;
     std::vector<TString> UserTypes;
@@ -34,16 +37,46 @@ public:
 
     TExportArgumentsConfig()
     {
+        RegisterParameter("job_index", JobIndex)
+            .GreaterThanOrEqual(0)
+            .Default();
+        RegisterParameter("job_count", JobCount)
+            .GreaterThan(0)
+            .Default();
         RegisterParameter("lower_index", LowerIndex)
-                .Default();
+            .GreaterThanOrEqual(0)
+            .Default();
         RegisterParameter("upper_index", UpperIndex)
-                .Default();
+            .GreaterThan(0)
+            .Default();
         RegisterParameter("types", UserTypes)
-                .Default();
+            .Default();
         RegisterParameter("attributes", UserAttributes)
-                .Default();
+            .Default();
         RegisterParameter("preset_attributes", PresetAttributes)
-                .Default();
+            .Default();
+
+        RegisterPostprocessor([&] () {
+            if (PresetAttributes.has_value() ^ UserAttributes.empty()) {
+                THROW_ERROR_EXCEPTION("Invalid export config: exactly one key \"attributes\" or \"preset_attributes\" must be defined");
+            }
+            if ((JobIndex.has_value() || JobCount.has_value()) &&
+                (LowerIndex.has_value() || UpperIndex.has_value()))
+            {
+                THROW_ERROR_EXCEPTION("Invalid export config: only one way of iterating (through keys or through jobs) may be set");
+            }
+            if (LowerIndex.has_value() && UpperIndex.has_value() &&
+                LowerIndex.value() >= UpperIndex.value())
+            {
+                THROW_ERROR_EXCEPTION("Invalid export config: \"lower_index\" must be less than \"upper_index\"");
+            }
+            if (JobIndex.has_value() ^ JobCount.has_value()) {
+                THROW_ERROR_EXCEPTION("Invalid export config: \"job_index\" and \"job_count\" can only be defined together");
+            }
+            if (JobIndex.has_value() && JobIndex.value() >= JobCount.value()) {
+                THROW_ERROR_EXCEPTION("Invalid export config: \"job_count\" must be greater than \"job_index\"");
+            }
+        });
     };
 };
 
@@ -93,6 +126,8 @@ void DoExportSnapshot(
     TBootstrap* bootstrap,
     std::optional<int> lowerIndex,
     std::optional<int> upperIndex,
+    std::optional<int> jobIndex,
+    std::optional<int> jobCount,
     const std::vector<TString>& searchedKeys,
     const THashSet<EObjectType>& searchedTypes)
 {
@@ -107,16 +142,22 @@ void DoExportSnapshot(
     if (!upperIndex.has_value()) {
         upperIndex = sortedValues.size();
     }
-    upperIndex = std::min(upperIndex.value(), static_cast<int>(sortedValues.size()));
+    if (jobIndex.has_value()) {
+        int nodesPerJob = DivCeil(static_cast<int>(sortedValues.size()), *jobCount);
+        lowerIndex = *jobIndex * nodesPerJob;
+        upperIndex = *lowerIndex + nodesPerJob;
+    }
+    upperIndex = std::min(*upperIndex, static_cast<int>(sortedValues.size()));
 
-    for (int nodeIdx = lowerIndex.value(); nodeIdx < upperIndex.value(); ++nodeIdx) {
+    for (int nodeIdx = *lowerIndex; nodeIdx < *upperIndex; ++nodeIdx) {
         auto node = sortedValues[nodeIdx];
         if (!IsObjectAlive(node)) {
             continue;
         }
 
         auto nodeType = node->GetType();
-        // Skip sys_node. Such node has attributes that cannot be exported (e.g. chunk_replicator_enabled) due to RequireLeader checks.
+        // Skip sys_node. Such node has attributes that cannot be exported
+        // (e.g. chunk_replicator_enabled) due to RequireLeader checks.
         if (nodeType == EObjectType::SysNode) {
             continue;
         }
@@ -130,7 +171,7 @@ void DoExportSnapshot(
         auto writer = CreateYsonWriter(
             &Cout,
             EYsonFormat::Text,
-            EYsonType::MapFragment,
+            EYsonType::Node,
             /* enableRaw */ false,
             /* booleanAsString */ false);
 
@@ -155,6 +196,7 @@ void DoExportSnapshot(
             });
 
         writer->Flush();
+        Cout << Endl;
     }
 }
 
@@ -163,35 +205,25 @@ void ParseAndValidate(
     THashSet<EObjectType>* searchedTypes,
     std::vector<TString>* searchedKeys,
     std::optional<int>* lowerIndex,
-    std::optional<int>* upperIndex)
+    std::optional<int>* upperIndex,
+    std::optional<int>* jobIndex,
+    std::optional<int>* jobCount)
 {
     auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(exportConfig));
 
     *lowerIndex = config->LowerIndex;
     *upperIndex = config->UpperIndex;
-
-    if (config->PresetAttributes.has_value() ^ config->UserAttributes.empty()) {
-        THROW_ERROR_EXCEPTION("Invalid export config: exactly one key 'attributes' or 'preset_attributes' must be defined");
-    }
+    *jobIndex = config->JobIndex;
+    *jobCount = config->JobCount;
 
     if (config->PresetAttributes.has_value()) {
-        if (config->PresetAttributes.value() == EPresetAttributes::Small) {
+        if (*config->PresetAttributes == EPresetAttributes::Small) {
             *searchedKeys = preset_keys_small;
-        } else if (config->PresetAttributes.value() == EPresetAttributes::Large) {
+        } else if (*config->PresetAttributes == EPresetAttributes::Large) {
             *searchedKeys = preset_keys_large;
         }
     } else {
         *searchedKeys = std::move(config->UserAttributes);
-    }
-
-    if (lowerIndex->has_value() && lowerIndex->value() < 0) {
-        THROW_ERROR_EXCEPTION("Invalid export config: 'lower_index' must be non-negative");
-    }
-    if (upperIndex->has_value() && upperIndex->value() <= 0) {
-        THROW_ERROR_EXCEPTION("Invalid export config: 'upper_index' must be positive");
-    }
-    if (lowerIndex->has_value() && upperIndex->has_value() && lowerIndex->value() >= upperIndex->value()) {
-        THROW_ERROR_EXCEPTION("Invalid export config: 'lower_index' must be less than 'upper_index'");
     }
 
     searchedTypes->reserve(config->UserTypes.size());
@@ -214,14 +246,18 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TS
 {
     THashSet<EObjectType> searchedTypes;
     std::vector<TString> searchedAttributes;
-    /// We process [lowerIndex, upperIndex) interval, where lowerIndex and upperIndex denote indices of corresponding sorted keys of NodeMap_.
+    // We process [lowerIndex, upperIndex) interval,
+    // where lowerIndex and upperIndex denote indices of corresponding sorted keys of NodeMap_.
     std::optional<int> lowerIndex;
     std::optional<int> upperIndex;
+    // Other option if we currently don't know total number of nodes.
+    std::optional<int> jobIndex;
+    std::optional<int> jobCount;
 
-    ParseAndValidate(configPath, &searchedTypes, &searchedAttributes, &lowerIndex, &upperIndex);
+    ParseAndValidate(configPath, &searchedTypes, &searchedAttributes, &lowerIndex, &upperIndex, &jobIndex, &jobCount);
 
     bootstrap->TryLoadSnapshot(snapshotPath, false);
-    BIND(&DoExportSnapshot, bootstrap, lowerIndex, upperIndex, searchedAttributes, searchedTypes)
+    BIND(&DoExportSnapshot, bootstrap, lowerIndex, upperIndex, jobIndex, jobCount, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
