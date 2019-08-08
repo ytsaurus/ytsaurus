@@ -77,15 +77,13 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] {
-                BIND([&] () {
-                    PreparePlanFragment(&PrepareMock_, query);
-                })
-                .AsyncVia(ActionQueue_->GetInvoker())
-                .Run()
-                .Get()
-                .ThrowOnError();
-            },
+            BIND([&] () {
+                PreparePlanFragment(&PrepareMock_, query);
+            })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError(),
             matcher);
     }
 
@@ -1880,10 +1878,8 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
     std::vector<TString> source;
 
     EXPECT_THROW_THAT(
-        [&] {
-            Evaluate("x, sum(b) as t FROM [//t] group by to_any(a) as x",
-                split, source,  [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
-        },
+        Evaluate("x, sum(b) as t FROM [//t] group by to_any(a) as x",
+            split, source,  [] (TRange<TRow> result, const TTableSchema& tableSchema) { }),
         HasSubstr("Type mismatch in expression"));
 
     SUCCEED();
@@ -2005,10 +2001,8 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
     }, resultSplit);
 
     EXPECT_THROW_THAT(
-        [&] {
-            Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
-                source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
-        },
+        Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+            source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { }),
         HasSubstr("Null values are forbidden in group key"));
 
     SUCCEED();
@@ -3791,9 +3785,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     }
 
     EXPECT_THROW_THAT(
-        [&] {
-            Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result));
-        },
+        Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result)),
         HasSubstr("Comparison with NaN"));
 
     SUCCEED();
