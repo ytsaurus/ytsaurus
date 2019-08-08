@@ -766,39 +766,39 @@ TEST_F(TPrepareExpressionTest, Negative1)
     auto schema = GetSampleTableSchema();
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ki in (1, 2u, \"abc\")"), schema); },
+        PrepareExpression(TString("ki in (1, 2u, \"abc\")"), schema),
         HasSubstr("Types mismatch in tuple"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ku = \"abc\""), schema); },
+        PrepareExpression(TString("ku = \"abc\""), schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("kd = 4611686018427387903"), schema); },
+        PrepareExpression(TString("kd = 4611686018427387903"), schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("kd = 9223372036854775807u"), schema); },
+        PrepareExpression(TString("kd = 9223372036854775807u"), schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ki = 18446744073709551606u"), schema); },
+        PrepareExpression(TString("ki = 18446744073709551606u"), schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ku = 1.5"), schema); },
+        PrepareExpression(TString("ku = 1.5"), schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ki = 1.5"), schema); },
+        PrepareExpression(TString("ki = 1.5"), schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("(1u - 2) / 3.0"), schema); },
+        PrepareExpression(TString("(1u - 2) / 3.0"), schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("k = 1 and ku"), schema); },
+        PrepareExpression(TString("k = 1 and ku"), schema),
         HasSubstr("Type mismatch in expression"));
 }
 
@@ -983,15 +983,15 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression("if(null, null, null)", schema); },
+        PrepareExpression("if(null, null, null)", schema),
         HasSubstr("Type inference failed"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression("if(true, null, null)", schema); },
+        PrepareExpression("if(true, null, null)", schema),
         HasSubstr("Type inference failed"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression("is_null(null)", schema); },
+        PrepareExpression("is_null(null)", schema),
         HasSubstr("Type inference failed"));
 
     {
@@ -1627,7 +1627,7 @@ TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
+        EvaluateExpression(expr, "", schema, &result, buffer),
         HasSubstr("Timestamp is smaller than minimal value"));
 }
 
@@ -1641,7 +1641,7 @@ TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
+        EvaluateExpression(expr, "", schema, &result, buffer),
         HasSubstr("Timestamp is greater than maximal value"));
 }
 
@@ -1655,7 +1655,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
+        EvaluateExpression(expr, "", schema, &result, buffer),
         HasSubstr("Format string is too long"));
 }
 
@@ -1680,7 +1680,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionByZero)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer); },
+        EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
         HasSubstr("Division by zero"));
 }
 
@@ -1697,7 +1697,7 @@ TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer); },
+        EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
         HasSubstr("Division by zero"));
 }
 
@@ -1714,7 +1714,7 @@ TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer); },
+        EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
         HasSubstr("Division by zero"));
 }
 
@@ -1731,7 +1731,7 @@ TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer); },
+        EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
         HasSubstr("Division by zero"));
 }
 
@@ -1748,7 +1748,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer); },
+        EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer),
         HasSubstr("Division INT_MIN by -1"));
 }
 
@@ -1765,21 +1765,21 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
         [&] {
             auto expr = PrepareExpression("string(any)", schema);
             EvaluateExpression(expr, "any=1", schema, &result, buffer);
-        },
+        }(),
         HasSubstr("Can not convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
             auto expr = PrepareExpression("int64(any)", schema);
             EvaluateExpression(expr, "any=\"hello\"", schema, &result, buffer);
-        },
+        }(),
         HasSubstr("Can not convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
             auto expr = PrepareExpression("int64(any)", schema);
             EvaluateExpression(expr, "any=%true", schema, &result, buffer);
-        },
+        }(),
         HasSubstr("Can not convert value"));
 }
 
