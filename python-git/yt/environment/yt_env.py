@@ -1396,16 +1396,17 @@ class YTInstance(object):
                         continue
 
                     for config in flatten(configs):
-                        log_config_path = "logging/writers/debug/file_name"
-                        if service == "http_proxy":
-                            log_config_path = "proxy/" + log_config_path
-                        log_path = _config_safe_get(config, service, log_config_path)
-                        config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
+                        for log_type in ["debug", "info"]:
+                            log_config_path = "logging/writers/" + log_type + "/file_name"
+                            if service == "http_proxy":
+                                log_config_path = "proxy/" + log_config_path
+                            log_path = _config_safe_get(config, service, log_config_path)
+                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
-                        if service == "node":
-                            job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/debug/file_name"
-                            job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
-                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
+                            if service == "node":
+                                job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/" + log_type + "/file_name"
+                                job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
+                                config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
 
         logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
         makedirp(logs_rotator_data_path)
