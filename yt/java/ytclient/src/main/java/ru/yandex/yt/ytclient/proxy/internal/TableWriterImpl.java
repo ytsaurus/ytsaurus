@@ -146,7 +146,7 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
             throw new IllegalStateException();
         }
 
-        if (builder.getColumnsCount() > 0) {
+        if (currentDescriptor.getColumnsCount() > 0) {
             TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
             merged.mergeFrom(rowsetDescriptor);
             merged.addAllColumns(currentDescriptor.getColumnsList());
