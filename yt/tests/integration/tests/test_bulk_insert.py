@@ -5,6 +5,7 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external, Restarter,\
     NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
+import yt.yson as yson
 
 from yt.environment.helpers import assert_items_equal
 
@@ -18,6 +19,7 @@ import __builtin__
 
 ##################################################################
 
+@authors("ifsmirnov")
 class TestBulkInsert(DynamicTablesBase):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -33,7 +35,6 @@ class TestBulkInsert(DynamicTablesBase):
             })
         create_dynamic_table(path, **attributes)
 
-    @authors("ifsmirnov")
     @parametrize_external
     @pytest.mark.parametrize("freeze", [True, False])
     def test_basic_bulk_insert(self, external, freeze):
@@ -69,7 +70,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
 
-    @authors("ifsmirnov")
     def test_not_sorted_output(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -92,7 +92,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert get("//tmp/t_output/@chunk_count") == 0
 
-    @authors("ifsmirnov")
     def test_not_unique_keys(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -115,7 +114,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert get("//tmp/t_output/@chunk_count") == 0
 
-    @authors("ifsmirnov")
     def test_write_to_unmounted(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -130,7 +128,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert get("//tmp/t_output/@chunk_count") == 0
 
-    @authors("ifsmirnov")
     def test_write_to_mounted_tablets_of_partially_mounted_table(self):
         sync_create_cells(1)
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
@@ -148,7 +145,6 @@ class TestBulkInsert(DynamicTablesBase):
                 out="<append=%true>//tmp/t_output",
                 command="cat")
 
-    @authors("ifsmirnov")
     @pytest.mark.xfail(run=False, reason="Duplicate output tables are not fully supported, YT-10326")
     def test_same_table_more_than_once(self):
         sync_create_cells(1)
@@ -168,7 +164,54 @@ class TestBulkInsert(DynamicTablesBase):
         assert get("//tmp/t_output/@chunk_count") == 2
         assert read_table("//tmp/t_output") == [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
 
-    @authors("ifsmirnov")
+    @parametrize_external
+    def test_multiple_output_tables_get_same_timestamp(self, external):
+        cells = sync_create_cells(2)
+        create("table", "//tmp/t_input")
+        if external:
+            self._create_simple_dynamic_table("//tmp/t1", external_cell_tag=1)
+            self._create_simple_dynamic_table("//tmp/t2", external_cell_tag=2)
+        else:
+            self._create_simple_dynamic_table("//tmp/t1", external=False)
+            self._create_simple_dynamic_table("//tmp/t2", external=False)
+        set("//tmp/t1/@enable_compaction_and_partitioning", False)
+        set("//tmp/t2/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t1", target_cell_ids=[cells[0]])
+        sync_mount_table("//tmp/t2", target_cell_ids=[cells[1]])
+
+        write_table("//tmp/t_input", [{"a": 1}])
+
+        map(
+            in_="//tmp/t_input",
+            out=["<append=%true>//tmp/t1", "<append=%true>//tmp/t2"],
+            command="echo '{key=1;value=\"1\"}'; echo '{key=2;value=\"2\"}' >&4")
+
+        def _get_chunk_view(table):
+            chunk_list_id = get("{}/@chunk_list_id".format(table))
+            tree = get("#{}/@tree".format(chunk_list_id))
+            chunk_view_id = tree[0][0][0].attributes["id"]
+            return get("#{}/@".format(chunk_view_id))
+
+        def _read_row_timestamp(table, key, expected_value):
+            actual = lookup_rows(table, [{"key": key}], versioned=True)
+            row = actual[0]
+            assert str(row["value"][0]) == expected_value
+            return row.attributes["write_timestamps"][0]
+
+        expected_ts = _get_chunk_view("//tmp/t1")["timestamp"]
+        assert expected_ts == _get_chunk_view("//tmp/t2")["timestamp"]
+
+        assert expected_ts == _read_row_timestamp("//tmp/t1", 1, "1")
+        assert expected_ts == _read_row_timestamp("//tmp/t2", 2, "2")
+
+        sync_unmount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t2")
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+
+        assert expected_ts == _read_row_timestamp("//tmp/t1", 1, "1")
+        assert expected_ts == _read_row_timestamp("//tmp/t2", 2, "2")
+
     @parametrize_external
     def test_table_unlocked(self, external):
         sync_create_cells(1)
@@ -198,7 +241,6 @@ class TestBulkInsert(DynamicTablesBase):
         sync_compact_table("//tmp/t_output")
         assert read_table("//tmp/t_output") == rows
 
-    @authors("ifsmirnov")
     @parametrize_external
     def test_subsequent_bulk_inserts(self, external):
         sync_create_cells(1)
@@ -221,7 +263,6 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": i, "value": str(i)} for i in range(len(operations))])
 
-    @authors("ifsmirnov")
     @parametrize_external
     def test_simultaneous_bulk_inserts(self, external):
         sync_create_cells(1)
@@ -248,7 +289,6 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": i, "value": str(i)} for i in range(len(operations))])
 
-    @authors("ifsmirnov")
     def test_timestamp_preserved_after_mount_unmount(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -275,7 +315,6 @@ class TestBulkInsert(DynamicTablesBase):
         sync_mount_table("//tmp/t_output")
         assert _get_timestamp() == ts_write
 
-    @authors("ifsmirnov")
     def test_subtablet_chunk_list_is_pruned(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -301,7 +340,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: not exists("#{}".format(subtablet_chunk_list)))
 
-    @authors("ifsmirnov")
     @pytest.mark.parametrize("stage", ["stage5", "stage6"])
     def test_abort_operation(self, stage):
         sync_create_cells(1)
@@ -341,7 +379,6 @@ class TestBulkInsert(DynamicTablesBase):
         insert_rows("//tmp/t_output", [rows[2]])
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[1:3])
 
-    @authors("ifsmirnov")
     def test_competing_tablet_transaction_lost(self):
         cell_id = sync_create_cells(1)[0]
         node = get("#{}/@peers/0/address".format(cell_id))
