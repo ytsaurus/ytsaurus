@@ -26,10 +26,14 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.ReadFile;
+import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -238,10 +242,12 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         }
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
         return client.lookupRows(request.setTimestamp(startTimestamp));
     }
 
+    @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
         return client.versionedLookupRows(request.setTimestamp(startTimestamp));
     }
@@ -250,16 +256,19 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return selectRows(SelectRowsRequest.of(query));
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return client.selectRows(request.setTimestamp(startTimestamp));
     }
 
     public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest request) {
+        // TODO: hide id to request
         return client.modifyRows(id, request);
     }
 
     /* nodes */
 
+    @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
         return client.createNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -272,6 +281,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return createNode(new CreateNode(path, type, attributes));
     }
 
+    @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return client.existsNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -280,6 +290,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return existsNode(new ExistsNode(path));
     }
 
+    @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         return client.getNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -288,6 +299,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return getNode(new GetNode(path));
     }
 
+    @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return client.listNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -296,6 +308,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return listNode(new ListNode(path));
     }
 
+    @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         return client.removeNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -304,6 +317,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return removeNode(new RemoveNode(path));
     }
 
+    @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         return client.setNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -324,6 +338,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return lockNode(new LockNode(path, mode));
     }
 
+    @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         return client.copyNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -332,6 +347,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return copyNode(new CopyNode(src, dst));
     }
 
+    @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         return client.moveNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -340,6 +356,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return moveNode(new MoveNode(from, to));
     }
 
+    @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         return client.linkNode(req.setTransactionalOptions(transactionalOptions));
     }
@@ -348,19 +365,43 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return linkNode(new LinkNode(src, dst));
     }
 
+    @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return client.concatenateNodes(req.setTransactionalOptions(transactionalOptions));
     }
 
+    @Override
+    public CompletableFuture<TableReader> readTable(ReadTable req) {
+        return client.readTable(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
+    public CompletableFuture<TableWriter> writeTable(WriteTable req) {
+        return client.writeTable(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
+    public CompletableFuture<FileReader> readFile(ReadFile req) {
+        return client.readFile(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
+    public CompletableFuture<FileWriter> writeFile(WriteFile req) {
+        return client.writeFile(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
     public CompletableFuture<Void> concatenateNodes(String [] from, String to) {
         return concatenateNodes(new ConcatenateNodes(from, to));
     }
 
+    @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
         return client.startOperation(req.setTransactionOptions(transactionalOptions));
     }
 
-    CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
+    @Override
+    public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
     }
 }
