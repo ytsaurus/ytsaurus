@@ -136,8 +136,9 @@ class RawStream(Stream):
             self.size = get_stream_size_or_none(input)
 
         try:
+            # NB: os.readlink is not defined on Windows.
             self.filename_hint = os.readlink("/proc/self/fd/0")
-        except (IOError, OSError):
+        except (IOError, OSError, AttributeError):
             pass
 
         # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
