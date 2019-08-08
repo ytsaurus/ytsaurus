@@ -393,8 +393,9 @@ public:
         RegisterParameter("inter_dc_limits", InterDCLimits)
             .DefaultNew();
 
+        // TODO(shakurov): bring back down to 1 hour once YTADMINREQ-18542 is resolved.
         RegisterParameter("staged_chunk_expiration_timeout", StagedChunkExpirationTimeout)
-            .Default(TDuration::Hours(1))
+            .Default(TDuration::Hours(96))
             .GreaterThanOrEqual(TDuration::Minutes(10));
         RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
             .Default(TDuration::Minutes(1));
