@@ -13,14 +13,27 @@ class TReplicatedTableOptions
 {
 public:
     bool EnableReplicatedTableTracker;
-    int SyncReplicaCount;
+    std::optional<int> MaxSyncReplicaCount;
+    std::optional<int> MinSyncReplicaCount;
 
     TReplicatedTableOptions()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
-        RegisterParameter("sync_replica_count", SyncReplicaCount)
-            .Default(1);
+        RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount)
+            .Alias("sync_replica_count")
+            .Optional();
+        RegisterParameter("min_sync_replica_count", MinSyncReplicaCount)
+            .Optional();
+
+        RegisterPostprocessor([&] {
+            if (!MaxSyncReplicaCount && !MinSyncReplicaCount) {
+                MaxSyncReplicaCount = 1;
+            }
+            if (MaxSyncReplicaCount && MinSyncReplicaCount && *MinSyncReplicaCount > *MaxSyncReplicaCount) {
+                THROW_ERROR_EXCEPTION("\"min_sync_replica_count\" must be less or equal to \"max_sync_replica_count\"");
+            }
+        });
     }
 };
 

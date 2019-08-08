@@ -356,12 +356,15 @@ private:
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
                 std::vector<TReplicaPtr> asyncReplicas;
-                int desiredSyncReplicas = 0;
+                int maxSyncReplicas;
+                int minSyncReplicas;
 
                 {
                     auto guard = Guard(Lock_);
-                    desiredSyncReplicas = Config_->SyncReplicaCount;
+                    maxSyncReplicas = Config_->MaxSyncReplicaCount.value_or(static_cast<int>(Replicas_.size()));
+                    minSyncReplicas = Config_->MinSyncReplicaCount.value_or(maxSyncReplicas);
                     asyncReplicas.reserve(Replicas_.size());
+                    syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
                         if (replica->IsSync()) {
                             syncReplicas.push_back(replica);
@@ -372,18 +375,26 @@ private:
                 }
 
                 std::vector<TFuture<void>> futures;
-                futures.reserve(syncReplicas.size());
+                futures.reserve(syncReplicas.size() + asyncReplicas.size());
+
                 for (const auto& syncReplica : syncReplicas) {
                     futures.push_back(syncReplica->Check());
                 }
+                for (const auto& asyncReplica : asyncReplicas) {
+                    futures.push_back(asyncReplica->Check());
+                }
 
                 CheckFuture_ = CombineAll(futures)
-                    .Apply(BIND([bootstrap, syncReplicas, asyncReplicas, desiredSyncReplicas] (const std::vector<TErrorOr<void>>& results) mutable {
+                    .Apply(BIND([bootstrap, syncReplicas, asyncReplicas, maxSyncReplicas, minSyncReplicas] (const std::vector<TErrorOr<void>>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
                         std::vector<TReplicaPtr> goodSyncReplicas;
+                        std::vector<TReplicaPtr> goodAsyncReplicas;
                         goodSyncReplicas.reserve(syncReplicas.size());
                         badSyncReplicas.reserve(syncReplicas.size());
-                        for (size_t index = 0; index < results.size(); ++index) {
+                        goodAsyncReplicas.reserve(asyncReplicas.size());
+
+                        int index = 0;
+                        for (; index < syncReplicas.size(); ++index) {
                             if (results[index].IsOK()) {
                                 goodSyncReplicas.push_back(syncReplicas[index]);
                             } else {
@@ -391,27 +402,38 @@ private:
                             }
                         }
 
+                        for (; index < results.size(); ++index) {
+                            if (results[index].IsOK()) {
+                                goodAsyncReplicas.push_back(asyncReplicas[index-syncReplicas.size()]);
+                            }
+                        }
+
+                        std::vector<TFuture<void>> futures;
+                        futures.reserve(syncReplicas.size() + asyncReplicas.size());
+
                         std::sort(
-                            asyncReplicas.begin(),
-                            asyncReplicas.end(),
+                            goodAsyncReplicas.begin(),
+                            goodAsyncReplicas.end(),
                             [&] (const auto& lhs, const auto& rhs) {
                                 return lhs->GetLag() > rhs->GetLag();
                             });
 
-                        // Don't check async replicas.
-                        // If any is bad we will switch to anther one on the next iteration.
-                        std::vector<TFuture<void>> futures;
-                        futures.reserve(syncReplicas.size() + asyncReplicas.size());
-                        for (int index = goodSyncReplicas.size(); index < desiredSyncReplicas && !asyncReplicas.empty(); ++index) {
-                            futures.push_back(asyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
-                            asyncReplicas.pop_back();
+                        for (index = goodSyncReplicas.size(); index < maxSyncReplicas && !goodAsyncReplicas.empty(); ++index) {
+                            futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
+                            goodAsyncReplicas.pop_back();
                         }
 
-                        for (const auto& replica : badSyncReplicas) {
-                            futures.push_back(replica->SetMode(bootstrap, ETableReplicaMode::Async));
+                        int totalSyncReplicas = maxSyncReplicas < goodSyncReplicas.size()
+                            ? maxSyncReplicas
+                            : index;
+
+                        YT_VERIFY(totalSyncReplicas <= maxSyncReplicas);
+
+                        for (index = Max(0, minSyncReplicas - totalSyncReplicas); index < badSyncReplicas.size(); ++index) {
+                            futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
-                        for (int index = desiredSyncReplicas; index < goodSyncReplicas.size(); ++index) {
+                        for (index = maxSyncReplicas; index < goodSyncReplicas.size(); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
@@ -687,14 +709,15 @@ private:
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
-        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
+        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicas: %v, DesiredMinSyncReplicas: %v)",
             newTable ? "added" : "updated",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
             asyncReplicas,
             skippedReplicas,
-            config->SyncReplicaCount);
+            config->MaxSyncReplicaCount,
+            config->MinSyncReplicaCount);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);

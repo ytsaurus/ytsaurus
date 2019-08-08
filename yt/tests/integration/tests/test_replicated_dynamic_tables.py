@@ -789,6 +789,68 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
+    @authors("aozeritsky")
+    def test_sync_replication_switch_with_min_sync_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2})
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
+        wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
+
+    @authors("aozeritsky")
+    def test_sync_replication_switch_with_min_max_sync_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2, "max_sync_replica_count": 4})
+        replica_id = []
+        for i in range(5):
+            table_path = "//tmp/r%d"%(i)
+            replica_id.append(create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, table_path, attributes={"mode": "async"}))
+            self._create_replica_table(table_path, replica_id[i])
+            sync_enable_table_replica(replica_id[i])
+
+        def sync_replicas():
+            result = 0
+            for i in range(5):
+                if get("#{0}/@mode".format(replica_id[i])) == "sync":
+                    result = result + 1
+            return result
+
+        wait(lambda: sync_replicas() == 4)
+
+        def brake_sync_replicas(count):
+            result = []
+            for i in range(5):
+                if count <= 0:
+                    break
+                table_path = "//tmp/r%d"%(i)
+                if get("#{0}/@mode".format(replica_id[i])) == "sync" and exists(table_path, driver=self.replica_driver):
+                    remove(table_path, driver=self.replica_driver)
+                    count = count - 1
+                    result.append(replica_id[i])
+
+            return result
+
+        broken_replicas = []
+        broken_replicas = broken_replicas + brake_sync_replicas(1)
+        for replica in broken_replicas:
+            wait(lambda: get("#{0}/@mode".format(replica)) == "async")
+        wait(lambda: sync_replicas() == 4)
+
+        broken_replicas = broken_replicas + brake_sync_replicas(2)
+        for replica in broken_replicas:
+            wait(lambda: get("#{0}/@mode".format(replica)) == "async")
+        wait(lambda: sync_replicas() == 2)
+
+        broken_replicas = brake_sync_replicas(1)
+        assert(len(broken_replicas) == 1)
+        wait(lambda: sync_replicas() == 2)
+
     @authors("babenko")
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
