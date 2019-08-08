@@ -43,7 +43,7 @@ type httpClient struct {
 
 	clusterURL yt.ClusterURL
 	httpClient *http.Client
-	log        log.Logger
+	log        log.Structured
 	config     *yt.Config
 	stop       *internal.StopGroup
 
@@ -356,7 +356,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Backoff: &internal.DefaultBackoff,
 		Log:     client.log,
 	}
-	client.requestLogger = &internal.LoggingInterceptor{Logger: client.log}
+	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
 		Wrap(client.requestLogger.Intercept).

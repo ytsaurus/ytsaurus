@@ -13,7 +13,7 @@ import (
 
 type MutationRetrier struct {
 	Backoff BackoffStrategy
-	Log     log.Logger
+	Log     log.Structured
 }
 
 type MutatingParams interface {

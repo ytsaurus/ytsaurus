@@ -16,7 +16,7 @@ type Config struct {
 	Proxy string
 	Token string
 
-	Logger log.Logger
+	Logger log.Structured
 }
 
 func NewConfigFromEnv() (*Config, error) {

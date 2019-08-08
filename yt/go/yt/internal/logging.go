@@ -11,7 +11,7 @@ import (
 type loggingReader struct {
 	r         io.ReadCloser
 	call      *Call
-	log       log.Logger
+	log       log.Structured
 	byteCount int64
 }
 
@@ -29,7 +29,7 @@ func (r *loggingReader) Read(p []byte) (n int, err error) {
 type loggingWriter struct {
 	w         io.WriteCloser
 	call      *Call
-	log       log.Logger
+	log       log.Structured
 	byteCount int64
 }
 
@@ -46,18 +46,18 @@ func (w *loggingWriter) Close() error {
 type loggingTableReader struct {
 	r        yt.TableReader
 	call     *Call
-	log      log.Logger
+	log      log.Structured
 	rowCount int64
 }
 
 type LoggingInterceptor struct {
-	log.Logger
+	log.Structured
 }
 
 type loggingTableWriter struct {
 	r        yt.TableReader
 	call     *Call
-	log      log.Logger
+	log      log.Structured
 	rowCount int64
 }
 
@@ -98,7 +98,7 @@ func (l *LoggingInterceptor) Read(ctx context.Context, call *Call, invoke ReadIn
 		return
 	}
 
-	r = &loggingReader{r: r, call: call, log: l.Logger}
+	r = &loggingReader{r: r, call: call, log: l.Structured}
 	return
 }
 
@@ -109,7 +109,7 @@ func (l *LoggingInterceptor) Write(ctx context.Context, call *Call, invoke Write
 		return
 	}
 
-	w = &loggingWriter{w: w, call: call, log: l.Logger}
+	w = &loggingWriter{w: w, call: call, log: l.Structured}
 	return
 }
 

@@ -14,7 +14,7 @@ import (
 
 type ReadRetrier struct {
 	Backoff BackoffStrategy
-	Log     log.Logger
+	Log     log.Structured
 }
 
 type ReadRetryParams interface {
