@@ -1464,10 +1464,7 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 };
 
 message TIP4PoolSpec
-{
-    // CIDR notation for set of ipv4 addresses of pool.
-    repeated string cdir = 1;
-}
+{ }
 
 message TIP4PoolStatus
 { }
