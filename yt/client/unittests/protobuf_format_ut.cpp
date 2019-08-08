@@ -34,16 +34,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define EXPECT_THROW_WITH_SUBSTRING(expr, substr) \
-    try { \
-        expr; \
-        ADD_FAILURE(); \
-    } catch (const TErrorException& e) { \
-        EXPECT_THAT(e.what(), testing::HasSubstr(substr)); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Hardcoded serialization of file descriptor used in old format description.
 TString FileDescriptor = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
