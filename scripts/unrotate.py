@@ -1,0 +1,65 @@
+#!/usr/bin/python3
+import os
+import sys
+import argparse
+import glob
+import subprocess
+
+
+parser = argparse.ArgumentParser(description='Rotate logs backwards.')
+parser.add_argument('--test-runner', choices=['dist', 'legacy'], default='dist')
+parser.add_argument('--dir', type=str, required=False)
+
+
+def unrotate(log_dir):
+    groups = {}
+    for log in os.listdir(log_dir):
+        name = log[:log.find(".log")]
+        groups.setdefault(name, []).append(log)
+
+    for name, logs in groups.items():
+        tmp_name = os.path.join(log_dir, name + ".tmp")
+
+        for log in sorted(logs, reverse=True):
+            log_name = os.path.join(log_dir, log)
+            stat = os.stat(log_name)
+            if stat.st_size == 2 * 1024 * 1024:
+                sys.stderr.write("WARNING: {} is truncated by the distbuild\n".format(log_name))
+
+            cat = None
+            if log.endswith(".gz"):
+                cat = "zcat"
+            else:
+                cat = "cat"
+
+            subprocess.check_call("{} {} >> {}".format(cat, log_name, tmp_name), shell=True)
+            os.unlink(log_name)
+
+        os.rename(tmp_name, os.path.join(log_dir, name + ".log"))
+
+
+def main():
+    args = parser.parse_args()
+
+    if args.test_runner == "dist":
+        if args.dir is None:
+            dir = "yt/tests/integration/tests/test-results/yt-tests-integration-tests/testing_out_stuff"
+        else:
+            dir = args.dir
+        
+        log_dirs = glob.glob(dir + "/*/logs")
+    else:
+        if args.dir is None:
+            dir = "yt/tests/integration/tests.sandbox"
+        else:
+            dir = args.dir
+        
+        log_dirs = glob.glob(dir + "/*/run_latest/logs")
+
+
+    for log_dir in log_dirs:
+        unrotate(log_dir)
+
+
+if __name__ == "__main__":
+    main()
