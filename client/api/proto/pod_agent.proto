@@ -409,6 +409,7 @@ message TWorkload {
     TDestroyPolicy destroy_policy = 12;
 
     // Передавать логи stdout и stderr в YT
+    // Должно быть выставлено не более одного из: этот флаг и start.stdout_file/stderr_file/stdout_and_stderr_limit
     bool transmit_logs = 13;
 }
 
