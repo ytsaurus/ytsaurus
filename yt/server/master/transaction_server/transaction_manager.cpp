@@ -319,6 +319,8 @@ public:
             transaction->ThrowInvalidState();
         }
 
+        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+
         if (!transaction->SecondaryCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
@@ -371,8 +373,6 @@ public:
         }
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
-
-        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
 
         if (parent && transaction->GetUnregisterFromParentOnCommit()) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(),
