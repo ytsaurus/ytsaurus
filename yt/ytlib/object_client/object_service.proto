@@ -41,7 +41,7 @@ message TRspExecute
     message TSubresponse
     {
         // The index of the subrequest.
-        required int32 subrequest_index = 1;
+        required int32 index = 1;
         // The number of parts in this subresponse.
         required int32 part_count = 2;
         // Hydra revision at the beginning of the subrequest execution.

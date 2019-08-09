@@ -9,6 +9,8 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/helpers.h>
 
+#include <utility>
+
 namespace NYT::NObjectClient {
 
 using namespace NYTree;
@@ -111,6 +113,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     NProto::TReqExecute req;
     req.set_suppress_upstream_sync(SuppressUpstreamSync_);
     req.set_allow_backoff(true);
+    req.set_supports_portals(true);
     for (const auto& descriptor : InnerRequestDescriptors_) {
         if (descriptor.Message) {
             req.add_part_counts(descriptor.Message.Size());
@@ -188,11 +191,12 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     std::optional<TString> key,
+    std::any tag,
     std::optional<size_t> hash)
 {
     InnerRequestDescriptors_.push_back({
         std::move(key),
-        {},
+        std::move(tag),
         std::move(innerRequestMessage),
         needsPatchingForRetry,
         hash
@@ -269,9 +273,15 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     std::optional<TString> key,
+    std::any tag,
     std::optional<size_t> hash)
 {
-    TReqExecuteBatchBase::AddRequestMessage(innerRequestMessage, needsPatchingForRetry, std::move(key), hash);
+    TReqExecuteBatchBase::AddRequestMessage(
+        std::move(innerRequestMessage),
+        needsPatchingForRetry,
+        std::move(key),
+        std::move(tag),
+        hash);
     return this;
 }
 
@@ -417,9 +427,15 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     std::optional<TString> key,
+    std::any tag,
     std::optional<size_t> hash)
 {
-    TReqExecuteBatchBase::AddRequestMessage(innerRequestMessage, needsPatchingForRetry, std::move(key), hash);
+    TReqExecuteBatchBase::AddRequestMessage(
+        std::move(innerRequestMessage),
+        needsPatchingForRetry,
+        std::move(key),
+        std::move(tag),
+        hash);
     return this;
 }
 
@@ -676,14 +692,20 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
         TSharedRefArray::TCopyParts{});
 }
 
-std::optional<ui64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
+ui64 TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
 {
     if (Revisions_.empty()) {
-        return std::nullopt;
+        return 0;
     }
 
     YT_VERIFY(index >= 0 && index <= Revisions_.size());
     return Revisions_[index];
+}
+
+std::vector<int> TObjectServiceProxy::TRspExecuteBatch::GetUncertainRequestIndexes() const
+{
+    // TODO(shakurov): implement
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

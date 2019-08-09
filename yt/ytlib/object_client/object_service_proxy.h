@@ -152,6 +152,7 @@ private:
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
+         // TODO(babenko): eliminate empty subrequests
          void AddRequest(
             const NYTree::TYPathRequestPtr& innerRequest,
             std::optional<TString> key = std::nullopt,
@@ -164,6 +165,7 @@ private:
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
             std::optional<TString> key = std::nullopt,
+            std::any tag = {},
             std::optional<size_t> hash = std::nullopt);
 
     protected:
@@ -210,8 +212,9 @@ public:
             std::optional<size_t> hash = std::nullopt);
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
-            bool needsPatchingForRetry,
+            bool needsPatchingForRetry = false,
             std::optional<TString> key = std::nullopt,
+            std::any tag = {},
             std::optional<size_t> hash = std::nullopt);
 
     private:
@@ -264,6 +267,7 @@ public:
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
             std::optional<TString> key = std::nullopt,
+            std::any tag = {},
             std::optional<size_t> hash = std::nullopt);
 
     private:
@@ -357,7 +361,11 @@ public:
         TSharedRefArray GetResponseMessage(int index) const;
 
         //! Returns the revision of the specified response.
-        std::optional<ui64> GetRevision(int index) const;
+        ui64 GetRevision(int index) const;
+
+        //! Returns the indexes of subrequests that could have started executing but
+        //! for which no reply was received.
+        std::vector<int> GetUncertainRequestIndexes() const;
 
     private:
         friend class TReqExecuteSubbatch;
