@@ -27,3 +27,44 @@ message TRowVer2 {
     optional uint32 Uint32_2 = 2;
     optional fixed64 Fixed64_3 = 3;
 }
+
+message TRowFieldSerializationOption {
+    optional TUrlRow UrlRow_1 = 1 [(NYT.serialization_mode) = YT];
+    optional TUrlRow UrlRow_2 = 2;
+}
+
+message TRowMessageSerializationOption {
+    option (NYT.fields_serialization_mode) = YT;
+    optional TUrlRow UrlRow_1 = 1;
+    optional TUrlRow UrlRow_2 = 2;
+}
+
+message TRowMixedSerializationOptions {
+    option (NYT.fields_serialization_mode) = YT;
+    optional TUrlRow UrlRow_1 = 1;
+    optional TUrlRow UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
+}
+
+message TRowSerializedRepeatedFields {
+    option (NYT.fields_serialization_mode) = YT;
+    repeated int64 Ints = 1;
+    repeated TUrlRow UrlRows = 2;
+}
+
+message TUrlRowWithColumnNames {
+    optional string Host = 1     [(NYT.column_name) = "Host_ColumnName", (NYT.key_column_name) = "Host_KeyColumnName"];
+    optional string Path = 2     [(NYT.key_column_name) = "Path_KeyColumnName"];
+    optional sint32 HttpCode = 3;
+}
+
+message TRowMixedSerializationOptions_ColumnNames {
+    option (NYT.fields_serialization_mode) = YT;
+    optional TUrlRowWithColumnNames UrlRow_1 = 1;
+    optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
+}
+
+message TBadProtobufSerializedRow {
+    // Repeated fields are not supported in PROTOBUF serialization mode.
+    repeated int64 Ints = 1;
+}
+
