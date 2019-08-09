@@ -884,9 +884,15 @@ private:
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
-                .AsyncVia(GuardedAutomatonInvoker_));
+        return req->Invoke()
+            .Apply(
+                BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
+                    .AsyncVia(GuardedAutomatonInvoker_))
+            // NB: Many subscribers are typically waiting for the sync to complete.
+            // Make sure the promise is set in a large thread pool.
+            .Apply(
+                 BIND([] (const TError& error) { error.ThrowOnError(); })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     TFuture<void> OnSyncPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
@@ -962,14 +968,12 @@ private:
                 break;
             }
 
-            auto& promise = it->second;
-
             YT_LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 messageId);
 
-            promise.Set();
+            it->second.Set();
             syncRequests.erase(it);
         }
     }
