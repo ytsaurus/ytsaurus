@@ -32,20 +32,16 @@ class TTabletCellDecommissioner::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        TTabletCellDecommissionerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
-        : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
         , Profiler("/tablet_server/tablet_cell_decommissioner")
+        , Config_(New<TTabletCellDecommissionerConfig>())
         , DecommissionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::CheckDecommission, MakeWeak(this)),
-            Config_->DecommissionCheckPeriod))
-        , KickOrphansExecutor_(New<TPeriodicExecutor>(
+            BIND(&TImpl::CheckDecommission, MakeWeak(this))))
+        , KickOrphansExecutor_ (New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::CheckOrphans, MakeWeak(this)),
-            Config_->OrphansCheckPeriod))
+            BIND(&TImpl::CheckOrphans, MakeWeak(this))))
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->DecommissionThrottler,
             "TabletCellDecommission",
@@ -60,6 +56,7 @@ public:
 
     void Start()
     {
+        DoReconfigure();
         DecommissionExecutor_->Start();
         KickOrphansExecutor_->Start();
     }
@@ -73,22 +70,26 @@ public:
     void Reconfigure(TTabletCellDecommissionerConfigPtr config)
     {
         Config_ = std::move(config);
+        DoReconfigure();
+    }
 
+private:
+    const NCellMaster::TBootstrap* Bootstrap_;
+    const NProfiling::TProfiler Profiler;
+    TTabletCellDecommissionerConfigPtr Config_;
+    TPeriodicExecutorPtr DecommissionExecutor_;
+    TPeriodicExecutorPtr KickOrphansExecutor_;
+    IReconfigurableThroughputThrottlerPtr DecommissionThrottler_;
+    IReconfigurableThroughputThrottlerPtr KickOrphansThrottler_;
+
+    void DoReconfigure()
+    {
         DecommissionExecutor_->SetPeriod(Config_->DecommissionCheckPeriod);
         KickOrphansExecutor_->SetPeriod(Config_->OrphansCheckPeriod);
 
         DecommissionThrottler_->Reconfigure(Config_->DecommissionThrottler);
         KickOrphansThrottler_->Reconfigure(Config_->KickOrphansThrottler);
     }
-
-private:
-    TTabletCellDecommissionerConfigPtr Config_;
-    const NCellMaster::TBootstrap* Bootstrap_;
-    const NProfiling::TProfiler Profiler;
-    const TPeriodicExecutorPtr DecommissionExecutor_;
-    const TPeriodicExecutorPtr KickOrphansExecutor_;
-    const IReconfigurableThroughputThrottlerPtr DecommissionThrottler_;
-    const IReconfigurableThroughputThrottlerPtr KickOrphansThrottler_;
 
     void CheckDecommission()
     {
@@ -261,10 +262,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellDecommissioner::TTabletCellDecommissioner(
-    TTabletCellDecommissionerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TTabletCellDecommissioner::TTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TTabletCellDecommissioner::~TTabletCellDecommissioner() = default;

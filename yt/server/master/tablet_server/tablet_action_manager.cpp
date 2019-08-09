@@ -27,19 +27,16 @@ class TTabletActionManager::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        TTabletActionManagerMasterConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
-        : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
         , CleanupExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletManager),
-            BIND(&TImpl::RunCleanup, MakeWeak(this)),
-            Config_->TabletActionsCleanupPeriod))
+            BIND(&TImpl::RunCleanup, MakeWeak(this))))
     { }
 
     void Start()
     {
+        DoReconfigure();
         CleanupExecutor_->Start();
     }
 
@@ -48,10 +45,21 @@ public:
         CleanupExecutor_->Stop();
     }
 
+    void Reconfigure(TTabletActionManagerMasterConfigPtr config)
+    {
+        Config_ = std::move(config);
+        DoReconfigure();
+    }
+
 private:
-    const TTabletActionManagerMasterConfigPtr Config_;
+    TTabletActionManagerMasterConfigPtr Config_ = New<TTabletActionManagerMasterConfig>();
     const NCellMaster::TBootstrap* Bootstrap_;
-    const NConcurrency::TPeriodicExecutorPtr CleanupExecutor_;
+    NConcurrency::TPeriodicExecutorPtr CleanupExecutor_;
+
+    void DoReconfigure()
+    {
+        CleanupExecutor_->SetPeriod(Config_->TabletActionsCleanupPeriod);
+    }
 
     void RunCleanup()
     {
@@ -85,10 +93,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletActionManager::TTabletActionManager(
-    TTabletActionManagerMasterConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TTabletActionManager::TTabletActionManager(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TTabletActionManager::~TTabletActionManager() = default;
@@ -101,6 +107,11 @@ void TTabletActionManager::Stop()
 void TTabletActionManager::Start()
 {
     Impl_->Start();
+}
+
+void TTabletActionManager::Reconfigure(TTabletActionManagerMasterConfigPtr config)
+{
+    Impl_->Reconfigure(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
