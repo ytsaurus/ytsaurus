@@ -1046,6 +1046,14 @@ EPeerState TDecoratedAutomaton::GetState() const
     return State_;
 }
 
+TEpochContextPtr TDecoratedAutomaton::GetEpochContext()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(EpochContextLock_);
+    return EpochContext_;
+}
+
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1170,8 +1178,9 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
+    TWriterGuard guard(EpochContextLock_);
     YT_VERIFY(!EpochContext_);
-    EpochContext_ = std::move(epochContext);
+    std::swap(epochContext, EpochContext_);
 }
 
 void TDecoratedAutomaton::CancelSnapshot()
@@ -1200,7 +1209,12 @@ void TDecoratedAutomaton::StopEpoch()
 
     RotatingChangelog_ = false;
     Changelog_.Reset();
-    EpochContext_.Reset();
+    {
+        TWriterGuard guard(EpochContextLock_);
+        TEpochContextPtr epochContext;
+        std::swap(epochContext, EpochContext_);
+        guard.Release();
+    }
     SnapshotVersion_ = TVersion();
     LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
