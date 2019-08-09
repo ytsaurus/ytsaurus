@@ -61,6 +61,7 @@ def iss_agent(request, iss_agent_address, yp_agent_grpc_port):
     )
     iss_agent = iss_local.start()
     def finalizer():
+        iss_agent.stop()
         iss_local.stop()
         yatest_save_sandbox(qemu_sandbox_path)
     request.addfinalizer(finalizer)
@@ -265,4 +266,3 @@ class TestSchedulePod(object):
                 workload_status.get("state") == "active"
 
         wait(is_workload_active, iter=300, sleep_backoff=1)
-
