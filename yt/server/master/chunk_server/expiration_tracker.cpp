@@ -81,8 +81,12 @@ void TExpirationTracker::OnChunkStaged(TChunk* chunk)
 }
 
 // NB: this is called when
-//   - either the chunk was expired (and unstaged by us)
-//   - or the staging transaction has been committed.
+//   - either the chunk expired (and unstaged by us),
+//   - or the chunk was confirmed,
+//   - or the chunk was explicitly unstaged (by user request),
+//   - or the staging transaction was finished.
+// Thus, the method must be safe to call multiple times - even when the chunk is
+// no longer registered for expiration.
 void TExpirationTracker::OnChunkUnstaged(TChunk* chunk)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
