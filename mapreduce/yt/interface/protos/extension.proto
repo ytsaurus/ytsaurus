@@ -2,23 +2,8 @@ import "google/protobuf/descriptor.proto";
 
 package NYT;
 
-// Declare the actual enum inside a message to restrict visibility of names.
-message ESerializationMode {
-    enum Enum
-    {
-        PROTOBUF = 0;
-        YT = 1;
-    }
-}
-
 extend google.protobuf.FieldOptions
 {
-    optional ESerializationMode.Enum serialization_mode = 56788;
     optional string column_name = 56789;
     optional string key_column_name = 56790;
-}
-
-extend google.protobuf.MessageOptions
-{
-    optional ESerializationMode.Enum fields_serialization_mode = 56788 [default = PROTOBUF];
 }

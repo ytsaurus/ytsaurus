@@ -12,7 +12,6 @@ namespace NYT {
 
 using ::google::protobuf::Message;
 using ::google::protobuf::Descriptor;
-using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::FileDescriptor;
 using ::google::protobuf::FileDescriptorSet;
 
@@ -38,88 +37,40 @@ TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescri
     return config;
 }
 
-TNode MakeProtoFormatMessageFieldsConfig(
-    const Descriptor* descriptor,
-    TNode* enumerations);
-
-TNode MakeProtoFormatFieldConfig(
-    const FieldDescriptor* fieldDescriptor,
-    TNode* enumerations,
-    ESerializationMode::Enum messageSerializationMode)
-{
-    auto getFieldName = [] (const FieldDescriptor* fieldDescriptor) {
-        if (auto columnName = fieldDescriptor->options().GetExtension(column_name)) {
-            return columnName;
-        }
-        if (auto keyColumnName = fieldDescriptor->options().GetExtension(key_column_name)) {
-            return keyColumnName;
-        }
-        return fieldDescriptor->name();
-    };
-
-    auto fieldConfig = TNode::CreateMap();
-    fieldConfig["field_number"] = fieldDescriptor->number();
-    fieldConfig["name"] = getFieldName(fieldDescriptor);
-
-    auto fieldSerializationMode = messageSerializationMode;
-    if (fieldDescriptor->options().HasExtension(serialization_mode)) {
-        fieldSerializationMode = fieldDescriptor->options().GetExtension(serialization_mode);
-    }
-
-    if (fieldDescriptor->is_repeated()) {
-        Y_ENSURE_EX(fieldSerializationMode == ESerializationMode::YT,
-            TApiUsageError() << "Repeated fields are allowed only for YT serialization mode");
-    }
-    fieldConfig["repeated"] = fieldDescriptor->is_repeated();
-
-    if (fieldDescriptor->type() == FieldDescriptor::TYPE_ENUM) {
-        auto* enumeration = fieldDescriptor->enum_type();
-        (*enumerations)[enumeration->name()] = MakeEnumerationConfig(enumeration);
-        fieldConfig["proto_type"] = "enum_string";
-        fieldConfig["enumeration_name"] = enumeration->name();
-    } else if (
-        fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE
-        && fieldSerializationMode == ESerializationMode::YT)
-    {
-        fieldConfig["proto_type"] = "structured_message";
-        fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(fieldDescriptor->message_type(), enumerations);
-    } else {
-        fieldConfig["proto_type"] = fieldDescriptor->type_name();
-    }
-    return fieldConfig;
-}
-
-TNode MakeProtoFormatMessageFieldsConfig(
-    const Descriptor* descriptor,
-    TNode* enumerations)
-{
-    TNode fields = TNode::CreateList();
-    auto messageSerializationMode = descriptor->options().GetExtension(fields_serialization_mode);
-    for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
-        auto* fieldDesc = descriptor->field(fieldIndex);
-        fields.Add(MakeProtoFormatFieldConfig(
-            fieldDesc,
-            enumerations,
-            messageSerializationMode));
-    }
-    return fields;
-}
-
 TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
 {
-    TNode config("protobuf");
-    config.Attributes()
-        ("enumerations", TNode::CreateMap())
-        ("tables", TNode::CreateList());
-
-    auto& enumerations = config.Attributes()["enumerations"];
+    auto enumerations = TNode::CreateMap();
+    TVector<TNode> tables;
 
     for (auto* descriptor : descriptors) {
-        auto columns = MakeProtoFormatMessageFieldsConfig(descriptor, &enumerations);
-        config.Attributes()["tables"].Add(
-            TNode()("columns", std::move(columns)));
+        auto columns = TNode::CreateList();
+        for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
+            auto* fieldDesc = descriptor->field(fieldIndex);
+            auto columnConfig = TNode()("field_number", fieldDesc->number());
+            TString columnName = fieldDesc->options().GetExtension(column_name);
+            if (columnName.empty()) {
+                const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
+                columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
+            }
+            columnConfig["name"] = columnName;
+            if (fieldDesc->type() == ::google::protobuf::FieldDescriptor::TYPE_ENUM) {
+                auto* enumeration = fieldDesc->enum_type();
+                enumerations[enumeration->name()] = MakeEnumerationConfig(enumeration);
+                columnConfig["proto_type"] = "enum_string";
+                columnConfig["enumeration_name"] = enumeration->name();
+            } else {
+                columnConfig["proto_type"] = fieldDesc->type_name();
+            }
+            columns.Add(columnConfig);
+        }
+        tables.push_back(TNode()("columns", columns));
     }
 
+    TNode config("protobuf");
+    config.Attributes()
+        ("enumerations", enumerations)
+        ("tables", TNode::CreateList());
+    config.Attributes()["tables"].AsList().assign(tables.cbegin(), tables.cend());
     return config;
 }
 
