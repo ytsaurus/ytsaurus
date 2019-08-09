@@ -8,6 +8,7 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_owner_base.h>
@@ -67,22 +68,6 @@ static const auto& Logger = CypressServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-bool IsAccessLoggedMethod(const TString& method) {
-    static const THashSet<TString> methodsForAccessLog = {
-        "Lock",
-        "Unlock",
-        "GetKey",
-        "Get",
-        "Set",
-        "Remove",
-        "List",
-        "Exists",
-        "GetBasicAttributes",
-        "CheckPermission"
-    };
-    return methodsForAccessLog.contains(method);
-}
 
 bool HasTrivialAcd(const TCypressNode* node)
 {
@@ -740,14 +725,6 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& con
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
-    LogAccessIf(
-        IsAccessLoggedMethod(context->GetMethod()),
-        Bootstrap_,
-        context,
-        GetPath() + GetRequestYPath(context->RequestHeader()),
-        Transaction,
-        GetTrunkNode());
-
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -1283,20 +1260,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     DeclareMutating();
+
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
     const auto& path = GetRequestYPath(context->RequestHeader());
-
-    LogAccessIf(
-        type == EObjectType::File || type == EObjectType::Journal || type == EObjectType::Table,
-        Bootstrap_,
-        context,
-        GetPath() + path,
-        Transaction,
-        GetTrunkNode(),
-        {{"type", CamelCaseToUnderscoreCase(ToString(type))}});
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
         type,
@@ -1363,6 +1332,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
+
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1375,18 +1345,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         {
             ValidatePermission(intendedParentNode, EPermissionCheckScope::This, EPermission::Administer);
         }
-    }
-
-    if (type == EObjectType::Link && explicitAttributes->Contains("target_path")) {
-        auto targetPath = explicitAttributes->Get<TString>("target_path");
-        LogAccess(
-            Bootstrap_,
-            context,
-            GetPath() + path,
-            Transaction,
-            GetTrunkNode(),
-            {{"destination_path", targetPath}},
-            "Link");
     }
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
@@ -1530,15 +1488,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
-
-    LogAccess(
-        Bootstrap_,
-        context,
-        sourcePath,
-        Transaction,
-        clonedTrunkImpl,
-        {{"destination_path", GetPath() + targetPath}},
-        removeSource ? "Move" : "Copy");
 
     if (replace) {
         parent->ReplaceChild(this, clonedProxy);
