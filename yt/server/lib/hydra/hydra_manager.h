@@ -113,7 +113,7 @@ struct IHydraManager
      *
      *  Synchronizers (2) are user-supplied (see UpstreamSync signal).
      *
-     *  \note Thread affinity: AutomatonThread
+     *  \note Thread affinity: any
      */
     virtual TFuture<void> SyncWithUpstream() = 0;
 

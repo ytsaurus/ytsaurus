@@ -354,17 +354,17 @@ public:
 
     virtual TFuture<void> SyncWithUpstream() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(!HasMutationContext());
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = DecoratedAutomaton_->GetEpochContext();
         if (!epochContext || !IsActive()) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active peer"));
         }
 
-        if (GetAutomatonState() == EPeerState::Leading && UpstreamSync_.Empty()) {
+        if (epochContext->LeaderId == CellManager_->GetSelfPeerId() && UpstreamSync_.Empty()) {
+            // NB: Leader lease is already checked in IsActive.
             return VoidFuture;
         }
 
@@ -1598,38 +1598,35 @@ private:
             asyncResults.push_back(callback.Run());
         }
 
+        // NB: Many subscribers are typically waiting for the upstream sync to complete.
+        // Make sure the promise is set in a large thread pool.
         return CombineAll(asyncResults).Apply(
-            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext));
+            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TError OnUpstreamSyncReached(
+    void OnUpstreamSyncReached(
         const TEpochContextPtr& epochContext,
         const TErrorOr<std::vector<TError>>& resultsOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        const auto& results = resultsOrError.ValueOrThrow();
         TError combinedError;
-        if (resultsOrError.IsOK()) {
-            for (const auto& error : resultsOrError.Value()) {
-                if (!error.IsOK()) {
-                    if (combinedError.IsOK()) {
-                        combinedError = TError(
-                            NRpc::EErrorCode::Unavailable,
-                            "Error synchronizing with upstream");
-                    }
-                    combinedError.InnerErrors().push_back(error);
+        for (const auto& error : results) {
+            if (!error.IsOK()) {
+                if (combinedError.IsOK()) {
+                    combinedError = TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Error synchronizing with upstream");
                 }
+                combinedError.InnerErrors().push_back(error);
             }
-        } else {
-            combinedError = resultsOrError;
         }
+        combinedError.ThrowOnError();
 
-        if (combinedError.IsOK()) {
-            YT_LOG_DEBUG("Upstream synchronization complete");
-            Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
-        }
-
-        return combinedError;
+        YT_LOG_DEBUG("Upstream synchronization complete");
+        Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
     }
 
     TFuture<void> DoSyncWithLeader()
