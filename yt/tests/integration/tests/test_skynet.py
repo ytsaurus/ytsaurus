@@ -379,7 +379,8 @@ class TestSkynetManager(YTEnvSetup):
             "chunk_writer": {"desired_chunk_weight": 1 * 1024 * 1024},
         })
         write_table(table_path, [
-            {"filename": "test0.txt", "part_index": 0, "data": "testtesttest"}
+            {"filename": "test00.txt", "part_index": 0, "data": "testtesttest"},
+            {"filename": "test01.txt", "part_index": 0, "data": "testtesttest"},
         ])
 
         write_table("<append=%true>" + table_path, [
@@ -420,7 +421,7 @@ class TestSkynetManager(YTEnvSetup):
         raise RuntimeError("Failed to share {} in 60 seconds".format(path))
 
     @authors("prime")
-    @flaky(max_runs=5)
+    # @flaky(max_runs=5)
     def test_create_share(self):
         self.prepare_table("//tmp/table")
         rbtorrentid = self.share("//tmp/table")
