@@ -149,6 +149,10 @@ class TestDynamicTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
 
+            #with pytest.raises(yt.YtError):
+            with yt.Transaction(type="tablet"):
+                yt.lock_rows(table, [{"x": "b"}, {"x": "c"}], raw=False)
+
     def test_read_from_dynamic_table(self):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
@@ -232,7 +236,7 @@ class TestDynamicTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=True)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             yt.set("//sys/clusters", {"second_cluster": second_cluster_connection})

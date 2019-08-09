@@ -81,9 +81,8 @@ def make_request(command_name,
     params = simplify_structure(params)
 
     enable_request_logging = get_config(client)["enable_request_logging"]
-    enable_request_result_logging = get_config(client)["enable_request_result_logging"]
 
-    if enable_request_logging and enable_request_result_logging:
+    if enable_request_logging:
         logger.info("Executing %s (params: %r)", command_name, params)
 
     if get_option("_client_type", client) == "batch":
@@ -120,8 +119,14 @@ def make_request(command_name,
 
     if enable_request_logging:
         result_string = ""
-        if result:
-            result_string = " (result: %r)" % result
+        try:
+            if result:
+                debug_result = result
+                if "output_format" in params and str(params["output_format"]) == "yson" and isinstance(result, bytes):
+                    debug_result = yson.dumps(yson.loads(result), yson_format="text")
+                result_string = " (result: %r)" % debug_result
+        except:
+            result_string = ""
         logger.info("Command executed" + result_string)
 
     return result

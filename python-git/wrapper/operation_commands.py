@@ -185,6 +185,9 @@ class OperationState(object):
     def is_running(self):
         return self.name == "running"
 
+    def is_starting(self):
+        return self.name in ["starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"]
+
     def __eq__(self, other):
         return self.name == str(other)
 
@@ -324,6 +327,10 @@ class PrintOperationInfo(object):
         self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])
 
     def __call__(self, state):
+        if (self.state is None or self.state.is_starting()) and not state.is_starting():
+            unrecognised_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
+            if unrecognised_spec:
+                self.log("%s: %s", "Unrecognized spec", str(unrecognised_spec["unrecognized_spec"]))
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
             if progress and progress != self.progress:
@@ -335,7 +342,7 @@ class PrintOperationInfo(object):
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
             if state.is_finished():
-                attribute_names = {"alerts": "Alerts", "unrecognized_spec": "Unrecognized spec"}
+                attribute_names = {"alerts": "Alerts"}
                 try:
                     result = get_operation_attributes(self.operation, fields=builtins.list(iterkeys(attribute_names)), client=self.client)
                     for attribute, readable_name in iteritems(attribute_names):

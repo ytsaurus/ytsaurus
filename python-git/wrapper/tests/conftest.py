@@ -160,7 +160,7 @@ class YtTestEnvironment(object):
                               **env_options)
 
         try:
-            self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False, use_new_proxy=True)
+            self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False)
         except:
             self.save_sandbox()
 
