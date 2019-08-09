@@ -17,6 +17,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletTrackerImpl
+    : public TRefCounted
 {
 public:
     TTabletTrackerImpl(
@@ -32,8 +33,11 @@ private:
     const TInstant StartTime_;
     const ITabletCellBalancerProviderPtr TTabletCellBalancerProvider_;
     const NProfiling::TProfiler Profiler;
+    bool WaitForCommit_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void OnTabletCellPeersReassigned();
 
     void ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors);
 

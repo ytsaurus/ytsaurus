@@ -51,7 +51,7 @@ private:
     const TTabletManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const NProfiling::TProfiler Profiler;
-    std::unique_ptr<TTabletTrackerImpl> TabletTrackerImpl_;
+    TIntrusivePtr<TTabletTrackerImpl> TabletTrackerImpl_;
 
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
@@ -83,7 +83,7 @@ void TTabletTracker::TImpl::Start()
 
     StartTime_ = TInstant::Now();
 
-    TabletTrackerImpl_ = std::make_unique<TTabletTrackerImpl>(Config_, Bootstrap_, StartTime_);
+    TabletTrackerImpl_ = New<TTabletTrackerImpl>(Config_, Bootstrap_, StartTime_);
 
     YT_VERIFY(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
@@ -102,7 +102,7 @@ void TTabletTracker::TImpl::Stop()
         PeriodicExecutor_.Reset();
     }
 
-    TabletTrackerImpl_.reset();
+    TabletTrackerImpl_.Reset();
 }
 
 bool TTabletTracker::TImpl::IsEnabled()

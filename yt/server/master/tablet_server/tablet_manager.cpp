@@ -143,6 +143,7 @@ public:
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
+    DEFINE_SIGNAL(void(), TabletCellPeersAssigned);
 
 public:
     explicit TImpl(
@@ -4659,6 +4660,8 @@ private:
             HydraAssignPeers(&assignment);
         }
 
+        TabletCellPeersAssigned_.Fire();
+
         // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
     }
 
@@ -7057,6 +7060,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleCreated, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleDestroyed, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleNodeTagFilterChanged, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(), TabletCellPeersAssigned, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

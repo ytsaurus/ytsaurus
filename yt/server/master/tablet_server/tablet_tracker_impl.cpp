@@ -107,8 +107,11 @@ public:
 
     virtual bool IsBalancingRequired() override
     {
-        auto waitTime = Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
+        if (!GetConfig()->EnableTabletCellSmoothing) {
+            return false;
+        }
+
+        auto waitTime = GetConfig()->RebalanceWaitTime;
 
         if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
             BalanceRequestTime_.reset();
@@ -128,6 +131,12 @@ private:
             BalanceRequestTime_ = Now();
         }
     }
+
+    const TDynamicTabletCellBalancerMasterConfigPtr& GetConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()
+            ->TabletManager->TabletCellBalancer;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,11 +154,18 @@ TTabletTrackerImpl::TTabletTrackerImpl(
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    tabletManager->SubscribeTabletCellPeersAssigned(BIND(&TTabletTrackerImpl::OnTabletCellPeersReassigned, MakeWeak(this)));
 }
 
 void TTabletTrackerImpl::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (WaitForCommit_) {
+        return;
+    }
 
     auto balancer = CreateTabletCellBalancer(TTabletCellBalancerProvider_);
 
@@ -213,8 +229,15 @@ void TTabletTrackerImpl::ScanCells()
         }
     }
 
+    WaitForCommit_ = true;
+
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
+}
+
+void TTabletTrackerImpl::OnTabletCellPeersReassigned()
+{
+    WaitForCommit_ = false;
 }
 
 void TTabletTrackerImpl::ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
