@@ -89,7 +89,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::TClusterResourcesDiskSpaceSerialization) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::TClusterResourcesDiskSpaceSerialization) {
         const auto oldMaxMediumCount = 7;
         std::array<i64, oldMaxMediumCount> oldDiskSpaceArray = {};
         Load(context, oldDiskSpaceArray);
@@ -108,7 +108,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         }
     }
     // COMPAT(shakurov)
-    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount) {
         NodeCount = Load<int>(context);
         ChunkCount = Load<int>(context);
     } else {

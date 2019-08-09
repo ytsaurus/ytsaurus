@@ -27,6 +27,7 @@ public:
     void SetHandler(TCallback<void(TMutationContext*)> handler);
     void SetAllowLeaderForwarding(bool value);
     void SetMutationId(NRpc::TMutationId mutationId, bool retry);
+    void SetReign(TReign version);
 
 private:
     const IHydraManagerPtr HydraManager_;

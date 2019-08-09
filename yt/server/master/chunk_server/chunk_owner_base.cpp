@@ -66,7 +66,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterSnapshotVersion::SecurityTags) {
+    if (context.GetVersion() >= EMasterReign::SecurityTags) {
         Load(context, SnapshotSecurityTags_);
         Load(context, DeltaSecurityTags_);
     }

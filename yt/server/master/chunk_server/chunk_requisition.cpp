@@ -118,7 +118,7 @@ void TChunkReplication::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     // COMPAT(shakurov)
-    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::InTChunkReplicationReplaceArrayWithSmallVector) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::InTChunkReplicationReplaceArrayWithSmallVector) {
         constexpr auto oldMaxMediumCount = 7;
         std::array<TReplicationPolicy, oldMaxMediumCount> oldReplicationPolicies{};
         Load(context, oldReplicationPolicies);

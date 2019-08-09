@@ -689,6 +689,7 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
 
     auto req = proxy.CommitMutation();
     req->set_type(request.Type);
+    req->set_reign(request.Reign);
     if (request.MutationId) {
         ToProto(req->mutable_mutation_id(), request.MutationId);
         req->set_retry(request.Retry);

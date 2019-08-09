@@ -141,6 +141,8 @@ struct IHydraManager
 
     virtual NElection::TPeerIdSet& AlivePeers() = 0;
 
+    virtual TReign GetCurrentReign() = 0;
+
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);

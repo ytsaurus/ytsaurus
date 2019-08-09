@@ -2530,7 +2530,7 @@ private:
         MediumMap_.LoadKeys(context);
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
+        if (context.GetVersion() >= EMasterReign::ChunkView) {
             ChunkViewMap_.LoadKeys(context);
         }
     }
@@ -2545,25 +2545,25 @@ private:
         Load(context, ChunkRequisitionRegistry_);
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::PersistRequisitionUpdateRequests) {
+        if (context.GetVersion() >= EMasterReign::PersistRequisitionUpdateRequests) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
+        if (context.GetVersion() >= EMasterReign::ChunkView) {
             ChunkViewMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterSnapshotVersion::PersistTNodeResourceUsageLimits;
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterReign::PersistTNodeResourceUsageLimits;
 
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
-            EMasterSnapshotVersion::YT_10639_CumulativeStatisticsInDynamicTables;
+            EMasterReign::YT_10639_CumulativeStatisticsInDynamicTables;
 
         // COMPAT(ifsmirnov)
         NeedSetChunkViewParents_ = context.GetVersion() <
-            EMasterSnapshotVersion::ChunkViewToParentsArray;
+            EMasterReign::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override

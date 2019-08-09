@@ -55,6 +55,8 @@ DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 
+using TReign = int;
+
 //! A special value representing an invalid snapshot (or changelog) id.
 const int InvalidSegmentId = -1;
 
@@ -89,6 +91,13 @@ using TEntityKey = typename TEntityTraits<T>::TKey;
 
 template <class T>
 using TEntityHash = typename TEntityTraits<T>::THash;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EFinalRecoveryAction,
+    (None)
+    (BuildSnapshotAndRestart)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

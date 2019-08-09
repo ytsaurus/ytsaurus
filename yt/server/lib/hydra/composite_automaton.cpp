@@ -204,6 +204,7 @@ void TCompositeAutomatonPart::StartEpoch()
     EpochAutomatonInvoker_ = HydraManager_
         ->GetAutomatonCancelableContext()
         ->CreateInvoker(AutomatonInvoker_);
+    Automaton_->FinalRecoveryAction_ = EFinalRecoveryAction::None;
 }
 
 void TCompositeAutomatonPart::StopEpoch()
@@ -397,6 +398,17 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     auto isRecovery = IsRecovery();
     auto waitTime = GetInstant() - context->GetTimestamp();
 
+    auto recoveryAction = GetActionToRecoverFromReign(request.Reign);
+    YT_VERIFY(isRecovery || recoveryAction == EFinalRecoveryAction::None);
+
+    if (recoveryAction != FinalRecoveryAction_) {
+        YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
+            request.Reign,
+            FinalRecoveryAction_,
+            recoveryAction);
+        FinalRecoveryAction_ = std::max(FinalRecoveryAction_, recoveryAction);
+    }
+
     if (!isRecovery) {
         Profiler.Update(MutationWaitTimeCounter_, DurationToValue(waitTime));
     }
@@ -518,6 +530,11 @@ void TCompositeAutomaton::LogHandlerError(const TError& error)
 bool TCompositeAutomaton::IsRecovery() const
 {
     return HydraManager_->IsRecovery();
+}
+
+EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()
+{
+    return FinalRecoveryAction_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

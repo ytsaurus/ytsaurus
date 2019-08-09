@@ -466,7 +466,7 @@ void TSortedChunkStore::Load(TLoadContext& context)
     TStoreBase::Load(context);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 100011) {
+    if (context.GetVersion() >= ETabletReign::SerializeChunkReadRange) {
         using NYT::Load;
         Load(context, ChunkId_);
         auto lowerBound = Load<TOwningKey>(context);

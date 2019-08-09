@@ -426,6 +426,11 @@ public:
         }
     }
 
+    virtual TReign GetCurrentReign() override
+    {
+        return DecoratedAutomaton_->GetCurrentReign();
+    }
+
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
     DEFINE_SIGNAL(void(), LeaderActive);
@@ -866,7 +871,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TMutationRequest mutationRequest;
+        auto mutationRequest = TMutationRequest(request->reign());
         mutationRequest.Type = request->type();
         if (request->has_mutation_id()) {
             mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
@@ -1260,6 +1265,8 @@ private:
 
             YT_LOG_INFO("Initial changelog rotated");
 
+            ApplyFinalRecoveryAction(true);
+
             LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -1376,6 +1383,8 @@ private:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
 
+            ApplyFinalRecoveryAction(false);
+
             FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -1420,6 +1429,37 @@ private:
         Participate();
 
         SystemLockGuard_.Release();
+    }
+
+    void ApplyFinalRecoveryAction(bool isLeader)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto finalAction = DecoratedAutomaton_->GetFinalRecoveryAction();
+        YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
+            finalAction);
+
+        switch (finalAction) {
+            case EFinalRecoveryAction::None:
+                break;
+
+            case EFinalRecoveryAction::BuildSnapshotAndRestart:
+                SetReadOnly(true);
+                if (isLeader || Options_.WriteSnapshotsAtFollowers) {
+                    DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
+                    WaitFor(DecoratedAutomaton_->BuildSnapshot())
+                        .ThrowOnError();
+                    YT_LOG_INFO("Compatibility snapshot saved, stopping Hydra instance");
+                }
+                SwitchTo(ControlEpochContext_->EpochControlInvoker);
+                WaitFor(Finalize())
+                    .ThrowOnError();
+                // Unreachable because Finalize stops epoch executor.
+                YT_ABORT();
+
+            default:
+                YT_ABORT();
+        }
     }
 
     void CheckForInitialPing(TVersion pingVersion)
@@ -1728,7 +1768,7 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(TMutationRequest())
+        CommitMutation(TMutationRequest(GetCurrentReign()))
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {

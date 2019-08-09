@@ -217,6 +217,9 @@ public:
     //! Returns the ordered schema used in replication logs.
     TTableSchema ToReplicationLog() const;
 
+    // COMPAT(savrus) Old buggy ToReplicationLog().
+    TTableSchema ToBuggyReplicationLog() const;
+
     //! Only applies to sorted dynamic tables.
     //! Returns the static schema used for unversioned updates from bulk insert.
     //! Key columns remain unchanged. Additional column |($change_type)| is prepended.

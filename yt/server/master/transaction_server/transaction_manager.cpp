@@ -1072,7 +1072,7 @@ private:
         TransactionMap_.LoadValues(context);
 
         // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        if (context.GetVersion() >= EMasterReign::BulkInsert) {
             Load(context, TimestampHolderMap_);
         }
     }
