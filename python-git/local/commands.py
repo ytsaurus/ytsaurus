@@ -242,7 +242,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
-          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0, use_new_proxy=False):
+          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0, use_new_proxy=True):
 
     # TODO(max42): start_proxy, start_rpc_proxy and proxy_port are legacy options. Get rid of them in Arcadia.
     if proxy_port is not None:
@@ -305,7 +305,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
     environment.id = sandbox_id
 
     use_proxy_from_yt_source = use_new_proxy or use_proxy_from_yt_source or \
-            _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
+        _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
 
     require(_is_stopped(sandbox_id, path),
             lambda: YtError("Instance with id {0} is already running".format(sandbox_id)))

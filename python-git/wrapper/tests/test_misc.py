@@ -523,7 +523,8 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
-    def test_retries_total_timeout(self):
+    @pytest.mark.parametrize("total_timeout", [3000, 20000])
+    def test_retries_total_timeout(self, total_timeout):
         class FailingRetrier(Retrier):
             def action(self):
                 raise yt.YtError
@@ -531,11 +532,11 @@ class TestRetries(object):
         retry_config = {
             "count": 6,
             "enable": True,
-            "total_timeout": 2000,
+            "total_timeout": total_timeout,
             "backoff": {
                 "policy": "exponential",
                 "exponential_policy": {
-                    "start_timeout": 2000,
+                    "start_timeout": 1000,
                     "base": 2,
                     "max_timeout": 20000,
                     "decay_factor_bound": 0.3
@@ -547,7 +548,7 @@ class TestRetries(object):
         start = time.time()
         with pytest.raises(yt.YtError):
             retrier.run()
-        assert time.time() - start < 3
+        assert 0.5 * total_timeout / 1000. < time.time() - start < total_timeout / 1000. + 1
 
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers

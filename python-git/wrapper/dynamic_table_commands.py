@@ -298,6 +298,53 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         data=input_data,
         client=client).run()
 
+def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, format=None, raw=None, client=None):
+    """Lock rows with keys from input_stream from dynamic table.
+
+    :param table: table to remove rows from.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_stream: python file-like object, string, list of strings.
+    :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
+    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
+    are expected.
+    """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
+    table = TablePath(table, client=client)
+    format = _prepare_command_format(format, raw, client)
+
+    params = {}
+    params["path"] = table
+    params["input_format"] = format.to_yson_type()
+
+    set_param(params, "locks", locks)
+    set_param(params, "lock_type", lock_type)
+    set_param(params, "durability", durability)
+
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
+
+    retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
+    retry_config["enable"] = retry_config["enable"] and \
+        get_command_param("transaction_id", client) == null_transaction_id
+
+    _check_transaction_type(client)
+
+    DynamicTableRequestRetrier(
+        retry_config,
+        "lock_rows",
+        params,
+        data=input_data,
+        client=client).run()
+
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 format=None, raw=None, versioned=None, client=None):
     """Lookups rows in dynamic table.

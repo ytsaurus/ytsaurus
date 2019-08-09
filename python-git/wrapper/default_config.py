@@ -134,10 +134,8 @@ default_config = {
     # Check interval for waiting for tablets to become ready.
     "tablets_check_interval": 0.1 * 1000,
 
-    # This option enables logging on info level of all requests.
+    # This option enables logging on info level of all requests, indented for testing.
     "enable_request_logging": False,
-    # Also dump request responses to log (only when enable_request_logging is set).
-    "enable_request_result_logging": True,
 
     # This option allows to disable token.
     "enable_token": True,
