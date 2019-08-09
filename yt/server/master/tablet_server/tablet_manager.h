@@ -192,6 +192,7 @@ public:
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
+    DECLARE_SIGNAL(void(), TabletCellPeersAssigned);
 
 private:
     template <class TImpl>
