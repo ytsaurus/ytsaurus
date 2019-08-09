@@ -46,6 +46,7 @@ message TMonitoringInfo
 {
     repeated TMonitoringUnistatEndpoint unistats = 1;
     repeated TMonitoringSubagentEndpoint yasm_subagents = 2;
+    repeated TMonitoringSubagentEndpoint juggler_subagents = 3;
 }
 
 message THostInfraInfo
