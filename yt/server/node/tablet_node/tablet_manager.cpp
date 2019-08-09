@@ -681,7 +681,7 @@ private:
         TabletMap_.LoadValues(context);
 
         // COMPAT(savrus)
-        if (context.GetVersion() >= 100010) {
+        if (context.GetVersion() >= ETabletReign::AddTabletCellLifeState) {
             Load(context, CellLifeStage_);
         } else {
             CellLifeStage_ = ETabletCellLifeStage::Running;
@@ -704,7 +704,6 @@ private:
             }
         }
     }
-
 
     virtual void OnAfterSnapshotLoaded() noexcept override
     {
@@ -903,7 +902,8 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId,
-            retainedTimestamp);
+            retainedTimestamp,
+            GetCurrentMutationContext()->Request().Reign < static_cast<TReign>(ETabletReign::SafeReplicatedLogSchema));
 
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));

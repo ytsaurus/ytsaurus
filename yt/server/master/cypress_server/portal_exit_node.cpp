@@ -23,7 +23,7 @@ void TPortalExitNode::Load(NCellMaster::TLoadContext& context)
     Load(context, EntranceCellTag_);
     Load(context, Path_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= NCellMaster::EMasterSnapshotVersion::MorePortalAttributes) {
+    if (context.GetVersion() >= NCellMaster::EMasterReign::MorePortalAttributes) {
         Load(context, Key_);
         Load(context, ParentId_);
     }

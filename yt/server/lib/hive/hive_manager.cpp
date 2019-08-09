@@ -1313,7 +1313,8 @@ private:
 
     void ApplyMessage(const TEncapsulatedMessage& message)
     {
-        TMutationRequest request;
+        auto reign = GetCurrentMutationContext()->Request().Reign;
+        auto request = TMutationRequest(reign);
         request.Type = message.type();
         request.Data = TSharedRef::FromString(message.data());
 

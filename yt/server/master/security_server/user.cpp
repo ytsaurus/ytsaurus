@@ -99,7 +99,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterSnapshotVersion::AddReadRequestRateLimitAndWriteRequestRateLimit) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::AddReadRequestRateLimitAndWriteRequestRateLimit) {
         auto requestRateLimit = Load<int>(context);
         ReadRequestRateLimit_ = requestRateLimit;
         WriteRequestRateLimit_ = requestRateLimit;

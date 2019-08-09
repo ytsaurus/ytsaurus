@@ -1573,7 +1573,7 @@ private:
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        if (context.GetVersion() >= EMasterReign::CypressShards) {
             ShardMap_.LoadKeys(context);
         }
     }
@@ -1585,14 +1585,14 @@ private:
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        if (context.GetVersion() >= EMasterReign::CypressShards) {
             ShardMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov) see YT-10852
-        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterSnapshotVersion::YT_10852;
+        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterReign::YT_10852;
         // COMPAT(babenko)
-        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterSnapshotVersion::CypressShards;
+        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
     }
 
     virtual void Clear() override

@@ -3602,7 +3602,7 @@ private:
             Persist(context, TabletResourceUsage);
 
             // COMPAT(aozeritsky)
-            if (context.GetVersion() >= EMasterSnapshotVersion::OldVersion814) {
+            if (context.GetVersion() >= EMasterReign::OldVersion814) {
                 Persist(context, ModificationTime);
                 Persist(context, AccessTime);
             }
@@ -3701,20 +3701,20 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
         // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+        if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
             Load(context, TableStatisticsUpdates_);
         }
 
         // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterSnapshotVersion::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
+        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
         // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
+        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
         // COMPAT(ifsmirnov)
-        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterSnapshotVersion::FixTabletErrorCountLag);
+        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterReign::FixTabletErrorCountLag);
         // COMPAT(savrus)
-        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
+        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
         // COMPAT(savrus)
-        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterSnapshotVersion::MakeTabletStateBackwardCompatible);
+        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterReign::MakeTabletStateBackwardCompatible);
     }
 
 
@@ -4366,6 +4366,15 @@ private:
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
+                    address,
+                    cellId);
+                requestRemoveSlot(cellId);
+                continue;
+            }
+
+            if (state == EPeerState::Stopped) {
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
+                    slotInfo.peer_id(),
                     address,
                     cellId);
                 requestRemoveSlot(cellId);

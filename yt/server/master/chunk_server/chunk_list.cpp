@@ -122,7 +122,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, Statistics_);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterSnapshotVersion::TCumulativeStatisticsInChunkLists) {
+    if (context.GetVersion() < EMasterReign::TCumulativeStatisticsInChunkLists) {
         LoadCumulativeStatisticsCompat(context);
     } else {
         Load(context, CumulativeStatistics_);

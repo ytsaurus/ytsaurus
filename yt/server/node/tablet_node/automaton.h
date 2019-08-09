@@ -17,13 +17,19 @@ namespace NYT::NTabletNode {
 
 class TSaveContext
     : public NHydra::TSaveContext
-{ };
+{
+public:
+    ETabletReign GetVersion() const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
     : public NHydra::TLoadContext
-{ };
+{
+public:
+    ETabletReign GetVersion() const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +48,8 @@ private:
     virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) override;
 
+    virtual NHydra::TReign GetCurrentReign() override;
+    virtual NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletAutomaton)

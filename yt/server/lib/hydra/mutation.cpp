@@ -8,6 +8,7 @@ namespace NYT::NHydra {
 
 TMutation::TMutation(IHydraManagerPtr hydraManager)
     : HydraManager_(std::move(hydraManager))
+    , Request_(HydraManager_->GetCurrentReign())
 { }
 
 TFuture<TMutationResponse> TMutation::Commit()

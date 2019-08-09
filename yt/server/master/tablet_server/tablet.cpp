@@ -43,7 +43,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, CompressedDataSize);
     Persist(context, MemorySize);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < EMasterSnapshotVersion::TClusterResourcesDiskSpaceSerialization) {
+    if (context.GetVersion() < EMasterReign::TClusterResourcesDiskSpaceSerialization) {
         const auto oldMaxMediumCount = 7;
         i64 DiskSpacePerMediumTmp[oldMaxMediumCount] = {};
         YT_VERIFY(context.IsLoad());
@@ -78,7 +78,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
         Persist(context, TabletCount);
     }
     Persist(context, TabletCountPerMemoryMode);
@@ -90,11 +90,11 @@ void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceCont
     using NYT::Persist;
 
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
         Persist(context, Decommissioned);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::AddTabletCellHealthToTabletCellStatistics) {
+    if (context.GetVersion() >= EMasterReign::AddTabletCellHealthToTabletCellStatistics) {
         Persist(context, Health);
     }
 }
@@ -485,14 +485,14 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Errors_);
     Load(context, ErrorCount_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
         Load(context, ExpectedState_);
     } else {
         // This will be fixed in TTabletManager::TImpl::OnAfterSnapshotLoaded.
         ExpectedState_ = ETabletState::Unmounted;
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+    if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, UnconfirmedDynamicTableLocks_);
     }
 }

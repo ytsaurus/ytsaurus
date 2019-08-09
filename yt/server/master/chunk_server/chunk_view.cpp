@@ -63,7 +63,7 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     Load(context, UnderlyingChunk_);
     Load(context, ReadRange_);
     Load(context, Parents_);
-    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+    if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, TransactionId_);
     }
 }

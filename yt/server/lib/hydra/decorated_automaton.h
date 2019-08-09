@@ -189,6 +189,11 @@ public:
 
     bool HasReadyMutations() const;
 
+    void RotateAutomatonVersionAfterRecovery();
+
+    TReign GetCurrentReign() const;
+    EFinalRecoveryAction GetFinalRecoveryAction() const;
+
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;

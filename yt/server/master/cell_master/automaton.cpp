@@ -25,7 +25,7 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
     auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentSnapshotVersion());
+    context->SetVersion(GetCurrentReign());
     TCompositeAutomaton::InitSaveContext(*context, output);
     return context;
 }
@@ -36,6 +36,16 @@ std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
     auto context = std::make_unique<TLoadContext>(Bootstrap_);
     TCompositeAutomaton::InitLoadContext(*context, input);
     return context;
+}
+
+NHydra::TReign TMasterAutomaton::GetCurrentReign()
+{
+    return NCellMaster::GetCurrentReign();
+}
+
+NHydra::EFinalRecoveryAction TMasterAutomaton::GetActionToRecoverFromReign(NHydra::TReign reign)
+{
+    return NCellMaster::GetActionToRecoverFromReign(reign);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,19 +62,19 @@ TMasterAutomatonPart::TMasterAutomatonPart(
 
 bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 {
-    return NCellMaster::ValidateSnapshotVersion(version);
+    return NCellMaster::ValidateSnapshotReign(version);
 }
 
 int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 {
-    return NCellMaster::GetCurrentSnapshotVersion();
+    return NCellMaster::GetCurrentReign();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EMasterSnapshotVersion TSaveContext::GetVersion()
+EMasterReign TSaveContext::GetVersion()
 {
-    return static_cast<NCellMaster::EMasterSnapshotVersion>(NHydra::TSaveContext::GetVersion());
+    return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,9 +96,9 @@ const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<TSecurityTags>()
     return securityManager->GetSecurityTagsRegistry();
 }
 
-EMasterSnapshotVersion TLoadContext::GetVersion()
+EMasterReign TLoadContext::GetVersion()
 {
-    return static_cast<NCellMaster::EMasterSnapshotVersion>(NHydra::TLoadContext::GetVersion());
+    return static_cast<EMasterReign>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

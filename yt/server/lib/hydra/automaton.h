@@ -31,6 +31,15 @@ struct IAutomaton
 
     //! Applies a certain deterministic mutation to the instance.
     virtual void ApplyMutation(TMutationContext* context) = 0;
+
+    //! Returns global context version, typicaly the snapshot version for the component.
+    virtual TReign GetCurrentReign() = 0;
+
+    //! Returns action that needs to be done after replaying changelog from a scecific reign.
+    virtual EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign) = 0;
+
+    //! Returns the resulting action that needs to be done after replaying changelog.
+    virtual EFinalRecoveryAction GetFinalRecoveryAction() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAutomaton)

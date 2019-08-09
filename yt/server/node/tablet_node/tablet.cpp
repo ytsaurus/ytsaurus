@@ -350,7 +350,8 @@ TTablet::TTablet(
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     TTableReplicaId upstreamReplicaId,
-    TTimestamp retainedTimestamp)
+    TTimestamp retainedTimestamp,
+    bool useBuggyReplicatedSchema)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -379,7 +380,7 @@ TTablet::TTablet(
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
 {
-    Initialize();
+    Initialize(useBuggyReplicatedSchema);
 }
 
 ETabletState TTablet::GetPersistentState() const
@@ -525,7 +526,7 @@ void TTablet::Load(TLoadContext& context)
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
-    Initialize();
+    Initialize(context.GetVersion() < ETabletReign::SafeReplicatedLogSchema);
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
@@ -583,7 +584,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     // COMPAT(savrus)
-    if (context.GetVersion() >= 100012) {
+    if (context.GetVersion() >= ETabletReign::BulkInsert) {
         Load(context, *LockManager_);
     }
 
@@ -1168,9 +1169,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     return snapshot;
 }
 
-void TTablet::Initialize()
+void TTablet::Initialize(bool useBuggyReplicatedSchema)
 {
-    PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
+    YT_LOG_DEBUG_IF(IsReplicated(),
+        "Initializing replicated table tablet (BuggyReplicionLogSchema: %v)",
+        useBuggyReplicatedSchema);
+
+    // COMPAT(savrus)
+    PhysicalSchema_ = IsReplicated()
+        ? (useBuggyReplicatedSchema ? TableSchema_.ToBuggyReplicationLog() : TableSchema_.ToReplicationLog())
+        : TableSchema_;
 
     PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
     KeysSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_.ToKeys());

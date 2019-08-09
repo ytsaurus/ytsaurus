@@ -192,7 +192,7 @@ void TCypressNode::Load(TLoadContext& context)
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterSnapshotVersion::VersionedExpirationTime) {
+    if (context.GetVersion() < EMasterReign::VersionedExpirationTime) {
         auto oldExpirationTime = Load<std::optional<TInstant>>(context);
         if (oldExpirationTime) {
             ExpirationTime_.Set(*oldExpirationTime);
@@ -205,7 +205,7 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < EMasterSnapshotVersion::AddAttributesRevisionContentRevision) {
+    if (context.GetVersion() < EMasterReign::AddAttributesRevisionContentRevision) {
         ui64 revision = Load<ui64>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;
@@ -219,7 +219,7 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+    if (context.GetVersion() >= EMasterReign::CypressShards) {
         Load(context, Shard_);
     }
 }

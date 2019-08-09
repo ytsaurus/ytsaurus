@@ -33,10 +33,10 @@ DECLARE_REFCOUNTED_CLASS(TAnnotationSetter)
 
 class TBootstrap;
 
-enum class EMasterSnapshotVersion;
+enum class EMasterReign;
 class TLoadContext;
 class TSaveContext;
-using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, EMasterSnapshotVersion>;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, EMasterReign>;
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)

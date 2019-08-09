@@ -4,21 +4,31 @@
 
 namespace NYT::NCellMaster {
 
+using namespace NHydra;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
+TReign GetCurrentReign()
 {
-    return ToUnderlying(TEnumTraits<EMasterSnapshotVersion>::GetMaxValue());
+    return ToUnderlying(TEnumTraits<EMasterReign>::GetMaxValue());
 }
 
-bool ValidateSnapshotVersion(int version)
+bool ValidateSnapshotReign(TReign reign)
 {
-    for (auto v : TEnumTraits<EMasterSnapshotVersion>::GetDomainValues()) {
-        if (v == version) {
+    for (auto v : TEnumTraits<EMasterReign>::GetDomainValues()) {
+        if (v == reign) {
             return true;
         }
     }
     return false;
+}
+
+EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
+{
+    // In Master we do it the hard way.
+    YT_VERIFY(reign == GetCurrentReign());
+
+    return EFinalRecoveryAction::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

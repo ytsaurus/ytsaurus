@@ -19,6 +19,20 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ETabletReign TSaveContext::GetVersion() const
+{
+    return static_cast<ETabletReign>(NHydra::TSaveContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ETabletReign TLoadContext::GetVersion() const
+{
+    return static_cast<ETabletReign>(NHydra::TLoadContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTabletAutomaton::TTabletAutomaton(
     TTabletSlotPtr slot,
     IInvokerPtr snapshotInvoker)
@@ -32,7 +46,7 @@ std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
     auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentSnapshotVersion());
+    context->SetVersion(GetCurrentReign());
     TCompositeAutomaton::InitSaveContext(*context, output);
     return context;
 }
@@ -43,6 +57,16 @@ std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
     auto context = std::make_unique<TLoadContext>();
     TCompositeAutomaton::InitLoadContext(*context, input);
     return context;
+}
+
+TReign TTabletAutomaton::GetCurrentReign()
+{
+    return NTabletNode::GetCurrentReign();
+}
+
+EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
+{
+    return NTabletNode::GetActionToRecoverFromReign(reign);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,12 +90,12 @@ TTabletAutomatonPart::TTabletAutomatonPart(
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)
 {
-    return NTabletNode::ValidateSnapshotVersion(version);
+    return NTabletNode::ValidateSnapshotReign(version);
 }
 
 int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 {
-    return NTabletNode::GetCurrentSnapshotVersion();
+    return NTabletNode::GetCurrentReign();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
