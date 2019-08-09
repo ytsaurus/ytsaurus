@@ -217,8 +217,6 @@ private:
 
     void SetStickyUserError(const TString& userName, const TError& error);
 
-    TFuture<void> SyncWithCell(TCellTag cellTag);
-
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
 };
@@ -237,6 +235,7 @@ IServicePtr CreateObjectService(
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExecutionSessionSubrequestType,
+    (Undefined)
     (Empty)
     (LocalRead)
     (LocalWrite)
@@ -252,15 +251,10 @@ public:
         TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
+        , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , UserName_(RpcContext_->GetUser())
         , RequestId_(RpcContext_->GetRequestId())
-        , HydraFacade_(Owner_->Bootstrap_->GetHydraFacade())
-        , HydraManager_(HydraFacade_->GetHydraManager())
-        , HiveManager_(Owner_->Bootstrap_->GetHiveManager())
-        , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
-        , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
-        , CypressManager_(Owner_->Bootstrap_->GetCypressManager())
         , CodicilData_(Format("RequestId: %v, User: %v",
             RequestId_,
             UserName_))
@@ -268,6 +262,8 @@ public:
 
     ~TExecuteSession()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference leaked due to unfinished request (RequestId: %v)",
             RequestId_);
         YT_LOG_DEBUG_IF(RequestQueueSizeIncreased_ && !Finished_, "Request queue size increment leaked due to unfinished request (RequestId: %v)",
@@ -276,48 +272,41 @@ public:
 
     const TString& GetUserName() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return UserName_;
     }
 
-    bool Prepare()
+    void RunRpc()
     {
-        auto codicilGuard = MakeCodicilGuard();
-
-        RpcContext_->SetRequestInfo("SubrequestCount: %v", TotalSubrequestCount_);
-
-        if (TotalSubrequestCount_ == 0) {
-            Reply();
-            return false;
-        }
-
-        if (IsBackoffAllowed()) {
-            ScheduleBackoffAlarm();
-        }
+        VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            ParseSubrequests();
-            return LocalSubrequestCount_ > 0;
+            GuardedRunRpc();
+        } catch (const std::exception& ex) {
+            Reply(ex);
+        }
+    }
+
+    bool RunAutomatonFast()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        try {
+            return GuardedRunAutomatonFast();
         } catch (const std::exception& ex) {
             Reply(ex);
             return false;
         }
     }
 
-    bool RunFast()
+    void RunAutomatonSlow()
     {
-        try {
-            return GuardedRunFast();
-        } catch (const std::exception& ex) {
-            Reply(ex);
-            return false;
-        }
-    }
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    void RunSlow()
-    {
         auto codicilGuard = MakeCodicilGuard();
         try {
-            GuardedRunSlow();
+            GuardedRunAutomatonSlow();
         } catch (const std::exception& ex) {
             Reply(ex);
         }
@@ -325,6 +314,8 @@ public:
 
     void Finish()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         Finished_ = true;
 
         if (!EpochCancelableContext_) {
@@ -336,11 +327,13 @@ public:
         }
 
         if (RequestQueueSizeIncreased_ && IsObjectAlive(User_)) {
-            SecurityManager_->DecreaseRequestQueueSize(User_);
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->DecreaseRequestQueueSize(User_);
         }
 
         if (User_) {
-            ObjectManager_->EphemeralUnrefObject(User_);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->EphemeralUnrefObject(User_);
         }
     }
 
@@ -348,31 +341,30 @@ private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
 
-    TDelayedExecutorCookie BackoffAlarmCookie_;
-
+    NCellMaster::TBootstrap* const Bootstrap_;
     const int TotalSubrequestCount_;
-    const TString UserName_;
+    const TString& UserName_;
     const TRequestId RequestId_;
-    const THydraFacadePtr HydraFacade_;
-    const IHydraManagerPtr HydraManager_;
-    const THiveManagerPtr HiveManager_;
-    const TObjectManagerPtr ObjectManager_;
-    const TSecurityManagerPtr SecurityManager_;
-    const TCypressManagerPtr CypressManager_;
     const TString CodicilData_;
+
+    TDelayedExecutorCookie BackoffAlarmCookie_;
 
     struct TSubrequest
     {
-        EExecutionSessionSubrequestType Type;
+        int Index = -1;
+        EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         TFuture<TMutationResponse> AsyncCommitResult;
         NRpc::NProto::TRequestHeader RequestHeader;
+        const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         TSharedRefArray RequestMessage;
+        TResolveCache::TResolveResult CacheResolveResult;
+        TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
         ui64 Revision = 0;
-        bool Forwarded = false;
+        bool Uncertain = false;
         std::atomic<bool> Completed = {false};
     };
 
@@ -383,135 +375,438 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
     TUser* User_ = nullptr;
-    bool NeedsSync_ = true;
-    bool SuppressUpstreamSync_ = false;
-    TCellTagList CellTagsToSyncWith_;
+    TCellTagList SyncedWithCellTags_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
-
-    // The number of subrequests that must be served locally, i.e. by switching into the Automaton thread.
-    int LocalSubrequestCount_ = 0;
-    std::atomic<int> CompletedSubrequestCount_ = {0};
-    // Subrequests in range [0, ContinuouslyCompletedRequestCount_) are known to be completed.
-    std::atomic<int> ContinuouslyCompletedSubrequestCount_ = {0};
 
     std::atomic<bool> ReplyScheduled_ = {false};
     std::atomic<bool> FinishScheduled_ = {false};
     bool Finished_ = false;
 
+    std::atomic<bool> LocalExecutionStarted_ = {false};
+    std::atomic<bool> LocalExecutionInterrupted_ = {false};
+    // If this is locked, the automaton invoker is currently busy serving
+    // some local subrequest.
+    // NB: only TryAcquire() is called on this lock, never Acquire().
+    TSpinLock LocalExecutionLock_;
+
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = {false};
 
-    // If this is locked, the automaton invoker is currently busy serving
-    // CurrentSubrequestIndex_-th subrequest (at which it may or may not succeed).
-    // NB: only TryAcquire() is called on this lock, never Acquire().
-    TSpinLock CurrentSubrequestLock_;
+    // Once this drops to zero, the request can be replied.
+    // Starts with one to indicate that the "ultimate" lock is initially held.
+    std::atomic<int> ReplyLockCount_ = {1};
+
+    // Set to true when the "ultimate" reply lock is released and
+    // RepyLockCount_ is decremented.
+    std::atomic<bool> UltimateReplyLockReleased_ = {false};
+
+    // Set to true if we're ready to reply with at least one subresponse.
+    std::atomic<bool> SomeSubrequestCompleted_ = {false};
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
+
+    void GuardedRunRpc()
+    {
+        auto codicilGuard = MakeCodicilGuard();
+
+        const auto& request = RpcContext_->Request();
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v",
+            TotalSubrequestCount_,
+            request.supports_portals(),
+            request.suppress_upstream_sync());
+
+        if (TotalSubrequestCount_ == 0) {
+            Reply();
+            return;
+        }
+
+        ScheduleBackoffAlarm();
+        ParseSubrequests();
+        DecideSubrequestTypes();
+        RunSyncPhaseOne();
+    }
 
     void ParseSubrequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
-        YT_VERIFY(guard.WasAcquired());
-
         const auto& request = RpcContext_->Request();
         const auto& attachments = RpcContext_->RequestAttachments();
 
-        CellTagsToSyncWith_ = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
-
         Subrequests_.reset(new TSubrequest[TotalSubrequestCount_]);
+
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
+            subrequest.Index =  subrequestIndex;
+
             int partCount = request.part_counts(subrequestIndex);
             if (partCount == 0) {
                 // Empty subrequest.
                 subrequest.Type = EExecutionSessionSubrequestType::Empty;
+                OnSuccessfullSubresponse(&subrequest, TSharedRefArray());
                 continue;
             }
 
-            std::vector<TSharedRef> subrequestParts(
-                attachments.begin() + currentPartIndex,
-                attachments.begin() + currentPartIndex + partCount);
-            currentPartIndex += partCount;
+            TSharedRefArrayBuilder subrequestPartsBuilder(partCount);
+            for (int partIndex = 0; partIndex < partCount; ++partIndex) {
+                subrequestPartsBuilder.Add(attachments[currentPartIndex++]);
+            }
+            subrequest.RequestMessage = subrequestPartsBuilder.Finish();
 
-            auto& subrequestHeader = subrequest.RequestHeader;
-            TSharedRefArray subrequestMessage(std::move(subrequestParts), TSharedRefArray::TMoveParts{});
-            if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
+            auto& requestHeader = subrequest.RequestHeader;
+            if (!ParseRequestHeader(subrequest.RequestMessage, &requestHeader)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Error parsing subrequest header");
             }
 
-            const auto& multicellSyncExt = subrequestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
-            for (auto cellTag : multicellSyncExt.cell_tags_to_sync_with()) {
-                if (cellTag != Owner_->Bootstrap_->GetCellTag()) {
-                    CellTagsToSyncWith_.push_back(cellTag);
-                }
+            // Propagate various parameters to the subrequest.
+            if (!requestHeader.has_request_id()) {
+                ToProto(requestHeader.mutable_request_id(), RequestId_);
+            }
+            if (RpcContext_->IsRetry()) {
+                requestHeader.set_retry(true);
+            }
+            if (!requestHeader.has_user()) {
+                requestHeader.set_user(UserName_);
+            }
+            if (!requestHeader.has_timeout()) {
+                requestHeader.set_timeout(ToProto<i64>(RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout)));
             }
 
-            // Propagate various parameters to the subrequest.
-            ToProto(subrequestHeader.mutable_request_id(), RequestId_);
-            subrequestHeader.set_retry(subrequestHeader.retry() || RpcContext_->IsRetry());
-            subrequestHeader.set_user(UserName_);
-            auto timeout = RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout);
-            subrequestHeader.set_timeout(ToProto<i64>(timeout));
-
-            auto* ypathExt = subrequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            subrequest.YPathExt = ypathExt;
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
-            if (ypathExt->mutating() && (subrequestHeader.method() == "Mount" ||
-                subrequestHeader.method() == "Unmount" ||
-                subrequestHeader.method() == "Freeze" ||
-                subrequestHeader.method() == "Unfreeze" ||
-                subrequestHeader.method() == "Remount" ||
-                subrequestHeader.method() == "Reshard"))
+            if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
+                requestHeader.method() == "Unmount" ||
+                requestHeader.method() == "Freeze" ||
+                requestHeader.method() == "Unfreeze" ||
+                requestHeader.method() == "Remount" ||
+                requestHeader.method() == "Reshard"))
             {
                 ypathExt->set_mutating(false);
-                SetSuppressAccessTracking(&subrequestHeader, true);
+                SetSuppressAccessTracking(&requestHeader, true);
             }
 
+            subrequest.RequestMessage = SetRequestHeader(subrequest.RequestMessage, requestHeader);
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
-                subrequestHeader.service(),
-                subrequestHeader.method());
+                requestHeader.service(),
+                requestHeader.method());
+        }
+    }
 
-            const auto& resolveCache = CypressManager_->GetResolveCache();
-            auto resolveResult = resolveCache->TryResolve(ypathExt->path());
+    TCellTagList CollectCellsToSyncForLocalExecution()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& request = RpcContext_->Request();
+        auto cellTags = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            const auto& subrequest = Subrequests_[subrequestIndex];
+            if (subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
+                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite)
+            {
+                auto transactionId = GetTransactionId(subrequest.RequestHeader);
+                if (transactionId) {
+                    cellTags.push_back(CellTagFromId(transactionId));
+                }
+            }
+        }
+
+        SortUnique(cellTags);
+        return cellTags;
+    }
+
+    bool RegisterCellToSyncWith(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (std::find(SyncedWithCellTags_.begin(), SyncedWithCellTags_.end(), cellTag) != SyncedWithCellTags_.end()) {
+            // Already synced with this cell.
+            return false;
+        }
+
+        if (cellTag == Bootstrap_->GetCellTag()) {
+            // No need to sync with self.
+            return false;
+        }
+
+        if (Bootstrap_->IsSecondaryMaster() && cellTag == Bootstrap_->GetPrimaryCellTag()) {
+            // IHydraManager::SyncWithUpstream will take care of this.
+            return false;
+        }
+
+        SyncedWithCellTags_.push_back(cellTag);
+        return true;
+    }
+
+    TFuture<void> StartSync(bool syncWithUpstream)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& request = RpcContext_->Request();
+        if (request.suppress_upstream_sync()) {
+            return {};
+        }
+
+        std::vector<TFuture<void>> syncFutures;
+        auto addAsyncResult = [&] (TFuture<void> future) {
+            if (!future.IsSet() || !future.Get().IsOK()) {
+                syncFutures.push_back(std::move(future));
+            }
+        };
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        if (syncWithUpstream) {
+            addAsyncResult(hydraManager->SyncWithUpstream());
+        }
+
+        TCellTagList syncCellTags;
+        for (auto cellTag : CollectCellsToSyncForLocalExecution()) {
+            if (!RegisterCellToSyncWith(cellTag)) {
+                continue;
+            }
+            auto cellId = Bootstrap_->GetCellId(cellTag);
+            addAsyncResult(hiveManager->SyncWith(cellId, true));
+            syncCellTags.push_back(cellTag);
+        }
+
+        if (syncFutures.empty()) {
+            return {};
+        }
+
+        YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with another cells (RequestId: %v, CellTags: %v)",
+            RequestId_,
+            syncCellTags);
+
+        return Combine(syncFutures);
+    }
+
+    void RunSyncPhaseOne()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto future = StartSync(true);
+        if (future) {
+            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this)));
+        } else {
+            OnSyncPhaseOneCompleted();
+        }
+    }
+
+    void OnSyncPhaseOneCompleted(const TError& error = {})
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        // Re-check remote requests to see if the cache resolve is still OK.
+        DecideSubrequestTypes();
+
+        ForwardRemoteRequests();
+
+        RunSyncPhaseTwo();
+    }
+
+    void RunSyncPhaseTwo()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto future = StartSync(true);
+        if (future) {
+            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
+        } else {
+            OnSyncPhaseTwoCompleted();
+        }
+    }
+
+    bool ContainsLocalSubrequests()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (int index = 0; index < TotalSubrequestCount_; ++index) {
+            auto& subrequest = Subrequests_[index];
+            if (subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
+                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void OnSyncPhaseTwoCompleted(const TError& error = {})
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        if (ContainsLocalSubrequests()) {
+            LocalExecutionStarted_.store(true);
+            Owner_->EnqueueReadySession(this);
+        } else {
+            ReleaseUltimateReplyLock();
+            // NB: No finish is needed.
+        }
+    }
+
+    TDuration ComputeForwardingTimeout()
+    {
+        if (!RpcContext_->GetStartTime() || !RpcContext_->GetTimeout()) {
+            return Owner_->Config_->DefaultExecuteTimeout;
+        }
+
+        return
+            *RpcContext_->GetStartTime() +
+            *RpcContext_->GetTimeout() -
+            TInstant::Now() -
+            Owner_->Config_->ForwardedRequestTimeoutReserve;
+    }
+
+    void ForwardRemoteRequests()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        using TBatchKey = std::tuple<TCellTag, EPeerKind>;
+        struct TBatchValue
+        {
+            TObjectServiceProxy::TReqExecuteBatchPtr BatchReq;
+            SmallVector<int, 16> Indexes;
+        };
+        THashMap<TBatchKey, TBatchValue> batchMap;
+        auto getOrCreateBatch = [&] (TCellTag cellTag, EPeerKind peerKind) {
+            auto key = std::make_tuple(cellTag, peerKind);
+            auto it = batchMap.find(key);
+            if (it == batchMap.end()) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
+                TObjectServiceProxy proxy(std::move(channel));
+                auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetTimeout(ComputeForwardingTimeout());
+                batchReq->SetUser(RpcContext_->GetUser());
+                it = batchMap.emplace(key, TBatchValue{
+                    .BatchReq = std::move(batchReq)
+                }).first;
+            }
+            return &it->second;
+        };
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            if (subrequest.Type != EExecutionSessionSubrequestType::Remote) {
+                continue;
+            }
+
+            const auto& requestHeader = subrequest.RequestHeader;
+            const auto& ypathExt = *subrequest.YPathExt;
+            auto cellTag = CellTagFromId(subrequest.CacheResolveResult.PortalExitId);
+            auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
+
+            auto* batch = getOrCreateBatch(cellTag, peerKind);
+            auto req = batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch->Indexes.push_back(subrequestIndex);
+
+            AcquireReplyLock();
+
+            YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, Path: %v, "
+                "UnresolvedPathSuffix: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+                RequestId_,
+                batch->BatchReq->GetRequestId(),
+                requestHeader.service(),
+                requestHeader.method(),
+                ypathExt.path(),
+                subrequest.CacheResolveResult.UnresolvedPathSuffix,
+                UserName_,
+                ypathExt.mutating(),
+                cellTag,
+                peerKind);
+        }
+
+        for (auto& [cellTag, batch] : batchMap) {
+            batch.BatchReq->Invoke().Subscribe(
+                BIND([=, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    if (batchRspOrError.IsOK()) {
+                        YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v, SubrequestIndexes: %v)",
+                            RequestId_,
+                            batch.BatchReq->GetRequestId(),
+                            batch.Indexes);
+
+                        const auto& batchRsp = batchRspOrError.Value();
+                        for (int index = 0; index < batchRsp->GetSize(); ++index) {
+                            auto responseMessage = batchRsp->GetResponseMessage(index);
+                            if (!responseMessage) {
+                                continue;
+                            }
+                            auto& subrequest = Subrequests_[batch.Indexes[index]];
+                            subrequest.Revision = batchRsp->GetRevision(index);
+                            OnSuccessfullSubresponse(&subrequest, std::move(responseMessage));
+                        }
+                        for (auto index : batchRsp->GetUncertainRequestIndexes()) {
+                            MarkSubrequestAsUncertain(batch.Indexes[index]);
+                        }
+                    } else {
+                        YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
+                            RequestId_,
+                            batch.BatchReq->GetRequestId(),
+                            batch.Indexes);
+
+                        for (auto index : batch.Indexes) {
+                            MarkSubrequestAsUncertain(index);
+                        }
+                    }
+                }));
+        }
+    }
+
+    void DecideSubrequestTypes()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            if (subrequest.Type != EExecutionSessionSubrequestType::Undefined &&
+                subrequest.Type != EExecutionSessionSubrequestType::Remote)
+            {
+                continue;
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& resolveCache = cypressManager->GetResolveCache();
+            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->path());
             if (resolveResult) {
                 // Serve the subrequest by forwarding it through the portal.
                 // XXX(babenko): profiling
-                ypathExt->set_path(FromObjectId(resolveResult->PortalExitId) + resolveResult->UnresolvedPathSufix);
-                subrequest.RequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+                auto remoteRequestHeader = subrequest.RequestHeader;
+                auto* ypathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+                ypathExt->set_path(FromObjectId(resolveResult->PortalExitId) + resolveResult->UnresolvedPathSuffix);
+
+                subrequest.CacheResolveResult = std::move(*resolveResult);
+                subrequest.RemoteRequestMessage = SetRequestHeader(subrequest.RequestMessage, remoteRequestHeader);
                 subrequest.Type = EExecutionSessionSubrequestType::Remote;
-                ForwardSubrequestViaPortal(
-                    &subrequest,
-                    ypathExt->mutating(),
-                    timeout,
-                    *resolveResult);
             } else {
-                // Serve the subrequest by locally.
-                ++LocalSubrequestCount_;
-                subrequest.RequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+                // Serve the subrequest locally.
                 subrequest.RpcContext = CreateYPathContext(
                     subrequest.RequestMessage,
                     ObjectServerLogger,
                     NLogging::ELogLevel::Debug);
-
-                auto transactionId = GetTransactionId(subrequestHeader);
-                if (transactionId) {
-                    auto cellTag = CellTagFromId(transactionId);
-                    if (cellTag != Owner_->Bootstrap_->GetCellTag() &&
-                        cellTag != Owner_->Bootstrap_->GetPrimaryCellTag())
-                    {
-                        CellTagsToSyncWith_.push_back(cellTag);
-                    }
-                }
-
-                if (ypathExt->mutating()) {
-                    subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subrequest.RpcContext);
+                if (subrequest.YPathExt->mutating()) {
+                    const auto& objectManager = Bootstrap_->GetObjectManager();
+                    subrequest.Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest.RpcContext);
                     subrequest.Mutation->SetMutationId(subrequest.RpcContext->GetMutationId(), subrequest.RpcContext->IsRetry());
                     subrequest.Type = EExecutionSessionSubrequestType::LocalWrite;
                 } else {
@@ -519,32 +814,20 @@ private:
                 }
             }
         }
-
-        SuppressUpstreamSync_ = request.suppress_upstream_sync();
-        if (!SuppressUpstreamSync_) {
-            NeedsSync_ = true;
-        }
-
-        SortUnique(CellTagsToSyncWith_);
-        if (!CellTagsToSyncWith_.empty()) {
-            NeedsSync_ = true;
-            YT_LOG_DEBUG("Request will synchronize with secondary cells (RequestId: %v, CellTags: %v)",
-                RequestId_,
-                CellTagsToSyncWith_);
-        }
-
-        // The backoff alarm may've been triggered while we were parsing.
-        CheckBackoffAlarmTriggered();
     }
 
     void Reschedule()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Owner_->EnqueueReadySession(this);
     }
 
     template <class T>
     void CheckAndReschedule(const TErrorOr<T>& result)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (!result.IsOK()) {
             Reply(result);
             return;
@@ -554,6 +837,8 @@ private:
 
     bool WaitForAndContinue(TFuture<void> result)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (result.IsSet()) {
             result
                 .Get()
@@ -566,40 +851,47 @@ private:
         }
     }
 
-    bool GuardedRunFast()
+    bool GuardedRunAutomatonFast()
     {
-        if (Finished_) {
-            return false;
-        }
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& hydraManager = hydraFacade->GetHydraManager();
+
+        hydraManager->ValidatePeer(EPeerKind::LeaderOrFollower);
 
         if (!EpochAutomatonInvoker_) {
-            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
+            EpochAutomatonInvoker_ = hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
 
         if (!EpochCancelableContext_) {
-            EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
-        }
-
-        if (!SyncIfNeeded()) {
-            return false;
+            EpochCancelableContext_ = hydraManager->GetAutomatonCancelableContext();
         }
 
         if (ScheduleFinishIfCanceled()) {
             return false;
         }
 
+        if (ScheduleReplyIfNeeded()) {
+            return false;
+        }
+
+        if (LocalExecutionInterrupted_) {
+            return false;
+        }
+
         // NB: Acquisitions are only possible if the current epoch is not canceled.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (!User_) {
-            User_ = SecurityManager_->GetUserByNameOrThrow(UserName_);
-            ObjectManager_->EphemeralRefObject(User_);
+            User_ = securityManager->GetUserByNameOrThrow(UserName_);
+            objectManager->EphemeralRefObject(User_);
         }
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
-            auto error = SecurityManager_->CheckUserAccess(User_);
+            auto error = securityManager->CheckUserAccess(User_);
             if (!error.IsOK()) {
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
@@ -607,7 +899,7 @@ private:
         }
 
         if (!RequestQueueSizeIncreased_) {
-            if (!SecurityManager_->TryIncreaseRequestQueueSize(User_)) {
+            if (!securityManager->TryIncreaseRequestQueueSize(User_)) {
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
@@ -628,14 +920,19 @@ private:
 
     bool ThrottleRequests()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         while (CurrentSubrequestIndex_ < TotalSubrequestCount_ &&
                CurrentSubrequestIndex_ > ThrottledSubrequestIndex_)
         {
+            ++ThrottledSubrequestIndex_;
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
                 ? EUserWorkloadType::Write
                 : EUserWorkloadType::Read;
-            ++ThrottledSubrequestIndex_;
-            auto result = SecurityManager_->ThrottleUser(User_, 1, workloadType);
+            auto result = securityManager->ThrottleUser(User_, 1, workloadType);
+
             if (!WaitForAndContinue(result)) {
                 return false;
             }
@@ -643,8 +940,10 @@ private:
         return true;
     }
 
-    void GuardedRunSlow()
+    void GuardedRunAutomatonSlow()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
@@ -652,6 +951,10 @@ private:
 
         while (CurrentSubrequestIndex_ < TotalSubrequestCount_) {
             if (ScheduleFinishIfCanceled()) {
+                break;
+            }
+
+            if (ScheduleReplyIfNeeded()) {
                 break;
             }
 
@@ -666,49 +969,39 @@ private:
             }
 
             {
-                TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+                TTryGuard<TSpinLock> guard(LocalExecutionLock_);
                 if (!guard.WasAcquired()) {
                     Reschedule();
                     break;
                 }
 
-                if (ReplyScheduled_) {
+                if (LocalExecutionInterrupted_.load()) {
                     break;
                 }
 
-                if (FinishScheduled_) {
-                    break;
-                }
-
-                if (BackoffAlarmTriggered_) {
-                    break;
-                }
-
-                if (!ExecuteCurrentSubrequest()) {
-                    break;
-                }
+                ExecuteCurrentSubrequest();
             }
+        }
+
+        if (CurrentSubrequestIndex_ >= TotalSubrequestCount_) {
+            ReleaseUltimateReplyLock();
         }
     }
 
-    bool ExecuteCurrentSubrequest()
+    void ExecuteCurrentSubrequest()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto& subrequest = Subrequests_[CurrentSubrequestIndex_++];
 
-        subrequest.Revision = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        subrequest.Revision = hydraManager->GetAutomatonVersion().ToRevision();
 
         if (subrequest.TraceContext) {
             subrequest.TraceContext->ResetStartTime();
         }
 
         switch (subrequest.Type) {
-            case EExecutionSessionSubrequestType::Empty:
-                ExecuteEmptySubrequest(&subrequest);
-                break;
-
-            case EExecutionSessionSubrequestType::Remote:
-                break;
-
             case EExecutionSessionSubrequestType::LocalRead:
                 ExecuteReadSubrequest(&subrequest);
                 break;
@@ -717,20 +1010,21 @@ private:
                 ExecuteWriteSubrequest(&subrequest);
                 break;
 
+            case EExecutionSessionSubrequestType::Empty:
+            case EExecutionSessionSubrequestType::Remote:
+                break;
+
             default:
                 YT_ABORT();
         }
-
-        return true;
-    }
-
-    void ExecuteEmptySubrequest(TSubrequest* subrequest)
-    {
-        OnSuccessfullSubresponse(subrequest, TSharedRefArray());
     }
 
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AcquireReplyLock();
+
         Profiler.Increment(WriteRequestCounter);
         TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
 
@@ -739,39 +1033,32 @@ private:
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
-    void ForwardSubrequestViaPortal(
-        TSubrequest* subrequest,
-        bool mutating,
-        TDuration timeout,
-        const TResolveCache::TResolveResult& resolveResult)
-    {
-        auto asyncSubresponse = ObjectManager_->ForwardObjectRequest(
-            subrequest->RequestMessage,
-            CellTagFromId(resolveResult.PortalExitId),
-            mutating ? EPeerKind::Leader : EPeerKind::Follower,
-            timeout);
-        SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
-    }
-
     void ForwardSubrequestToLeader(TSubrequest* subrequest)
     {
         YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
             RequestId_);
 
-        auto asyncSubresponse = ObjectManager_->ForwardObjectRequest(
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
-            Owner_->Bootstrap_->GetCellTag(),
+            Bootstrap_->GetCellTag(),
             EPeerKind::Leader,
             RpcContext_->GetTimeout());
+
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AcquireReplyLock();
+
         Profiler.Increment(ReadRequestCounter);
         TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
-        TAuthenticatedUserGuard userGuard(SecurityManager_, User_);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
@@ -779,7 +1066,8 @@ private:
 
         const auto& context = subrequest->RpcContext;
         try {
-            auto rootService = ObjectManager_->GetRootService();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto rootService = objectManager->GetRootService();
             ExecuteVerb(rootService, context);
         } catch (const TLeaderFallbackException&) {
             ForwardSubrequestToLeader(subrequest);
@@ -787,7 +1075,7 @@ private:
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (IsObjectAlive(User_) && !EpochCancelableContext_->IsCanceled()) {
-            SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
+            securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
 
         WaitForSubresponse(subrequest);
@@ -795,6 +1083,8 @@ private:
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (!responseOrError.IsOK()) {
             Reply(responseOrError);
             return;
@@ -824,6 +1114,8 @@ private:
 
     void SubscribeToSubresponse(TSubrequest* subrequest, TFuture<TSharedRefArray> asyncSubresponseMessage)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         asyncSubresponseMessage.Subscribe(
             BIND(&TExecuteSession::OnSubresponse, MakeStrong(this), subrequest));
     }
@@ -840,6 +1132,15 @@ private:
         OnSuccessfullSubresponse(subrequest, result.Value());
     }
 
+    void MarkSubrequestAsUncertain(int index)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto& subrequest = Subrequests_[index];
+        subrequest.Uncertain = true;
+        ReleaseReplyLock();
+    }
+
     void OnSuccessfullSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -850,26 +1151,9 @@ private:
 
         subrequest->ResponseMessage = std::move(subresponseMessage);
         subrequest->Completed.store(true);
+        SomeSubrequestCompleted_.store(true);
 
-        // Advance ContinuouslyCompletedSubrequestCount_.
-        while (true) {
-            int continuouslyCompletedRequestCount = ContinuouslyCompletedSubrequestCount_.load();
-            if (continuouslyCompletedRequestCount >= TotalSubrequestCount_) {
-                break;
-            }
-            if (!Subrequests_[continuouslyCompletedRequestCount].Completed.load()) {
-                break;
-            }
-            ContinuouslyCompletedSubrequestCount_.compare_exchange_weak(
-                continuouslyCompletedRequestCount,
-                continuouslyCompletedRequestCount + 1);
-        }
-
-        if (++CompletedSubrequestCount_ == TotalSubrequestCount_) {
-            Reply();
-        } else {
-            CheckBackoffAlarmTriggered();
-        }
+        ReleaseReplyLock();
     }
 
 
@@ -881,6 +1165,7 @@ private:
 
         bool expected = false;
         if (ReplyScheduled_.compare_exchange_strong(expected, true)) {
+            LocalExecutionInterrupted_.store(true);
             TObjectService::GetRpcInvoker()
                 ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
         }
@@ -897,32 +1182,59 @@ private:
         }
 
         if (error.IsOK()) {
+            auto& request = RpcContext_->Request();
             auto& response = RpcContext_->Response();
             auto& attachments = response.Attachments();
 
-            // NB: This number can be larger than that observed in CheckBackoffAlarmTriggered.
-            int continuouslyCompletedSubrequestCount = ContinuouslyCompletedSubrequestCount_.load();
-            for (auto index = 0; index < continuouslyCompletedSubrequestCount; ++index) {
+            // COMPAT(babenko)
+            int effectiveSubrequestCount = TotalSubrequestCount_;
+            if (!request.supports_portals()) {
+                effectiveSubrequestCount = 0;
+                for (auto index = 0; index < TotalSubrequestCount_; ++index) {
+                    const auto& subrequest = Subrequests_[index];
+                    if (!subrequest.Completed) {
+                        break;
+                    }
+                    effectiveSubrequestCount = index + 1;
+                }
+            }
+
+            for (auto index = 0; index < effectiveSubrequestCount; ++index) {
                 const auto& subrequest = Subrequests_[index];
-                YT_ASSERT(subrequest.Completed.load());
-                const auto& subresponseMessage = subrequest.ResponseMessage;
-                if (subresponseMessage) {
-                    response.add_part_counts(subresponseMessage.Size());
-                    attachments.insert(
-                        attachments.end(),
-                        subresponseMessage.Begin(),
-                        subresponseMessage.End());
-                } else {
-                    response.add_part_counts(0);
+                if (!subrequest.Completed) {
+                    YT_ASSERT(request.supports_portals());
+                    continue;
                 }
 
-                response.add_revisions(subrequest.Revision);
-            }
-        }
+                const auto& subresponseMessage = subrequest.ResponseMessage;
+                attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
 
-        YT_VERIFY(!error.IsOK() ||
-            TotalSubrequestCount_ == 0 ||
-            RpcContext_->Response().part_counts_size() > 0);
+                // COMPAT(babenko)
+                response.add_part_counts(subresponseMessage.Size());
+                response.add_revisions(subrequest.Revision);
+
+                auto* subresponse = response.add_subresponses();
+                subresponse->set_index(index);
+                subresponse->set_part_count(subresponseMessage.Size());
+                subresponse->set_revision(subrequest.Revision);
+            }
+
+            for (int index = 0; index < TotalSubrequestCount_; ++index) {
+                if (Subrequests_[index].Uncertain) {
+                    response.add_uncertain_subrequest_indexes(index);
+                }
+            }
+
+            if (response.subresponses_size() == 0) {
+                YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
+                    RequestId_);
+                return;
+            }
+
+            RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
+                response.subresponses_size(),
+                response.uncertain_subrequest_indexes());
+        }
 
         RpcContext_->Reply(error);
     }
@@ -934,42 +1246,15 @@ private:
 
         bool expected = false;
         if (FinishScheduled_.compare_exchange_strong(expected, true)) {
+            LocalExecutionInterrupted_.store(true);
             Owner_->EnqueueFinishedSession(this);
         }
     }
 
-    bool SyncIfNeeded()
-    {
-        if (!NeedsSync_) {
-            return true;
-        }
-        NeedsSync_ = false;
-
-        std::vector<TFuture<void>> asyncResults;
-
-        if (!SuppressUpstreamSync_) {
-            auto result = HydraManager_->SyncWithUpstream();
-            if (!result.IsSet() || !result.Get().IsOK()) {
-                asyncResults.push_back(std::move(result));
-            }
-        }
-
-        for (auto cellTag : CellTagsToSyncWith_) {
-            asyncResults.push_back(Owner_->SyncWithCell(cellTag));
-        }
-
-        if (asyncResults.empty()) {
-            return true;
-        }
-
-        Combine(std::move(asyncResults))
-            .Subscribe(BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
-
-        return false;
-    }
-
     bool ScheduleFinishIfCanceled()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
             ScheduleFinish();
             return true;
@@ -978,17 +1263,16 @@ private:
         }
     }
 
-    bool IsBackoffAllowed() const
-    {
-        return RpcContext_->Request().allow_backoff();
-    }
-
     void ScheduleBackoffAlarm()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!RpcContext_->Request().allow_backoff()) {
+            return;
+        }
+
         auto requestTimeout = RpcContext_->GetTimeout();
-        if (requestTimeout &&
-            *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime)
-        {
+        if (requestTimeout && *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime) {
             auto backoffDelay = *requestTimeout - Owner_->Config_->TimeoutBackoffLeadTime;
             BackoffAlarmCookie_ = TDelayedExecutor::Submit(
                 BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeStrong(this))
@@ -999,52 +1283,86 @@ private:
 
     void OnBackoffAlarm()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
+
         BackoffAlarmTriggered_.store(true);
-        CheckBackoffAlarmTriggered();
+
+        ScheduleReplyIfNeeded();
     }
 
-    void CheckBackoffAlarmTriggered()
+    void AcquireReplyLock()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!BackoffAlarmTriggered_) {
-            return;
+        int result = ++ReplyLockCount_;
+        YT_VERIFY(result > 1);
+        YT_LOG_TRACE("Reply lock acquired (LockCount: %v, RequestId: %v)",
+            result,
+            RequestId_);
+    }
+
+    bool ReleaseReplyLock()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        int result = --ReplyLockCount_;
+        YT_VERIFY(result >= 0);
+        YT_LOG_TRACE("Reply lock released (LockCount: %v, RequestId: %v)",
+            result,
+            RequestId_);
+        return ScheduleReplyIfNeeded();
+    }
+
+    bool ReleaseUltimateReplyLock()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto expected = false;
+        if (!UltimateReplyLockReleased_.compare_exchange_strong(expected, true)) {
+            return false;
         }
 
-        if (ReplyScheduled_) {
-            return;
+        LocalExecutionInterrupted_.store(true);
+        return ReleaseReplyLock();
+    }
+
+    bool ScheduleReplyIfNeeded()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (ReplyScheduled_.load()) {
+            return true;
         }
 
-        TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+        TTryGuard<TSpinLock> guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
             TObjectService::GetRpcInvoker()->Invoke(
-                BIND(&TObjectService::TExecuteSession::CheckBackoffAlarmTriggered, MakeStrong(this)));
-            return;
+                BIND(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded, MakeStrong(this)));
+            return false;
         }
 
-        auto continuouslyCompletedSubrequestCount = ContinuouslyCompletedSubrequestCount_.load();
-        if (continuouslyCompletedSubrequestCount > 0 && continuouslyCompletedSubrequestCount >= CurrentSubrequestIndex_) {
-            YT_LOG_DEBUG("Replying with partial response (RequestId: %v, TotalSubrequestCount: %v, "
-                "ContinuouslyCompletedSubrequestCount: %v, CurrentSubrequestIndex: %v)",
-                RequestId_,
-                TotalSubrequestCount_,
-                continuouslyCompletedSubrequestCount,
-                CurrentSubrequestIndex_);
-            Reply();
-            return;
-        }
-
-        if (CurrentSubrequestIndex_ == 0) {
-            YT_LOG_DEBUG("Dropping request since no subrequests have started running (RequestId: %v)",
+        if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
+            YT_LOG_DEBUG("Local execution interrupted due to backoff alarm (RequestId: %v)",
                 RequestId_);
-            ScheduleFinish();
-            return;
+            LocalExecutionInterrupted_.store(true);
+            return ReleaseUltimateReplyLock();
         }
+
+        if (ReplyLockCount_.load() > 0) {
+            return false;
+        }
+
+        Reply();
+        return true;
     }
+
 
     TCodicilGuard MakeCodicilGuard()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return TCodicilGuard(CodicilData_);
     }
 };
@@ -1083,7 +1401,7 @@ void TObjectService::ProcessSessions()
     });
 
     ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
-        if (!session->RunFast()) {
+        if (!session->RunAutomatonFast()) {
             return;
         }
 
@@ -1125,7 +1443,7 @@ void TObjectService::ProcessSessions()
         // Extract and run the session.
         auto session = std::move(bucket->Sessions.front());
         bucket->Sessions.pop();
-        session->RunSlow();
+        session->RunAutomatonSlow();
     }
 
     if (!BucketHeap_.empty()) {
@@ -1152,13 +1470,6 @@ void TObjectService::SetStickyUserError(const TString& userName, const TError& e
     StickyUserErrorCache_.Put(userName, error);
 }
 
-TFuture<void> TObjectService::SyncWithCell(TCellTag cellTag)
-{
-    auto cellId = Bootstrap_->GetCellId(cellTag);
-    const auto& hiveManager = Bootstrap_->GetHiveManager();
-    return hiveManager->SyncWith(cellId, true);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
@@ -1173,12 +1484,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
         return;
     }
 
-    auto session = New<TExecuteSession>(this, context);
-    if (!session->Prepare()) {
-        return;
-    }
-
-    EnqueueReadySession(std::move(session));
+    New<TExecuteSession>(this, context)->RunRpc();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
