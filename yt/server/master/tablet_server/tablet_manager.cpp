@@ -4249,11 +4249,10 @@ private:
                 peerId);
         };
 
-        auto requestConfigureSlot = [&] (const TNode::TTabletSlot* slot) {
+        auto requestConfigureSlot = [&] (const TTabletCell* cell) {
             if (!response)
                 return;
 
-            const auto* cell = slot->Cell;
             if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
@@ -4394,19 +4393,19 @@ private:
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
-                slot.Cell->GetId(),
+                cell->GetId(),
                 slot.PeerId,
-                slot.PeerState,
+                state,
                 cellInfo.ConfigVersion);
 
-            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
-                requestConfigureSlot(&slot);
+            if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
+                requestConfigureSlot(cell);
             }
 
             if (slotInfo.has_dynamic_config_version() &&
                 slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
             {
-                requestUpdateSlot(slot.Cell);
+                requestUpdateSlot(cell);
             }
         }
 
@@ -4432,6 +4431,7 @@ private:
                     }
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
+                        requestConfigureSlot(cell);
                         requestUpdateSlot(cell);
                         --availableSlots;
                     }
