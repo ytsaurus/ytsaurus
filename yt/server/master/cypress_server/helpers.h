@@ -103,25 +103,6 @@ TNodeId MakePortalEntranceNodeId(
 NObjectClient::TObjectId MakeCypressShardId(
     TNodeId rootNodeId);
 
-void LogAccess(
-    const NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    const TString& path,
-    NTransactionServer::TTransaction* transaction,
-    TCypressNode* trunkNode,
-    std::map<TString, TString>&& additionalAttributes = {},
-    std::optional<TString>&& methodOverride = std::nullopt);
-
-void LogAccessIf(
-    bool predicate,
-    const NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    const TString& path,
-    NTransactionServer::TTransaction* transaction,
-    TCypressNode* trunkNode,
-    std::map<TString, TString>&& additionalAttributes = {},
-    std::optional<TString>&& methodOverride = std::nullopt);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

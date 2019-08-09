@@ -81,16 +81,6 @@ static const auto& Logger = ChunkServerLogger;
 
 namespace {
 
-bool IsAccessLoggedMethod(const TString& method)
-{
-    static const THashSet<TString> methodsForAccessLog = {
-        "Fetch",
-        "BeginUpload",
-        "EndUpload"
-    };
-    return methodsForAccessLog.contains(method);
-}
-
 //! Adds #cellTag into #cellTags if the former is not a sentinel.
 void InsertCellTag(TCellTagList* cellTags, TCellTag cellTag)
 {
@@ -360,7 +350,6 @@ private:
         if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
             chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
         }
-
         if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
             chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
         }
@@ -428,14 +417,6 @@ ENodeType TChunkOwnerNodeProxy::GetType() const
 
 bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
-    LogAccessIf(
-        IsAccessLoggedMethod(context->GetMethod()),
-        Bootstrap_,
-        context,
-        GetPath() + GetRequestYPath(context->RequestHeader()),
-        Transaction,
-        GetTrunkNode());
-
     DISPATCH_YPATH_SERVICE_METHOD(Fetch,
         .SetHeavy(true)
         .SetResponseCodec(NCompression::ECodec::Lz4));
