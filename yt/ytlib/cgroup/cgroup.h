@@ -41,7 +41,7 @@ public:
     bool IsNull() const;
     bool Exists() const;
 
-    std::vector<int> GetTasks() const;
+    std::vector<int> GetProcesses() const;
     const TString& GetFullPath() const;
 
     std::vector<TNonOwningCGroup> GetChildren() const;

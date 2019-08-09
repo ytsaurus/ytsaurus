@@ -67,10 +67,10 @@ int GetLinuxVersion()
     return KERNEL_VERSION(v1, v2, v3);
 }
 
-TEST(TCGroup, NotExistingGroupGetTasks)
+TEST(TCGroup, NotExistingGroupGetProcesses)
 {
     TBlockIO group(CGroupPrefix + "not_existing_group_get_tasks" + ToString(TGuid::Create()));
-    EXPECT_THROW(group.GetTasks(), std::exception);
+    EXPECT_THROW(group.GetProcesses(), std::exception);
 }
 
 TEST(TCGroup, NotExistingRemoveAllSubcgroup)
@@ -92,7 +92,7 @@ TEST(TCGroup, DoubleCreate)
 TEST(TCGroup, EmptyHasNoTasks)
 {
     auto group = CreateCGroup<TBlockIO>("empty_has_no_tasks_" + ToString(TGuid::Create()));
-    auto tasks = group.GetTasks();
+    auto tasks = group.GetProcesses();
     EXPECT_EQ(0, tasks.size());
     group.Destroy();
 }
@@ -108,7 +108,7 @@ TEST(TCGroup, AddCurrentTask)
 
     if (pid == 0) {
         group.AddCurrentTask();
-        auto tasks = group.GetTasks();
+        auto tasks = group.GetProcesses();
         ASSERT_EQ(1, tasks.size());
         EXPECT_EQ(getpid(), tasks[0]);
         _exit(0);
