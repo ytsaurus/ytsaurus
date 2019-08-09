@@ -196,7 +196,7 @@ void DoExportSnapshot(
             });
 
         writer->Flush();
-        Cout << Endl;
+        Cout << ";" << Endl;
     }
 }
 
