@@ -256,7 +256,7 @@ void TPeriodicExecutor::SetPeriod(std::optional<TDuration> period)
     TGuard<TSpinLock> guard(SpinLock_);
 
     // Kick-start invocations, if needed.
-    if (Started_ && !Period_ && period) {
+    if (Started_ && period && (!Period_ || *period < *Period_)) {
         PostDelayedCallback(RandomDuration(Splay_));
     }
 

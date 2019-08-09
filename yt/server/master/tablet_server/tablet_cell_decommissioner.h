@@ -12,9 +12,7 @@ class TTabletCellDecommissioner
     : public TRefCounted
 {
 public:
-    TTabletCellDecommissioner(
-        TTabletCellDecommissionerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap);
     ~TTabletCellDecommissioner();
 
     void Start();

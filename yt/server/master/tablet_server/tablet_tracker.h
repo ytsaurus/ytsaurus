@@ -20,9 +20,7 @@ class TTabletTracker
     : public TRefCounted
 {
 public:
-    TTabletTracker(
-        TTabletManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTabletTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();

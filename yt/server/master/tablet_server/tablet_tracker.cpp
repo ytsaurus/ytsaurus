@@ -40,15 +40,12 @@ class TTabletTracker::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        TTabletManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
 
 private:
-    const TTabletManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const NProfiling::TProfiler Profiler;
     TIntrusivePtr<TTabletTrackerImpl> TabletTrackerImpl_;
@@ -59,20 +56,17 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
     bool IsEnabled();
     void ScanCells();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletTracker::TImpl::TImpl(
-    TTabletManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Config_(std::move(config))
-    , Bootstrap_(bootstrap)
+TTabletTracker::TImpl::TImpl(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
     , Profiler("/tablet_server/cell_balancer")
 {
-    YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
@@ -83,13 +77,13 @@ void TTabletTracker::TImpl::Start()
 
     StartTime_ = TInstant::Now();
 
-    TabletTrackerImpl_ = New<TTabletTrackerImpl>(Config_, Bootstrap_, StartTime_);
+    TabletTrackerImpl_ = New<TTabletTrackerImpl>(Bootstrap_, StartTime_);
 
     YT_VERIFY(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletTracker),
         BIND(&TTabletTracker::TImpl::ScanCells, MakeWeak(this)),
-        Config_->CellScanPeriod);
+        GetDynamicConfig()->CellScanPeriod);
     PeriodicExecutor_->Start();
 }
 
@@ -105,13 +99,18 @@ void TTabletTracker::TImpl::Stop()
     TabletTrackerImpl_.Reset();
 }
 
+const TDynamicTabletManagerConfigPtr& TTabletTracker::TImpl::GetDynamicConfig()
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+}
+
 bool TTabletTracker::TImpl::IsEnabled()
 {
     // This method also logs state changes.
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-    int needOnline = Config_->SafeOnlineNodeCount;
+    int needOnline = GetDynamicConfig()->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
 
     if (gotOnline < needOnline) {
@@ -140,11 +139,11 @@ void TTabletTracker::TImpl::ScanCells()
         return;
 
     PROFILE_TIMING("/scan_cells") {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->TabletCellBalancer;
+        const auto& config = GetDynamicConfig()->TabletCellBalancer;
         if (config->EnableTabletCellBalancer) {
             TabletTrackerImpl_->ScanCells();
         } else {
-            TTabletTrackerImplOld(Config_, Bootstrap_, StartTime_)
+            TTabletTrackerImplOld(Bootstrap_, StartTime_)
                 .ScanCells();
         }
     }
@@ -152,10 +151,8 @@ void TTabletTracker::TImpl::ScanCells()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletTracker::TTabletTracker(
-    TTabletManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TTabletTracker::TTabletTracker(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 void TTabletTracker::Start()

@@ -152,13 +152,13 @@ public:
         : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
         , Config_(config)
         , TabletService_(New<TTabletService>(Bootstrap_))
-        , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
-        , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
+        , TabletTracker_(New<TTabletTracker>(Bootstrap_))
+        , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
-        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
-        , TabletActionManager_(New<TTabletActionManager>(Config_->TabletActionManager, Bootstrap_))
+        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
+        , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
-            Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
+            New<TThroughputThrottlerConfig>(),
             TabletServerLogger,
             TabletServerProfiler.AppendPath("/table_statistics_gossip_throttler")))
     {
@@ -249,6 +249,8 @@ public:
 
         TabletService_->Initialize();
         BundleNodeTracker_->Initialize();
+
+        OnDynamicConfigChanged();
     }
 
     TTabletCellBundle* CreateTabletCellBundle(
@@ -3678,17 +3680,46 @@ private:
 
     void OnDynamicConfigChanged()
     {
-        const auto& dynamicConfig = GetDynamicConfig();
+        const auto& config = GetDynamicConfig();
+
+        // COMPAT(savrus)
+        if (config->CompatibilityVersion == 0) {
+            config->ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
+            config->ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
+            config->ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
+
+            config->ChunkReader->RetryTimeout = TDuration::Seconds(15);
+            config->ChunkReader->SessionTimeout = TDuration::Minutes(1);
+
+            config->ChunkReader->GroupSize = 16777216;
+            config->ChunkReader->WindowSize = 20971520;
+
+            config->ChunkWriter->BlockSize = 262144;
+            config->ChunkWriter->SampleRate = 0.0005;
+
+            config->CellScanPeriod = Config_->CellScanPeriod;
+            config->SafeOnlineNodeCount = Config_->SafeOnlineNodeCount;
+            config->LeaderReassignmentTimeout = Config_->LeaderReassignmentTimeout;
+            config->PeerRevocationTimeout = Config_->PeerRevocationTimeout;
+
+            config->MulticellGossip = Config_->MulticellGossip;
+
+            config->TabletActionManager = Config_->TabletActionManager;
+
+            config->TabletCellDecommissioner = Config_->TabletCellDecommissioner;
+
+            config->TabletBalancer->ConfigCheckPeriod = Config_->TabletBalancer->ConfigCheckPeriod;
+            config->TabletBalancer->BalancePeriod = Config_->TabletBalancer->BalancePeriod;
+
+            config->CompatibilityVersion = 1;
+        }
+
         if (CleanupExecutor_) {
-            CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
+            CleanupExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
         }
-        if (TabletCellDecommissioner_) {
-            auto& config = dynamicConfig->TabletCellDecommissioner
-                ? dynamicConfig->TabletCellDecommissioner
-                : Config_->TabletCellDecommissioner;
-            TabletCellDecommissioner_->Reconfigure(config);
-        }
-        if (auto gossipConfig = dynamicConfig->MulticellGossipConfig) {
+
+        {
+            const auto& gossipConfig = config->MulticellGossip;
             TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
             if (TabletCellStatisticsGossipExecutor_) {
                 TabletCellStatisticsGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatisticsGossipPeriod);
@@ -3698,6 +3729,10 @@ private:
             }
             EnableUpdateStatisticsOnHeartbeat_ = gossipConfig->EnableUpdateStatisticsOnHeartbeat;
         }
+
+        TabletCellDecommissioner_->Reconfigure(config->TabletCellDecommissioner);
+        TabletActionManager_->Reconfigure(config->TabletActionManager);
+        TabletBalancer_->Reconfigure(config->TabletBalancer);
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -5731,6 +5766,8 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
+        OnDynamicConfigChanged();
+
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (Bootstrap_->IsPrimaryMaster()) {
@@ -5750,18 +5787,16 @@ private:
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnTabletCellStatisticsGossip, MakeWeak(this)),
-            Config_->MulticellGossipConfig->TabletCellStatisticsGossipPeriod);
+            dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
-                Config_->MulticellGossipConfig->TableStatisticsGossipPeriod);
+                dynamicConfig->MulticellGossip->TableStatisticsGossipPeriod);
             TableStatisticsGossipExecutor_->Start();
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
@@ -5888,7 +5923,7 @@ private:
                     result += cell->LocalStatistics().MemorySize;
                     tabletCount = cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
                         cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
-                    result += tabletCount * Config_->TabletDataSizeFootprint;
+                    result += tabletCount * GetDynamicConfig()->TabletDataSizeFootprint;
                     break;
                 }
                 default:
@@ -5926,7 +5961,7 @@ private:
                 default:
                     YT_ABORT();
             }
-            result += Config_->TabletDataSizeFootprint;
+            result += GetDynamicConfig()->TabletDataSizeFootprint;
             return result;
         };
 
@@ -6266,7 +6301,7 @@ private:
         // Parse and prepare table reader config.
         try {
             *readerConfig = UpdateYsonSerializable(
-                Config_->ChunkReader,
+                GetDynamicConfig()->ChunkReader,
                 tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkReader)));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
@@ -6289,7 +6324,7 @@ private:
 
         // Parse and prepare table writer config.
         try {
-            auto config = CloneYsonSerializable(Config_->ChunkWriter);
+            auto config = CloneYsonSerializable(GetDynamicConfig()->ChunkWriter);
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
 
             *writerConfig = UpdateYsonSerializable(
@@ -6415,15 +6450,15 @@ private:
 
                 auto thresholdId = NHydra::GetSnapshotThresholdId(
                     snapshots,
-                    Config_->MaxSnapshotCountToKeep,
-                    Config_->MaxSnapshotSizeToKeep);
+                    GetDynamicConfig()->MaxSnapshotCountToKeep,
+                    GetDynamicConfig()->MaxSnapshotSizeToKeep);
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
 
                 int snapshotsRemoved = 0;
                 for (const auto& key : snapshotKeys) {
-                    if (snapshotsRemoved >= Config_->MaxSnapshotCountToRemovePerCheck) {
+                    if (snapshotsRemoved >= GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck) {
                         break;
                     }
 
@@ -6467,7 +6502,7 @@ private:
                 int changelogsRemoved = 0;
                 auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
                 for (const auto& key : changelogKeys) {
-                    if (changelogsRemoved >= Config_->MaxChangelogCountToRemovePerCheck) {
+                    if (changelogsRemoved >= GetDynamicConfig()->MaxChangelogCountToRemovePerCheck) {
                         break;
                     }
 

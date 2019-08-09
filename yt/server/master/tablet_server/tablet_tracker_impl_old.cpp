@@ -6,6 +6,8 @@
 #include "tablet_manager.h"
 #include "tablet_tracker_impl_old.h"
 
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 
@@ -201,14 +203,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletTrackerImplOld::TTabletTrackerImplOld(
-    TTabletManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap,
     TInstant startTime)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+    : Bootstrap_(bootstrap)
     , StartTime_(startTime)
 {
-    YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
@@ -237,7 +236,7 @@ void TTabletTrackerImplOld::ScheduleLeaderReassignment(TTabletCell* cell, TCandi
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
 
     if (!leadingPeer.Descriptor.IsNull() &&
-        !IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), Config_->LeaderReassignmentTimeout))
+        !IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->LeaderReassignmentTimeout))
     {
         return;
     }
@@ -253,6 +252,11 @@ void TTabletTrackerImplOld::ScheduleLeaderReassignment(TTabletCell* cell, TCandi
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
+}
+
+const TDynamicTabletManagerConfigPtr& TTabletTrackerImplOld::GetDynamicConfig()
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
 void TTabletTrackerImplOld::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool)
@@ -320,7 +324,7 @@ void TTabletTrackerImplOld::SchedulePeerAssignment(TTabletCell* cell, TCandidate
 void TTabletTrackerImplOld::SchedulePeerRevocation(TTabletCell* cell)
 {
     // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout)
+    if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout)
         return;
 
     auto cellId = cell->GetId();
@@ -331,7 +335,7 @@ void TTabletTrackerImplOld::SchedulePeerRevocation(TTabletCell* cell)
         const auto& peer = cell->Peers()[peerId];
 
         if (!peer.Descriptor.IsNull() &&
-            IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout))
+            IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->PeerRevocationTimeout))
         {
             request.add_peer_ids(peerId);
         }

@@ -116,6 +116,8 @@ class TTabletBalancerMasterConfig
 {
 public:
     bool EnableTabletBalancer;
+    TTimeFormula TabletBalancerSchedule;
+
     TDuration ConfigCheckPeriod;
     TDuration BalancePeriod;
 
@@ -123,10 +125,18 @@ public:
     {
         RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
             .Default(true);
+        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+            .Default(DefaultTabletBalancerSchedule);
         RegisterParameter("config_check_period", ConfigCheckPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("balance_period", BalancePeriod)
             .Default(TDuration::Minutes(5));
+
+        RegisterPostprocessor([&] () {
+            if (TabletBalancerSchedule.IsEmpty()) {
+                THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            }
+        });
     }
 };
 
@@ -221,134 +231,42 @@ class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Time to wait for a node to be back online before revoking it from all
-    //! tablet cells.
+    // COMPAT(savrus) This parameters are left only for compatibility with old config
+    TDuration CellScanPeriod;
     TDuration PeerRevocationTimeout;
-
-    //! Time to wait before resetting leader to another peer.
     TDuration LeaderReassignmentTimeout;
-
-    //! Maximum number of snapshots to keep for a tablet cell.
-    std::optional<int> MaxSnapshotCountToKeep;
-
-    //! Maximum total size of snapshots to keep for a tablet cell.
-    std::optional<i64> MaxSnapshotSizeToKeep;
-
-    //! Maximum number of snapshots to remove per a single check.
-    int MaxSnapshotCountToRemovePerCheck;
-
-    //! Maximum number of snapshots to remove per a single check.
-    int MaxChangelogCountToRemovePerCheck;
-
-    //! When the number of online nodes drops below this margin,
-    //! tablet cell peers are no longer assigned and revoked.
     int SafeOnlineNodeCount;
 
-    //! Internal between tablet cell examinations.
-    TDuration CellScanPeriod;
-
-    //! Additional number of bytes per tablet to charge each cell
-    //! for balancing purposes.
-    //! NB: Changing this value will invalidate all changelogs!
-    i64 TabletDataSizeFootprint;
-
-    //! Chunk reader config for all dynamic tables.
-    NTabletNode::TTabletChunkReaderConfigPtr ChunkReader;
-
-    //! Chunk writer config for all dynamic tables.
-    NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
-
-    //! Tablet balancer config.
     TTabletBalancerMasterConfigPtr TabletBalancer;
-
-    //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
-
-    //! Tablet action manager config.
     TTabletActionManagerMasterConfigPtr TabletActionManager;
-
-    //! Dynamic tables multicell gossip config.
-    TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
+    TDynamicTablesMulticellGossipConfigPtr MulticellGossip;
 
     TTabletManagerConfig()
     {
+        RegisterParameter("cell_scan_period", CellScanPeriod)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
             .Default(TDuration::Minutes(1));
         RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
-            .GreaterThanOrEqual(1)
-            .Default(5);
-        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
-            .GreaterThanOrEqual(0)
-            .Default();
-        RegisterParameter("max_snapshot_count_to_remove_per_check", MaxSnapshotCountToRemovePerCheck)
-            .GreaterThan(0)
-            .Default(100);
-        RegisterParameter("max_changelog_count_to_remove_per_check", MaxChangelogCountToRemovePerCheck)
-            .GreaterThan(0)
-            .Default(100);
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);
-        RegisterParameter("cell_scan_period", CellScanPeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
-            .GreaterThanOrEqual(0)
-            .Default(64_MB);
-        RegisterParameter("chunk_reader", ChunkReader)
-            .DefaultNew();
-        RegisterParameter("chunk_writer", ChunkWriter)
-            .DefaultNew();
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
         RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
             .DefaultNew();
         RegisterParameter("tablet_action_manager", TabletActionManager)
             .DefaultNew();
-        RegisterParameter("multicell_gossip", MulticellGossipConfig)
+        RegisterParameter("multicell_gossip", MulticellGossip)
             // COMPAT(babenko)
             .Alias("multicell_gossip_config")
             .DefaultNew();
-
-        RegisterPreprocessor([&] () {
-            ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
-            ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
-            ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
-
-            ChunkReader->RetryTimeout = TDuration::Seconds(15);
-            ChunkReader->SessionTimeout = TDuration::Minutes(1);
-        });
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicTabletBalancerMasterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    bool EnableTabletBalancer;
-    TTimeFormula TabletBalancerSchedule;
-
-    TDynamicTabletBalancerMasterConfig()
-    {
-        RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
-            .Default(true);
-        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
-            .Default(DefaultTabletBalancerSchedule);
-
-        RegisterPostprocessor([&] () {
-            if (TabletBalancerSchedule.IsEmpty()) {
-                THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
-            }
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -425,41 +343,121 @@ class TDynamicTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration TabletCellsCleanupPeriod;
+    //! Time to wait for a node to be back online before revoking it from all
+    //! tablet cells.
+    TDuration PeerRevocationTimeout;
 
-    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+    //! Time to wait before resetting leader to another peer.
+    TDuration LeaderReassignmentTimeout;
 
-    TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
-    TDynamicTabletCellBalancerMasterConfigPtr TabletCellBalancer;
+    //! Maximum number of snapshots to keep for a tablet cell.
+    std::optional<int> MaxSnapshotCountToKeep;
 
-    TDynamicReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
+    //! Maximum total size of snapshots to keep for a tablet cell.
+    std::optional<i64> MaxSnapshotSizeToKeep;
+
+    //! Maximum number of snapshots to remove per a single check.
+    int MaxSnapshotCountToRemovePerCheck;
+
+    //! Maximum number of snapshots to remove per a single check.
+    int MaxChangelogCountToRemovePerCheck;
+
+    //! When the number of online nodes drops below this margin,
+    //! tablet cell peers are no longer assigned and revoked.
+    int SafeOnlineNodeCount;
+
+    //! Internal between tablet cell examinations.
+    TDuration CellScanPeriod;
+
+    //! Additional number of bytes per tablet to charge each cell
+    //! for balancing purposes.
+    //! NB: Changing this value will invalidate all changelogs!
+    i64 TabletDataSizeFootprint;
+
+    //! Chunk reader config for all dynamic tables.
+    NTabletNode::TTabletChunkReaderConfigPtr ChunkReader;
+
+    //! Chunk writer config for all dynamic tables.
+    NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
+
+    //! Tablet balancer config.
+    TTabletBalancerMasterConfigPtr TabletBalancer;
 
     //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
+    //! Tablet action manager config.
+    TTabletActionManagerMasterConfigPtr TabletActionManager;
+
     //! Dynamic tables multicell gossip config.
-    TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
+    TDynamicTablesMulticellGossipConfigPtr MulticellGossip;
+
+    TDuration TabletCellsCleanupPeriod;
+
+    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+
+    TDynamicTabletCellBalancerMasterConfigPtr TabletCellBalancer;
+
+    TDynamicReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
     bool EnableBulkInsert;
 
+    int CompatibilityVersion;
+
     TDynamicTabletManagerConfig()
     {
+        RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
+            .GreaterThanOrEqual(1)
+            .Default(5);
+        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
+        RegisterParameter("max_snapshot_count_to_remove_per_check", MaxSnapshotCountToRemovePerCheck)
+            .GreaterThan(0)
+            .Default(100);
+        RegisterParameter("max_changelog_count_to_remove_per_check", MaxChangelogCountToRemovePerCheck)
+            .GreaterThan(0)
+            .Default(100);
+        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+            .GreaterThanOrEqual(0)
+            .Default(0);
+        RegisterParameter("cell_scan_period", CellScanPeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
+            .GreaterThanOrEqual(0)
+            .Default(64_MB);
+        RegisterParameter("chunk_reader", ChunkReader)
+            .DefaultNew();
+        RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+        RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
+        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+            .DefaultNew();
+        RegisterParameter("tablet_action_manager", TabletActionManager)
+            .DefaultNew();
+        RegisterParameter("multicell_gossip", MulticellGossip)
+            // COMPAT(babenko)
+            .Alias("multicell_gossip_config")
+            .DefaultNew();
         RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
             .Default(TDuration::Seconds(60));
         RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
-        RegisterParameter("tablet_balancer", TabletBalancer)
-            .DefaultNew();
         RegisterParameter("tablet_cell_balancer", TabletCellBalancer)
             .DefaultNew();
         RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
             .DefaultNew();
-        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
-            .Optional();
-        RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
-            .Optional();
         RegisterParameter("enable_bulk_insert", EnableBulkInsert)
             .Default(false);
+
+        // COMPAT(savrus) Special parameter to apply old file configs on fly.
+        RegisterParameter("compatibility_version", CompatibilityVersion)
+            .Default(0);
     }
 };
 

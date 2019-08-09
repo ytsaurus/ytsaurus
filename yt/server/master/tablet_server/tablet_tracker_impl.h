@@ -21,14 +21,12 @@ class TTabletTrackerImpl
 {
 public:
     TTabletTrackerImpl(
-        TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TInstant startTime);
 
     void ScanCells();
 
 private:
-    const TTabletManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
     const ITabletCellBalancerProviderPtr TTabletCellBalancerProvider_;
@@ -38,6 +36,8 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void OnTabletCellPeersReassigned();
+
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
 
     void ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors);
 
