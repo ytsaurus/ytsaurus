@@ -279,11 +279,6 @@ class YtStuff(object):
 
         self.yt_local_exec = [yatest.common.binary_path(source_prefix + "yt/python/yt/local/bin/yt_local_make/yt_local")]
 
-        # Thor (YT UI).
-        yt_archive_path = yatest.common.binary_path("yt/packages/19_4/yt/packages/19_4/yt_thor.tar")
-        self._extract_tar(yt_archive_path, self.yt_path)
-        self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
-
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
             self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
@@ -310,7 +305,6 @@ class YtStuff(object):
         self.env["PATH"] = ":".join([
             self.yt_bins_path,
         ])
-        self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
         self.env.update({x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ})
@@ -543,7 +537,7 @@ class YtStuff(object):
             shutil.copyfile(common_interface_log, p)
 
         def _ignore(path, names):
-            IGNORE_DIRS_ALWAYS = ["ui", "pipes", "node_modules"]
+            IGNORE_DIRS_ALWAYS = ["pipes"]
             IGNORE_DIRS = ["chunk_store", "chunk_cache", "changelogs", "snapshots"]
             ignored = set()
             for name in names:
