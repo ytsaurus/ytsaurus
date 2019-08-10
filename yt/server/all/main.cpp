@@ -21,7 +21,7 @@ int main(int argc, const char** argv)
     };
 
     for (const auto program : programs) {
-        if (TString(argv[0]).EndsWith(program.first)) {
+        if (TStringBuf(argv[0]).EndsWith(program.first)) {
             return program.second();
         }
     }
