@@ -28,10 +28,10 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
     programs = [("master", "master/bin"),
                 ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
-                ("exec", "bin/exec"),
+                ("exec", "exec/bin"),
                 ("proxy", "rpc_proxy/bin"),
                 ("http-proxy", "http_proxy/bin"),
-                ("tools", "bin/tools"),
+                ("tools", "tools/bin"),
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
