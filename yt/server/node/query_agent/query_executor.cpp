@@ -767,7 +767,7 @@ private:
             pushKeys();
         }
 
-        YT_LOG_DEBUG("Splitting %v ranges", rangesCount);
+        YT_LOG_DEBUG("Splitting ranges (RangeCount: %v)", rangesCount);
 
         auto splits = Split(std::move(rangesByTablet), rowBuffer);
 
