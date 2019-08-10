@@ -23,8 +23,6 @@ using namespace NConcurrency;
 
 static const auto& Logger = AuthLogger;
 
-static constexpr auto TimeoutSlack = TDuration::MilliSeconds(1);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultBlackboxService
@@ -104,7 +102,7 @@ private:
 
         std::vector<TError> accumulatedErrors;
 
-        for (int attempt = 1; deadline - TInstant::Now() > TimeoutSlack; ++attempt) {
+        for (int attempt = 1; TInstant::Now() < deadline || attempt == 1; ++attempt) {
             INodePtr result;
             try {
                 AuthProfiler.Increment(BlackboxCalls_);
