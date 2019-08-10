@@ -99,24 +99,26 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 
 void TServiceContextBase::ReplyEpilogue()
 {
+    auto responseMessage = BuildResponseMessage();
+
+    TPromise<TSharedRefArray> asyncResponseMessage;
+    {
+        auto responseGuard = Guard(ResponseLock_);
+        YT_ASSERT(!ResponseMessage_);
+        ResponseMessage_ = responseMessage;
+        asyncResponseMessage = AsyncResponseMessage_;
+    }
+
     DoReply();
 
     Replied_.store(true);
 
-    {
-        auto responseGuard = Guard(ResponseLock_);
-
-        YT_ASSERT(!ResponseMessage_);
-        ResponseMessage_ = BuildResponseMessage();
-
-        if (AsyncResponseMessage_) {
-            responseGuard.Release();
-            AsyncResponseMessage_.Set(ResponseMessage_);
-        }
-    }
-
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
+    }
+
+    if (asyncResponseMessage) {
+        asyncResponseMessage.Set(std::move(responseMessage));
     }
 }
 
@@ -127,12 +129,12 @@ TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto responseGuard  = Guard(ResponseLock_);
+    auto guard  = Guard(ResponseLock_);
 
     if (!AsyncResponseMessage_) {
         AsyncResponseMessage_ = NewPromise<TSharedRefArray>();
         if (ResponseMessage_) {
-            responseGuard.Release();
+            guard.Release();
             AsyncResponseMessage_.Set(ResponseMessage_);
         }
     }
