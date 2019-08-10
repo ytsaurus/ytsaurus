@@ -341,9 +341,14 @@ private:
                     options);
 
                 ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
-                YT_LOG_DEBUG("Splitting %v prunned / %v original ranges (TableId: %v)", prunedRanges.size(), ranges.Size(), tableId);
+                YT_LOG_DEBUG("Splitting ranges (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
+                    prunedRanges.size(),
+                    ranges.Size(),
+                    tableId);
             } else {
-                YT_LOG_DEBUG("Splitting %v ranges (TableId: %v)", ranges.Size(), tableId);
+                YT_LOG_DEBUG("Splitting ranges (RangeCount: %v, TableId: %v)",
+                    ranges.Size(),
+                    tableId);
             }
 
             size_t keyWidth = std::numeric_limits<size_t>::max();
