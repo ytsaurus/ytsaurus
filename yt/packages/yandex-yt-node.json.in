@@ -11,9 +11,9 @@
     },
     "build": {
         "targets": [
-            "yt/server/bin/core_forwarder",
-            "yt/server/bin/exec",
-            "yt/server/bin/tools",
+            "yt/server/core_forwarder",
+            "yt/server/exec/bin",
+            "yt/server/tools/bin",
             "yt/server/node/bin",
             "yt/server/job_proxy/bin"
         ],
