@@ -239,9 +239,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
-
-int main(int argc, const char** argv)
-{
-    return NYT::NJobProxy::TExecProgram().Run(argc, argv);
-}
-

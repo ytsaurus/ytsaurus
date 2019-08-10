@@ -77,9 +77,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-int main(int argc, const char** argv)
-{
-    return NYT::TToolsProgram().Run(argc, argv);
-}
-
