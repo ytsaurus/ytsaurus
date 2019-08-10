@@ -88,6 +88,14 @@ public:
         request.set_acl(ConvertToYsonString(effectiveAcl).GetData());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
+        ToProto(request.mutable_parent_id(), node->GetParent()->GetId());
+        auto optionalKey = FindNodeKey(
+            Bootstrap_->GetCypressManager(),
+            node->GetTrunkNode(),
+            nullptr);
+        if (optionalKey) {
+            request.set_key(*optionalKey);
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, node->GetExitCellTag());
@@ -209,6 +217,11 @@ private:
             nullptr,
             inheritedAttributes.get(),
             explicitAttributes.get())->As<TPortalExitNode>();
+
+        node->SetParentId(FromProto<TNodeId>(request->parent_id()));
+        if (request->has_key()) {
+            node->SetKey(request->key());
+        }
 
         cypressManager->SetShard(node, shard);
         shard->SetRoot(node);

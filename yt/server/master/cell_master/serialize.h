@@ -84,6 +84,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((BulkInsert)                                                    (902))  // savrus
     ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
+    ((MorePortalAttributes)                                          (905))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
