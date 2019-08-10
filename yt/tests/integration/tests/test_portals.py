@@ -152,7 +152,7 @@ class TestPortals(YTEnvSetup):
 
     def _now(self):
         return datetime.now(tzlocal())
-    
+
     @authors("babenko")
     def test_expiration_time(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
@@ -173,7 +173,7 @@ class TestPortals(YTEnvSetup):
         assert exists("//sys/cypress_shards/{}".format(shard_id))
         assert get("//@id") == get("#{}/@root_node_id".format(shard_id))
         assert get("#{}/@account_statistics/sys/node_count".format(shard_id)) > 0
- 
+
     @authors("babenko")
     def test_shard_statistics(self):
         shard_id = get("//@shard_id")
@@ -204,4 +204,10 @@ class TestPortals(YTEnvSetup):
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
         remove("//tmp/p")
         wait(lambda: not exists("#{}".format(shard_id)))
+
+    @authors("babenko")
+    def test_special_exit_attrs(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        assert get("//tmp/p/@key") == "p"
+        assert get("//tmp/p/@parent_id") == get("//tmp/@id")
 

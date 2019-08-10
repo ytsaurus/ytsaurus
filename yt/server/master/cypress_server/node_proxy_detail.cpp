@@ -496,7 +496,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     bool isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentId)
-        .SetPresent(node->GetParent()));
+        .SetPresent(NodeHasParentId(node)));
     descriptors->push_back(EInternedAttributeKey::External);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalCellTag)
         .SetPresent(isExternal));
@@ -539,16 +539,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
     switch (key) {
         case EInternedAttributeKey::ParentId:
-            if (!node->GetParent()) {
+            if (!NodeHasParentId(node)) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(node->GetParent()->GetId());
+                .Value(GetNodeParentId(node));
             return true;
 
         case EInternedAttributeKey::External:
@@ -608,12 +607,13 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
 
         case EInternedAttributeKey::Key: {
-            if (!hasKey) {
-                break;
-            }
             static const TString NullKey("?");
+            auto optionalKey = FindNodeKey(
+                Bootstrap_->GetCypressManager(),
+                GetThisImpl()->GetTrunkNode(),
+                Transaction);
             BuildYsonFluently(consumer)
-                .Value(GetParent()->AsMap()->FindChildKey(this).value_or(NullKey));
+                .Value(optionalKey.value_or(NullKey));
             return true;
         }
 
@@ -2198,20 +2198,10 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
 
 std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
-    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeOriginators(Transaction, TrunkNode);
-
-    for (const auto* node : originators) {
-        const auto* mapNode = node->As<TMapNode>();
-        auto it = mapNode->ChildToKey().find(trunkChildImpl);
-        if (it != mapNode->ChildToKey().end()) {
-            return it->second;
-        }
-    }
-
-    return std::nullopt;
+    return FindNodeKey(
+        Bootstrap_->GetCypressManager(),
+        ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode(),
+        Transaction);
 }
 
 bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
