@@ -7,12 +7,12 @@ namespace NYP::NServer::NObjects {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TScalarAttributeSchema<TIP4Pool, TIP4Pool::TSpec> TIP4Pool::SpecSchema{
-    &InternetAddressesTable.Fields.Spec,
+    &IP4PoolsTable.Fields.Spec,
     [] (TIP4Pool* pool) { return &pool->Spec(); }
 };
 
 const TScalarAttributeSchema<TIP4Pool, TIP4Pool::TStatus> TIP4Pool::StatusSchema{
-    &InternetAddressesTable.Fields.Status,
+    &IP4PoolsTable.Fields.Status,
     [] (TIP4Pool* pool) { return &pool->Status(); }
 };
 

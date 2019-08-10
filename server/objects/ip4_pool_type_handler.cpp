@@ -3,7 +3,6 @@
 #include "db_schema.h"
 #include "ip4_pool.h"
 #include "type_handler_detail.h"
-#include "virtual_service_type_handler.h"
 
 namespace NYP::NServer::NObjects {
 
