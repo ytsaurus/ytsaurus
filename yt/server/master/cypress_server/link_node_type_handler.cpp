@@ -51,25 +51,15 @@ private:
 
     virtual std::unique_ptr<TLinkNode> DoCreate(
         const TVersionedNodeId& id,
-        TCellTag cellTag,
-        TTransaction* transaction,
-        IAttributeDictionary* inheritedAttributes,
-        IAttributeDictionary* explicitAttributes,
-        TAccount* account) override
+        const TCreateNodeContext& context) override
     {
         // Make sure that target_path is valid upon creation.
-        auto targetPath = explicitAttributes->GetAndRemove<TString>("target_path");
+        auto targetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->ResolvePathToObject(targetPath, transaction);
+        objectManager->ResolvePathToObject(targetPath, context.Transaction);
 
-        auto implHolder = TBase::DoCreate(
-            id,
-            cellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
-
+        auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(targetPath);
 
         YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",

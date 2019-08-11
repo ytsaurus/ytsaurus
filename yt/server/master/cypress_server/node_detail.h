@@ -109,21 +109,11 @@ public:
 
     virtual std::unique_ptr<TCypressNode> Create(
         TNodeId hintId,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) override
+        const TCreateNodeContext& context) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
-        return DoCreate(
-            TVersionedNodeId(id),
-            externalCellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
+        return DoCreate(TVersionedNodeId(id), context);
     }
 
     virtual void FillAttributes(
@@ -250,14 +240,10 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* /*transaction*/,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account)
+        const TCreateNodeContext& context)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
-        nodeHolder->SetExternalCellTag(externalCellTag);
+        nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
         if (NObjectClient::CellTagFromId(nodeHolder->GetId()) != Bootstrap_->GetCellTag()) {
             nodeHolder->SetForeign();
@@ -265,12 +251,12 @@ protected:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+        securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
         // Null is passed as transaction because DoCreate() always creates trunk nodes.
         securityManager->SetAccount(
             nodeHolder.get(),
             nullptr /* oldAccount */,
-            account,
+            context.Account,
             nullptr /* transaction*/);
 
         return nodeHolder;

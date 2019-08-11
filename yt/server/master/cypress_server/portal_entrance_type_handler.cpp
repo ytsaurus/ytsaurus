@@ -59,17 +59,13 @@ private:
 
     virtual std::unique_ptr<TPortalEntranceNode> DoCreate(
         const TVersionedNodeId& id,
-        TCellTag cellTag,
-        TTransaction* transaction,
-        IAttributeDictionary* inheritedAttributes,
-        IAttributeDictionary* explicitAttributes,
-        TAccount* account) override
+        const TCreateNodeContext& context) override
     {
-        if (transaction) {
+        if (context.Transaction) {
             THROW_ERROR_EXCEPTION("Portals cannot be created in a transaction");
         }
 
-        auto exitCellTag  = explicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
+        auto exitCellTag  = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(exitCellTag)) {
@@ -77,13 +73,7 @@ private:
         }
         // XXX(babenko): validate cell role
 
-        auto nodeHolder = TBase::DoCreate(
-            id,
-            cellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
+        auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
 
         node->SetExitCellTag(exitCellTag);

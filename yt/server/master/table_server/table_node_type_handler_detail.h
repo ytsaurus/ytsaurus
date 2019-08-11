@@ -28,11 +28,7 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) override;
+        const NCypressServer::TCreateNodeContext& context) override;
 
     virtual void DoDestroy(TImpl* table) override;
 

@@ -16,6 +16,15 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateNodeContext
+{
+    NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+    NTransactionServer::TTransaction* Transaction = nullptr;
+    NYTree::IAttributeDictionary* InheritedAttributes = nullptr;
+    NYTree::IAttributeDictionary* ExplicitAttributes = nullptr;
+    NSecurityServer::TAccount* Account = nullptr;
+};
+
 //! Provides node type-specific services.
 struct INodeTypeHandler
     : public virtual TRefCounted
@@ -47,11 +56,7 @@ struct INodeTypeHandler
      */
     virtual std::unique_ptr<TCypressNode> Create(
         TNodeId hintId,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) = 0;
+        const TCreateNodeContext& context) = 0;
 
     //! Fills attributes of a trunk node. Usually applied to newly created nodes.
     virtual void FillAttributes(
