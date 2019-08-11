@@ -547,46 +547,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDocumentNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode>
-{
-public:
-    TDocumentNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TDocumentNode* trunkNode);
-
-    virtual NYTree::ENodeType GetType() const override;
-
-    virtual TIntrusivePtr<const NYTree::IEntityNode> AsEntity() const override;
-    virtual TIntrusivePtr<NYTree::IEntityNode> AsEntity() override;
-
-private:
-    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode> TBase;
-
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
-
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-    virtual void GetRecursive(const NYPath::TYPath& path, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
-    virtual void SetRecursive(const NYPath::TYPath& path, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
-
-    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
-    virtual void ListRecursive(const NYPath::TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override;
-
-    virtual void RemoveRecursive(const NYPath::TYPath& path, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
-
-    virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-
-    void SetImplValue(const NYson::TYsonString& value);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NCypressServer
