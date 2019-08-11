@@ -9,6 +9,9 @@ from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_n
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
+
+from yt.test_helpers import wait
+
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
@@ -608,7 +611,7 @@ class YTInstance(object):
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
-                    logger.info("Sending SIGSTOP to {}".format(pid))
+                    logger.info("Sending SIGSTOP (pid: {})".format(pid))
                     os.kill(pid, signal.SIGSTOP)
 
         for freezer_path in freezer_cgroups:
@@ -617,7 +620,7 @@ class YTInstance(object):
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
-                    logger.info("Sending SIGKILL to {}".format(pid))
+                    logger.info("Sending SIGKILL (pid: {})".format(pid))
                     os.kill(pid, signal.SIGKILL)
 
         for cgroup_path in self._all_cgroups:
@@ -721,12 +724,9 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
-        logger.info("Sending SIGKILL to process (pid: %d)", proc.pid)
+        logger.info("Sending SIGKILL (pid: {})".format(proc.pid))
         os.killpg(proc.pid, signal.SIGKILL)
-        time.sleep(0.2)
-
-        if not is_dead_or_zombie(proc.pid):
-            logger.error("Failed to kill process %s (pid %d) ", name, proc.pid)
+        wait(lambda: is_dead_or_zombie(proc.pid))
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
