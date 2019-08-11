@@ -479,30 +479,6 @@ def get_proxy_config():
 }
 """)
 
-def get_ui_config():
-    return """
-tm.managers = {
-    production: {
-        url: '//transfer-manager.yt.yandex.net/api/v1',
-        version: '1'
-    }
-};
-
-YT.odinPath = '';
-
-YT.clusters = {
-    'ui' : {
-        name: 'Local',
-        proxy: %%proxy_address%%,
-        oauthApplication: '',
-        type: 'infrastructural',
-        theme: 'grapefruit',
-        description: 'Local',
-        %%masters%%
-    }
-};
-"""
-
 def get_watcher_config():
     return {
         "logs_rotate_max_part_count": 1000,
