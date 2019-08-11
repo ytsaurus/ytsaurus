@@ -184,6 +184,8 @@ protected:
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
 
+bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header);
+
 //! Runs a sequence of IYPathService::Resolve calls aimed to discover the
 //! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(

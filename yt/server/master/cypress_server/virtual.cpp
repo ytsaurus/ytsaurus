@@ -600,8 +600,7 @@ private:
 
     static EPermission PermissionFromRequest(const IServiceContextPtr& context)
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        return ypathExt.mutating() ? EPermission::Write : EPermission::Read;
+        return IsRequestMutating(context->RequestHeader()) ? EPermission::Write : EPermission::Read;
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override
