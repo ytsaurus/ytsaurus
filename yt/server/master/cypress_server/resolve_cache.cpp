@@ -300,7 +300,7 @@ TResolveCacheNode::TPayload TResolveCache::MakePayload(TCypressNode* trunkNode)
 {
     if (trunkNode->GetType() == EObjectType::Link) {
         auto* linkNode = trunkNode->As<TLinkNode>();
-        return TResolveCacheNode::TLinkPayload{linkNode->GetTargetPath()};
+        return TResolveCacheNode::TLinkPayload{linkNode->ComputeEffectiveTargetPath()};
     } else if (trunkNode->GetType() == EObjectType::PortalEntrance) {
         auto* entranceNode = trunkNode->As<TPortalEntranceNode>();
         auto portalExitId = MakePortalExitNodeId(entranceNode->GetId(), entranceNode->GetExitCellTag());

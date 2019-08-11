@@ -47,8 +47,8 @@ public:
     {
         auto propagate = [&] () {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto* impl = GetThisImpl();
-            auto combinedPath = impl->GetTargetPath() + path;
+            const auto* linkNode = GetThisImpl();
+            auto combinedPath = linkNode->ComputeEffectiveTargetPath() + path;
             return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
         };
 
@@ -111,9 +111,9 @@ private:
     bool IsBroken() const
     {
         try {
-            const auto* impl = GetThisImpl();
+            const auto* linkNode = GetThisImpl();
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ResolvePathToObject(impl->GetTargetPath(), Transaction);
+            objectManager->ResolvePathToObject(linkNode->ComputeEffectiveTargetPath(), Transaction);
             return false;
         } catch (const std::exception&) {
             return true;

@@ -24,6 +24,11 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+    static NYPath::TYPath ComputeEffectiveTargetPath(
+        const NYPath::TYPath& targetPath,
+        TCypressShard* shard);
+
+    NYPath::TYPath ComputeEffectiveTargetPath() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,8 @@ from yt_commands import *
 
 from yt.common import YtError
 
+from yt.test_helpers import assert_items_equal, are_almost_equal
+
 from dateutil.tz import tzlocal
 
 ##################################################################
@@ -211,3 +213,18 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/@key") == "p"
         assert get("//tmp/p/@parent_id") == get("//tmp/@id")
 
+    @authors("babenko")
+    def test_cross_shard_links_forbidden(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        with pytest.raises(YtError):
+            link("//tmp", "//tmp/p/l")
+
+    @authors("babenko")
+    def test_intra_shard_links(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t")
+        link("//tmp/p/t", "//tmp/p/t_")
+        link("//tmp/p", "//tmp/p/_")
+        assert_items_equal(ls("//tmp/p/_"), ["t", "t_", "_"])
+        assert get("//tmp/p/t_&/@target_path") == "//tmp/p/t"
+        assert get("//tmp/p/t_/@id") == get("//tmp/p/t/@id")

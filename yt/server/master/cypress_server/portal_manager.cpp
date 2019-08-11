@@ -216,7 +216,8 @@ private:
                 .ExternalCellTag = NotReplicatedCellTag,
                 .InheritedAttributes = inheritedAttributes.get(),
                 .ExplicitAttributes = explicitAttributes.get(),
-                .Account = account
+                .Account = account,
+                .Shard = shard
             })->As<TPortalExitNode>();
 
         node->SetParentId(FromProto<TNodeId>(request->parent_id()));

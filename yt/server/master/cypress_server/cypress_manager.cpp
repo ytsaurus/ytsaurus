@@ -286,6 +286,7 @@ public:
                 .InheritedAttributes = inheritedAttributes,
                 .ExplicitAttributes = explicitAttributes,
                 .Account = account,
+                .Shard = Shard_
             });
 
         if (Shard_) {
