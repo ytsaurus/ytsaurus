@@ -5,6 +5,7 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/link_node.h>
 #include <yt/server/master/cypress_server/portal_entrance_node.h>
 #include <yt/server/master/cypress_server/helpers.h>
 #include <yt/server/master/cypress_server/resolve_cache.h>

@@ -547,34 +547,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLinkNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode>
-{
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
-
-public:
-    TLinkNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TLinkNode* trunkNode);
-
-    virtual TResolveResult Resolve(
-        const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
-
-private:
-    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-
-    bool IsBroken() const;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDocumentNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode>
 {

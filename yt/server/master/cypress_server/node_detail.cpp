@@ -26,10 +26,6 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NDetail {
 
 const EObjectType TCypressScalarTypeTraits<TString>::ObjectType = EObjectType::StringNode;
@@ -42,7 +38,6 @@ const EObjectType TCypressScalarTypeTraits<double>::ObjectType = EObjectType::Do
 const ENodeType   TCypressScalarTypeTraits<double>::NodeType   = ENodeType::Double;
 const EObjectType TCypressScalarTypeTraits<bool>::ObjectType   = EObjectType::BooleanNode;
 const ENodeType   TCypressScalarTypeTraits<bool>::NodeType     = ENodeType::Boolean;
-
 
 } // namespace NDetail
 
@@ -829,128 +824,6 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
     }
 
     return branchedNode->IndexToChild() != originatingNode->IndexToChild();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ENodeType TLinkNode::GetNodeType() const
-{
-    return ENodeType::Entity;
-}
-
-void TLinkNode::Save(NCellMaster::TSaveContext& context) const
-{
-    TCypressNode::Save(context);
-
-    using NYT::Save;
-    Save(context, TargetPath_);
-}
-
-void TLinkNode::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-    Load(context, TargetPath_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLinkNodeTypeHandler::TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
-
-EObjectType TLinkNodeTypeHandler::GetObjectType() const
-{
-    return EObjectType::Link;
-}
-
-ENodeType TLinkNodeTypeHandler::GetNodeType() const
-{
-    return ENodeType::Entity;
-}
-
-ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
-    TLinkNode* trunkNode,
-    TTransaction* transaction)
-{
-    return New<TLinkNodeProxy>(
-        Bootstrap_,
-        &Metadata_,
-        transaction,
-        trunkNode);
-}
-
-std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
-    const TVersionedNodeId& id,
-    TCellTag cellTag,
-    TTransaction* transaction,
-    IAttributeDictionary* inheritedAttributes,
-    IAttributeDictionary* explicitAttributes,
-    TAccount* account)
-{
-    // Make sure that target_path is valid upon creation.
-    auto targetPath = explicitAttributes->GetAndRemove<TString>("target_path");
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    objectManager->ResolvePathToObject(targetPath, transaction);
-
-    auto implHolder = TBase::DoCreate(
-        id,
-        cellTag,
-        transaction,
-        inheritedAttributes,
-        explicitAttributes,
-        account);
-
-    implHolder->SetTargetPath(targetPath);
-
-    YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
-        id,
-        targetPath);
-
-    return implHolder;
-}
-
-void TLinkNodeTypeHandler::DoBranch(
-    const TLinkNode* originatingNode,
-    TLinkNode* branchedNode,
-    const TLockRequest& lockRequest)
-{
-    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
-
-    branchedNode->SetTargetPath(originatingNode->GetTargetPath());
-}
-
-void TLinkNodeTypeHandler::DoMerge(
-    TLinkNode* originatingNode,
-    TLinkNode* branchedNode)
-{
-    TBase::DoMerge(originatingNode, branchedNode);
-
-    originatingNode->SetTargetPath(branchedNode->GetTargetPath());
-}
-
-void TLinkNodeTypeHandler::DoClone(
-    TLinkNode* sourceNode,
-    TLinkNode* clonedNode,
-    ICypressNodeFactory* factory,
-    ENodeCloneMode mode,
-    TAccount* account)
-{
-    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
-
-    clonedNode->SetTargetPath(sourceNode->GetTargetPath());
-}
-
-bool TLinkNodeTypeHandler::HasBranchedChangesImpl(
-    TLinkNode* originatingNode,
-    TLinkNode* branchedNode)
-{
-    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
-        return true;
-    }
-
-    return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

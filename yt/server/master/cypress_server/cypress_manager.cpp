@@ -16,6 +16,7 @@
 #include "shard_type_handler.h"
 #include "shard_map_type_handler.h"
 #include "resolve_cache.h"
+#include "link_node_type_handler.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -556,7 +557,7 @@ public:
         RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
+        RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_));
         RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
         RegisterHandler(CreateShardMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceTypeHandler(Bootstrap_));
