@@ -114,9 +114,9 @@ void TOverlaidAttributeDictionary<T>::SetYson(
 
 template <class T>
 void TOverlaidAttributeDictionary<T>::SetYson(
-    const IAttributeDictionary& dict,
-    const TString& key,
-    const NYson::TYsonString& value)
+    const IAttributeDictionary& /*dict*/,
+    const TString& /*key*/,
+    const NYson::TYsonString& /*value*/)
 {
     // NB: IAttributeDictionary's extension methods require SetYson() to be
     // compilable.
@@ -133,8 +133,8 @@ bool TOverlaidAttributeDictionary<T>::Remove(
 
 template <class T>
 bool TOverlaidAttributeDictionary<T>::Remove(
-    const IAttributeDictionary& dict,
-    const TString& key)
+    const IAttributeDictionary& /*dict*/,
+    const TString& /*key*/)
 {
     YT_ABORT();
 }
@@ -142,12 +142,12 @@ bool TOverlaidAttributeDictionary<T>::Remove(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class... Args>
-TOverlaidAttributeDictionary<typename std::remove_reference<T>::type>
+TOverlaidAttributeDictionary<typename std::decay<T>::type>
 OverlayAttributeDictionaries(
     T&& topmostUnderlyingDict,
     Args&&... underlyingDicts)
 {
-    return TOverlaidAttributeDictionary<typename std::remove_reference<T>::type>(
+    return TOverlaidAttributeDictionary<typename std::decay<T>::type>(
         std::forward<T>(topmostUnderlyingDict),
         std::forward<Args>(underlyingDicts)...);
 }

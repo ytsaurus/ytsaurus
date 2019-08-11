@@ -65,14 +65,10 @@ bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
 template <class TImpl>
 std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
-    TCellTag cellTag,
-    TTransaction* transaction,
-    IAttributeDictionary* inheritedAttributes,
-    IAttributeDictionary* explicitAttributes,
-    TAccount* account)
+    const TCreateNodeContext& context)
 {
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
-    auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+    auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes.GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
@@ -132,11 +128,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     auto nodeHolder = this->DoCreateImpl(
         id,
-        cellTag,
-        transaction,
-        inheritedAttributes,
-        explicitAttributes,
-        account,
+        context,
         replicationFactor,
         compressionCodec,
         erasureCodec);

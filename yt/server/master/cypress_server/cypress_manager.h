@@ -77,13 +77,9 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNode* CreateNode(
-        TNodeId hintId,
-        NObjectClient::TCellTag externalCellTag,
         const INodeTypeHandlerPtr& handler,
-        NSecurityServer::TAccount* account,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes);
+        TNodeId hintId,
+        const TCreateNodeContext& context);
 
     //! Creates a new node and registers it.
     TCypressNode* InstantiateNode(

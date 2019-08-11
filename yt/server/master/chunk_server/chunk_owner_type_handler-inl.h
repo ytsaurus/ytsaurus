@@ -82,18 +82,14 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
 template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const NCypressServer::TVersionedNodeId& id,
-    NObjectClient::TCellTag externalCellTag,
-    NTransactionServer::TTransaction* transaction,
-    NYTree::IAttributeDictionary* inheritedAttributes,
-    NYTree::IAttributeDictionary* explicitAttributes,
-    NSecurityServer::TAccount* account,
+    const NCypressServer::TCreateNodeContext& context,
     int replicationFactor,
     NCompression::ECodec compressionCodec,
     NErasure::ECodec erasureCodec)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
 
-    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
@@ -105,13 +101,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         securityTags->Validate();
     }
 
-    auto nodeHolder = TBase::DoCreate(
-        id,
-        externalCellTag,
-        transaction,
-        inheritedAttributes,
-        explicitAttributes,
-        account);
+    auto nodeHolder = TBase::DoCreate(id, context);
     auto* node = nodeHolder.get();
 
     try {
@@ -325,7 +315,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     branchedChunkList->AddOwningNode(originatingNode);
                     objectManager->UnrefObject(originatingChunkList);
                 }
-                isDynamic = true; 
+                isDynamic = true;
             } else {
                 YT_VERIFY(branchedChunkList->Children().size() == 2);
                 deltaTree = branchedChunkList->Children()[1];

@@ -210,13 +210,14 @@ private:
 
         const auto& handler = cypressManager->GetHandler(EObjectType::PortalExit);
         auto* node = cypressManager->CreateNode(
-            exitNodeId,
-            NotReplicatedCellTag,
             handler,
-            account,
-            nullptr,
-            inheritedAttributes.get(),
-            explicitAttributes.get())->As<TPortalExitNode>();
+            exitNodeId,
+            TCreateNodeContext{
+                .ExternalCellTag = NotReplicatedCellTag,
+                .InheritedAttributes = inheritedAttributes.get(),
+                .ExplicitAttributes = explicitAttributes.get(),
+                .Account = account
+            })->As<TPortalExitNode>();
 
         node->SetParentId(FromProto<TNodeId>(request->parent_id()));
         if (request->has_key()) {

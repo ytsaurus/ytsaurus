@@ -278,13 +278,15 @@ public:
         }
 
         auto* trunkNode = cypressManager->CreateNode(
-            NullObjectId,
-            externalCellTag,
             handler,
-            account,
-            Transaction_,
-            inheritedAttributes,
-            explicitAttributes);
+            NullObjectId,
+            TCreateNodeContext{
+                .ExternalCellTag = externalCellTag,
+                .Transaction = Transaction_,
+                .InheritedAttributes = inheritedAttributes,
+                .ExplicitAttributes = explicitAttributes,
+                .Account = account,
+            });
 
         if (Shard_) {
             cypressManager->SetShard(trunkNode, Shard_);
@@ -731,31 +733,21 @@ public:
     }
 
     TCypressNode* CreateNode(
-        TNodeId hintId,
-        TCellTag externalCellTag,
         const INodeTypeHandlerPtr& handler,
-        TAccount* account,
-        TTransaction* transaction,
-        IAttributeDictionary* inheritedAttributes,
-        IAttributeDictionary* explicitAttributes)
+        TNodeId hintId,
+        const TCreateNodeContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(handler);
-        YT_VERIFY(account);
-        YT_VERIFY(inheritedAttributes);
-        YT_VERIFY(explicitAttributes);
+        YT_VERIFY(context.Account);
+        YT_VERIFY(context.InheritedAttributes);
+        YT_VERIFY(context.ExplicitAttributes);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+        securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
 
-        auto nodeHolder = handler->Create(
-            hintId,
-            externalCellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
+        auto nodeHolder = handler->Create(hintId, context);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set owner.
@@ -2886,13 +2878,15 @@ private:
 
         const auto& handler = GetHandler(type);
         auto* trunkNode = CreateNode(
-            nodeId,
-            NotReplicatedCellTag,
             handler,
-            account,
-            transaction,
-            inheritedAttributes.get(),
-            explicitAttributes.get());
+            nodeId,
+            TCreateNodeContext{
+                .ExternalCellTag = NotReplicatedCellTag,
+                .Transaction = transaction,
+                .InheritedAttributes = inheritedAttributes.get(),
+                .ExplicitAttributes = explicitAttributes.get(),
+                .Account = account
+            });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
@@ -3195,22 +3189,14 @@ std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
 }
 
 TCypressNode* TCypressManager::CreateNode(
-    TNodeId hintId,
-    TCellTag externalCellTag,
     const INodeTypeHandlerPtr& handler,
-    TAccount* account,
-    TTransaction* transaction,
-    IAttributeDictionary* inheritedAttributes,
-    IAttributeDictionary* explicitAttributes)
+    TNodeId hintId,
+    const TCreateNodeContext& context)
 {
     return Impl_->CreateNode(
+        handler,
         hintId,
-        externalCellTag,
-        std::move(handler),
-        account,
-        transaction,
-        inheritedAttributes,
-        explicitAttributes);
+        context);
 }
 
 TCypressNode* TCypressManager::InstantiateNode(
