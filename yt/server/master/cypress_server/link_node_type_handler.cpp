@@ -1,6 +1,8 @@
 #include "link_node_type_handler.h"
 #include "link_node.h"
 #include "link_node_proxy.h"
+#include "shard.h"
+#include "portal_exit_node.h"
 #include "private.h"
 
 namespace NYT::NCypressServer {
@@ -57,7 +59,9 @@ private:
         auto targetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->ResolvePathToObject(targetPath, context.Transaction);
+        objectManager->ResolvePathToObject(
+            TLinkNode::ComputeEffectiveTargetPath(targetPath, context.Shard),
+            context.Transaction);
 
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(targetPath);

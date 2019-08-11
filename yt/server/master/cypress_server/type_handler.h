@@ -23,6 +23,7 @@ struct TCreateNodeContext
     NYTree::IAttributeDictionary* InheritedAttributes = nullptr;
     NYTree::IAttributeDictionary* ExplicitAttributes = nullptr;
     NSecurityServer::TAccount* Account = nullptr;
+    TCypressShard* Shard = nullptr;
 };
 
 //! Provides node type-specific services.

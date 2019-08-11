@@ -211,7 +211,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             const auto* link = currentNode->As<TLinkNode>();
             auto rewrittenPath =
-                link->GetTargetPath() +
+                link->ComputeEffectiveTargetPath() +
                 (slashSkipped ? SlashYPath : EmptyYPath) +
                 Tokenizer_.GetInput();
             Tokenizer_.Reset(std::move(rewrittenPath));
