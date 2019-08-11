@@ -55,8 +55,7 @@ public:
 
     virtual void Invoke(const IServiceContextPtr& context) override
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating()) {
+        if (IsRequestMutating(context->RequestHeader())) {
             THROW_ERROR_EXCEPTION("Orchid nodes are read-only");
         }
 

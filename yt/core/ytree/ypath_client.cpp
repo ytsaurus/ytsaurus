@@ -224,6 +224,12 @@ void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
     ext->set_path(path);
 }
 
+bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ext.mutating();
+}
+
 void ResolveYPath(
     const IYPathServicePtr& rootService,
     const IServiceContextPtr& context,

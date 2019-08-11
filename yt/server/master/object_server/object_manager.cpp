@@ -377,8 +377,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating() && !HasMutationContext()) {
+        if (IsRequestMutating(context->RequestHeader()) && !HasMutationContext()) {
             // Nested call or recovery.
             return TResolveResultHere{path};
         } else {
