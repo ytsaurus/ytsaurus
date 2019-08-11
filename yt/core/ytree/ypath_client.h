@@ -29,9 +29,9 @@ public:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
 
     TYPathRequest(
-        const TString& service,
-        const TString& method,
-        const NYPath::TYPath& path,
+        TString service,
+        TString method,
+        NYPath::TYPath path,
         bool mutating);
 
     virtual NRpc::TRequestId GetRequestId() const override;

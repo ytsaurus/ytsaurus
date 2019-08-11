@@ -42,17 +42,17 @@ TYPathRequest::TYPathRequest(const TRequestHeader& header)
 { }
 
 TYPathRequest::TYPathRequest(
-    const TString& service,
-    const TString& method,
-    const TYPath& path,
+    TString service,
+    TString method,
+    TYPath path,
     bool mutating)
 {
-    Header_.set_service(service);
-    Header_.set_method(method);
+    Header_.set_service(std::move(service));
+    Header_.set_method(std::move(method));
 
     auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     ypathExt->set_mutating(mutating);
-    ypathExt->set_path(path);
+    ypathExt->set_path(std::move(path));
 }
 
 bool TYPathRequest::IsHeavy() const
