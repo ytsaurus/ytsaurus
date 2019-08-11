@@ -93,21 +93,4 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheServiceConfig
-    : public NRpc::TThrottlingChannelConfig
-    , public TSlruCacheConfig
-{
-public:
-    TMasterCacheServiceConfig()
-    {
-        RegisterPreprocessor([&] () {
-            Capacity = 256_MB;
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterCacheServiceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NObjectServer
