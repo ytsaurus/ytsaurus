@@ -1686,10 +1686,13 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
             }
         return expected[initial][first_command][second_command]
 
+    def _create_cell(self):
+        self._cell_id = sync_create_cells(1)[0]
+
     def _get_callback(self, command):
         callbacks = {
-            "mount": lambda x: mount_table(x),
-            "frozen_mount": lambda x: mount_table(x, freeze=True),
+            "mount": lambda x: mount_table(x, cell_id=self._cell_id),
+            "frozen_mount": lambda x: mount_table(x, cell_id=self._cell_id, freeze=True),
             "unmount": lambda x: unmount_table(x),
             "freeze": lambda x: freeze_table(x),
             "unfreeze": lambda x: unfreeze_table(x)
@@ -1703,7 +1706,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         ["unmounted", "unfreeze"]])
     @authors("savrus")
     def test_initial_incompatible(self, initial, command):
-        sync_create_cells(1)
+        self._create_cell()
         self._create_sorted_table("//tmp/t")
 
         if initial == "mounted":
@@ -1731,29 +1734,25 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_mounted(self, first_command, second_command):
-        sync_create_cells(1)
+        self._create_cell()
         self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-        cell = get("//tmp/t/@tablets/0/cell_id")
-        sync_create_cells(1)
+        sync_mount_table("//tmp/t", cell_id=self._cell_id)
         self._do_test_transition("mounted", first_command, second_command)
 
     @authors("savrus", "levysotsky")
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_frozen(self, first_command, second_command):
-        sync_create_cells(1)
+        self._create_cell()
         self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t", freeze=True)
-        cell = get("//tmp/t/@tablets/0/cell_id")
-        sync_create_cells(1)
+        sync_mount_table("//tmp/t", cell_id=self._cell_id, freeze=True)
         self._do_test_transition("frozen", first_command, second_command)
 
     @authors("savrus")
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
     def test_state_transition_conflict_unmounted(self, first_command, second_command):
-        sync_create_cells(1)
+        self._create_cell()
         self._create_sorted_table("//tmp/t")
         self._do_test_transition("unmounted", first_command, second_command)
 
