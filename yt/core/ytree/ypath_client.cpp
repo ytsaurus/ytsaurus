@@ -218,10 +218,10 @@ const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
     return ext.path();
 }
 
-void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
 {
     auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    ext->set_path(path);
+    ext->set_path(std::move(path));
 }
 
 bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header)
