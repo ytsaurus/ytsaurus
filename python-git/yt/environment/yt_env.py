@@ -177,7 +177,7 @@ class YTInstance(object):
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
                  add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
-                 enable_structured_master_logging=False, use_native_client=False):
+                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True):
         # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
@@ -300,6 +300,7 @@ class YTInstance(object):
 
         if watcher_config is None:
             watcher_config = get_watcher_config()
+        self._run_watcher = run_watcher
         self.watcher_config = watcher_config
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
@@ -527,8 +528,9 @@ class YTInstance(object):
 
             self.synchronize()
 
-            self._start_watcher()
-            self._started = True
+            if self._run_watcher:
+                self._start_watcher()
+                self._started = True
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
@@ -548,8 +550,9 @@ class YTInstance(object):
     def stop_impl(self):
         killed_services = set()
 
-        self.kill_service("watcher")
-        killed_services.add("watcher")
+        if self._run_watcher:
+            self.kill_service("watcher")
+            killed_services.add("watcher")
 
         for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
             if name in self.configs:
