@@ -35,7 +35,7 @@ class WriteAceRemoved:
 
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 4 # some tests require 2 tablet cell peers + 2 spares
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
@@ -47,6 +47,9 @@ class DynamicTablesBase(YTEnvSetup):
         "tablet_manager": {
             "leader_reassignment_timeout" : 1000,
             "peer_revocation_timeout" : 3000,
+        },
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
         }
     }
 
