@@ -569,7 +569,8 @@ class YTEnvSetup(object):
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
-            enable_structured_master_logging=True)
+            enable_structured_master_logging=True,
+            run_watcher=arcadia_interop.yatest_common is not None)
 
         instance._cluster_name = cls.get_cluster_name(index)
 
