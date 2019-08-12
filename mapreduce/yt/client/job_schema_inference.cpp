@@ -149,7 +149,7 @@ TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetOutputTablePath(int index)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemaInferenceResult InferJobSchemas(
-    const IStructuredJob& job,
+    const IJob& job,
     const ISchemaInferenceContext& context)
 {
     TSchemaInferenceResultBuilder builder(context);

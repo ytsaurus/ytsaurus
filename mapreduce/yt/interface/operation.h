@@ -79,6 +79,9 @@ TTableStructure StructuredTableDescription();
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TVoidStructuredRowStream
+{ };
+
 struct TTNodeStructuredRowStream
 { };
 
@@ -95,6 +98,7 @@ struct TProtobufStructuredRowStream
 };
 
 using TStructuredRowStreamDescription = ::TVariant<
+    TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
     TYdlStructuredRowStream,
@@ -126,13 +130,30 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
-class TUserJobFormatHintsBase
+class TUserJobInputFormatHintsBase
 {
 public:
     using TSelf = TDerived;
 
     FLUENT_FIELD_OPTION(TFormatHints, InputFormatHints);
+};
+
+template <class TDerived>
+class TUserJobOutputFormatHintsBase
+{
+public:
+    using TSelf = TDerived;
+
     FLUENT_FIELD_OPTION(TFormatHints, OutputFormatHints);
+};
+
+template <class TDerived>
+class TUserJobFormatHintsBase
+    : public TUserJobInputFormatHintsBase<TDerived>
+    , public TUserJobOutputFormatHintsBase<TDerived>
+{
+public:
+    using TSelf = TDerived;
 };
 
 class TUserJobFormatHints
@@ -200,7 +221,7 @@ private:
     TVector<TRichYPath> MapOutputs_;
 };
 
-class TOperationIOSpecBase
+class TOperationInputSpecBase
 {
 public:
     template <class T, class = void>
@@ -214,6 +235,23 @@ public:
     template <class T>
     void SetInput(size_t tableIndex, const TRichYPath& path);
 
+    TVector<TRichYPath> Inputs_;
+
+    const TVector<TStructuredTablePath>& GetStructuredInputs() const;
+
+private:
+    TVector<TStructuredTablePath> StructuredInputs_;
+    friend struct TOperationIOSpecBase;
+    template <class T>
+    friend struct TOperationIOSpec;
+};
+
+class TOperationOutputSpecBase
+{
+public:
+    template <class T, class = void>
+    struct TFormatAdder;
+
     template <class T>
     void AddOutput(const TRichYPath& path);
 
@@ -222,18 +260,21 @@ public:
     template <class T>
     void SetOutput(size_t tableIndex, const TRichYPath& path);
 
-    TVector<TRichYPath> Inputs_;
     TVector<TRichYPath> Outputs_;
 
-    const TVector<TStructuredTablePath>& GetStructuredInputs() const;
     const TVector<TStructuredTablePath>& GetStructuredOutputs() const;
 
 private:
-    TVector<TStructuredTablePath> StructuredInputs_;
     TVector<TStructuredTablePath> StructuredOutputs_;
+    friend struct TOperationIOSpecBase;
     template <class T>
     friend struct TOperationIOSpec;
 };
+
+struct TOperationIOSpecBase
+    : public TOperationInputSpecBase
+    , public TOperationOutputSpecBase
+{ };
 
 template <class TDerived>
 struct TOperationIOSpec
@@ -658,14 +699,24 @@ private:
     FLUENT_FIELD_OPTION(TNode, ClusterConnection);
 };
 
-class IVanillaJob;
+class IVanillaJobBase;
 
 struct TVanillaTask
+    : public TOperationOutputSpecBase
+    , public TUserJobOutputFormatHintsBase<TVanillaTask>
 {
     using TSelf = TVanillaTask;
 
+    template <class T>
+    TSelf& AddOutput(const TRichYPath& path);
+
+    TSelf& AddStructuredOutput(TStructuredTablePath path);
+
+    template <class T>
+    TSelf& SetOutput(size_t tableIndex, const TRichYPath& path);
+
     FLUENT_FIELD(TString, Name);
-    FLUENT_FIELD(::TIntrusivePtr<IVanillaJob>, Job);
+    FLUENT_FIELD(::TIntrusivePtr<IVanillaJobBase>, Job);
     FLUENT_FIELD(TUserJobSpec, Spec);
     FLUENT_FIELD(ui64, JobCount);
 };
@@ -966,13 +1017,44 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IVanillaJob
-    : public IJob
+class IVanillaJobBase
+   : public virtual IStructuredJob
+{ };
+
+template <class TW = void>
+class IVanillaJob;
+
+template <>
+class IVanillaJob<void>
+    : public IVanillaJobBase
 {
 public:
     static constexpr EType JobType = EType::VanillaJob;
 
     virtual void Do() = 0;
+
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
+};
+
+template <class TW>
+class IVanillaJob
+    : public IVanillaJobBase
+{
+public:
+    static constexpr EType JobType = EType::VanillaJob;
+    using TWriter = TW;
+
+    virtual void Start(TWriter* /* writer */)
+    { }
+
+    virtual void Do(TWriter* writer) = 0;
+
+    virtual void Finish(TWriter* /* writer */)
+    { }
+
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -226,6 +226,8 @@ struct TFormatBuilder::TFormatSwitcher
             return &TFormatBuilder::CreateProtobufFormat;
         } else if constexpr (std::is_same_v<T, TYdlStructuredRowStream>) {
             return &TFormatBuilder::CreateNodeYdlFormat;
+        } else if constexpr (std::is_same_v<T, TVoidStructuredRowStream>) {
+            return &TFormatBuilder::CreateVoidFormat;
         } else {
             static_assert(TDependentFalse<T>::value, "unknown stream description");
         }
@@ -260,6 +262,20 @@ std::pair <TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateFormat(
         formatHints,
         nodeReaderFormat,
         allowFormatFromTableAttribute);
+}
+
+std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateVoidFormat(
+    const IStructuredJob& /*job*/,
+    const EIODirection& /*direction*/,
+    const TStructuredJobTableList& /*structuredTableList*/,
+    const TMaybe<TFormatHints>& /*formatHints*/,
+    ENodeReaderFormat /*nodeReaderFormat*/,
+    bool /*allowFormatFromTableAttribute*/)
+{
+    return {
+        TFormat(),
+        Nothing()
+    };
 }
 
 std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(

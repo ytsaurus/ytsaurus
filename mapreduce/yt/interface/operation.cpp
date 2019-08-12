@@ -12,26 +12,44 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TVector<TStructuredTablePath>& TOperationIOSpecBase::GetStructuredInputs() const
+const TVector<TStructuredTablePath>& TOperationInputSpecBase::GetStructuredInputs() const
 {
     return StructuredInputs_;
 }
 
-const TVector<TStructuredTablePath>& TOperationIOSpecBase::GetStructuredOutputs() const
+const TVector<TStructuredTablePath>& TOperationOutputSpecBase::GetStructuredOutputs() const
 {
     return StructuredOutputs_;
 }
 
-void TOperationIOSpecBase::AddStructuredInput(TStructuredTablePath path)
+void TOperationInputSpecBase::AddStructuredInput(TStructuredTablePath path)
 {
     Inputs_.push_back(path.RichYPath);
     StructuredInputs_.push_back(std::move(path));
 }
 
-void TOperationIOSpecBase::AddStructuredOutput(TStructuredTablePath path)
+void TOperationOutputSpecBase::AddStructuredOutput(TStructuredTablePath path)
 {
     Outputs_.push_back(path.RichYPath);
     StructuredOutputs_.push_back(std::move(path));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVanillaTask& TVanillaTask::AddStructuredOutput(TStructuredTablePath path)
+{
+    TOperationOutputSpecBase::AddStructuredOutput(std::move(path));
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStructuredRowStreamDescription IVanillaJob<void>::GetInputRowStreamDescription() const {
+    return TVoidStructuredRowStream();
+}
+
+TStructuredRowStreamDescription IVanillaJob<void>::GetOutputRowStreamDescription() const {
+    return TVoidStructuredRowStream();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
