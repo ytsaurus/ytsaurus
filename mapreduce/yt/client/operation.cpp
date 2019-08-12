@@ -2030,9 +2030,6 @@ TOperationId ExecuteVanilla(
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
-        if (options.CreateDebugOutputTables_) {
-            CreateDebugOutputTables(spec, preparer);
-        }
         if (HoldsAlternative<TVoidStructuredRowStream>(task.Job_->GetOutputRowStreamDescription())) {
             Y_ENSURE(task.Outputs_.empty(),
                 "Vanilla task with void IVanillaJob doesn't expect output tables");
@@ -2094,6 +2091,10 @@ TOperationId ExecuteVanilla(
                 .EndMap();
         }
     };
+
+    if (options.CreateDebugOutputTables_) {
+        CreateDebugOutputTables(spec, preparer);
+    }
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
