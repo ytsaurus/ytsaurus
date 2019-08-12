@@ -82,7 +82,7 @@ public:
         return index;
     }
 
-    const std::vector<TProtobufParserFieldDescription>& GetChildren() const &
+    const std::vector<TProtobufParserFieldDescription>& GetChildren() const
     {
         return Children_;
     }
@@ -565,7 +565,7 @@ private:
             }
             default: {
                 auto fieldNumber = WireFormatLite::GetTagFieldNumber(static_cast<ui32>(description.WireTag));
-                THROW_ERROR_EXCEPTION("Field has invalid type %Qv",
+                THROW_ERROR_EXCEPTION("Field has invalid type %Qlv",
                     description.Type)
                     << TErrorAttribute("field_number", fieldNumber)
                     << TErrorAttribute("table_index", TableIndex_)
