@@ -1,11 +1,10 @@
-package yt
+package yterrors
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 )

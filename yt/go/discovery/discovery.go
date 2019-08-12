@@ -41,6 +41,8 @@ import (
 	"sync"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/library/go/core/log"
 
 	"a.yandex-team.ru/yt/go/ypath"
@@ -191,7 +193,7 @@ func (m *Member) join(ctx context.Context) (err error) {
 	path := m.g.options.Root.Child(m.name)
 
 	_, err = m.tx.LockNode(ctx, path, yt.LockShared, lockOpts)
-	if err != nil && yt.ContainsErrorCode(err, yt.CodeResolveError) {
+	if err != nil && yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
 		_, err = m.g.yc.CreateNode(ctx, path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true})
 		if err != nil {
 			return

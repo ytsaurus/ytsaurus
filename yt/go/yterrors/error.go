@@ -1,13 +1,12 @@
-package yt
+package yterrors
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"a.yandex-team.ru/yt/go/yson"
+	"golang.org/x/xerrors"
 )
 
 type ErrorCode int

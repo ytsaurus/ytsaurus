@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/yt/go/yson"
 
 	"a.yandex-team.ru/yt/go/yttest"
@@ -70,6 +72,6 @@ func TestTransactions(t *testing.T) {
 
 		err = env.YT.PingTx(ctx, tx.ID(), nil)
 		require.Error(t, err)
-		require.True(t, yt.ContainsErrorCode(err, yt.CodeNoSuchTransaction))
+		require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
 	})
 }

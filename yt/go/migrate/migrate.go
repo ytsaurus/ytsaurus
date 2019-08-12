@@ -4,6 +4,8 @@ package migrate
 import (
 	"context"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/schema"
@@ -145,7 +147,7 @@ func EnsureTables(
 
 	retry:
 		if err := yc.GetNode(ctx, path.Attrs(), &attrs, nil); err != nil {
-			if yt.ContainsErrorCode(err, yt.CodeResolveError) {
+			if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
 				attrs := make(map[string]interface{})
 				for k, v := range table.Attributes {
 					attrs[k] = v

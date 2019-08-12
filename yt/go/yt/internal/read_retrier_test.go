@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
 )
 
 type zeroBackoff struct{}
@@ -44,8 +45,8 @@ func TestReadTransientErrors(t *testing.T) {
 		&netError{timeout: true},
 		&netError{temporary: true},
 		xerrors.Errorf("error: %w", &netError{timeout: true}),
-		yt.Err(yt.ErrorCode(1000000)),
-		xerrors.Errorf("error: %w", yt.Err(yt.ErrorCode(1000000))),
+		yterrors.Err(yterrors.ErrorCode(1000000)),
+		xerrors.Errorf("error: %w", yterrors.Err(yterrors.ErrorCode(1000000))),
 	} {
 		assert.True(t, isTransientError(e), "%+v", e)
 	}
@@ -53,7 +54,7 @@ func TestReadTransientErrors(t *testing.T) {
 
 func TestReadFatalErrors(t *testing.T) {
 	for _, e := range []error{
-		yt.Err(yt.ErrorCode(500)),
+		yterrors.Err(yterrors.ErrorCode(500)),
 		&netError{},
 	} {
 		assert.False(t, isTransientError(e), "%+v", e)

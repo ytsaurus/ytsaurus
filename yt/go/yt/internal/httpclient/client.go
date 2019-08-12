@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/yt/go/yson"
@@ -17,7 +19,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func decodeYTErrorFromHeaders(h http.Header) (ytErr *yt.Error, err error) {
+func decodeYTErrorFromHeaders(h http.Header) (ytErr *yterrors.Error, err error) {
 	header := h.Get("X-YT-Error")
 	if header == "" {
 		return nil, nil
@@ -26,7 +28,7 @@ func decodeYTErrorFromHeaders(h http.Header) (ytErr *yt.Error, err error) {
 	d := json.NewDecoder(bytes.NewBufferString(header))
 	d.UseNumber()
 
-	ytErr = &yt.Error{}
+	ytErr = &yterrors.Error{}
 	if decodeErr := d.Decode(ytErr); decodeErr != nil {
 		err = xerrors.Errorf("yt: malformed 'X-YT-Error' header: %w", decodeErr)
 	}
@@ -162,7 +164,7 @@ func unexpectedStatusCode(rsp *http.Response) error {
 	d := json.NewDecoder(rsp.Body)
 	d.UseNumber()
 
-	var ytErr yt.Error
+	var ytErr yterrors.Error
 	if err := d.Decode(&ytErr); err == nil {
 		return &ytErr
 	}
@@ -175,7 +177,7 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 
 	res = &internal.CallResult{}
 
-	var ytErr *yt.Error
+	var ytErr *yterrors.Error
 	ytErr, err = decodeYTErrorFromHeaders(rsp.Header)
 	if err != nil {
 		return
@@ -304,7 +306,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	if rsp.StatusCode != 200 {
 		defer func() { _ = rsp.Body.Close() }()
 
-		var callErr *yt.Error
+		var callErr *yterrors.Error
 		callErr, err = decodeYTErrorFromHeaders(rsp.Header)
 		if err == nil && callErr != nil {
 			err = callErr

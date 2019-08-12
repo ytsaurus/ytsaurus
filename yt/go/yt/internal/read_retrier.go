@@ -5,6 +5,8 @@ import (
 	"net"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -31,7 +33,7 @@ func isTransientError(err error) bool {
 		return netErr.Temporary() || netErr.Timeout()
 	}
 
-	if yt.ContainsErrorCode(err, CodeBalancerServiceUnavailable) {
+	if yterrors.ContainsErrorCode(err, CodeBalancerServiceUnavailable) {
 		return true
 	}
 

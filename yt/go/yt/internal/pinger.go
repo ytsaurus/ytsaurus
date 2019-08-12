@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/yt/go/yt"
 )
 
@@ -124,7 +126,7 @@ func (p *pinger) run() {
 
 		case <-ticker.C:
 			err := p.yc.PingTx(p.ctx, p.txID, nil)
-			if yt.ContainsErrorCode(err, yt.CodeNoSuchTransaction) {
+			if yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction) {
 				_ = p.tryAbort()
 				return
 			}

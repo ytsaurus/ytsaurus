@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/yt"
@@ -53,7 +55,7 @@ func TestFiles(t *testing.T) {
 
 			_, err := env.YT.ReadFile(ctx, name, nil)
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, 500))
+			require.True(t, yterrors.ContainsErrorCode(err, 500))
 		})
 
 		t.Run("WriteFileError", func(t *testing.T) {
@@ -66,7 +68,7 @@ func TestFiles(t *testing.T) {
 
 			err = w.Close()
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, 500))
+			require.True(t, yterrors.ContainsErrorCode(err, 500))
 		})
 	})
 }
