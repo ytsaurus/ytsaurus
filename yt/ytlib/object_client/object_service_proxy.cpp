@@ -159,15 +159,10 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
     std::optional<TString> key,
     std::optional<size_t> hash)
 {
-    TSharedRefArray innerRequestMessage;
-    if (innerRequest) {
-        innerRequestMessage = innerRequest->Serialize();
-    }
-
     InnerRequestDescriptors_.push_back({
         std::move(key),
         innerRequest->Tag(),
-        std::move(innerRequestMessage),
+        innerRequest->Serialize(),
         hash
     });
 }
