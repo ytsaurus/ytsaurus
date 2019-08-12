@@ -52,7 +52,7 @@ TYPathRequest::TYPathRequest(
 
     auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     ypathExt->set_mutating(mutating);
-    ypathExt->set_path(std::move(path));
+    ypathExt->set_target_path(std::move(path));
 }
 
 bool TYPathRequest::IsHeavy() const
@@ -214,14 +214,14 @@ void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::
 
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
-    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ext.path();
+    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ypathExt.target_path();
 }
 
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
 {
-    auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    ext->set_path(std::move(path));
+    auto* ypathExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_target_path(std::move(path));
 }
 
 bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header)

@@ -134,13 +134,8 @@ public:
          *  Each individual request may be marked with a key.
          *  These keys can be used to retrieve the corresponding responses
          *  (thus avoiding complicated and error-prone index calculations).
-         *
-         *  The client is allowed to issue an empty (|nullptr|) request. This request is treated
-         *  like any other and is sent to the server. The server typically sends an empty (|nullptr|)
-         *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
-         // TODO(babenko): eliminate empty subrequests
          void AddRequest(
             const NYTree::TYPathRequestPtr& innerRequest,
             std::optional<TString> key = std::nullopt,

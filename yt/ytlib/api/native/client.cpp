@@ -3106,7 +3106,10 @@ private:
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
+        // COMPAT(babenko)
         req->set_source_path(srcPath);
+        auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ypathExt->add_additional_paths(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_preserve_creation_time(options.PreserveCreationTime);
@@ -3135,7 +3138,10 @@ private:
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
+        // COMPAT(babenko)
         req->set_source_path(srcPath);
+        auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ypathExt->add_additional_paths(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_remove_source(true);
