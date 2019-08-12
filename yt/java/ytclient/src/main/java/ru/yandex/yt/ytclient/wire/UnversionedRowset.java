@@ -26,11 +26,15 @@ public class UnversionedRowset {
     }
 
     public List<YTreeMapNode> getYTreeRows() {
+        return getYTreeRows(false);
+    }
+
+    public List<YTreeMapNode> getYTreeRows(boolean ignoreSystemColumns) {
         return new AbstractList<YTreeMapNode>() {
             @Override
             public YTreeMapNode get(int index) {
                 UnversionedRow row = rows.get(index);
-                return row != null ? row.toYTreeMap(schema) : null;
+                return row != null ? row.toYTreeMap(schema, ignoreSystemColumns) : null;
             }
 
             @Override

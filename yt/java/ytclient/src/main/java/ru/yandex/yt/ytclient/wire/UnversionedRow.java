@@ -48,21 +48,32 @@ public class UnversionedRow {
     }
 
     public void writeTo(YTreeConsumer consumer, TableSchema schema) {
+        writeTo(consumer, schema, false);
+    }
+
+    public void writeTo(YTreeConsumer consumer, TableSchema schema, boolean ignoreSystemColumns) {
         consumer.onBeginMap();
-        for (int index = 0; index < values.size(); index++) {
-            if (index >= schema.getColumns().size()) {
-                break;
-            }
+        for (UnversionedValue value : values)  {
+            int index = value.getId();
             String name = schema.getColumnName(index);
+
+            if (ignoreSystemColumns && name.startsWith("$")) {
+                continue;
+            }
+
             consumer.onKeyedItem(name);
-            values.get(index).writeTo(consumer);
+            value.writeTo(consumer);
         }
         consumer.onEndMap();
     }
 
     public YTreeMapNode toYTreeMap(TableSchema schema) {
+        return toYTreeMap(schema, false);
+    }
+
+    public YTreeMapNode toYTreeMap(TableSchema schema, boolean ignoreSystemColumns) {
         YTreeBuilder builder = YTree.builder();
-        writeTo(builder, schema);
+        writeTo(builder, schema, ignoreSystemColumns);
         return builder.build().mapNode();
     }
 }
