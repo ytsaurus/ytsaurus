@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"github.com/gofrs/uuid/v3"
 	"github.com/stretchr/testify/require"
 
@@ -160,7 +162,7 @@ func TestCypress(t *testing.T) {
 
 			err := env.YT.RemoveNode(ctx, name, nil)
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, yt.ErrorCode(500)))
+			require.True(t, yterrors.ContainsErrorCode(err, yterrors.ErrorCode(500)))
 
 			_, err = env.YT.CreateNode(ctx, name, yt.NodeMap, nil)
 			require.NoError(t, err)

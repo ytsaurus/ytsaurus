@@ -3,7 +3,7 @@ package misc
 import (
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 func NewErrorFromProto(proto *TError) error {
@@ -11,9 +11,9 @@ func NewErrorFromProto(proto *TError) error {
 		return nil
 	}
 
-	var err yt.Error
+	var err yterrors.Error
 	if proto.Code != nil {
-		err.Code = yt.ErrorCode(*proto.Code)
+		err.Code = yterrors.ErrorCode(*proto.Code)
 	}
 	err.Message = proto.GetMessage()
 
@@ -35,7 +35,7 @@ func NewErrorFromProto(proto *TError) error {
 	}
 
 	for _, inner := range proto.InnerErrors {
-		err.InnerErrors = append(err.InnerErrors, NewErrorFromProto(inner).(*yt.Error))
+		err.InnerErrors = append(err.InnerErrors, NewErrorFromProto(inner).(*yterrors.Error))
 	}
 
 	if err.Code != 0 {

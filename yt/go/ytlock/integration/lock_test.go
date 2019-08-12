@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/ytlock"
@@ -92,7 +94,7 @@ func TestConcurrentLocks(t *testing.T) {
 	secondLock := ytlock.NewLock(env.YT, path)
 	_, err = secondLock.Acquire(env.Ctx)
 	require.Error(t, err)
-	require.True(t, yt.ContainsErrorCode(err, yt.CodeConcurrentTransactionLockConflict))
+	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict))
 
 	require.NoError(t, firstLock.Release(env.Ctx))
 	t.Logf("Released first lock")

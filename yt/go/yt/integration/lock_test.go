@@ -3,6 +3,8 @@ package integration
 import (
 	"testing"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/ypath"
@@ -39,7 +41,7 @@ func TestLocks(t *testing.T) {
 
 			_, err = tx1.LockNode(env.Ctx, name, yt.LockExclusive, nil)
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, yt.ErrorCode(402)))
+			require.True(t, yterrors.ContainsErrorCode(err, yterrors.ErrorCode(402)))
 		})
 
 		t.Run("Shared/Exclusive", func(t *testing.T) {
@@ -50,7 +52,7 @@ func TestLocks(t *testing.T) {
 
 			_, err = tx1.LockNode(env.Ctx, name, yt.LockShared, nil)
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, yt.ErrorCode(402)))
+			require.True(t, yterrors.ContainsErrorCode(err, yterrors.ErrorCode(402)))
 		})
 
 		t.Run("Shared/Shared", func(t *testing.T) {
@@ -76,7 +78,7 @@ func TestLocks(t *testing.T) {
 
 			_, err = tx1.LockNode(env.Ctx, name, yt.LockShared, options)
 			require.Error(t, err)
-			require.True(t, yt.ContainsErrorCode(err, yt.ErrorCode(402)))
+			require.True(t, yterrors.ContainsErrorCode(err, yterrors.ErrorCode(402)))
 		})
 	})
 }

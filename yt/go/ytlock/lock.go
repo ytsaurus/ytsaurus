@@ -5,6 +5,8 @@ import (
 	"context"
 	"sync"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/yt/go/yson"
 
 	"a.yandex-team.ru/library/go/core/xerrors"
@@ -22,7 +24,7 @@ type WinnerTx struct {
 
 // FindConflictWinner returns information about a process holding the lock that caused the conflict.
 func FindConflictWinner(err error) *WinnerTx {
-	if ytErr := yt.FindErrorCode(err, yt.CodeConcurrentTransactionLockConflict); ytErr != nil {
+	if ytErr := yterrors.FindErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict); ytErr != nil {
 		var winner WinnerTx
 
 		winnerTx, ok := ytErr.Attributes["winner_transaction"]
@@ -161,7 +163,7 @@ func (l *Lock) AcquireTx(ctx context.Context) (lockTx yt.Tx, err error) {
 	}
 
 	_, err = tx.LockNode(ctx, l.Path, l.Options.LockMode, opts)
-	if yt.ContainsErrorCode(err, yt.CodeResolveError) && l.Options.CreateIfMissing {
+	if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) && l.Options.CreateIfMissing {
 		_, err = l.Yc.CreateNode(ctx, l.Path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true})
 		if err != nil {
 			return

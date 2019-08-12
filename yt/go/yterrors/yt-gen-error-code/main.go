@@ -137,7 +137,7 @@ func main() {
 		return ec[i].value < ec[j].value
 	})
 
-	fmt.Println("package yt")
+	fmt.Println("package yterrors")
 	fmt.Println("import \"fmt\"")
 
 	fmt.Println("const (")

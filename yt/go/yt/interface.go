@@ -36,6 +36,8 @@ import (
 	"context"
 	"io"
 
+	"a.yandex-team.ru/yt/go/yterrors"
+
 	"a.yandex-team.ru/yt/go/schema"
 
 	"a.yandex-team.ru/yt/go/guid"
@@ -534,7 +536,7 @@ type GetOperationOptions struct {
 }
 
 type OperationResult struct {
-	Error *Error `yson:"error"`
+	Error *yterrors.Error `yson:"error"`
 }
 
 type OperationStatus struct {
