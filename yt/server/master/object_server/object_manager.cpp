@@ -1279,7 +1279,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
         batchReq->GetRequestId(),
         header.service(),
         header.method(),
-        ypathExt.path(),
+        ypathExt.target_path(),
         header.user(),
         ypathExt.mutating(),
         cellTag,

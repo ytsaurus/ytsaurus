@@ -217,8 +217,8 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
         delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
 
-        if (!ypathExt.path().empty()) {
-            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.path());
+        if (!ypathExt.target_path().empty()) {
+            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.target_path());
         }
 
         context->SetRawRequestInfo(builder.Flush(), true);

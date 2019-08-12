@@ -1318,7 +1318,7 @@ protected:
         builder.AppendFormat("%v:%v %v <- ",
             GetService(),
             GetMethod(),
-            ypathExt.path());
+            ypathExt.target_path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
@@ -1357,7 +1357,7 @@ protected:
         builder.AppendFormat("%v:%v %v -> ",
             GetService(),
             GetMethod(),
-            ypathExt.path());
+            ypathExt.target_path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 

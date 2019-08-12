@@ -1383,7 +1383,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     DeclareMutating();
 
-    auto sourcePath = request->source_path();
+    // COMPAT(babenko)
+    const auto& targetPath = GetRequestYPath(context->RequestHeader());
+    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    auto sourcePath = ypathExt.additional_paths_size() == 1
+        ? ypathExt.additional_paths(0)
+        : request->source_path();
     bool preserveAccount = request->preserve_account();
     bool preserveExpirationTime = request->preserve_expiration_time();
     bool preserveCreationTime = request->preserve_creation_time();
@@ -1392,7 +1397,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
-    auto targetPath = GetRequestYPath(context->RequestHeader());
 
     context->SetRequestInfo("SourcePath: %v, TransactionId: %v "
         "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
