@@ -1722,6 +1722,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (GetReadOnly()) {
+            return;
+        }
+
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
         CommitMutation(TMutationRequest())
@@ -1729,7 +1733,7 @@ private:
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
-                } else {
+                } else if (!GetReadOnly()) {
                     Restart(
                         weakEpochContext,
                         TError("Heartbeat mutation commit failed") << result);
