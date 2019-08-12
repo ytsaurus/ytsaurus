@@ -340,7 +340,11 @@ private:
 
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
 
-            chunkSpecFetcher->Add(FromObjectId(table.ObjectId), table.ExternalCellTag, table.ChunkCount, table.Path.GetRanges());
+            chunkSpecFetcher->Add(
+                table.ObjectId,
+                table.ExternalCellTag,
+                table.ChunkCount,
+                table.Path.GetRanges());
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
