@@ -137,7 +137,7 @@ def create_nodes(
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
         slot_capacity=None,
-        disk_spec=None,
+        disk_specs=None,
         vlan_id="backbone",
         subnet="1:2:3:4::/64",
         node_ids=None):
@@ -147,7 +147,11 @@ def create_nodes(
         storage_class="hdd",
         supported_policies=["quota", "exclusive"],
     )
-    disk_spec = update(disk_spec_defaults, get_value(disk_spec, {}))
+    if disk_specs is None:
+        disk_specs = [disk_spec_defaults]
+
+    for i in xrange(len(disk_specs)):
+        disk_specs[i] = update(disk_spec_defaults, disk_specs[i])
 
     assert (node_count is None) != (node_ids is None)
     if node_ids is None:
@@ -198,14 +202,16 @@ def create_nodes(
                     }
                 }
             })
-        yp_client.create_object("resource", attributes={
+        for spec in disk_specs:
+            yp_client.create_object("resource", attributes={
                 "meta": {
                     "node_id": node_id
                 },
                 "spec": {
-                    "disk": disk_spec
+                    "disk": spec
                 }
             })
+
         if slot_capacity is not None:
             yp_client.create_object("resource", attributes={
                     "meta": {

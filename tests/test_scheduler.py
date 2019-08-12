@@ -527,7 +527,7 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         disk_total_capacity = 2 * (10 ** 10)
-        create_nodes(yp_client, node_count=1, disk_spec=dict(total_capacity=disk_total_capacity))
+        create_nodes(yp_client, node_count=1, disk_specs=[dict(total_capacity=disk_total_capacity)])
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
 
@@ -831,7 +831,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         return dict(
             cpu_total_capacity=10 ** 3,
             memory_total_capacity=10 ** 10,
-            disk_spec=dict(total_capacity=10 ** 12),
+            disk_specs=[dict(total_capacity=10 ** 12)],
             vlan_id="backbone",
         )
 
@@ -961,7 +961,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_disk_scheduling_error(self, yp_env_configurable):
-        disk_total_capacity = self._get_default_node_configuration()["disk_spec"]["total_capacity"]
+        disk_total_capacity = self._get_default_node_configuration()["disk_specs"][0]["total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             disk_volume_requests=[
@@ -978,7 +978,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
     def test_cpu_memory_disk_scheduling_errors(self, yp_env_configurable):
         cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
         memory_total_capacity = self._get_default_node_configuration()["memory_total_capacity"]
-        disk_total_capacity = self._get_default_node_configuration()["disk_spec"]["total_capacity"]
+        disk_total_capacity = self._get_default_node_configuration()["disk_specs"][0]["total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             resource_requests=dict(
@@ -1048,10 +1048,10 @@ def _stress_test_scheduler(yp_client, create_pods_in_one_transaction=False):
         hfsm_state="up",
         cpu_total_capacity=POD_CPU_CAPACITY * POD_PER_NODE_COUNT,
         memory_total_capacity=POD_MEMORY_CAPACITY * POD_PER_NODE_COUNT,
-        disk_spec=dict(
+        disk_specs=[dict(
             total_capacity=POD_DISK_CAPACITY * POD_PER_NODE_COUNT,
             total_volume_slots=POD_PER_NODE_COUNT,
-        )
+        )]
     )
 
     transaction_id = None

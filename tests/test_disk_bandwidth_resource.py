@@ -59,13 +59,13 @@ class TestDiskBandwidthResource(object):
         read_operation_rate_divisor = 10.0 ** 6
 
         def create_node(total_bandwidth):
-            node_ids = create_nodes(yp_client, 1, disk_spec=dict(
+            node_ids = create_nodes(yp_client, 1, disk_specs=[dict(
                 total_bandwidth=total_bandwidth,
                 read_bandwidth_factor=read_bandwidth_factor,
                 write_bandwidth_factor=write_bandwidth_factor,
                 read_operation_rate_divisor=read_operation_rate_divisor,
                 # Parameter #write_operation_rate_divisor is missed intentionally.
-            ))
+            )])
             assert len(node_ids) == 1
             return node_ids[0]
 
@@ -179,12 +179,12 @@ class TestDiskBandwidthResource(object):
     def test_factors_and_divisors_validation(self, yp_env):
         yp_client = yp_env.yp_client
 
-        def get_disk_spec(parameter_name, value):
+        def get_disk_specs(parameter_name, value):
             disk_spec = {
                 "total_bandwidth": 1,
             }
             disk_spec[parameter_name] = value
-            return disk_spec
+            return [disk_spec]
 
         for bad_value in (1e-9, -100.0, 0.0, -1e-9, 1e10):
             for parameter_name in ("read_operation_rate_divisor",
@@ -192,18 +192,18 @@ class TestDiskBandwidthResource(object):
                                    "read_bandwidth_factor",
                                    "write_bandwidth_factor"):
                 with pytest.raises(YtResponseError) as error:
-                    create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, bad_value))
-                create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, 1.0))
+                    create_nodes(yp_client, 1, disk_specs=get_disk_specs(parameter_name, bad_value))
+                create_nodes(yp_client, 1, disk_specs=get_disk_specs(parameter_name, 1.0))
 
     def test_update_limits_without_rescheduling(self, yp_env):
         yp_client = yp_env.yp_client
 
-        create_nodes(yp_client, 1, disk_spec=dict(
+        create_nodes(yp_client, 1, disk_specs=[dict(
             read_bandwidth_factor=1.0,
             write_bandwidth_factor=1.0,
             read_operation_rate_divisor=1.0,
             write_operation_rate_divisor=1.0,
-        ))
+        )])
 
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
 

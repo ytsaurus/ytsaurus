@@ -105,55 +105,11 @@ class TestPods(object):
 
     def _create_node(self, yp_client, cpu_capacity=0, memory_capacity=0, hdd_capacity=0, hdd_volume_slots = 10, ssd_capacity=0, ssd_volume_slots=10):
         node_id = "test.yandex.net"
-        assert yp_client.create_object("node", attributes={
-            "meta": {
-                "id": node_id
-            }
-        }) == node_id
-        yp_client.create_object("resource", attributes={
-            "meta": {
-                "node_id": node_id
-            },
-            "spec": {
-                "cpu": {"total_capacity": cpu_capacity}
-            }
-        })
-        yp_client.create_object("resource", attributes={
-            "meta": {
-                "node_id": node_id
-            },
-            "spec": {
-                "memory": {"total_capacity": memory_capacity}
-            }
-        })
-        yp_client.create_object("resource", attributes={
-            "meta": {
-                "node_id": node_id
-            },
-            "spec": {
-                "disk": {
-                    "total_capacity": hdd_capacity,
-                    "total_volume_slots": hdd_volume_slots,
-                    "supported_policies": ["quota", "exclusive"],
-                    "storage_class": "hdd",
-                    "device": "/dev/hdd"
-                }
-            }
-        })
-        yp_client.create_object("resource", attributes={
-            "meta": {
-                "node_id": node_id
-            },
-            "spec": {
-                "disk": {
-                    "total_capacity": ssd_capacity,
-                    "total_volume_slots": ssd_volume_slots,
-                    "supported_policies": ["quota", "exclusive"],
-                    "storage_class": "ssd",
-                    "device": "/dev/ssd"
-                }
-            }
-        })
+        assert create_nodes(yp_client, node_ids=[node_id],
+                            cpu_total_capacity=cpu_capacity,
+                            memory_total_capacity=memory_capacity,
+                            disk_specs=[{"total_capacity": hdd_capacity, "total_volume_slots": hdd_volume_slots, "device": "/dev/hdd"},
+                                        {"total_capacity": ssd_capacity, "total_volume_slots": ssd_volume_slots, "device": "/dev/ssd", "storage_class": "ssd"}]) == [node_id]
         return node_id
 
     def test_pod_set_required_on_create(self, yp_env):
