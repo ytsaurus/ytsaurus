@@ -192,6 +192,52 @@ ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHi
 }
 
 template <class TSpec>
+const TVector<TStructuredTablePath>& GetStructuredInputs(const TSpec& spec)
+{
+    if constexpr (std::is_same<TSpec, TVanillaTask>::value) {
+        static const TVector<TStructuredTablePath> empty;
+        return empty;
+    } else {
+        return spec.GetStructuredInputs();
+    }
+}
+
+template <class TSpec>
+const TVector<TStructuredTablePath>& GetStructuredOutputs(const TSpec& spec)
+{
+    return spec.GetStructuredOutputs();
+}
+
+template <class TSpec>
+const TMaybe<TFormatHints>& GetInputFormatHints(const TSpec& spec)
+{
+    if constexpr (std::is_same<TSpec, TVanillaTask>::value) {
+        static const TMaybe<TFormatHints> empty = Nothing();
+        return empty;
+    } else {
+        return spec.InputFormatHints_;
+    }
+}
+
+template <class TSpec>
+const TMaybe<TFormatHints>& GetOutputFormatHints(const TSpec& spec)
+{
+    return spec.OutputFormatHints_;
+}
+
+template <class TSpec>
+ENodeReaderFormat GetNodeReaderFormat(const TSpec& spec, bool allowSkiff)
+{
+    if constexpr (std::is_same<TSpec, TVanillaTask>::value) {
+        return ENodeReaderFormat::Yson;
+    } else {
+        return allowSkiff
+            ? NodeReaderFormatFromHintAndGlobalConfig(spec)
+            : ENodeReaderFormat::Yson;
+    }
+}
+
+template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const IStructuredJob& structuredJob,
     const TOperationPreparer& preparer,
@@ -199,16 +245,17 @@ TSimpleOperationIo CreateSimpleOperationIo(
     const TOperationOptions& options,
     bool allowSkiff)
 {
-    VerifyHasElements(spec.Inputs_, "input");
-    VerifyHasElements(spec.Outputs_, "output");
+    if (!HoldsAlternative<TVoidStructuredRowStream>(structuredJob.GetInputRowStreamDescription())) {
+        VerifyHasElements(GetStructuredInputs(spec), "input");
+    }
+    if (!HoldsAlternative<TVoidStructuredRowStream>(structuredJob.GetOutputRowStreamDescription())) {
+        VerifyHasElements(GetStructuredOutputs(spec), "output");
+    }
 
-    const auto structuredInputs= CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
-    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
+    const auto structuredInputs= CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredInputs(spec));
+    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec));
 
-    ENodeReaderFormat nodeReaderFormat =
-        allowSkiff
-        ? NodeReaderFormatFromHintAndGlobalConfig(spec)
-        : ENodeReaderFormat::Yson;
+    ENodeReaderFormat nodeReaderFormat = GetNodeReaderFormat(spec, allowSkiff);
 
     TVector<TSmallJobFile> formatConfigList;
     TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
@@ -218,7 +265,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         EIODirection::Input,
         structuredInputs,
-        spec.InputFormatHints_,
+        GetInputFormatHints(spec),
         nodeReaderFormat,
         /* allowFormatFromTableAttribute = */ true);
 
@@ -227,7 +274,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         EIODirection::Output,
         structuredOutputs,
-        spec.OutputFormatHints_,
+        GetOutputFormatHints(spec),
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
 
@@ -1982,23 +2029,70 @@ TOperationId ExecuteVanilla(
     LOG_DEBUG("Starting vanilla operation");
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
-        TJobPreparer jobPreparer(
-            preparer,
-            task.Spec_,
-            *task.Job_,
-            /* outputTableCount = */ 0,
-            /* smallFileList = */ {},
-            options);
-        fluent
-            .Item(task.Name_).BeginMap()
-                .Item("job_count").Value(task.JobCount_)
-                .Do(std::bind(
-                    BuildUserJobFluently1,
-                    std::cref(jobPreparer),
-                    /* inputFormat = */ Nothing(),
-                    /* outputFormat = */ Nothing(),
-                    std::placeholders::_1))
-            .EndMap();
+        Y_VERIFY(task.Job_.Get());
+        if (options.CreateDebugOutputTables_) {
+            CreateDebugOutputTables(spec, preparer);
+        }
+        if (HoldsAlternative<TVoidStructuredRowStream>(task.Job_->GetOutputRowStreamDescription())) {
+            Y_ENSURE(task.Outputs_.empty(),
+                "Vanilla task with void IVanillaJob doesn't expect output tables");
+            TJobPreparer jobPreparer(
+                preparer,
+                task.Spec_,
+                *task.Job_,
+                /* outputTableCount */ 0,
+                /* smallFileList */ {},
+                options);
+            fluent
+                .Item(task.Name_).BeginMap()
+                    .Item("job_count").Value(task.JobCount_)
+                    .Do(std::bind(
+                        BuildUserJobFluently1,
+                        std::cref(jobPreparer),
+                        /* inputFormat */ Nothing(),
+                        /* outputFormat */ Nothing(),
+                        std::placeholders::_1))
+                .EndMap();
+        } else {
+            auto operationIo = CreateSimpleOperationIo(
+                *task.Job_,
+                preparer,
+                task,
+                options,
+                false);
+            Y_ENSURE(operationIo.Outputs.size(),
+                "Vanilla task with IVanillaJob that has table writer expects output tables");
+            if (options.CreateOutputTables_) {
+                CreateOutputTables(preparer, operationIo.Outputs);
+            }
+            TJobPreparer jobPreparer(
+                preparer,
+                task.Spec_,
+                *task.Job_,
+                operationIo.Outputs.size(),
+                operationIo.JobFiles,
+                options);
+            fluent
+                .Item(task.Name_).BeginMap()
+                    .Item("job_count").Value(task.JobCount_)
+                    .Do(std::bind(
+                        BuildUserJobFluently1,
+                        std::cref(jobPreparer),
+                        /* inputFormat */ Nothing(),
+                        operationIo.OutputFormat,
+                        std::placeholders::_1))
+                    .Item("output_table_paths").List(operationIo.Outputs)
+                    .Item("job_io").BeginMap()
+                        .DoIf(!TConfig::Get()->TableWriter.Empty(), [&](TFluentMap fluent) {
+                            fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+                        })
+                        .Item("control_attributes").BeginMap()
+                            .Item("enable_row_index").Value(TNode(true))
+                            .Item("enable_range_index").Value(TNode(true))
+                        .EndMap()
+                    .EndMap()
+                .EndMap();
+        }
     };
 
     TNode specNode = BuildYsonNodeFluently()

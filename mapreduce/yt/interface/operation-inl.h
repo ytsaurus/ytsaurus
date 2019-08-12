@@ -264,14 +264,14 @@ inline TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void TOperationIOSpecBase::AddInput(const TRichYPath& path)
+void TOperationInputSpecBase::AddInput(const TRichYPath& path)
 {
     Inputs_.push_back(path);
     StructuredInputs_.emplace_back(Structured<T>(path));
 }
 
 template <class T>
-void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
+void TOperationInputSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 {
     NDetail::Assign(Inputs_, tableIndex, path);
     NDetail::Assign(StructuredInputs_, tableIndex, Structured<T>(path));
@@ -279,14 +279,14 @@ void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 
 
 template <class T>
-void TOperationIOSpecBase::AddOutput(const TRichYPath& path)
+void TOperationOutputSpecBase::AddOutput(const TRichYPath& path)
 {
     Outputs_.push_back(path);
     StructuredOutputs_.emplace_back(Structured<T>(path));
 }
 
 template <class T>
-void TOperationIOSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
+void TOperationOutputSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
     NDetail::Assign(Outputs_, tableIndex, path);
     NDetail::Assign(StructuredOutputs_, tableIndex, Structured<T>(path));
@@ -297,7 +297,7 @@ template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddInput(const TRichYPath& path)
 {
     static_assert(!std::is_same<T, Message>::value, "input type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
-    TOperationIOSpecBase::AddInput<T>(path);
+    TOperationInputSpecBase::AddInput<T>(path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -306,7 +306,7 @@ template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
 {
     static_assert(!std::is_same<T, Message>::value, "input type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
-    TOperationIOSpecBase::SetInput<T>(tableIndex, path);
+    TOperationInputSpecBase::SetInput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -316,7 +316,7 @@ template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 {
     static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
-    TOperationIOSpecBase::AddOutput<T>(path);
+    TOperationOutputSpecBase::AddOutput<T>(path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -325,22 +325,40 @@ template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
     static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
-    TOperationIOSpecBase::SetOutput<T>(tableIndex, path);
+    TOperationOutputSpecBase::SetOutput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddStructuredInput(TStructuredTablePath path)
 {
-    TOperationIOSpecBase::AddStructuredInput(std::move(path));
+    TOperationInputSpecBase::AddStructuredInput(std::move(path));
     return *static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddStructuredOutput(TStructuredTablePath path)
 {
-    TOperationIOSpecBase::AddStructuredOutput(std::move(path));
+    TOperationOutputSpecBase::AddStructuredOutput(std::move(path));
     return *static_cast<TDerived*>(this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TVanillaTask& TVanillaTask::AddOutput(const TRichYPath& path)
+{
+    static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
+    TOperationOutputSpecBase::AddOutput<T>(path);
+    return *this;
+}
+
+template <class T>
+TVanillaTask& TVanillaTask::SetOutput(size_t tableIndex, const TRichYPath& path)
+{
+    static_assert(!std::is_same<T, Message>::value, "output type can't be Message, it can only be its strict subtype (see st.yandex-team.ru/YT-7609)");
+    TOperationOutputSpecBase::SetOutput<T>(tableIndex, path);
+    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -525,10 +543,24 @@ int RunRawJob(size_t outputTableCount, IInputStream& jobStateStream)
 template <class TVanillaJob>
 int RunVanillaJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
-    Y_VERIFY(outputTableCount == 0, "Vanilla job doesn't expect nonzero 'outputTableCount'");
     TVanillaJob job;
     job.Load(jobStateStream);
-    job.Do();
+
+    if constexpr (std::is_base_of<IVanillaJob<>, TVanillaJob>::value) {
+        Y_VERIFY(outputTableCount == 0, "Void vanilla job expects zero 'outputTableCount'");
+        job.Do();
+    } else {
+        Y_VERIFY(outputTableCount, "Vanilla job with table writer expects nonzero 'outputTableCount'");
+        using TOutputRow = typename TVanillaJob::TWriter::TRowType;
+
+        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+
+        job.Start(writer.Get());
+        job.Do(writer.Get());
+        job.Finish(writer.Get());
+
+        writer->Finish();
+    }
     return 0;
 }
 
@@ -782,6 +814,18 @@ TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetInputRo
 
 template <typename TReader, typename TWriter>
 TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetOutputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TWriter>
+TStructuredRowStreamDescription IVanillaJob<TWriter>::GetInputRowStreamDescription() const {
+    return TVoidStructuredRowStream();
+}
+
+template <typename TWriter>
+TStructuredRowStreamDescription IVanillaJob<TWriter>::GetOutputRowStreamDescription() const {
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 

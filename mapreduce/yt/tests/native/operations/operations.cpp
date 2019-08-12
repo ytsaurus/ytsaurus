@@ -570,7 +570,7 @@ REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaAppendingToFile : public IVanillaJob
+class TVanillaAppendingToFile : public IVanillaJob<>
 {
 public:
     TVanillaAppendingToFile() = default;
@@ -595,7 +595,31 @@ REGISTER_VANILLA_JOB(TVanillaAppendingToFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFailingVanilla : public IVanillaJob
+class TVanillaWithTableOutput
+    : public IVanillaJob<TTableWriter<TNode>>
+{
+public:
+    void Start(TWriter* writer) override
+    {
+        writer->AddRow(TNode()("first", 0)("second", 0), 0);
+    }
+
+    void Do(TWriter* writer) override
+    {
+        writer->AddRow(TNode()("first", 1)("second", 2), 0);
+        writer->AddRow(TNode()("first", 3)("second", 4), 1);
+    }
+
+    void Finish(TWriter* writer) override
+    {
+        writer->AddRow(TNode()("first", 0)("second", 0), 1);
+    }
+};
+REGISTER_VANILLA_JOB(TVanillaWithTableOutput);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFailingVanilla : public IVanillaJob<>
 {
 public:
     void Do() override
@@ -608,7 +632,7 @@ REGISTER_VANILLA_JOB(TFailingVanilla);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaWithPorts : public IVanillaJob
+class TVanillaWithPorts : public IVanillaJob<>
 {
 public:
     TVanillaWithPorts() = default;
@@ -2280,6 +2304,37 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(stream.ReadAll().size(), (firstJobCount + secondJobCount) * message.size());
     }
 
+    Y_UNIT_TEST(VanillaTableOutput)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto outputTable1 = TRichYPath(workingDir + "/output1");
+        auto outputTable2 = TRichYPath(workingDir + "/output2");
+
+        client->RunVanilla(TVanillaOperationSpec()
+            .AddTask(TVanillaTask()
+                .AddOutput<TNode>(outputTable1)
+                .AddOutput<TNode>(outputTable2)
+                .Job(new TVanillaWithTableOutput)
+                .JobCount(1)
+                .Name("vanilla")));
+
+        TVector<TNode> expected1 = {
+            TNode()("first", 0)("second", 0),
+            TNode()("first", 1)("second", 2)
+        };
+        TVector<TNode> expected2 = {
+            TNode()("first", 3)("second", 4),
+            TNode()("first", 0)("second", 0)
+        };
+        auto actual1 = ReadTable(client, outputTable1.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected1, actual1);
+        auto actual2 = ReadTable(client, outputTable2.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected2, actual2);
+    }
+
     Y_UNIT_TEST(FailingVanilla)
     {
         TTestFixture fixture;
@@ -2301,6 +2356,39 @@ Y_UNIT_TEST_SUITE(Operations)
             TOperationFailedError);
 
         UNIT_ASSERT_UNEQUAL(client->Get(stderrPath + "/@row_count"), 0);
+    }
+
+    Y_UNIT_TEST(VanillaOutputTableCountCheck)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto outputTable = TRichYPath(workingDir + "/output");
+
+        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TString message = "Hello world!";
+        ui64 firstJobCount = 2, secondJobCount = 3;
+
+        UNIT_ASSERT_EXCEPTION(
+            client->RunVanilla(TVanillaOperationSpec()
+                .AddTask(TVanillaTask()
+                    .Job(new TVanillaWithTableOutput)
+                    .JobCount(1)
+                    .Name("vanilla"))),
+            yexception);
+
+        UNIT_ASSERT_EXCEPTION(
+            client->RunVanilla(TVanillaOperationSpec()
+                .AddTask(TVanillaTask()
+                    .Name("first")
+                    .Job(new TVanillaAppendingToFile(fileName, message))
+                    .JobCount(firstJobCount))
+                .AddTask(TVanillaTask()
+                    .Name("second")
+                    .Job(new TVanillaAppendingToFile(fileName, message))
+                    .JobCount(secondJobCount)
+                    .AddOutput<TNode>(outputTable))),
+            yexception);
     }
 
     Y_UNIT_TEST(LazySort)

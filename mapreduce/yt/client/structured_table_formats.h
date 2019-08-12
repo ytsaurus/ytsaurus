@@ -74,6 +74,14 @@ public:
         ENodeReaderFormat nodeReaderFormat,
         bool allowFormatFromTableAttribute);
 
+    std::pair<TFormat, TMaybe<TSmallJobFile>> CreateVoidFormat(
+        const IStructuredJob& job,
+        const EIODirection& direction,
+        const TStructuredJobTableList& structuredTableList,
+        const TMaybe<TFormatHints>& formatHints,
+        ENodeReaderFormat nodeReaderFormat,
+        bool allowFormatFromTableAttribute);
+
     std::pair<TFormat, TMaybe<TSmallJobFile>> CreateYamrFormat(
         const IStructuredJob& job,
         const EIODirection& direction,
