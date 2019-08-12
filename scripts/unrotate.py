@@ -20,13 +20,7 @@ def unrotate(log_dir):
     for name, logs in groups.items():
         tmp_name = os.path.join(log_dir, name + ".tmp")
 
-        def log_index(name):
-            if name.endswith(".log"):
-                return 0
-
-            return int(name.split(".")[-2])
-
-        for log in sorted(logs, reverse=True, key=log_index):
+        for log in sorted(logs, reverse=True):
             log_name = os.path.join(log_dir, log)
             stat = os.stat(log_name)
             if stat.st_size == 2 * 1024 * 1024:
