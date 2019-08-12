@@ -236,7 +236,6 @@ IServicePtr CreateObjectService(
 
 DEFINE_ENUM(EExecutionSessionSubrequestType,
     (Undefined)
-    (Empty)
     (LocalRead)
     (LocalWrite)
     (Remote)
@@ -445,13 +444,6 @@ private:
             subrequest.Index =  subrequestIndex;
 
             int partCount = request.part_counts(subrequestIndex);
-            if (partCount == 0) {
-                // Empty subrequest.
-                subrequest.Type = EExecutionSessionSubrequestType::Empty;
-                OnSuccessfullSubresponse(&subrequest, TSharedRefArray());
-                continue;
-            }
-
             TSharedRefArrayBuilder subrequestPartsBuilder(partCount);
             for (int partIndex = 0; partIndex < partCount; ++partIndex) {
                 subrequestPartsBuilder.Add(attachments[currentPartIndex++]);
@@ -729,7 +721,7 @@ private:
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
-                ypathExt.path(),
+                ypathExt.target_path(),
                 subrequest.CacheResolveResult.UnresolvedPathSuffix,
                 UserName_,
                 ypathExt.mutating(),
@@ -787,13 +779,13 @@ private:
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& resolveCache = cypressManager->GetResolveCache();
-            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->path());
+            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
             if (resolveResult) {
                 // Serve the subrequest by forwarding it through the portal.
                 // XXX(babenko): profiling
                 auto remoteRequestHeader = subrequest.RequestHeader;
                 auto* ypathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-                ypathExt->set_path(FromObjectId(resolveResult->PortalExitId) + resolveResult->UnresolvedPathSuffix);
+                ypathExt->set_target_path(FromObjectId(resolveResult->PortalExitId) + resolveResult->UnresolvedPathSuffix);
 
                 subrequest.CacheResolveResult = std::move(*resolveResult);
                 subrequest.RemoteRequestMessage = SetRequestHeader(subrequest.RequestMessage, remoteRequestHeader);
@@ -1006,7 +998,6 @@ private:
                 ExecuteWriteSubrequest(&subrequest);
                 break;
 
-            case EExecutionSessionSubrequestType::Empty:
             case EExecutionSessionSubrequestType::Remote:
                 break;
 
