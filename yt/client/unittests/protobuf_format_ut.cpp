@@ -454,7 +454,7 @@ TEST(TProtobufFormat, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         parseAndValidateConfig(duplicateColumnNamesConfig),
-        "Multiple fields with same column name (\"SomeColumn\") are forbidden in protobuf format");
+        "Multiple fields with same column name \"SomeColumn\" are forbidden in protobuf format");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
