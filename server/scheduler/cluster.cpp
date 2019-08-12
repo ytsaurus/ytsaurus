@@ -200,11 +200,9 @@ public:
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
             AllNodeSegmentsLabelFilterCache_ = std::make_unique<TLabelFilterCache<TNode>>(
-                Bootstrap_->GetYTConnector(),
                 objectManager->GetTypeHandler(EObjectType::Node),
                 GetNodes());
             SchedulableNodeSegmentsLabelFilterCache_ = std::make_unique<TLabelFilterCache<TNode>>(
-                Bootstrap_->GetYTConnector(),
                 objectManager->GetTypeHandler(EObjectType::Node),
                 GetSchedulableNodes());
 
@@ -295,7 +293,7 @@ public:
 
             InitializeNodePods();
             InitializePodSetPods();
-            InitializeAccountPodSets();
+            InitializeAccountPods();
             InitializeAntiaffinityVacancies();
             InitializeNetworkModules();
 
@@ -346,7 +344,7 @@ private:
         }
     }
 
-    void InitializeAccountPodSets()
+    void InitializeAccountPods()
     {
         for (const auto& [podId, pod] : PodMap_) {
             YT_VERIFY(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
@@ -658,7 +656,6 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto schedulableNodeLabelFilterCache = std::make_unique<TLabelFilterCache<TNode>>(
-            Bootstrap_->GetYTConnector(),
             objectManager->GetTypeHandler(EObjectType::Node),
             schedulableNodes);
 

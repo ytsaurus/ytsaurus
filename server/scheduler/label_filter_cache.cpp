@@ -8,8 +8,6 @@
 #include <yp/server/objects/attribute_schema.h>
 #include <yp/server/objects/type_handler.h>
 
-#include <yp/server/master/yt_connector.h>
-
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
 
@@ -78,11 +76,9 @@ private:
 } // namespace
 
 TLabelFilterCacheBase::TLabelFilterCacheBase(
-    NMaster::TYTConnectorPtr ytConnector,
     IObjectTypeHandler* typeHandler,
     std::vector<TObject*> allObjects)
-    : YTConnector_(std::move(ytConnector))
-    , TypeHandler_(typeHandler)
+    : TypeHandler_(typeHandler)
     , AllObjects_(std::move(allObjects))
 { }
 

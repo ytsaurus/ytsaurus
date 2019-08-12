@@ -11,11 +11,9 @@ namespace NYP::NServer::NScheduler {
 
 template <class T>
 TLabelFilterCache<T>::TLabelFilterCache(
-    NMaster::TYTConnectorPtr ytConnector,
     NObjects::IObjectTypeHandler* typeHandler,
     const std::vector<T*>& allObjects)
     : TLabelFilterCacheBase(
-        std::move(ytConnector),
         typeHandler,
         std::vector<TObject*>(allObjects.begin(), allObjects.end()))
 { }

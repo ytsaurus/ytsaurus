@@ -4,8 +4,6 @@
 
 #include <yp/server/objects/public.h>
 
-#include <yp/server/master/public.h>
-
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,12 +11,10 @@ namespace NYP::NServer::NScheduler {
 class TLabelFilterCacheBase
 {
 protected:
-    const NMaster::TYTConnectorPtr YTConnector_;
     NObjects::IObjectTypeHandler* const TypeHandler_;
     const std::vector<TObject*> AllObjects_;
 
     TLabelFilterCacheBase(
-        NMaster::TYTConnectorPtr ytConnector,
         NObjects::IObjectTypeHandler* const typeHandler,
         std::vector<TObject*> allObjects);
 
@@ -33,7 +29,6 @@ class TLabelFilterCache
 {
 public:
     TLabelFilterCache(
-        NMaster::TYTConnectorPtr ytConnector,
         NObjects::IObjectTypeHandler* typeHandler,
         const std::vector<T*>& allObjects);
 

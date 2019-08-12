@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yp/client/nodes/proto/agent_service.pb.h>
+#include <yp/client/api/proto/object_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
