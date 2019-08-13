@@ -16,6 +16,8 @@ import pytest
 import random
 import os
 import copy
+import signal
+import threading
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -278,6 +280,16 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
+def get_scheduling_options(user_slots):
+    return {
+        "scheduling_options_per_pool_tree": {
+            "default": {
+                "resource_limits": {
+                    "user_slots": user_slots
+                }
+            }
+        }
+    }
 
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
@@ -377,10 +389,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 3 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
+            wait(lambda: clique.get_active_instance_count() == 3)
 
             time.sleep(1)
 
@@ -415,12 +424,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 3 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
+            wait(lambda: clique.get_active_instance_count() == 3)
 
-            time.sleep(2)
+            time.sleep(1)
 
             instances = clique.get_active_instances()
             # One instnace is dead, but the lock should be alive.
@@ -433,6 +439,111 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 response = clique.make_direct_query(instance, "select * from system.clique")
                 assert len(response) == 2
 
+    @authors("dakovalkov")
+    def test_single_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 1000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.5)
+            assert len(clique.get_active_instances()) == 0
+            assert clique.make_direct_query(instances[0], "select 1") == [{"1": 1}]
+            time.sleep(0.6)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+        
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+            
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+            
+    @authors("dakovalkov")
+    def test_double_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 10000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            assert len(clique.get_active_instances()) == 0
+            assert clique.make_direct_query(instances[0], "select 1") == [{"1": 1}]
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+            
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+
+    @authors("dakovalkov")
+    def test_long_query_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 1000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            assert clique.get_active_instance_count() == 0
+            assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
+            time.sleep(0.1)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+
+    @authors("dakovalkov")
+    def test_clique_availability(self):
+        create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
+        write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
+        patch = {
+            "interruption_graceful_timeout": 600,
+        }
+        with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
+            running = True
+            def pinger():
+                while running:
+                    response = sorted(clique.make_query("select * from \"//tmp/table\""))
+                    assert response == [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}]
+
+            ping_thread = threading.Thread(target=pinger, )
+            ping_thread.start()
+            time.sleep(1)
+            
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+            
+            signal_job(instances[0], "SIGINT")
+            time.sleep(3)
+            wait(lambda: clique.get_active_instance_count() == 2)
+            
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 2
+            assert new_instances != instances
+
+            assert ping_thread.is_alive()
+            running = False
+            ping_thread.join()
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
@@ -1160,7 +1271,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by t1.a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
 
-    @authors("max42", "dakovalkov")
+    @authors("max42")
     def test_global_in(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
@@ -1199,12 +1310,7 @@ class TestHttpProxy(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 1 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
-
-            time.sleep(2)
+            wait(lambda: clique.get_active_instance_count() == 1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
             response = clique.make_query("select * from system.clique")

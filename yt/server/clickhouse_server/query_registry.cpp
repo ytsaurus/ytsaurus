@@ -96,6 +96,7 @@ public:
     TImpl(TBootstrap* bootstrap)
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Bootstrap_(bootstrap)
+        , IdlePromise_(MakePromise<void>(TError()))
     { }
 
     void Register(TQueryContext* queryContext)
@@ -131,6 +132,10 @@ public:
         }
 
         YT_LOG_INFO("Query registered (UserInfo: %v)", userInfo);
+
+        if (Queries_.size() == 1) {
+            IdlePromise_ = NewPromise<void>();
+        }
     }
 
     void Unregister(TQueryContext* queryContext)
@@ -157,6 +162,24 @@ public:
         }
 
         YT_LOG_INFO("Query unregistered (UserInfo: %v)", userInfo);
+
+        if (Queries_.empty()) {
+            IdlePromise_.Set();
+        }
+    }
+
+    size_t GetQueryCount() const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        return Queries_.size();
+    }
+
+    TFuture<void> GetIdleFuture() const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        return IdlePromise_.ToFuture();
     }
 
     void OnProfiling() const
@@ -208,6 +231,8 @@ public:
 
     void DumpCodicils() const
     {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
         Cerr << "*** Begin codicils ***" << Endl;
         Cerr << "Query registry:" << Endl;
         TYsonWriter writer(&Cerr, EYsonFormat::Pretty);
@@ -221,6 +246,8 @@ private:
     THashSet<TQueryContext*> Queries_;
 
     THashMap<TString, TUserInfo> UserToUserInfo_;
+
+    TPromise<void> IdlePromise_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {
@@ -255,6 +282,16 @@ void TQueryRegistry::Register(TQueryContext* queryContext)
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
 {
     Impl_->Unregister(queryContext);
+}
+
+size_t TQueryRegistry::GetQueryCount() const
+{
+    return Impl_->GetQueryCount();
+}
+
+TFuture<void> TQueryRegistry::GetIdleFuture() const
+{
+    return Impl_->GetIdleFuture();
 }
 
 void TQueryRegistry::OnProfiling() const

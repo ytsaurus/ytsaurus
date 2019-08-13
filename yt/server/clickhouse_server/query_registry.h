@@ -20,6 +20,9 @@ public:
     void Register(TQueryContext* queryContext);
     void Unregister(TQueryContext* queryContext);
 
+    size_t GetQueryCount() const;
+    TFuture<void> GetIdleFuture() const;
+
     void OnProfiling() const;
 
     NYTree::IYPathServicePtr GetOrchidService() const;

@@ -64,6 +64,7 @@ public:
             res_columns[3]->insert(attributes.at("tcp_port")->GetValue<ui64>());
             res_columns[4]->insert(attributes.at("http_port")->GetValue<ui64>());
             res_columns[5]->insert(std::string(name));
+            res_columns[6]->insert(attributes.at("pid")->GetValue<i64>());
         }
 
         return BlockInputStreams(1, std::make_shared<OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns))));
@@ -97,6 +98,10 @@ private:
                 "job_id",
                 std::make_shared<DataTypeString>(),
             },
+            {
+                "pid",
+                std::make_shared<DataTypeInt32>(),
+            }
         });
     }
 };

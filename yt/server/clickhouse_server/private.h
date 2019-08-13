@@ -55,6 +55,11 @@ DEFINE_ENUM(EInterface,
     ((HTTP)(2))
 );
 
+DEFINE_ENUM(EInstanceState,
+    ((Active)(0))
+    ((Stopped)(1))
+);
+
 using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
