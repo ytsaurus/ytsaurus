@@ -291,7 +291,7 @@ private:
                 ? RetryOnFailureInterval
                 : TabletCellBundleNameTtl;
 
-            if (LastUpdateTime_ + interval > now) {
+            if (LastUpdateTime_ + interval < now) {
                 LastUpdateTime_ = now;
                 AsyncTabletCellBundleName_ = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& bundleNameOrError) {
