@@ -12,7 +12,7 @@ TSignalRegistry* TSignalRegistry::Get()
 void TSignalRegistry::RegisterHandler(int signal, TCallback<void(void)> callback)
 {
     Handlers_[signal] = callback;
-    struct sigaction sa = {
+    struct sigaction sa {
         .sa_handler = &Handle,
         .sa_flags = SA_RESTART,
     };
