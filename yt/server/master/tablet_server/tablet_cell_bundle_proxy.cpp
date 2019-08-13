@@ -216,11 +216,7 @@ private:
 
             case EInternedAttributeKey::Options: {
                 auto options = ConvertTo<TTabletCellOptionsPtr>(value);
-                if (!cellBundle->TabletCells().empty()) {
-                    THROW_ERROR_EXCEPTION("Cannot change options since tablet cell bundle has %v tablet cell(s)",
-                        cellBundle->TabletCells().size());
-                }
-                cellBundle->SetOptions(options);
+                tabletManager->SetTabletCellBundleOptions(cellBundle, options);
                 return true;
             }
 
