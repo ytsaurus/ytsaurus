@@ -323,27 +323,26 @@ private:
 
         std::vector<TCallback<TFuture<TSharedRef>()>> batchCallbacks;
         for (size_t index = 0; index < batchCount; ++index) {
-            auto tabletId = tabletIds[index];
-            auto mountRevision = request->mount_revisions(index);
-
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-            if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
-            }
-
-            slotManager->ValidateTabletAccess(
-                tabletSnapshot,
-                EPermission::Read,
-                timestamp);
-            tabletSnapshot->ValidateMountRevision(mountRevision);
-
-            auto callback = BIND([&, index, tabletSnapshot] () -> TSharedRef{
+            auto callback = BIND([&, index] () -> TSharedRef{
+                auto tabletId = tabletIds[index];
+                auto mountRevision = request->mount_revisions(index);
                 try {
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
                         Logger,
                         [&] () -> TSharedRef {
+                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+                            if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                                profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                            }
+
+                            slotManager->ValidateTabletAccess(
+                                tabletSnapshot,
+                                EPermission::Read,
+                                timestamp);
+                            tabletSnapshot->ValidateMountRevision(mountRevision);
+
                             auto requestData = requestCodec->Decompress(request->Attachments()[index]);
 
                             struct TLookupRowBufferTag { };
