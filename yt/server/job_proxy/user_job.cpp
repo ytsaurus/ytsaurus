@@ -419,6 +419,7 @@ private:
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> Woodpecker_ = { false };
     std::atomic<bool> JobStarted_ = { false };
+    std::atomic<bool> InterruptionSignalSent_ = { false };
 
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
@@ -730,6 +731,10 @@ private:
     virtual void Interrupt() override
     {
         ValidatePrepared();
+
+        if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
+            SignalJob(UserJobSpec_.interruption_signal());
+        }
 
         UserJobReadController_->InterruptReader();
     }
