@@ -429,18 +429,18 @@ TEST_P(TTabletCellBalancerTest, TestBalancer)
         "{node_name: [cell_index; ...]; ...}"
 */
 INSTANTIATE_TEST_CASE_P(
-        TabletCellBalancer,
-        TTabletCellBalancerRevokeTest,
-        ::testing::Values(
-                std::make_tuple (
-                        "{a=1;}",
-                        "{a=[1;2;];}",
-                        "{n1=[a;]; n2=[a;];}",
-                        1,
-                        "{n1=[]; n2=[];}"
-                        )
-                )
-        );
+    TabletCellBalancer,
+    TTabletCellBalancerRevokeTest,
+    ::testing::Values(
+        std::make_tuple (
+            "{a=1;}",
+            "{a=[1;2;];}",
+            "{n1=[a;]; n2=[a;];}",
+            1,
+            "{n1=[]; n2=[];}"
+            )
+        )
+    );
 
 INSTANTIATE_TEST_CASE_P(
     TabletCellBalancer,
