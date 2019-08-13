@@ -328,9 +328,9 @@ class PrintOperationInfo(object):
 
     def __call__(self, state):
         if (self.state is None or self.state.is_starting()) and not state.is_starting():
-            unrecognised_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
-            if unrecognised_spec:
-                self.log("Unrecognized spec: %s", str(unrecognised_spec["unrecognized_spec"]))
+            unrecognized_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
+            if unrecognized_spec and unrecognized_spec.get("unrecognized_spec"):
+                self.log("Unrecognized spec: %s", str(unrecognized_spec["unrecognized_spec"]))
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
             if progress and progress != self.progress:
