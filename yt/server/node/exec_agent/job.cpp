@@ -155,8 +155,10 @@ public:
 
                 if (userJobSpec.has_prepare_time_limit()) {
                     auto prepareTimeLimit = FromProto<TDuration>(userJobSpec.prepare_time_limit());
-                    TDelayedExecutor::Submit(BIND(&TJob::OnJobPreparationTimeout, MakeStrong(this), prepareTimeLimit)
-                        .Via(Invoker_), prepareTimeLimit);
+                    TDelayedExecutor::Submit(
+                        BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit)
+                            .Via(Invoker_),
+                        prepareTimeLimit);
                 }
 
             }
