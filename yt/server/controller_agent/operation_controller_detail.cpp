@@ -7480,6 +7480,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (config->InodeLimit) {
         jobSpec->set_inode_limit(*config->InodeLimit);
     }
+    if (config->InterruptionSignal) {
+        jobSpec->set_interruption_signal(*config->InterruptionSignal);
+    }
 
     if (Config->IopsThreshold) {
         jobSpec->set_iops_threshold(*Config->IopsThreshold);

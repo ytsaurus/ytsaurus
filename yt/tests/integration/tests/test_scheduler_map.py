@@ -1056,6 +1056,40 @@ print row + table_index
         assert 0 < job_indexes[1] < 99999
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type)) == len(result) - 2
 
+    @authors("dakovalkov")
+    def test_map_soft_interrupt_job(self):
+        create_test_tables(row_count=1)
+
+        command = """BREAKPOINT ; python -c "
+import time
+print('{interrupt=41};')
+try:
+    time.sleep(10)
+except KeyboardInterrupt:
+    print('{interrupt=42};')
+print('{interrupt=43};')"
+"""
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint(command),
+            spec={
+                "max_failed_job_count": 0,
+                "mapper": {
+                    "interruption_signal": "SIGINT",
+                },
+            })
+
+        jobs = wait_breakpoint()
+        release_breakpoint()
+        time.sleep(1)
+        interrupt_job(jobs[0])
+        op.track()
+
+        assert read_table("//tmp/t_out") == [{"interrupt": 41}, {"interrupt": 42}, {"interrupt": 43}]
+
     # YT-6324: false job interrupt when it does not consume any input data.
     @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])

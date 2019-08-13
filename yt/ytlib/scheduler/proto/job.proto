@@ -132,6 +132,8 @@ message TUserJobSpec
     optional bool set_container_cpu_limit = 39 [default = false];
 
     optional int64 prepare_time_limit = 42;
+
+    optional string interruption_signal = 43;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
