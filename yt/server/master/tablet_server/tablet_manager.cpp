@@ -615,7 +615,6 @@ public:
         }
 
         return replica;
-
     }
 
     void DestroyTableReplica(TTableReplica* replica)
@@ -2988,16 +2987,15 @@ public:
                 account,
                 TClusterResources().SetTabletCount(trunkSourceTable->GetTabletResourceUsage().TabletCount));
 
-            if (sourceTable->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Cannot clone a replicated table");
-            }
-
             switch (mode) {
                 case ENodeCloneMode::Copy:
                     sourceTable->ValidateAllTabletsFrozenOrUnmounted("Cannot copy dynamic table");
                     break;
 
                 case ENodeCloneMode::Move:
+                    if (sourceTable->IsReplicated()) {
+                        THROW_ERROR_EXCEPTION("Cannot move a replicated table");
+                    }
                     sourceTable->ValidateAllTabletsUnmounted("Cannot move dynamic table");
                     break;
 
@@ -3081,6 +3079,25 @@ public:
             chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
             clonedTablets.push_back(clonedTablet);
+        }
+
+        if (sourceTable->IsReplicated()) {
+            auto* replicatedSourceTable = sourceTable->As<TReplicatedTableNode>();
+            auto* replicatedClonedTable = clonedTable->As<TReplicatedTableNode>();
+
+            YT_VERIFY(mode == ENodeCloneMode::Copy);
+
+            for (const auto* replica : replicatedSourceTable->Replicas()) {
+                CreateTableReplica(
+                    replicatedClonedTable,
+                    replica->GetClusterName(),
+                    replica->GetReplicaPath(),
+                    replica->GetMode(),
+                    replica->GetPreserveTimestamps(),
+                    replica->GetAtomicity(),
+                    replica->GetStartReplicationTimestamp(),
+                    std::nullopt);
+            }
         }
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();

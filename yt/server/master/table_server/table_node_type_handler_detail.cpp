@@ -17,7 +17,6 @@
 #include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
 #include <yt/server/master/tablet_server/tablet.h>
-#include <yt/server/master/tablet_server/tablet_manager.h>
 
 namespace NYT::NTableServer {
 

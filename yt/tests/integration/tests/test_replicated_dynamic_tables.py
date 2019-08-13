@@ -145,8 +145,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         with pytest.raises(YtError):
             move("//tmp/t", "//tmp/s")
-        with pytest.raises(YtError):
-            copy("//tmp/t", "//tmp/s")
 
     @authors("babenko", "aozeritsky")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
@@ -1469,7 +1467,48 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
-##################################################################
+    @authors("avmatrosov")
+    def test_copy(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.REQUIREDLESS_SCHEMA)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", schema=self.REQUIRED_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        original_replica_info = get("//tmp/t_original/@replicas").values()[0]
+        cloned_replica_info = get("//tmp/t_copy/@replicas").values()[0]
+
+        for key in original_replica_info.keys():
+            if key != "state":
+                assert original_replica_info[key] == cloned_replica_info[key]
+        assert cloned_replica_info["state"] == "disabled"
+
+    @authors("avmatrosov")
+    def test_replication_via_copied_table(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async", "preserve_timestamps": "false"})
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        sync_mount_table("//tmp/t_copy")
+
+        sync_enable_table_replica(replica_id)
+        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+
+        for table in ["t_original", "t_copy"]:
+            rows = [{"key": 1, "value1": table, "value2": 0}]
+            insert_rows("//tmp/{}".format(table), rows, update=True, require_sync_replica=False)
+            wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows)
+
+    ##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     DELTA_NODE_CONFIG = {
