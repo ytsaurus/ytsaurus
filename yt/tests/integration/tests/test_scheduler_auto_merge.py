@@ -12,6 +12,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -501,3 +503,39 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 break
 
         op.track()
+
+    @authors("ifsmirnov")
+    def test_unversioned_update_no_auto_merge(self):
+        self._create_account(1000)
+        sync_create_cells(1)
+        create("table", "//tmp/t_out", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]})
+        sync_mount_table("//tmp/t_out")
+        create("table", "//tmp/t_in")
+
+        rows = [
+            {"key": 1, "$change_type": 0, "$value:value": "a"},
+            {"key": 2, "$change_type": 0, "$value:value": "b"},
+        ]
+        versioned_rows = [
+            {"key": 1, "value": "a"},
+            {"key": 2, "value": "b"},
+        ]
+        write_table("//tmp/t_in", rows)
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<append=%true;output_chunk_format=unversioned_update>//tmp/t_out",
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "relaxed",
+                },
+                "job_count": 2
+            })
+
+        assert read_table("//tmp/t_out") == versioned_rows
+        assert get("//tmp/t_out/@chunk_count") == 2
