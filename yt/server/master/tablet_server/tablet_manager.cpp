@@ -307,6 +307,46 @@ public:
         TabletCellBundleDestroyed_.Fire(cellBundle);
     }
 
+    void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
+    {
+        if (options->PeerCount != cellBundle->GetOptions()->PeerCount && !cellBundle->TabletCells().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
+                cellBundle->TabletCells().size());
+        }
+
+        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
+        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).GetData();
+
+        cellBundle->SetOptions(std::move(options));
+
+        for (auto* cell : cellBundle->TabletCells()) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+
+            if (Bootstrap_->IsPrimaryMaster()) {
+                if (auto node = FindCellNode(cell->GetId())) {
+                    auto cellNode = node->AsMap();
+
+                    {
+                        auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                        req->set_value(snapshotAcl);
+                        SyncExecuteVerb(cellNode, req);
+                    }
+                    {
+                        auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                        req->set_value(changelogAcl);
+                        SyncExecuteVerb(cellNode, req);
+                    }
+                }
+
+                RestartPrerequisiteTransaction(cell);
+            }
+
+            ReconfigureCell(cell);
+        }
+    }
+
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -6966,6 +7006,11 @@ TTabletCellBundle* TTabletManager::CreateTabletCellBundle(
 void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
 {
     Impl_->DestroyTabletCellBundle(cellBundle);
+}
+
+void TTabletManager::SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
+{
+    Impl_->SetTabletCellBundleOptions(cellBundle, std::move(options));
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(

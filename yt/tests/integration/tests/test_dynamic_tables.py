@@ -509,6 +509,39 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/schemas/tablet_cell_bundle/@acl/end", make_ace("allow", "u", "create"))
         create_tablet_cell_bundle("b", authenticated_user="u")
 
+    @authors("savrus")
+    def test_tablet_cell_acl_change(self):
+        create_user("u")
+        acl = [make_ace("allow", "unknown_user", "read")]
+        create_tablet_cell_bundle("b")
+        cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
+
+        with pytest.raises(YtError):
+            get("//sys/tablet_cells/{}/changelogs".format(cell_id), authenticated_user="u")
+
+        set("//sys/tablet_cell_bundles/b/@options/changelog_acl", [make_ace("allow", "u", "read")])
+        get("//sys/tablet_cells/{}/changelogs".format(cell_id), authenticated_user="u")
+        wait_for_cells([cell_id])
+
+    @authors("savrus")
+    def test_tablet_cell_multiplexing_change(self):
+        create_tablet_cell_bundle("b")
+        cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        set("//sys/tablet_cell_bundles/b/@options/enable_changelog_multiplexing", False)
+        sleep(0.5)
+        wait_for_cells([cell_id])
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "1"}]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "2"}])
+        set("//sys/tablet_cell_bundles/b/@options/enable_changelog_multiplexing", True)
+        sleep(0.5)
+        wait_for_cells([cell_id])
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "2"}]
+
     @authors("babenko")
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
