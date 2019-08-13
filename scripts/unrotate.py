@@ -38,7 +38,7 @@ def unrotate(log_dir):
             else:
                 cat = "cat"
 
-            subprocess.check_call("{} {} >> {}".format(cat, log_name, tmp_name), shell=True)
+            subprocess.call("{} {} >> {}".format(cat, log_name, tmp_name), shell=True)
             os.unlink(log_name)
 
         os.rename(tmp_name, os.path.join(log_dir, name + ".log"))
@@ -47,21 +47,14 @@ def unrotate(log_dir):
 def main():
     args = parser.parse_args()
 
-    if args.test_runner == "dist":
-        if args.dir is None:
-            dir = "yt/tests/integration/tests/test-results/yt-tests-integration-tests/testing_out_stuff"
-        else:
-            dir = args.dir
-        
+    if args.dir is not None:
+        log_dirs = [args.dir]
+    elif args.test_runner == "dist":
+        dir = "yt/tests/integration/tests/test-results/yt-tests-integration-tests/testing_out_stuff"
         log_dirs = glob.glob(dir + "/*/logs")
     else:
-        if args.dir is None:
-            dir = "yt/tests/integration/tests.sandbox"
-        else:
-            dir = args.dir
-        
+        dir = "yt/tests/integration/tests.sandbox"
         log_dirs = glob.glob(dir + "/*/run_latest/logs")
-
 
     for log_dir in log_dirs:
         unrotate(log_dir)
