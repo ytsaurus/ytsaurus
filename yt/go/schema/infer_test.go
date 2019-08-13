@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,24 @@ func TestInfer(t *testing.T) {
 			{Name: "A2", Type: TypeAny},
 		},
 	})
+}
+
+func TestInferType(t *testing.T) {
+	var a int
+	_, err := Infer(a)
+	require.Error(t, err)
+
+	var b string
+	_, err = Infer(b)
+	require.Error(t, err)
+
+	var c interface{}
+	_, err = Infer(c)
+	require.Error(t, err)
+
+	d := make(map[interface{}]interface{})
+	_, err = Infer(d)
+	require.Error(t, err)
 }
 
 type textMarhaler struct{}
@@ -155,4 +174,88 @@ func TestInferKeyWithDefaultName(t *testing.T) {
 			{Name: "A", Type: TypeInt64, Required: true, SortOrder: SortAscending},
 		},
 	})
+}
+
+func TestInferMapType(t *testing.T) {
+	var a int
+	_, err := Infer(a)
+	require.Error(t, err)
+
+	var b string
+	_, err = Infer(b)
+	require.Error(t, err)
+
+	var c interface{}
+	_, err = Infer(c)
+	require.Error(t, err)
+
+	_, err = InferMap(&testBasicTypes{})
+	require.Error(t, err)
+}
+
+func TestInferMapNonStringKeys(t *testing.T) {
+	a := make(map[int]interface{})
+	_, err := Infer(a)
+	require.Error(t, err)
+}
+
+func TestInferMap(t *testing.T) {
+	var I int
+	var I64 int64
+	var I32 int32
+	var I16 int16
+
+	var U uint
+	var U64 uint64
+	var U32 uint32
+	var U16 uint16
+
+	var S string
+	var B []byte
+
+	var A0 interface{}
+	var A1 innerStruct
+	var A2 map[string]interface{}
+
+	testMap := make(map[string]interface{})
+	testMap["I"] = I
+	testMap["I64"] = I64
+	testMap["I32"] = I32
+	testMap["I16"] = I16
+
+	testMap["U"] = U
+	testMap["U64"] = U64
+	testMap["U32"] = U32
+	testMap["U16"] = U16
+
+	testMap["S"] = S
+	testMap["B"] = B
+
+	testMap["A0"] = A0
+	testMap["A1"] = A1
+	testMap["A2"] = A2
+
+	s, err := InferMap(testMap)
+	require.NoError(t, err)
+
+	columnsExpected := []Column{
+		{Name: "I", Type: TypeInt64, Required: true},
+		{Name: "I64", Type: TypeInt64, Required: true},
+		{Name: "I32", Type: TypeInt32, Required: true},
+		{Name: "I16", Type: TypeInt16, Required: true},
+		{Name: "U", Type: TypeUint64, Required: true},
+		{Name: "U64", Type: TypeUint64, Required: true},
+		{Name: "U32", Type: TypeUint32, Required: true},
+		{Name: "U16", Type: TypeUint16, Required: true},
+		{Name: "S", Type: TypeString, Required: true},
+		{Name: "B", Type: TypeBytes, Required: true},
+		{Name: "A0", Type: TypeAny},
+		{Name: "A1", Type: TypeAny},
+		{Name: "A2", Type: TypeAny},
+	}
+	sort.Slice(columnsExpected, func(i, j int) bool {
+		return columnsExpected[i].Name < columnsExpected[j].Name
+	})
+
+	require.Equal(t, s, Schema{Columns: columnsExpected})
 }
