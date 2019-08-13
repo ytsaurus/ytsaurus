@@ -33,6 +33,33 @@ static TString RandomBytes() {
     return TString((const char*)&value, sizeof(value));
 }
 
+template <typename TRow>
+static TNode GetRowSchema();
+
+template <>
+TNode GetRowSchema<TUrlRow>()
+{
+    static auto schema = TNode()
+        ("metatype", "struct")
+        ("fields", TNode()
+            .Add(TNode()("name", "Host")("type", "string"))
+            .Add(TNode()("name", "Path")("type", "string"))
+            .Add(TNode()("name", "HttpCode")("type", "int32")));
+    return schema;
+}
+
+template <>
+TNode GetRowSchema<TUrlRowWithColumnNames>()
+{
+    static auto schema = TNode()
+        ("metatype", "struct")
+        ("fields", TNode()
+            .Add(TNode()("name", "Host_ColumnName")("type", "string"))
+            .Add(TNode()("name", "Path_KeyColumnName")("type", "string"))
+            .Add(TNode()("name", "HttpCode")("type", "int32")));
+    return schema;
+}
+
 Y_UNIT_TEST_SUITE(TableIo) {
 
 #define INSTANTIATE_NODE_READER_TESTS(test) \
@@ -558,6 +585,278 @@ Y_UNIT_TEST_SUITE(TableIo) {
             reader->Next();
             UNIT_ASSERT(!reader->IsValid());
         }
+    }
+
+    template <typename TRow, typename TElement>
+    void TestProtobufSerializationModes(ESerializationMode::Enum mode1, ESerializationMode::Enum mode2)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto setType = [] (ESerializationMode::Enum mode, TColumnSchema& column) {
+            switch (mode) {
+                case ESerializationMode::YT:
+                    column.RawTypeV2(GetRowSchema<TElement>());
+                    return;
+                case ESerializationMode::PROTOBUF:
+                    column.Type(EValueType::VT_STRING);
+                    return;
+            }
+            Y_FAIL();
+        };
+
+        auto schema = TTableSchema();
+        auto column1 = TColumnSchema().Name("UrlRow_1");
+        setType(mode1, column1);
+        auto column2 = TColumnSchema().Name("UrlRow_2");
+        setType(mode2, column2);
+        schema.AddColumn(column1).AddColumn(column2);
+
+        TVector<std::tuple<TString, TString, int>> firstValuesInRows{
+            {"http://www.example.com", "/", 302},
+            {"http://www.example.com", "/index.php", 200},
+        };
+
+        TVector<TVector<TString>> protobufSerializedValues;
+        TVector<TVector<TNode>> nodeSerializedValues;
+        {
+            auto writer = client->CreateTableWriter<TRow>(
+                TRichYPath(workingDir + "/table").Schema(schema));
+            for (const auto& [host, path, code] : firstValuesInRows) {
+                TRow row;
+                auto& embedded1 = *row.MutableUrlRow_1();
+                embedded1.SetHost(host);
+                embedded1.SetPath(path);
+                embedded1.SetHttpCode(code);
+                auto& embedded2 = *row.MutableUrlRow_2();
+                embedded2.SetHost(host);
+                embedded2.SetPath(path);
+                embedded2.SetHttpCode(code + 1);
+                writer->AddRow(row);
+
+                TString embedded1Serialized;
+                embedded1.SerializeToString(&embedded1Serialized);
+                TString embedded2Serialized;
+                embedded2.SerializeToString(&embedded2Serialized);
+                protobufSerializedValues.push_back(TVector<TString>{embedded1Serialized, embedded2Serialized});
+
+                nodeSerializedValues.push_back(TVector<TNode>{
+                    TNode().Add(host).Add(path).Add(code),
+                    TNode().Add(host).Add(path).Add(code + 1),
+                });
+            }
+            writer->Finish();
+        }
+
+        auto checkValue = [&] (const TNode& value, ESerializationMode::Enum mode, int rowIndex, int valueIndex) {
+            switch (mode) {
+                case ESerializationMode::YT:
+                    UNIT_ASSERT_VALUES_EQUAL(value, nodeSerializedValues[rowIndex][valueIndex]);
+                    return;
+                case ESerializationMode::PROTOBUF:
+                    UNIT_ASSERT_VALUES_EQUAL(value.GetType(), TNode::EType::String);
+                    UNIT_ASSERT_VALUES_EQUAL(value.AsString(), protobufSerializedValues[rowIndex][valueIndex]);
+                    return;
+            }
+            Y_FAIL();
+        };
+
+        // Check that all the values were written correctly.
+        {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/table");
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT(reader->GetRow().HasKey("UrlRow_1"));
+            UNIT_ASSERT(reader->GetRow().HasKey("UrlRow_2"));
+            checkValue(reader->GetRow()["UrlRow_1"], mode1, 0, 0);
+            checkValue(reader->GetRow()["UrlRow_2"], mode2, 0, 1);
+            reader->Next();
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT(reader->GetRow().HasKey("UrlRow_1"));
+            UNIT_ASSERT(reader->GetRow().HasKey("UrlRow_2"));
+            checkValue(reader->GetRow()["UrlRow_1"], mode1, 1, 0);
+            checkValue(reader->GetRow()["UrlRow_2"], mode2, 1, 1);
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+
+        // Check that all the values can be read by protobuf reader.
+        auto reader = client->CreateTableReader<TRow>(workingDir + "/table");
+        for (const auto& [host, path, code] : firstValuesInRows) {
+            UNIT_ASSERT(reader->IsValid());
+            const auto& row = reader->GetRow();
+            const auto& embedded1 = row.GetUrlRow_1();
+            UNIT_ASSERT_VALUES_EQUAL(embedded1.GetHost(), host);
+            UNIT_ASSERT_VALUES_EQUAL(embedded1.GetPath(), path);
+            UNIT_ASSERT_VALUES_EQUAL(embedded1.GetHttpCode(), code);
+            const auto& embedded2 = row.GetUrlRow_2();
+            UNIT_ASSERT_VALUES_EQUAL(embedded2.GetHost(), host);
+            UNIT_ASSERT_VALUES_EQUAL(embedded2.GetPath(), path);
+            UNIT_ASSERT_VALUES_EQUAL(embedded2.GetHttpCode(), code + 1);
+            reader->Next();
+        }
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    Y_UNIT_TEST(ProtobufSerializationMode_FieldOption)
+    {
+        TestProtobufSerializationModes<TRowFieldSerializationOption, TUrlRow>(
+            ESerializationMode::YT,
+            ESerializationMode::PROTOBUF);
+    }
+
+    Y_UNIT_TEST(ProtobufSerializationMode_MessageOption)
+    {
+        TestProtobufSerializationModes<TRowMessageSerializationOption, TUrlRow>(
+            ESerializationMode::YT,
+            ESerializationMode::YT);
+    }
+
+    Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions)
+    {
+        TestProtobufSerializationModes<TRowMixedSerializationOptions, TUrlRow>(
+            ESerializationMode::YT,
+            ESerializationMode::PROTOBUF);
+    }
+
+    Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions_ColumnNames)
+    {
+        TestProtobufSerializationModes<TRowMixedSerializationOptions_ColumnNames, TUrlRowWithColumnNames>(
+            ESerializationMode::YT,
+            ESerializationMode::PROTOBUF);
+    }
+
+    Y_UNIT_TEST(ProtobufRepeatedSerialization)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto schema = TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("Ints")
+                .RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", "int64")))
+            .AddColumn(TColumnSchema()
+                .Name("UrlRows")
+                .RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", GetRowSchema<TUrlRow>())));
+
+        {
+            auto writer = client->CreateTableWriter<TRowSerializedRepeatedFields>(
+                TRichYPath(workingDir + "/table").Schema(schema));
+            {
+                TRowSerializedRepeatedFields row;
+                row.AddInts(1);
+                row.AddInts(2);
+                row.AddInts(3);
+                auto& urlRow1 = *row.AddUrlRows();
+                urlRow1.SetHost("http://www.example.com");
+                urlRow1.SetPath("/");
+                urlRow1.SetHttpCode(303);
+                auto& urlRow2 = *row.AddUrlRows();
+                urlRow2.SetHost("http://www.example.com");
+                urlRow2.SetPath("/");
+                urlRow2.SetHttpCode(307);
+                writer->AddRow(row);
+            }
+            {
+                TRowSerializedRepeatedFields row;
+                row.AddInts(101);
+                row.AddInts(201);
+                row.AddInts(301);
+                auto& urlRow1 = *row.AddUrlRows();
+                urlRow1.SetHost("http://www.example.com");
+                urlRow1.SetPath("/index.php");
+                urlRow1.SetHttpCode(200);
+                auto& urlRow2 = *row.AddUrlRows();
+                urlRow2.SetHost("http://www.example.com");
+                urlRow2.SetPath("/index.php");
+                urlRow2.SetHttpCode(201);
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/table");
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT_VALUES_EQUAL(
+                reader->GetRow(),
+                TNode()
+                    ("Ints", TNode().Add(1).Add(2).Add(3))
+                    ("UrlRows", TNode()
+                        .Add(TNode().Add("http://www.example.com").Add("/").Add(303))
+                        .Add(TNode().Add("http://www.example.com").Add("/").Add(307))));
+            reader->Next();
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT_VALUES_EQUAL(
+                reader->GetRow(),
+                TNode()
+                    ("Ints", TNode().Add(101).Add(201).Add(301))
+                    ("UrlRows", TNode()
+                        .Add(TNode().Add("http://www.example.com").Add("/index.php").Add(200))
+                        .Add(TNode().Add("http://www.example.com").Add("/index.php").Add(201))));
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+
+        auto reader = client->CreateTableReader<TRowSerializedRepeatedFields>(workingDir + "/table");
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
+            UNIT_ASSERT_VALUES_EQUAL(ints, (TVector<int>{1, 2, 3}));
+            UNIT_ASSERT_VALUES_EQUAL(row.UrlRowsSize(), 2);
+            const auto& urlRow1 = row.GetUrlRows(0);
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHttpCode(), 303);
+            const auto& urlRow2 = row.GetUrlRows(1);
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetHttpCode(), 307);
+        }
+        reader->Next();
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
+            UNIT_ASSERT_VALUES_EQUAL(ints, (TVector<int>{101, 201, 301}));
+            UNIT_ASSERT_VALUES_EQUAL(row.UrlRowsSize(), 2);
+            const auto& urlRow1 = row.GetUrlRows(0);
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetPath(), "/index.php");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHttpCode(), 200);
+            const auto& urlRow2 = row.GetUrlRows(1);
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetPath(), "/index.php");
+            UNIT_ASSERT_VALUES_EQUAL(urlRow2.GetHttpCode(), 201);
+        }
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    Y_UNIT_TEST(ForbiddenRepeatedInProtobuf)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto schema = TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("Ints")
+                .RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", "int64")));
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->CreateTableWriter<TBadProtobufSerializedRow>(
+                TRichYPath(workingDir + "/table").Schema(schema)),
+            TApiUsageError,
+            "Repeated fields are allowed only for YT serialization mode");
     }
 
     Y_UNIT_TEST(ErrorInTableWriter)
