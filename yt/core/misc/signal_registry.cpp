@@ -13,9 +13,9 @@ void TSignalRegistry::RegisterHandler(int signal, TCallback<void(void)> callback
 {
     Handlers_[signal] = callback;
     struct sigaction sa {
-        .sa_handler = &Handle,
         .sa_flags = SA_RESTART,
     };
+    sa.sa_handler = &Handle;
     sigaction(signal, &sa, NULL);
 }
 
