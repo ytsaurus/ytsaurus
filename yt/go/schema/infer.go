@@ -3,6 +3,7 @@ package schema
 import (
 	"encoding"
 	"reflect"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -111,24 +112,63 @@ func parseTag(fieldName string, typ reflect.Type, tag string) (c *Column, err er
 // Go types implementing encoding.TextMarshaler interface are mapped to YT type utf8.
 //
 func Infer(value interface{}) (s Schema, err error) {
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		err = xerrors.Errorf("can't infer schema from value of type %v", v.Type())
+	v, err := reflectValueOfType(value, reflect.Struct)
+	if err != nil {
 		return
 	}
 
-	typ := v.Type()
 	s = Schema{}
-
+	typ := v.Type()
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 
 		var column *Column
 		column, err = parseTag(field.Name, field.Type, field.Tag.Get("yson"))
+		if err != nil {
+			return s, err
+		}
+
+		if column != nil {
+			s.Columns = append(s.Columns, *column)
+		}
+	}
+
+	return
+}
+
+// InferMap infers Schema from go map[string]interface{}.
+//
+// InferMap creates column for each key value pair.
+// Column name inferred from key itself, and colum type iferred from the type of value.
+//
+// To avoid ambiguity key type should always be string, while value type doesn't matter.
+func InferMap(value interface{}) (s Schema, err error) {
+	v, err := reflectValueOfType(value, reflect.Map)
+	if err != nil {
+		return
+	}
+
+	iter := v.MapRange()
+	for iter.Next() {
+		k := iter.Key()
+		if k.Kind() != reflect.String {
+			err = xerrors.Errorf("can't infer schema from map with key of type %v, only string is supported", k.Type())
+			return
+		}
+
+		name := k.Interface().(string)
+		v := iter.Value()
+
+		var typ reflect.Type
+		if v.IsNil() {
+			// In general nil value is an empty interface
+			typ = v.Type()
+		} else {
+			typ = v.Elem().Type()
+		}
+
+		var column *Column
+		column, err = parseTag(name, typ, "")
 		if err != nil {
 			return
 		}
@@ -138,6 +178,29 @@ func Infer(value interface{}) (s Schema, err error) {
 		}
 	}
 
+	sort.Slice(s.Columns, func(i, j int) bool {
+		return s.Columns[i].Name < s.Columns[j].Name
+	})
+
+	return
+}
+
+// reflectValueOfType creates value reflection of requested type for schema inferring
+func reflectValueOfType(value interface{}, k reflect.Kind) (v reflect.Value, err error) {
+	// Check for nil, reflect of nil value causes panic
+	if value == nil {
+		err = xerrors.Errorf("can't infer schema from nil value")
+		return
+	}
+
+	v = reflect.ValueOf(value)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() != k {
+		err = xerrors.Errorf("can't infer schema from value of type %v", v.Type())
+	}
 	return
 }
 
