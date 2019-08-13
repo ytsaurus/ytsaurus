@@ -17,6 +17,8 @@ namespace NYT::NClickHouseServer {
 
 DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables);
 
+void RegisterStorageDistributor();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
