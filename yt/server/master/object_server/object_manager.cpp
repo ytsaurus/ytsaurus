@@ -1272,10 +1272,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(header.user());
-    // NB: since single-subrequest batches are never backed off, this flag will
-    // have no effect. Still, let's keep it correct just in case.
-    bool needsSettingRetry = !header.retry() && FromProto<TMutationId>(header.mutation_id());
-    batchReq->AddRequestMessage(std::move(requestMessage), needsSettingRetry);
+    batchReq->AddRequestMessage(std::move(requestMessage));
 
     YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, User: %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
