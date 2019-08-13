@@ -325,9 +325,15 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
+    //! Note that CliqueId will be added to Directory automatically.
     TDiscoveryConfigPtr Discovery;
 
     TDuration GossipPeriod;
+
+    //! To avoid reciving queries after shut down this value should be at least
+    //! max(GossipPeriod, Proxy.ClickHouse.CliqueCache.AgeThreshold +
+    //! Proxy.ClickHouse.CliqueCache.MasterCacheExpireTime)
+    TDuration InterruptionGracefulTimeout;
 
     TClickHouseServerBootstrapConfig()
     {
@@ -356,11 +362,13 @@ public:
         RegisterParameter("table_writer_config", TableWriterConfig)
             .DefaultNew();
 
-        // Note that CliqueId will be added to Directory automatically.
         RegisterParameter("discovery", Discovery);
 
         RegisterParameter("gossip_period", GossipPeriod)
             .Default(TDuration::Seconds(1));
+        
+        RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 

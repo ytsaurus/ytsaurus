@@ -32,6 +32,9 @@ public:
 
     void Start();
 
+    TFuture<void> StopDiscovery();
+    void StopTcpServers();
+
     const IInvokerPtr& GetControlInvoker() const;
 
     DB::Context& GetContext() const;

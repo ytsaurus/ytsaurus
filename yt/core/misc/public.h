@@ -93,6 +93,8 @@ DECLARE_REFCOUNTED_STRUCT(TStracerResult)
 
 DECLARE_REFCOUNTED_STRUCT(TSignalerArg)
 
+class TSignalRegistry;
+
 class TBloomFilterBuilder;
 class TBloomFilter;
 
