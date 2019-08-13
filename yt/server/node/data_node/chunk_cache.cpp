@@ -800,8 +800,6 @@ private:
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
             auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
             cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
                 chunkId)
@@ -831,8 +829,6 @@ private:
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
                 << ex;
