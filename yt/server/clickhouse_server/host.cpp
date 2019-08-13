@@ -19,6 +19,7 @@
 #include "poco_config.h"
 #include "config.h"
 #include "storage_distributor.h"
+#include "storage_writer.h"
 
 #include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
 
@@ -339,7 +340,7 @@ private:
         RegisterTableFunctions();
         RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Bootstrap_);
-        RegisterStorageDistributor();
+        RegisterStorageWriter();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
