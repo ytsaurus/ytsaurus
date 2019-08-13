@@ -640,7 +640,7 @@ void TCachedBlobChunk::DoValidate()
     auto Logger = NLogging::TLogger(DataNodeLogger)
         .AddTag("ChunkId: %v", chunkId);
 
-    YT_LOG_INFO("Begin chunk validation");
+    YT_LOG_INFO("Chunk validation started");
 
     auto dataFileName = location->GetChunkPath(chunkId);
 
@@ -652,7 +652,8 @@ void TCachedBlobChunk::DoValidate()
     TClientBlockReadOptions blockReadOptions{
         TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
         New<TChunkReaderStatistics>(),
-        TReadSessionId::Create() };
+        TReadSessionId::Create()
+    };
 
     auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
 
@@ -677,7 +678,7 @@ void TCachedBlobChunk::DoValidate()
         throw;
     }
 
-    YT_LOG_INFO("Chunk has been successfully validated");
+    YT_LOG_INFO("Chunk validation completed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

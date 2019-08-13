@@ -173,7 +173,8 @@ public:
 
 private:
     const TClosure Destroyed_;
-    TPromise<void> ValidationResult_{NewPromise<void>()};
+
+    TPromise<void> ValidationResult_ = NewPromise<void>();
     std::atomic_flag ValidationLaunched_ = ATOMIC_FLAG_INIT;
 
     void DoValidate();
