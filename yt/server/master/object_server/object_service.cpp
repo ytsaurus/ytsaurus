@@ -876,10 +876,6 @@ private:
             return false;
         }
 
-        if (LocalExecutionInterrupted_) {
-            return false;
-        }
-
         // NB: Acquisitions are only possible if the current epoch is not canceled.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
