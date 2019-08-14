@@ -57,7 +57,6 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
 
@@ -77,6 +76,8 @@
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/public.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
 

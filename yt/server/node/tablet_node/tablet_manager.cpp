@@ -1118,7 +1118,7 @@ private:
         auto lockTimestamp = static_cast<TTimestamp>(request->lock().timestamp());
 
         const auto& lockManager = tablet->GetLockManager();
-        lockManager->Lock(lockTimestamp, transactionId, false);
+        lockManager->Lock(lockTimestamp, transactionId, /*confirmed*/ false);
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet locked (TabletId: %v, TransactionId: %v)",
             tabletId,
