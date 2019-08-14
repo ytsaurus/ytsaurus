@@ -179,6 +179,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
     }
 
     virtual void Initialize() override
@@ -879,6 +881,11 @@ private:
         }
         mutationRequest.Data = request->Attachments()[0];
 
+        // COMPAT(savrus) Fix heartbeats from old participants.
+        if (!mutationRequest.Type && !mutationRequest.Reign) {
+            mutationRequest.Reign = GetCurrentReign();
+        }
+
         context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
             mutationRequest.Type,
             mutationRequest.MutationId,
@@ -897,6 +904,15 @@ private:
             }));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, Poke)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        CommitMutation(TMutationRequest(GetCurrentReign()))
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                context->Reply(result);
+            }));
+    }
 
     i64 GetElectionPriority()
     {
