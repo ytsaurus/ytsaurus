@@ -56,7 +56,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -71,7 +71,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op = map(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2")
         check_all_stderrs(op, "stderr\n", 1)
 
-    @authors("acid", "ostyakov")
+    @authors("acid", "ignat")
     def test_empty_range(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -84,7 +84,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert [] == read_table("//tmp/t2", verbose=False)
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
@@ -109,7 +109,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_big_input(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -124,7 +124,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -148,7 +148,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t_output2") == [{"value": 42}]
         assert sorted([row.items() for row in read_table("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_write_two_outputs_consistently(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -169,7 +169,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 file=[file1],
                 verbose=True)
 
-    @authors("ostyakov", "klyachin")
+    @authors("psushin")
     @unix_only
     def test_in_equal_to_out(self):
         create("table", "//tmp/t1")
@@ -179,7 +179,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
-    @authors("ostyakov", "klyachin")
+    @authors("psushin")
     def test_input_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -193,7 +193,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         row_count = get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum")
         assert row_count == 1
 
-    @authors("ostyakov", "klyachin")
+    @authors("psushin")
     def test_multiple_output_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -223,7 +223,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert decode_time > 0
         assert encode_time > 0
 
-    @authors("ostyakov")
+    @authors("psushin")
     @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
@@ -250,7 +250,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"key": 0, "value": "one"}, {"key": 0, "value": "two"},
                                           {"key": 0, "value": "one"}, {"key": 1, "value": "two"}]
 
-    @authors("ostyakov", "klyachin")
+    @authors("psushin")
     def test_sorted_output_overlap(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -265,7 +265,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
-    @authors("ostyakov", "klyachin")
+    @authors("psushin")
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -280,7 +280,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
-    @authors("ostyakov")
+    @authors("psushin")
     @unix_only
     def test_job_count(self):
         create("table", "//tmp/t1")
@@ -300,7 +300,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t2", 3, 3)
         check("//tmp/t3", 10, 5) # number of jobs cannot be more than number of rows.
 
-    @authors("ostyakov")
+    @authors("max42")
     @unix_only
     def test_skewed_rows(self):
         create("table", "//tmp/t1")
@@ -319,7 +319,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     # We skip this one in porto because it requires a lot of interaction with porto
     # (since there are a lot of operations with large number of jobs).
     # There is completely nothing porto-specific here.
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     @skip_if_porto
     def test_job_per_row(self):
@@ -372,17 +372,17 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == [{"v": 1}]
         assert read_table(output_tables[2]) == [{"v": 2}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_output_tables_switch(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
@@ -406,7 +406,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == []
         assert read_table(output_tables[2]) == [{"v": 0}, {"v": 1}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_executable_mapper(self):
         create("table", "//tmp/t_in")
@@ -431,7 +431,7 @@ cat > /dev/null; echo {hello=world}
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_table_index(self):
         create("table", "//tmp/t1")
@@ -466,7 +466,7 @@ print row + table_index
                     {"key": "b", "value": "value1"}]
         assert_items_equal(read_table("//tmp/out"), expected)
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_range_index(self):
         create("table", "//tmp/t_in")
@@ -560,7 +560,7 @@ print row + table_index
     def test_check_input_fully_consumed_statistics_throw_on_failure(self):
         self.check_input_fully_consumed_statistics_base("exit 0", throw_on_failure=True, expected_output=[])
 
-    @authors("ostyakov")
+    @authors("max42")
     def test_live_preview(self):
         create_user("u")
 
@@ -643,7 +643,7 @@ print row + table_index
         op.track()
 
 
-    @authors("tramsmm", "ostyakov")
+    @authors("max42", "ignat")
     def test_row_sampling(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -669,7 +669,7 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
-    @authors("ostyakov")
+    @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
     @unix_only
     def test_map_row_count_limit(self, ordered):
@@ -728,7 +728,7 @@ print row + table_index
 
         op.abort()
 
-    @authors("ostyakov")
+    @authors("psushin")
     @unix_only
     def test_map_row_count_limit_second_output(self):
         create("table", "//tmp/input")
@@ -755,7 +755,7 @@ print row + table_index
         assert len(read_table("//tmp/out_1")) == 0
         assert len(read_table("//tmp/out_2")) == 3
 
-    @authors("ignat", "ostyakov")
+    @authors("psushin")
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")
 
@@ -765,7 +765,7 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
-    @authors("ostyakov")
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
         schema = make_schema(
@@ -928,7 +928,7 @@ print row + table_index
 
         assert read_table("//tmp/tout") == [{"d": 42}]
 
-    @authors("ostyakov")
+    @authors("lukyan")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_computed_columns(self, mode):
         create("table", "//tmp/t1")
@@ -951,7 +951,7 @@ print row + table_index
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
 
-    @authors("psushin", "ostyakov")
+    @authors("psushin", "ignat")
     def test_map_max_data_size_per_job(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -1276,7 +1276,7 @@ class TestSchedulerMapCommandsPorto(YTEnvSetup):
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    @authors("ostyakov")
+    @authors("babenko")
     def test_multicell_input_fetch(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -1310,7 +1310,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("max42")
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
@@ -1339,7 +1339,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
-    @authors("ostyakov")
+    @authors("max42")
     def test_map_job_size_adjuster_max_limit(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
@@ -1362,7 +1362,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_map_unavailable_chunk(self):
         create("table", "//tmp/t_input", attributes={"replication_factor": 1})
         original_data = [{"index": "%05d" % i} for i in xrange(20)]
@@ -1452,7 +1452,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             })
         create_dynamic_table(path, **attributes)
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
@@ -1516,7 +1516,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_dynamic_table_as_user_file(self, external, optimize_for):
@@ -1562,7 +1562,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         rows = sorted(rows, key=lambda r: r["key"])
         assert read_table("//tmp/t_out") == rows
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     def test_ordered_dynamic_table_as_user_file(self, external):
         sync_create_cells(1)
@@ -1595,7 +1595,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows + rows1
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     def test_dynamic_table_timestamp(self, external):
         sync_create_cells(1)
@@ -1635,7 +1635,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 command="cat")
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_input_data_statistics(self, external, optimize_for):
@@ -1660,7 +1660,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
-    @authors("ostyakov")
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_column_filter(self, optimize_for, external):
@@ -1712,7 +1712,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
-    @authors("savrus", "ostyakov", "ignat")
+    @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_dynamic_table_simple(self, optimize_for):
         sync_create_cells(1)
@@ -1793,7 +1793,7 @@ class TestInputOutputFormats(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
@@ -1819,7 +1819,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
@@ -1850,7 +1850,7 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
@@ -1879,7 +1879,7 @@ print "key\\tsubkey\\tvalue"
 
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
@@ -1905,7 +1905,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_type_conversion(self):
         create("table", "//tmp/s")
         write_table("//tmp/s", {"foo": "42"})

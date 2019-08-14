@@ -31,7 +31,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_simple(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -55,7 +55,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content"] == words
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_custom_tmpfs_path(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -78,7 +78,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content"] == words
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_dot_tmpfs_path(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -190,7 +190,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_incorrect_tmpfs_path(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -215,7 +215,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 })
 
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_tmpfs_remove_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -233,7 +233,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1
                 })
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_tmpfs_size_limit(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -250,7 +250,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1
                 })
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_memory_reserve_and_tmpfs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -569,7 +569,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_simple(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -606,7 +606,7 @@ class TestFilesInSandbox(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     def test_operation_abort_with_lost_file(self):
         create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})

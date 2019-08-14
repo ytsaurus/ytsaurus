@@ -1163,7 +1163,7 @@ class TestTables(YTEnvSetup):
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
-    @authors("ostyakov", "ignat")
+    @authors("ignat")
     def test_read_blob_table(self):
         create("table", "//tmp/ttt")
         write_table("<sorted_by=[key]>//tmp/ttt", [
