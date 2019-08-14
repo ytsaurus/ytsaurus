@@ -2252,7 +2252,7 @@ private:
             this,
             Logger);
 
-        for (const auto &path : paths) {
+        for (const auto& path : paths) {
             YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
             auto transactionId = path.GetTransactionId();
