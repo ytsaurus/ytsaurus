@@ -284,6 +284,7 @@ private:
                             }
                         } else {
                             // This teleport chunk goes to /dev/null.
+                            ++droppedTeleportChunkCount;
                         }
                         continue;
                     }

@@ -6488,42 +6488,42 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
 }
 
 void TOperationControllerBase::RegisterTeleportChunk(
-    TInputChunkPtr chunkSpec,
+    TInputChunkPtr chunk,
     TChunkStripeKey key,
     int tableIndex)
 {
     auto& table = OutputTables_[tableIndex];
 
     if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
-        YT_VERIFY(chunkSpec->BoundaryKeys());
-        YT_VERIFY(chunkSpec->GetRowCount() > 0);
-        YT_VERIFY(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
+        YT_VERIFY(chunk->BoundaryKeys());
+        YT_VERIFY(chunk->GetRowCount() > 0);
+        YT_VERIFY(chunk->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
         NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
         resultBoundaryKeys.set_sorted(true);
-        resultBoundaryKeys.set_unique_keys(chunkSpec->GetUniqueKeys());
-        ToProto(resultBoundaryKeys.mutable_min(), chunkSpec->BoundaryKeys()->MinKey);
-        ToProto(resultBoundaryKeys.mutable_max(), chunkSpec->BoundaryKeys()->MaxKey);
+        resultBoundaryKeys.set_unique_keys(chunk->GetUniqueKeys());
+        ToProto(resultBoundaryKeys.mutable_min(), chunk->BoundaryKeys()->MinKey);
+        ToProto(resultBoundaryKeys.mutable_max(), chunk->BoundaryKeys()->MaxKey);
 
         key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardEdgeDescriptors_[tableIndex], RowBuffer);
     }
 
-    table->OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());
+    table->OutputChunkTreeIds.emplace_back(key, chunk->ChunkId());
 
     if (table->Dynamic) {
         table->OutputChunks.push_back(chunk);
     }
 
     if (IsOutputLivePreviewSupported()) {
-        AttachToLivePreview(chunkSpec->ChunkId(), table->LivePreviewTableId);
+        AttachToLivePreview(chunk->ChunkId(), table->LivePreviewTableId);
     }
 
-    RegisterOutputRows(chunkSpec->GetRowCount(), tableIndex);
+    RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
-        chunkSpec->ChunkId(),
+        chunk->ChunkId(),
         key);
 }
 

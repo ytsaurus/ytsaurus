@@ -812,7 +812,7 @@ protected:
         NCypressClient::TNodeId tableId);
 
     virtual void RegisterTeleportChunk(
-        NChunkClient::TInputChunkPtr chunkSpec,
+        NChunkClient::TInputChunkPtr chunk,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) override;
 
