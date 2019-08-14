@@ -103,7 +103,7 @@ private:
     }
 
     class TBundleHealthCache
-        : public TAsyncExpiringCache<std::pair<NApi::IConnectionPtr, TString>, ETabletCellHealth>
+        : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
     {
     public:
         TBundleHealthCache()
@@ -111,11 +111,9 @@ private:
         { }
 
     protected:
-        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IConnectionPtr, TString>& key) override
+        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key) override
         {
-            auto& [connection, bundleName] = key;
-            auto client = connection->CreateClient(NApi::TClientOptions(RootUserName));
-
+            const auto& [client, bundleName] = key;
             return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
                 .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& error) {
                     // COMPAT(aozeritsky): Remove after updating all clusters
@@ -128,7 +126,7 @@ private:
     };
 
     using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
-    TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
+    const TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
 
     class TReplica
         : public TRefCounted
@@ -192,15 +190,20 @@ private:
 
         TFuture<void> CheckBundleHealth()
         {
+            if (!Client_) {
+                static const auto NoConnectionResult = MakeFuture<void>(TError("No connection is available"));
+                return NoConnectionResult;
+            }
+            
             return GetAsyncTabletCellBundleName()
-                .Apply(BIND([connection = Connection_, bundleHealthCache = BundleHealthCache_, path = Path_] (const TErrorOr<TString>& tabletCellBundleNameOrError) {
-                    return bundleHealthCache->Get({connection, tabletCellBundleNameOrError.ValueOrThrow()});
-                })).Apply(BIND([path = Path_] (const TErrorOr<ETabletCellHealth>& tabletCellHealthOrError) {
-                    auto tabletCellHealth = tabletCellHealthOrError.ValueOrThrow();
-                    if (tabletCellHealth != ETabletCellHealth::Good) {
+                .Apply(BIND([client = Client_, bundleHealthCache = BundleHealthCache_] (const TString& bundleName) {
+                    return bundleHealthCache->Get({client, bundleName});
+                })).Apply(BIND([path = Path_] (ETabletCellHealth health) {
+                    if (health != ETabletCellHealth::Good) {
                         THROW_ERROR_EXCEPTION(
-                            "Bad tablet cell health %v for %v",
-                            tabletCellHealth, path);
+                            "Bad tablet cell health %Qlv for %v",
+                            health,
+                            path);
                     }
                 }));
         }
