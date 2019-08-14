@@ -140,7 +140,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
 
     private void uploadSome() {
         synchronized (lock) {
-            if (!supplier.hasData() || writePosition - readPosition >= windowSize) {
+            if (!supplier.hasData()) {
                 return;
             }
         }
@@ -150,7 +150,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
         long sendSize = 0;
 
         synchronized (lock) {
-            while (supplier.hasData() && sendSize + writePosition - readPosition < windowSize) {
+            while (supplier.hasData() && sendSize < windowSize) {
                 byte[] next = supplier.get();
 
                 readyToUpload.add(next);
@@ -237,14 +237,14 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     }
 
     boolean push(byte[] data) {
+        if (result.isCompletedExceptionally()) {
+            result.join();
+        }
+
         synchronized (lock) {
             if (writePosition - readPosition >= windowSize) {
                 return false;
             }
-        }
-
-        if (result.isCompletedExceptionally()) {
-            result.join();
         }
 
         synchronized (lock) {
