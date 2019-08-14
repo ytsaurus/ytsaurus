@@ -254,7 +254,10 @@ void TConnection::OnProxyListUpdate()
                 ChannelPool_->SetAddressList(TError(ex));
             }
 
-            YT_LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
+            YT_LOG_WARNING(ex, "Error updating proxy list (Attempt: %v, Backoff: %v)",
+                attempt,
+                backoff);
+
             TDelayedExecutor::WaitForDuration(backoff);
 
             if (backoff < Config_->MaxProxyListRetryPeriod) {
