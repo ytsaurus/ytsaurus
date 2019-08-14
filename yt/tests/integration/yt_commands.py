@@ -52,7 +52,7 @@ AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
 def authors(*the_authors):
-    return pytest.mark.authors(*the_authors)
+    return pytest.mark.authors(the_authors)
 
 @contextlib.contextmanager
 def raises_yt_error(code):
