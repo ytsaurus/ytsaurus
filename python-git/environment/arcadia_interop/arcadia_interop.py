@@ -1,4 +1,5 @@
 import os
+import sys
 import fcntl
 import time
 import shutil
@@ -9,7 +10,7 @@ except ImportError:
     yatest_common = None
 
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True):
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return yatest_common.binary_path(path)
@@ -35,7 +36,11 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
+        if not use_ytserver_all:
+            binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
+        else:
+            binary_path = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
+
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
     watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
