@@ -34,19 +34,19 @@ message TRowFieldSerializationOption {
 }
 
 message TRowMessageSerializationOption {
-    option (NYT.fields_serialization_mode) = YT;
+    option (NYT.field_serialization_mode) = YT;
     optional TUrlRow UrlRow_1 = 1;
     optional TUrlRow UrlRow_2 = 2;
 }
 
 message TRowMixedSerializationOptions {
-    option (NYT.fields_serialization_mode) = YT;
+    option (NYT.field_serialization_mode) = YT;
     optional TUrlRow UrlRow_1 = 1;
     optional TUrlRow UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
 }
 
 message TRowSerializedRepeatedFields {
-    option (NYT.fields_serialization_mode) = YT;
+    option (NYT.field_serialization_mode) = YT;
     repeated int64 Ints = 1;
     repeated TUrlRow UrlRows = 2;
 }
@@ -58,7 +58,7 @@ message TUrlRowWithColumnNames {
 }
 
 message TRowMixedSerializationOptions_ColumnNames {
-    option (NYT.fields_serialization_mode) = YT;
+    option (NYT.field_serialization_mode) = YT;
     optional TUrlRowWithColumnNames UrlRow_1 = 1;
     optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
 }
