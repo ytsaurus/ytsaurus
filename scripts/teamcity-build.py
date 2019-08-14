@@ -813,7 +813,7 @@ def run_sandbox_upload(options, build_context):
 
     source_binary_root = get_bin_dir(options)
     processed_files = set()
-    filename_prefix_whitelist = ["ytserver-", "ypserver-"]
+    filename_prefix_whitelist = ["ytserver-", "ypserver-", "yt_local"]
     for filename in os.listdir(source_binary_root):
         if not any(filename.startswith(x) for x in filename_prefix_whitelist):
             continue
@@ -844,6 +844,7 @@ def run_sandbox_upload(options, build_context):
             "ytserver-tools",
             "ytserver-skynet-manager",
             "ytserver-http-proxy",
+            "yt_local",
         )))
 
     if yt_binary_upload_list - processed_files:
