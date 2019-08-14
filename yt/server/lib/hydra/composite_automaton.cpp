@@ -398,7 +398,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     auto isRecovery = IsRecovery();
     auto waitTime = GetInstant() - context->GetTimestamp();
 
-    auto recoveryAction = GetActionToRecoverFromReign(request.Reign);
+    EFinalRecoveryAction recoveryAction = EFinalRecoveryAction::None;
+
+    // COMPAT(savrus) Skip unreigned heartbeat mutations which are already in changelog.
+    if (mutationType) {
+        recoveryAction = GetActionToRecoverFromReign(request.Reign);
+    }
     YT_VERIFY(isRecovery || recoveryAction == EFinalRecoveryAction::None);
 
     if (recoveryAction != FinalRecoveryAction_) {
