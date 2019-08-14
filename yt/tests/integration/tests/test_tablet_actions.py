@@ -921,8 +921,8 @@ class TestTabletBalancer(TabletActionsBase):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         create_user("u")
         create_tablet_cell_bundle("b")
-        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["read", "use"]))
-        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("deny", "u", ["write"]))
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["read", "write"]))
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("deny", "u", ["use"]))
         sync_create_cells(1, "b")
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -936,6 +936,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         # Remove `deny` ACE.
         remove("//sys/tablet_cell_bundles/b/@acl/-1")
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
 
         sync_balance_tablet_cells("b", authenticated_user="u")
         sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")

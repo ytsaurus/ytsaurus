@@ -2711,7 +2711,7 @@ private:
         }
 
         auto bundle = attributes->Get<TString>("tablet_cell_bundle");
-        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Write);
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
 
         auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
         SetMutationId(req, options);
@@ -2806,7 +2806,7 @@ private:
         const std::vector<TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options)
     {
-        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Write);
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Use);
 
         std::vector<TFuture<TTabletCellBundleYPathProxy::TRspBalanceTabletCellsPtr>> cellResponses;
 
