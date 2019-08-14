@@ -116,7 +116,7 @@ private:
             auto& [connection, bundleName] = key;
             auto client = connection->CreateClient(NApi::TClientOptions(RootUserName));
 
-            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health")
+            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
                 .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& error) {
                     // COMPAT(aozeritsky): Remove after updating all clusters
                     if (!error.IsOK() && error.FindMatching(NYTree::EErrorCode::ResolveError)) {
