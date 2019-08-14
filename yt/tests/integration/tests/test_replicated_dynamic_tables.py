@@ -762,7 +762,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
-        self._create_replica_table("//tmp/r2", replica_id2)
+        self._create_replica_table("//tmp/r2", replica_id2, replica_driver = self.primary_driver)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
