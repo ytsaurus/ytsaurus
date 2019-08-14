@@ -94,7 +94,7 @@ TNode MakeProtoFormatMessageFieldsConfig(
     TNode* enumerations)
 {
     TNode fields = TNode::CreateList();
-    auto messageSerializationMode = descriptor->options().GetExtension(fields_serialization_mode);
+    auto messageSerializationMode = descriptor->options().GetExtension(field_serialization_mode);
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* fieldDesc = descriptor->field(fieldIndex);
         fields.Add(MakeProtoFormatFieldConfig(

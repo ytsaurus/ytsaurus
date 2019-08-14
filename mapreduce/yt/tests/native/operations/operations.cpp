@@ -386,6 +386,31 @@ REGISTER_MAPPER(TProtobufMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TComplexTypesProtobufMapper
+    : public IMapper<TTableReader<Message>, TTableWriter<Message>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            if (reader->GetTableIndex() == 0) {
+                auto row = reader->MoveRow<TRowMixedSerializationOptions>();
+                row.MutableUrlRow_1()->SetHost(row.GetUrlRow_1().GetHost() + ".mapped");
+                row.MutableUrlRow_2()->SetHost(row.GetUrlRow_2().GetHost() + ".mapped");
+                writer->AddRow(row, 0);
+            } else {
+                Y_ENSURE(reader->GetTableIndex() == 1);
+                auto row = reader->MoveRow<TRowSerializedRepeatedFields>();
+                row.AddInts(40000);
+                writer->AddRow(row, 1);
+            }
+        }
+    }
+};
+REGISTER_MAPPER(TComplexTypesProtobufMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYdlMapper : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
 {
 public:
@@ -1406,6 +1431,118 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
     {
         MapWithProtobuf(true, true);
+    }
+
+    Y_UNIT_TEST(MapWithProtobuf_ComplexTypes)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto urlRowRawTypeV2 = TNode()
+            ("metatype", "struct")
+            ("fields", TNode()
+                .Add(TNode()("name", "Host")("type", "string"))
+                .Add(TNode()("name", "Path")("type", "string"))
+                .Add(TNode()("name", "HttpCode")("type", "int32")));
+
+        auto schema1 = TTableSchema()
+            .AddColumn(TColumnSchema().Name("UrlRow_1").RawTypeV2(urlRowRawTypeV2))
+            .AddColumn(TColumnSchema().Name("UrlRow_2").Type(VT_STRING));
+
+        auto schema2 = TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("Ints")
+                .RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", "int64")))
+            .AddColumn(TColumnSchema()
+                .Name("UrlRows")
+                .RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", urlRowRawTypeV2)));
+
+        auto inputTable1 = TRichYPath(workingDir + "/input_1").Schema(schema1);
+        auto inputTable2 = TRichYPath(workingDir + "/input_2").Schema(schema2);
+        auto outputTable1 = TRichYPath(workingDir + "/output_1").Schema(schema1);
+        auto outputTable2 = TRichYPath(workingDir + "/output_2").Schema(schema2);
+
+        {
+            // TRowMixedSerializationOptions.
+            // UrlRow_2 has the same value as UrlRow_1.
+            auto writer = client->CreateTableWriter<TNode>(inputTable1);
+            writer->AddRow(TNode()
+                ("UrlRow_1", TNode().Add("ya.ru").Add("/mail").Add(404))
+                ("UrlRow_2",
+                     "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
+                     "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
+                     "\x18" "\xA8\x06"));
+            writer->AddRow(TNode()
+                ("UrlRow_1", TNode().Add("ya.ru").Add("/maps").Add(300))
+                ("UrlRow_2",
+                    "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
+                    "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
+                    "\x18" "\xD8\x04"));
+            writer->Finish();
+        }
+
+        {
+            // TRowSerializedRepeatedFields.
+            auto writer = client->CreateTableWriter<TNode>(inputTable2);
+            writer->AddRow(TNode()
+                ("Ints", TNode().Add(-1).Add(-2))
+                ("UrlRows", TNode()
+                    .Add(TNode().Add("yandex.ru").Add("/mail").Add(200))
+                    .Add(TNode().Add("google.com").Add("/mail").Add(404))));
+            writer->AddRow(TNode()
+                ("Ints", TNode().Add(1).Add(2))
+                ("UrlRows", TNode()
+                    .Add(TNode().Add("yandex.ru").Add("/maps").Add(200))
+                    .Add(TNode().Add("google.com").Add("/maps").Add(404))));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TRowMixedSerializationOptions>(inputTable1)
+                .AddInput<TRowSerializedRepeatedFields>(inputTable2)
+                .AddOutput<TRowMixedSerializationOptions>(outputTable1)
+                .AddOutput<TRowSerializedRepeatedFields>(outputTable2),
+            new TComplexTypesProtobufMapper);
+
+        TVector<TNode> expectedContent1 = {
+            TNode()
+                ("UrlRow_1", TNode().Add("ya.ru.mapped").Add("/mail").Add(404))
+                ("UrlRow_2",
+                    "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
+                    "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
+                    "\x18" "\xA8\x06"),
+            TNode()
+                ("UrlRow_1", TNode().Add("ya.ru.mapped").Add("/maps").Add(300))
+                ("UrlRow_2", 
+                    "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
+                    "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
+                    "\x18" "\xD8\x04"),
+        };
+
+        TVector<TNode> expectedContent2 = {
+            TNode()
+                ("Ints", TNode().Add(-1).Add(-2).Add(40000))
+                ("UrlRows", TNode()
+                    .Add(TNode().Add("yandex.ru").Add("/mail").Add(200))
+                    .Add(TNode().Add("google.com").Add("/mail").Add(404))),
+            TNode()
+                ("Ints", TNode().Add(1).Add(2).Add(40000))
+                ("UrlRows", TNode()
+                    .Add(TNode().Add("yandex.ru").Add("/maps").Add(200))
+                    .Add(TNode().Add("google.com").Add("/maps").Add(404))),
+        };
+
+        auto actualContent1 = ReadTable(client, outputTable1.Path_);
+        auto actualContent2 = ReadTable(client, outputTable2.Path_);
+
+        UNIT_ASSERT_VALUES_EQUAL(expectedContent1, actualContent1);
+        UNIT_ASSERT_VALUES_EQUAL(expectedContent2, actualContent2);
     }
 
     Y_UNIT_TEST(YdlMap)

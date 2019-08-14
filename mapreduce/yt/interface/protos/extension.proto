@@ -20,5 +20,5 @@ extend google.protobuf.FieldOptions
 
 extend google.protobuf.MessageOptions
 {
-    optional ESerializationMode.Enum fields_serialization_mode = 56788 [default = PROTOBUF];
+    optional ESerializationMode.Enum field_serialization_mode = 56788 [default = PROTOBUF];
 }
