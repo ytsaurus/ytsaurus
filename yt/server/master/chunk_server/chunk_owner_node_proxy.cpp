@@ -232,7 +232,8 @@ private:
         TChunk* chunk,
         i64 rowIndex,
         const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit) override
+        const TReadLimit& upperLimit,
+        TTransactionId timestampTransactionId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -364,6 +365,12 @@ private:
         } else {
             chunkSpec->set_data_weight_override(
                 DivCeil(dataWeight, chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
+        }
+
+        if (timestampTransactionId) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            chunkSpec->set_override_timestamp(
+                transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
         }
 
         return true;

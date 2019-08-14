@@ -321,7 +321,13 @@ protected:
             case EObjectType::ErasureChunk:
             case EObjectType::JournalChunk: {
                 auto* childChunk = child->AsChunk();
-                if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
+                if (!Visitor_->OnChunk(
+                    childChunk,
+                    rowIndex,
+                    subtreeStartLimit,
+                    subtreeEndLimit,
+                    {} /*timestampTransactionId*/))
+                {
                     Shutdown();
                     return;
                 }
@@ -470,6 +476,7 @@ protected:
             case EObjectType::ErasureChunk:
             case EObjectType::ChunkView: {
                 TChunk* childChunk = nullptr;
+                TTransactionId timestampTransactionId;
                 if (child->GetType() == EObjectType::ChunkView) {
                     auto* chunkView = child->AsChunkView();
                     if (Visitor_->OnChunkView(chunkView)) {
@@ -480,12 +487,14 @@ protected:
 
                     subtreeStartLimit = chunkView->GetAdjustedLowerReadLimit(subtreeStartLimit);
                     subtreeEndLimit = chunkView->GetAdjustedUpperReadLimit(subtreeEndLimit);
+                    timestampTransactionId = chunkView->GetTransactionId();
+
                     childChunk = chunkView->GetUnderlyingChunk();
                 } else {
                     childChunk = child->AsChunk();
                 }
 
-                if (!Visitor_->OnChunk(childChunk, 0, subtreeStartLimit, subtreeEndLimit)) {
+                if (!Visitor_->OnChunk(childChunk, 0, subtreeStartLimit, subtreeEndLimit, timestampTransactionId)) {
                     Shutdown();
                     return;
                 }
@@ -981,7 +990,8 @@ public:
         TChunk* chunk,
         i64 /*rowIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override
+        const NChunkClient::TReadLimit& /*endLimit*/,
+        TTransactionId /*timestampTransactionId*/) override
     {
         Chunks_->push_back(chunk);
         return true;
@@ -1049,7 +1059,8 @@ void EnumerateChunksAndChunkViewsInChunkTree(
             TChunk* chunk,
             i64 /*rowIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/) override
+            const NChunkClient::TReadLimit& /*endLimit*/,
+            TTransactionId /*timestampTransactionId*/) override
         {
             ChunksOrViews_->push_back(chunk);
             return true;
