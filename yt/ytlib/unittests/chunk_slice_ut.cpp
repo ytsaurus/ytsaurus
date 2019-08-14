@@ -371,7 +371,7 @@ TEST_F(TChunkSliceTest, ChunkWithLimitSmallSlice)
 
 TEST_F(TChunkSliceTest, ChunkWithLimitLargeSlice)
 {
-    const auto & chunkSpec = ChunkWithLimits_;
+    const auto& chunkSpec = ChunkWithLimits_;
     auto keySlices = SliceChunk(
         chunkSpec,
         2500, // sliceDataSize
@@ -397,7 +397,7 @@ TEST_F(TChunkSliceTest, ChunkWithLimitLargeSlice)
 
 TEST_F(TChunkSliceTest, Chunk2WithLimitSmallSlice)
 {
-    const auto & chunkSpec = Chunk2WithLimits_;
+    const auto& chunkSpec = Chunk2WithLimits_;
     auto keySlices = SliceChunk(
         chunkSpec,
         500, // sliceDataSize

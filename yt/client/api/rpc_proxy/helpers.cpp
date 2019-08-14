@@ -312,7 +312,7 @@ void FromProto(
     if (proto.has_state_counts()) {
         result->StateCounts.emplace();
         std::fill(result->StateCounts->begin(), result->StateCounts->end(), 0);
-        for (const auto &stateCount: proto.state_counts().entries()) {
+        for (const auto& stateCount: proto.state_counts().entries()) {
             auto state = ConvertOperationStateFromProto(stateCount.state());
             YT_VERIFY(result->StateCounts->IsDomainValue(state));
             YT_VERIFY((*result->StateCounts)[state] == 0);
@@ -324,7 +324,7 @@ void FromProto(
     if (proto.has_type_counts()) {
         result->TypeCounts.emplace();
         std::fill(result->TypeCounts->begin(), result->TypeCounts->end(), 0);
-        for (const auto &typeCount: proto.type_counts().entries()) {
+        for (const auto& typeCount: proto.type_counts().entries()) {
             auto type = ConvertOperationTypeFromProto(typeCount.type());
             YT_VERIFY(result->TypeCounts->IsDomainValue(type));
             YT_VERIFY((*result->TypeCounts)[type] == 0);

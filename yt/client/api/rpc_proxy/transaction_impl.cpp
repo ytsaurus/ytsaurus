@@ -826,7 +826,7 @@ void TTransaction::ValidateActive(TGuard<TSpinLock>&)
 
 TApiServiceProxy::TReqBatchModifyRowsPtr TTransaction::CreateBatchModifyRowsRequest()
 {
-    const auto &config = Connection_->GetConfig();
+    const auto& config = Connection_->GetConfig();
     auto proxy = CreateApiServiceProxy();
     auto req = proxy.BatchModifyRows();
     ToProto(req->mutable_transaction_id(), Id_);
