@@ -4,6 +4,7 @@
 #include "object_manager.h"
 #include "object_service.h"
 #include "type_handler_detail.h"
+#include "path_resolver.h"
 
 #include <yt/server/master/table_server/table_node.h>
 
@@ -209,6 +210,22 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
         objectManager->ValidatePrerequisites(prerequisitesExt);
+    }
+
+    for (const auto& additionalPath : ypathExt.additional_paths()) {
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            additionalPath,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
+        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+            THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
+                // XXX(babenko)
+                ypathExt.original_target_path(),
+                additionalPath);
+        }
     }
 
     {

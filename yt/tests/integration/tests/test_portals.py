@@ -228,3 +228,30 @@ class TestPortals(YTEnvSetup):
         assert_items_equal(ls("//tmp/p/_"), ["t", "t_", "_"])
         assert get("//tmp/p/t_&/@target_path") == "//tmp/p/t"
         assert get("//tmp/p/t_/@id") == get("//tmp/p/t/@id")
+
+    @authors("babenko")
+    def test_intra_shard_copy_move(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t")
+        assert exists("//tmp/p/t")
+        copy("//tmp/p/t", "//tmp/p/t1")
+        assert exists("//tmp/p/t")
+        assert exists("//tmp/p/t1")
+        move("//tmp/p/t", "//tmp/p/t2")
+        assert not exists("//tmp/p/t")
+        assert exists("//tmp/p/t2")
+
+    @authors("babenko")
+    def test_cross_shard_copy_forbidden1(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            copy("//tmp/t", "//tmp/p/t")
+
+    @authors("babenko")
+    def test_cross_shard_copy_forbidden2(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("table", "//tmp/p1/t")
+        with pytest.raises(YtError):
+            copy("//tmp/p1/t", "//tmp/p2/t")
