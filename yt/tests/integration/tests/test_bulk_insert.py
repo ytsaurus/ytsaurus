@@ -234,6 +234,13 @@ class TestBulkInsert(DynamicTablesBase):
             out="<append=%true>//tmp/t_output",
             command="cat")
 
+        tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        def wait_func():
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            return len(orchid["dynamic_table_locks"]) == 0
+        wait(wait_func)
+
         insert_rows("//tmp/t_output", [rows[2]])
 
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
