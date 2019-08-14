@@ -236,7 +236,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        const auto &slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
         try {
             ExecuteRequestWithRetries<void>(
@@ -298,11 +298,7 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
         }
 
-        const auto& user = context->GetUser();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
-        const auto &slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
         size_t batchCount = request->tablet_ids_size();
         YT_VERIFY(batchCount == request->mount_revisions_size());
@@ -331,6 +327,10 @@ private:
                         Config_->MaxQueryRetries,
                         Logger,
                         [&] () -> TSharedRef {
+                            const auto& user = context->GetUser();
+                            const auto& securityManager = Bootstrap_->GetSecurityManager();
+                            TAuthenticatedUserGuard userGuard(securityManager, user);
+
                             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
                             if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
