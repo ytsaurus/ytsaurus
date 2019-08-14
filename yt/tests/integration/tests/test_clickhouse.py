@@ -545,6 +545,36 @@ class TestClickHouseCommon(ClickHouseTestBase):
             running = False
             ping_thread.join()
 
+    @authors("dakovalkov")
+    def test_convert_yson(self):
+        create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "any"}, {"name": "fmt", "type": "string"}]})
+        value1 = 1
+        value2 = [1, 2]
+        value3 = {"key": "value"}
+        write_table("//tmp/table", [{"i": value1, "fmt": "binary"}, {"i": value2, "fmt": "pretty"}, {"i": value3, "fmt": "text"}])
+        with Clique(1) as clique:
+            value = {"key": [1, 2]}
+            func = "ConvertYson('" + yson.dumps(value, yson_format='text') + "', 'pretty')"
+            assert clique.make_query("select " + func) == [{func: yson.dumps(value, yson_format='pretty')}]
+            func = "ConvertYson(NULL, 'text')"
+            assert clique.make_query("select " + func) == [{func: None}]
+            func = "ConvertYson(i, 'text')"
+            assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
+                {func: yson.dumps(value1, yson_format='text')},
+                {func: yson.dumps(value2, yson_format='text')},
+                {func: yson.dumps(value3, yson_format='text')}]
+            func = "ConvertYson(i, fmt)"
+            assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
+                {func: yson.dumps(value1, yson_format='binary')},
+                {func: yson.dumps(value2, yson_format='pretty')},
+                {func: yson.dumps(value3, yson_format='text')}]
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{{{{', 'binary')")
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson(1, 'text')")
+
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
