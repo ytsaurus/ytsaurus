@@ -14,25 +14,24 @@ def pytest_configure(config):
     ]:
         config.addinivalue_line("markers", line)
 
-def _get_closest_marker(item, name):
+def _get_first_marker(item, name):
+    marker = None
     if hasattr(item, "get_closest_marker"):
-        return item.get_closest_marker(name=name)
-    # For older versions of pytest.
-    for item in reversed(item.listchain()):
-        if item.get_marker(name) is not None:
-            return item.get_marker(name)
-    return None
+        marker = item.get_closest_marker(name=name)
+    else:
+        marker = item.get_marker(name)
+    return marker.args[0] if marker is not None else None
 
 def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
     if hasattr(item, "cls") and hasattr(item.cls, "Env"):
         rep.environment_path = item.cls.Env.path
-    authors = _get_closest_marker(item, name="authors")
+    authors = _get_first_marker(item, name="authors")
     if authors is not None:
-        rep.nodeid += " ({})".format(", ".join(authors.args))
+        rep.nodeid += " ({})".format(", ".join(authors))
     return rep
 
 def pytest_itemcollected(item):
-    authors = _get_closest_marker(item, name="authors")
+    authors = _get_first_marker(item, name="authors")
     if authors is None:
         raise RuntimeError("Test {} is not marked with @authors".format(item.nodeid))
