@@ -882,7 +882,7 @@ private:
         mutationRequest.Data = request->Attachments()[0];
 
         // COMPAT(savrus) Fix heartbeats from old participants.
-        if (!mutationRequest.Type && !mutationRequest.Reign) {
+        if (mutationRequest.Type != HeartbeatMutationType && !mutationRequest.Reign) {
             mutationRequest.Reign = GetCurrentReign();
         }
 
@@ -907,6 +907,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Poke)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        context->SetRequestInfo();
 
         CommitMutation(TMutationRequest(GetCurrentReign()))
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
