@@ -38,6 +38,9 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
+#include <mapreduce/yt/io/ydl_table_reader.h>
+#include <mapreduce/yt/io/ydl_table_writer.h>
+#include <mapreduce/yt/io/ydl_helpers.h>
 #include <mapreduce/yt/io/skiff_table_reader.h>
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
@@ -2856,7 +2859,9 @@ void ResetUseClientProtobuf(const char* methodName)
 
 ::TIntrusivePtr<IYdlReaderImpl> CreateJobYdlReader()
 {
-    return CreateJobNodeReader();
+    return ::MakeIntrusive<TNodeYdlTableReader>(
+        ::MakeIntrusive<TJobReader>(0),
+        GetJobInputTypeHashes());
 }
 
 ::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
@@ -2884,7 +2889,9 @@ void ResetUseClientProtobuf(const char* methodName)
 
 ::TIntrusivePtr<IYdlWriterImpl> CreateJobYdlWriter(size_t outputTableCount)
 {
-    return CreateJobNodeWriter(outputTableCount);
+    return ::MakeIntrusive<TNodeYdlTableWriter>(
+        MakeHolder<TJobWriter>(outputTableCount),
+        GetJobOutputTypeHashes());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

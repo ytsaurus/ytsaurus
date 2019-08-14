@@ -204,8 +204,45 @@ public:
         }
     }
 };
-
 REGISTER_MAPPER(TYdlMultipleInputMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYdlFailingInputMapper
+    : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            NYdlRows::TRow row;
+            if (reader->GetTableIndex() == 0) {
+                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
+            } else if (reader->GetTableIndex() == 1) {
+                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
+            }
+            writer->AddRow(row);
+        }
+    }
+};
+REGISTER_MAPPER(TYdlFailingInputMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYdlFailingOutputMapper
+    : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            NYdlRows::TRow row;
+            row.SetStringField(*reader->GetRow().GetHost());
+            writer->AddRow<NYdlRows::TRow>(row, 1);
+        }
+    }
+};
+REGISTER_MAPPER(TYdlFailingOutputMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1613,6 +1650,49 @@ Y_UNIT_TEST_SUITE(Operations)
         };
         auto actual = ReadTable(client, outputTable.Path_);
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
+    Y_UNIT_TEST(YdlRowTypeCheckFail)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable1 = TRichYPath(workingDir + "/input1");
+        auto inputTable2 = TRichYPath(workingDir + "/input2");
+        auto outputTable1 = TRichYPath(workingDir + "/output1");
+        auto outputTable2 = TRichYPath(workingDir + "/output2");
+
+        {
+            auto writer = client->CreateTableWriter<NYdlRows::TUrlRow>(inputTable1);
+            NYdlRows::TUrlRow row;
+            row.SetHost("https://www.google.com");
+            writer->AddRow(row);
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<NYdlRows::THostRow>(inputTable2);
+            NYdlRows::THostRow row;
+            row.SetHost("https://www.yandex.ru");
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->Map(
+                new TYdlFailingInputMapper,
+               {Structured<NYdlRows::TUrlRow>(inputTable1), Structured<NYdlRows::THostRow>(inputTable2)},
+                Structured<NYdlRows::TRow>(outputTable1)),
+            TOperationFailedError,
+            "Invalid row type at index");
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->Map(
+                new TYdlFailingOutputMapper,
+                Structured<NYdlRows::TUrlRow>(inputTable1),
+                {Structured<NYdlRows::TRow>(outputTable1), Structured<NYdlRows::THostRow>(outputTable2)}),
+            TOperationFailedError,
+            "Invalid row type at index");
     }
 
     Y_UNIT_TEST(JobPrefix)

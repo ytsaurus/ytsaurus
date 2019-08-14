@@ -89,7 +89,9 @@ struct TTYaMRRowStructuredRowStream
 { };
 
 struct TYdlStructuredRowStream
-{ };
+{
+    NTi::TType::TPtr Type = nullptr;
+};
 
 struct TProtobufStructuredRowStream
 {
