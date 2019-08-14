@@ -347,6 +347,59 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: not exists("#{}".format(subtablet_chunk_list)))
 
+    def test_read_with_timestamp(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        old_ts = generate_timestamp()
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=true>//tmp/t_output",
+            command="cat")
+
+        new_ts = generate_timestamp()
+
+        sync_flush_table("//tmp/t_output")
+        assert read_table("<timestamp={}>//tmp/t_output".format(old_ts)) == []
+        assert read_table("<timestamp={}>//tmp/t_output".format(new_ts)) == rows
+
+    def test_map_on_bulk_inserted_data(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        old_ts = generate_timestamp()
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=true>//tmp/t_output",
+            command="cat")
+
+        new_ts = generate_timestamp()
+
+        sync_flush_table("//tmp/t_output")
+
+        def _verify(ts, expected):
+            create("table", "//tmp/t_verify", force=True)
+            map(
+                in_="<timestamp={}>//tmp/t_output".format(ts),
+                out="//tmp/t_verify",
+                command="cat")
+            assert read_table("//tmp/t_verify") == expected
+
+        _verify(old_ts, [])
+        _verify(new_ts, rows)
+
     @pytest.mark.parametrize("stage", ["stage5", "stage6"])
     def test_abort_operation(self, stage):
         sync_create_cells(1)
@@ -659,8 +712,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             expected = [{"key": 1, "value": expected_value}]
             assert lookup_rows("//tmp/t_output", [{"key": 1}]) == expected
             assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
-            # TODO(ifsmirnov): consider chunk view timestamp in read-table
-            #  assert_items_equal(read_table("//tmp/t_output"), expected)
+            assert_items_equal(read_table("//tmp/t_output"), expected)
 
         self._run_operation(self._prepare_write_row(
             self._make_value("value", 1),
@@ -694,8 +746,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             expected = [{"k1": 1, "v1": expected_v1, "v2": expected_v2}]
             assert lookup_rows("//tmp/t_output", [{"k1": 1}]) == expected
             assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
-            # TODO(ifsmirnov): consider chunk view timestamp in read-table
-            #  assert_items_equal(read_table("//tmp/t_output"), expected)
+            assert_items_equal(read_table("//tmp/t_output"), expected)
 
         self._run_operation(self._prepare_write_row(
             self._make_value("v1", 1),
@@ -729,8 +780,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             expected = [{"key": 1, "value": expected_value}]
             assert lookup_rows("//tmp/t_output", [{"key": 1}]) == expected
             assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
-            # TODO(ifsmirnov): consider chunk view timestamp in read-table
-            #  assert_items_equal(read_table("//tmp/t_output"), expected)
+            assert_items_equal(read_table("//tmp/t_output"), expected)
 
         self._run_operation(self._prepare_write_row(
             self._make_value("value", 1, treat_empty_flags_as_null=True),
