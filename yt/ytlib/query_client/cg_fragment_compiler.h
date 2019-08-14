@@ -252,7 +252,8 @@ size_t MakeCodegenProjectOp(
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t slot,
-    size_t rowSize);
+    size_t rowSize,
+    bool considerLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
