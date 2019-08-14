@@ -31,7 +31,7 @@ ARGV0 = sys.argv[0]
 
 YALL_BUILD_MODES = [
     ["--target-platform=linux", "-DYT_ENABLE_GDB_INDEX", "-DYT_LINKER_WORKAROUND=yes"],
-    ["--target-platform=linux"],
+    ["--target-platform=linux", "-tt"],
     ["--target-platform=linux", "--musl"],
     ["--target-platform=darwin"],
     ["--target-platform=linux", "--yall-asan-build"],
