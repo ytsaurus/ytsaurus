@@ -10,6 +10,8 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressPath
 {
 public:
@@ -79,6 +81,8 @@ private:
     size_t GetBasenameSize() const noexcept;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 inline TCypressPath operator/(TCypressPath lhs, const TCypressPath& rhs)
 {
     return lhs /= rhs;
@@ -98,5 +102,7 @@ inline TCypressPath operator/(TCypressPath lhs, const char* rhs)
 {
     return lhs /= rhs;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
