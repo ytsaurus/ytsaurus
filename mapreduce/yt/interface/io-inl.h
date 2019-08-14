@@ -147,6 +147,13 @@ struct IYaMRReaderImpl
     }
 };
 
+struct IYdlReaderImpl
+    : public IReaderImplBase
+{
+    virtual const TNode& GetRow() const = 0;
+    virtual void VerifyRowType(ui64 rowTypeHash) const = 0;
+};
+
 struct IProtoReaderImpl
     : public IReaderImplBase
 {
@@ -276,11 +283,7 @@ public:
     const U& GetRow() const
     {
         AssertIsOneOf<U>();
-        int typeIndex = NDetail::TIndexOfType<U, std::tuple<TYdlRowTypes...>>::Value;
-        if (RowTypeIndex_ == NoIndex_) {
-            RowTypeIndex_ = typeIndex;
-        }
-        Y_ENSURE(typeIndex == RowTypeIndex_, "Template parameter doesn't represent current row type");
+        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash());
         if (RowState_ == None) {
             std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
             RowState_ = Cached;
@@ -294,6 +297,7 @@ public:
     void MoveRow(U* result)
     {
         AssertIsOneOf<U>();
+        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash());
         Y_VERIFY(result);
         switch (RowState_) {
             case None:
@@ -325,7 +329,6 @@ public:
     {
         Reader_->Next();
         RowState_ = None;
-        RowTypeIndex_ = NoIndex_;
         ++ReadRowCount_;
     }
 
@@ -357,9 +360,6 @@ private:
         MovedOut,
     };
     mutable ERowState RowState_ = None;
-
-    constexpr static int NoIndex_ = -1;
-    mutable int RowTypeIndex_ = NoIndex_;
 
     template <class U>
     static constexpr void AssertIsOneOf()
@@ -628,7 +628,7 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
         TAutoPtr<T> prototype(new T);
         return new TTableReader<T>(CreateProtoReader(path, options, prototype.Get()));
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        return new TTableReader<T>(CreateYdlReader(path, options));
+        return new TTableReader<T>(CreateYdlReader(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else {
         static_assert(TDependentFalse<T>::value, "Unsupported type for table reader");
     }
@@ -709,6 +709,13 @@ struct IYaMRWriterImpl
     virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
 };
 
+struct IYdlWriterImpl
+    : public IWriterImplBase
+{
+    virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
+    virtual void VerifyRowType(ui64 rowTypeHash, size_t tableIndex) const = 0;
+};
+
 struct IProtoWriterImpl
     : public IWriterImplBase
 {
@@ -744,6 +751,21 @@ public:
 
     void AddRow(const T& row, size_t tableIndex = 0)
     {
+        DoAddRow<T>(row, tableIndex);
+    }
+
+    void Finish()
+    {
+        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
+            auto guard = Guard((*Locks_)[i]);
+            Writer_->GetStream(i)->Finish();
+        }
+    }
+
+protected:
+    template <class U>
+    void DoAddRow(const U& row, size_t tableIndex = 0)
+    {
         if (tableIndex >= Locks_->size()) {
             ythrow TIOException() <<
                 "Table index " << tableIndex <<
@@ -754,12 +776,9 @@ public:
         Writer_->AddRow(row, tableIndex);
     }
 
-    void Finish()
+    ::TIntrusivePtr<IWriterImpl> GetWriterImpl()
     {
-        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
-            auto guard = Guard((*Locks_)[i]);
-            Writer_->GetStream(i)->Finish();
-        }
+        return Writer_;
     }
 
 private:
@@ -793,12 +812,10 @@ public:
 
 template <>
 class TTableWriter<NDetail::TYdlGenericRowType>
-    : public TTableWriterBase<TNode>
+    : public TTableWriterBase<NDetail::TYdlGenericRowType>
 {
 public:
-    using TBase = TTableWriterBase<TNode>;
-    using IWriterImpl = IYdlWriterImpl;
-    using TRowType = NDetail::TYdlGenericRowType;
+    using TBase = TTableWriterBase<NDetail::TYdlGenericRowType>;
 
     explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
         : TBase(writer)
@@ -807,10 +824,11 @@ public:
     template<class U, std::enable_if_t<NYdl::TIsYdlGenerated<U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
+        GetWriterImpl()->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash(), tableIndex);
         TNode node;
         TNodeBuilder builder(&node);
         row.SerializeAsYson(builder);
-        TBase::AddRow(node, tableIndex);
+        TBase::DoAddRow(node, tableIndex);
     }
 };
 
@@ -890,9 +908,7 @@ inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
         TAutoPtr<T> prototype(new T);
         return new TTableWriter<T>(CreateProtoWriter(path, options, prototype.Get()));
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        auto schemaPath = path;
-        schemaPath.Schema(CreateYdlTableSchema<T>());
-        return new TTableWriter<T>(CreateYdlWriter(schemaPath, options));
+        return new TTableWriter<T>(CreateYdlWriter(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else {
         static_assert(TDependentFalse<T>::value, "Unsupported type for table writer");
     }

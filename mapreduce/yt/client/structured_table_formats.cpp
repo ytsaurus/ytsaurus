@@ -64,6 +64,15 @@ TString CreateProtoConfig(const TVector<const ::google::protobuf::Descriptor*>& 
     return result;
 }
 
+TString CreateYdlConfig(const TVector<NTi::TType::TPtr>& descriptorList)
+{
+    TStringStream structHashList;
+    for (const auto& descriptor : descriptorList) {
+        structHashList << descriptor->AsStruct().GetNameHash() << Endl;
+    }
+    return structHashList.Str();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetTableStructureDescriptionStringImpl {
@@ -372,19 +381,93 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
     }
 }
 
+[[noreturn]] static void ThrowUnsupportedStructureDescription(
+    const EIODirection& direction,
+    const TStructuredJobTable& table,
+    const IStructuredJob& job)
+{
+    ythrow TApiUsageError()
+        << "cannot use " << direction << " table '" << JobTablePathString(table)
+        << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
+        << "table has unsupported structure description; check " << GetAddIOMethodName(direction) << " for this table";
+}
+
+[[noreturn]] static void ThrowTypeDeriveFail(
+    const EIODirection& direction,
+    const IStructuredJob& job,
+    const TString& type)
+{
+    ythrow TApiUsageError()
+        << "Cannot derive exact " << type <<  " type for intermediate " << direction << " table for job "
+        << TJobFactory::Get()->GetJobName(&job)
+        << "; use one of TMapReduceOperationSpec::Hint* methods to specifiy intermediate table structure";
+}
+
+[[noreturn]] static void ThrowUnexpectedDifferentDescriptors(
+    const EIODirection& direction,
+    const TStructuredJobTable& table,
+    const IStructuredJob& job,
+    const TMaybe<TString>& jobDescriptorName,
+    const TMaybe<TString>& descriptorName)
+{
+    ythrow TApiUsageError()
+        << "Job " << TJobFactory::Get()->GetJobName(&job) << " expects "
+        << jobDescriptorName << " as " << direction << ", but table " << JobTablePathString(table)
+        << " is tagged with " << descriptorName;
+}
+
 std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
-    const IStructuredJob& /*job*/,
-    const EIODirection& /*direction*/,
-    const TStructuredJobTableList& /*structuredTableList*/,
+    const IStructuredJob& job,
+    const EIODirection& direction,
+    const TStructuredJobTableList& structuredTableList,
     const TMaybe<TFormatHints>& formatHints,
     ENodeReaderFormat /*nodeReaderFormat*/,
     bool /*allowFormatFromTableAttribute*/)
 {
+    TVector<NTi::TType::TPtr> descriptorList;
+
+    NTi::TType::TPtr jobDescriptor =
+        Get<TYdlStructuredRowStream>(GetJobStreamDescription(job, direction)).Type;
+    Y_ENSURE(!structuredTableList.empty(),
+             "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
+
+    for (const auto& table : structuredTableList) {
+        NTi::TType::TPtr descriptor = nullptr;
+        if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
+            descriptor = Get<TYdlTableStructure>(table.Description).Type;
+        } else if (table.RichYPath) {
+            ThrowUnsupportedStructureDescription(direction, table, job);
+        }
+        if (!descriptor) {
+            // It must be intermediate table, because there is no proper way
+            // to add such table to spec (AddInput requires to specify proper type).
+            Y_VERIFY(!table.RichYPath, "Descriptors for all tables except intermediate must be known");
+            if (jobDescriptor) {
+                descriptor = jobDescriptor;
+            } else {
+                ThrowTypeDeriveFail(direction, job, "ydl");
+            }
+        }
+        if (jobDescriptor && *descriptor != *jobDescriptor) {
+            ThrowUnexpectedDifferentDescriptors(
+                direction,
+                table,
+                job,
+                jobDescriptor->AsStruct().GetName(),
+                descriptor->AsStruct().GetName());
+        }
+        descriptorList.push_back(descriptor);
+    }
+    Y_VERIFY(!descriptorList.empty(), "Descriptors for ydl format are unknown");
+
     auto format = TFormat::YsonBinary();
     NYT::NDetail::ApplyFormatHints<TNode>(&format, formatHints);
     return {
         format,
-        Nothing()
+        TSmallJobFile{
+            TString("ydl") + GetSuffix(direction),
+            CreateYdlConfig(descriptorList),
+        },
     };
 }
 
@@ -416,10 +499,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
         if (HoldsAlternative<TProtobufTableStructure>(table.Description)) {
             descriptor = Get<TProtobufTableStructure>(table.Description).Descriptor;
         } else if (table.RichYPath) {
-            ythrow TApiUsageError()
-                << "cannot use " << direction << " table '" << JobTablePathString(table)
-                << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
-                << "table has unsupported structure description; check " << GetAddIOMethodName(direction) << " for this table";
+            ThrowUnsupportedStructureDescription(direction, table, job);
         }
         if (!descriptor) {
             // It must be intermediate table, because there is no proper way to add such table to spec (AddInput requires to specify proper message).
@@ -427,17 +507,16 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
             if (jobDescriptor) {
                 descriptor = jobDescriptor;
             } else {
-                ythrow TApiUsageError()
-                    << "Cannot derive exact protobuf type for intermediate " << direction << " table for job "
-                    << TJobFactory::Get()->GetJobName(&job)
-                    << "; use one of TMapreduceOperationSpec::Hint* methods to specifiy intermediate table structure";
+                ThrowTypeDeriveFail(direction, job, "protobuf");
             }
         }
         if (jobDescriptor && descriptor != jobDescriptor) {
-            ythrow TApiUsageError()
-                << "Job " << TJobFactory::Get()->GetJobName(&job) << " expects "
-                << jobDescriptor->full_name() << " as " << direction << ", but table " << JobTablePathString(table)
-                << " is tagged with " << descriptor->full_name();
+            ThrowUnexpectedDifferentDescriptors(
+                direction,
+                table,
+                job,
+                jobDescriptor->full_name(),
+                descriptor->full_name());
         }
         descriptorList.push_back(descriptor);
     }

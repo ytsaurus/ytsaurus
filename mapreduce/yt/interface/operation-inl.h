@@ -58,7 +58,11 @@ TStructuredRowStreamDescription GetStructuredRowStreamDescription()
         || TIsYdlOneOf<TRow>::value
         || std::is_same<TRow, TYdlGenericRowType>::value)
     {
-        return TYdlStructuredRowStream{};
+        if constexpr (NYdl::TIsYdlGenerated<TRow>::value) {
+            return TYdlStructuredRowStream{NYdl::TYdlTraits<TRow>::Reflect()};
+        } else {
+            return TYdlStructuredRowStream{nullptr};
+        }
     } else {
         static_assert(TDependentFalse<TRow>::value, "Unknown row type");
     }

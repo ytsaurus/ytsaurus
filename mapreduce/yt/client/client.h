@@ -224,7 +224,9 @@ private:
         const TRichYPath& path, const TTableReaderOptions& options) override;
 
     ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
-        const TRichYPath& path, const TTableReaderOptions& options) override;
+        const TRichYPath& path,
+        const TTableReaderOptions& options,
+        NTi::TType::TPtr type) override;
 
     ::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
         const TRichYPath& path,
@@ -238,7 +240,9 @@ private:
         const TRichYPath& path, const TTableWriterOptions& options) override;
 
     ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
-        const TRichYPath& path, const TTableWriterOptions& options) override;
+        const TRichYPath& path,
+        const TTableWriterOptions& options,
+        NTi::TType::TPtr type) override;
 
     ::TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
         const TRichYPath& path,

@@ -39,13 +39,11 @@ class TYdlOneOf
 struct INodeReaderImpl;
 struct IYaMRReaderImpl;
 struct IProtoReaderImpl;
+struct IYdlReaderImpl;
 struct INodeWriterImpl;
 struct IYaMRWriterImpl;
+struct IYdlWriterImpl;
 struct IProtoWriterImpl;
-
-// These are temporary implementation details so you should not depend on this code
-using IYdlReaderImpl = INodeReaderImpl;
-using IYdlWriterImpl = INodeWriterImpl;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +224,9 @@ private:
         const ::google::protobuf::Message* prototype) = 0;
 
     virtual ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
-        const TRichYPath& /*path*/, const TTableReaderOptions& /*options*/)
+        const TRichYPath& /*path*/,
+        const TTableReaderOptions& /*options*/,
+        NTi::TType::TPtr /*type*/)
     {
         Y_FAIL("Uimplemented");
     }
@@ -243,7 +243,9 @@ private:
         const ::google::protobuf::Message* prototype) = 0;
 
     virtual ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
-        const TRichYPath& /*path*/, const TTableWriterOptions& /*options*/)
+        const TRichYPath& /*path*/,
+        const TTableWriterOptions& /*options*/,
+        NTi::TType::TPtr /*type*/)
     {
         Y_FAIL("Uimplemented");
     }
