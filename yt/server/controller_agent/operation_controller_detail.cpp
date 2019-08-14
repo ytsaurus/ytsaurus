@@ -6511,6 +6511,10 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
     table->OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());
 
+    if (table->Dynamic) {
+        table->OutputChunks.push_back(chunk);
+    }
+
     if (IsOutputLivePreviewSupported()) {
         AttachToLivePreview(chunkSpec->ChunkId(), table->LivePreviewTableId);
     }

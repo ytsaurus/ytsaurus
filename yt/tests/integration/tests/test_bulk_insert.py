@@ -400,6 +400,47 @@ class TestBulkInsert(DynamicTablesBase):
         _verify(old_ts, [])
         _verify(new_ts, rows)
 
+    @parametrize_external
+    def test_chunk_teleportation(self, external):
+        sync_create_cells(1)
+        if external:
+            self._create_simple_dynamic_table("//tmp/t_output", external_cell_tag=1)
+        else:
+            self._create_simple_dynamic_table("//tmp/t_output", external=False)
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t_output")
+
+        if external:
+            create(
+                "table",
+                "//tmp/t_input",
+                attributes={"schema": get("//tmp/t_output/@schema")},
+                external_cell_tag=2)
+        else:
+            create(
+                "table",
+                "//tmp/t_input",
+                attributes={"schema": get("//tmp/t_output/@schema")},
+                external=False)
+
+        rows = [
+            {"key": 1, "value": "1"},
+            {"key": 2, "value": "2"},
+        ]
+        write_table("<append=%true>//tmp/t_input", [rows[0]])
+        write_table("<append=%true>//tmp/t_input", [rows[1]])
+
+        merge(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            mode="ordered")
+
+        assert get("//tmp/t_output/@chunk_ids") == get("//tmp/t_input/@chunk_ids")
+        assert read_table("//tmp/t_output") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+        lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}, {"key": 2}], versioned=True)
+        assert lookup_result[0].attributes["write_timestamps"] == lookup_result[1].attributes["write_timestamps"]
+
     @pytest.mark.parametrize("stage", ["stage5", "stage6"])
     def test_abort_operation(self, stage):
         sync_create_cells(1)
@@ -568,7 +609,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
     def _run_operation(self, rows, input_table="//tmp/t_input", output_table="//tmp/t_output"):
         if not isinstance(rows, list):
-            rows = [rows] 
+            rows = [rows]
         create("table", input_table, force=True)
         write_table(input_table, rows)
         map(
@@ -827,7 +868,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             self._run_operation([
                 self._prepare_delete_row(key=2),
                 self._prepare_write_row(key=1)])
-    
+
 ##################################################################
 
 class TestBulkInsertMulticell(TestBulkInsert):
