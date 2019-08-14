@@ -48,7 +48,7 @@ class TestJobProber(YTEnvSetup):
 
     DELTA_NODE_CONFIG = cgroups_delta_node_config
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_strace_job(self):
         create("table", "//tmp/t1")
@@ -72,7 +72,7 @@ class TestJobProber(YTEnvSetup):
             assert "process_command_line" in trace
             assert "process_name" in trace
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
@@ -104,7 +104,7 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
@@ -140,7 +140,7 @@ class TestJobProber(YTEnvSetup):
         # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
         check_all_stderrs(op, "stderr\n", 1, substring=True)
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -165,7 +165,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_abandon_job_sorted_empty_output(self):
         create("table", "//tmp/t1")
@@ -185,7 +185,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_abandon_job_permissions(self):
         create_user("u1")
@@ -241,7 +241,7 @@ class TestJobProber(YTEnvSetup):
             keys=keys.encode("hex"),
             input_offset=input_offset)
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_poll_job_shell(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -276,7 +276,7 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 0
 
     # Remove after YT-8596
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=5)
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
@@ -307,7 +307,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_poll_job_shell_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -334,7 +334,7 @@ class TestJobProber(YTEnvSetup):
                 width=132,
                 authenticated_user="u2")
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_abort_job(self):
         time.sleep(2)

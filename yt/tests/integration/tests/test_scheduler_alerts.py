@@ -25,7 +25,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_pools(self):
         assert get("//sys/scheduler/@alerts") == []
 
@@ -43,7 +43,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/pools/poolA/@min_share_ratio", 0.1)
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_config(self):
         assert get("//sys/scheduler/@alerts") == []
 
@@ -53,7 +53,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/scheduler/config", {})
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_cluster_directory(self):
         assert get("//sys/scheduler/@alerts") == []
 
@@ -65,7 +65,7 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_snapshot_loading_alert(self):
         controller_agent = ls("//sys/controller_agents/instances")[0]
         assert len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0
@@ -135,7 +135,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     @unix_only
     def test_unused_tmpfs_size_alert(self):
         create_test_tables()
@@ -166,7 +166,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "unused_tmpfs_space" not in op.get_alerts()
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_missing_input_chunks_alert(self):
         create_test_tables(attributes={"replication_factor": 1})
 
@@ -191,7 +191,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         wait(lambda: "lost_input_chunks" not in op.get_alerts())
 
-    @authors("ostyakov")
+    @authors("ignat")
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
         create_test_tables(row_count=7)
@@ -212,7 +212,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "excessive_disk_usage" in op.get_alerts()
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_long_aborted_jobs_alert(self):
         create_test_tables(row_count=5)
 
@@ -260,7 +260,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         self.wait_for_running_jobs(op)
         wait(lambda: "operation_too_long" in op.get_alerts())
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")
 
@@ -284,7 +284,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "intermediate_data_skew" in op.get_alerts()
 
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     def test_short_jobs_alert(self):
         create_test_tables(row_count=4)
@@ -309,7 +309,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "short_jobs_duration" not in op.get_alerts()
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_schedule_job_timed_out_alert(self):
         create_test_tables()
 
@@ -360,7 +360,7 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
         }
     }
 
-    @authors("ignat", "ostyakov")
+    @authors("ignat")
     def test_job_spec_throttler_operation_alert(self):
         create("table", "//tmp/t_in")
         for letter in string.ascii_lowercase:

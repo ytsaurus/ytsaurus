@@ -218,7 +218,7 @@ class TestFiles(YTEnvSetup):
         with pytest.raises(YtError):
             write_file("<append=true;compression_codec=none>//tmp/f", "a")
 
-    @authors("ostyakov", "kiselyovp")
+    @authors("ignat", "kiselyovp")
     def test_compute_hash(self):
         create("file", "//tmp/fcache")
         create("file", "//tmp/fcache2")

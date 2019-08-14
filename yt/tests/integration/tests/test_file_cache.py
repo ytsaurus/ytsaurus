@@ -12,7 +12,7 @@ class TestFileCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_get_file_from_cache(self):
         cache_path = "//tmp/file_cache"
         create("file", "//tmp/file")
@@ -39,7 +39,7 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("", cache_path) == ""
 
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
@@ -115,7 +115,7 @@ class TestFileCache(YTEnvSetup):
         assert id1 == id2
 
 
-    @authors("ostyakov", "levysotsky")
+    @authors("ignat", "levysotsky")
     def test_file_cache(self):
         content = "abacaba"
         content_md5 = hashlib.md5("abacaba").hexdigest()

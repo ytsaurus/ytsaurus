@@ -68,7 +68,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         }
     }
 
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     @require_ytserver_root_privileges
     def test_revive(self):
@@ -92,7 +92,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_disconnect_during_revive(self):
         op_count = 20
@@ -126,7 +126,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for i in xrange(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [{"foo": "bar"}]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_user_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
@@ -142,7 +142,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_scheduler_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
@@ -187,7 +187,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.resume()
         wait(lambda: op.get_job_count("running") == 1)
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
@@ -218,7 +218,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op2.track()
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_operation_suspend_with_account_limit_exceeded(self):
         create_account("limited")
@@ -274,7 +274,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.resume()
         op.track()
 
-    @authors("ignat", "ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_fail_context_saved_on_time_limit(self):
         self._create_table("//tmp/in")
@@ -301,7 +301,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     @require_ytserver_root_privileges
     def test_fifo_default(self):
@@ -336,7 +336,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     @require_ytserver_root_privileges
     def test_fifo_by_pending_job_count(self):
@@ -374,7 +374,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_fifo_subpools(self):
         assert not get("//sys/scheduler/@alerts")
 
@@ -386,7 +386,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert get("//sys/scheduler/@alerts")
         assert get("//sys/scheduler/@alerts")[0]
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_preparing_operation_transactions(self):
         self._prepare_tables()
 
@@ -414,7 +414,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         set_banned_flag(False)
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_abort_custom_error_message(self):
         self._prepare_tables()
 
@@ -424,7 +424,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert op.get_state() == "aborted"
         assert get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
 
-    @authors("ostyakov")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_operation_pool_attributes(self):
         self._prepare_tables()
@@ -451,7 +451,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                    "completed"
                ] == [event["state"] for event in events]
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_exceed_job_time_limit(self):
         self._prepare_tables()
 
@@ -471,7 +471,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
             assert "Job time limit exceeded" in inner_errors[0]["message"]
 
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     @require_ytserver_root_privileges
     def test_within_job_time_limit(self):
@@ -658,7 +658,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric))
         return last_metric
 
-    @authors("ignat", "eshcherbin", "ostyakov")
+    @authors("ignat", "eshcherbin")
     @require_ytserver_root_privileges
     def test_pool_profiling(self):
         self._prepare_tables()
@@ -688,7 +688,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("min_share_resources/memory", "unique_pool") == 0
         assert self._get_metric_maximum_value("min_share_resources/user_slots", "unique_pool") == 0
 
-    @authors("ostyakov", "ignat")
+    @authors("ignat")
     @require_ytserver_root_privileges
     def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
@@ -983,7 +983,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def _wait_for_state(self, op, state):
         wait(lambda: op.get_state() == state)
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_missing_transactions(self):
         self._prepare_tables()
 
@@ -1001,7 +1001,7 @@ class SchedulerReviveBase(YTEnvSetup):
         assert op.get_state() == "completed"
 
     # NB: we hope that we check aborting state before operation comes to aborted state but we cannot guarantee that this happen.
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     def test_aborting(self):
         self._prepare_tables()
@@ -1023,7 +1023,7 @@ class SchedulerReviveBase(YTEnvSetup):
         assert op.get_state() == "aborted"
 
     # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
-    @authors("ostyakov")
+    @authors("ignat")
     @flaky(max_runs=3)
     def test_completing(self):
         self._prepare_tables()
@@ -1047,7 +1047,7 @@ class SchedulerReviveBase(YTEnvSetup):
             assert read_table("//tmp/t_out") == []
 
     # NB: test rely on timings and can flap if we hang at some point.
-    @authors("ostyakov", "ignat")
+    @authors("ignat")
     @flaky(max_runs=3)
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
     def test_completing_with_sleep(self, stage):
@@ -1122,7 +1122,7 @@ class SchedulerReviveBase(YTEnvSetup):
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
-    @authors("ignat", "ostyakov")
+    @authors("ignat")
     def test_abort_during_complete(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
@@ -1158,7 +1158,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         assert op.get_state() == "completed"
 
-    @authors("ostyakov")
+    @authors("ignat")
     def test_failing(self):
         self._prepare_tables()
 
