@@ -383,7 +383,7 @@ private:
     class T##key##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
+        YTREE_NODE_TYPE_OVERRIDES(key) \
     \
     public: \
         T##key##NodeProxy( \

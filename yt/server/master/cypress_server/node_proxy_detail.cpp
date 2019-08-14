@@ -1995,7 +1995,6 @@ void TMapNodeProxy::SetRecursive(
     const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
-    ValidateSetCommand(GetPath(), context->GetUser(), request->force());
     TMapNodeMixin::SetRecursive(path, request, response, context);
 }
 
@@ -2345,18 +2344,6 @@ void TListNodeProxy::SetRecursive(
     const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
-
-    NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    auto token = tokenizer.GetToken();
-
-    if (!token.StartsWith(ListBeginToken) &&
-        !token.StartsWith(ListEndToken) &&
-        !token.StartsWith(ListBeforeToken) &&
-        !token.StartsWith(ListAfterToken))
-    {
-        ValidateSetCommand(GetPath(), context->GetUser(), request->force());
-    }
     TListNodeMixin::SetRecursive(path, request, response, context);
 }
 
