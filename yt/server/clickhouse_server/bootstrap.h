@@ -71,7 +71,7 @@ private:
 
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
 
-    std::atomic<int> SigintCounter_;
+    std::atomic<int> SigintCounter_ = {0};
 
     static constexpr int InterruptionExitCode = 43;
 
