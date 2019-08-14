@@ -2754,6 +2754,10 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     if (ast.Limit) {
         query->Limit = *ast.Limit;
+
+        if (!query->OrderClause && query->HavingClause) {
+            THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
+        }
     } else if (query->OrderClause) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }

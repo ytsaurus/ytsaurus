@@ -195,6 +195,7 @@ TGroupByClosure::TGroupByClosure(
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
+    int valuesCount,
     bool checkNulls)
     : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
     , PrefixEqComparer(prefixEqComparer)
@@ -203,6 +204,7 @@ TGroupByClosure::TGroupByClosure(
         groupHasher,
         groupComparer)
     , KeySize(keySize)
+    , ValuesCount(valuesCount)
     , CheckNulls(checkNulls)
 {
     Lookup.set_empty_key(nullptr);

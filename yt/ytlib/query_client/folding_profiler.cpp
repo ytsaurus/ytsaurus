@@ -974,7 +974,7 @@ void TQueryProfiler::Profile(
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
-    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, query->IsOrdered() && !query->GroupClause);
 }
 
 struct TExtraColumnsChecker

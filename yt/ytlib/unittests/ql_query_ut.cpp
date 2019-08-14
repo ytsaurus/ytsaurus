@@ -2201,6 +2201,147 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupWithLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    size_t limit = 20;
+    std::vector<i64> orderedKeys;
+    std::unordered_map<i64, i64> groupedValues;
+    i64 totalSum = 0;
+
+    auto groupRow = [&] (i64 key, i64 value) {
+        i64 x = key % 127;
+
+        if (!groupedValues.count(x)) {
+            if (groupedValues.size() >= limit) {
+                return;
+            } else {
+                orderedKeys.push_back(x);
+            }
+        }
+
+        groupedValues[x] += value;
+        totalSum += value;
+    };
+
+    std::vector<TString> source;
+    for (int i = 0; i < 1000; ++i) {
+        auto key = std::rand() % 10000 + 1000;
+        auto value = key * 10;
+
+        source.push_back(Format("a=%v;b=%v", key, value));
+        groupRow(key, value);
+    }
+
+    for (int i = 0; i < 1000; ++i) {
+        auto key = 1000 - i;
+        auto value = key * 10;
+
+        source.push_back(Format("a=%v;b=%v", key, value));
+        groupRow(key, value);
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    for (auto key : orderedKeys) {
+        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+    // TODO(lukyan): Try to make stable order of totals row
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    Evaluate("x, sum(b) as y FROM [//t] group by a % 127 as x with totals limit 20",
+        split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, JoinGroupWithLimit)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources(2);
+
+    splits["//left"] = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 0);
+
+    splits["//right"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    }, 1);
+
+    size_t limit = 20;
+    std::vector<i64> orderedKeys;
+    std::unordered_map<i64, i64> groupedValues;
+    i64 totalSum = 0;
+
+    auto groupRow = [&] (i64 key, i64 value) {
+        i64 x = key % 31;
+
+        if (!groupedValues.count(x)) {
+            if (groupedValues.size() >= limit) {
+                return;
+            } else {
+                orderedKeys.push_back(x);
+            }
+        }
+
+        groupedValues[x] += value;
+        totalSum += value;
+    };
+
+    for (int i = 0; i < 1000; ++i) {
+        auto key = i;
+        auto value = key * 10;
+
+        bool joined = true;
+
+        if (std::rand() % 2) {
+            sources[0].push_back(Format("a=%v", key));
+        } else {
+            joined = false;
+        }
+
+        if (std::rand() % 2) {
+            sources[1].push_back(Format("a=%v;b=%v", key, value));
+        } else {
+            joined = false;
+        }
+
+        if (joined) {
+            groupRow(key, value);
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    for (auto key : orderedKeys) {
+        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    Evaluate(
+        "x, sum(b) as y FROM [//left] join [//right] using a group by a % 31 as x with totals limit 20",
+        splits,
+        sources,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, HavingClause1)
 {
     auto split = MakeSplit({
