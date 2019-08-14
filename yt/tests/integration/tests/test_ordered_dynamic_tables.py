@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE, skip_if_rpc_driver_backend
+from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -636,7 +636,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         self._verify_chunk_tree_statistics("//tmp/t")
 
     @authors("ifsmirnov")
-    @skip_if_rpc_driver_backend
     def test_chunk_read_limit_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])

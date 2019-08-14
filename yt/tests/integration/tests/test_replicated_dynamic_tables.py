@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, parametrize_external
+from yt_env_setup import parametrize_external
 from yt_commands import *
 from time import sleep, time
 from yt.yson import YsonEntity
@@ -731,7 +731,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         _do()
 
     @authors("aozeritsky")
-    @skip_if_rpc_driver_backend
     def test_replication_with_invalid_options(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")

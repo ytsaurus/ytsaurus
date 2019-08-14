@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend, parametrize_external,\
+from yt_env_setup import YTEnvSetup, wait, parametrize_external,\
     Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
 

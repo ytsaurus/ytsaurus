@@ -1495,6 +1495,12 @@ private:
         if (request->has_mode()) {
             options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
         }
+        if (request->has_preserve_timestamps()) {
+            options.PreserveTimestamps = request->preserve_timestamps();
+        }
+        if (request->has_atomicity()) {
+            options.Atomicity = CheckedEnumCast<EAtomicity>(request->atomicity());
+        }
 
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
             replicaId,

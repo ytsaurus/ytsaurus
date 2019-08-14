@@ -2379,7 +2379,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
 
     @authors("savrus")
-    @skip_if_rpc_driver_backend
     @parametrize_external
     def test_mount_static_table_fails(self, external):
         sync_create_cells(1)
