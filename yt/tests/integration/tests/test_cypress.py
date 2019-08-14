@@ -2269,16 +2269,18 @@ class TestCypressForbidSet(YTEnvSetup):
     def setup(self):
         set("//sys/@config/cypress_manager/forbid_set_command", True)
 
-    @authors("ignat")
+    @authors("shakurov")
     def test_map(self):
+        create("map_node", "//tmp/d")
         with pytest.raises(YtError):
-            set("//tmp/dir", {})
+            set("//tmp/d", {})
 
-        create("map_node", "//tmp/dir")
-        with pytest.raises(YtError):
-            set("//tmp/dir", {})
+    @authors("shakurov")
+    def test_map_recursive(self):
+        set("//tmp/d0", {})
+        set("//tmp/d1", {"d2": {}})
 
-    @authors("ignat")
+    @authors("shakurov")
     def test_attrs(self):
         create("map_node", "//tmp/dir")
         set("//tmp/dir/@my_attr", 10)
@@ -2287,30 +2289,32 @@ class TestCypressForbidSet(YTEnvSetup):
         set("//tmp/dir/@acl/end", {"action": "allow", "subjects": ["root"], "permissions": ["write"]})
         assert len(get("//tmp/dir/@acl")) == 1
 
-    @authors("ignat")
+    @authors("shakurov")
     def test_document(self):
         create("document", "//tmp/doc")
         set("//tmp/doc", {})
         set("//tmp/doc/value", 10)
         assert get("//tmp/doc/value") == 10
 
-    @authors("ignat")
+    @authors("shakurov")
     def test_list(self):
         create("list_node", "//tmp/list")
         set("//tmp/list/end", 0)
-        with pytest.raises(YtError):
-            set("//tmp/list/0", 1)
+        set("//tmp/list/0", 1)
         set("//tmp/list/end", 2)
-        assert get("//tmp/list") == [0, 2]
+        assert get("//tmp/list") == [1, 2]
 
-    @authors("ignat")
+    @authors("shakurov")
+    def test_list_recursive(self):
+        set("//tmp/l", [])
+
+    @authors("shakurov")
     def test_scalars(self):
-        with pytest.raises(YtError):
-            set("//tmp/integer", 10)
-        create("int64_node", "//tmp/integer")
-        with pytest.raises(YtError):
-            set("//tmp/integer", 20)
-        remove("//tmp/integer")
+        set("//tmp/i0", 10)
+        assert get("//tmp/i0") == 10
+        create("int64_node", "//tmp/i1")
+        set("//tmp/i1", 20)
+        assert get("//tmp/i1") == 20
 
         create("document", "//tmp/doc")
         set("//tmp/doc", 10)
