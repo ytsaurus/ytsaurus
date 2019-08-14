@@ -73,6 +73,33 @@ static TMonotonicCounter WriteRequestCounter("/write_request_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+struct TYPathRewrite
+{
+    TYPath Original;
+    TYPath Forwarded;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TYPathRewrite& rewrite, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v -> %v",
+        rewrite.Original,
+        rewrite.Forwarded);
+}
+
+TYPathRewrite MakeYPathRewrite(const TYPath& originalPath, const TResolveCache::TResolveResult& resolveResult)
+{
+    return TYPathRewrite{
+        .Original = originalPath,
+        .Forwarded = FromObjectId(resolveResult.PortalExitId) + resolveResult.UnresolvedPathSuffix
+    };
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStickyUserErrorCache
 {
 public:
@@ -351,6 +378,7 @@ private:
     struct TSubrequest
     {
         int Index = -1;
+        bool TentativelyRemote = false;
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
@@ -358,7 +386,9 @@ private:
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         TSharedRefArray RequestMessage;
-        TResolveCache::TResolveResult CacheResolveResult;
+        TCellTag ForwardedCellTag = InvalidCellTag;
+        TYPathRewrite TargetPathRewrite;
+        SmallVector<TYPathRewrite, 4> AdditionalPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
@@ -425,7 +455,7 @@ private:
 
         ScheduleBackoffAlarm();
         ParseSubrequests();
-        DecideSubrequestTypes();
+        MarkTentativelyRemoveSubrequests();
         RunSyncPhaseOne();
     }
 
@@ -474,6 +504,10 @@ private:
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
 
+            // Store original path.
+            ypathExt->set_original_target_path(ypathExt->target_path());
+            *ypathExt->mutable_original_additional_paths() = ypathExt->original_additional_paths();
+
             // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
                 requestHeader.method() == "Unmount" ||
@@ -502,18 +536,36 @@ private:
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             const auto& subrequest = Subrequests_[subrequestIndex];
-            if (subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
-                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite)
-            {
-                auto transactionId = GetTransactionId(subrequest.RequestHeader);
-                if (transactionId) {
-                    cellTags.push_back(CellTagFromId(transactionId));
-                }
+            if (subrequest.Type == EExecutionSessionSubrequestType::Undefined && subrequest.TentativelyRemote) {
+                // Phase one.
+                continue;
             }
+            if (subrequest.Type == EExecutionSessionSubrequestType::Remote) {
+                // Phase two.
+                continue;
+            }
+            auto transactionId = GetTransactionId(subrequest.RequestHeader);
+            if (!transactionId) {
+                continue;
+            }
+            cellTags.push_back(CellTagFromId(transactionId));
         }
 
         SortUnique(cellTags);
         return cellTags;
+    }
+
+    void MarkTentativelyRemoveSubrequests()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& resolveCache = cypressManager->GetResolveCache();
+            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
+            subrequest.TentativelyRemote = resolveResult.has_value();
+        }
     }
 
     bool RegisterCellToSyncWith(TCellTag cellTag)
@@ -612,6 +664,78 @@ private:
         RunSyncPhaseTwo();
     }
 
+    void MarkSubrequestLocal(TSubrequest* subrequest)
+    {
+        subrequest->RpcContext = CreateYPathContext(
+            subrequest->RequestMessage,
+            ObjectServerLogger,
+            NLogging::ELogLevel::Debug);
+        if (subrequest->YPathExt->mutating()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            subrequest->Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest->RpcContext);
+            subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
+            subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
+        } else {
+            subrequest->Type = EExecutionSessionSubrequestType::LocalRead;
+        }
+    }
+
+    void MarkSubrequestRemote(TSubrequest* subrequest, TCellTag forwardedCellTag)
+    {
+        // XXX(babenko): profiling
+        auto remoteRequestHeader = subrequest->RequestHeader;
+        auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        remoteYPathExt->set_target_path(subrequest->TargetPathRewrite.Forwarded);
+
+        remoteYPathExt->clear_additional_paths();
+        for (const auto& rewrite : subrequest->AdditionalPathRewrites) {
+            remoteYPathExt->add_additional_paths(rewrite.Forwarded);
+        }
+
+        subrequest->ForwardedCellTag = forwardedCellTag;
+        subrequest->RemoteRequestMessage = SetRequestHeader(subrequest->RequestMessage, remoteRequestHeader);
+        subrequest->Type = EExecutionSessionSubrequestType::Remote;
+    }
+
+    void DecideSubrequestType(TSubrequest* subrequest)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+
+        auto targetResolveResult = resolveCache->TryResolve(subrequest->YPathExt->target_path());
+        if (!targetResolveResult) {
+            MarkSubrequestLocal(subrequest);
+            return;
+        }
+        subrequest->TargetPathRewrite = MakeYPathRewrite(subrequest->YPathExt->target_path(), *targetResolveResult);
+
+        subrequest->AdditionalPathRewrites.reserve(subrequest->YPathExt->additional_paths_size());
+        for (const auto& additionalPath : subrequest->YPathExt->additional_paths()) {
+            auto additionalResolveResult = resolveCache->TryResolve(additionalPath);
+            if (!additionalResolveResult) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+            if (CellTagFromId(additionalResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+            subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(additionalPath, *additionalResolveResult));
+        }
+
+        MarkSubrequestRemote(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
+    }
+
+    void DecideSubrequestTypes()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            DecideSubrequestType(&subrequest);
+        }
+    }
+
     void RunSyncPhaseTwo()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -706,26 +830,25 @@ private:
 
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
-            auto cellTag = CellTagFromId(subrequest.CacheResolveResult.PortalExitId);
             auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(cellTag, peerKind);
+            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
             auto req = batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, Path: %v, "
-                "UnresolvedPathSuffix: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
+                "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
-                ypathExt.target_path(),
-                subrequest.CacheResolveResult.UnresolvedPathSuffix,
+                subrequest.TargetPathRewrite,
+                subrequest.AdditionalPathRewrites,
                 UserName_,
                 ypathExt.mutating(),
-                cellTag,
+                subrequest.ForwardedCellTag,
                 peerKind);
         }
 
@@ -762,49 +885,6 @@ private:
                         }
                     }
                 }));
-        }
-    }
-
-    void DecideSubrequestTypes()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
-            auto& subrequest = Subrequests_[subrequestIndex];
-            if (subrequest.Type != EExecutionSessionSubrequestType::Undefined &&
-                subrequest.Type != EExecutionSessionSubrequestType::Remote)
-            {
-                continue;
-            }
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& resolveCache = cypressManager->GetResolveCache();
-            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
-            if (resolveResult) {
-                // Serve the subrequest by forwarding it through the portal.
-                // XXX(babenko): profiling
-                auto remoteRequestHeader = subrequest.RequestHeader;
-                auto* ypathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-                ypathExt->set_target_path(FromObjectId(resolveResult->PortalExitId) + resolveResult->UnresolvedPathSuffix);
-
-                subrequest.CacheResolveResult = std::move(*resolveResult);
-                subrequest.RemoteRequestMessage = SetRequestHeader(subrequest.RequestMessage, remoteRequestHeader);
-                subrequest.Type = EExecutionSessionSubrequestType::Remote;
-            } else {
-                // Serve the subrequest locally.
-                subrequest.RpcContext = CreateYPathContext(
-                    subrequest.RequestMessage,
-                    ObjectServerLogger,
-                    NLogging::ELogLevel::Debug);
-                if (subrequest.YPathExt->mutating()) {
-                    const auto& objectManager = Bootstrap_->GetObjectManager();
-                    subrequest.Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest.RpcContext);
-                    subrequest.Mutation->SetMutationId(subrequest.RpcContext->GetMutationId(), subrequest.RpcContext->IsRetry());
-                    subrequest.Type = EExecutionSessionSubrequestType::LocalWrite;
-                } else {
-                    subrequest.Type = EExecutionSessionSubrequestType::LocalRead;
-                }
-            }
         }
     }
 

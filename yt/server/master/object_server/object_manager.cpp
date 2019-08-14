@@ -91,6 +91,39 @@ static const IObjectTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TPathResolver::TResolveResult ResolvePath(
+    NCellMaster::TBootstrap* bootstrap,
+    const TYPath& path,
+    const IServiceContextPtr& context)
+{
+    TPathResolver resolver(
+        bootstrap,
+        context->GetService(),
+        context->GetMethod(),
+        path,
+        GetTransactionId(context));
+    auto result = resolver.Resolve();
+    if (result.CanCacheResolve) {
+        // XXX(babenko): profiling
+        auto populateResult = resolver.Resolve(TPathResolverOptions{
+            .PopulateResolveCache = true
+        });
+        YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
+        auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
+        YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
+            path,
+            payload.ObjectId,
+            populateResult.UnresolvedPathSuffix);
+    }
+    return result;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
@@ -306,24 +339,41 @@ public:
         }
 
         const auto& hydraManager  = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating() && hydraManager->GetAutomatonState() != EPeerState::Leading) {
+        bool isMutating = IsRequestMutating(context->RequestHeader());
+        if (isMutating && hydraManager->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
 
         auto requestMessage = context->GetRequestMessage();
-        auto requestHeader = context->RequestHeader();
+        auto forwardedRequestHeader = context->RequestHeader();
 
-        auto redirectedPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
-        SetRequestYPath(&requestHeader, redirectedPath);
-        auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
+        auto* forwardedYPathExt = forwardedRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        forwardedYPathExt->set_target_path(FromObjectId(ObjectId_) + forwardedYPathExt->target_path());
+
+        auto forwardedCellTag = CellTagFromId(ObjectId_);
+
+        for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
+            auto additionalResolveResult = ResolvePath(
+                Bootstrap_,
+                forwardedYPathExt->additional_paths(index),
+                context);
+            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
+            if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
+                THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
+                    forwardedYPathExt->original_target_path(),
+                    forwardedYPathExt->additional_paths(index));
+            }
+            forwardedYPathExt->set_additional_paths(
+                index,
+                FromObjectId(additionalPayload->ObjectId) + additionalResolveResult.UnresolvedPathSuffix);
+        }
+        auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto cellTag = CellTagFromId(ObjectId_);
         auto asyncResponseMessage = objectManager->ForwardObjectRequest(
-            std::move(updatedMessage),
-            cellTag,
-            ypathExt.mutating() ? EPeerKind::Leader : EPeerKind::Follower,
+            std::move(forwardedMessage),
+            forwardedCellTag,
+            isMutating ? EPeerKind::Leader : EPeerKind::Follower,
             context->GetTimeout());
 
         asyncResponseMessage
@@ -419,33 +469,13 @@ private:
     TBootstrap* const Bootstrap_;
 
 
-    TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
+    TResolveResult DoResolveThere(const TYPath& targetPath, const IServiceContextPtr& context)
     {
-        TPathResolver resolver(
-            Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
-            path,
-            GetTransactionId(context));
-        auto result = resolver.Resolve();
-
-        if (result.CanCacheResolve) {
-            // XXX(babenko): profiling
-            auto populateResult = resolver.Resolve(TPathResolverOptions{
-                .PopulateResolveCache = true
-            });
-            YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
-            auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
-            YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
-                path,
-                payload.ObjectId,
-                populateResult.UnresolvedPathSuffix);
-        }
-
+        auto resolvePath = ResolvePath(Bootstrap_, targetPath, context);
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto proxy = Visit(result.Payload,
-            [&] (const TPathResolver::TLocalObjectPayload& payload) -> IYPathServicePtr {
-                return objectManager->GetProxy(payload.Object, payload.Transaction);
+        auto proxy = Visit(resolvePath.Payload,
+            [&] (const TPathResolver::TLocalObjectPayload& targetPayload) -> IYPathServicePtr {
+                return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
             [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
                 return objectManager->CreateRemoteProxy(payload.ObjectId);
@@ -456,7 +486,7 @@ private:
 
         return TResolveResultThere{
             std::move(proxy),
-            std::move(result.UnresolvedPathSuffix)
+            std::move(resolvePath.UnresolvedPathSuffix)
         };
     }
 };
