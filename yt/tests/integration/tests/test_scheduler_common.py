@@ -2796,7 +2796,6 @@ class TestSchedulerSnapshots(YTEnvSetup):
                 spec={"data_size_per_job": 1, "testing": {"delay_inside_suspend": 15000}})
 
             time.sleep(2)
-
             snapshot_path2 = op2.get_path() + "/snapshot"
             if exists(snapshot_path2):
                 op2.abort()
@@ -2811,12 +2810,10 @@ class TestSchedulerSnapshots(YTEnvSetup):
             out="//tmp/out1",
             spec={"data_size_per_job": 1})
 
-        time.sleep(8)
-
         snapshot_path1 = op1.get_path() + "/snapshot"
         snapshot_path2 = op2.get_path() + "/snapshot"
 
-        assert exists(snapshot_path1)
+        wait(lambda: exists(snapshot_path1))
         assert not exists(snapshot_path2)
 
         op1.track()
