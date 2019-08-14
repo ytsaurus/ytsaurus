@@ -9,6 +9,8 @@
 using namespace NYT::NTesting;
 using NYT::TCypressPath;
 
+////////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(TCypressPathTestSuite) {
 
     Y_UNIT_TEST(TestValidate)
@@ -84,3 +86,5 @@ Y_UNIT_TEST_SUITE(TCypressPathTestSuite) {
         UNIT_ASSERT_VALUES_EQUAL(TCypressPath("//home").GetParent(), TCypressPath("/"));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////

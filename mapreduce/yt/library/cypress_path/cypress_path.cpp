@@ -9,6 +9,8 @@ namespace NYT {
 
 using namespace NYPath;
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressPath::TCypressPath() noexcept
 { }
 
@@ -99,6 +101,8 @@ TCypressPath::TCypressPath(const char* path)
     : TCypressPath(TString(path))
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressPath& TCypressPath::operator/=(const TCypressPath& other)
 {
     if (!other.IsRelative()) {
@@ -169,9 +173,15 @@ TCypressPath TCypressPath::GetParent() const noexcept
     return Path_.substr(0, Path_.size() - GetBasenameSize());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <>
 void Out<NYT::TCypressPath>(IOutputStream& os, const NYT::TCypressPath& path) {
     os << path.GetPath();
 }
+
+////////////////////////////////////////////////////////////////////////////////
