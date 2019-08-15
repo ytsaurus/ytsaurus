@@ -742,13 +742,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
         self._create_replica_table("//tmp/r2", replica_id2)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
+
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true"})
 
         remove("//tmp/r1", driver=self.replica_driver)
 
@@ -758,13 +760,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch_bundle_health(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
         self._create_replica_table("//tmp/r2", replica_id2, replica_driver = self.primary_driver)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
+
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true"})
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
@@ -792,7 +796,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_sync_replica(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -800,19 +804,23 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2})
+
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_max_sync_replica(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2, "max_sync_replica_count": 4})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
         replica_id = []
         for i in range(5):
             table_path = "//tmp/r%d"%(i)
             replica_id.append(create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, table_path, attributes={"mode": "async"}))
             self._create_replica_table(table_path, replica_id[i])
             sync_enable_table_replica(replica_id[i])
+
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2, "max_sync_replica_count": 4})
 
         def sync_replicas():
             result = 0
