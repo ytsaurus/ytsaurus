@@ -498,7 +498,7 @@ class TestBulkInsert(DynamicTablesBase):
         tablet_tx = start_transaction(type="tablet")
         insert_rows("//tmp/t_output", [rows[1]], tx=tablet_tx)
 
-        op = map(
+        map(
             in_="//tmp/t_input",
             out="<append=true>//tmp/t_output",
             command="sleep 5; cat")
@@ -507,6 +507,48 @@ class TestBulkInsert(DynamicTablesBase):
             commit_transaction(tablet_tx)
 
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
+
+    def test_sorted_merge(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input1")
+        create("table", "//tmp/t_input2")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 1, "value": "1"},
+            {"key": 2, "value": "2"},
+        ]
+        write_table("//tmp/t_input1", rows[:1], sorted_by=["key"])
+        write_table("//tmp/t_input2", rows[1:], sorted_by=["key"])
+
+        merge(
+            in_=["//tmp/t_input1", "//tmp/t_input2"],
+            out="<append=%true>//tmp/t_output",
+            mode="sorted")
+
+        assert read_table("//tmp/t_output") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+
+    def test_sort(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 2, "value": "2"},
+            {"key": 1, "value": "1"},
+        ]
+        write_table("//tmp/t_input", rows)
+
+        sort(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            sort_by=["key"])
+
+        assert read_table("//tmp/t_output") == sorted(rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
 
 ##################################################################
 
