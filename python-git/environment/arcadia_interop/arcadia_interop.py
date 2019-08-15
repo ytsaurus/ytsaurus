@@ -40,6 +40,11 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
             binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
         else:
             binary_path = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
+            # Work around FROM_SANDBOX macro loosing executable bit
+            try:
+                os.chmod(binary_path, 0o755)
+            except:
+                pass
 
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
