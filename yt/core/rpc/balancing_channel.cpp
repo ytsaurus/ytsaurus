@@ -404,7 +404,7 @@ private:
             it = HashToViableChannel_.begin();
         }
 
-        YT_LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
+        YT_LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %llx, RandomIndex: %v/%v, Address: %v)",
             request->GetRequestId(),
             hash,
             randomIndex,
