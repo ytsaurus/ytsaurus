@@ -54,7 +54,7 @@ public interface TransactionalClient {
 
     CompletableFuture<TableReader> readTable(ReadTable req);
 
-    CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req);
+    <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 
     CompletableFuture<FileReader> readFile(ReadFile req);
 

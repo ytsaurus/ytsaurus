@@ -106,15 +106,21 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     }
 
     private static void asTableSchema(TableSchema.Builder builder, Collection<YTreeObjectField<?>> fields) {
+        boolean hasKeys = false;
+
         for (YTreeObjectField<?> field : fields) {
             final YTreeSerializer<?> serializer = unwrap(field.serializer);
             if (field.isFlatten) {
                 asTableSchema(builder, ((YTreeObjectSerializer<?>) serializer).getFieldMap().values());
             } else {
+                hasKeys |= field.isKeyField;
+
                 builder.add(new ColumnSchema(field.key, asType(serializer),
                         field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null, null, null, field.isKeyField));
             }
         }
+
+        builder.setUniqueKeys(hasKeys);
     }
 
     private static class YTreeConsumerProxy implements YTreeConsumer {
