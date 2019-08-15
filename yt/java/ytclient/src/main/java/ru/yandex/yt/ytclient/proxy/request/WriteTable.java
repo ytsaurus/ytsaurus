@@ -3,7 +3,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.io.ByteArrayOutputStream;
 
 import com.google.protobuf.ByteString;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
@@ -30,7 +31,7 @@ public class WriteTable<T> extends RequestBase<WriteTable> {
         this.serializer = serializer;
     }
 
-    public WriteTable(String path, YTreeObjectSerializer<T> serializer) {
+    public WriteTable(String path, YTreeSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
     }
 

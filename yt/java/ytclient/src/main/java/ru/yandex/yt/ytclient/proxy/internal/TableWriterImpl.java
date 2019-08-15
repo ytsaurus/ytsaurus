@@ -89,8 +89,9 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
         buf.writeBytes(baos.toByteArray());
     }
 
-    private void writeMergedRow(ByteBuf buf, List<T> rows, int[] idMapping) {
+    private void writeMergedRow(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
         WireProtocolWriter writer = new WireProtocolWriter();
+        serializer.updateSchema(descriptor);
         writer.writeUnversionedRowset(rows, serializer, idMapping);
 
         for (byte [] bytes : writer.finish()) {
@@ -112,7 +113,7 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
         int mergedRowSizeIndex = buf.writerIndex();
         buf.writeLongLE(0); // reserve space
 
-        writeMergedRow(buf, rows, idMapping);
+        writeMergedRow(buf, descriptor, rows, idMapping);
 
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }

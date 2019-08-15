@@ -1,14 +1,15 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.io.ByteArrayOutputStream;
+
 import com.google.protobuf.ByteString;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-
-import java.io.ByteArrayOutputStream;
 
 public class WriteFile extends RequestBase<WriteFile> {
     private final String path;
