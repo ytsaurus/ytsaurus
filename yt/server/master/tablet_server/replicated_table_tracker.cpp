@@ -77,6 +77,8 @@ public:
     TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
+        , BundleHealthCacheConfig_(Config_->AsyncExpiringCacheConfig)
+        , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , CheckerThreadPool_(New<TThreadPool>(Config_->ThreadCount, "ReplTableCheck"))
         , ClusterDirectory_(New<TClusterDirectory>())
         , ClusterDirectorySynchronizer_(New<NHiveServer::TClusterDirectorySynchronizer>(
@@ -96,20 +98,12 @@ private:
     
     bool Enabled_ = false;
 
-    static TAsyncExpiringCacheConfigPtr GetAsyncExpiringCacheConfig() {
-        auto config = New<TAsyncExpiringCacheConfig>();
-        config->ExpireAfterAccessTime = TDuration::Seconds(1);
-        config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
-        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
-        return config;
-    }
-
     class TBundleHealthCache
         : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
     {
     public:
-        TBundleHealthCache()
-            : TAsyncExpiringCache(GetAsyncExpiringCacheConfig())
+        TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
+            : TAsyncExpiringCache(config)
         { }
 
     protected:
@@ -128,7 +122,9 @@ private:
     };
 
     using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
-    const TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
+
+    TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_;
+    TBundleHealthCachePtr BundleHealthCache_;
 
     class TReplica
         : public TRefCounted
@@ -142,7 +138,9 @@ private:
             const TBundleHealthCachePtr& bundleHealthCache,
             IConnectionPtr connection,
             IInvokerPtr checkerInvoker,
-            TDuration lag)
+            TDuration lag,
+            TDuration tabletCellBundleNameTtl,
+            TDuration retryOnFailureInterval)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
@@ -151,6 +149,8 @@ private:
             , Connection_(std::move(connection))
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
+            , TabletCellBundleNameTtl_(tabletCellBundleNameTtl)
+            , RetryOnFailureInterval_(retryOnFailureInterval)
         {
             CreateClient();
         }
@@ -248,6 +248,8 @@ private:
         void Merge(const TReplica& other)
         {
             Mode_ = other.Mode_;
+            TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
+            RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
             if (Connection_ != other.Connection_) {
                 Connection_ = other.Connection_;
                 CreateClient();
@@ -268,8 +270,8 @@ private:
         TDuration Lag_;
         TFuture<TString> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
 
-        const TDuration TabletCellBundleNameTtl = TDuration::Seconds(300);
-        const TDuration RetryOnFailureInterval = TDuration::Seconds(60);
+        TDuration TabletCellBundleNameTtl_;
+        TDuration RetryOnFailureInterval_;
 
         TInstant LastUpdateTime_;
 
@@ -314,8 +316,8 @@ private:
         {
             auto now = NProfiling::GetInstant();
             auto interval = (AsyncTabletCellBundleName_.IsSet() && !AsyncTabletCellBundleName_.Get().IsOK())
-                ? RetryOnFailureInterval
-                : TabletCellBundleNameTtl;
+                ? RetryOnFailureInterval_
+                : TabletCellBundleNameTtl_;
 
             if (LastUpdateTime_ + interval < now) {
                 LastUpdateTime_ = now;
@@ -545,6 +547,13 @@ private:
             return;
         }
 
+        if (dynamicConfig->AsyncExpiringCacheConfig && BundleHealthCacheConfig_ != dynamicConfig->AsyncExpiringCacheConfig) {
+            auto lock = Guard(Lock_);
+
+            BundleHealthCacheConfig_ = dynamicConfig->AsyncExpiringCacheConfig;
+            BundleHealthCache_ = New<TBundleHealthCache>(BundleHealthCacheConfig_);
+        }
+
         Enabled_ = true;
     }
 
@@ -758,7 +767,9 @@ private:
                     BundleHealthCache_,
                     connection,
                     CheckerThreadPool_->GetInvoker(),
-                    replica->ComputeReplicationLagTime(lastestTimestamp)));
+                    replica->ComputeReplicationLagTime(lastestTimestamp),
+                    config->TabletCellBundleNameTtl,
+                    config->RetryOnFailureInterval));
         }
 
         const auto [maxSyncReplicas,  minSyncReplicas] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));

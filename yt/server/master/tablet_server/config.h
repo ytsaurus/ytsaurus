@@ -296,6 +296,25 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicatedTableTrackerExpiringCacheConfig
+    : public TAsyncExpiringCacheConfig
+{
+public:
+    TReplicatedTableTrackerExpiringCacheConfig()
+    {
+        RegisterPreprocessor([this] () {
+            RefreshTime = std::nullopt;
+            ExpireAfterAccessTime = TDuration::Seconds(1);
+            ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
+            ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerExpiringCacheConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicatedTableTrackerConfig
     : public NYTree::TYsonSerializable
 {
@@ -304,6 +323,7 @@ public:
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
     int ThreadCount;
+    TReplicatedTableTrackerExpiringCacheConfigPtr AsyncExpiringCacheConfig;
 
     TReplicatedTableTrackerConfig()
     {
@@ -315,6 +335,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("thread_count", ThreadCount)
             .Default(1);
+        RegisterParameter("async_expiring_cache", AsyncExpiringCacheConfig)
+            .DefaultNew();
     }
 };
 
@@ -328,10 +350,14 @@ class TDynamicReplicatedTableTrackerConfig
 public:
     bool EnableReplicatedTableTracker;
 
+    TAsyncExpiringCacheConfigPtr AsyncExpiringCacheConfig;
+
     TDynamicReplicatedTableTrackerConfig()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
+        RegisterParameter("async_expiring_cache", AsyncExpiringCacheConfig)
+            .Default();
     }
 };
 
