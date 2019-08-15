@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Cf;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
@@ -90,7 +91,7 @@ public class WriteTableExample {
 
                 client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
-                TableWriter writer = client.writeTable(new WriteTable(path)).join();
+                TableWriter writer = client.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
 
                 resetGenerator();
 
@@ -122,7 +123,7 @@ public class WriteTableExample {
 
                 client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
-                TableWriter writer = client.writeTable(new WriteTable(path)).join();
+                TableWriter writer = client.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
 
                 resetGenerator();
 

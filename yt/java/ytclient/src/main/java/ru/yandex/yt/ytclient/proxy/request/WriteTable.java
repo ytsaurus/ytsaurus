@@ -3,16 +3,20 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.io.ByteArrayOutputStream;
 
 import com.google.protobuf.ByteString;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.object.MappedRowSerializer;
+import ru.yandex.yt.ytclient.object.WireRowSerializer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class WriteTable extends RequestBase<WriteTable> {
+public class WriteTable<T> extends RequestBase<WriteTable> {
     private final String path;
+    private final WireRowSerializer<T> serializer;
 
     private YTreeNode config = null;
 
@@ -21,8 +25,17 @@ public class WriteTable extends RequestBase<WriteTable> {
     private long windowSize = 16000000L;
     private long packetSize = windowSize/2;
 
-    public WriteTable(String path) {
+    public WriteTable(String path, WireRowSerializer<T> serializer) {
         this.path = path;
+        this.serializer = serializer;
+    }
+
+    public WriteTable(String path, YTreeObjectSerializer<T> serializer) {
+        this(path, MappedRowSerializer.forClass(serializer));
+    }
+
+    public WireRowSerializer<T> getSerializer() {
+        return this.serializer;
     }
 
     public WriteTable setWindowSize(long windowSize) {

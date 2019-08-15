@@ -145,8 +145,6 @@ import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
-import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
@@ -188,7 +186,6 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -310,6 +307,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     /* nodes */
+    @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
         req.writeTo(builder.body());
@@ -320,6 +318,7 @@ public class ApiServiceClient implements TransactionalClient {
         return getNode(new GetNode(path));
     }
 
+    @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
         req.writeTo(builder.body());
@@ -330,6 +329,7 @@ public class ApiServiceClient implements TransactionalClient {
         return listNode(new ListNode(path));
     }
 
+    @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
         req.writeTo(builder.body());
@@ -344,6 +344,7 @@ public class ApiServiceClient implements TransactionalClient {
         return setNode(path, data.toBinary());
     }
 
+    @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder =
                 service.existsNode();
@@ -384,6 +385,7 @@ public class ApiServiceClient implements TransactionalClient {
         return createNode(new CreateNode(path, type, attributes));
     }
 
+    @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
                 service.removeNode();
@@ -420,6 +422,7 @@ public class ApiServiceClient implements TransactionalClient {
         return copyNode(new CopyNode(src, dst));
     }
 
+    @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
         req.writeTo(builder.body());
@@ -446,6 +449,7 @@ public class ApiServiceClient implements TransactionalClient {
         return linkNode(new LinkNode(src, dst));
     }
 
+    @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
                 service.concatenateNodes();
@@ -453,6 +457,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
+    @Override
     public CompletableFuture<Void> concatenateNodes(String[] from, String to) {
         return concatenateNodes(new ConcatenateNodes(from, to));
     }
@@ -512,6 +517,7 @@ public class ApiServiceClient implements TransactionalClient {
         return lookupRows(request.setTimestamp(timestamp));
     }
 
+    @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
         return versionedLookupRowsImpl(request, response -> ApiServiceUtil
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
@@ -568,6 +574,7 @@ public class ApiServiceClient implements TransactionalClient {
         return selectRows(SelectRowsRequest.of(query));
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return selectRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -873,6 +880,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     /* */
 
+    @Override
     public CompletableFuture<GUID> startOperation(StartOperation req)
     {
         RpcClientRequestBuilder<TReqStartOperation.Builder, RpcClientResponse<TRspStartOperation>>
@@ -1138,6 +1146,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
+    @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
                 builder = service.checkPermission();
@@ -1147,6 +1156,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
+    @Override
     public CompletableFuture<TableReader> readTable(ReadTable req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
@@ -1157,20 +1167,17 @@ public class ApiServiceClient implements TransactionalClient {
         return impl.waitMetadata();
     }
 
-    public CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req) {
+    @Override
+    public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
                 builder = service.writeTable();
 
         req.writeTo(builder.body());
 
-        WireRowSerializer<UnversionedRow> serializer = new UnversionedRowSerializer(
-                new TableSchema.Builder()
-                    .setUniqueKeys(false)
-                    .build() /* unused */);
-
-        return new TableWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize(), serializer).startUpload();
+        return new TableWriterImpl<>(startStream(builder), req.getWindowSize(), req.getPacketSize(), req.getSerializer()).startUpload();
     }
 
+    @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
         RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
                 builder = service.readFile();
@@ -1181,6 +1188,7 @@ public class ApiServiceClient implements TransactionalClient {
         return impl.waitMetadata();
     }
 
+    @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
         RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
                 builder = service.writeFile();

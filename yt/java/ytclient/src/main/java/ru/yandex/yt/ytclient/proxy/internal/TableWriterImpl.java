@@ -57,8 +57,8 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
         return RpcServiceMethodDescriptor.makeMessageParser(TRspWriteTable.class);
     }
 
-    public CompletableFuture<TableWriter> startUpload() {
-        TableWriterImpl self = this;
+    public CompletableFuture<TableWriter<T>> startUpload() {
+        TableWriterImpl<T> self = this;
 
         return startUpload.thenApply((attachments) -> {
             if (attachments.size() != 1) {

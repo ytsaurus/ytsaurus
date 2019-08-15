@@ -9,6 +9,12 @@ import ru.yandex.yt.ytclient.wire.UnversionedValue;
 public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRow> {
     private final TableSchema schema;
 
+    public UnversionedRowSerializer() {
+        this(new TableSchema.Builder()
+                .setUniqueKeys(false)
+                .build() /* unused */);
+    }
+
     public UnversionedRowSerializer(TableSchema schema) {
         this.schema = Objects.requireNonNull(schema);
     }
