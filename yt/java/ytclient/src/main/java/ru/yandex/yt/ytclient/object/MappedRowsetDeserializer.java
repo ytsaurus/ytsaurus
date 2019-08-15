@@ -7,7 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
@@ -33,7 +32,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
 
     public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
                                                            YTreeObjectSerializer<T> objectSerializer,
-                                                           Consumer<T> consumer) {
+                                                           ConsumerSource<T> consumer) {
         return new MappedRowsetDeserializer<>(schema, new SerializerConfiguration<>(objectSerializer), consumer);
     }
 
@@ -47,7 +46,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     private final YTreeObjectSerializer<T> objectSerializer;
     private final ObjectFieldWrapper[] schemaFields;
 
-    private final Consumer<T> consumer;
+    private final ConsumerSource<T> consumer;
     private final List<WireColumnSchema> columnSchema;
 
     private final int flattenStackSize;
@@ -64,7 +63,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     private YTreeNode node;
 
     private MappedRowsetDeserializer(TableSchema schema, SerializerConfiguration<T> configuration,
-                                     Consumer<T> consumer) {
+                                     ConsumerSource<T> consumer) {
         this.columnSchema = WireProtocolReader.makeSchemaData(schema);
         this.objectSerializer = Objects.requireNonNull(configuration.objectSerializer);
         this.consumer = Objects.requireNonNull(consumer);
@@ -110,7 +109,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
 
     @Override
     public void setRowCount(int rowCount) {
-        // do nothing
+        consumer.setRowCount(rowCount);
     }
 
     @Override

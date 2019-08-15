@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.function.Consumer;
 
 import ru.yandex.bolts.function.Function;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
@@ -10,6 +9,7 @@ import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TTableSchema;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
@@ -96,7 +96,7 @@ public class ApiServiceUtil {
     public static <T> void deserializeUnversionedRowset(TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeObjectSerializer<T> serializer,
-            Consumer<T> consumer)
+            ConsumerSource<T> consumer)
     {
         deserializeUnversionedRowset(descriptor, attachments,
                 schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
@@ -131,7 +131,7 @@ public class ApiServiceUtil {
     public static <T> void deserializeVersionedRowset(TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeObjectSerializer<T> serializer,
-            Consumer<T> consumer)
+            ConsumerSource<T> consumer)
     {
         deserializeVersionedRowset(descriptor, attachments,
                 schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));

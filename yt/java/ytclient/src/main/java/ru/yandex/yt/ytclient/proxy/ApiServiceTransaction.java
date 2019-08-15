@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -10,6 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
@@ -249,8 +251,19 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     }
 
     @Override
+    public <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer) {
+        return client.lookupRows(request.setTimestamp(startTimestamp), serializer);
+    }
+
+    @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
         return client.versionedLookupRows(request.setTimestamp(startTimestamp));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
+                                                              YTreeObjectSerializer<T> serializer) {
+        return client.versionedLookupRows(request.setTimestamp(startTimestamp), serializer);
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(String query) {
@@ -260,6 +273,11 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return client.selectRows(request.setTimestamp(startTimestamp));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
+        return client.selectRows(request.setTimestamp(startTimestamp), serializer);
     }
 
     public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest request) {

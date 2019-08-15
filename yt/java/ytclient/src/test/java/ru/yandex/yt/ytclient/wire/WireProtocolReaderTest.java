@@ -15,6 +15,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.codec.Hex;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
+import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.SchemafulRowDeserializer;
 import ru.yandex.yt.ytclient.object.SchemafulRowsetDeserializer;
@@ -55,15 +57,15 @@ public class WireProtocolReaderTest extends WireProtocolTest {
         final YTreeObjectSerializer<T> serializer =
                 (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
 
-        final List<T> rows = new ArrayList<>();
+        final ConsumerSourceRet<T> source = ConsumerSource.list();
         final MappedRowsetDeserializer<T> rowBuilder =
-                MappedRowsetDeserializer.forClass(tableSchema, serializer, rows::add);
+                MappedRowsetDeserializer.forClass(tableSchema, serializer, source);
 
         readFunction.accept(reader, rowBuilder);
         assertFalse("reader still readable after the test", reader.readable());
 
-        assertEquals(1, rows.size());
-        consumer.accept(rows.get(0));
+        assertEquals(1, source.get().size());
+        consumer.accept(source.get().get(0));
     }
 
     private static void process(RowSampleAllObject sample) {
