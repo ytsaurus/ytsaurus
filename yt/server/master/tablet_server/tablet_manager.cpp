@@ -6280,7 +6280,7 @@ private:
     void GetTableSettings(
         TTableNode* table,
         TTableMountConfigPtr* mountConfig,
-        NTabletNode::TTabletChunkReaderConfigPtr *readerConfig,
+        NTabletNode::TTabletChunkReaderConfigPtr* readerConfig,
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
