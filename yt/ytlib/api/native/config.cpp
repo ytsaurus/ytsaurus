@@ -145,6 +145,8 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("use_tablet_service", UseTabletService)
         .Default(true);
+    RegisterParameter("enable_builtin_tablet_system_users", EnableBuiltinTabletSystemUsers)
+        .Default(false);
 
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));

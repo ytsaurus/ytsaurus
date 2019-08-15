@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -21,6 +22,8 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/client/tablet_client/table_mount_cache_detail.h>
+
+#include <yt/client/security_client/public.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 
@@ -155,7 +158,14 @@ private:
             YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+            // COMPAT(akozhikhov)
+            IChannelPtr channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
+                channel = CreateAuthenticatedChannel(
+                    std::move(channel),
+                    NSecurityClient::TableMountInformerUserName);
+            }
+
             auto primaryProxy = TObjectServiceProxy(channel);
             auto batchReq = primaryProxy.ExecuteBatch();
 
@@ -215,7 +225,14 @@ private:
                 CellTag_,
                 refreshSecondaryRevision);
 
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
+            // COMPAT(akozhikhov)
+            IChannelPtr channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
+            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
+                channel = CreateAuthenticatedChannel(
+                    std::move(channel),
+                    NSecurityClient::TableMountInformerUserName);
+            }
+
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
 

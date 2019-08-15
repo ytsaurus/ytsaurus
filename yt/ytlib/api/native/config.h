@@ -106,6 +106,7 @@ public:
     TDuration DefaultListOperationsTimeout;
 
     bool UseTabletService;
+    bool EnableBuiltinTabletSystemUsers;
 
     TDuration IdleChannelTtl;
 

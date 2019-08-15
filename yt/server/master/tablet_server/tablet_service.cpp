@@ -148,7 +148,7 @@ private:
             // CurrentMountTransactionId is used to prevent primary master to copy/move node when
             // secondary master has already committed mount (this causes an unexpected error in CloneTable).
             // Primary master is lazy coordinator of 2pc, thus clone command and participant commit command are
-            // serialied. Moreover secondary master (participant) commit happens strictly before primary commit.
+            // serialized. Moreover secondary master (participant) commit happens strictly before primary commit.
             // CurrentMountTransactionId mechanism ensures that clone command can be sent only before
             // primary master has been started participating in 2pc. Thus clone command cannot appear
             // on the secondary master after commit. It can however arrive between prepare and commit

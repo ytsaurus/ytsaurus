@@ -8,6 +8,7 @@ from time import sleep
 
 from yt.environment.helpers import assert_items_equal
 
+
 ##################################################################
 
 class TestUsers(YTEnvSetup):
@@ -102,7 +103,8 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/groups/users/@members"),
             ["superusers", "owner", "application_operations"])
         assert_items_equal(get("//sys/groups/superusers/@members"),
-            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations", "operations_cleaner", "operations_client"])
+            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations", "operations_cleaner",
+             "operations_client", "tablet_cell_changelogger", "tablet_cell_snapshotter", "table_mount_informer"])
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
@@ -112,6 +114,9 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/file_cache/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/application_operations/@member_of"), ["superusers", "users"])
         assert_items_equal(get("//sys/users/operations_cleaner/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/tablet_cell_changelogger/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/tablet_cell_snapshotter/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/table_mount_informer/@member_of"), ["superusers"])
 
         assert_items_equal(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
@@ -121,6 +126,9 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/file_cache/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/application_operations/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/operations_cleaner/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/tablet_cell_changelogger/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/tablet_cell_snapshotter/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/table_mount_informer/@member_of_closure"), ["superusers", "users", "everyone"])
 
     @authors("babenko", "ignat")
     def test_create_user1(self):
@@ -321,6 +329,77 @@ class TestUsers(YTEnvSetup):
         add_member("u", "g1")
 
         wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
+
+
+class TestNewBuiltinUsers(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "enable_builtin_tablet_system_users": True
+        }
+    }
+    DELTA_DRIVER_CONFIG = {
+         "enable_builtin_tablet_system_users": True
+    }
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "peer_revocation_timeout" : 3000,
+        }
+    }
+
+    def _create_sorted_table(self, path, **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"}]
+            })
+        create_dynamic_table(path, **attributes)
+
+    @authors("akozhikhov")
+    def test_new_tablet_system_users(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+
+        def _check(before=False):
+            changelogs_num = len(ls("//sys/tablet_cells/{0}/changelogs".format(cell_id)))
+            snapshots_num = len(ls("//sys/tablet_cells/{0}/snapshots".format(cell_id)))
+
+            return (changelogs_num > 0 and snapshots_num > 0) ^ before
+
+        def _check_rows(last):
+            for i in range(last):
+                keys = [{"key": i}]
+                rows = [{"key": i, "value": i}]
+                wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+
+        def _check_health_after_decommission(cell_id, old_peer_addr):
+            def _check():
+                if get("#{0}/@health".format(cell_id)) != "good":
+                    return False
+                peer = get("#{0}/@peers".format(cell_id))[0]
+
+                if "address" not in peer or peer["address"] == old_peer_addr:
+                    return False
+                return True
+            wait(_check, iter=200)
+
+        _check(before=True)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": 0}])
+        build_snapshot(cell_id=cell_id)
+        insert_rows("//tmp/t", [{"key": 1, "value": 1}])
+
+        wait(_check)
+        _check_rows(2)
+
+        old_peer_addr = get("#{0}/@peers".format(cell_id))[0]["address"]
+        set_node_decommissioned(old_peer_addr, True)
+        _check_health_after_decommission(cell_id, old_peer_addr)
+
+        insert_rows("//tmp/t", [{"key": 2, "value": 2}])
+        _check_rows(3)
 
 ##################################################################
 
