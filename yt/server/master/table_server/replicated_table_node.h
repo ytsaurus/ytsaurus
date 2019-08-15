@@ -16,6 +16,9 @@ public:
     std::optional<int> MaxSyncReplicaCount_;
     std::optional<int> MinSyncReplicaCount_;
 
+    TDuration TabletCellBundleNameTtl;
+    TDuration RetryOnFailureInterval;
+
     TReplicatedTableOptions()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
@@ -25,6 +28,11 @@ public:
             .Optional();
         RegisterParameter("min_sync_replica_count", MinSyncReplicaCount_)
             .Optional();
+
+        RegisterParameter("tablet_cell_bundle_name_ttl", TabletCellBundleNameTtl)
+            .Default(TDuration::Seconds(300));
+        RegisterParameter("tablet_cell_bundle_name_failure_interval", RetryOnFailureInterval)
+            .Default(TDuration::Seconds(60));
 
         RegisterPostprocessor([&] {
             if (MaxSyncReplicaCount_ && MinSyncReplicaCount_ && *MinSyncReplicaCount_ > *MaxSyncReplicaCount_) {

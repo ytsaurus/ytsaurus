@@ -748,7 +748,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
 
         remove("//tmp/r1", driver=self.replica_driver)
 
@@ -766,7 +766,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
@@ -802,7 +802,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "tablet_cell_bundle_name_failure_interval": 1000})
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
@@ -818,7 +818,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             self._create_replica_table(table_path, replica_id[i])
             sync_enable_table_replica(replica_id[i])
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4, "tablet_cell_bundle_name_failure_interval": 1000})
 
         def sync_replicas():
             result = 0
@@ -856,6 +856,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         broken_replicas = brake_sync_replicas(1)
         assert(len(broken_replicas) == 1)
         wait(lambda: sync_replicas() == 2)
+
+    @authors("aozeritsky")
+    def test_replicated_table_tracker_options(self):
+        self._create_cells()
+        set("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache", {"expire_after_access_time": 1337})
+        assert(get("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache/expire_after_access_time") == 1337)
 
     @authors("babenko")
     def test_cannot_sync_write_into_disabled_replica(self):
