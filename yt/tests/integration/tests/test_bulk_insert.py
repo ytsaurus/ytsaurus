@@ -508,53 +508,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
 
-    # TODO(ifsmirnov): I promise to do it tomorrow (or at least in August).
-    def _test_competing_tablet_transaction_won(self):
-        cell_id = sync_create_cells(1)[0]
-        node = get("#{}/@peers/0/address".format(cell_id))
-        create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
-        sync_mount_table("//tmp/t_output")
-        tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
-
-        rows = [
-            {"key": 1, "value": "1"},
-            {"key": 2, "value": "2"},
-        ]
-
-        write_table("//tmp/t_input", [rows[0]])
-
-        tablet_tx = start_transaction(type="tablet")
-        insert_rows("//tmp/t_output", [rows[1]], tx=tablet_tx)
-
-        op = map(
-            in_="//tmp/t_input",
-            out="<append=true>//tmp/t_output",
-            command="cat",
-            dont_track=True)
-
-        def _get_locks():
-            return get("//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/dynamic_table_locks".format(
-                node, cell_id, tablet_id))
-
-        wait(lambda: _get_locks())
-        locks = _get_locks()
-        assert len(locks) == 1
-        bulk_insert_tx = locks.keys()[0]
-        assert locks[bulk_insert_tx]["confirmed"] == True
-        lock_timestamp  = locks[bulk_insert_tx]["timestamp"]
-
-        commit_transaction(tablet_tx)
-
-        op.wait_for_state("completed")
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
-
-        rows = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
-        assert len(rows) == 1
-        row = rows[0]
-        assert len(row.attributes["write_timestamps"]) == 1
-        assert row.attributes["write_timestamps"][0] == lock_timestamp
-
 ##################################################################
 
 @authors("ifsmirnov")
