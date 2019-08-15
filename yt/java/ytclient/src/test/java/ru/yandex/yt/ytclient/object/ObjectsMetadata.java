@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.function.Consumer;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -21,7 +20,7 @@ import ru.yandex.yt.ytclient.wire.WireProtocolWriter.KeyFieldsOnlyFunction;
 
 public class ObjectsMetadata<T> {
 
-    public static <T> ObjectsMetadata<T> getMetadata(Class<T> clazz, Consumer<T> consumer) {
+    public static <T> ObjectsMetadata<T> getMetadata(Class<T> clazz, ConsumerSource<T> consumer) {
         return new ObjectsMetadata<>(clazz, consumer, ObjectsGenerators.generator(clazz));
     }
 
@@ -33,7 +32,7 @@ public class ObjectsMetadata<T> {
     private final MappedRowSerializer<T> mappedSerializer;
     private final Generator<T> objectGenerator;
 
-    private ObjectsMetadata(Class<T> clazz, Consumer<T> consumer, Generator<T> objectGenerator) {
+    private ObjectsMetadata(Class<T> clazz, ConsumerSource<T> consumer, Generator<T> objectGenerator) {
         this.yTreeSerializer = (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
         this.tableSchema = MappedRowSerializer.asTableSchema(yTreeSerializer.getFieldMap());
         this.unversionedDeserializer = new UnversionedRowsetDeserializer(tableSchema);

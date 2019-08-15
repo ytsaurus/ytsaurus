@@ -1,14 +1,12 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -145,6 +143,8 @@ import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
+import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
@@ -466,23 +466,25 @@ public class ApiServiceClient implements TransactionalClient {
 
     /* */
 
+    @Override
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
         return lookupRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                         response.attachments()));
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer) {
         return lookupRowsImpl(request, response -> {
-            final List<T> result = new ArrayList<>();
+            final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result::add);
-            return result;
+                    response.attachments(), serializer, result);
+            return result.get();
         });
     }
 
     public <T> CompletableFuture<Void> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer,
-            Consumer<T> consumer)
+            ConsumerSource<T> consumer)
     {
         return lookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -523,19 +525,20 @@ public class ApiServiceClient implements TransactionalClient {
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
             YTreeObjectSerializer<T> serializer)
     {
         return versionedLookupRowsImpl(request, response -> {
-            final List<T> result = new ArrayList<>();
+            final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result::add);
-            return result;
+                    response.attachments(), serializer, result);
+            return result.get();
         });
     }
 
     public <T> CompletableFuture<Void> versionedLookupRows(LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer, Consumer<T> consumer)
+            YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer)
     {
         return versionedLookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
@@ -581,17 +584,18 @@ public class ApiServiceClient implements TransactionalClient {
                         response.attachments()));
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
         return selectRowsImpl(request, response -> {
-            final List<T> result = new ArrayList<>();
+            final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result::add);
-            return result;
+                    response.attachments(), serializer, result);
+            return result.get();
         });
     }
 
     public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
-            Consumer<T> consumer)
+            ConsumerSource<T> consumer)
     {
         return selectRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
