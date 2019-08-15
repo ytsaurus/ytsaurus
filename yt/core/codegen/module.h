@@ -3,6 +3,7 @@
 #include "public.h"
 #include "function.h"
 #include "routine_registry.h"
+#include "type_builder.h"
 
 #include <yt/core/misc/ref.h>
 
@@ -16,7 +17,6 @@
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/TypeBuilder.h>
 
 #ifdef DEFINED_DEBUG
 #  ifdef DEBUG

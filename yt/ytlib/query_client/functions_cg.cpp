@@ -298,7 +298,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 {
     auto argumentValues = std::vector<Value*>();
 
-    auto unversionedValueType = llvm::TypeBuilder<TValue, false>::get(builder->getContext());
+    auto unversionedValueType = TypeBuilder<TValue>::get(builder->getContext());
     auto unversionedValueOpaqueType = GetOpaqueType(
         builder,
         UnversionedValueStructName);

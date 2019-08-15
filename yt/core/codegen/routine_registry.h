@@ -1,9 +1,9 @@
 #pragma once
 
+#include "type_builder.h"
+
 #include <util/generic/hash.h>
 #include <util/generic/string.h>
-
-#include <llvm/IR/TypeBuilder.h>
 
 namespace NYT::NCodegen {
 
@@ -12,18 +12,18 @@ namespace NYT::NCodegen {
 TString MangleSymbol(const TString& name);
 TString DemangleSymbol(const TString& name);
 
-template <typename TSignature, bool Cross>
+template <typename TSignature>
 class FunctionTypeBuilder;
 
-template <typename R, typename... Args, bool Cross>
-class FunctionTypeBuilder<R(Args...), Cross>
+template <typename R, typename... Args>
+class FunctionTypeBuilder<R(Args...)>
 {
 public:
     static llvm::FunctionType *get(llvm::LLVMContext &Context) {
         llvm::Type *params[] = {
-            llvm::TypeBuilder<Args, Cross>::get(Context)...
+            TypeBuilder<Args>::get(Context)...
         };
-        return llvm::FunctionType::get(llvm::TypeBuilder<R, Cross>::get(Context),
+        return llvm::FunctionType::get(TypeBuilder<R>::get(Context),
             params, false);
     }
 };
@@ -42,7 +42,7 @@ public:
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&FunctionTypeBuilder<TResult(TArgs...), false>::get, _1));
+            std::bind(&FunctionTypeBuilder<TResult(TArgs...)>::get, _1));
     }
 
     uint64_t GetAddress(const TString& symbol) const;
