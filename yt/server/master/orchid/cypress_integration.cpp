@@ -68,7 +68,7 @@ public:
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, GetRequestYPath(context->RequestHeader()));
+        auto path = GetRedirectPath(manifest, GetRequestTargetYPath(context->RequestHeader()));
         const auto& method = context->GetMethod();
 
         auto requestMessage = context->GetRequestMessage();
@@ -78,7 +78,7 @@ public:
             return;
         }
 
-        SetRequestYPath(&requestHeader, path);
+        SetRequestTargetYPath(&requestHeader, path);
 
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 

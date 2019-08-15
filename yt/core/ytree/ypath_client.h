@@ -181,8 +181,9 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
-void SetRequestYPath(NRpc::NProto::TRequestHeader* header, TYPath path);
+const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path);
 
 bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header);
 

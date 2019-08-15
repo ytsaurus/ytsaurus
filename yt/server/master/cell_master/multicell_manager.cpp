@@ -705,8 +705,8 @@ private:
         } else if (const auto* servicePtr = std::get_if<TCrossCellMessage::TServiceMessage>(&crossCellMessage.Payload)) {
             auto requestMessage = servicePtr->Context->GetRequestMessage();
             auto requestHeader = servicePtr->Context->RequestHeader();
-            auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestYPath(requestHeader);
-            SetRequestYPath(&requestHeader, updatedYPath);
+            auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestTargetYPath(requestHeader);
+            SetRequestTargetYPath(&requestHeader, updatedYPath);
             parts = SetRequestHeader(requestMessage, requestHeader);
         } else {
             YT_ABORT();

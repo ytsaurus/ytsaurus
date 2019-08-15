@@ -1265,7 +1265,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
-    const auto& path = GetRequestYPath(context->RequestHeader());
+    const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
         type,
@@ -1384,7 +1384,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     DeclareMutating();
 
     // COMPAT(babenko)
-    const auto& targetPath = GetRequestYPath(context->RequestHeader());
+    const auto& targetPath = GetRequestTargetYPath(context->RequestHeader());
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     auto sourcePath = ypathExt.additional_paths_size() == 1
         ? ypathExt.additional_paths(0)
