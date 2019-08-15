@@ -234,12 +234,20 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer) {
-        writeUnversionedRow(row, serializer, false);
+        writeUnversionedRow(row, serializer, (int[])null);
+    }
+
+    public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, int[] idMapping) {
+        writeUnversionedRow(row, serializer, false, idMapping);
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly) {
+        writeUnversionedRow(row, serializer, keyFieldsOnly, (int[])null);
+    }
+
+    public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly, int[] idMapping) {
         if (row != null) {
-            serializer.serializeRow(row, this.writeable, keyFieldsOnly);
+            serializer.serializeRow(row, this.writeable, keyFieldsOnly, idMapping);
         } else {
             writeLong(-1);
         }
@@ -290,17 +298,25 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer) {
+        writeUnversionedRowset(rows, serializer, (int[])null);
+    }
+
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, int[] idMapping) {
         writeRowCount(rows.size());
         for (T row : rows) {
-            writeUnversionedRow(row, serializer);
+            writeUnversionedRow(row, serializer, idMapping);
         }
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func) {
+        writeUnversionedRowset(rows, serializer, func, (int[])null);
+    }
+
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func, int[] idMapping) {
         final int rowCount = rows.size();
         writeRowCount(rowCount);
         for (int i = 0; i < rowCount; i++) {
-            writeUnversionedRow(rows.get(i), serializer, func.isKeyFieldsOnly(i));
+            writeUnversionedRow(rows.get(i), serializer, func.isKeyFieldsOnly(i), idMapping);
         }
     }
 

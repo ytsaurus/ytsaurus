@@ -145,6 +145,8 @@ import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
+import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
@@ -186,6 +188,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -1154,13 +1157,18 @@ public class ApiServiceClient implements TransactionalClient {
         return impl.waitMetadata();
     }
 
-    public CompletableFuture<TableWriter> writeTable(WriteTable req) {
+    public CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req) {
         RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
                 builder = service.writeTable();
 
         req.writeTo(builder.body());
 
-        return new TableWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize()).startUpload();
+        WireRowSerializer<UnversionedRow> serializer = new UnversionedRowSerializer(
+                new TableSchema.Builder()
+                    .setUniqueKeys(false)
+                    .build() /* unused */);
+
+        return new TableWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize(), serializer).startUpload();
     }
 
     public CompletableFuture<FileReader> readFile(ReadFile req) {

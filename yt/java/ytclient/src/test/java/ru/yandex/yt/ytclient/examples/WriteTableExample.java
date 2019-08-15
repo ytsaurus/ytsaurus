@@ -97,7 +97,7 @@ public class WriteTableExample {
                 UnversionedRowset rowset = nextRows();
 
                 while (rowset != null) {
-                    while (rowset != null && writer.write(rowset)) {
+                    while (rowset != null && writer.write(rowset.getRows(), rowset.getSchema())) {
                         rowset = nextRows();
                     }
 
@@ -129,7 +129,7 @@ public class WriteTableExample {
                 UnversionedRowset rowset = nextRows();
 
                 while (rowset != null) {
-                    while (rowset != null && writer.write(rowset)) {
+                    while (rowset != null && writer.write(rowset.getRows(), rowset.getSchema())) {
                         rowset = nextRows();
                     }
 
