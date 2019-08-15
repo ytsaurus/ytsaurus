@@ -1582,6 +1582,9 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
     RegisterParameter("check_period", CheckPeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("start_delay", StartDelay)
+        .Default(TDuration::Zero());
+
     RegisterParameter("smoothing_factor", SmoothingFactor)
         .InRange(0, 1)
         .Default(0.05);
