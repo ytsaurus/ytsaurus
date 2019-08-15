@@ -296,6 +296,9 @@ public:
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
         OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
         OperationsClientUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffed);
+        TabletCellChangeloggerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffec);
+        TabletCellSnapshotterUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffeb);
+        TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1370,6 +1373,15 @@ private:
     TUserId OperationsClientUserId_;
     TUser* OperationsClientUser_ = nullptr;
 
+    TUserId TabletCellChangeloggerUserId_;
+    TUser* TabletCellChangeloggerUser_ = nullptr;
+
+    TUserId TabletCellSnapshotterUserId_;
+    TUser* TabletCellSnapshotterUser_ = nullptr;
+
+    TUserId TableMountInformerUserId_;
+    TUser* TableMountInformerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1494,9 +1506,10 @@ private:
 
     TGroup* GetBuiltinGroupForUser(TUser* user)
     {
-        // "guest" is a member of "everyone" group
-        // "root", "job", "scheduler", and "replicator" are members of "superusers" group
-        // others are members of "users" group
+        // "guest" is a member of "everyone" group.
+        // "root", "job", "scheduler", "replicator", "file_cache", "operations_cleaner", "operations_client",
+        // "tablet_cell_changelogger", "tablet_cell_snapshotter" and "tablet_mount_informer" are members of "superusers" group.
+        // others are members of "users" group.
         const auto& id = user->GetId();
         if (id == GuestUserId_) {
             return EveryoneGroup_;
@@ -1507,7 +1520,10 @@ private:
             id == ReplicatorUserId_ ||
             id == FileCacheUserId_ ||
             id == OperationsCleanerUserId_ ||
-            id == OperationsClientUserId_)
+            id == OperationsClientUserId_ ||
+            id == TabletCellChangeloggerUserId_ ||
+            id == TabletCellSnapshotterUserId_ ||
+            id == TableMountInformerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1923,6 +1939,9 @@ private:
         SchedulerUser_ = nullptr;
         OperationsCleanerUser_ = nullptr;
         OperationsClientUser_ = nullptr;
+        TabletCellChangeloggerUser_ = nullptr;
+        TabletCellSnapshotterUser_ = nullptr;
+        TableMountInformerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -2063,6 +2082,27 @@ private:
             OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
             OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             OperationsClientUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // tablet cell changelogger
+        if (EnsureBuiltinUserInitialized(TabletCellChangeloggerUser_, TabletCellChangeloggerUserId_, TabletCellChangeloggerUserName)) {
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // tablet cell snapshotter
+        if (EnsureBuiltinUserInitialized(TabletCellSnapshotterUser_, TabletCellSnapshotterUserId_, TabletCellSnapshotterUserName)) {
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // table mount informer
+        if (EnsureBuiltinUserInitialized(TableMountInformerUser_, TableMountInformerUserId_, TableMountInformerUserName)) {
+            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TableMountInformerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts

@@ -46,6 +46,7 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
@@ -53,9 +54,11 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/client/security_client/public.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -536,11 +539,20 @@ public:
                 PrerequisiteTransactionId_);
         }
 
+        // COMPAT(akozhikhov)
+        IClientPtr snapshotClient = Bootstrap_->GetMasterClient();
+        IClientPtr changelogClient = Bootstrap_->GetMasterClient();
+        auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        if (connection->GetConfig()->EnableBuiltinTabletSystemUsers) {
+            snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
+            changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
+        }
+
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
             Options_,
             Format("//sys/tablet_cells/%v/snapshots", GetCellId()),
-            Bootstrap_->GetMasterClient(),
+            snapshotClient,
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
@@ -548,7 +560,7 @@ public:
             Config_->Changelogs,
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
-            Bootstrap_->GetMasterClient(),
+            changelogClient,
             Bootstrap_->GetSecurityManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
             ProfilingTagIds_);
