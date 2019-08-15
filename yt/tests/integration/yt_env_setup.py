@@ -96,7 +96,7 @@ def _reset_nodes(driver=None):
         if node.attributes["user_tags"] != []:
             requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@user_tags".format(node_name), input=[]))
 
-    responses = yt_commands.execute_batch(requests)
+    responses = yt_commands.execute_batch(requests, driver=driver)
     for response in responses:
         assert not yt_commands.get_batch_output(response)
 
