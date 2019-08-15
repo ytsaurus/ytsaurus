@@ -1234,6 +1234,7 @@ class TJobCpuMonitorConfig
 public:
     bool EnableCpuReclaim;
 
+    TDuration StartDelay;
     TDuration CheckPeriod;
 
     double SmoothingFactor;

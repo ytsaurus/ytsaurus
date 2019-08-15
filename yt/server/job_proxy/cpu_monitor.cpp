@@ -26,6 +26,7 @@ TCpuMonitor::TCpuMonitor(
 
 void TCpuMonitor::Start()
 {
+    StartInstant = TInstant::Now() + Config_->StartDelay;
     MonitoringExecutor_->Start();
 }
 
@@ -50,6 +51,10 @@ void TCpuMonitor::FillStatistics(NJobTrackerClient::TStatistics& statistics) con
 
 void TCpuMonitor::DoCheck()
 {
+    if (!CheckStarted()) {
+        return;
+    }
+
     if (!TryUpdateSmoothedValue()) {
         return;
     }
@@ -151,6 +156,20 @@ void TCpuMonitor::UpdateAggregates()
     AggregatedSmoothedCpuUsage_ += *SmoothedUsage_ * seconds;
     AggregatedPreemptableCpu_ += (HardLimit_ - SoftLimit_) * seconds;
     AggregatedMaxCpuUsage_ += HardLimit_ * seconds;
+}
+
+bool TCpuMonitor::CheckStarted()
+{
+    YT_VERIFY(StartInstant);
+
+    if (Started) {
+        return true;
+    }
+    if (TInstant::Now() >= StartInstant.value()) {
+        Started = true;
+        YT_LOG_DEBUG("Job cpu monitor is started");
+    }
+    return Started;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
