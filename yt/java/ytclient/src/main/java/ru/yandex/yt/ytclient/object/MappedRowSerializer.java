@@ -11,7 +11,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeBooleanSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDoubleSerializer;
@@ -31,6 +30,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeCloseableConsume
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.misc.lang.number.UnsignedLong;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -38,16 +38,16 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
-    public static <T> MappedRowSerializer<T> forClass(YTreeObjectSerializer<T> serializer) {
+    public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
         return new MappedRowSerializer<>(serializer);
     }
 
-    private final YTreeObjectSerializer<T> objectSerializer;
+    private final YTreeSerializer<T> objectSerializer;
     private final TableSchema tableSchema;
     private final YTreeConsumerProxy delegate;
     private final boolean supportState;
 
-    private MappedRowSerializer(YTreeObjectSerializer<T> objectSerializer) {
+    private MappedRowSerializer(YTreeSerializer<T> objectSerializer) {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeConsumerProxy(tableSchema);
@@ -67,6 +67,13 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                 : null;
         this.objectSerializer.serialize(row, delegate.wrap(writeable), false, keyFieldsOnly, compareWith);
         delegate.complete();
+    }
+
+    @Override
+    public void updateSchema(TRowsetDescriptor schemaDelta) {
+        // TODO: maybe update this.tableSchema here?
+
+        delegate.updateSchema(schemaDelta);
     }
 
     public static TableSchema asTableSchema(Map<String, YTreeObjectField<?>> fieldMap) {
@@ -111,7 +118,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         for (YTreeObjectField<?> field : fields) {
             final YTreeSerializer<?> serializer = unwrap(field.serializer);
             if (field.isFlatten) {
-                asTableSchema(builder, ((YTreeObjectSerializer<?>) serializer).getFieldMap().values());
+                asTableSchema(builder, serializer.getFieldMap().values());
             } else {
                 hasKeys |= field.isKeyField;
 
@@ -141,6 +148,10 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             this.binarySerializer = null;
             this.level = 0;
             return this;
+        }
+
+        void updateSchema(TRowsetDescriptor schemaDelta) {
+            direct.updateSchema(schemaDelta);
         }
 
         private void complete() {
@@ -274,10 +285,20 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         private YTreeConsumerDirect(TableSchema tableSchema) {
             this.schema = new HashMap<>(tableSchema.getColumnsCount());
+
             for (int i = 0; i < tableSchema.getColumnsCount(); i++) {
                 final ColumnSchema columnSchema = tableSchema.getColumnSchema(i);
                 if (columnSchema != null) {
                     schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getType()));
+                }
+            }
+        }
+
+        void updateSchema(TRowsetDescriptor schemaDelta) {
+            for (TRowsetDescriptor.TColumnDescriptor col : schemaDelta.getColumnsList()) {
+                if (!schema.containsKey(col.getName())) {
+                    int index = schema.size();
+                    schema.put(col.getName(), new ColumnWithIndex(index, ColumnValueType.fromValue(col.getType())));
                 }
             }
         }
@@ -345,6 +366,11 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onKeyedItem(String key) {
             this.currentColumn = this.schema.get(key);
+
+            if (this.schema.isEmpty()) {
+                throw new IllegalStateException();
+            }
+
             if (this.currentColumn != null) {
                 this.columnCount++;
             }
@@ -385,13 +411,21 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onBytes(byte[] bytes) {
             if (currentColumn != null) {
-                // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
-                final ByteArrayOutputStream output = new ByteArrayOutputStream();
+                if (currentColumn.columnType == ColumnValueType.STRING) {
+                    this.onBytesDirect(bytes);
+                } else {
+                    if (currentColumn.columnType != ColumnValueType.ANY) {
+                        throw new IllegalStateException();
+                    }
 
-                try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
-                    binarySerializer.onBytes(bytes); // TODO: improve performance
+                    // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+                    try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
+                        binarySerializer.onBytes(bytes); // TODO: improve performance
+                    }
+                    this.onBytesDirect(output.toByteArray());
                 }
-                this.onBytesDirect(output.toByteArray());
             }
         }
 

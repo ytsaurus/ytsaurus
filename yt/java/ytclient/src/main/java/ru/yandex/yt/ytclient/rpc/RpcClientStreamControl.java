@@ -1,9 +1,9 @@
 package ru.yandex.yt.ytclient.rpc;
 
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 public interface RpcClientStreamControl extends RpcClientRequestControl {
     void subscribe(RpcStreamConsumer consumer);
