@@ -57,6 +57,18 @@ func JobMain() int {
 		return 3
 	}
 
+	content, err := os.Open("job-state")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+		return 6
+	}
+
+	err = decodeJob(content, &job)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+		return 7
+	}
+
 	if err := job.Do(&ctx, ctx.in, ctx.writers()); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 1

@@ -2,90 +2,143 @@
 package mapreduce
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
 	"fmt"
+	"io"
 
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 )
 
 func jobCommand(job Job, outputPipes int) string {
 	return fmt.Sprintf("./go-binary -job %s -output-pipes %d", jobName(job), outputPipes)
 }
 
+func encodeJob(job Job) (b bytes.Buffer, err error) {
+	enc := gob.NewEncoder(&b)
+	err = enc.Encode(&job)
+	return
+}
+
+func decodeJob(r io.Reader, job *Job) error {
+	dec := gob.NewDecoder(r)
+	err := dec.Decode(&job)
+	return err
+}
+
+type action func(ctx *context.Context) error
+
+func (mr *client) newUploadAction(job Job, s *spec.Spec, userScript **spec.UserScript, tableCount int) action {
+	if *userScript == nil {
+		*userScript = &spec.UserScript{}
+	}
+	(*userScript).Command = jobCommand(job, tableCount)
+	return func(ctx *context.Context) error {
+		b, err := encodeJob(job)
+		if err != nil {
+			return err
+		}
+		tmpPath := ypath.Path("//tmp").Child(guid.New().String())
+
+		_, err = mr.yc.CreateNode(*ctx, tmpPath, yt.NodeFile, nil)
+		if err != nil {
+			return err
+		}
+
+		w, err := mr.yc.WriteFile(*ctx, tmpPath, nil)
+		if err != nil {
+			return err
+		}
+
+		if _, err = w.Write(b.Bytes()); err != nil {
+			return err
+		}
+
+		if err = w.Close(); err != nil {
+			return err
+		}
+
+		(*userScript).FilePaths = append((*userScript).FilePaths, spec.File{
+			FileName:    "job-state",
+			CypressPath: tmpPath,
+			Executable:  false,
+		})
+		return nil
+	}
+}
+
 func (mr *client) Map(mapper Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Mapper == nil {
-		s.Mapper = &spec.UserScript{}
+	actions := []action{
+		mr.newUploadAction(mapper, s, &s.Mapper, len(s.OutputTablePaths)),
 	}
-	s.Mapper.Command = jobCommand(mapper, len(s.OutputTablePaths))
-	return mr.start(s)
+
+	return mr.start(s, actions)
 }
 
 func (mr *client) Reduce(reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Reducer == nil {
-		s.Reducer = &spec.UserScript{}
+	actions := []action{
+		mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
 	}
-	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths))
-	return mr.start(s)
+
+	return mr.start(s, actions)
 }
 
 func (mr *client) JoinReduce(reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Reducer == nil {
-		s.Reducer = &spec.UserScript{}
+	actions := []action{
+		mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
 	}
-	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths))
-	return mr.start(s)
+
+	return mr.start(s, actions)
 }
 
 func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
+	var actions []action
 	if mapper != nil {
-		if s.Mapper == nil {
-			s.Mapper = &spec.UserScript{}
-		}
-		s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
+		actions = append(actions, mr.newUploadAction(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
 	}
-	if s.Reducer == nil {
-		s.Reducer = &spec.UserScript{}
-	}
-	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount)
-	return mr.start(s)
+	actions = append(actions, mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
+
+	return mr.start(s, actions)
 }
 
 func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
-	if s.Mapper == nil {
-		s.Mapper = &spec.UserScript{}
-	}
-	s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
-	if s.ReduceCombiner == nil {
-		s.ReduceCombiner = &spec.UserScript{}
-	}
-	s.ReduceCombiner.Command = jobCommand(combiner, 1)
-	if s.Reducer == nil {
-		s.Reducer = &spec.UserScript{}
-	}
-	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount)
-	return mr.start(s)
+	var actions []action
+	actions = append(actions, mr.newUploadAction(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
+	actions = append(actions, mr.newUploadAction(combiner, s, &s.ReduceCombiner, 1))
+	actions = append(actions, mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
+	return mr.start(s, actions)
 }
 
 func (mr *client) Sort(s *spec.Spec) (Operation, error) {
-	return mr.start(s)
+	s = s.Clone()
+	return mr.start(s, nil)
 }
 
 func (mr *client) Merge(s *spec.Spec) (Operation, error) {
-	return mr.start(s)
+	s = s.Clone()
+	return mr.start(s, nil)
 }
 
 func (mr *client) Erase(s *spec.Spec) (Operation, error) {
-	return mr.start(s)
+	s = s.Clone()
+	return mr.start(s, nil)
 }
 
 func (mr *client) RemoteCopy(s *spec.Spec) (Operation, error) {
-	return mr.start(s)
+	s = s.Clone()
+	return mr.start(s, nil)
 }
 
 func (mr *client) Vanilla(s *spec.Spec) (Operation, error) {
-	return mr.start(s)
+	s = s.Clone()
+	return mr.start(s, nil)
 }
