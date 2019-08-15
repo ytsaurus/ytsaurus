@@ -79,6 +79,8 @@ type Spec struct {
 	JobCount       int   `yson:"job_count,omitempty"`
 	DataSizePerJob int64 `yson:"data_size_per_job,omitempty"`
 
+	MaxFailedJobCount int `yson:"max_failed_job_count,omitempty"`
+
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
 	ReduceCombiner *UserScript            `yson:"reduce_combiner,omitempty"`

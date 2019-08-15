@@ -1,6 +1,7 @@
 package mapreduce
 
 import (
+	"encoding/gob"
 	"fmt"
 	"reflect"
 )
@@ -19,6 +20,7 @@ var registry = map[string]reflect.Type{}
 //         mapreduce.Register(&MyJob{})
 //     }
 func Register(job Job) {
+	gob.Register(job)
 	t := reflect.TypeOf(job)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
