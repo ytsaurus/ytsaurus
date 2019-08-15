@@ -61,7 +61,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly) {
+    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly, int[] idMapping) {
         final T compareWith = !keyFieldsOnly && supportState
                 ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
                 : null;

@@ -21,6 +21,7 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -53,7 +54,7 @@ public interface TransactionalClient {
 
     CompletableFuture<TableReader> readTable(ReadTable req);
 
-    CompletableFuture<TableWriter> writeTable(WriteTable req);
+    CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req);
 
     CompletableFuture<FileReader> readFile(ReadFile req);
 

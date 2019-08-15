@@ -36,6 +36,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -376,7 +377,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     }
 
     @Override
-    public CompletableFuture<TableWriter> writeTable(WriteTable req) {
+    public CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req) {
         return client.writeTable(req.setTransactionalOptions(transactionalOptions));
     }
 
