@@ -21,11 +21,11 @@ using llvm::PHINode;
 using llvm::PointerType;
 using llvm::Twine;
 using llvm::Type;
-using llvm::TypeBuilder;
 using llvm::Value;
 using llvm::StringRef;
 
 using NCodegen::TCGModulePtr;
+using NCodegen::TypeBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,8 +58,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TypeBuilder<TValue, false> TTypeBuilder;
-typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
+typedef TypeBuilder<TValue> TTypeBuilder;
+typedef TypeBuilder<TValueData> TDataTypeBuilder;
 
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
 
@@ -247,7 +247,7 @@ public:
 
     void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine nameTwine = "") const
     {
-        const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder->getContext());
+        const auto& type = TypeBuilder<NTableClient::TUnversionedValue>::TType::get(builder->getContext());
 
         if (IsNull_->getType() == builder->getInt1Ty()) {
             builder->CreateStore(
@@ -464,7 +464,7 @@ private:
 struct TCodegenFragmentInfo;
 struct TCodegenFragmentInfos;
 
-typedef TypeBuilder<TExpressionClosure, false> TClosureTypeBuilder;
+typedef TypeBuilder<TExpressionClosure> TClosureTypeBuilder;
 
 class TCGExprData
 {
@@ -740,7 +740,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
-            TypeBuilder<TResult(void**, TArgs...), false>::get(module->GetModule()->getContext()),
+            TypeBuilder<TResult(void**, TArgs...)>::get(module->GetModule()->getContext()),
             Function::ExternalLinkage,
             name,
             module->GetModule());
@@ -796,9 +796,9 @@ struct TFunctionDefiner<TResult(TArgs...)>
         auto& llvmContext = module->GetModule()->getContext();
         Function* function =  Function::Create(
             FunctionType::get(
-                TypeBuilder<TResult, false>::get(llvmContext),
+                TypeBuilder<TResult>::get(llvmContext),
                 {
-                    TypeBuilder<TArgs, false>::get(llvmContext)...
+                    TypeBuilder<TArgs>::get(llvmContext)...
                 },
                 false),
             Function::ExternalLinkage,

@@ -40,7 +40,7 @@ using NCodegen::TCGModule;
 Value* CodegenAllocateValues(TCGIRBuilderPtr& builder, size_t valueCount)
 {
     Value* newValues = builder->CreateAlignedAlloca(
-        TypeBuilder<TValue, false>::get(builder->getContext()),
+        TypeBuilder<TValue>::get(builder->getContext()),
         8,
         builder->getInt32(valueCount),
         "allocatedValues");
@@ -663,7 +663,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
     auto emplaced = Labels.emplace(id, nullptr);
     if (emplaced.second) {
         llvm::ArrayType* labelArrayType = llvm::ArrayType::get(
-            TypeBuilder<char*, false>::get(builder->getContext()),
+            TypeBuilder<char*>::get(builder->getContext()),
             types.size());
 
         emplaced.first->second = new llvm::GlobalVariable(
@@ -726,7 +726,7 @@ Function* TComparerManager::GetHasher(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, HashLables),
-                            TypeBuilder<char**, false>::get(builder->getContext())),
+                            TypeBuilder<char**>::get(builder->getContext())),
                         row,
                         builder->getInt64(start),
                         builder->getInt64(finish)
@@ -782,7 +782,7 @@ Function* TComparerManager::GetEqComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**, false>::get(builder->getContext())),
+                            TypeBuilder<char**>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -842,7 +842,7 @@ Function* TComparerManager::GetLessComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**, false>::get(builder->getContext())),
+                            TypeBuilder<char**>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -902,7 +902,7 @@ Function* TComparerManager::GetTernaryComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**, false>::get(builder->getContext())),
+                            TypeBuilder<char**>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -948,7 +948,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
         }
 
         llvm::ArrayType* isDescArrayType = llvm::ArrayType::get(
-            TypeBuilder<char, false>::get(builder->getContext()),
+            TypeBuilder<char>::get(builder->getContext()),
             types.size());
 
         llvm::GlobalVariable* isDescArray =
@@ -966,7 +966,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
             {
                 builder->CreatePointerCast(
                     GetLabelsArray(builder, types, UniversalLables),
-                    TypeBuilder<char**, false>::get(builder->getContext())),
+                    TypeBuilder<char**>::get(builder->getContext())),
                 lhsValues,
                 rhsValues,
                 builder->getInt64(0),
@@ -1103,14 +1103,14 @@ void CodegenFragmentBodies(
             auto name = Format("%v#%v", namePrefix, id);
 
             FunctionType* functionType = FunctionType::get(
-                TypeBuilder<void, false>::get(module->GetModule()->getContext()),
+                TypeBuilder<void>::get(module->GetModule()->getContext()),
                 {
                     llvm::PointerType::getUnqual(
-                        TypeBuilder<TExpressionClosure, false>::get(
+                        TypeBuilder<TExpressionClosure>::get(
                             module->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
-                    TypeBuilder<TValue*, false>::get(module->GetModule()->getContext()),
-                    TypeBuilder<TValue*, false>::get(module->GetModule()->getContext())
+                    TypeBuilder<TValue*>::get(module->GetModule()->getContext()),
+                    TypeBuilder<TValue*>::get(module->GetModule()->getContext())
                 },
                 true);
 
@@ -2098,7 +2098,7 @@ size_t MakeCodegenJoinOp(
             Value* joinClosure,
             Value* buffer
         ) {
-            Value* keyPtr = builder->CreateAlloca(TypeBuilder<TValue*, false>::get(builder->getContext()));
+            Value* keyPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
@@ -2243,10 +2243,10 @@ size_t MakeCodegenMultiJoinOp(
             Value* buffer
         ) {
             Value* keyPtrs = builder->CreateAlloca(
-                TypeBuilder<TValue*, false>::get(builder->getContext()),
+                TypeBuilder<TValue*>::get(builder->getContext()),
                 builder->getInt32(parameters.size()));
 
-            Value* primaryValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*, false>::get(builder->getContext()));
+            Value* primaryValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
 
             builder->CreateStore(
                 builder->CreateCall(
@@ -2347,10 +2347,10 @@ size_t MakeCodegenMultiJoinOp(
         const auto& module = builder.Module;
 
         Value* joinComparers = builder->CreateAlloca(
-            TypeBuilder<TJoinComparers, false>::get(builder->getContext()),
+            TypeBuilder<TJoinComparers>::get(builder->getContext()),
             builder->getInt32(parameters.size()));
 
-        typedef TypeBuilder<TJoinComparers, false>::Fields TFields;
+        typedef TypeBuilder<TJoinComparers>::Fields TFields;
 
         for (size_t index = 0; index < parameters.size(); ++index) {
             const auto& lookupKeyTypes = parameters[index].LookupKeyTypes;
@@ -2728,7 +2728,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
             Value* groupByClosure,
             Value* buffer
         ) {
-            Value* newValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*, false>::get(builder->getContext()));
+            Value* newValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
 
             size_t keySize = keyTypes.size();
             size_t groupRowSize = keySize + stateTypes.size();

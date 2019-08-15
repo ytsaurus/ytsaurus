@@ -3,29 +3,33 @@
 #include "public.h"
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/core/codegen/type_builder.h>
 
 #include <type_traits>
 
-#include <llvm/IR/TypeBuilder.h>
+namespace NYT::NCodegen {
 
-namespace llvm {
+using llvm::Type;
+using llvm::StructType;
+using llvm::LLVMContext;
+using llvm::ArrayRef;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Cross>
-class TypeBuilder<NYT::NTableClient::TUnversionedValueData, Cross>
+template <>
+struct TypeBuilder<NYT::NTableClient::TUnversionedValueData>
 {
 public:
-    typedef TypeBuilder<char, Cross> TBoolean;
-    typedef TypeBuilder<i64, Cross> TInt64;
-    typedef TypeBuilder<ui64, Cross> TUint64;
-    typedef TypeBuilder<double, Cross> TDouble;
-    typedef TypeBuilder<const char*, Cross> TStringType;
-    typedef TypeBuilder<const char*, Cross> TAny;
+    typedef TypeBuilder<char> TBoolean;
+    typedef TypeBuilder<i64> TInt64;
+    typedef TypeBuilder<ui64> TUint64;
+    typedef TypeBuilder<double> TDouble;
+    typedef TypeBuilder<const char*> TStringType;
+    typedef TypeBuilder<const char*> TAny;
 
     static Type* get(LLVMContext& context)
     {
-        return TypeBuilder<i64, Cross>::get(context);
+        return TypeBuilder<i64>::get(context);
     }
 
     static Type* get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
@@ -57,15 +61,15 @@ public:
         "TUnversionedValueData size must be 64bit");
 };
 
-template <bool Cross>
-class TypeBuilder<NYT::NTableClient::TUnversionedValue, Cross>
+template <>
+struct TypeBuilder<NYT::NTableClient::TUnversionedValue>
 {
 public:
-    typedef TypeBuilder<ui16, Cross> TId;
-    typedef TypeBuilder<ui8, Cross> TType;
-    typedef TypeBuilder<ui8, Cross> TAggregate;
-    typedef TypeBuilder<ui32, Cross> TLength;
-    typedef TypeBuilder<NYT::NTableClient::TUnversionedValueData, Cross> TData;
+    typedef TypeBuilder<ui16> TId;
+    typedef TypeBuilder<ui8> TType;
+    typedef TypeBuilder<ui8> TAggregate;
+    typedef TypeBuilder<ui32> TLength;
+    typedef TypeBuilder<NYT::NTableClient::TUnversionedValueData> TData;
 
     enum Fields
     {
@@ -116,5 +120,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace llvm
+} // namespace NYT::NCodegen
 
