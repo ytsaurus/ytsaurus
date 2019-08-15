@@ -274,6 +274,8 @@ class TestRacks(YTEnvSetup):
 
         wait(decommission_successful)
 
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 64)
+
     @authors("babenko")
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
@@ -338,6 +340,8 @@ class TestRacks(YTEnvSetup):
             return not replication_status["underreplicated"] and not replication_status["unsafely_placed"]
 
         wait(lambda: chunk_is_ok)
+
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 64)
 
 ##################################################################
 
