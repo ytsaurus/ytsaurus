@@ -277,7 +277,12 @@ class YtStuff(object):
 
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True)
 
-        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "yt/python/yt/local/bin/yt_local_make/yt_local")]
+        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "result/yt_local")]
+        # Work around FROM_SANDBOX macro loosing executable bit
+        try:
+            os.chmod(self.yt_local_exec[0], 0o755)
+        except:
+            pass
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
