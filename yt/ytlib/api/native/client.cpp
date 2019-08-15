@@ -919,12 +919,12 @@ private:
     {
         auto promise = NewPromise<T>();
         ConcurrentRequestsSemaphore_->AsyncAcquire(
-            BIND([commandName, promise, callback = std::move(callback), this_ = MakeWeak(this)] (TAsyncSemaphoreGuard /*guard*/) mutable {
-                auto client = this_.Lock();
-                if (!client) {
-                    return;
-                }
-
+            BIND([
+                commandName,
+                promise,
+                callback = std::move(callback),
+                Logger = Logger
+            ] (TAsyncSemaphoreGuard /*guard*/) mutable {
                 if (promise.IsCanceled()) {
                     return;
                 }
@@ -934,7 +934,6 @@ private:
                     promise.OnCanceled(std::move(canceler));
                 }
 
-                const auto& Logger = client->Logger;
                 try {
                     YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
