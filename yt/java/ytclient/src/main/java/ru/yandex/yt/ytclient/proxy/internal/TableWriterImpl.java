@@ -75,16 +75,16 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
         buf.writeBytes(baos.toByteArray());
     }
 
-    private void writeMergedRow(ByteBuf buf, UnversionedRowset rows) {
+    private void writeMergedRow(ByteBuf buf, UnversionedRowset rows, int[] idMapping) {
         WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeUnversionedRowset(rows.getRows(), new UnversionedRowSerializer(rows.getSchema()));
+        writer.writeUnversionedRowset(rows.getRows(), new UnversionedRowSerializer(rows.getSchema(), idMapping));
 
         for (byte [] bytes : writer.finish()) {
             buf.writeBytes(bytes);
         }
     }
 
-    private void writeRowsdata(ByteBuf buf, TRowsetDescriptor descriptor, UnversionedRowset rows) throws IOException {
+    private void writeRowsdata(ByteBuf buf, TRowsetDescriptor descriptor, UnversionedRowset rows, int[] idMapping) throws IOException {
         // parts
         buf.writeIntLE(2);
 
@@ -98,7 +98,7 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
         int mergedRowSizeIndex = buf.writerIndex();
         buf.writeLongLE(0); // reserve space
 
-        writeMergedRow(buf, rows);
+        writeMergedRow(buf, rows, idMapping);
 
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }
@@ -125,6 +125,8 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
 
         TRowsetDescriptor currentDescriptor = builder.build();
 
+        int[] idMapping = new int[column2id.size()];
+
         for (UnversionedRow row : rows.getRows()) {
             List<UnversionedValue> values = row.getValues();
 
@@ -132,12 +134,11 @@ public class TableWriterImpl extends StreamWriterImpl<TRspWriteTable> implements
                 String columnName = rows.getSchema().getColumnName(columnNumber);
                 UnversionedValue value = values.get(columnNumber);
                 int columnId = column2id.get(columnName);
-
-                value.setId(columnId);
+                idMapping[value.getId()] = columnId;
             }
         }
 
-        writeRowsdata(buf, currentDescriptor, rows);
+        writeRowsdata(buf, currentDescriptor, rows, idMapping);
 
         byte[] attachment = new byte[buf.readableBytes()];
         buf.readBytes(attachment, 0, attachment.length);

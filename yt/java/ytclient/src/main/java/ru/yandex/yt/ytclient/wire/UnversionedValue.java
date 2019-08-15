@@ -28,7 +28,7 @@ import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
  * Соответствует TUnversionedValue в C++
  */
 public class UnversionedValue implements YTreeConvertible {
-    private int id;
+    private final int id;
     private final ColumnValueType type;
     private final boolean aggregate;
     private final Object value;
@@ -67,11 +67,6 @@ public class UnversionedValue implements YTreeConvertible {
         this.type = type;
         this.aggregate = aggregate;
         this.value = value;
-    }
-
-    public UnversionedValue setId(int id) {
-        this.id = id;
-        return this;
     }
 
     private static IllegalArgumentException illegalValue(ColumnValueType type, Object value) {

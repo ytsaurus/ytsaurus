@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
