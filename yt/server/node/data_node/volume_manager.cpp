@@ -153,6 +153,7 @@ public:
         PlacePath_ = (Config_->LocationIsAbsolute ? "" : "//") + Config_->Path;
 
         try {
+            NFS::MakeDirRecursive(Config_->Path, 0755);
             WaitFor(HealthChecker_->RunCheck())
                 .ThrowOnError();
 
