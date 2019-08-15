@@ -970,7 +970,7 @@ def run_ya_tests(options, build_context):
         "--dist", "--new-dist",
         "-E", "--output", sandbox_storage,
         "--junit", junit_output,
-        "-tt",
+        "-ttt",
         "yt/tests",
     ]
     args += ya_make_args(options)
