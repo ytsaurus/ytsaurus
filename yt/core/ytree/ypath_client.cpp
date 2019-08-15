@@ -212,13 +212,19 @@ void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
+const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     return ypathExt.target_path();
 }
 
-void SetRequestYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
+const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ypathExt.has_original_target_path() ? ypathExt.original_target_path() : ypathExt.target_path();
+}
+
+void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
 {
     auto* ypathExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     ypathExt->set_target_path(std::move(path));
@@ -242,12 +248,12 @@ void ResolveYPath(
 
     auto currentService = rootService;
 
-    const auto& path = GetRequestYPath(context->RequestHeader());
-    auto currentPath = path;
+    const auto& originalPath = GetOriginalRequestTargetYPath(context->RequestHeader());
+    auto currentPath = GetRequestTargetYPath(context->RequestHeader());
 
     int iteration = 0;
     while (true) {
-        ValidateYPathResolutionDepth(path, ++iteration);
+        ValidateYPathResolutionDepth(originalPath, ++iteration);
 
         try {
             auto result = currentService->Resolve(currentPath, context);
@@ -270,7 +276,7 @@ void ResolveYPath(
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "Error resolving path %v",
-                path)
+                originalPath)
                 << TErrorAttribute("method", context->GetMethod())
                 << ex;
         }
@@ -296,7 +302,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
-    SetRequestYPath(&requestHeader, suffixPath);
+    SetRequestTargetYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
@@ -331,7 +337,7 @@ void ExecuteVerb(
     auto requestMessage = context->GetRequestMessage();
     NRpc::NProto::TRequestHeader requestHeader;
     YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
-    SetRequestYPath(&requestHeader, suffixPath);
+    SetRequestTargetYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 

@@ -63,7 +63,7 @@ void TVirtualMapBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    YT_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
@@ -459,7 +459,7 @@ void TVirtualListBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    YT_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
