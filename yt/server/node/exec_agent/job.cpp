@@ -951,6 +951,32 @@ private:
             }
 
             RootVolume_ = volumeOrError.Value();
+
+            SetJobPhase(EJobPhase::RunningSetupCommands);
+
+            // Even though #RunSetupCommands returns future, we still need to pass it through invoker
+            // since Porto API is used and can cause context switch.
+            BIND(&TJob::RunSetupCommands, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnSetupCommandsFinished,
+                    MakeWeak(this))
+                .Via(Invoker_));
+        });
+    }
+
+    void OnSetupCommandsFinished(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::RunningSetupCommands);
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SetupCommandFailed, "Failed to run setup commands")
+                    << error;
+            }
+
             RunJobProxy();
         });
     }
@@ -1455,6 +1481,17 @@ private:
         YT_LOG_INFO("Finished preparing artifacts");
     }
 
+    TFuture<void> RunSetupCommands()
+    {
+        auto commands = GetSetupCommands();
+        if (commands.empty()) {
+            return VoidFuture;
+        }
+
+        YT_LOG_INFO("Running setup commands");
+        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS());
+    }
+
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError)
     {
@@ -1638,6 +1675,38 @@ private:
         statistics.AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
 
         return ConvertToYsonString(statistics);
+    }
+
+    std::vector<TShellCommandConfigPtr> GetSetupCommands()
+    {
+        std::vector<TShellCommandConfigPtr> result;
+
+        auto addIfPresent = [&] (const std::optional<TShellCommandConfigPtr>& command) {
+            if (command) {
+                result.push_back(*command);
+            }
+        };
+
+        addIfPresent(Config_->JobController->JobSetupCommand);
+        addIfPresent(Config_->JobController->GpuManager->JobSetupCommand);
+
+        return result;
+    }
+
+    NContainers::TRootFS MakeWritableRootFS()
+    {
+        YT_VERIFY(RootVolume_);
+        NContainers::TRootFS rootFS;
+
+        rootFS.RootPath = RootVolume_->GetPath();
+        rootFS.IsRootReadOnly = false;
+        rootFS.Binds.reserve(Config_->RootFSBinds.size());
+
+        for (const auto& bind : Config_->RootFSBinds) {
+            rootFS.Binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        }
+
+        return rootFS;
     }
 };
 

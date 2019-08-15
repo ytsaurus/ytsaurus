@@ -48,6 +48,12 @@ struct IJobEnvironment
     virtual std::optional<double> GetCpuLimit() const = 0;
 
     virtual bool ExternalJobMemory() const = 0;
+
+    virtual TFuture<void> RunSetupCommands(
+        int slotIndex,
+        TJobId jobId,
+        const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
+        const NContainers::TRootFS& rootFS) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

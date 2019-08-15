@@ -27,6 +27,7 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingSandboxDirectories)  ( 15))
     ((PreparingArtifacts)           ( 20))
     ((PreparingRootVolume)          ( 25))
+    ((RunningSetupCommands)         ( 27))
     ((PreparingProxy)               ( 30))
     ((Running)                      ( 40))
     ((FinalizingProxy)              ( 50))

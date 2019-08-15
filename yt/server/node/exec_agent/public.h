@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/server/lib/exec_agent/public.h>
+#include <yt/server/lib/job_agent/public.h>
 
 #include <yt/core/misc/optional.h>
 

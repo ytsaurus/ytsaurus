@@ -81,6 +81,7 @@ class TGpuManagerConfig
 public:
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
     TGpuManagerConfig()
     {
@@ -88,10 +89,32 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
             .Default(TDuration::Seconds(10));
+        RegisterParameter("job_setup_command", JobSetupCommand)
+            .Default();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TShellCommandConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Path;
+    std::vector<TString> Args;
+
+    TShellCommandConfig()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("args", Args)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +150,8 @@ public:
     bool TestGpu;
 
     TGpuManagerConfigPtr GpuManager;
+
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
     TJobControllerConfig()
     {
@@ -178,6 +203,9 @@ public:
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
             .Default(0)
             .GreaterThanOrEqual(0);
+
+        RegisterParameter("job_setup_command", JobSetupCommand)
+            .Default();
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
