@@ -428,7 +428,7 @@ private:
                         goodAsyncReplicas.reserve(asyncReplicas.size());
 
                         auto logLivenessCheckResult = [&] (const TError& error, const TReplicaPtr& replica) {
-                            YT_LOG_DEBUG_IF(!error.IsOK(), "Replica liveness check failed (ReplicatedTableId: %v, ReplicaId: %v, "
+                            YT_LOG_DEBUG_IF(!error.IsOK(), error, "Replica liveness check failed (ReplicatedTableId: %v, ReplicaId: %v, "
                                 "ReplicaTablePath: %v, ReplicaClusterName: %v)",
                                 id,
                                 replica->GetId(),
