@@ -35,7 +35,7 @@ type Client interface {
 
 	RemoteCopy(spec *spec.Spec) (Operation, error)
 
-	Vanilla(spec *spec.Spec) (Operation, error)
+	Vanilla(spec *spec.Spec, jobs map[string]Job) (Operation, error)
 }
 
 func New(yc yt.Client, options ...Option) Client {

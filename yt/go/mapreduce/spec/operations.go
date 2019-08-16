@@ -114,6 +114,23 @@ func Vanilla() *Spec {
 	return spec.Vanilla()
 }
 
+func (base *Spec) AddVanillaTask(name string, jobCount int) *Spec {
+	s := base.Clone()
+
+	if s.Tasks == nil {
+		s.Tasks = map[string]*UserScript{}
+	}
+
+	u, ok := s.Tasks[name]
+	if !ok {
+		u = &UserScript{}
+		s.Tasks[name] = u
+	}
+
+	u.JobCount = jobCount
+	return s
+}
+
 func (base *Spec) Vanilla() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationVanilla
