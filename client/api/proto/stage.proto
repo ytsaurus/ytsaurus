@@ -215,7 +215,7 @@ message TTvmClient
     // predefined name TVM_CLIENT_SECRET. TVM_CLIENT_SECRET env var is written
     // to tvmtool's workload spec only and used for generating tvmtool config.
     // Also secret_selector.alias is the key of secret in TPodSpec.secrets.
-    NInfra.NPodAgent.API.SecretEnvSelector secret_selector = 1;
+    NInfra.NPodAgent.API.SecretSelector secret_selector = 1;
     TTvmApp source = 2;
     repeated TTvmApp destinations = 3;
 }

@@ -144,6 +144,25 @@ message TResourceMeta {
     }
 }
 
+message TFile {
+    // Имя файла
+    // NOTE: Валидация - не содержит "/"
+    string file_name = 1;
+
+    oneof content {
+        // Содержимое этой строки будет скопировано в файл
+        string raw_data = 2;
+
+        // Cодержимое секрета будет скопировано в файл
+        SecretSelector secret_data = 3;
+    }
+}
+
+message TFiles {
+    // NOTE: Валидация - все имена файлов различны
+    repeated TFile files = 1;
+}
+
 message TResource {
     reserved "place"; reserved 7;
 
@@ -162,7 +181,12 @@ message TResource {
     // Для записи строчки в файл URL должен быть равен "raw:<строка>",
     // в этом случае будет создан файл с названием raw_file и содержимым <строка>
     // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
-    string url = 4;
+    // Для передачи секретов можно использовать files
+    // Для загрузки больше чем одного raw/secret файла можно использовать files
+    oneof download_method {
+        string url = 4;
+        TFiles files = 9;
+    }
 
     // TODO: not implemented
     oneof storage_ref {
@@ -323,7 +347,7 @@ message TTimeLimitStatus {
 // Id секрета из TPodAgentRequest.Secrets
 // Alias секрета из TPodAgentRequest.Secrets
 // В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
-message SecretEnvSelector {
+message SecretSelector {
     string id = 1;
     string alias = 2;
 }
@@ -334,7 +358,7 @@ message LiteralEnvSelector {
 
 message TEnvVarValue {
     oneof value {
-        SecretEnvSelector secret_env = 2;
+        SecretSelector secret_env = 2;
         LiteralEnvSelector literal_env = 3;
     }
 }
