@@ -1405,6 +1405,32 @@ Y_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
+    void TryWriteTable(TTableWriterOptions options)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/file", options);
+        writer->AddRow(TNode()("foo", "bar"));
+        writer->Finish();
+    }
+
+    Y_UNIT_TEST(InvalidWriterOptionsFail)
+    {
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            TryWriteTable(TTableWriterOptions().WriterOptions(
+                TWriterOptions()
+                    .UploadReplicationFactor(0))),
+            NYT::TErrorResponse,
+            "/upload_replication_factor");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            TryWriteTable(TTableWriterOptions().WriterOptions(
+                TWriterOptions()
+                    .MinUploadReplicationFactor(0))),
+            NYT::TErrorResponse,
+            "/min_upload_replication_factor");
+    }
+
     template<typename TRow>
     void WriteAutoFlush()
     {

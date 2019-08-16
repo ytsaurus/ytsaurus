@@ -254,11 +254,26 @@ struct TIOOptions
     FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 
-    struct TFileReaderOptions
+struct TFileReaderOptions
     : public TIOOptions<TFileReaderOptions>
 {
     FLUENT_FIELD_OPTION(i64, Offset);
     FLUENT_FIELD_OPTION(i64, Length);
+};
+
+struct TWriterOptions
+{
+    using TSelf = TWriterOptions;
+
+    // When set to true upload will be considered successful as soon as
+    // MinUploadReplicationFactor number of replicas are created.
+    FLUENT_FIELD_OPTION(bool, EnableEarlyFinish);
+
+    // Number of replicas to be created.
+    FLUENT_FIELD_OPTION(ui64, UploadReplicationFactor);
+
+    // Min number of created replicas needed to consider upload successful.
+    FLUENT_FIELD_OPTION(ui64, MinUploadReplicationFactor);
 };
 
 struct TFileWriterOptions
@@ -267,6 +282,8 @@ struct TFileWriterOptions
     // Compute MD5 sum of written file. If `ComputeMD5 == true` and we are appending to an existing file
     // the `md5` attribute must be set (i.e. it was previously written only with `ComputeMD5 == true`).
     FLUENT_FIELD_OPTION(bool, ComputeMD5);
+
+    FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
 class TFormatHints
@@ -338,6 +355,8 @@ struct TTableWriterOptions
     // NOTE: Default values for this option may differ depending on the row type.
     // For protobuf it's currently false by default.
     FLUENT_FIELD_OPTION(bool, InferSchema);
+
+    FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#starttx

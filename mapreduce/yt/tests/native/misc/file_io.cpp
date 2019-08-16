@@ -98,4 +98,30 @@ Y_UNIT_TEST_SUITE(FileIo)
 
         UNIT_ASSERT_VALUES_EQUAL(result, fileData.SubStr(offset, length));
     }
+
+    void TryWriteFile(TFileWriterOptions options)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto writer = client->CreateFileWriter(workingDir + "/file", options);
+        writer->Write(GenerateRandomData(10 * 1024 * 1024));
+        writer->Finish();
+    }
+
+    Y_UNIT_TEST(InvalidWriterOptionsFail)
+    {
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            TryWriteFile(TFileWriterOptions().WriterOptions(
+                TWriterOptions()
+                    .UploadReplicationFactor(0))),
+            NYT::TErrorResponse,
+            "/upload_replication_factor");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            TryWriteFile(TFileWriterOptions().WriterOptions(
+                TWriterOptions()
+                    .MinUploadReplicationFactor(0))),
+            NYT::TErrorResponse,
+            "/min_upload_replication_factor");
+    }
 }

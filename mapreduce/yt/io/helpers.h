@@ -62,15 +62,41 @@ inline TNode FormIORequestParameters(
     return params;
 }
 
+static void AddWriterOptionsToNode(const TWriterOptions& options, TNode* node)
+{
+    if (options.EnableEarlyFinish_) {
+        (*node)["enable_early_finish"] = *options.EnableEarlyFinish_;
+    }
+    if (options.UploadReplicationFactor_) {
+        (*node)["upload_replication_factor"] = *options.UploadReplicationFactor_;
+    }
+    if (options.MinUploadReplicationFactor_) {
+        (*node)["min_upload_replication_factor"] = *options.MinUploadReplicationFactor_;
+    }
+}
+
 template <>
 inline TNode FormIORequestParameters(
     const TRichYPath& path,
     const TFileWriterOptions& options)
 {
     auto params = PathToParamNode(path);
+    TNode fileWriter = TNode::CreateMap();
     if (options.Config_) {
-        params[TIOOptionsTraits<TFileWriterOptions>::ConfigName] = *options.Config_;
+        fileWriter = *options.Config_;
     }
+    if (options.WriterOptions_) {
+        AddWriterOptionsToNode(*options.WriterOptions_, &fileWriter);
+    }
+    if (fileWriter.Empty()) {
+        AddWriterOptionsToNode(
+            TWriterOptions()
+                .EnableEarlyFinish(true)
+                .UploadReplicationFactor(3)
+                .MinUploadReplicationFactor(2),
+            &fileWriter);
+    }
+    params[TIOOptionsTraits<TFileWriterOptions>::ConfigName] = fileWriter;
     if (options.ComputeMD5_) {
         params["compute_md5"] = *options.ComputeMD5_;
     }
@@ -86,6 +112,9 @@ inline TNode FormIORequestParameters<TTableWriterOptions>(
     auto tableWriter = TConfig::Get()->TableWriter;
     if (options.Config_) {
         MergeNodes(tableWriter, *options.Config_);
+    }
+    if (options.WriterOptions_) {
+        AddWriterOptionsToNode(*options.WriterOptions_, &tableWriter);
     }
     if (!tableWriter.Empty()) {
         params[TIOOptionsTraits<TTableWriterOptions>::ConfigName] = std::move(tableWriter);
