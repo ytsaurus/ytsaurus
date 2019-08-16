@@ -801,7 +801,7 @@ private:
         using TBatchKey = std::tuple<TCellTag, EPeerKind>;
         struct TBatchValue
         {
-            TObjectServiceProxy::TReqExecuteBatchPtr BatchReq;
+            TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             SmallVector<int, 16> Indexes;
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
@@ -812,7 +812,7 @@ private:
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
                 TObjectServiceProxy proxy(std::move(channel));
-                auto batchReq = proxy.ExecuteBatch();
+                auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetTimeout(ComputeForwardingTimeout());
                 batchReq->SetUser(RpcContext_->GetUser());
                 it = batchMap.emplace(key, TBatchValue{
@@ -833,7 +833,7 @@ private:
             auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
 
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-            auto req = batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
