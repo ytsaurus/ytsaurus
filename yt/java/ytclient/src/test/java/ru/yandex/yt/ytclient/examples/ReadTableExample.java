@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.examples;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,8 +9,6 @@ import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
-
-import java.util.List;
 
 public class ReadTableExample {
     private static final Logger logger = LoggerFactory.getLogger(ReadTableExample.class);

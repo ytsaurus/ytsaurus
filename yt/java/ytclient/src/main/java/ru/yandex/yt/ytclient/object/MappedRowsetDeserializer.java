@@ -44,10 +44,13 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     private final YTreeStringNodeImpl stringNode = new YTreeStringNodeImpl((byte[]) null, attributes);
 
     private final YTreeObjectSerializer<T> objectSerializer;
-    private final ObjectFieldWrapper[] schemaFields;
+    private ObjectFieldWrapper[] schemaFields;
 
     private final ConsumerSource<T> consumer;
-    private final List<WireColumnSchema> columnSchema;
+    private TableSchema schema;
+    private List<WireColumnSchema> columnSchema;
+
+    private final SerializerConfiguration<T> configuration;
 
     private final int flattenStackSize;
 
@@ -64,9 +67,18 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
 
     private MappedRowsetDeserializer(TableSchema schema, SerializerConfiguration<T> configuration,
                                      ConsumerSource<T> consumer) {
-        this.columnSchema = WireProtocolReader.makeSchemaData(schema);
+        this.configuration = configuration;
+
+        parseSchema(Objects.requireNonNull(schema));
+
         this.objectSerializer = Objects.requireNonNull(configuration.objectSerializer);
         this.consumer = Objects.requireNonNull(consumer);
+
+        this.flattenStackSize = configuration.flattenWrappers.size();
+    }
+
+    private void parseSchema(TableSchema schema) {
+        this.columnSchema = WireProtocolReader.makeSchemaData(schema);
 
         final List<ColumnSchema> columns = schema.getColumns();
         this.schemaFields = new ObjectFieldWrapper[columns.size()];
@@ -75,7 +87,14 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
             schemaFields[i] = configuration.fields.get(columns.get(i).getName());
         }
 
-        this.flattenStackSize = configuration.flattenWrappers.size();
+        this.schema = schema;
+    }
+
+    @Override
+    public void updateSchema(TableSchema schema) {
+        if (!this.schema.equals(schema)) {
+            parseSchema(schema);
+        }
     }
 
     private static class SerializerConfiguration<T> {
