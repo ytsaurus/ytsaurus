@@ -24,4 +24,6 @@ message TSubquerySpec
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
     // TODO(max42): CHYT-154.
     optional string membership_hint = 7;
+    optional int64 subquery_index = 8;
+    optional int64 table_index = 9;
 };
