@@ -11,7 +11,7 @@ import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
-public class ReadTable<T> extends RequestBase<ReadTable> {
+public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private final String path;
     private final WireRowDeserializer<T> deserializer;
 
@@ -30,22 +30,22 @@ public class ReadTable<T> extends RequestBase<ReadTable> {
         return this.deserializer;
     }
 
-    public ReadTable setTransactionalOptions(TransactionalOptions to) {
+    public ReadTable<T> setTransactionalOptions(TransactionalOptions to) {
         this.transactionalOptions = to;
         return this;
     }
 
-    public ReadTable setUnordered(boolean flag) {
+    public ReadTable<T> setUnordered(boolean flag) {
         this.unordered = flag;
         return this;
     }
 
-    public ReadTable setOmitInaccessibleColumns(boolean flag) {
+    public ReadTable<T> setOmitInaccessibleColumns(boolean flag) {
         this.omitInaccessibleColumns = flag;
         return this;
     }
 
-    public ReadTable setConfig(YTreeNode config) {
+    public ReadTable<T> setConfig(YTreeNode config) {
         this.config = config;
         return this;
     }

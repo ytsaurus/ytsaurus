@@ -390,12 +390,12 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     }
 
     @Override
-    public CompletableFuture<TableReader> readTable(ReadTable req) {
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
         return client.readTable(req.setTransactionalOptions(transactionalOptions));
     }
 
     @Override
-    public CompletableFuture<TableWriter<UnversionedRow>> writeTable(WriteTable req) {
+    public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         return client.writeTable(req.setTransactionalOptions(transactionalOptions));
     }
 
