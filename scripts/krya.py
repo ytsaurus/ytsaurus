@@ -48,7 +48,12 @@ DEFAULT_CONFIG = """\
     ],
 
     // Enables YT cache that lives on Freud.
-    "enable_yt_store": true
+    "enable_yt_store": true,
+
+    // Arguments that will be used when yall is invoked.
+    // Example:
+    // "yall_arguments": ["--do-not-force-vcs-info"] 
+    "yall_arguments": [] 
 }
 """
 
@@ -104,6 +109,7 @@ def load_config():
         "clion_project_filters",
         "enable_yt_store",
         "enable_dist_build",
+        "yall_arguments",
     ])
     return config_cls(
         local_build=cfg.get("local_build", False),
@@ -111,7 +117,8 @@ def load_config():
         remote_directory=cfg.get("remote_directory", None),
         clion_project_filters=cfg.get("clion_project_filters", []),
         enable_yt_store=cfg.get("enable_yt_store", False),
-        enable_dist_build=cfg.get("enable_dist_build", False)
+        enable_dist_build=cfg.get("enable_dist_build", False),
+        yall_arguments=cfg.get("yall_arguments", []),
     )
 
 
@@ -197,6 +204,9 @@ def create_build_command(build_cmd, args, rest_args, remote):
                 "--dist",
                 "-E"
             ]
+
+    if cfg.yall_arguments and build_cmd[0] == "./yall":
+        ya_args += cfg.yall_arguments
 
     return ya_args
 
@@ -318,8 +328,8 @@ def create_clion_project(args, rest_args):
 
     with open("CMakeLists.txt", "w") as f:
         f.write(text.replace("COMMAND ${PROJECT_SOURCE_DIR}/ya make", "COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py ya-make"))
-        cmd = """add_custom_target(yall COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py yall --build=${CMAKE_BUILD_TYPE} --output=${PROJECT_OUTPUT_DIR} --add-result=.h --add-result=.cpp --add-result=.cc --add-result=.c --add-result=.cxx --add-result=.C --no-src-links -T --no-emit-status)\n"""
-        f.write(cmd)
+        f.write("""add_custom_target(yall COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py yall --build=${CMAKE_BUILD_TYPE} --output=${PROJECT_OUTPUT_DIR} --add-result=.h --add-result=.cpp --add-result=.cc --add-result=.c --add-result=.cxx --add-result=.C --no-src-links -T --no-emit-status)\n""")
+        f.write("""add_custom_target(yall-yt-server COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py yall --yall-build-only=yt-server --build=${CMAKE_BUILD_TYPE} --output=${PROJECT_OUTPUT_DIR} --add-result=.h --add-result=.cpp --add-result=.cc --add-result=.c --add-result=.cxx --add-result=.C --no-src-links -T --no-emit-status)\n""")
 
 
 def main():
