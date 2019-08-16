@@ -13,7 +13,6 @@ import ru.yandex.yt.rpcproxy.TReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TTableReaderPayload;
-import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableReader;
@@ -22,23 +21,22 @@ import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements TableReader {
+public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
     private TReadTableMeta metadata = null;
     private final static RpcMessageParser<TReadTableMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadTableMeta.class);
 
     final private Object lock = new Object();
     private TRowsetDescriptor currentRowsetDescriptor = null;
     private TableSchema currentReadSchema = null;
-    private WireRowDeserializer<UnversionedRow> deserializer = new UnversionedRowDeserializer();
+    private final WireRowDeserializer<T> deserializer;
     private DataStatistics.TDataStatistics currentDataStatistics = null;
     private long totalRowCount = -1;
 
-    public TableReaderImpl(RpcClientStreamControl control) {
+    public TableReaderImpl(RpcClientStreamControl control, WireRowDeserializer<T> deserializer) {
         super(control);
+        this.deserializer = deserializer;
     }
 
     @Override
@@ -66,7 +64,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         bb.position(endPosition);
     }
 
-    private UnversionedRowset parseMergedRow(ByteBuffer bb, int size) {
+    private List<T> parseMergedRow(ByteBuffer bb, int size) {
         byte[] data = new byte[size];
         bb.get(data);
 
@@ -74,16 +72,16 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
 
         int rowCount = reader.readRowCount();
 
-        List<UnversionedRow> rows = new ArrayList<>(rowCount);
+        List<T> rows = new ArrayList<>(rowCount);
 
         for (int i = 0; i < rowCount; ++i) {
             rows.add(reader.readUnversionedRow(deserializer));
         }
 
-        return new UnversionedRowset(currentReadSchema, rows);
+        return rows;
     }
 
-    private UnversionedRowset parseRowData(ByteBuffer bb, int size) throws Exception {
+    private List<T> parseRowData(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
 
         int parts = bb.getInt();
@@ -96,7 +94,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         parseDescriptorDelta(bb, descriptorDeltaSize);
 
         int mergedRowSize = (int)bb.getLong();
-        UnversionedRowset rowset = parseMergedRow(bb, mergedRowSize);
+        List<T> rowset = parseMergedRow(bb, mergedRowSize);
 
         if (bb.position() != endPosition) {
             throw new IllegalArgumentException();
@@ -115,7 +113,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         bb.position(endPosition);
     }
 
-    private UnversionedRowset parseRowsWithPayload(byte[] attachment) throws Exception {
+    private List<T> parseRowsWithPayload(byte[] attachment) throws Exception {
         if (attachment == null) {
             return null;
         }
@@ -128,7 +126,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
 
         int rowDataSize = (int)bb.getLong();
 
-        UnversionedRowset rowset = parseRowData(bb, rowDataSize);
+        List<T> rowset = parseRowData(bb, rowDataSize);
 
         int payloadSize = (int)bb.getLong();
 
@@ -166,6 +164,15 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     }
 
     @Override
+    public TableSchema getCurrentReadSchema() {
+        if (currentReadSchema == null) {
+            return getTableSchema();
+        } else {
+            return currentReadSchema;
+        }
+    }
+
+    @Override
     public List<String> getOmittedInaccessibleColumns() {
         return metadata.getOmittedInaccessibleColumnsList();
     }
@@ -177,8 +184,8 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         }
     }
 
-    public CompletableFuture<TableReader> waitMetadata() {
-        TableReaderImpl self = this;
+    public CompletableFuture<TableReader<T>> waitMetadata() {
+        TableReaderImpl<T> self = this;
         return readHead().thenApply((data) -> {
             self.metadata = RpcUtil.parseMessageBodyWithCompression(data, metaParser, compression);
             return self;
@@ -191,7 +198,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     }
 
     @Override
-    public UnversionedRowset read() throws Exception {
+    public List<T> read() throws Exception {
         return parseRowsWithPayload(doRead());
     }
 

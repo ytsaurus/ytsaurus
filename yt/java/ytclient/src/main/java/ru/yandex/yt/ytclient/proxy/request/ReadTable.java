@@ -9,9 +9,11 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
-public class ReadTable extends RequestBase<ReadTable> {
+public class ReadTable<T> extends RequestBase<ReadTable> {
     private final String path;
+    private final WireRowDeserializer<T> deserializer;
 
     private boolean unordered = false;
     private boolean omitInaccessibleColumns = false;
@@ -19,8 +21,13 @@ public class ReadTable extends RequestBase<ReadTable> {
 
     private TransactionalOptions transactionalOptions = null;
 
-    public ReadTable(String path) {
+    public ReadTable(String path, WireRowDeserializer<T> deserializer) {
         this.path = path;
+        this.deserializer = deserializer;
+    }
+
+    public WireRowDeserializer<T> getDeserializer() {
+        return this.deserializer;
     }
 
     public ReadTable setTransactionalOptions(TransactionalOptions to) {

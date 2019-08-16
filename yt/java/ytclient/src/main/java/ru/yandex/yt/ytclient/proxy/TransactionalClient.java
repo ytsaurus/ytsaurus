@@ -59,7 +59,7 @@ public interface TransactionalClient {
 
     CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
 
-    CompletableFuture<TableReader> readTable(ReadTable req);
+    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 

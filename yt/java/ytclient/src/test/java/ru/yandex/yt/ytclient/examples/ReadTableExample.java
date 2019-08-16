@@ -3,9 +3,12 @@ package ru.yandex.yt.ytclient.examples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
+
+import java.util.List;
 
 public class ReadTableExample {
     private static final Logger logger = LoggerFactory.getLogger(ReadTableExample.class);
@@ -24,13 +27,16 @@ public class ReadTableExample {
         ExamplesUtil.runExample(client -> {
             try {
                 logger.info("Read table");
-                TableReader reader = client.readTable(new ReadTable("//home/dev/andozer/autorestart_nodes_copy")).join();
+                TableReader<UnversionedRow> reader = client.readTable(
+                        new ReadTable<>(
+                                "//home/dev/andozer/autorestart_nodes_copy",
+                                new UnversionedRowDeserializer())).join();
 
-                UnversionedRowset rowset;
+                List<UnversionedRow> rowset;
 
                 while (reader.canRead()) {
                     while ((rowset = reader.read()) != null) {
-                        logger.info("rows {}", rowset.getRows().size());
+                        logger.info("rows {}", rowset.size());
                         logger.info("stat {}", reader.getDataStatistics());
 
                     }
