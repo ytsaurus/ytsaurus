@@ -27,6 +27,8 @@ struct ITransactionParticipant
     virtual TFuture<void> AbortTransaction(TTransactionId transactionId) = 0;
 
     virtual TFuture<void> CheckAvailability() = 0;
+    // COMPAT(savrus) Compatibility with pre 19.6 participants.
+    virtual TFuture<void> CheckAvailabilityPre196() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionParticipant)

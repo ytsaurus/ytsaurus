@@ -110,6 +110,19 @@ public:
         }));
     }
 
+    // COMPAT(savrus) Compatibility with pre 19.6 participants.
+    virtual TFuture<void> CheckAvailabilityPre196() override
+    {
+        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+            THydraServiceProxy proxy(channel);
+            auto req = proxy.CommitMutation();
+            req->set_type(HeartbeatMutationType);
+            req->Attachments().push_back(TSharedRef());
+            return req->Invoke().template As<void>();
+        }));
+    }
+
+
 private:
     const TCellDirectoryPtr CellDirectory_;
     const TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
