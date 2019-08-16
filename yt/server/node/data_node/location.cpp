@@ -647,12 +647,9 @@ i64 TLocation::GetAdditionalSpace() const
 
 bool TLocation::ShouldSkipFileName(const TString& fileName) const
 {
-    // Skip cell_id file.
-    if (fileName == CellIdFileName) {
-        return true;
-    }
-
-    return false;
+    return
+        fileName == CellIdFileName ||
+        fileName == LocationUuidFileName;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
