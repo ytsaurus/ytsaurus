@@ -352,7 +352,7 @@ public class WireProtocolReader {
         return deserializer.onCompleteRow();
     }
 
-    private int readRowCount() {
+    public int readRowCount() {
         return WireProtocol.validateRowCount(readLong());
     }
 

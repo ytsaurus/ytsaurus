@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -12,7 +13,8 @@ import ru.yandex.yt.rpcproxy.TReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TTableReaderPayload;
-import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
+import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
@@ -20,6 +22,7 @@ import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
@@ -30,7 +33,7 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     final private Object lock = new Object();
     private TRowsetDescriptor currentRowsetDescriptor = null;
     private TableSchema currentReadSchema = null;
-    private UnversionedRowsetDeserializer deserializer = null;
+    private WireRowDeserializer<UnversionedRow> deserializer = new UnversionedRowDeserializer();
     private DataStatistics.TDataStatistics currentDataStatistics = null;
     private long totalRowCount = -1;
 
@@ -51,14 +54,12 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
         if (currentReadSchema == null) {
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(rowsetDescriptor);
             currentRowsetDescriptor = rowsetDescriptor;
-            deserializer = new UnversionedRowsetDeserializer(currentReadSchema);
         } else if (rowsetDescriptor.getColumnsCount() > 0) {
             TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
             builder.mergeFrom(currentRowsetDescriptor);
             builder.addAllColumns(rowsetDescriptor.getColumnsList());
             currentRowsetDescriptor = builder.build();
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(currentRowsetDescriptor);
-            deserializer = new UnversionedRowsetDeserializer(currentReadSchema);
         }
 
         logger.debug("{}", rowsetDescriptor);
@@ -68,7 +69,18 @@ public class TableReaderImpl extends StreamReaderImpl<TRspReadTable> implements 
     private UnversionedRowset parseMergedRow(ByteBuffer bb, int size) {
         byte[] data = new byte[size];
         bb.get(data);
-        return new WireProtocolReader(Cf.list(data)).readUnversionedRowset(deserializer).getRowset();
+
+        WireProtocolReader reader = new WireProtocolReader(Cf.list(data));
+
+        int rowCount = reader.readRowCount();
+
+        List<UnversionedRow> rows = new ArrayList<>(rowCount);
+
+        for (int i = 0; i < rowCount; ++i) {
+            rows.add(reader.readUnversionedRow(deserializer));
+        }
+
+        return new UnversionedRowset(currentReadSchema, rows);
     }
 
     private UnversionedRowset parseRowData(ByteBuffer bb, int size) throws Exception {
