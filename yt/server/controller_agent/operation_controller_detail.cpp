@@ -3235,9 +3235,18 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
-        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
+        TStringBuilder errorMessageBuilder;
+        errorMessageBuilder.AppendFormat(
+            "All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_)));
+            GetKeys(PoolTreeToSchedulingTagFilter_));
+        // NB(eshcherbin): This should happen always, currently this option could be the only reason to ban a node.
+        if (Spec_->BanNodesWithFailedJobs) {
+            errorMessageBuilder.AppendString(
+                " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
+        }
+        auto errorMessage = errorMessageBuilder.Flush();
+        OnOperationFailed(TError(errorMessage));
         return;
     }
 
