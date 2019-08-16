@@ -454,7 +454,7 @@ public:
                     int snapshotId = FromString<int>(name);
                     RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
-                    YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
+                    YT_LOG_WARNING("Found unrecognized file in snapshot directory (FileName: %v)", fileName);
                 }
             }
         }
