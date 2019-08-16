@@ -291,7 +291,7 @@ private:
         KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
-    void LogStatistics(const TStringBuf& stage)
+    void LogStatistics(TStringBuf stage)
     {
         YT_LOG_INFO("Data slice statistics (Stage: %v, Statistics: %v)",
             stage,
