@@ -201,6 +201,16 @@ TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrder
     return key;
 }
 
+TYsonString GetValueIgnoringTimeout(const TErrorOr<TYsonString>& resultOrError)
+{
+    if (resultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+        resultOrError.ThrowOnError();
+    }
+    return resultOrError.IsOK()
+        ? resultOrError.Value()
+        : TYsonString();
+}
+
 constexpr int FileCacheHashDigitCount = 2;
 
 NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
@@ -4543,8 +4553,8 @@ private:
         auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
             .ValueOrThrow();
 
-        auto cypressResult = cypressFuture.Get().ValueOrThrow();
-        auto archiveResult = archiveFuture.Get().ValueOrThrow();
+        auto cypressResult = GetValueIgnoringTimeout(cypressFuture.Get());
+        auto archiveResult = GetValueIgnoringTimeout(archiveFuture.Get());
 
         if (archiveResult && cypressResult) {
             // Merging goes here.
@@ -4569,7 +4579,9 @@ private:
             THROW_ERROR_EXCEPTION(
                 NApi::EErrorCode::NoSuchOperation,
                 "No such operation %v",
-                operationId);
+                operationId)
+                << cypressFuture.Get()
+                << archiveFuture.Get();
         }
     }
 
