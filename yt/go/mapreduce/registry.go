@@ -34,6 +34,11 @@ func Register(job Job) {
 	registry[key] = t
 }
 
+// RegisterJobPart registers type that might be used as part of the job state.
+func RegisterJobPart(state interface{}) {
+	gob.Register(state)
+}
+
 func NewJob(name string) Job {
 	typ, ok := registry[name]
 	if !ok {

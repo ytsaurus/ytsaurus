@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 
+	"golang.org/x/xerrors"
+
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -32,11 +34,12 @@ func decodeJob(r io.Reader, job *Job) error {
 
 type action func(ctx *context.Context) error
 
-func (mr *client) newUploadAction(job Job, s *spec.Spec, userScript **spec.UserScript, tableCount int) action {
+func (mr *client) newJobCommand(job Job, s *spec.Spec, userScript **spec.UserScript, tableCount int) action {
 	if *userScript == nil {
 		*userScript = &spec.UserScript{}
 	}
 	(*userScript).Command = jobCommand(job, tableCount)
+
 	return func(ctx *context.Context) error {
 		b, err := encodeJob(job)
 		if err != nil {
@@ -74,7 +77,7 @@ func (mr *client) newUploadAction(job Job, s *spec.Spec, userScript **spec.UserS
 func (mr *client) Map(mapper Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
 	actions := []action{
-		mr.newUploadAction(mapper, s, &s.Mapper, len(s.OutputTablePaths)),
+		mr.newJobCommand(mapper, s, &s.Mapper, len(s.OutputTablePaths)),
 	}
 
 	return mr.start(s, actions)
@@ -83,7 +86,7 @@ func (mr *client) Map(mapper Job, s *spec.Spec) (Operation, error) {
 func (mr *client) Reduce(reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
 	actions := []action{
-		mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
+		mr.newJobCommand(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
 	}
 
 	return mr.start(s, actions)
@@ -92,7 +95,7 @@ func (mr *client) Reduce(reducer Job, s *spec.Spec) (Operation, error) {
 func (mr *client) JoinReduce(reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
 	actions := []action{
-		mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
+		mr.newJobCommand(reducer, s, &s.Reducer, len(s.OutputTablePaths)),
 	}
 
 	return mr.start(s, actions)
@@ -102,9 +105,9 @@ func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error
 	s = s.Clone()
 	var actions []action
 	if mapper != nil {
-		actions = append(actions, mr.newUploadAction(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
+		actions = append(actions, mr.newJobCommand(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
 	}
-	actions = append(actions, mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
+	actions = append(actions, mr.newJobCommand(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
 
 	return mr.start(s, actions)
 }
@@ -112,9 +115,9 @@ func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error
 func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) (Operation, error) {
 	s = s.Clone()
 	var actions []action
-	actions = append(actions, mr.newUploadAction(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
-	actions = append(actions, mr.newUploadAction(combiner, s, &s.ReduceCombiner, 1))
-	actions = append(actions, mr.newUploadAction(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
+	actions = append(actions, mr.newJobCommand(mapper, s, &s.Mapper, 1+s.MapperOutputTableCount))
+	actions = append(actions, mr.newJobCommand(combiner, s, &s.ReduceCombiner, 1))
+	actions = append(actions, mr.newJobCommand(reducer, s, &s.Reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount))
 	return mr.start(s, actions)
 }
 
@@ -138,7 +141,18 @@ func (mr *client) RemoteCopy(s *spec.Spec) (Operation, error) {
 	return mr.start(s, nil)
 }
 
-func (mr *client) Vanilla(s *spec.Spec) (Operation, error) {
+func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job) (Operation, error) {
 	s = s.Clone()
-	return mr.start(s, nil)
+
+	var actions []action
+	for name, job := range jobs {
+		us, ok := s.Tasks[name]
+		if !ok {
+			return nil, xerrors.Errorf("yt: task %q is not specified in spec.tasks", name)
+		}
+
+		actions = append(actions, mr.newJobCommand(job, s, &us, 0))
+	}
+
+	return mr.start(s, actions)
 }

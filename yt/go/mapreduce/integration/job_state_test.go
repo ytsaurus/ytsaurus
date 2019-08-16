@@ -3,6 +3,8 @@ package integration
 import (
 	"testing"
 
+	"golang.org/x/xerrors"
+
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/yt"
@@ -107,28 +109,50 @@ func TestMapReduceJobState(t *testing.T) {
 	require.Empty(t, output)
 }
 
-func TestOutputTableCreation(t *testing.T) {
+type (
+	TestFieldJob struct {
+		Field string
+	}
+
+	TestSecondFieldJob struct {
+		SecondField string
+	}
+)
+
+func (j *TestFieldJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
+	if j.Field != "foo" {
+		return xerrors.New("Job state is invalid")
+	}
+
+	return nil
+}
+
+func (j *TestSecondFieldJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
+	if j.SecondField != "bar" {
+		return xerrors.New("Job state is invalid")
+	}
+
+	return nil
+}
+
+func init() {
+	mapreduce.Register(&TestFieldJob{})
+	mapreduce.Register(&TestSecondFieldJob{})
+}
+
+func TestVanilaJobState(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	inputPath := env.TmpPath()
-	outputPath := env.TmpPath()
+	s := spec.Vanilla().
+		AddVanillaTask("test", 1).
+		AddVanillaTask("second_test", 1)
+	s.MaxFailedJobCount = 1
 
-	input := []TestRow{
-		{A: 2, B: "bar"},
-	}
-	require.NoError(t, env.UploadSlice(inputPath, input))
-
-	op, err := env.MR.MapReduce(&MapJob{"test-map"}, &ReduceJob{"test-reduce"},
-		spec.MapReduce().
-			ReduceByColumns("a").
-			AddInput(inputPath).
-			AddOutput(outputPath).
-			AddSecureVaultVar("TEST", "FOO"))
+	op, err := env.MR.Vanilla(s, map[string]mapreduce.Job{
+		"test":        &TestFieldJob{Field: "foo"},
+		"second_test": &TestSecondFieldJob{SecondField: "bar"},
+	})
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
-
-	var output []interface{}
-	require.NoError(t, env.DownloadSlice(outputPath, &output))
-	require.Empty(t, output)
 }
