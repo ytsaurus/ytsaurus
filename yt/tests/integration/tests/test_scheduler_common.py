@@ -3600,7 +3600,7 @@ class TestPoolMetrics(YTEnvSetup):
         op.track(raise_on_failed=False)
 
         wait(lambda: get_pool_metrics("total_time", start_time)["unique_pool"] - start_total_time_metrics["unique_pool"] ==
-             get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"]) > 0
+             get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] > 0)
         assert get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] == 0
         assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
 
