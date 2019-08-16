@@ -629,7 +629,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
         ResponseCount_ = body.subresponses_size();
 
         for (const auto& uncertainSubrequestIndex : body.uncertain_subrequest_indexes()) {
-            InnerResponseDescriptors_[uncertainSubrequestIndex].IsUncertain = true;
+            InnerResponseDescriptors_[uncertainSubrequestIndex].Uncertain = true;
         }
     } else { // old format
         // COMPAT(shakurov)
@@ -660,7 +660,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(int index, ui64 
     const auto attachmentCount = static_cast<int>(Attachments_.size());
     const auto rangeSize = std::distance(attachments.Begin, attachments.End);
 
-    descriptor.IsUncertain = false;
+    descriptor.Uncertain = false;
     descriptor.Meta = {{attachmentCount, attachmentCount + rangeSize}, revision};
     ++ResponseCount_;
 
@@ -679,7 +679,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseUncertain(int index)
 {
     YT_VERIFY(0 <= index && index <= InnerResponseDescriptors_.size());
     YT_VERIFY(!InnerResponseDescriptors_[index].Meta);
-    InnerResponseDescriptors_[index].IsUncertain = true;
+    InnerResponseDescriptors_[index].Uncertain = true;
 }
 
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
@@ -762,7 +762,7 @@ bool TObjectServiceProxy::TRspExecuteBatch::IsResponseReceived(int index) const
 bool TObjectServiceProxy::TRspExecuteBatch::IsResponseUncertain(int index) const
 {
     YT_VERIFY(index >= 0 && index < InnerRequestDescriptors_.size());
-    return InnerResponseDescriptors_[index].IsUncertain;
+    return InnerResponseDescriptors_[index].Uncertain;
 }
 
 int TObjectServiceProxy::TRspExecuteBatch::GetFirstUnreceivedResponseIndex() const
