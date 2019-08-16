@@ -1161,13 +1161,13 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     @Override
-    public CompletableFuture<TableReader> readTable(ReadTable req) {
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
         req.writeTo(builder.body());
 
-        TableReaderImpl impl = new TableReaderImpl(startStream(builder));
+        TableReaderImpl<T> impl = new TableReaderImpl<>(startStream(builder), req.getDeserializer());
         return impl.waitMetadata();
     }
 
