@@ -742,7 +742,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -750,7 +750,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true"})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
 
         remove("//tmp/r1", driver=self.replica_driver)
 
@@ -760,7 +760,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch_bundle_health(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -768,7 +768,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true"})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
@@ -796,7 +796,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_sync_replica(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -804,7 +804,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2})
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
@@ -812,7 +812,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_max_sync_replica(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "false"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
         replica_id = []
         for i in range(5):
             table_path = "//tmp/r%d"%(i)
@@ -820,7 +820,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             self._create_replica_table(table_path, replica_id[i])
             sync_enable_table_replica(replica_id[i])
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": "true", "min_sync_replica_count": 2, "max_sync_replica_count": 4})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4})
 
         def sync_replicas():
             result = 0
