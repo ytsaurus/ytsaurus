@@ -354,7 +354,6 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         }
 
         // Create new snapshot node.
-        TNodeId snapshotUploadNodeId;
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -367,7 +366,6 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 EObjectType::File,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating snapshot node");
-            snapshotUploadNodeId = nodeIdOrError.Value();
         }
 
         i64 snapshotSize = 0;
@@ -423,8 +421,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             options.PrerequisiteTransactionIds = {IncarnationId_};
 
             WaitFor(Client_->MoveNode(
-                // XXX(babenko): portals
-                FromObjectId(snapshotUploadNodeId),
+                snapshotUploadPath,
                 snapshotPath,
                 options))
                 .ThrowOnError();
