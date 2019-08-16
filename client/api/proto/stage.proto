@@ -113,6 +113,7 @@ message TDeployUnitSpec
     // If box id is present in this map, a juggler workload will be added to it.
     // NOTE: box id must be present in pod agent spec.
     map<string, TBoxJugglerConfig> box_juggler_configs = 5 [(NYT.NYson.NProto.yson_map) = true];
+    TLogbrokerConfig logbroker_config = 6;
 }
 
 message TBoxJugglerConfig
@@ -244,4 +245,11 @@ message TTvmConfig
     uint32 client_port = 4;
     // Port number to ping tvmtool. It binds to all interfaces.
     uint32 ping_port = 5;
+    // Custom tvmtool.
+    TDownloadableResource tvmtool_binary = 6;
+}
+
+message TLogbrokerConfig {
+    // Custom push agent.
+    TDownloadableResource push_agent_binary = 6;
 }
