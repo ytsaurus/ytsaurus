@@ -117,13 +117,13 @@ public:
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         std::vector<TRichYPath> inputTablePaths,
-        const KeyCondition* keyCondition,
+        std::optional<KeyCondition> keyCondition,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
         : Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , InputTablePaths_(std::move(inputTablePaths))
-        , KeyCondition_(keyCondition)
+        , KeyCondition_(std::move(keyCondition))
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
     {}
@@ -143,7 +143,7 @@ private:
     IInvokerPtr Invoker_;
 
     std::vector<TRichYPath> InputTablePaths_;
-    const KeyCondition* KeyCondition_;
+    std::optional<KeyCondition> KeyCondition_;
 
     int KeyColumnCount_ = 0;
     TKeyColumns KeyColumns_;
@@ -332,7 +332,7 @@ private:
             }
 
             auto dataSource = MakeUnversionedDataSource(
-                table.Path.GetPath(),
+                std::nullopt, // Not used
                 table.Schema,
                 /* columns */ std::nullopt,
                 // TODO(max42): YT-10402, omitted inaccessible columns
@@ -427,7 +427,7 @@ std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     std::vector<TRichYPath> inputTablePaths,
-    const KeyCondition* keyCondition,
+    std::optional<KeyCondition> keyCondition,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
@@ -436,20 +436,24 @@ std::vector<TInputDataSlicePtr> FetchDataSlices(
         std::move(client),
         invoker,
         std::move(inputTablePaths),
-        keyCondition,
+        std::move(keyCondition),
         std::move(rowBuffer),
         std::move(config));
     WaitFor(dataSliceFetcher->Fetch())
         .ThrowOnError();
 
-    specTemplate.NodeDirectory = std::move(dataSliceFetcher->NodeDirectory());
+    if (!specTemplate.NodeDirectory) {
+        specTemplate.NodeDirectory = New<TNodeDirectory>();
+    }
+    specTemplate.NodeDirectory->MergeFrom(dataSliceFetcher->NodeDirectory());
+    YT_VERIFY(!specTemplate.DataSourceDirectory);
     specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 
     return std::move(dataSliceFetcher->DataSlices());
 }
 
-NChunkPools::TChunkStripeListPtr BuildThreadStripes(
-    const std::vector<TInputDataSlicePtr>& dataSlices,
+std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+    const std::vector<TChunkStripePtr>& chunkStripes,
     int jobCount,
     std::optional<double> samplingRate,
     TQueryId queryId)
@@ -458,13 +462,15 @@ NChunkPools::TChunkStripeListPtr BuildThreadStripes(
         jobCount = 1;
     }
 
-    TChunkStripeListPtr result = New<TChunkStripeList>();
+    std::vector<TChunkStripeListPtr> result;
 
     i64 totalDataWeight = 0;
     i64 totalRowCount = 0;
-    for (const auto& dataSlice : dataSlices) {
-        totalDataWeight += dataSlice->GetDataWeight();
-        totalRowCount += dataSlice->GetRowCount();
+    for (const auto& chunkStripe : chunkStripes) {
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            totalDataWeight += dataSlice->GetDataWeight();
+            totalRowCount += dataSlice->GetRowCount();
+        }
     }
     auto dataWeightPerJob = totalDataWeight / jobCount;
 
@@ -500,64 +506,36 @@ NChunkPools::TChunkStripeListPtr BuildThreadStripes(
         },
         TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
 
-    chunkPool->Add(New<TChunkStripe>(dataSlices));
+    for (const auto& chunkStripe : chunkStripes) {
+        chunkPool->Add(chunkStripe);
+    }
     chunkPool->Finish();
     while (true) {
         auto cookie = chunkPool->Extract();
         if (cookie == IChunkPoolOutput::NullCookie) {
             break;
         }
-        auto& resultStripe = result->Stripes.emplace_back(New<TChunkStripe>());
+        // Stripelists from unordered pool consist of lot of stripes; we expect a single
+        // stripe with lots of data slices inside, so we flatten them.
         auto stripeList = chunkPool->GetStripeList(cookie);
+        auto flattenedStripe = New<TChunkStripe>();
         for (const auto& stripe : stripeList->Stripes) {
-            for (auto&& dataSlice : stripe->DataSlices) {
-                resultStripe->DataSlices.emplace_back(dataSlice);
+            for (const auto& dataSlice : stripe->DataSlices) {
+                flattenedStripe->DataSlices.emplace_back(dataSlice);
             }
         }
+        auto flattenedStripeList = New<TChunkStripeList>();
+        flattenedStripeList->Stripes.emplace_back(std::move(flattenedStripe));
+        result.emplace_back(flattenedStripeList);
     }
 
     if (originalJobCount != jobCount) {
-        TChunkStripeListPtr sampledList = New<TChunkStripeList>();
         std::mt19937 gen;
-        std::shuffle(result->Stripes.begin(), result->Stripes.end(), gen);
-        for (int index = 0; index < std::min<int>(result->Stripes.size(), originalJobCount); ++index) {
-            auto stat = result->Stripes[index]->GetStatistics();
-            AddStripeToList(result->Stripes[index], stat.DataWeight, stat.RowCount, sampledList);
-        }
-        result.Swap(sampledList);
+        std::shuffle(result.begin(), result.end(), gen);
+        result.resize(std::min<int>(result.size(), originalJobCount));
     }
 
     return result;
-}
-
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<TChunkStripePtr>& chunkStripes)
-{
-    for (const auto& chunkStripe : chunkStripes) {
-        auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
-            const auto& chunkSlice = dataSlice->ChunkSlices[0];
-            auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-            auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-            // TODO(max42): wtf?
-            chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-            chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-            if (chunkSlice->LowerLimit().RowIndex) {
-                chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
-            }
-            if (chunkSlice->UpperLimit().RowIndex) {
-                chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-            }
-            NChunkClient::NProto::TMiscExt miscExt;
-            miscExt.set_row_count(chunk->GetTotalRowCount());
-            miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-            miscExt.set_data_weight(chunk->GetTotalDataWeight());
-            miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-            chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-            chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,18 +21,16 @@ std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     std::vector<NYPath::TRichYPath> inputTablePaths,
-    const DB::KeyCondition* keyCondition,
+    std::optional<DB::KeyCondition> keyCondition,
     NTableClient::TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);
 
-NChunkPools::TChunkStripeListPtr BuildThreadStripes(
-    const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
+std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+    const std::vector<NChunkPools::TChunkStripePtr>& chunkStripes,
     int jobCount,
     std::optional<double> samplingRate,
     TQueryId queryId);
-
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
