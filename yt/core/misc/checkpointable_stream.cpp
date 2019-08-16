@@ -107,49 +107,6 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEnscapsulatedCheckpointableInputStream
-    : public IInputStream
-{
-public:
-    explicit TEnscapsulatedCheckpointableInputStream(
-        IInputStream* underlyingStream)
-        : UnderlyingStream_(underlyingStream)
-        , FakeHeader_{TBlockHeader::CheckpointsDisabled}
-    { }
-
-    virtual ~TEnscapsulatedCheckpointableInputStream()
-    { }
-
-private:
-    IInputStream* const UnderlyingStream_;
-
-    int FakeHeaderOffset_ = 0;
-    TBlockHeader FakeHeader_;
-
-
-    virtual size_t DoRead(void* buf, size_t len) override
-    {
-        if (FakeHeaderOffset_ < sizeof(FakeHeader_)) {
-            size_t bytes = std::min(len, sizeof(FakeHeader_) - FakeHeaderOffset_);
-            memcpy(buf, reinterpret_cast<const char*>(&FakeHeader_) + FakeHeaderOffset_, bytes);
-            FakeHeaderOffset_ += bytes;
-            return bytes;
-        } else {
-            return UnderlyingStream_->Read(buf, len);
-        }
-    }
-
-};
-
-std::unique_ptr<IInputStream> EscapsulateAsCheckpointableInputStream(
-    IInputStream* underlyingStream)
-{
-    return std::unique_ptr<IInputStream>(new TEnscapsulatedCheckpointableInputStream(
-        underlyingStream));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCheckpointableOutputStream
     : public ICheckpointableOutputStream
 {
