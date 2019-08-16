@@ -651,6 +651,10 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    if (!Connected_) {
+        return {};
+    }
+
     auto now = TInstant::Now();
 
     if (HasOngoingNodesAttributesUpdate_) {
