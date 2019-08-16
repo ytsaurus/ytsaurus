@@ -15,7 +15,7 @@ import ru.yandex.yt.ytclient.object.WireRowSerializer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class WriteTable<T> extends RequestBase<WriteTable> {
+public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private final String path;
     private final WireRowSerializer<T> serializer;
 
@@ -39,12 +39,12 @@ public class WriteTable<T> extends RequestBase<WriteTable> {
         return this.serializer;
     }
 
-    public WriteTable setWindowSize(long windowSize) {
+    public WriteTable<T> setWindowSize(long windowSize) {
         this.windowSize = windowSize;
         return this;
     }
 
-    public WriteTable setPacketSize(long packetSize) {
+    public WriteTable<T> setPacketSize(long packetSize) {
         this.packetSize = packetSize;
         return this;
     }
@@ -57,12 +57,12 @@ public class WriteTable<T> extends RequestBase<WriteTable> {
         return packetSize;
     }
 
-    public WriteTable setConfig(YTreeNode config) {
+    public WriteTable<T> setConfig(YTreeNode config) {
         this.config = config;
         return this;
     }
 
-    public WriteTable setTransactionalOptions(TransactionalOptions to) {
+    public WriteTable<T> setTransactionalOptions(TransactionalOptions to) {
         this.transactionalOptions = to;
         return this;
     }
