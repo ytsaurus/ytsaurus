@@ -888,9 +888,9 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     }
 
     def _get_pool_metrics(self, metric_key, start_time):
-        result = {}
+        result = defaultdict(int)
         for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                                  options={"from_time": int(start_time) * 1000000}, verbose=False)):
+                                  from_time=int(start_time * 1000000), verbose=False)):
             pool = entry["tags"]["pool"]
             if pool not in result:
                 result[pool] = entry["value"]
