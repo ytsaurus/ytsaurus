@@ -362,7 +362,7 @@ public:
 
         struct TInnerResponseDescriptor
         {
-            bool IsUncertain = false;
+            bool Uncertain = false;
             std::optional<TResponseMeta> Meta;
         };
 
