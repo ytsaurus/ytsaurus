@@ -22,10 +22,7 @@ public:
             if (!EnsureBlock()) {
                 break;
             }
-            if (BlockLength_ == TBlockHeader::CheckpointsDisabled) {
-                break;
-            }
-            if (BlockLength_ == TBlockHeader::CheckpointSentinel) {
+            if (BlockLength_ == TCheckpointableStreamBlockHeader::CheckpointSentinel) {
                 HasBlock_ = false;
                 break;
             }
@@ -33,9 +30,6 @@ public:
             HasBlock_ = false;
         }
     }
-
-    virtual ~TCheckpointableInputStream()
-    { }
 
 private:
     IInputStream* const UnderlyingStream_;
@@ -47,44 +41,40 @@ private:
 
     virtual size_t DoRead(void* buf_, size_t len) override
     {
-        if (BlockLength_ == TBlockHeader::CheckpointsDisabled) {
-            return UnderlyingStream_->Read(buf_, len);
-        } else {
-            char* buf = reinterpret_cast<char*>(buf_);
-            size_t pos = 0;
-            while (pos < len) {
-                if (!EnsureBlock()) {
-                    break;
-                }
-                size_t size = std::min(BlockLength_ - BlockOffset_, len - pos);
-                auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
-                if (loadedSize != size) {
-                    THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
-                        size,
-                        loadedSize);
-                }
-                pos += size;
-                BlockOffset_ += size;
-                if (BlockOffset_ == BlockLength_) {
-                    HasBlock_ = false;
-                }
+        char* buf = reinterpret_cast<char*>(buf_);
+        size_t pos = 0;
+        while (pos < len) {
+            if (!EnsureBlock()) {
+                break;
             }
-            return pos;
+            size_t size = std::min(BlockLength_ - BlockOffset_, len - pos);
+            auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
+            if (loadedSize != size) {
+                THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
+                    size,
+                    loadedSize);
+            }
+            pos += size;
+            BlockOffset_ += size;
+            if (BlockOffset_ == BlockLength_) {
+                HasBlock_ = false;
+            }
         }
+        return pos;
     }
 
     bool EnsureBlock()
     {
         if (!HasBlock_) {
-            TBlockHeader header;
+            TCheckpointableStreamBlockHeader header;
             auto loadedSize = UnderlyingStream_->Load(&header, sizeof(header));
             if (loadedSize == 0) {
                 return false;
             }
 
-            if (loadedSize != sizeof(TBlockHeader)) {
+            if (loadedSize != sizeof(TCheckpointableStreamBlockHeader)) {
                 THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
-                    sizeof(TBlockHeader),
+                    sizeof(TCheckpointableStreamBlockHeader),
                     loadedSize);
             }
 
@@ -95,7 +85,6 @@ private:
 
         return true;
     }
-
 };
 
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
@@ -117,11 +106,8 @@ public:
 
     virtual void MakeCheckpoint() override
     {
-        WritePod(*UnderlyingStream_, TBlockHeader{TBlockHeader::CheckpointSentinel});
+        WritePod(*UnderlyingStream_, TCheckpointableStreamBlockHeader{TCheckpointableStreamBlockHeader::CheckpointSentinel});
     }
-
-    virtual ~TCheckpointableOutputStream()
-    { }
 
 private:
     IOutputStream* const UnderlyingStream_;
@@ -133,10 +119,9 @@ private:
             return;
         }
 
-        WritePod(*UnderlyingStream_, TBlockHeader{len});
+        WritePod(*UnderlyingStream_, TCheckpointableStreamBlockHeader{len});
         UnderlyingStream_->Write(buf, len);
     }
-
 };
 
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(

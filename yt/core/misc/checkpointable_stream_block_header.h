@@ -4,14 +4,17 @@
 
 namespace NYT {
 
-struct TBlockHeader
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCheckpointableStreamBlockHeader
 {
-    static const ui64 CheckpointSentinel = 0;
-    static const ui64 CheckpointsDisabled = 0xffffffffU;
+    static constexpr ui64 CheckpointSentinel = 0;
 
     ui64 Length;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
-Y_DECLARE_PODTYPE(NYT::TBlockHeader);
+Y_DECLARE_PODTYPE(NYT::TCheckpointableStreamBlockHeader);
