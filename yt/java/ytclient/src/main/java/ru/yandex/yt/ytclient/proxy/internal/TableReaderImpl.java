@@ -60,7 +60,6 @@ public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implemen
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(currentRowsetDescriptor);
         }
 
-        logger.debug("{}", rowsetDescriptor);
         bb.position(endPosition);
     }
 
@@ -69,6 +68,8 @@ public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implemen
         bb.get(data);
 
         WireProtocolReader reader = new WireProtocolReader(Cf.list(data));
+
+        deserializer.updateSchema(currentReadSchema);
 
         int rowCount = reader.readRowCount();
 

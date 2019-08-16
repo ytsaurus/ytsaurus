@@ -4,12 +4,16 @@ import java.io.ByteArrayOutputStream;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.object.MappedRowSerializer;
+import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private final String path;
@@ -24,6 +28,14 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     public ReadTable(String path, WireRowDeserializer<T> deserializer) {
         this.path = path;
         this.deserializer = deserializer;
+    }
+
+    public ReadTable(String path, YTreeObjectSerializer<T> serializer) {
+        this.path = path;
+
+        TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
+
+        this.deserializer = MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> {});
     }
 
     public WireRowDeserializer<T> getDeserializer() {
