@@ -26,8 +26,8 @@ type UserScript struct {
 	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
 	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
 
-	CPULimit    int   `yson:"cpu_limit,omitempty"`
-	MemoryLimit int64 `yson:"memory_limit,omitempty"`
+	CPULimit    float32 `yson:"cpu_limit,omitempty"`
+	MemoryLimit int64   `yson:"memory_limit,omitempty"`
 
 	// JobCount is used only in vanilla operations
 	JobCount int `yson:"job_count,omitempty"`
