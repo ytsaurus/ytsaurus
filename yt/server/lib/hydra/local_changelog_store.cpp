@@ -368,7 +368,7 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
+                YT_LOG_WARNING("Found unrecognized file in changelog store (FileName: %v)", fileName);
             }
         }
 
