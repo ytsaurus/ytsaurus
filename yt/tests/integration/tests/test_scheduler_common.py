@@ -57,9 +57,9 @@ porto_delta_node_config = {
 ##################################################################
 
 def get_pool_metrics(metric_key, start_time):
-    result = {}
+    result = defaultdict(int)
     for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                              options={"from_time": int(start_time) * 1000000}, verbose=False)):
+                              from_time=int(start_time * 1000000), verbose=False)):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
@@ -3620,9 +3620,9 @@ class TestPoolMetrics(YTEnvSetup):
         time.sleep(1.0)
 
         def get_pool_metric_per_tree_root_(metric_key, start_time):
-            result = {}
+            result = defaultdict(int)
             for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                                      options={"from_time": int(start_time) * 1000000}, verbose=False)):
+                                      from_time=int(start_time * 1000000), verbose=False)):
                 if entry["tags"]["pool"] != "<Root>":
                     continue
                 tree = entry["tags"]["tree"]
