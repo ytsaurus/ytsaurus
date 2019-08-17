@@ -5,8 +5,8 @@ DEPENDS(
     ${YT_ROOT}/yt/server/node/bin
     ${YT_ROOT}/yt/server/rpc_proxy/bin
     ${YT_ROOT}/yt/server/job_proxy/bin
-    ${YT_ROOT}/yt/server/bin/exec
-    ${YT_ROOT}/yt/server/bin/tools
+    ${YT_ROOT}/yt/server/exec/bin
+    ${YT_ROOT}/yt/server/tools/bin
     ${YT_ROOT}/yt/server/scheduler/bin
     ${YT_ROOT}/yt/server/controller_agent/bin
 )
