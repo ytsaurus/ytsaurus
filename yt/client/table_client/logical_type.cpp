@@ -901,28 +901,28 @@ public:
     {
         for (auto simpleLogicalType : TEnumTraits<ESimpleLogicalValueType>::GetDomainValues()) {
             auto logicalType = New<TSimpleLogicalType>(simpleLogicalType);
-            SimpleTypeMap[simpleLogicalType] = logicalType;
-            OptionalTypeMap[simpleLogicalType] = New<TOptionalLogicalType>(logicalType);
+            SimpleTypeMap_[simpleLogicalType] = logicalType;
+            OptionalTypeMap_[simpleLogicalType] = New<TOptionalLogicalType>(logicalType);
         }
     }
 
     const TLogicalTypePtr& GetSimpleType(ESimpleLogicalValueType type)
     {
-        auto it = SimpleTypeMap.find(type);
-        YT_VERIFY(it != SimpleTypeMap.end());
+        auto it = SimpleTypeMap_.find(type);
+        YT_VERIFY(it != SimpleTypeMap_.end());
         return it->second;
     }
 
     const TLogicalTypePtr& GetOptionalType(ESimpleLogicalValueType type)
     {
-        auto it = OptionalTypeMap.find(type);
-        YT_VERIFY(it != OptionalTypeMap.end());
+        auto it = OptionalTypeMap_.find(type);
+        YT_VERIFY(it != OptionalTypeMap_.end());
         return it->second;
     }
 
 private:
-    THashMap<ESimpleLogicalValueType, TLogicalTypePtr> SimpleTypeMap;
-    THashMap<ESimpleLogicalValueType, TLogicalTypePtr> OptionalTypeMap;
+    THashMap<ESimpleLogicalValueType, TLogicalTypePtr> SimpleTypeMap_;
+    THashMap<ESimpleLogicalValueType, TLogicalTypePtr> OptionalTypeMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
