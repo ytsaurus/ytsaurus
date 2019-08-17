@@ -3178,6 +3178,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     TExecNodeDescriptor observedExecNode;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
+    int nonMatchingFilterNodeCount = 0;
+    int matchingButInsufficientResourcesNodeCount = 0;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
 
@@ -3190,6 +3192,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             }
         }
         if (!hasSuitableTree) {
+            ++nonMatchingFilterNodeCount;
             continue;
         }
 
@@ -3208,6 +3211,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             }
         }
         if (hasNonTrivialTasks && !hasEnoughResources) {
+            ++matchingButInsufficientResourcesNodeCount;
             continue;
         }
 
@@ -3227,9 +3231,12 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     if (!AvailableExecNodesObserved_) {
         OnOperationFailed(TError(
             EErrorCode::NoOnlineNodeToScheduleJob,
-            "No online nodes match operation scheduling tag filter %Qv in trees %v",
+            "No online nodes that match operation scheduling tag filter %Qv "
+            "and have sufficient resources to schedule a job found in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_)));
+            GetKeys(PoolTreeToSchedulingTagFilter_))
+            << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
+            << TErrorAttribute("matching_but_insufficient_resources_node_count", matchingButInsufficientResourcesNodeCount));
         return;
     }
 
