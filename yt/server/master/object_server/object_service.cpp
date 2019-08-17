@@ -258,6 +258,7 @@ public:
         , CodicilData_(Format("RequestId: %v, User: %v",
             RequestId_,
             UserName_))
+        , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetTentativeState())
     { }
 
     ~TExecuteSession()
@@ -346,6 +347,7 @@ private:
     const TString& UserName_;
     const TRequestId RequestId_;
     const TString CodicilData_;
+    const EPeerState TentativePeerState_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -425,6 +427,10 @@ private:
         if (TotalSubrequestCount_ == 0) {
             Reply();
             return;
+        }
+
+        if (TentativePeerState_ != EPeerState::Leading && TentativePeerState_ != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
         }
 
         ScheduleBackoffAlarm();
@@ -534,16 +540,29 @@ private:
         return cellTags;
     }
 
+    bool IsTentativelyRemoteSubrequest(const TSubrequest& subrequest)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
+        if (resolveResult) {
+            return true;
+        }
+
+        if (subrequest.YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
+            return true;
+        }
+
+        return false;
+    }
+
     void MarkTentativelyRemoveSubrequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& resolveCache = cypressManager->GetResolveCache();
-            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
-            subrequest.TentativelyRemote = resolveResult.has_value();
+            subrequest.TentativelyRemote = IsTentativelyRemoteSubrequest(subrequest);
         }
     }
 
@@ -645,10 +664,16 @@ private:
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
     {
+        if (subrequest->YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
+            MarkSubrequestRemoteSameCell(subrequest);
+            return;
+        }
+
         subrequest->RpcContext = CreateYPathContext(
             subrequest->RequestMessage,
             ObjectServerLogger,
             NLogging::ELogLevel::Debug);
+
         if (subrequest->YPathExt->mutating()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest->RpcContext);
@@ -659,7 +684,14 @@ private:
         }
     }
 
-    void MarkSubrequestRemote(TSubrequest* subrequest, TCellTag forwardedCellTag)
+    void MarkSubrequestRemoteSameCell(TSubrequest* subrequest)
+    {
+        subrequest->ForwardedCellTag = Bootstrap_->GetCellTag();
+        subrequest->RemoteRequestMessage = subrequest->RequestMessage;
+        subrequest->Type = EExecutionSessionSubrequestType::Remote;
+    }
+
+    void MarkSubrequestRemoteOtherCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
     {
         // XXX(babenko): profiling
         auto remoteRequestHeader = subrequest->RequestHeader;
@@ -686,6 +718,7 @@ private:
             MarkSubrequestLocal(subrequest);
             return;
         }
+
         subrequest->TargetPathRewrite = MakeYPathRewrite(
             subrequest->YPathExt->target_path(),
             targetResolveResult->PortalExitId,
@@ -698,17 +731,19 @@ private:
                 MarkSubrequestLocal(subrequest);
                 return;
             }
+
             if (CellTagFromId(additionalResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
+
             subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(
                 additionalPath,
                 additionalResolveResult->PortalExitId,
                 additionalResolveResult->UnresolvedPathSuffix));
         }
 
-        MarkSubrequestRemote(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
+        MarkSubrequestRemoteOtherCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
     }
 
     void DecideSubrequestTypes()
