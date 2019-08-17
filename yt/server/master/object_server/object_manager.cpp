@@ -391,14 +391,18 @@ public:
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
-        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
-            "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+            "TargetPath: %v, %vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
             context->GetMethod(),
             targetPathRewrite,
-            additionalPathRewrites,
+            MakeFormatterWrapper([&] (auto* builder) {
+               if (!additionalPathRewrites.empty()) {
+                   builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
+               }
+            }),
             context->GetUser(),
             isMutating,
             forwardedCellTag,
