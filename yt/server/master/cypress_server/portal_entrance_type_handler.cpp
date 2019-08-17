@@ -85,8 +85,10 @@ private:
     {
         TBase::DoDestroy(node);
 
-        const auto& portalManager = Bootstrap_->GetPortalManager();
-        portalManager->DestroyEntranceNode(node);
+        if (node->IsTrunk()) {
+            const auto& portalManager = Bootstrap_->GetPortalManager();
+            portalManager->DestroyEntranceNode(node);
+        }
     }
 
     virtual void DoBranch(
