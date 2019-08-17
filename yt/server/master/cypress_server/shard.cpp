@@ -46,6 +46,7 @@ void TCypressShard::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, AccountStatistics_);
     Save(context, Root_);
+    Save(context, Name_);
 }
 
 void TCypressShard::Load(NCellMaster::TLoadContext& context)
@@ -55,6 +56,10 @@ void TCypressShard::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, AccountStatistics_);
     Load(context, Root_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::CypressShardName) {
+        Load(context, Name_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,6 +41,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, Root);
 
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+
 public:
     explicit TCypressShard(const TLockId& id);
 

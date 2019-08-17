@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "node_detail.h"
 #include "portal_exit_node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -430,6 +431,21 @@ TCypressShardId MakeCypressShardId(
     TNodeId rootNodeId)
 {
     return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
+}
+
+TString SuggestCypressShardName(TCypressShard* shard)
+{
+    const auto* root = shard->GetRoot();
+    switch (root->GetType()) {
+        case EObjectType::MapNode:
+            return Format("root:%v", CellTagFromId(root->GetId()));
+
+        case EObjectType::PortalExit:
+            return Format("portal:%v", root->As<TPortalExitNode>()->GetPath());
+
+        default:
+            return "<invalid root type>";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
