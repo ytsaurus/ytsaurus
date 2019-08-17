@@ -917,7 +917,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
             if (customAttributes) {
                 auto customKeys = customAttributes->List();
                 std::sort(customKeys.begin(), customKeys.end());
-                for (const auto& key : customKeys) {
+                for (auto key : customKeys) {
                     permissionValidator.Validate(EPermission::Write);
 
                     YT_VERIFY(customAttributes->Remove(key));
@@ -1144,7 +1144,7 @@ void TSupportsAttributes::ValidateAttributeKey(const TString& key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashSet<TInternedAttributeKey>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
+const THashSet<TInternedAttributeKey>& TSystemBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {
@@ -1159,6 +1159,25 @@ const THashSet<TInternedAttributeKey>& TBuiltinAttributeKeysCache::GetBuiltinAtt
         Initialized_ = true;
     }
     return BuiltinKeys_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const THashSet<TString>& TSystemCustomAttributeKeysCache::GetCustomAttributeKeys(
+    ISystemAttributeProvider* provider)
+{
+    if (!Initialized_) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        CustomKeys_.reserve(descriptors.size());
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Custom) {
+                YT_VERIFY(CustomKeys_.insert(GetUninternedAttributeKey(descriptor.InternedKey)).second);
+            }
+        }
+        Initialized_ = true;
+    }
+    return CustomKeys_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

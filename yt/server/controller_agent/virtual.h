@@ -46,7 +46,7 @@ public:
         bool stable) override;
 
 private:
-    NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+    NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
     const THashSet<NChunkClient::TInputChunkPtr>& Chunks_;
 

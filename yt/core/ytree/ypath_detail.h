@@ -277,7 +277,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBuiltinAttributeKeysCache
+class TSystemBuiltinAttributeKeysCache
 {
 public:
     const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
@@ -285,6 +285,19 @@ public:
 private:
     bool Initialized_ = false;
     THashSet<TInternedAttributeKey> BuiltinKeys_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemCustomAttributeKeysCache
+{
+public:
+    const THashSet<TString>& GetCustomAttributeKeys(ISystemAttributeProvider* provider);
+
+private:
+    bool Initialized_ = false;
+    THashSet<TString> CustomKeys_;
 
 };
 

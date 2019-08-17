@@ -293,6 +293,7 @@
     XX(UsableAccounts, usable_accounts) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
+    XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
     XX(UserTags, user_tags) \
     XX(Value, value) \
