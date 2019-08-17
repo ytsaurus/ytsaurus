@@ -41,9 +41,7 @@ using namespace NCGroup;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NJobProxy;
-#ifdef _linux_
 using namespace NContainers;
-#endif
 using namespace NDataNode;
 using namespace NYTree;
 using namespace NTools;
