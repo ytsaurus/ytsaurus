@@ -894,7 +894,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSimpleTypeStore
+class TSimpleTypeStore
 {
 public:
     TSimpleTypeStore()
