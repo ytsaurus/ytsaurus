@@ -1127,7 +1127,8 @@ public:
                             tablet->GetState());
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v, TabletBalancerCorrelationid: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet "
+                    "(TabletId: %v, ActionId: %v, TabletBalancerCorrelationId: %v)",
                     tablet->GetId(),
                     action->GetId(),
                     action->GetCorrelationId());
