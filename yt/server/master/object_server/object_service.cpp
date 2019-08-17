@@ -363,8 +363,8 @@ private:
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
-        TYPathRewrite TargetPathRewrite;
-        SmallVector<TYPathRewrite, TypicalAdditionalPathCount> AdditionalPathRewrites;
+        std::optional<TYPathRewrite> TargetPathRewrite;
+        std::optional<SmallVector<TYPathRewrite, TypicalAdditionalPathCount>> AdditionalPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
@@ -696,11 +696,16 @@ private:
         // XXX(babenko): profiling
         auto remoteRequestHeader = subrequest->RequestHeader;
         auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        remoteYPathExt->set_target_path(subrequest->TargetPathRewrite.Rewritten);
 
-        remoteYPathExt->clear_additional_paths();
-        for (const auto& rewrite : subrequest->AdditionalPathRewrites) {
-            remoteYPathExt->add_additional_paths(rewrite.Rewritten);
+        if (subrequest->TargetPathRewrite) {
+            remoteYPathExt->set_target_path(subrequest->TargetPathRewrite->Rewritten);
+        }
+
+        if (subrequest->AdditionalPathRewrites) {
+            remoteYPathExt->clear_additional_paths();
+            for (const auto& rewrite : *subrequest->AdditionalPathRewrites) {
+                remoteYPathExt->add_additional_paths(rewrite.Rewritten);
+            }
         }
 
         subrequest->ForwardedCellTag = forwardedCellTag;
@@ -724,7 +729,8 @@ private:
             targetResolveResult->PortalExitId,
             targetResolveResult->UnresolvedPathSuffix);
 
-        subrequest->AdditionalPathRewrites.reserve(subrequest->YPathExt->additional_paths_size());
+        subrequest->AdditionalPathRewrites.emplace();
+        subrequest->AdditionalPathRewrites->reserve(subrequest->YPathExt->additional_paths_size());
         for (const auto& additionalPath : subrequest->YPathExt->additional_paths()) {
             auto additionalResolveResult = resolveCache->TryResolve(additionalPath);
             if (!additionalResolveResult) {
@@ -737,7 +743,7 @@ private:
                 return;
             }
 
-            subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(
+            subrequest->AdditionalPathRewrites->push_back(MakeYPathRewrite(
                 additionalPath,
                 additionalResolveResult->PortalExitId,
                 additionalResolveResult->UnresolvedPathSuffix));
@@ -845,14 +851,22 @@ private:
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
-                "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+                "%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
-                subrequest.TargetPathRewrite,
-                subrequest.AdditionalPathRewrites,
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.TargetPathRewrite) {
+                       builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
+                   }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
+                       builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
+                   }
+                }),
                 UserName_,
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
