@@ -24,22 +24,25 @@ TObjectId GenerateUniqueId()
 
 std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
 {
-    NServer::NObjects::NProto::TMetaEtc metaEtc;
-    metaEtc.set_uuid(NYP::NServer::NObjects::GenerateUuid());
+    auto uuid = NObjects::GenerateUuid();
 
-    NServer::NObjects::NProto::TPodSpecEtc specEtc;
-    specEtc.mutable_resource_requests()->set_vcpu_guarantee(cpuCapacity);
-    specEtc.mutable_resource_requests()->set_memory_limit(memoryCapacity);
+    NObjects::TPodResourceRequests resourceRequests;
+    resourceRequests.set_vcpu_guarantee(cpuCapacity);
+    resourceRequests.set_memory_limit(memoryCapacity);
 
     return std::make_unique<TPod>(
         GenerateUniqueId(),
+        /* labels */ NYT::NYson::TYsonString(),
         /* podSet */ nullptr,
-        std::move(metaEtc),
         /* node */ nullptr,
-        specEtc,
-        /* node */ nullptr,
-        NObjects::NProto::TPodStatusEtc(),
-        /* labels */ NYT::NYson::TYsonString());
+        /* account */ nullptr,
+        std::move(uuid),
+        std::move(resourceRequests),
+        NObjects::TPodDiskVolumeRequests(),
+        NObjects::TPodIP6AddressRequests(),
+        NObjects::TPodIP6SubnetRequests(),
+        /* node filter*/ TString(),
+        NClient::NApi::NProto::TPodStatus_TEviction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -174,7 +174,11 @@ public:
                 NClient::NApi::NProto::TResourceTotals usage;
                 for (auto* pod : account->Pods()) {
                     auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
-                    usage += ResourceUsageFromPodSpec(pod->SpecEtc(), nodeSegment->GetId());
+                    usage += ResourceUsageFromPodSpecRequests(
+                        pod->ResourceRequests(),
+                        pod->DiskVolumeRequests(),
+                        pod->IP6AddressRequests(),
+                        nodeSegment->GetId());
                 }
                 accountToImmediateUsage[account] = std::move(usage);
             }

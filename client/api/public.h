@@ -8,6 +8,11 @@ namespace NYP::NClient::NApi {
 
 namespace NProto {
 
+class TPodSpec_TResourceRequests;
+class TPodSpec_TDiskVolumeRequest;
+class TPodSpec_TIP6AddressRequest;
+class TPodSpec_TIP6SubnetRequest;
+
 class TPodSpec_THostDevice;
 class TPodSpec_TSysctlProperty;
 
@@ -36,6 +41,7 @@ DEFINE_ENUM(EErrorCode,
     ((AccountLimitExceeded)        (100012))
     ((PodSchedulingFailure)        (100013))
     ((PrerequisiteCheckFailure)    (100014))
+    ((InvalidContinuationToken)    (100015))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

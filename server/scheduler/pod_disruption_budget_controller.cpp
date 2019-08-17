@@ -175,7 +175,7 @@ private:
     {
         // TODO(bidzilya): Use pod integral liveness status.
         return pod->GetNode() != nullptr
-            && pod->StatusEtc().eviction().state() == NClient::NApi::NProto::EEvictionState::ES_NONE;
+            && pod->Eviction().state() == NClient::NApi::NProto::EEvictionState::ES_NONE;
     }
 
     void RunImpl(const TClusterPtr& cluster)
@@ -189,8 +189,7 @@ private:
             if (!podDisruptionBudget) {
                 continue;
             }
-            const auto& uuid = podDisruptionBudget->MetaEtc().uuid();
-            auto& statistics = StatisticsPerPodDisruptionBudgetUuid_[uuid];
+            auto& statistics = StatisticsPerPodDisruptionBudgetUuid_[podDisruptionBudget->Uuid()];
             for (auto* pod : podSet->Pods()) {
                 statistics.TotalPodCount += 1;
                 statistics.AvailablePodCount += IsPodAvailable(pod);
@@ -203,7 +202,7 @@ private:
         for (auto* podDisruptionBudget : cluster->GetPodDisruptionBudgets()) {
             TPodDisruptionBudgetUpdateQueue::TItem item(
                 podDisruptionBudget->GetId(),
-                podDisruptionBudget->MetaEtc().uuid());
+                podDisruptionBudget->Uuid());
             enqueuedItemCount += UpdateQueue_->TryEnqueue(std::move(item));
         }
 

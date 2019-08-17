@@ -10,14 +10,14 @@ using namespace NObjects;
 
 namespace {
 
-ui64 GetCpuCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
+ui64 GetCpuCapacityFromRequests(const NObjects::TPodResourceRequests& requests)
 {
-    return spec.resource_requests().vcpu_guarantee();
+    return requests.vcpu_guarantee();
 }
 
-ui64 GetMemoryCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
+ui64 GetMemoryCapacityFromRequests(const NObjects::TPodResourceRequests& requests)
 {
-    return spec.resource_requests().memory_limit();
+    return requests.memory_limit();
 }
 
 ui64 GetDiskCapacityFromRequest(const NClient::NApi::NProto::TPodSpec::TDiskVolumeRequest& request)
@@ -44,10 +44,10 @@ ui64 GetDiskBandwidthFromRequest(const NClient::NApi::NProto::TPodSpec::TDiskVol
     }
 }
 
-ui64 GetInternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
+ui64 GetInternetAddressCapacityFromRequests(const NObjects::TPodIP6AddressRequests& requests)
 {
     ui64 result = 0;
-    for (const auto& request : spec.ip6_address_requests()) {
+    for (const auto& request : requests) {
         if (request.enable_internet()) {
             ++result;
         }
@@ -57,22 +57,43 @@ ui64 GetInternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpe
 
 } // namespace
 
-TResourceTotals ResourceUsageFromPodSpec(
-    const NServer::NObjects::NProto::TPodSpecEtc& spec,
+TResourceTotals ResourceUsageFromPodSpecRequests(
+    const NObjects::TPodResourceRequests& resourceRequests,
+    const NObjects::TPodDiskVolumeRequests& diskVolumeRequests,
+    const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
     const TObjectId& segmentId)
 {
     TResourceTotals usage;
     auto& perSegmentUsage = (*usage.mutable_per_segment())[segmentId];
-    perSegmentUsage.mutable_cpu()->set_capacity(perSegmentUsage.cpu().capacity() + GetCpuCapacityFromSpec(spec));
-    perSegmentUsage.mutable_memory()->set_capacity(perSegmentUsage.memory().capacity() + GetMemoryCapacityFromSpec(spec));
-    perSegmentUsage.mutable_internet_address()->set_capacity(perSegmentUsage.internet_address().capacity() + GetInternetAddressCapacityFromSpec(spec));
-    for (const auto& volumeRequest : spec.disk_volume_requests()) {
+
+    perSegmentUsage.mutable_cpu()->set_capacity(
+        perSegmentUsage.cpu().capacity() + GetCpuCapacityFromRequests(resourceRequests));
+
+    perSegmentUsage.mutable_memory()->set_capacity(
+        perSegmentUsage.memory().capacity() + GetMemoryCapacityFromRequests(resourceRequests));
+
+    for (const auto& volumeRequest : diskVolumeRequests) {
         const auto& storageClass = volumeRequest.storage_class();
         auto& diskTotals = (*perSegmentUsage.mutable_disk_per_storage_class())[storageClass];
         diskTotals.set_capacity(diskTotals.capacity() + GetDiskCapacityFromRequest(volumeRequest));
         diskTotals.set_bandwidth(diskTotals.bandwidth() + GetDiskBandwidthFromRequest(volumeRequest));
     }
+
+    perSegmentUsage.mutable_internet_address()->set_capacity(
+        perSegmentUsage.internet_address().capacity() + GetInternetAddressCapacityFromRequests(ip6AddressRequests));
+
     return usage;
+}
+
+TResourceTotals ResourceUsageFromPodSpec(
+    const NServer::NObjects::NProto::TPodSpecEtc& spec,
+    const TObjectId& segmentId)
+{
+    return ResourceUsageFromPodSpecRequests(
+        spec.resource_requests(),
+        spec.disk_volume_requests(),
+        spec.ip6_address_requests(),
+        segmentId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

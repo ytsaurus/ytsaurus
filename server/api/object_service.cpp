@@ -1,4 +1,6 @@
 #include "object_service.h"
+
+#include "helpers.h"
 #include "private.h"
 
 #include <yp/server/master/bootstrap.h>
@@ -11,6 +13,8 @@
 #include <yp/server/objects/object_manager.h>
 #include <yp/server/objects/type_handler.h>
 #include <yp/server/objects/helpers.h>
+
+#include <yp/server/api/proto/continuation_token.pb.h>
 
 #include <yp/server/access_control/access_control_manager.h>
 
@@ -929,11 +933,27 @@ private:
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
+            NYP::NServer::NAccessControl::TGetUserAccessAllowedToOptions options;
+            if (subrequest.has_continuation_token()) {
+                NProto::TGetUserAccessAllowedToContinuationToken token;
+                DeserializeContinuationToken(subrequest.continuation_token(), &token);
+                options.ContinuationId = std::move(token.object_id());
+            }
+            if (subrequest.has_limit()) {
+                options.Limit = subrequest.limit();
+            }
             auto objectIds = accessControlManager->GetUserAccessAllowedTo(
                 subrequest.user_id(),
                 objectType,
-                permission);
-            ToProto(response->add_subresponses()->mutable_object_ids(), objectIds);
+                permission,
+                options);
+            auto subresponse = response->add_subresponses();
+            if (!objectIds.empty()) {
+                NProto::TGetUserAccessAllowedToContinuationToken token;
+                ToProto(token.mutable_object_id(), objectIds.back());
+                subresponse->set_continuation_token(SerializeContinuationToken(token));
+            }
+            ToProto(subresponse->mutable_object_ids(), objectIds);
         }
 
         context->Reply();

@@ -111,7 +111,7 @@ private:
 
     static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const TPod* pod)
     {
-        return pod->StatusEtc().eviction();
+        return pod->Eviction();
     }
 
     static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const NObjects::TPod* pod)
@@ -405,7 +405,7 @@ private:
         {
             auto pods = Context_.Cluster->GetPods();
             for (auto* pod : pods) {
-                if (pod->StatusEtc().eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
+                if (pod->Eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
                     YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
                         pod->GetId(),
                         pod->GetNode()->GetId());
@@ -421,7 +421,7 @@ private:
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
                     auto* pod = Context_.Cluster->FindPod(allocation.pod_id());
-                    if (!pod || pod->MetaEtc().uuid() != allocation.pod_uuid()) {
+                    if (!pod || pod->Uuid() != allocation.pod_uuid()) {
                         changedNodes.push_back(node);
                         break;
                     } else if (pod) {

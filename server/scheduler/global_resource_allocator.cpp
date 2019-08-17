@@ -141,7 +141,7 @@ public:
     {
         bool result = true;
         int internetAddressCount = 0;
-        for (const auto& addressRequest : Pod_->SpecEtc().ip6_address_requests()) {
+        for (const auto& addressRequest : Pod_->IP6AddressRequests()) {
             if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id()) && result) {
                 statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressVlan);
                 result = false;
@@ -160,7 +160,7 @@ public:
     bool TryAcquireIP6Subnets()
     {
         // NB! Assumming this resource has infinite capacity we do not need to acquire anything.
-        for (const auto& subnetRequest : Pod_->SpecEtc().ip6_subnet_requests()) {
+        for (const auto& subnetRequest : Pod_->IP6SubnetRequests()) {
             if (!Node_->HasIP6SubnetInVlan(subnetRequest.vlan_id())) {
                 return false;
             }
@@ -238,12 +238,11 @@ public:
                 nodeSegment->GetId());
         }
 
-        const auto& podNodeFilter = pod->SpecEtc().node_filter();
         auto* podSet = pod->GetPodSet();
         // FIXME(YP-803): pod set could be abscent due to race condition.
-        const auto& nodeFilter = podNodeFilter.Empty() && podSet
+        const auto& nodeFilter = pod->NodeFilter().Empty() && podSet
             ? podSet->NodeFilter()
-            : podNodeFilter;
+            : pod->NodeFilter();
 
         const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
         if (!nodesOrError.IsOK()) {
@@ -372,7 +371,7 @@ private:
             statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::AntiaffinityVacancy);
         }
 
-        const auto& resourceRequests = pod->SpecEtc().resource_requests();
+        const auto& resourceRequests = pod->ResourceRequests();
 
         if (resourceRequests.vcpu_guarantee() > 0) {
             if (!nodeAllocationContext->CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
@@ -396,7 +395,7 @@ private:
         }
 
         bool allDiskVolumeRequestsSatisfied = true;
-        for (const auto& volumeRequest : pod->SpecEtc().disk_volume_requests()) {
+        for (const auto& volumeRequest : pod->DiskVolumeRequests()) {
             const auto& storageClass = volumeRequest.storage_class();
             auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
             auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
@@ -464,7 +463,7 @@ public:
             // We compare uuids here to overcome possible pod ids collision:
             // current pod could be removed and another pod could be created with the same pod_id
             // between consecutive state reconcilations.
-            if (!pod || pod->MetaEtc().uuid() != history->Uuid) {
+            if (!pod || pod->Uuid() != history->Uuid) {
                 ++removedPodCount;
                 expiredPodIds.push_back(podId);
             } else if (pod->GetNode()) {
@@ -563,13 +562,13 @@ private:
         if (it == PodComputeAllocationHistory_.end()) {
             auto history = std::make_unique<TPodComputeAllocationHistory>();
             history->IterationCountToEveryNodeSelection = GenerateIterationCountToEveryNodeSelection();
-            history->Uuid = pod->MetaEtc().uuid();
+            history->Uuid = pod->Uuid();
 
             it = PodComputeAllocationHistory_.emplace(podId, std::move(history)).first;
         } else {
             const auto& history = it->second;
 
-            YT_VERIFY(history->Uuid == pod->MetaEtc().uuid());
+            YT_VERIFY(history->Uuid == pod->Uuid());
         }
         return it->second.get();
     }

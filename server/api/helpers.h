@@ -1,18 +1,13 @@
 #pragma once
 
-#include <yp/server/misc/public.h>
-
-#include <yp/client/api/public.h>
+#include "public.h"
 
 namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EMasterInterface,
-    (Client)
-    (SecureClient)
-    (Agent)
-);
+TString SerializeContinuationToken(const google::protobuf::Message& message);
+void DeserializeContinuationToken(const TString& token, google::protobuf::Message* message);
 
 ////////////////////////////////////////////////////////////////////////////////
 

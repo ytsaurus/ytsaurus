@@ -5,6 +5,7 @@ from yp.common import (
     YpAuthorizationError,
     YpClientError,
     YpNoSuchObjectError,
+    YpInvalidContinuationToken,
     YtResponseError,
     validate_error_recursively,
 )
@@ -277,8 +278,9 @@ class TestAcls(object):
 
         # User is not granted the access. Superuser is always granted the access.
         # Different users / permissions in the one request.
+        extract_ids = lambda resp: [r["object_ids"] for r in resp]
         assert_items_equal(
-            yp_client.get_user_access_allowed_to([
+            extract_ids(yp_client.get_user_access_allowed_to([
                 dict(
                     user_id="u1",
                     object_type="network_project",
@@ -293,12 +295,12 @@ class TestAcls(object):
                     user_id="root",
                     object_type="network_project",
                     permission="read",
-                ),
-            ]),
+                )
+            ])),
             [
-                dict(object_ids=[]),
-                dict(object_ids=[network_project_id1]),
-                dict(object_ids=[network_project_id1]),
+                [],
+                [network_project_id1],
+                [network_project_id1],
             ],
         )
 
@@ -312,15 +314,15 @@ class TestAcls(object):
 
         # User is granted the access.
         assert_items_equal(
-            yp_client.get_user_access_allowed_to([
+            extract_ids(yp_client.get_user_access_allowed_to([
                 dict(
                     user_id="u1",
                     object_type="network_project",
                     permission="read",
                 )
-            ]),
+            ])),
             [
-                dict(object_ids=[network_project_id2]),
+                [network_project_id2],
             ],
         )
 
@@ -334,7 +336,7 @@ class TestAcls(object):
                 )
             ])
         except YtResponseError as error:
-            assert error.contains_code(103) # No such method.
+            assert error.contains_code(103)  # No such method.
 
         network_project_id3 = create_network_project(
             acl=[
@@ -363,15 +365,15 @@ class TestAcls(object):
 
         # Nonexistant user.
         assert_items_equal(
-            yp_client.get_user_access_allowed_to([
+            extract_ids(yp_client.get_user_access_allowed_to([
                 dict(
                     user_id="abracadabra",
                     object_type="network_project",
                     permission="read",
                 ),
-            ]),
+            ])),
             [
-                dict(object_ids=[]),
+                [],
             ],
         )
 
@@ -413,15 +415,15 @@ class TestAcls(object):
 
         # User is not granted the access because of group ace with action = "deny".
         assert_items_equal(
-            yp_client.get_user_access_allowed_to([
+            extract_ids(yp_client.get_user_access_allowed_to([
                 dict(
                     user_id="u1",
                     object_type="network_project",
                     permission="write",
                 ),
-            ]),
+            ])),
             [
-                dict(object_ids=[network_project_id3]),
+                [network_project_id3],
             ],
         )
 
@@ -455,6 +457,66 @@ class TestAcls(object):
             ),
             set(object_ids),
         )
+
+    def test_get_user_access_allowed_to_continuation(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        object_count = 100
+        object_ids = []
+        for _ in xrange(object_count):
+            object_ids.append(
+                yp_client.create_object(
+                    "account",
+                    attributes=dict(meta=dict(acl=[
+                        dict(
+                            action="allow",
+                            permissions=["read"],
+                            subjects=["u1"],
+                        )
+                    ])),
+                )
+            )
+
+        yp_env.sync_access_control()
+
+        get_objects = lambda limit, continuation: yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="account",
+                    permission="read",
+                    limit=limit,
+                    continuation_token=continuation,
+                ),
+            ])[0]
+
+        assert get_objects(0, None)["object_ids"] == []
+        assert get_objects(0, "")["object_ids"] == []
+        assert set(get_objects(200000, None)["object_ids"]) == set(object_ids)
+        assert len(set(object_ids) - set(get_objects(1, None)["object_ids"])) == object_count - 1
+        assert len(set(object_ids) - set(get_objects(10, None)["object_ids"])) == object_count - 10
+        assert len(set(object_ids) - set(get_objects(30, "")["object_ids"])) == object_count - 30
+
+        with pytest.raises(YtResponseError):
+            get_objects(-200, None)
+        with pytest.raises(YpInvalidContinuationToken):
+            get_objects(10, "foobar")
+
+        for limit in (1, 7, 10):
+            got_objects = set()
+            continuation_token = None
+            while True:
+                response = get_objects(limit, continuation_token)
+                response_len = len(response["object_ids"])
+                assert response_len <= limit
+                for object_id in response["object_ids"]:
+                    assert object_id not in got_objects
+                    got_objects.add(object_id)
+                if response_len < limit:
+                    break
+                continuation_token = response["continuation_token"]
+
+            assert got_objects == set(object_ids)
 
     def test_only_superuser_can_force_assign_pod1(self, yp_env):
         yp_client = yp_env.yp_client
@@ -539,7 +601,7 @@ class TestAcls(object):
 
         yp_env.sync_access_control()
 
-        node_id = yp_client.create_object("node")
+        yp_client.create_object("node")
         pod_set_id = yp_client.create_object("pod_set", attributes={
                 "meta": {
                     "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
@@ -891,8 +953,8 @@ class TestSeveralAccessControlParents(object):
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestApiGetUserAccessAllowedTo(object):
     YP_MASTER_CONFIG = dict(
-        access_control_manager = dict(
-            cluster_state_allowed_object_types = ["pod"],
+        access_control_manager=dict(
+            cluster_state_allowed_object_types=["pod"],
         )
     )
 
@@ -913,7 +975,7 @@ class TestApiGetUserAccessAllowedTo(object):
                 )
             ])
         except YtResponseError as error:
-            assert error.contains_code(103) # No such method.
+            assert error.contains_code(103)  # No such method.
 
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(
             acl=[
@@ -933,7 +995,7 @@ class TestApiGetUserAccessAllowedTo(object):
         )))
 
         # Pod with denied 'write' permission due to the empty acl list and inherit_acl == False.
-        pod2 = yp_client.create_object("pod", attributes=dict(meta=dict(
+        yp_client.create_object("pod", attributes=dict(meta=dict(
             pod_set_id=pod_set_id,
             inherit_acl=False,
             acl=[],
@@ -941,7 +1003,7 @@ class TestApiGetUserAccessAllowedTo(object):
 
         # Pod with denied 'write' permission due to the ace with action == 'deny', despite of the
         # inherit_acl == True and allowed 'write' permission due to the parent pod set acl.
-        pod3 = yp_client.create_object("pod", attributes=dict(meta=dict(
+        yp_client.create_object("pod", attributes=dict(meta=dict(
             pod_set_id=pod_set_id,
             inherit_acl=True,
             acl=[
@@ -955,15 +1017,11 @@ class TestApiGetUserAccessAllowedTo(object):
 
         yp_env_configurable.sync_access_control()
 
-        assert_items_equal(
-            yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id=u1,
-                    object_type="pod",
-                    permission="write",
-                ),
-            ]),
-            [
-                dict(object_ids=[pod1]),
-            ],
-        )
+        response = yp_client.get_user_access_allowed_to([
+            dict(
+                user_id=u1,
+                object_type="pod",
+                permission="write",
+            ),
+        ])
+        assert response[0]["object_ids"] == [pod1]

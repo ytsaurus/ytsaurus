@@ -9,10 +9,10 @@ using namespace NYT::NYson;
 TPodDisruptionBudget::TPodDisruptionBudget(
     const TObjectId& id,
     TYsonString labels,
-    NServer::NObjects::NProto::TMetaEtc metaEtc,
+    TObjectId uuid,
     NClient::NApi::NProto::TPodDisruptionBudgetSpec spec)
     : TObject(id, std::move(labels))
-    , MetaEtc_(std::move(metaEtc))
+    , Uuid_(std::move(uuid))
     , Spec_(std::move(spec))
 { }
 

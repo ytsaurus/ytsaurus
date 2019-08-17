@@ -93,6 +93,26 @@ class TestObjects(object):
 
         assert len(set(node_ids)) == N
 
+    def test_select_filter_with_alias(self, yp_env):
+        yp_client = yp_env.yp_client
+        assert yp_client.select_objects(
+            "account",
+            selectors=["/meta/id"],
+            filter="([/meta/id] as a) = \"tmp\"",
+        ) == [["tmp"]]
+
+    def test_select_filter_with_transform_default_values(self, yp_env):
+        yp_client = yp_env.yp_client
+        pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(id="podset")))
+        pod_id = yp_client.create_object("pod", attributes=dict(
+            meta=dict(id="pod", pod_set_id=pod_set_id),
+        ))
+        assert yp_client.select_objects(
+            "pod",
+            selectors=["/meta/id"],
+            filter="transform([/meta/id], (\"x\"), (\"y\"), ([/meta/pod_set_id])) = \"{}\"".format(pod_set_id)
+        ) == [["pod"]]
+
     def test_many_to_one_attribute(self, yp_env):
         yp_client = yp_env.yp_client
 

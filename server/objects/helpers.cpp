@@ -460,8 +460,8 @@ TExpressionPtr BuildFilterExpression(
                 // Do nothing.
             } else if (auto* typedExpr = (*expr)->As<TReferenceExpression>()) {
                 RewriteReference(expr, typedExpr->Reference);
-            } else if ((*expr)->As<TAliasExpression>()) {
-                // Do nothing.
+            } else if (auto* typedExpr = (*expr)->As<TAliasExpression>()) {
+                Visit(&typedExpr->Expression);
             } else if (auto* typedExpr = (*expr)->As<TFunctionExpression>()) {
                 Visit(typedExpr->Arguments);
             } else if (auto* typedExpr = (*expr)->As<TUnaryOpExpression>()) {
@@ -475,8 +475,16 @@ TExpressionPtr BuildFilterExpression(
                 Visit(typedExpr->Expr);
             } else if (auto* typedExpr = (*expr)->As<TTransformExpression>()) {
                 Visit(typedExpr->Expr);
+                Visit(typedExpr->DefaultExpr);
             } else {
                 YT_ABORT();
+            }
+        }
+
+        void Visit(TNullableExpressionList& list)
+        {
+            if (list) {
+                Visit(*list);
             }
         }
 

@@ -21,6 +21,17 @@ class TPodStatusEtc;
 
 } // namespace NProto
 
+using TPodResourceRequests = NClient::NApi::NProto::TPodSpec_TResourceRequests;
+
+using TPodDiskVolumeRequests = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>;
+
+using TPodIP6AddressRequests = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>;
+
+using TPodIP6SubnetRequests = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>;
+
 DECLARE_REFCOUNTED_CLASS(TPodTypeHandlerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)

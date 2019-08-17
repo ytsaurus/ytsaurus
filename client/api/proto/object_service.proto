@@ -612,6 +612,12 @@ message TReqGetUserAccessAllowedTo
 
         // Permission to check.
         required EAccessControlPermission permission = 3;
+
+        // Continuation token indicates the next record to be fetched. Opaque for the client.
+        optional string continuation_token = 4;
+
+        // Maximum number of results to fetch.
+        optional int32 limit = 5;
     }
 
     // Subrequests to serve.
@@ -624,6 +630,10 @@ message TRspGetUserAccessAllowedTo
     {
         // Ids of objects to which user is granted permission.
         repeated string object_ids = 1;
+
+        // Continuation token - should be sent in subsequent requests to fetch the next batch
+        // of objects. Opaque for the client.
+        optional string continuation_token = 2;
     }
 
     // The i-th subresponse here contains the result for the i-th subrequest.

@@ -133,14 +133,29 @@ class TestCli(object):
 
         yp_env.sync_access_control()
 
-        result = cli.check_yson_output([
+        command = [
             "get-user-access-allowed-to",
             "root",
             "account",
-            "read"
-        ])
+            "read",
+        ]
+        result = cli.check_yson_output(command)
+        assert result["object_ids"] == ["tmp"]
 
-        assert result == dict(object_ids=["tmp"])
+        result = cli.check_yson_output(command + ["--limit", "0"])
+        assert result["object_ids"] == []
+
+        object_ids = []
+        continuation_token = None
+        for _ in range(2):
+            extended_command = command + ["--limit", "1"]
+            if continuation_token is not None:
+                extended_command += ["--continuation-token", continuation_token]
+            result = cli.check_yson_output(extended_command)
+            object_ids.extend(result["object_ids"])
+            continuation_token = result["continuation_token"]
+
+        assert object_ids == ["tmp"]
 
     def test_binary_data(self, yp_env):
         cli = create_cli(yp_env)

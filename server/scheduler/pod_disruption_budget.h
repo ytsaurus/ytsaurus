@@ -2,8 +2,6 @@
 
 #include "object.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
-
 #include <yp/client/api/proto/data_model.pb.h>
 
 #include <yt/core/misc/property.h>
@@ -21,10 +19,10 @@ public:
     TPodDisruptionBudget(
         const TObjectId& id,
         NYT::NYson::TYsonString labels,
-        NServer::NObjects::NProto::TMetaEtc metaEtc,
+        TObjectId uuid,
         NClient::NApi::NProto::TPodDisruptionBudgetSpec spec);
 
-    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TMetaEtc, MetaEtc);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, Uuid);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodDisruptionBudgetSpec, Spec);
 };
 

@@ -345,9 +345,7 @@ class TestScheduler(object):
             "node_filter" : '[/some/nonexisting] = "value"'
         })
 
-        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
-        scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
-        assert isinstance(scheduling_error, YsonEntity)
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
 
     def test_malformed_pod_set_node_filter(self, yp_env):
         yp_client = yp_env.yp_client
@@ -361,9 +359,7 @@ class TestScheduler(object):
             "enable_scheduling": True,
         })
 
-        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
-        scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
-        assert isinstance(scheduling_error, YsonEntity)
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
 
     def _wait_for_pod_assignment(self, yp_env):
         yp_client = yp_env.yp_client

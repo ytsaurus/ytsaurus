@@ -59,6 +59,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetUserAccessAllowedToOptions
+{
+    NObjects::TObjectId ContinuationId;
+    std::optional<int> Limit;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccessControlManager
     : public TRefCounted
 {
@@ -81,7 +89,8 @@ public:
     std::vector<NObjects::TObjectId> GetUserAccessAllowedTo(
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
-        EAccessControlPermission permission);
+        EAccessControlPermission permission,
+        const TGetUserAccessAllowedToOptions& options);
 
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);
     void ResetAuthenticatedUser();

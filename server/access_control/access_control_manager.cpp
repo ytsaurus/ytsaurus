@@ -381,6 +381,16 @@ public:
         for (auto& object : objects) {
             YT_VERIFY(Objects_[objectType].emplace(object->Id(), std::move(object)).second);
         }
+        SortedObjects_[objectType].reserve(objects.size());
+        for (const auto& idAndObjectPair : Objects_[objectType]) {
+            SortedObjects_[objectType].push_back(idAndObjectPair.second.get());
+        }
+        std::sort(
+            SortedObjects_[objectType].begin(),
+            SortedObjects_[objectType].end(),
+            [] (TObject* lhs, TObject* rhs) {
+                return lhs->Id() < rhs->Id();
+            });
     }
 
     TObject* FindObject(EObjectType type, const TObjectId& id) const
@@ -392,14 +402,9 @@ public:
         return it->second.get();
     }
 
-    std::vector<TObject*> GetObjects(EObjectType type) const
+    TRange<TObject*> GetSortedObjects(EObjectType type) const
     {
-        std::vector<TObject*> result;
-        result.reserve(Objects_[type].size());
-        for (const auto& idAndObjectPair : Objects_[type]) {
-            result.push_back(idAndObjectPair.second.get());
-        }
-        return result;
+        return TRange<TObject*>(SortedObjects_[type]);
     }
 
     bool ContainsObjectType(NObjects::EObjectType objectType) const
@@ -420,6 +425,7 @@ public:
 private:
     THashSet<NObjects::EObjectType> ObjectTypes_;
     TEnumIndexedVector<THashMap<TObjectId, std::unique_ptr<TObject>>, EObjectType> Objects_;
+    TEnumIndexedVector<std::vector<TObject*>, EObjectType> SortedObjects_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterObjectSnapshot)
@@ -836,12 +842,17 @@ public:
     std::vector<TObjectId> GetUserAccessAllowedTo(
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
-        EAccessControlPermission permission)
+        EAccessControlPermission permission,
+        const TGetUserAccessAllowedToOptions& options)
     {
+        if (options.Limit && *options.Limit < 0) {
+            THROW_ERROR_EXCEPTION("Limit must be non-negative");
+        }
+
         auto clusterObjectSnapshot = GetClusterObjectSnapshot();
 
         clusterObjectSnapshot->ValidateContainsObjectType(objectType);
-        auto objects = clusterObjectSnapshot->GetObjects(objectType);
+        auto objects = clusterObjectSnapshot->GetSortedObjects(objectType);
 
         auto snapshotAccessControlHierarchy = TSnapshotAccessControlHierarchy(
             Bootstrap_->GetObjectManager(),
@@ -849,25 +860,35 @@ public:
 
         auto clusterSubjectSnapshot = GetClusterSubjectSnapshot();
 
-        objects.erase(
-            std::remove_if(
-                objects.begin(),
-                objects.end(),
-                [&] (TObject* object) {
-                    auto permissionCheckResult = CheckPermissionImpl(
-                        userId,
-                        object,
-                        permission,
-                        clusterSubjectSnapshot,
-                        snapshotAccessControlHierarchy);
-                    return permissionCheckResult.Action == EAccessControlAction::Deny;
-                }),
-            objects.end());
+        // NB: If options.ContinuationId is empty, then beginIt = objects.begin().
+        auto beginIt = std::upper_bound(
+            objects.begin(),
+            objects.end(),
+            options.ContinuationId,
+            [] (const TObjectId& upperBound, TObject* object) {
+                return upperBound < object->Id();
+            });
 
         std::vector<TObjectId> objectIds;
-        objectIds.reserve(objects.size());
-        for (auto* object : objects) {
-            objectIds.push_back(object->Id());
+        int maxObjectCount = options.Limit
+            ? std::min(*options.Limit, static_cast<int>(objects.size()))
+            : static_cast<int>(objects.size());
+        objectIds.reserve(maxObjectCount);
+
+        for (auto it = beginIt; it != objects.end(); ++it) {
+            auto* object = *it;
+            if (options.Limit && static_cast<int>(objectIds.size()) >= *options.Limit) {
+                break;
+            }
+            auto permissionCheckResult = CheckPermissionImpl(
+                userId,
+                object,
+                permission,
+                clusterSubjectSnapshot,
+                snapshotAccessControlHierarchy);
+            if (permissionCheckResult.Action == EAccessControlAction::Allow) {
+                objectIds.push_back(object->Id());
+            }
         }
 
         return objectIds;
@@ -1302,12 +1323,14 @@ TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
 std::vector<TObjectId> TAccessControlManager::GetUserAccessAllowedTo(
     const NObjects::TObjectId& userId,
     NObjects::EObjectType objectType,
-    EAccessControlPermission permission)
+    EAccessControlPermission permission,
+    const TGetUserAccessAllowedToOptions& options)
 {
     return Impl_->GetUserAccessAllowedTo(
         userId,
         objectType,
-        permission);
+        permission,
+        options);
 }
 
 void TAccessControlManager::SetAuthenticatedUser(const TObjectId& userId)

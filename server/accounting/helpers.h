@@ -15,6 +15,12 @@ namespace NYP::NServer::NAccounting {
 using TPerSegmentResourceTotals = NClient::NApi::NProto::TPerSegmentResourceTotals;
 using TResourceTotals = NClient::NApi::NProto::TResourceTotals;
 
+TResourceTotals ResourceUsageFromPodSpecRequests(
+    const NObjects::TPodResourceRequests& resourceRequests,
+    const NObjects::TPodDiskVolumeRequests& diskVolumeRequests,
+    const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
+    const NObjects::TObjectId& segmentId);
+
 TResourceTotals ResourceUsageFromPodSpec(
     const NObjects::NProto::TPodSpecEtc& spec,
     const NObjects::TObjectId& segmentId);

@@ -21,6 +21,9 @@
 #include <yp/server/objects/helpers.h>
 #include <yp/server/objects/type_info.h>
 
+#include <yp/server/objects/proto/autogen.pb.h>
+#include <yp/server/objects/proto/objects.pb.h>
+
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
@@ -763,13 +766,12 @@ private:
         auto podDisruptionBudget = std::make_unique<TPodDisruptionBudget>(
             id,
             std::move(labels),
-            std::move(metaEtc),
+            std::move(*metaEtc.mutable_uuid()),
             std::move(spec));
         YT_VERIFY(PodDisruptionBudgetMap_.emplace(
             podDisruptionBudget->GetId(),
             std::move(podDisruptionBudget)).second);
     }
-
 
     TString GetPodQueryString()
     {
@@ -836,13 +838,18 @@ private:
 
         auto pod = std::make_unique<TPod>(
             podId,
+            std::move(labels),
             podSet,
-            std::move(metaEtc),
             node,
-            std::move(specEtc),
             account,
-            std::move(statusEtc),
-            std::move(labels));
+            std::move(*metaEtc.mutable_uuid()),
+            std::move(*specEtc.mutable_resource_requests()),
+            // NB! Pass some arguments by const reference due to lack of move semantics support.
+            specEtc.disk_volume_requests(),
+            specEtc.ip6_address_requests(),
+            specEtc.ip6_subnet_requests(),
+            std::move(*specEtc.mutable_node_filter()),
+            std::move(*statusEtc.mutable_eviction()));
         YT_VERIFY(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
     }
 
