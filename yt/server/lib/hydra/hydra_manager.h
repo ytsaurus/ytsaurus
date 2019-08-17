@@ -50,6 +50,14 @@ struct IHydraManager
      */
     virtual EPeerState GetAutomatonState() const = 0;
 
+    //! Returns the "tentative" state, which can be accessed from an arbitrary thread.
+    /*!
+     *  Most of time, this coincides with the results of #GetControlState and #GetAutomatonState
+     *
+     *  \note Thread affinity: any
+     */
+    virtual EPeerState GetTentativeState() const = 0;
+
     //! Returns the current automaton version.
     /*!
      *  \note Thread affinity: AutomatonThread
