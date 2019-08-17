@@ -2,6 +2,7 @@
 #include "private.h"
 #include "object_manager.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
@@ -70,33 +71,6 @@ static TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_requ
 static TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
 static TMonotonicCounter ReadRequestCounter("/read_request_count");
 static TMonotonicCounter WriteRequestCounter("/write_request_count");
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-struct TYPathRewrite
-{
-    TYPath Original;
-    TYPath Forwarded;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TYPathRewrite& rewrite, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("%v -> %v",
-        rewrite.Original,
-        rewrite.Forwarded);
-}
-
-TYPathRewrite MakeYPathRewrite(const TYPath& originalPath, const TResolveCache::TResolveResult& resolveResult)
-{
-    return TYPathRewrite{
-        .Original = originalPath,
-        .Forwarded = FromObjectId(resolveResult.PortalExitId) + resolveResult.UnresolvedPathSuffix
-    };
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,6 +442,8 @@ private:
 
         Subrequests_.reset(new TSubrequest[TotalSubrequestCount_]);
 
+        auto now = NProfiling::GetInstant();
+
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -499,6 +475,9 @@ private:
             }
             if (!requestHeader.has_timeout()) {
                 requestHeader.set_timeout(ToProto<i64>(RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout)));
+            }
+            if (!requestHeader.has_start_time()) {
+                requestHeader.set_start_time(ToProto<ui64>(RpcContext_->GetStartTime().value_or(now)));
             }
 
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -685,11 +664,11 @@ private:
         // XXX(babenko): profiling
         auto remoteRequestHeader = subrequest->RequestHeader;
         auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        remoteYPathExt->set_target_path(subrequest->TargetPathRewrite.Forwarded);
+        remoteYPathExt->set_target_path(subrequest->TargetPathRewrite.Rewritten);
 
         remoteYPathExt->clear_additional_paths();
         for (const auto& rewrite : subrequest->AdditionalPathRewrites) {
-            remoteYPathExt->add_additional_paths(rewrite.Forwarded);
+            remoteYPathExt->add_additional_paths(rewrite.Rewritten);
         }
 
         subrequest->ForwardedCellTag = forwardedCellTag;
@@ -707,7 +686,10 @@ private:
             MarkSubrequestLocal(subrequest);
             return;
         }
-        subrequest->TargetPathRewrite = MakeYPathRewrite(subrequest->YPathExt->target_path(), *targetResolveResult);
+        subrequest->TargetPathRewrite = MakeYPathRewrite(
+            subrequest->YPathExt->target_path(),
+            targetResolveResult->PortalExitId,
+            targetResolveResult->UnresolvedPathSuffix);
 
         subrequest->AdditionalPathRewrites.reserve(subrequest->YPathExt->additional_paths_size());
         for (const auto& additionalPath : subrequest->YPathExt->additional_paths()) {
@@ -720,7 +702,10 @@ private:
                 MarkSubrequestLocal(subrequest);
                 return;
             }
-            subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(additionalPath, *additionalResolveResult));
+            subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(
+                additionalPath,
+                additionalResolveResult->PortalExitId,
+                additionalResolveResult->UnresolvedPathSuffix));
         }
 
         MarkSubrequestRemote(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
@@ -781,19 +766,6 @@ private:
         }
     }
 
-    TDuration ComputeForwardingTimeout()
-    {
-        if (!RpcContext_->GetStartTime() || !RpcContext_->GetTimeout()) {
-            return Owner_->Config_->DefaultExecuteTimeout;
-        }
-
-        return
-            *RpcContext_->GetStartTime() +
-            *RpcContext_->GetTimeout() -
-            TInstant::Now() -
-            Owner_->Config_->ForwardedRequestTimeoutReserve;
-    }
-
     void ForwardRemoteRequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -813,7 +785,7 @@ private:
                 auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
-                batchReq->SetTimeout(ComputeForwardingTimeout());
+                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 batchReq->SetUser(RpcContext_->GetUser());
                 it = batchMap.emplace(key, TBatchValue{
                     .BatchReq = std::move(batchReq)

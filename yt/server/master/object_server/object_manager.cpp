@@ -7,6 +7,7 @@
 #include "schema.h"
 #include "type_handler.h"
 #include "path_resolver.h"
+#include "helpers.h"
 
 #include <yt/server/master/cypress_server/public.h>
 
@@ -25,6 +26,7 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/server/lib/election/election_manager.h>
 
@@ -348,52 +350,94 @@ public:
         auto forwardedRequestHeader = context->RequestHeader();
 
         auto* forwardedYPathExt = forwardedRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        forwardedYPathExt->set_target_path(FromObjectId(ObjectId_) + forwardedYPathExt->target_path());
+
+        auto targetPathRewrite = MakeYPathRewrite(
+            GetOriginalRequestTargetYPath(context->RequestHeader()),
+            ObjectId_,
+            forwardedYPathExt->target_path());
+        forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
 
         auto forwardedCellTag = CellTagFromId(ObjectId_);
 
+        SmallVector<TYPathRewrite, 4> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
-            auto additionalResolveResult = ResolvePath(
-                Bootstrap_,
-                forwardedYPathExt->additional_paths(index),
-                context);
+            const auto& additionalPath =forwardedYPathExt->additional_paths(index);
+            auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
                 THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
                     forwardedYPathExt->original_target_path(),
                     forwardedYPathExt->additional_paths(index));
             }
-            forwardedYPathExt->set_additional_paths(
-                index,
-                FromObjectId(additionalPayload->ObjectId) + additionalResolveResult.UnresolvedPathSuffix);
+            auto additionalPathRewrite = MakeYPathRewrite(
+                additionalPath,
+                additionalPayload->ObjectId,
+                additionalResolveResult.UnresolvedPathSuffix);
+            forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
+            additionalPathRewrites.push_back(std::move(additionalPathRewrite));
         }
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto asyncResponseMessage = objectManager->ForwardObjectRequest(
-            std::move(forwardedMessage),
+        auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto channel = multicellManager->GetMasterChannelOrThrow(forwardedCellTag, peerKind);
+
+        TObjectServiceProxy proxy(std::move(channel));
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
+        batchReq->SetUser(context->GetUser());
+        batchReq->AddRequestMessage(std::move(forwardedMessage));
+
+        auto forwardedRequestId = batchReq->GetRequestId();
+
+        YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
+            "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            context->GetRequestId(),
+            forwardedRequestId,
+            context->GetService(),
+            context->GetMethod(),
+            targetPathRewrite,
+            additionalPathRewrites,
+            context->GetUser(),
+            isMutating,
             forwardedCellTag,
-            isMutating ? EPeerKind::Leader : EPeerKind::Follower,
-            context->GetTimeout());
+            peerKind);
 
-        asyncResponseMessage
-            .Subscribe(
-                BIND([
-                    bootstrap = Bootstrap_,
-                    mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId,
-                    context
-                ] (const TErrorOr<TSharedRefArray>& messageOrError) {
-                    if (messageOrError.IsOK()) {
-                        context->Reply(messageOrError.Value());
-                    } else {
-                        context->Reply(TError(messageOrError));
-                    }
+        batchReq->Invoke().Subscribe(
+            BIND([
+                context,
+                forwardedRequestId,
+                bootstrap = Bootstrap_,
+                mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId
+            ] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
 
+                if (!batchRspOrError.IsOK()) {
+                    YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
+                        context->GetRequestId(),
+                        forwardedRequestId);
+                    auto error = TError(NRpc::EErrorCode::Unavailable, "Forwarded request failed")
+                        << batchRspOrError;
+                    context->Reply(error);
                     if (mutationId) {
-                        const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
-                        responseKeeper->EndRequest(mutationId, messageOrError, false);
+                        responseKeeper->EndRequest(mutationId, error, false);
                     }
-                }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
+                    return;
+                }
+
+                YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v)",
+                    context->GetRequestId(),
+                    forwardedRequestId);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                const auto& responseMessage = batchRsp->GetResponseMessage(0);
+
+                context->Reply(responseMessage);
+                if (mutationId) {
+                    responseKeeper->EndRequest(mutationId, responseMessage, false);
+                }
+            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
     virtual void DoWriteAttributesFragment(
