@@ -26,6 +26,7 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         global_root = ""
 
     programs = [("master", "master/bin"),
+                ("clock", "clock_server/bin"),
                 ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
                 ("exec", "exec/bin"),
