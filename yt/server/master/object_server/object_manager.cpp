@@ -359,7 +359,7 @@ public:
 
         auto forwardedCellTag = CellTagFromId(ObjectId_);
 
-        SmallVector<TYPathRewrite, 4> additionalPathRewrites;
+        SmallVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath =forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
