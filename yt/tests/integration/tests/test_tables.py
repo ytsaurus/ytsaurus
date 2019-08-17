@@ -15,10 +15,17 @@ class TestTables(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+
+    def _wait_until_unlocked(self, path):
+        wait(lambda: get(path + "/@lock_count") == 0)
+
+    
     @authors("ignat")
     def test_invalid_type(self):
-        with pytest.raises(YtError): read_table("//tmp")
-        with pytest.raises(YtError): write_table("//tmp", [])
+        with pytest.raises(YtError):
+            read_table("//tmp")
+        with pytest.raises(YtError):
+            write_table("//tmp", [])
 
     @authors("savrus", "ignat")
     def test_simple(self):
@@ -57,7 +64,8 @@ class TestTables(YTEnvSetup):
         for node in nodes:
             set_node_banned(node, True)
 
-        with pytest.raises(YtError): read_table("//tmp/table")
+        with pytest.raises(YtError):
+            read_table("//tmp/table")
 
         for node in nodes:
             set_node_banned(node, False)
@@ -75,7 +83,8 @@ class TestTables(YTEnvSetup):
         # sorted flag is discarded when writing unsorted data to sorted table
         write_table("<append=true>//tmp/table", {"key": 4})
         assert not get("//tmp/table/@sorted")
-        with pytest.raises(YtError): get("//tmp/table/@sorted_by")
+        with pytest.raises(YtError):
+            get("//tmp/table/@sorted_by")
 
     @authors("monster")
     def test_append_sorted_simple(self):
@@ -133,6 +142,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"a": 2}, {"a": 1}, {"a": 0}])
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 2}, {"a": 3}], sorted_by=["a"])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     def test_append_sorted_with_more_key_columns(self):
@@ -140,6 +150,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 2, "b": 1}, {"a": 3, "b": 0}], sorted_by=["a", "b"])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     def test_append_sorted_with_different_key_columns(self):
@@ -147,6 +158,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"b": 0}, {"b": 1}], sorted_by=["b"])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("monster")
     def test_append_sorted_concurrently(self):
@@ -156,6 +168,7 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/table", [{"a": 0}, {"a": 1}], sorted_by=["a"], tx=tx1)
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"], tx=tx2)
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat")
     def test_append_overwrite_write_table(self):
@@ -184,30 +197,44 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table3/@row_count") == 1
 
     @authors("psushin")
-    def test_invalid_cases(self):
+    def test_malformed_table_data(self):
         create("table", "//tmp/table")
 
         # we can write only list fragments
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("string"))
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("100"))
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("3.14"))
-
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", yson.loads("string"))
+        self._wait_until_unlocked("//tmp/table")
+        
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", yson.loads("100"))
+        self._wait_until_unlocked("//tmp/table")
+        
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", yson.loads("3.14"))
+        self._wait_until_unlocked("//tmp/table")
+        
         # check max_row_weight limit
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
-
+        self._wait_until_unlocked("//tmp/table")
+        
         # check max_key_weight limit
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, sorted_by=["a"], table_writer = {"max_key_weight" : 2})
-
+        self._wait_until_unlocked("//tmp/table")
+        
         # check duplicate ids
         with pytest.raises(YtError):
             write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
-
+        self._wait_until_unlocked("//tmp/table")
+        
+    @authors("psushin")
+    def test_cannot_read_file_as_table(self):
         content = "some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with pytest.raises(YtError): read_table("//tmp/file")
+        with pytest.raises(YtError):
+            read_table("//tmp/file")
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -221,14 +248,17 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             # append and schema are not compatible
             write_table("<append=true; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 1}])
+        self._wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             # sorted_by and schema are not compatible
             write_table("<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 2}])
+        self._wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             # invalid schema - duplicate columns
             write_table("<schema=[{name=key; type=int64};{name=key; type=string}]>//tmp/table", [])
+        self._wait_until_unlocked("//tmp/table")
 
         write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
             [{"key": 0}, {"key": 1}])
@@ -262,6 +292,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true;optimize_for=scan>//tmp/table", [{"key": 0}])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("prime")
     def test_write_with_compression(self):
@@ -275,6 +306,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true;compression_codec=lz4>//tmp/table", [{"key": 0}])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -293,9 +325,11 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"key": 1}])
+        self._wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"key": 2}, {"key": 2}])
+        self._wait_until_unlocked("//tmp/table")
 
         write_table("<append=true>//tmp/table", [{"key": 2}])
 
@@ -316,6 +350,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("//tmp/table", [{"k2": 1}, {"k2": 0}])
+        self._wait_until_unlocked("//tmp/table")
 
         write_table("//tmp/table", [{"k2": 0}, {"k2": 1}])
         assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
@@ -347,7 +382,8 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[#1]") == [{"b": 1}]
 
         # reading key selectors from unsorted table
-        with pytest.raises(YtError): read_table("//tmp/table[:a]")
+        with pytest.raises(YtError):
+            read_table("//tmp/table[:a]")
 
     @authors("psushin")
     def test_chunk_index_selector(self):
@@ -678,7 +714,8 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        with pytest.raises(YtError): copy("//tmp/t", "//tmp/t")
+        with pytest.raises(YtError):
+            copy("//tmp/t", "//tmp/t")
 
     @authors("babenko", "ignat")
     def test_copy_tx(self):
@@ -765,12 +802,16 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3
 
-        with pytest.raises(YtError): remove("//tmp/t/@replication_factor")
-        with pytest.raises(YtError): set("//tmp/t/@replication_factor", 0)
-        with pytest.raises(YtError): set("//tmp/t/@replication_factor", {})
+        with pytest.raises(YtError):
+            remove("//tmp/t/@replication_factor")
+        with pytest.raises(YtError):
+            set("//tmp/t/@replication_factor", 0)
+        with pytest.raises(YtError):
+            set("//tmp/t/@replication_factor", {})
 
         tx = start_transaction()
-        with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2, tx=tx)
+        with pytest.raises(YtError):
+            set("//tmp/t/@replication_factor", 2, tx=tx)
 
     @authors("babenko", "ignat")
     def test_replication_factor_propagates_to_chunks(self):
@@ -1070,8 +1111,8 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko")
     def test_dynamic_table_schema_required(self):
-        with pytest.raises(YtError): create("table", "//tmp/t",
-            attributes={"dynamic": True})
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"dynamic": True})
 
     @authors("savrus")
     def test_schema_validation(self):
@@ -1138,7 +1179,7 @@ class TestTables(YTEnvSetup):
                     {"name": "boolean", "type": "boolean"},
                     {"name": "double", "type": "double"},
                     {"name": "any", "type": "any"}],
-                    strict=False)
+                strict=False)
             })
 
         row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
@@ -1148,6 +1189,8 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
+        self._wait_until_unlocked("//tmp/t")
+
         write_table("//tmp/t", row, is_raw=True, input_format=yson_with_type_conversion)
 
     @authors("savrus")
@@ -1348,6 +1391,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true;sorted_by=[key]>//tmp/t", [{"key": 15}, {"key": 20}, {"key": 25}])
+        self._wait_until_unlocked("//tmp/t")
 
 
 ##################################################################
@@ -1483,6 +1527,7 @@ class TestTablesMulticell(TestTables):
             write_table("<append=%true>//tmp/input", [
                 {"foo": float("nan"), "bar": "e"},
             ])
+        self._wait_until_unlocked("//tmp/input")
 
 ##################################################################
 
