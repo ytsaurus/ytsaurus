@@ -109,36 +109,38 @@ public:
             path);
     }
 
-    void DestroyEntranceNode(TPortalEntranceNode* node)
+    void DestroyEntranceNode(TPortalEntranceNode* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(trunkNode->IsTrunk());
 
-        if (EntranceNodes_.erase(node->GetId()) != 1) {
+        if (EntranceNodes_.erase(trunkNode->GetId()) != 1) {
             return;
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal entrance unregistered (NodeId: %v)",
-            node->GetId());
+            trunkNode->GetId());
     }
 
-    void DestroyExitNode(TPortalExitNode* node)
+    void DestroyExitNode(TPortalExitNode* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(trunkNode->IsTrunk());
 
-        if (ExitNodes_.erase(node->GetId()) != 1) {
+        if (ExitNodes_.erase(trunkNode->GetId()) != 1) {
             return;
         }
 
-        auto entranceNodeId = MakePortalEntranceNodeId(node->GetId(), node->GetEntranceCellTag());
+        auto entranceNodeId = MakePortalEntranceNodeId(trunkNode->GetId(), trunkNode->GetEntranceCellTag());
 
         NProto::TReqRemovePortalEntrance request;
         ToProto(request.mutable_entrance_node_id(), entranceNodeId);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, node->GetEntranceCellTag());
+        multicellManager->PostToMaster(request, trunkNode->GetEntranceCellTag());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal exit unregistered (NodeId: %v)",
-            node->GetId());
+            trunkNode->GetId());
     }
 
     DEFINE_BYREF_RO_PROPERTY(TEntranceNodeMap, EntranceNodes);
@@ -292,14 +294,14 @@ void TPortalManager::RegisterEntranceNode(
         explicitAttributes);
 }
 
-void TPortalManager::DestroyEntranceNode(TPortalEntranceNode* node)
+void TPortalManager::DestroyEntranceNode(TPortalEntranceNode* trunkNode)
 {
-    Impl_->DestroyEntranceNode(node);
+    Impl_->DestroyEntranceNode(trunkNode);
 }
 
-void TPortalManager::DestroyExitNode(TPortalExitNode* node)
+void TPortalManager::DestroyExitNode(TPortalExitNode* trunkNode)
 {
-    Impl_->DestroyExitNode(node);
+    Impl_->DestroyExitNode(trunkNode);
 }
 
 DELEGATE_BYREF_RO_PROPERTY(TPortalManager, TPortalManager::TEntranceNodeMap, EntranceNodes, *Impl_);

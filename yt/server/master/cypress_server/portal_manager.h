@@ -22,9 +22,9 @@ public:
         TPortalEntranceNode* node,
         const NYTree::IAttributeDictionary& inheritedAttributes,
         const NYTree::IAttributeDictionary& explicitAttributes);
-    void DestroyEntranceNode(TPortalEntranceNode* node);
+    void DestroyEntranceNode(TPortalEntranceNode* trunkNode);
 
-    void DestroyExitNode(TPortalExitNode* node);
+    void DestroyExitNode(TPortalExitNode* trunkNode);
 
     using TEntranceNodeMap = THashMap<TNodeId, TPortalEntranceNode*>;
     DECLARE_BYREF_RO_PROPERTY(TEntranceNodeMap, EntranceNodes);
