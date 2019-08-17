@@ -1542,6 +1542,8 @@ private:
     bool NeedCleanupHalfCommittedTransaction_ = false;
     // COMPAT(babenko)
     bool NeedBindNodesToRootShard_ = false;
+    // COMPAT(babenko)
+    bool NeedSuggestShardNames_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1588,6 +1590,8 @@ private:
         NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterReign::YT_10852;
         // COMPAT(babenko)
         NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
+        // COMPAT(babenko)
+        NeedSuggestShardNames_ = context.GetVersion() < EMasterReign::CypressShardName;
     }
 
     virtual void Clear() override
@@ -1800,9 +1804,17 @@ private:
             rootShardHolder->SetRoot(RootNode_);
 
             RootShard_ = rootShardHolder.get();
+            RootShard_->SetName(SuggestCypressShardName(RootShard_));
             ShardMap_.Insert(RootShardId_, std::move(rootShardHolder));
 
             SetShard(RootNode_, RootShard_);
+        }
+
+        // COMPAT(babenko)
+        if (NeedSuggestShardNames_) {
+            for (auto [shardId, shard] : ShardMap_) {
+                shard->SetName(SuggestCypressShardName(shard));
+            }
         }
     }
 

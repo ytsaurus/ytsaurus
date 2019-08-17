@@ -110,6 +110,8 @@ TNodeId MakePortalEntranceNodeId(
 NObjectClient::TObjectId MakeCypressShardId(
     TNodeId rootNodeId);
 
+TString SuggestCypressShardName(TCypressShard* shard);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
