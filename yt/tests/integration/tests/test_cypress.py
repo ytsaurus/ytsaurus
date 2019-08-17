@@ -1193,12 +1193,15 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
         assert sorted(get("//tmp/map/@user_attribute_keys")) == sorted(["user_attr1", "user_attr2"])
+        assert get("//tmp/map/@user_attributes") == {"user_attr1": 10, "user_attr2": "abc"}
 
         create("table", "//tmp/table")
         assert get("//tmp/table/@user_attribute_keys") == []
+        assert get("//tmp/table/@user_attributes") == {}
 
         create("file", "//tmp/file")
         assert get("//tmp/file/@user_attribute_keys") == []
+        assert get("//tmp/file/@user_attributes") == {}
 
     @authors("ignat")
     def test_boolean(self):

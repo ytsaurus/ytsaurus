@@ -63,7 +63,7 @@ protected:
     virtual bool NeedSuppressUpstreamSync() const;
 
 private:
-    NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+    NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
     TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes();
 

@@ -425,6 +425,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserAttributes)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
         .SetReplicated(true)
         .SetMandatory(true));
@@ -434,7 +436,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
 {
-    return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
+    return Metadata_->SystemBuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
 }
 
 bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -519,20 +521,30 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::UserAttributeKeys: {
-            std::vector<TAttributeDescriptor> systemAttributes;
-            ReserveAndListSystemAttributes(&systemAttributes);
-
-            auto customAttributes = GetCustomAttributes()->List();
-            THashSet<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
-
-            for (const auto& attribute : systemAttributes) {
-                if (attribute.Custom) {
-                    customAttributesSet.erase(GetUninternedAttributeKey(attribute.InternedKey));
+            auto customKeys = GetCustomAttributes()->List();
+            const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
+            consumer->OnBeginList();
+            for (const auto& key : customKeys) {
+                if (!systemCustomKeys.contains(key)) {
+                    consumer->OnListItem();
+                    consumer->OnStringScalar(key);
                 }
             }
+            consumer->OnEndList();
+            return true;
+        }
 
-            BuildYsonFluently(consumer)
-                .Value(customAttributesSet);
+        case EInternedAttributeKey::UserAttributes: {
+            auto customKeys = GetCustomAttributes()->List();
+            const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
+            consumer->OnBeginMap();
+            for (const auto& key : customKeys) {
+                if (!systemCustomKeys.contains(key)) {
+                    consumer->OnKeyedItem(key);
+                    consumer->OnRaw(GetCustomAttributes()->GetYson(key));
+                }
+            }
+            consumer->OnEndMap();
             return true;
         }
 
