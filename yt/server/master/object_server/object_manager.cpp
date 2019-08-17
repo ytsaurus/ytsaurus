@@ -391,7 +391,7 @@ public:
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
-        YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
+        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
             "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
