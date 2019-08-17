@@ -25,16 +25,16 @@ DEFINE_ENUM(EErrorCode,
  *  Part 0: some hash
  *  Part 1: bits 0..15:  object type
  *          bits 16..31: cell id
- *  Part 2: the lower  part of 64-bit sequential counter
+ *  Part 2: the lo1wer  part of 64-bit sequential counter
  *  Part 3: the higher part of 64-bit sequential counter
  */
 using TObjectId = TGuid;
 
 //! The all-zero id used to denote a non-existing object.
-extern const TObjectId NullObjectId;
+constexpr TObjectId NullObjectId = {};
 
 //! Used to mark counters for well-known ids.
-const ui64 WellKnownCounterMask = 0x1000000000000000;
+constexpr ui64 WellKnownCounterMask = 0x1000000000000000;
 
 using NElection::TCellId;
 using NElection::NullCellId;
@@ -44,24 +44,27 @@ using NElection::NullCellId;
 using TCellTag = ui16;
 
 //! The minimum valid cell tag.
-const TCellTag MinValidCellTag = 0x0000;
+constexpr TCellTag MinValidCellTag = 0x0000;
 
 //! The maximum valid cell tag.
-const TCellTag MaxValidCellTag = 0xf000;
+constexpr TCellTag MaxValidCellTag = 0xf000;
 
 //! A sentinel cell tag indicating that the request does not need replication.
-const TCellTag NotReplicatedCellTag = 0xf001;
+constexpr TCellTag NotReplicatedCellTag = 0xf001;
 
 //! A sentinel cell tag representing the primary master.
-const TCellTag PrimaryMasterCellTag = 0xf003;
+constexpr TCellTag PrimaryMasterCellTag = 0xf003;
 
 //! A sentinel cell tag meaning nothing.
-const TCellTag InvalidCellTag = 0xf004;
+constexpr TCellTag InvalidCellTag = 0xf004;
 
 //! A static limit for the number of secondary master cells.
-const int MaxSecondaryMasterCells = 32;
+constexpr int MaxSecondaryMasterCells = 32;
 
 using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
+
+//! Currently at most one additional path is expected (source paths for Copy and Move verbs).
+constexpr int TypicalAdditionalPathCount = 1;
 
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
@@ -203,16 +206,16 @@ DEFINE_ENUM(EObjectType,
 );
 
 //! A bit mask marking schema types.
-const ui32 SchemaObjectTypeMask = 0x8000;
+constexpr ui32 SchemaObjectTypeMask = 0x8000;
 
 // The range of erasure chunk part types.
-const EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
-const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
+constexpr EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
+constexpr EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TTransactionId = TObjectId;
-extern const TTransactionId NullTransactionId;
+constexpr TTransactionId NullTransactionId = {};
 
 using TOperationId = TObjectId;
 using TJobId = TObjectId;
@@ -233,7 +236,7 @@ struct TVersionedObjectId
     /*!
      *  #NodeId is #NullObjectId, #TransactionId is #NullTransactionId.
      */
-    TVersionedObjectId();
+    TVersionedObjectId() = default;
 
     //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
     explicit TVersionedObjectId(TObjectId objectId);

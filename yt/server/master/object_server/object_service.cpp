@@ -364,7 +364,7 @@ private:
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
         TYPathRewrite TargetPathRewrite;
-        SmallVector<TYPathRewrite, 4> AdditionalPathRewrites;
+        SmallVector<TYPathRewrite, TypicalAdditionalPathCount> AdditionalPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
