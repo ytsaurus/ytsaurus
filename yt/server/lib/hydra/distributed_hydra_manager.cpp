@@ -260,6 +260,14 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
+    virtual EPeerState GetTentativeState() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // NB: This call is actually thread-safe.
+        return DecoratedAutomaton_->GetState();
+    }
+
     virtual TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
