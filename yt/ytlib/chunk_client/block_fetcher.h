@@ -16,6 +16,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +95,7 @@ private:
 
     std::atomic<i64> UncompressedDataSize_ = {0};
     std::atomic<i64> CompressedDataSize_ = {0};
+    std::atomic<NProfiling::TCpuDuration> DecompressionTime_;
 
     THashMap<int, int> BlockIndexToWindowIndex_;
 
@@ -116,8 +119,6 @@ private:
     std::atomic<i64> TotalRemainingSize_ = { 0 };
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
-
-    TDuration DecompressionTime;
 
     void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
 
