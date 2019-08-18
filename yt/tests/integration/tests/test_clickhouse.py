@@ -1319,6 +1319,35 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select toInt64(42) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [1]
             assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]
 
+    @authors("max42")
+    def test_sorted_join(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "lhs", "type": "string", "required": True}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "rhs", "type": "string", "required": True}]})
+        lhs_rows = [
+            [{"key": 1, "lhs": "foo1"}],
+            [{"key": 2, "lhs": "foo2"}, {"key": 3, "lhs": "foo3"}],
+            [{"key": 4, "lhs": "foo4"}],
+        ]
+        rhs_rows = [
+            [{"key": 1, "rhs": "bar1"}, {"key": 2, "rhs": "bar2"}],
+            [{"key": 3, "rhs": "bar3"}, {"key": 4, "rhs": "bar4"}],
+        ]
+
+        for rows in lhs_rows:
+            write_table("<append=%true>//tmp/t1", rows)
+        for rows in rhs_rows:
+            write_table("<append=%true>//tmp/t2", rows)
+
+        with Clique(3) as clique:
+            expected = [{"key": 1, "lhs": "foo1", "rhs": "bar1"},
+                        {"key": 2, "lhs": "foo2", "rhs": "bar2"},
+                        {"key": 3, "lhs": "foo3", "rhs": "bar3"},
+                        {"key": 4, "lhs": "foo4", "rhs": "bar4"}]
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" join \"//tmp/t2\" using key order by key") == expected
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
+
 class TestHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()

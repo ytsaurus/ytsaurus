@@ -10,6 +10,7 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTLiteral.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
 #include <Interpreters/SyntaxAnalyzer.h>
 
@@ -28,26 +29,8 @@ void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPo
         auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
         for (const auto& dataSlice : chunkStripe->DataSlices) {
             const auto& chunkSlice = dataSlice->ChunkSlices[0];
-            auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
             auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-            // TODO(max42): wtf?
-            chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-            chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-            if (chunkSlice->LowerLimit().RowIndex) {
-                chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
-            }
-            if (chunkSlice->UpperLimit().RowIndex) {
-                chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-            }
-            NChunkClient::NProto::TMiscExt miscExt;
-            miscExt.set_row_count(chunk->GetTotalRowCount());
-            miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-            miscExt.set_data_weight(chunk->GetTotalDataWeight());
-            miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-            chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-            chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
+            ToProto(&chunkSpec, chunkSlice, EDataSourceType::UnversionedTable);
         }
     }
 }
@@ -95,10 +78,6 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
     // More than 2 tables are not supported in CH yet.
     YT_VERIFY(TableExpressions_.size() <= 2);
 
-    if (TableExpressions_.size() == 2) {
-        ValidateJoin();
-    }
-
     YT_LOG_DEBUG("Extracted table expressions from query (Query: %v, TableExpressionCount: %v)",
         *QueryInfo_.query,
         TableExpressions_.size());
@@ -110,6 +89,10 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
         } else {
             YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
         }
+    }
+
+    if (TableExpressions_.size() == 2) {
+        ValidateJoin();
     }
 }
 
@@ -139,8 +122,8 @@ void TQueryAnalyzer::ValidateJoin()
     int maxPosition = -1;
     YT_VERIFY(analyzedJoin.key_names_left.size() == analyzedJoin.key_names_right.size());
     for (int index = 0; index < static_cast<int>(analyzedJoin.key_names_left.size()); ++index) {
-        auto lhsJoinColumn = analyzedJoin.key_names_left[index];
-        auto rhsJoinColumn = analyzedJoin.key_names_right[index];
+        auto lhsJoinColumn = analyzedJoin.key_asts_left[index]->as<DB::ASTIdentifier>()->shortName();
+        auto rhsJoinColumn = analyzedJoin.key_asts_right[index]->as<DB::ASTIdentifier>()->shortName();
 
         // NB: we should not validate type similarity here as it will be done by CH.
         auto lhsIt = lhsKeyColumns.find(lhsJoinColumn);
@@ -240,6 +223,9 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
 
         auto spec = specTemplate;
         spec.TableIndex = index;
+        auto clickHouseSchema = Storages_[index]->GetClickHouseSchema();
+        spec.Columns = clickHouseSchema.Columns;
+        spec.ReadSchema = Storages_[index]->GetSchema();
 
         FillDataSliceDescriptors(spec, MakeRange(stripes));
 

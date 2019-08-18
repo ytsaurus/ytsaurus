@@ -455,6 +455,7 @@ std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
                 .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
                 .JobSizeConstraints = jobSizeConstraints,
                 .OperationId = queryContext->QueryId,
+                .RowBuffer = queryContext->RowBuffer,
             },
             CreateCallbackChunkSliceFetcherFactory(BIND([] { return nullptr; })),
             TInputStreamDirectory({
@@ -466,6 +467,9 @@ std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
     }
 
     for (const auto& chunkStripe : inputStripeList->Stripes) {
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            InferLimitsFromBoundaryKeys(dataSlice, queryContext->RowBuffer);
+        }
         chunkPool->Add(chunkStripe);
     }
     chunkPool->Finish();
