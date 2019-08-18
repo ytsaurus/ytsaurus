@@ -7,7 +7,7 @@ import yt.yson as yson
 
 import time
 
-def sky_share(path, cluster=None, client=None):
+def sky_share(path, cluster=None, key_columns=[], client=None):
     """Shares table on cluster via skynet
     :param path: path to table
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
@@ -19,7 +19,7 @@ def sky_share(path, cluster=None, client=None):
     if cluster is None:
         cluster = get_proxy_url(client=client).split(".")[0]
 
-    params = {"path": TablePath(path).to_yson_string(), "cluster": cluster}
+    params = {"path": TablePath(path).to_yson_string(), "cluster": cluster, "key_columns": key_columns}
     headers = {"X-YT-Parameters": yson.dumps(params, yson_format="text")}
 
     make_request = lambda: make_request_with_retries(
