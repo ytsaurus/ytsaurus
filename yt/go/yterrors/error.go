@@ -2,6 +2,7 @@ package yterrors
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -70,6 +71,37 @@ func FindErrorCode(err error, code ErrorCode) *Error {
 	}
 
 	return nil
+}
+
+// ContainsMessageRE returns true iff any of the nested errors has message matching provided regex.
+//
+// Use of this function is strongly discouraged, use ContainsErrorCode when possible.
+func ContainsMessageRE(err error, messageRE *regexp.Regexp) bool {
+	if err == nil {
+		return false
+	}
+
+	var ytErr *Error
+	if ok := xerrors.As(err, &ytErr); !ok {
+		return false
+	}
+
+	var matchRecursive func(*Error) bool
+	matchRecursive = func(ytErr *Error) bool {
+		if messageRE.MatchString(ytErr.Message) {
+			return true
+		}
+
+		for _, nested := range ytErr.InnerErrors {
+			if matchRecursive(nested) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return matchRecursive(ytErr)
 }
 
 func (yt *Error) Error() string {
