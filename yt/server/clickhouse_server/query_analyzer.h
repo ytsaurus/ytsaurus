@@ -17,8 +17,10 @@ DEFINE_ENUM(EPoolKind,
 
 struct TQueryAnalysisResult
 {
+    std::vector<NTableClient::TTableSchema> TableSchemas;
     std::vector<std::vector<NYPath::TRichYPath>> TablePaths;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
+    std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
 };
 
@@ -41,6 +43,9 @@ private:
     std::vector<DB::ASTTableExpression*> TableExpressions_;
     std::vector<DB::ASTPtr*> TableExpressionPtrs_;
     std::vector<std::shared_ptr<IStorageDistributor>> Storages_;
+    std::vector<std::vector<TString>> JoinUsing_;
+
+    void ValidateJoin();
 
     std::shared_ptr<IStorageDistributor> GetStorage(const DB::ASTTableExpression* tableExpression) const;
 

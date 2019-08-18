@@ -335,6 +335,11 @@ public:
         return ClickHouseSchema_;
     }
 
+    virtual TTableSchema GetSchema() const override
+    {
+        return Schema_;
+    }
+
 private:
     TClickHouseTableSchema ClickHouseSchema_;
     NTableClient::TTableSchema Schema_;
@@ -353,27 +358,15 @@ private:
         QueryAnalyzer_.emplace(context, queryInfo);
         auto analyzerResult = QueryAnalyzer_->Analyze();
 
-        std::vector<TChunkStripePtr> chunkStripes;
-        for (int index = 0; index < static_cast<int>(analyzerResult.TablePaths.size()); ++index) {
-            const auto& tablePaths = analyzerResult.TablePaths[index];
-            const auto& keyCondition = analyzerResult.KeyConditions[index];
-            auto dataSlices = FetchDataSlices(
-                queryContext->Client(),
-                queryContext->Bootstrap->GetSerializedWorkerInvoker(),
-                tablePaths,
-                keyCondition,
-                queryContext->RowBuffer,
-                queryContext->Bootstrap->GetConfig()->Engine->Subquery,
-                SpecTemplate_);
-            chunkStripes.emplace_back(New<TChunkStripe>(dataSlices));
-        }
-
-        i64 totalRowCount = 0;
-        for (const auto& chunkStripe : chunkStripes) {
-            for (const auto& dataSlice : chunkStripe->DataSlices) {
-                totalRowCount += dataSlice->GetRowCount();
-            }
-        }
+        auto inputStripeList = FetchInput(
+            queryContext->Client(),
+            queryContext->Bootstrap->GetSerializedWorkerInvoker(),
+            analyzerResult.TableSchemas,
+            analyzerResult.TablePaths,
+            analyzerResult.KeyConditions,
+            queryContext->RowBuffer,
+            queryContext->Bootstrap->GetConfig()->Engine->Subquery,
+            SpecTemplate_);
 
         std::optional<double> samplingRate;
         const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
@@ -381,13 +374,19 @@ private:
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= totalRowCount;
+                rate /= inputStripeList->TotalRowCount;
             }
             rate = std::max(0.0, std::min(1.0, rate));
             samplingRate = rate;
         }
 
-        StripeLists_ = BuildSubqueries(chunkStripes, subqueryCount * context.getSettings().max_threads, samplingRate, queryContext->QueryId);
+        StripeLists_ = BuildSubqueries(
+            inputStripeList,
+            analyzerResult.KeyColumnCount,
+            analyzerResult.PoolKind,
+            subqueryCount * context.getSettings().max_threads,
+            samplingRate,
+            context);
     }
 };
 

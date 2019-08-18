@@ -159,6 +159,15 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     return result;
 }
 
+void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
+{
+    auto statistics = stripe->GetStatistics();
+    TotalChunkCount += statistics.ChunkCount;
+    TotalDataWeight += statistics.DataWeight;
+    TotalRowCount += statistics.RowCount;
+    Stripes.emplace_back(std::move(stripe));
+}
+
 void TChunkStripeList::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

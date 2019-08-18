@@ -29,6 +29,37 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCallbackChunkSliceFetcherFactory
+    : public IChunkSliceFetcherFactory
+{
+public:
+    TCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
+        : FactoryCallback_(std::move(factoryCallback))
+    { }
+
+    virtual IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
+    {
+        return FactoryCallback_();
+    }
+
+
+    virtual void Persist(const TPersistenceContext& context) override
+    {
+        // This implementation is not persistable.
+        Y_UNREACHABLE();
+    }
+
+private:
+    TCallback<IChunkSliceFetcherPtr()> FactoryCallback_;
+};
+
+IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
+{
+    return New<TCallbackChunkSliceFetcherFactory>(std::move(factoryCallback));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSortedJobOptions::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

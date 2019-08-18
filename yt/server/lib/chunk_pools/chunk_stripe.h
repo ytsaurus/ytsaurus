@@ -74,6 +74,8 @@ struct TChunkStripeList
     TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
 
+    void AddStripe(TChunkStripePtr stripe);
+
     void Persist(const TPersistenceContext& context);
 
     //! Setter that may be used in chain-like manner.
