@@ -212,9 +212,6 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
-        SpecTemplate_.Columns = ClickHouseSchema_.Columns;
-        SpecTemplate_.ReadSchema = Schema_;
-
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 

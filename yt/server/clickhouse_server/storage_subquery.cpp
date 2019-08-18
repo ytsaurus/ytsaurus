@@ -82,7 +82,7 @@ public:
                 ++totalDataSliceCount;
             }
         }
-        YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v, DalaSliceCount: %v)",
+        YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
             totalRowCount,
             totalDataWeight,
             totalDataSliceCount);
@@ -117,7 +117,8 @@ public:
         YT_LOG_INFO("Creating table readers");
         BlockInputStreams streams;
 
-        for (const auto& threadDataSliceDescriptors : SubquerySpec_.DataSliceDescriptors) {
+        for (int threadIndex = 0; threadIndex < static_cast<int>(SubquerySpec_.DataSliceDescriptors.size()); ++threadIndex) {
+            const auto& threadDataSliceDescriptors = SubquerySpec_.DataSliceDescriptors[threadIndex];
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -153,7 +154,18 @@ public:
                 GetUnlimitedThrottler() /* bandwidthThrottler */,
                 GetUnlimitedThrottler() /* rpsThrottler */);
 
-            YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v, DataSliceCount: %v)", rowCount, dataWeight, dataSliceCount);
+            YT_LOG_DEBUG("Thread table reader created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+                threadIndex,
+                rowCount,
+                dataWeight,
+                dataSliceCount);
+
+            TStringBuilder debugString;
+            for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
+                debugString.AppendString(ToString(dataSliceDescriptor));
+                debugString.AppendString("\n");
+            }
+            YT_LOG_DEBUG("Thread debug string (ThreadIndex: %v, DebugString: %v)", threadIndex, debugString.Flush());
 
             streams.emplace_back(CreateBlockInputStream(
                 std::move(reader), 

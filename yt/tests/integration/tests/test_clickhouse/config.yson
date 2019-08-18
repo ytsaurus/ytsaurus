@@ -22,11 +22,11 @@
         ];
         "writers" = {
             "info" = {
-                "file_name" = "./clickhouse.log";
+                "file_name" = "./clickhouse-$YT_JOB_INDEX.log";
                 "type" = "file";
             };
             "debug" = {
-                "file_name" = "./clickhouse.debug.log";
+                "file_name" = "./clickhouse-$YT_JOB_INDEX.debug.log";
                 "type" = "file";
             };
             "stderr" = {

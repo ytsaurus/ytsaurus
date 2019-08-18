@@ -90,6 +90,8 @@ TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlic
 TInputDataSlicePtr CreateVersionedInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunkSlices);
 
+// TODO(max42): stop infering limits each time you pass something into sorted chunk pool,
+// it is better to always infer them inside chunk pool.
 void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTableClient::TRowBufferPtr& rowBuffer);
 
 std::optional<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
