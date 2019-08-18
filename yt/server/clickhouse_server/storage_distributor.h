@@ -24,6 +24,8 @@ public:
     virtual std::vector<NYPath::TRichYPath> GetTablePaths() const = 0;
 
     virtual TClickHouseTableSchema GetClickHouseSchema() const = 0;
+
+    virtual NTableClient::TTableSchema GetSchema() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

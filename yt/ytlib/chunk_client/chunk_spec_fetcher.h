@@ -41,6 +41,7 @@ public:
         NObjectClient::TObjectId objectId,
         NObjectClient::TCellTag externalCellTag,
         i64 chunkCount,
+        int tableIndex = 0,
         const std::vector<TReadRange>& ranges = {TReadRange()});
 
     TFuture<void> Fetch();
@@ -55,7 +56,6 @@ private:
     NLogging::TLogger Logger;
     bool SkipUnavailableChunks_;
     std::vector<NProto::TChunkSpec*> ForeignChunkSpecs_;
-    int TableIndex_ = 0;
 
     struct TCellState
     {

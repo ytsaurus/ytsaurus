@@ -11,6 +11,7 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTLiteral.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
+#include <Interpreters/SyntaxAnalyzer.h>
 
 #include <library/string_utils/base64/base64.h>
 
@@ -71,8 +72,15 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
         if (!tablesElement->table_expression) {
             continue;
         }
-        if (auto tableJoin = tablesElement->table_join) {
-            if (static_cast<int>(tableJoin->as<DB::ASTTableJoin>()->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
+
+        int index = TableExpressions_.size();
+
+        YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
+
+        std::vector<TString> joinUsing;
+        if (tablesElement->table_join) {
+            const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
+            if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
                 continue;
             }
         }
@@ -86,6 +94,10 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
     YT_VERIFY(TableExpressions_.size() >= 1);
     // More than 2 tables are not supported in CH yet.
     YT_VERIFY(TableExpressions_.size() <= 2);
+
+    if (TableExpressions_.size() == 2) {
+        ValidateJoin();
+    }
 
     YT_LOG_DEBUG("Extracted table expressions from query (Query: %v, TableExpressionCount: %v)",
         *QueryInfo_.query,
@@ -101,23 +113,92 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
     }
 }
 
+void TQueryAnalyzer::ValidateJoin()
+{
+    const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
+    YT_VERIFY(Storages_.size() == 2);
+    const auto& lhsSchema = Storages_[0]->GetSchema();
+    const auto& rhsSchema = Storages_[1]->GetSchema();
+    const auto& lhsTablePaths = Storages_[0]->GetTablePaths();
+    const auto& rhsTablePaths = Storages_[1]->GetTablePaths();
+    if (lhsTablePaths.size() != 1 || rhsTablePaths.size() != 1) {
+        THROW_ERROR_EXCEPTION("Invalid sorted JOIN: only single tables may be joined")
+            << TErrorAttribute("lhs_table_paths", lhsTablePaths)
+            << TErrorAttribute("rhs_table_paths", rhsTablePaths);
+    }
+    THashMap<TString, int> lhsKeyColumns;
+    THashMap<TString, int> rhsKeyColumns;
+    for (int index = 0; index < static_cast<int>(lhsSchema.GetKeyColumns().size()); ++index) {
+        const auto& column = lhsSchema.GetKeyColumns()[index];
+        lhsKeyColumns[column] = index;
+    }
+    for (int index = 0; index < static_cast<int>(rhsSchema.GetKeyColumns().size()); ++index) {
+        const auto& column = rhsSchema.GetKeyColumns()[index];
+        rhsKeyColumns[column] = index;
+    }
+    int maxPosition = -1;
+    YT_VERIFY(analyzedJoin.key_names_left.size() == analyzedJoin.key_names_right.size());
+    for (int index = 0; index < static_cast<int>(analyzedJoin.key_names_left.size()); ++index) {
+        auto lhsJoinColumn = analyzedJoin.key_names_left[index];
+        auto rhsJoinColumn = analyzedJoin.key_names_right[index];
+
+        // NB: we should not validate type similarity here as it will be done by CH.
+        auto lhsIt = lhsKeyColumns.find(lhsJoinColumn);
+        auto rhsIt = rhsKeyColumns.find(rhsJoinColumn);
+        if (lhsIt == lhsKeyColumns.end()) {
+            THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", lhsJoinColumn)
+                << TErrorAttribute("column", lhsJoinColumn)
+                << TErrorAttribute("key_columns", lhsSchema.GetKeyColumns());
+        }
+        if (rhsIt == rhsKeyColumns.end()) {
+            THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", rhsJoinColumn)
+                << TErrorAttribute("column", rhsJoinColumn)
+                << TErrorAttribute("key_columns", rhsSchema.GetKeyColumns());
+        }
+        if (lhsIt->second != rhsIt->second) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid sorted JOIN: joined columns %Qv and %Qv do not occupy same positions in key columns of joined tables",
+                lhsJoinColumn,
+                rhsJoinColumn)
+                << TErrorAttribute("lhs_column", lhsJoinColumn)
+                << TErrorAttribute("rhs_column", rhsJoinColumn)
+                << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
+                << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
+        }
+        maxPosition = std::max(maxPosition, lhsIt->second);
+    }
+
+    if (maxPosition + 1 != static_cast<int>(analyzedJoin.key_names_left.size())) {
+        THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined columns should form prefix of joined table key columns")
+            << TErrorAttribute("lhs_join_columns", analyzedJoin.key_names_left)
+            << TErrorAttribute("rhs_join_columns", analyzedJoin.key_names_right)
+            << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
+            << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
+    }
+}
+
 TQueryAnalysisResult TQueryAnalyzer::Analyze()
 {
     TQueryAnalysisResult result;
 
+    for (const auto& storage : Storages_) {
+        YT_VERIFY(storage);
+        result.TablePaths.emplace_back(storage->GetTablePaths());
+        auto clickHouseSchema = storage->GetClickHouseSchema();
+        std::optional<DB::KeyCondition> keyCondition;
+        if (clickHouseSchema.HasPrimaryKey()) {
+            keyCondition = CreateKeyCondition(Context_, QueryInfo_, clickHouseSchema);
+        }
+        result.KeyConditions.emplace_back(std::move(keyCondition));
+        result.TableSchemas.emplace_back(storage->GetSchema());
+    }
+
     if (Storages_.size() == 1 || (Storages_.size() == 2 && Storages_[1] == nullptr)) {
         // Regular unordered pool case.
         result.PoolKind = EPoolKind::Unordered;
-        const auto& storage = Storages_.front();
-        YT_VERIFY(storage);
-        auto clickHouseSchema = storage->GetClickHouseSchema();
-        result.KeyConditions.resize(1);
-        result.TablePaths = {storage->GetTablePaths()};
-        if (clickHouseSchema.HasPrimaryKey()) {
-            result.KeyConditions[0] = CreateKeyCondition(Context_, QueryInfo_, clickHouseSchema);
-        }
     } else {
-        THROW_ERROR_EXCEPTION("Joins are not implemented yet");
+        result.PoolKind = EPoolKind::Sorted;
+        result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join.key_names_left.size();
     }
 
     return result;

@@ -34,6 +34,9 @@ struct IChunkSliceFetcherFactory
     virtual void Persist(const TPersistenceContext& context) = 0;
 };
 
+IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
+    TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
+
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////

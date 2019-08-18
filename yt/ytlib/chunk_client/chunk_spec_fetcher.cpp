@@ -51,6 +51,7 @@ void TChunkSpecFetcher::Add(
     TObjectId objectId,
     TCellTag externalCellTag,
     i64 chunkCount,
+    int tableIndex,
     const std::vector<TReadRange>& ranges)
 {
     auto& state = GetCellState(externalCellTag);
@@ -79,7 +80,7 @@ void TChunkSpecFetcher::Add(
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
             state.RangeIndices.push_back(rangeIndex);
-            state.TableIndices.push_back(TableIndex_);
+            state.TableIndices.push_back(tableIndex);
         }
     }
 
@@ -89,10 +90,8 @@ void TChunkSpecFetcher::Add(
         externalCellTag,
         chunkCount,
         ranges.size(),
-        TableIndex_,
+        tableIndex,
         state.ReqCount - oldReqCount);
-
-    ++TableIndex_;
 }
 
 TChunkSpecFetcher::TCellState& TChunkSpecFetcher::GetCellState(TCellTag cellTag)

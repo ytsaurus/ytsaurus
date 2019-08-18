@@ -599,6 +599,7 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=2)
 
     @authors("max42")
+    @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
     def test_chunk_slicing(self):
         create("table",
                "//tmp/t",
