@@ -183,6 +183,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
+    patch_config_command = "sed -s \"s/\$YT_JOB_INDEX/$YT_JOB_INDEX/g\" config.yson -i ;"
+
     run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID " \
                              "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
                              "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ; ".format(executable_path, monitoring_port)
@@ -197,7 +199,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
     else:
         copy_core_dumps_command = ""
 
-    command = "\n".join([extract_geodata_command, run_clickhouse_command, copy_core_dumps_command])
+    command = "\n".join([patch_config_command, extract_geodata_command, run_clickhouse_command, copy_core_dumps_command])
 
     spec_builder = \
         VanillaSpecBuilder() \
