@@ -136,17 +136,21 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 }
 
 func decodeReflectSlice(d *Reader, v reflect.Value) error {
-	slice := v.Elem()
-	elementType := slice.Type().Elem()
-
 	e, err := d.Next(true)
 	if err != nil {
 		return err
 	}
 
+	if e == EventLiteral && d.currentType == TypeEntity {
+		return nil
+	}
+
 	if e != EventBeginList {
 		return &TypeError{UserType: v.Type(), YSONType: d.currentType}
 	}
+
+	slice := v.Elem()
+	elementType := slice.Type().Elem()
 
 	for i := 0; true; i++ {
 		if ok, err := d.NextListItem(); err != nil {
@@ -190,12 +194,8 @@ func decodeReflectPtr(r *Reader, v reflect.Value) error {
 }
 
 func decodeReflectMap(r *Reader, v reflect.Value) error {
-	m := reflect.MakeMap(v.Elem().Type())
-	v.Elem().Set(m)
-	elementType := m.Type().Elem()
-
-	if m.Type().Key().Kind() != reflect.String {
-		return &UnsupportedTypeError{m.Type()}
+	if v.Type().Elem().Key().Kind() != reflect.String {
+		return &UnsupportedTypeError{v.Type().Elem()}
 	}
 
 	e, err := r.Next(true)
@@ -203,9 +203,17 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 		return err
 	}
 
+	if e == EventLiteral && r.currentType == TypeEntity {
+		return nil
+	}
+
 	if e != EventBeginMap {
 		return &TypeError{UserType: v.Type(), YSONType: r.currentType}
 	}
+
+	m := reflect.MakeMap(v.Elem().Type())
+	v.Elem().Set(m)
+	elementType := m.Type().Elem()
 
 	for {
 		ok, err := r.NextKey()
