@@ -17,19 +17,19 @@ using llvm::ArrayRef;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct TypeBuilder<NYT::NTableClient::TUnversionedValueData>
+struct TTypeBuilder<NYT::NTableClient::TUnversionedValueData>
 {
 public:
-    typedef TypeBuilder<char> TBoolean;
-    typedef TypeBuilder<i64> TInt64;
-    typedef TypeBuilder<ui64> TUint64;
-    typedef TypeBuilder<double> TDouble;
-    typedef TypeBuilder<const char*> TStringType;
-    typedef TypeBuilder<const char*> TAny;
+    typedef TTypeBuilder<char> TBoolean;
+    typedef TTypeBuilder<i64> TInt64;
+    typedef TTypeBuilder<ui64> TUint64;
+    typedef TTypeBuilder<double> TDouble;
+    typedef TTypeBuilder<const char*> TStringType;
+    typedef TTypeBuilder<const char*> TAny;
 
     static Type* Get(LLVMContext& context)
     {
-        return TypeBuilder<i64>::Get(context);
+        return TTypeBuilder<i64>::Get(context);
     }
 
     static Type* Get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
@@ -62,14 +62,14 @@ public:
 };
 
 template <>
-struct TypeBuilder<NYT::NTableClient::TUnversionedValue>
+struct TTypeBuilder<NYT::NTableClient::TUnversionedValue>
 {
 public:
-    typedef TypeBuilder<ui16> TId;
-    typedef TypeBuilder<ui8> TType;
-    typedef TypeBuilder<ui8> TAggregate;
-    typedef TypeBuilder<ui32> TLength;
-    typedef TypeBuilder<NYT::NTableClient::TUnversionedValueData> TData;
+    typedef TTypeBuilder<ui16> TId;
+    typedef TTypeBuilder<ui8> TType;
+    typedef TTypeBuilder<ui8> TAggregate;
+    typedef TTypeBuilder<ui32> TLength;
+    typedef TTypeBuilder<NYT::NTableClient::TUnversionedValueData> TData;
 
     enum Fields
     {

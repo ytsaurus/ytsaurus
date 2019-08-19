@@ -25,7 +25,7 @@ Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stati
 Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
     if (staticType == EValueType::Boolean) {
-        return TypeBuilder<NCodegen::types::i<1>>::Get(context);
+        return TTypeBuilder<NCodegen::types::i<1>>::Get(context);
     }
 
     return GetABIType(context, staticType);
@@ -53,7 +53,7 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
             Builder_->getInt32(0),
             Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentResults),
             Builder_->getInt32(ExpressionFragments.Items[index].Index),
-            Builder_->getInt32(TTypeBuilder::Type)
+            Builder_->getInt32(TValueTypeBuilder::Type)
         },
         Twine("flag#") + Twine(index));
 }

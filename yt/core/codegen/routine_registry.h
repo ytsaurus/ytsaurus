@@ -21,9 +21,9 @@ class FunctionTypeBuilder<R(Args...)>
 public:
     static llvm::FunctionType *Get(llvm::LLVMContext &Context) {
         llvm::Type *params[] = {
-            TypeBuilder<Args>::Get(Context)...
+            TTypeBuilder<Args>::Get(Context)...
         };
-        return llvm::FunctionType::get(TypeBuilder<R>::Get(Context),
+        return llvm::FunctionType::get(TTypeBuilder<R>::Get(Context),
             params, false);
     }
 };
@@ -31,7 +31,7 @@ public:
 class TRoutineRegistry
 {
 public:
-    typedef std::function<llvm::FunctionType*(llvm::LLVMContext&)> TTypeBuilder;
+    typedef std::function<llvm::FunctionType*(llvm::LLVMContext&)> TValueTypeBuilder;
 
     template <class TResult, class... TArgs>
     void RegisterRoutine(
@@ -46,17 +46,17 @@ public:
     }
 
     uint64_t GetAddress(const TString& symbol) const;
-    TTypeBuilder GetTypeBuilder(const TString& symbol) const;
+    TValueTypeBuilder GetTypeBuilder(const TString& symbol) const;
 
 private:
     void RegisterRoutineImpl(
         const char* symbol,
         uint64_t address,
-        TTypeBuilder typeBuilder);
+        TValueTypeBuilder typeBuilder);
 
 private:
     THashMap<TString, uint64_t> SymbolToAddress_;
-    THashMap<TString, TTypeBuilder> SymbolToTypeBuilder_;
+    THashMap<TString, TValueTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

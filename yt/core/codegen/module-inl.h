@@ -15,7 +15,7 @@ namespace NYT::NCodegen {
 template <class TSignature>
 TCGFunction<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 {
-    auto type = TypeBuilder<TSignature>::Get(GetContext());
+    auto type = TTypeBuilder<TSignature>::Get(GetContext());
     YT_VERIFY(type == GetModule()->getFunction(name.c_str())->getFunctionType());
     return TCGFunction<TSignature>(GetFunctionAddress(name), MakeStrong(this));
 }
