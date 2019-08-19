@@ -36,7 +36,7 @@ namespace NYT::NCodegen {
 /// \endcode
 ///
 /// You'll want to use
-///     Function::Create(TTypeBuilder<types::i<8>(MyType*)>::Get(), ...)
+///     Function::Create(TTypeBuilder<TTypes::i<8>(MyType*)>::Get(), ...)
 /// to declare the function, but when you first try this, your compiler will
 /// complain that TTypeBuilder<MyType>::Get() doesn't exist. To fix this,
 /// write:
@@ -49,9 +49,9 @@ namespace NYT::NCodegen {
 ///             // If you cache this result, be sure to cache it separately
 ///             // for each llvm::LLVMContext.
 ///             return StructType::get(
-///                 TTypeBuilder<types::i<32>>::Get(ctx),
-///                 TTypeBuilder<types::i<32>*>::Get(ctx),
-///                 TTypeBuilder<types::i<8>*[]>::Get(ctx),
+///                 TTypeBuilder<TTypes::i<32>>::Get(ctx),
+///                 TTypeBuilder<TTypes::i<32>*>::Get(ctx),
+///                 TTypeBuilder<TTypes::i<8>*[]>::Get(ctx),
 ///                 nullptr);
 ///         }
 ///
@@ -75,7 +75,7 @@ struct TTypeBuilder { };
 
 // Types for use with cross-compilable TypeBuilders.    These correspond
 // exactly with an LLVM-native type.
-namespace types {
+namespace TTypes {
 /// i<N> corresponds to the LLVM llvm::IntegerType with N bits.
 template <ui32 num_bits>
 struct i { };
@@ -95,7 +95,7 @@ struct ppc_fp128 { };
 // X86 MMX.
 
 struct x86_mmx { };
-}    // namespace types
+} // namespace TTypes
 
 // LLVM doesn't have const or volatile types.
 template <class T>
@@ -200,7 +200,7 @@ DEFINE_INTEGRAL_TYPEBUILDER(unsigned long long);
 
 template <uint32_t num_bits>
 
-struct TTypeBuilder<types::i<num_bits>>
+struct TTypeBuilder<TTypes::i<num_bits>>
 {
     static llvm::IntegerType *Get(llvm::LLVMContext& ctx)
     {
@@ -227,7 +227,7 @@ struct TTypeBuilder<double>
 };
 
 template <>
-struct TTypeBuilder<types::ieee_float>
+struct TTypeBuilder<TTypes::ieee_float>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -236,7 +236,7 @@ struct TTypeBuilder<types::ieee_float>
 };
 
 template <>
-struct TTypeBuilder<types::ieee_double>
+struct TTypeBuilder<TTypes::ieee_double>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -245,7 +245,7 @@ struct TTypeBuilder<types::ieee_double>
 };
 
 template <>
-struct TTypeBuilder<types::x86_fp80>
+struct TTypeBuilder<TTypes::x86_fp80>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -254,7 +254,7 @@ struct TTypeBuilder<types::x86_fp80>
 };
 
 template <>
-struct TTypeBuilder<types::fp128>
+struct TTypeBuilder<TTypes::fp128>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -263,7 +263,7 @@ struct TTypeBuilder<types::fp128>
 };
 
 template <>
-struct TTypeBuilder<types::ppc_fp128>
+struct TTypeBuilder<TTypes::ppc_fp128>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -272,7 +272,7 @@ struct TTypeBuilder<types::ppc_fp128>
 };
 
 template <>
-struct TTypeBuilder<types::x86_mmx>
+struct TTypeBuilder<TTypes::x86_mmx>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -293,22 +293,22 @@ struct TTypeBuilder<void>
 /// we special case it.
 template <>
 struct TTypeBuilder<void*>
-    : public TTypeBuilder<types::i<8>*>
+    : public TTypeBuilder<TTypes::i<8>*>
 { };
 
 template <>
 struct TTypeBuilder<const void*>
-    : public TTypeBuilder<types::i<8>*>
+    : public TTypeBuilder<TTypes::i<8>*>
 { };
 
 template <>
 struct TTypeBuilder<volatile void*>
-    : public TTypeBuilder<types::i<8>*>
+    : public TTypeBuilder<TTypes::i<8>*>
 { };
 
 template <>
 struct TTypeBuilder<const volatile void*>
-    : public TTypeBuilder<types::i<8>*>
+    : public TTypeBuilder<TTypes::i<8>*>
 { };
 
 template <typename R, typename... As>

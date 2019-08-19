@@ -25,7 +25,7 @@ Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stati
 Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
     if (staticType == EValueType::Boolean) {
-        return TTypeBuilder<NCodegen::types::i<1>>::Get(context);
+        return TTypeBuilder<NCodegen::TTypes::i<1>>::Get(context);
     }
 
     return GetABIType(context, staticType);
