@@ -52,7 +52,7 @@ public:
         const Context& context,
         const std::string& name) const override;
 
-    DatabaseIteratorPtr getIterator(const Context& context) override;
+    DatabaseIteratorPtr getIterator(const Context & context, const FilterByNameFunction & filter_by_table_name = {}) override;
 
     bool empty(const Context& context) const override;
 
@@ -155,7 +155,7 @@ StoragePtr TDatabase::tryGetTable(
     return GetTable(context, name);
 }
 
-DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */)
+DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */, const FilterByNameFunction & /* filter_by_table_name */)
 {
     class TDummyIterator
         : public IDatabaseIterator

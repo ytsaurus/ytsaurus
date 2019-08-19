@@ -172,6 +172,11 @@ public:
         return "StorageDistributor";
     }
 
+    virtual std::string getDatabaseName() const override
+    {
+        return "";
+    }
+
     bool isRemote() const override
     {
         return true;
