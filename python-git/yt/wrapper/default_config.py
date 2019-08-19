@@ -7,8 +7,7 @@ from copy import deepcopy
 
 # pydoc :: default_config :: begin
 
-DEFAULT_WRITE_CHUNK_SIZE = 512 * common.MB
-DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT = 10
+DEFAULT_WRITE_CHUNK_SIZE = 128 * common.MB
 
 def retry_backoff_config(**kwargs):
     config_dict = {
@@ -378,6 +377,10 @@ default_config = {
         "max_thread_count": None,  # automatically chosen
         # Always run parallel writing if it is possible.
         "enable": None,  # automatically chosen
+        # An upper bound for the amount of memory that parallel write is allowed to use.
+        # Note: if you specify both write_parallel/max_thread_count and write_retries/chunk_size,
+        # this option is ignored.
+        "memory_limit": 512 * common.MB,
         # This option allows to write table in unordered mode.
         "unordered": False,
         # The restriction on the number of chunks which will be passed to concatenate command.

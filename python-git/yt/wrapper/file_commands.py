@@ -217,7 +217,9 @@ def write_file(destination, stream,
 
     enable_parallel_write = get_config(client)["write_parallel"]["enable"]
     if enable_parallel_write is None:
-        enable_parallel_write = size_hint is not None and size_hint > 128 * MB
+        enable_parallel_write = size_hint is not None \
+                and size_hint >= 2 * (get_config(client)["write_retries"]["chunk_size"] \
+                                      or DEFAULT_WRITE_CHUNK_SIZE)
 
     if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True
