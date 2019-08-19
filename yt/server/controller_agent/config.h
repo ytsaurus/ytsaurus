@@ -531,8 +531,6 @@ public:
 
     TDuration OperationLogProgressBackoff;
 
-    TDuration OperationControllerFailTimeout;
-
     TDuration AvailableExecNodesCheckPeriod;
     TDuration BannedExecNodesCheckPeriod;
 
