@@ -13,7 +13,7 @@
 
 #include <library/string_utils/base64/base64.h>
 
-#include <util/string/cgiparam.h>
+#include <library/cgiparam/cgiparam.h>
 
 #include <re2/re2.h>
 
