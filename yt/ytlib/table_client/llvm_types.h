@@ -27,27 +27,27 @@ public:
     typedef TypeBuilder<const char*> TStringType;
     typedef TypeBuilder<const char*> TAny;
 
-    static Type* get(LLVMContext& context)
+    static Type* Get(LLVMContext& context)
     {
-        return TypeBuilder<i64>::get(context);
+        return TypeBuilder<i64>::Get(context);
     }
 
-    static Type* get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
+    static Type* Get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
     {
         using NYT::NTableClient::EValueType;
         switch (staticType) {
             case EValueType::Boolean:
-                return TBoolean::get(context);
+                return TBoolean::Get(context);
             case EValueType::Int64:
-                return TInt64::get(context);
+                return TInt64::Get(context);
             case EValueType::Uint64:
-                return TUint64::get(context);
+                return TUint64::Get(context);
             case EValueType::Double:
-                return TDouble::get(context);
+                return TDouble::Get(context);
             case EValueType::String:
-                return TStringType::get(context);
+                return TStringType::Get(context);
             case EValueType::Any:
-                return TAny::get(context);
+                return TAny::Get(context);
             default:
                 YT_ABORT();
         }
@@ -80,14 +80,14 @@ public:
         Data
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TId::get(context),
-            TType::get(context),
-            TAggregate::get(context),
-            TLength::get(context),
-            TData::get(context)});
+            TId::Get(context),
+            TType::Get(context),
+            TAggregate::Get(context),
+            TLength::Get(context),
+            TData::Get(context)});
     }
 
     static_assert(

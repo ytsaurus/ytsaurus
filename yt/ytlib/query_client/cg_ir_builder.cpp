@@ -127,7 +127,7 @@ Value* TCGIRBuilder::GetClosure()
 
     return Parent_->CreatePointerCast(
         closurePtr,
-        TypeBuilder<void**>::get(getContext()),
+        TypeBuilder<void**>::Get(getContext()),
         "uncastedClosure");
 }
 
@@ -153,7 +153,7 @@ void TCGIRBuilder::CreateStackRestore(Value* ptr)
 
 Type* TCGIRBuilder::getSizeType() const
 {
-    return TypeBuilder<size_t>::get(getContext());
+    return TypeBuilder<size_t>::Get(getContext());
 }
 
 llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
