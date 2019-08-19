@@ -47,19 +47,9 @@ TNode MakeProtoFormatFieldConfig(
     TNode* enumerations,
     ESerializationMode::Enum messageSerializationMode)
 {
-    auto getFieldName = [] (const FieldDescriptor* fieldDescriptor) {
-        if (auto columnName = fieldDescriptor->options().GetExtension(column_name)) {
-            return columnName;
-        }
-        if (auto keyColumnName = fieldDescriptor->options().GetExtension(key_column_name)) {
-            return keyColumnName;
-        }
-        return fieldDescriptor->name();
-    };
-
     auto fieldConfig = TNode::CreateMap();
     fieldConfig["field_number"] = fieldDescriptor->number();
-    fieldConfig["name"] = getFieldName(fieldDescriptor);
+    fieldConfig["name"] = NDetail::GetColumnName(*fieldDescriptor);
 
     auto fieldSerializationMode = messageSerializationMode;
     if (fieldDescriptor->options().HasExtension(serialization_mode)) {
@@ -78,8 +68,8 @@ TNode MakeProtoFormatFieldConfig(
         fieldConfig["proto_type"] = "enum_string";
         fieldConfig["enumeration_name"] = enumeration->name();
     } else if (
-        fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE
-        && fieldSerializationMode == ESerializationMode::YT)
+        fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE &&
+        fieldSerializationMode == ESerializationMode::YT)
     {
         fieldConfig["proto_type"] = "structured_message";
         fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(fieldDescriptor->message_type(), enumerations);
@@ -220,7 +210,25 @@ TYamredDsvAttributes TFormat::GetYamredDsvAttributes() const
     return attributes;
 }
 
+namespace NDetail {
+
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GetColumnName(const ::google::protobuf::FieldDescriptor& field) {
+    const auto& options = field.options();
+    const auto columnName = options.GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
+    }
+    const auto keyColumnName = options.GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return field.name();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 } // namespace NYT
 
