@@ -351,7 +351,7 @@ private:
         ConvertToFieldRow(lowerKey, KeyColumnCount_, minKey);
         ConvertToFieldRow(upperKey, KeyColumnCount_, maxKey);
 
-        return KeyConditions_[tableIndex]->getMaskInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
+        return KeyConditions_[tableIndex]->checkInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
     }
 };
 

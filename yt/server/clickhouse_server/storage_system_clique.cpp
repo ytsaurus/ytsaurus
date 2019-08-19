@@ -45,6 +45,11 @@ public:
         return TableName_;
     }
 
+    std::string getDatabaseName() const override
+    {
+        return "system";
+    }
+
     BlockInputStreams read(
         const Names& /* columnNames */,
         const SelectQueryInfo& /* queryInfo */,

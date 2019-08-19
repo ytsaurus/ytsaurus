@@ -67,7 +67,7 @@ IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settin
         address.default_database,
         address.user,
         address.password,
-        timeouts,
+        //timeouts,
         "server",
         Protocol::Compression::Enable,
         Protocol::Secure::Disable));

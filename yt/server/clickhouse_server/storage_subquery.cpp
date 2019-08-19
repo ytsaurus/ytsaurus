@@ -52,6 +52,8 @@ public:
 
     std::string getTableName() const override { return "Subquery"; }
 
+    std::string getDatabaseName() const override { return ""; }
+
     bool isRemote() const override
     {
         // NB: from CH point of view this is already a non-remote query.
