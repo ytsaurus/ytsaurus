@@ -19,7 +19,7 @@
 
 #include <library/string_utils/base64/base64.h>
 
-#include <util/string/cgiparam.h>
+#include <library/cgiparam/cgiparam.h>
 #include <util/string/vector.h>
 
 #include <util/random/random.h>
