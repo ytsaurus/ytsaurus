@@ -477,6 +477,9 @@ public:
     //! Limit on operation execution time.
     std::optional<TDuration> TimeLimit;
 
+    //! Timeout to gracefully fail jobs after timeout limit exceeded.
+    TDuration TimeLimitJobFailTimeout;
+
     TTestingOperationOptionsPtr TestingOperationOptions;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
