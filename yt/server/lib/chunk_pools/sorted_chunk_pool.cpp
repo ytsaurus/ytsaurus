@@ -245,6 +245,7 @@ public:
             Logger.AddTag("OperationId: %v", OperationId_);
             Logger.AddTag("Task: %v", Task_);
             JobManager_->SetLogger(Logger);
+            RowBuffer_ = New<TRowBuffer>();
         }
     }
 
