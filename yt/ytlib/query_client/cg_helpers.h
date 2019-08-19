@@ -245,7 +245,7 @@ public:
             name);
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine nameTwine = "") const
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine name) const
     {
         const auto& type = TTypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
 
@@ -256,19 +256,19 @@ public:
                     ConstantInt::get(type, static_cast<int>(EValueType::Null)),
                     ConstantInt::get(type, static_cast<int>(StaticType_))),
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Type, nameTwine + ".typePtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Type, name + ".typePtr"));
         } else {
             builder->CreateStore(
                 IsNull_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Type, nameTwine + ".typePtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Type, name + ".typePtr"));
         }
 
         if (IsStringLikeType(StaticType_)) {
             builder->CreateStore(
                 Length_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Length, nameTwine + ".lengthPtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Length, name + ".lengthPtr"));
         }
 
         Value* data = nullptr;
@@ -285,12 +285,17 @@ public:
         builder->CreateStore(
             data,
             builder->CreateConstInBoundsGEP2_32(
-                nullptr, valuePtr, index, TValueTypeBuilder::Data, nameTwine + ".dataPtr"));
+                nullptr, valuePtr, index, TValueTypeBuilder::Data, name + ".dataPtr"));
     }
 
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index) const
     {
-        StoreToValues(builder, valuePtr, 0, nameTwine);
+        StoreToValues(builder, valuePtr, index, Name_);
+    }
+
+    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine name = "") const
+    {
+        StoreToValues(builder, valuePtr, 0, name);
     }
 
     Value* IsNull() const
