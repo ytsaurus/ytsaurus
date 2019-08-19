@@ -22,7 +22,7 @@
 
 #include <yt/build/build.h>
 
-#include <util/string/cgiparam.h>
+#include <library/cgiparam/cgiparam.h>
 #include <util/string/split.h>
 
 #include <util/generic/vector.h>
