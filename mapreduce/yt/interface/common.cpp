@@ -1,20 +1,85 @@
 #include "common.h"
-
-#include "format.h"
 #include "serialize.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
-
-#include <mapreduce/yt/interface/serialize.h>
-
 #include <mapreduce/yt/node/node_builder.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <util/generic/xrange.h>
 
 namespace NYT {
+namespace NDetail {
 
-using ::google::protobuf::FieldDescriptor;
-using ::google::protobuf::Descriptor;
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(EValueType type)
+{
+    switch (type) {
+        case VT_INT8:    return "int8";
+        case VT_INT16:   return "int16";
+        case VT_INT32:   return "int32";
+        case VT_INT64:   return "int64";
+        case VT_UINT8:   return "uint8";
+        case VT_UINT16:  return "uint16";
+        case VT_UINT32:  return "uint32";
+        case VT_UINT64:  return "uint64";
+        case VT_DOUBLE:  return "double";
+        case VT_BOOLEAN: return "boolean";
+        case VT_STRING:  return "string";
+        case VT_UTF8:    return "utf8";
+        case VT_ANY:     return "any";
+        default:
+            ythrow yexception() << "Invalid value type " << static_cast<int>(type);
+    }
+}
+
+TString GetColumnName(const ::google::protobuf::FieldDescriptor& field) {
+    const auto& options = field.options();
+    const auto columnName = options.GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
+    }
+    const auto keyColumnName = options.GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return field.name();
+}
+
+EValueType GetColumnType(const ::google::protobuf::FieldDescriptor& field) {
+    using namespace ::google::protobuf;
+    Y_ENSURE(!field.is_repeated());
+    switch (field.cpp_type()) {
+    case FieldDescriptor::CPPTYPE_INT32:
+        return EValueType::VT_INT32;
+    case FieldDescriptor::CPPTYPE_INT64:
+        return EValueType::VT_INT64;
+    case FieldDescriptor::CPPTYPE_UINT32:
+        return EValueType::VT_UINT32;
+    case FieldDescriptor::CPPTYPE_UINT64:
+        return EValueType::VT_UINT64;
+    case FieldDescriptor::CPPTYPE_FLOAT:
+    case FieldDescriptor::CPPTYPE_DOUBLE:
+        return EValueType::VT_DOUBLE;
+    case FieldDescriptor::CPPTYPE_BOOL:
+        return EValueType::VT_BOOLEAN;
+    case FieldDescriptor::CPPTYPE_STRING:
+    case FieldDescriptor::CPPTYPE_MESSAGE:
+    case FieldDescriptor::CPPTYPE_ENUM:
+        return EValueType::VT_STRING;
+    default:
+        ythrow yexception() << "Unexpected field type '" << field.cpp_type_name() << "' for field " << field.name();
+    }
+}
+
+bool HasExtension(const ::google::protobuf::FieldDescriptor& field) {
+    const auto& o = field.options();
+    return o.HasExtension(column_name) || o.HasExtension(key_column_name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,102 +154,24 @@ TNode TTableSchema::ToNode() const
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-static EValueType GetScalarFieldType(const FieldDescriptor& fieldDescriptor)
-{
-    switch (fieldDescriptor.cpp_type()) {
-    case FieldDescriptor::CPPTYPE_INT32:
-        return EValueType::VT_INT32;
-    case FieldDescriptor::CPPTYPE_INT64:
-        return EValueType::VT_INT64;
-    case FieldDescriptor::CPPTYPE_UINT32:
-        return EValueType::VT_UINT32;
-    case FieldDescriptor::CPPTYPE_UINT64:
-        return EValueType::VT_UINT64;
-    case FieldDescriptor::CPPTYPE_FLOAT:
-    case FieldDescriptor::CPPTYPE_DOUBLE:
-        return EValueType::VT_DOUBLE;
-    case FieldDescriptor::CPPTYPE_BOOL:
-        return EValueType::VT_BOOLEAN;
-    case FieldDescriptor::CPPTYPE_STRING:
-    case FieldDescriptor::CPPTYPE_MESSAGE:
-    case FieldDescriptor::CPPTYPE_ENUM:
-        return EValueType::VT_STRING;
-    default:
-        ythrow yexception() << "Unexpected field type '" << fieldDescriptor.cpp_type_name() << "' for field " << fieldDescriptor.name();
-    }
-}
-
-static bool HasExtension(const FieldDescriptor& fieldDescriptor)
-{
-    const auto& options = fieldDescriptor.options();
-    return options.HasExtension(column_name) || options.HasExtension(key_column_name);
-}
-
-static TNode CreateFieldRawTypeV2(
-    const FieldDescriptor& fieldDescriptor,
-    ESerializationMode::Enum messageSerializationMode)
-{
-    auto fieldSerializationMode = messageSerializationMode;
-    if (fieldDescriptor.options().HasExtension(serialization_mode)) {
-        fieldSerializationMode = fieldDescriptor.options().GetExtension(serialization_mode);
-    }
-
-    TNode type;
-    if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
-        fieldSerializationMode == ESerializationMode::YT)
-    {
-        const auto& messageDescriptor = *fieldDescriptor.message_type();
-        auto fields = TNode::CreateList();
-        for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
-            const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
-            fields.Add(TNode()
-                ("name", NDetail::GetColumnName(innerFieldDescriptor))
-                ("type", CreateFieldRawTypeV2(
-                    innerFieldDescriptor,
-                    messageDescriptor.options().GetExtension(field_serialization_mode))));
-        }
-        type = TNode()
-            ("metatype", "struct")
-            ("fields", std::move(fields));
-    } else {
-        type = NDetail::ToString(GetScalarFieldType(fieldDescriptor));
-    }
-
-    switch (fieldDescriptor.label()) {
-        case FieldDescriptor::Label::LABEL_REPEATED:
-            Y_ENSURE(fieldSerializationMode == ESerializationMode::YT,
-                "Repeated fields are supported only for YT serialization mode");
-            return TNode()
-                ("metatype", "list")
-                ("element", std::move(type));
-        case FieldDescriptor::Label::LABEL_OPTIONAL:
-            return TNode()
-                ("metatype", "optional")
-                ("element", std::move(type));
-        case FieldDescriptor::LABEL_REQUIRED:
-            return type;
-    }
-    Y_FAIL();
-}
-
 TTableSchema CreateTableSchema(
-    const Descriptor& messageDescriptor,
+    const ::google::protobuf::Descriptor& tableProto,
     const TKeyColumns& keyColumns,
-    bool keepFieldsWithoutExtension)
-{
+    const bool keepFieldsWithoutExtension) {
+
     TTableSchema result;
-    auto messageSerializationMode = messageDescriptor.options().GetExtension(field_serialization_mode);
-    for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
-        const auto& fieldDescriptor = *messageDescriptor.field(fieldIndex);
-        if (!keepFieldsWithoutExtension && !HasExtension(fieldDescriptor)) {
+    for (int idx = 0, lim = tableProto.field_count(); idx < lim; ++idx) {
+        const auto field = tableProto.field(idx);
+        if (!keepFieldsWithoutExtension && !NDetail::HasExtension(*field)) {
             continue;
         }
+
+        const auto name = NDetail::GetColumnName(*field);
         TColumnSchema column;
-        column.Name(NDetail::GetColumnName(fieldDescriptor));
-        column.RawTypeV2(CreateFieldRawTypeV2(fieldDescriptor, messageSerializationMode));
-        result.AddColumn(std::move(column));
+        column.Name(name);
+        column.Type(NDetail::GetColumnType(*field));
+        column.Required(field->is_required());
+        result.AddColumn(column);
     }
 
     if (!keyColumns.Parts_.empty()) {
@@ -193,7 +180,6 @@ TTableSchema CreateTableSchema(
 
     return result;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 TTableSchema CreateYdlTableSchema(NTi::TType::TPtr type)
 {
@@ -223,32 +209,6 @@ EValueType NodeTypeToValueType(TNode::EType nodeType)
     }
 }
 
-namespace NDetail {
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(EValueType type)
-{
-    switch (type) {
-        case VT_INT8:    return "int8";
-        case VT_INT16:   return "int16";
-        case VT_INT32:   return "int32";
-        case VT_INT64:   return "int64";
-        case VT_UINT8:   return "uint8";
-        case VT_UINT16:  return "uint16";
-        case VT_UINT32:  return "uint32";
-        case VT_UINT64:  return "uint64";
-        case VT_DOUBLE:  return "double";
-        case VT_BOOLEAN: return "boolean";
-        case VT_STRING:  return "string";
-        case VT_UTF8:    return "utf8";
-        case VT_ANY:     return "any";
-        default:
-            ythrow yexception() << "Invalid value type " << static_cast<int>(type);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 } // namespace NYT

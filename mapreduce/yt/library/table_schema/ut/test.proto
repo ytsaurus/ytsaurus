@@ -1,0 +1,58 @@
+import "mapreduce/yt/interface/protos/extension.proto";
+
+package NYT.NTesting;
+
+message TIntegral {
+  optional double DoubleField = 1;
+  optional float FloatField = 2;
+  optional int32 Int32Field = 3;
+  optional int64 Int64Field = 4;
+  optional uint32 Uint32Field = 5;
+  optional uint64 Uint64Field = 6;
+  optional sint32 Sint32Field = 7;
+  optional sint64 Sint64Field = 8;
+  optional fixed32 Fixed32Field = 9;
+  optional fixed64 Fixed64Field = 10;
+  optional sfixed32 Sfixed32Field = 11;
+  optional sfixed64 Sfixed64Field = 12;
+  optional bool BoolField = 13;
+  enum TriBool {
+    TRI_FALSE = 0;
+    TRI_TRUE = 1;
+    TRI_UNDEF = -1;
+  }
+  optional TriBool EnumField = 14;
+}
+
+//unsupported
+message TRepeated {
+  repeated int32 Int32Field = 1;
+}
+
+message TOneOf {
+  oneof Chooser {
+    double DoubleField = 1;
+    int32 Int32Field = 2;
+  }
+  optional bool BoolField = 3;
+}
+
+message TWithRequired {
+  required string RequiredField = 1;
+  optional string NotRequiredField = 2;
+};
+
+message TAggregated {
+  optional string StringField = 1;
+  optional bytes BytesField = 2;
+  optional TIntegral NestedField = 3;
+  optional TRepeated NestedRepeatedField = 4;
+  optional TOneOf NestedOneOfField = 5;
+  optional TAggregated NestedRecursiveField = 6;
+}
+
+message TAliased {
+  optional int32 Key = 1         [(NYT.key_column_name) = "key"];
+  optional double Subkey = 2     [(NYT.key_column_name) = "subkey"];
+  optional TAggregated Data = 3;
+}
