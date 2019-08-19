@@ -67,3 +67,16 @@ func TestTypedefTypes(t *testing.T) {
 	require.NoError(t, yson.Unmarshal(ys, &out))
 	require.Equal(t, in, out)
 }
+
+func TestMapKeys(t *testing.T) {
+	in := map[MyString]int{
+		"foo": 1,
+		"bar": 2,
+	}
+	var out map[MyString]int
+
+	ys, err := yson.Marshal(in)
+	require.NoError(t, err)
+	require.NoError(t, yson.Unmarshal(ys, &out))
+	require.Equal(t, in, out)
+}
