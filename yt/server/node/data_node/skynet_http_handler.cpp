@@ -24,7 +24,7 @@
 
 #include <yt/core/http/http.h>
 
-#include <util/string/cgiparam.h>
+#include <library/cgiparam/cgiparam.h>
 
 namespace NYT::NDataNode {
 
