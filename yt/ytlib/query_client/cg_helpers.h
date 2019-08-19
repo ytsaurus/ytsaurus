@@ -145,11 +145,11 @@ public:
             isNull->getType() == builder->getInt1Ty() ||
             isNull->getType() == builder->getInt8Ty());
         if (IsStringLikeType(staticType)) {
-            YT_VERIFY(length->getType() == TTypeBuilder::TLength::get(builder->getContext()));
+            YT_VERIFY(length->getType() == TTypeBuilder::TLength::Get(builder->getContext()));
         }
         YT_VERIFY(
             data->getType() == GetLLVMType(builder->getContext(), staticType) ||
-            data->getType() == TDataTypeBuilder::get(builder->getContext()));
+            data->getType() == TDataTypeBuilder::Get(builder->getContext()));
         return TCGValue(isNull, length, data, staticType, name);
     }
 
@@ -233,7 +233,7 @@ public:
     {
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
-            length = llvm::UndefValue::get(TTypeBuilder::TLength::get(builder->getContext()));
+            length = llvm::UndefValue::get(TTypeBuilder::TLength::Get(builder->getContext()));
         }
 
         return CreateFromValue(
@@ -247,7 +247,7 @@ public:
 
     void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine nameTwine = "") const
     {
-        const auto& type = TypeBuilder<NTableClient::TUnversionedValue>::TType::get(builder->getContext());
+        const auto& type = TypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
 
         if (IsNull_->getType() == builder->getInt1Ty()) {
             builder->CreateStore(
@@ -272,7 +272,7 @@ public:
         }
 
         Value* data = nullptr;
-        auto targetType = TDataTypeBuilder::get(builder->getContext());
+        auto targetType = TDataTypeBuilder::Get(builder->getContext());
 
         if (Data_->getType()->isPointerTy()) {
             data = builder->CreatePtrToInt(Data_, targetType);
@@ -348,7 +348,7 @@ public:
 
         Value* result;
         if (dest == EValueType::Int64) {
-            auto destType = TDataTypeBuilder::TInt64::get(builder->getContext());
+            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
             if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
                 result = builder->CreateIntCast(value, destType, false);
             } else if (StaticType_ == EValueType::Double) {
@@ -358,7 +358,7 @@ public:
             }
         } else if (dest == EValueType::Uint64) {
             // signed/unsigned are equal to llvm
-            auto destType = TDataTypeBuilder::TInt64::get(builder->getContext());
+            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
             if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
                 result = builder->CreateIntCast(value, destType, true);
             } else if (StaticType_ == EValueType::Double) {
@@ -367,7 +367,7 @@ public:
                 YT_ABORT();
             }
         } else if (dest == EValueType::Double) {
-            auto destType = TDataTypeBuilder::TDouble::get(builder->getContext());
+            auto destType = TDataTypeBuilder::TDouble::Get(builder->getContext());
             if (StaticType_ == EValueType::Uint64) {
                 result = builder->CreateUIToFP(value, destType);
             } else if (StaticType_ == EValueType::Int64) {
@@ -740,7 +740,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
-            TypeBuilder<TResult(void**, TArgs...)>::get(module->GetModule()->getContext()),
+            TypeBuilder<TResult(void**, TArgs...)>::Get(module->GetModule()->getContext()),
             Function::ExternalLinkage,
             name,
             module->GetModule());
@@ -796,9 +796,9 @@ struct TFunctionDefiner<TResult(TArgs...)>
         auto& llvmContext = module->GetModule()->getContext();
         Function* function =  Function::Create(
             FunctionType::get(
-                TypeBuilder<TResult>::get(llvmContext),
+                TypeBuilder<TResult>::Get(llvmContext),
                 {
-                    TypeBuilder<TArgs>::get(llvmContext)...
+                    TypeBuilder<TArgs>::Get(llvmContext)...
                 },
                 false),
             Function::ExternalLinkage,

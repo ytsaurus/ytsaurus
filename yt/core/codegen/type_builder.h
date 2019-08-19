@@ -36,22 +36,22 @@ namespace NYT::NCodegen {
 /// \endcode
 ///
 /// You'll want to use
-///     Function::Create(TypeBuilder<types::i<8>(MyType*)>::get(), ...)
+///     Function::Create(TypeBuilder<types::i<8>(MyType*)>::Get(), ...)
 /// to declare the function, but when you first try this, your compiler will
-/// complain that TypeBuilder<MyType>::get() doesn't exist. To fix this,
+/// complain that TypeBuilder<MyType>::Get() doesn't exist. To fix this,
 /// write:
 ///
 /// \code{.cpp}
 ///
 ///     struct TypeBuilder<MyType>
 ///     {
-///         static StructType *get(llvm::LLVMContext& ctx) {
+///         static StructType *Get(llvm::LLVMContext& ctx) {
 ///             // If you cache this result, be sure to cache it separately
 ///             // for each llvm::LLVMContext.
 ///             return StructType::get(
-///                 TypeBuilder<types::i<32>>::get(ctx),
-///                 TypeBuilder<types::i<32>*>::get(ctx),
-///                 TypeBuilder<types::i<8>*[]>::get(ctx),
+///                 TypeBuilder<types::i<32>>::Get(ctx),
+///                 TypeBuilder<types::i<32>*>::Get(ctx),
+///                 TypeBuilder<types::i<8>*[]>::Get(ctx),
 ///                 nullptr);
 ///         }
 ///
@@ -117,9 +117,9 @@ struct TypeBuilder<const volatile T>
 template <class T>
 struct TypeBuilder<T*>
 {
-    static llvm::PointerType *get(llvm::LLVMContext& ctx)
+    static llvm::PointerType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::PointerType::getUnqual(TypeBuilder<T>::get(ctx));
+        return llvm::PointerType::getUnqual(TypeBuilder<T>::Get(ctx));
     }
 };
 
@@ -132,18 +132,18 @@ struct TypeBuilder<T&>
 template <class T, size_t N>
 struct TypeBuilder<T[N]>
 {
-    static llvm::ArrayType *get(llvm::LLVMContext& ctx)
+    static llvm::ArrayType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::ArrayType::get(TypeBuilder<T>::get(ctx), N);
+        return llvm::ArrayType::get(TypeBuilder<T>::Get(ctx), N);
     }
 };
 /// LLVM uses an array of length 0 to represent an unknown-length array.
 template <class T>
 struct TypeBuilder<T[]>
 {
-    static llvm::ArrayType *get(llvm::LLVMContext& ctx)
+    static llvm::ArrayType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::ArrayType::get(TypeBuilder<T>::get(ctx), 0);
+        return llvm::ArrayType::get(TypeBuilder<T>::Get(ctx), 0);
     }
 };
 
@@ -174,7 +174,7 @@ template <> \
 struct TypeBuilder<T> \
 { \
 public: \
-    static llvm::IntegerType *get(llvm::LLVMContext& ctx) \
+    static llvm::IntegerType *Get(llvm::LLVMContext& ctx) \
     { \
         return llvm::IntegerType::get(ctx, sizeof(T) * CHAR_BIT); \
     } \
@@ -202,7 +202,7 @@ template <uint32_t num_bits>
 
 struct TypeBuilder<types::i<num_bits>>
 {
-    static llvm::IntegerType *get(llvm::LLVMContext& ctx)
+    static llvm::IntegerType *Get(llvm::LLVMContext& ctx)
     {
         return llvm::IntegerType::get(ctx, num_bits);
     }
@@ -211,7 +211,7 @@ struct TypeBuilder<types::i<num_bits>>
 template <>
 struct TypeBuilder<float>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getFloatTy(ctx);
     }
@@ -220,7 +220,7 @@ struct TypeBuilder<float>
 template <>
 struct TypeBuilder<double>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getDoubleTy(ctx);
     }
@@ -229,7 +229,7 @@ struct TypeBuilder<double>
 template <>
 struct TypeBuilder<types::ieee_float>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getFloatTy(ctx);
     }
@@ -238,7 +238,7 @@ struct TypeBuilder<types::ieee_float>
 template <>
 struct TypeBuilder<types::ieee_double>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getDoubleTy(ctx);
     }
@@ -247,7 +247,7 @@ struct TypeBuilder<types::ieee_double>
 template <>
 struct TypeBuilder<types::x86_fp80>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getX86_FP80Ty(ctx);
     }
@@ -256,7 +256,7 @@ struct TypeBuilder<types::x86_fp80>
 template <>
 struct TypeBuilder<types::fp128>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getFP128Ty(ctx);
     }
@@ -265,7 +265,7 @@ struct TypeBuilder<types::fp128>
 template <>
 struct TypeBuilder<types::ppc_fp128>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getPPC_FP128Ty(ctx);
     }
@@ -274,7 +274,7 @@ struct TypeBuilder<types::ppc_fp128>
 template <>
 struct TypeBuilder<types::x86_mmx>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getX86_MMXTy(ctx);
     }
@@ -283,7 +283,7 @@ struct TypeBuilder<types::x86_mmx>
 template <>
 struct TypeBuilder<void>
 {
-    static llvm::Type *get(llvm::LLVMContext& ctx)
+    static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
         return llvm::Type::getVoidTy(ctx);
     }
@@ -314,20 +314,20 @@ struct TypeBuilder<const volatile void*>
 template <typename R, typename... As>
 struct TypeBuilder<R(As...)>
 {
-    static llvm::FunctionType *get(llvm::LLVMContext& ctx)
+    static llvm::FunctionType *Get(llvm::LLVMContext& ctx)
     {
-        llvm::Type* params[] = {TypeBuilder<As>::get(ctx)...};
-        return llvm::FunctionType::get(TypeBuilder<R>::get(ctx), params, false);
+        llvm::Type* params[] = {TypeBuilder<As>::Get(ctx)...};
+        return llvm::FunctionType::get(TypeBuilder<R>::Get(ctx), params, false);
     }
 };
 
 template <typename R, typename... As>
 struct TypeBuilder<R(As..., ...)>
 {
-    static llvm::FunctionType *get(llvm::LLVMContext& ctx)
+    static llvm::FunctionType *Get(llvm::LLVMContext& ctx)
     {
-        llvm::Type* params[] = {TypeBuilder<As>::get(ctx)...};
-        return llvm::FunctionType::get(TypeBuilder<R>::get(ctx), params, true);
+        llvm::Type* params[] = {TypeBuilder<As>::Get(ctx)...};
+        return llvm::FunctionType::get(TypeBuilder<R>::Get(ctx), params, true);
     }
 };
 

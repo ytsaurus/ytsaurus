@@ -40,7 +40,7 @@ using NCodegen::TCGModule;
 Value* CodegenAllocateValues(TCGIRBuilderPtr& builder, size_t valueCount)
 {
     Value* newValues = builder->CreateAlignedAlloca(
-        TypeBuilder<TValue>::get(builder->getContext()),
+        TypeBuilder<TValue>::Get(builder->getContext()),
         8,
         builder->getInt32(valueCount),
         "allocatedValues");
@@ -663,7 +663,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
     auto emplaced = Labels.emplace(id, nullptr);
     if (emplaced.second) {
         llvm::ArrayType* labelArrayType = llvm::ArrayType::get(
-            TypeBuilder<char*>::get(builder->getContext()),
+            TypeBuilder<char*>::Get(builder->getContext()),
             types.size());
 
         emplaced.first->second = new llvm::GlobalVariable(
@@ -726,7 +726,7 @@ Function* TComparerManager::GetHasher(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, HashLables),
-                            TypeBuilder<char**>::get(builder->getContext())),
+                            TypeBuilder<char**>::Get(builder->getContext())),
                         row,
                         builder->getInt64(start),
                         builder->getInt64(finish)
@@ -782,7 +782,7 @@ Function* TComparerManager::GetEqComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**>::get(builder->getContext())),
+                            TypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -842,7 +842,7 @@ Function* TComparerManager::GetLessComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**>::get(builder->getContext())),
+                            TypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -902,7 +902,7 @@ Function* TComparerManager::GetTernaryComparer(
                     {
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, UniversalLables),
-                            TypeBuilder<char**>::get(builder->getContext())),
+                            TypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
@@ -948,7 +948,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
         }
 
         llvm::ArrayType* isDescArrayType = llvm::ArrayType::get(
-            TypeBuilder<char>::get(builder->getContext()),
+            TypeBuilder<char>::Get(builder->getContext()),
             types.size());
 
         llvm::GlobalVariable* isDescArray =
@@ -966,7 +966,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
             {
                 builder->CreatePointerCast(
                     GetLabelsArray(builder, types, UniversalLables),
-                    TypeBuilder<char**>::get(builder->getContext())),
+                    TypeBuilder<char**>::Get(builder->getContext())),
                 lhsValues,
                 rhsValues,
                 builder->getInt64(0),
@@ -1103,14 +1103,14 @@ void CodegenFragmentBodies(
             auto name = Format("%v#%v", namePrefix, id);
 
             FunctionType* functionType = FunctionType::get(
-                TypeBuilder<void>::get(module->GetModule()->getContext()),
+                TypeBuilder<void>::Get(module->GetModule()->getContext()),
                 {
                     llvm::PointerType::getUnqual(
-                        TypeBuilder<TExpressionClosure>::get(
+                        TypeBuilder<TExpressionClosure>::Get(
                             module->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
-                    TypeBuilder<TValue*>::get(module->GetModule()->getContext()),
-                    TypeBuilder<TValue*>::get(module->GetModule()->getContext())
+                    TypeBuilder<TValue*>::Get(module->GetModule()->getContext()),
+                    TypeBuilder<TValue*>::Get(module->GetModule()->getContext())
                 },
                 true);
 
@@ -1205,7 +1205,9 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                             evalData = builder->CreateSub(builder->getInt64(0), operandData);
                             break;
                         case EValueType::Double:
-                            evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
+                            evalData = builder->CreateFSub(
+                                ConstantFP::get(builder->getDoubleTy(), 0.0),
+                                operandData);
                             break;
                         default:
                             YT_ABORT();
@@ -2098,7 +2100,7 @@ size_t MakeCodegenJoinOp(
             Value* joinClosure,
             Value* buffer
         ) {
-            Value* keyPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
+            Value* keyPtr = builder->CreateAlloca(TypeBuilder<TValue*>::Get(builder->getContext()));
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
@@ -2109,7 +2111,7 @@ size_t MakeCodegenJoinOp(
                 });
 
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
                 nullptr,
                 "expressionClosurePtr");
 
@@ -2243,10 +2245,10 @@ size_t MakeCodegenMultiJoinOp(
             Value* buffer
         ) {
             Value* keyPtrs = builder->CreateAlloca(
-                TypeBuilder<TValue*>::get(builder->getContext()),
+                TypeBuilder<TValue*>::Get(builder->getContext()),
                 builder->getInt32(parameters.size()));
 
-            Value* primaryValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
+            Value* primaryValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::Get(builder->getContext()));
 
             builder->CreateStore(
                 builder->CreateCall(
@@ -2259,7 +2261,7 @@ size_t MakeCodegenMultiJoinOp(
                 primaryValuesPtr);
 
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
                 nullptr,
                 "expressionClosurePtr");
 
@@ -2347,7 +2349,7 @@ size_t MakeCodegenMultiJoinOp(
         const auto& module = builder.Module;
 
         Value* joinComparers = builder->CreateAlloca(
-            TypeBuilder<TJoinComparers>::get(builder->getContext()),
+            TypeBuilder<TJoinComparers>::Get(builder->getContext()),
             builder->getInt32(parameters.size()));
 
         typedef TypeBuilder<TJoinComparers>::Fields TFields;
@@ -2421,7 +2423,7 @@ size_t MakeCodegenFilterOp(
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
             nullptr,
             "expressionClosurePtr");
 
@@ -2482,7 +2484,7 @@ size_t MakeCodegenFilterFinalizedOp(
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
             nullptr,
             "expressionClosurePtr");
 
@@ -2608,7 +2610,7 @@ size_t MakeCodegenProjectOp(
 
         Value* newValues = CodegenAllocateValues(builder, projectionCount);
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
             nullptr,
             "expressionClosurePtr");
 
@@ -2728,7 +2730,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
             Value* groupByClosure,
             Value* buffer
         ) {
-            Value* newValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::get(builder->getContext()));
+            Value* newValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*>::Get(builder->getContext()));
 
             size_t keySize = keyTypes.size();
             size_t groupRowSize = keySize + stateTypes.size();
@@ -2743,7 +2745,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 });
 
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
                 nullptr,
                 "expressionClosurePtr");
 
@@ -2976,7 +2978,7 @@ size_t MakeCodegenOrderOp(
             Value* newValues = CodegenAllocateValues(builder, schemaSize + exprIds.size());
 
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
                 nullptr,
                 "expressionClosurePtr");
 

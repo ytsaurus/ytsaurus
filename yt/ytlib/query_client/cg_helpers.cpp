@@ -19,13 +19,13 @@ StringRef ToStringRef(TRef ref)
 
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
-    return TDataTypeBuilder::get(context, staticType);
+    return TDataTypeBuilder::Get(context, staticType);
 }
 
 Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
     if (staticType == EValueType::Boolean) {
-        return TypeBuilder<NCodegen::types::i<1>>::get(context);
+        return TypeBuilder<NCodegen::types::i<1>>::Get(context);
     }
 
     return GetABIType(context, staticType);
@@ -94,7 +94,7 @@ TCGExprContext TCGExprContext::Make(
 {
     if (!expressionClosurePtr) {
         expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size()),
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
             nullptr,
             "expressionClosurePtr");
     }

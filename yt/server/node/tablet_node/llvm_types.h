@@ -23,11 +23,11 @@ public:
         Data
     };
 
-    static llvm::StructType* get(llvm::LLVMContext& context)
+    static llvm::StructType* Get(llvm::LLVMContext& context)
     {
         return llvm::StructType::get(context, {
-            TLength::get(context),
-            TData::get(context)});
+            TLength::Get(context),
+            TData::Get(context)});
     }
 
     static_assert(
@@ -65,10 +65,10 @@ public:
         Any = 0,
     };
 
-    static llvm::StructType* get(llvm::LLVMContext& context)
+    static llvm::StructType* Get(llvm::LLVMContext& context)
     {
         return llvm::StructType::get(context, llvm::ArrayRef<llvm::Type*>{
-            TypeBuilder<i64>::get(context)});
+            TypeBuilder<i64>::Get(context)});
     }
 
     static_assert(

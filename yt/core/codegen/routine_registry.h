@@ -19,11 +19,11 @@ template <typename R, typename... Args>
 class FunctionTypeBuilder<R(Args...)>
 {
 public:
-    static llvm::FunctionType *get(llvm::LLVMContext &Context) {
+    static llvm::FunctionType *Get(llvm::LLVMContext &Context) {
         llvm::Type *params[] = {
-            TypeBuilder<Args>::get(Context)...
+            TypeBuilder<Args>::Get(Context)...
         };
-        return llvm::FunctionType::get(TypeBuilder<R>::get(Context),
+        return llvm::FunctionType::get(TypeBuilder<R>::Get(Context),
             params, false);
     }
 };
@@ -42,7 +42,7 @@ public:
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&FunctionTypeBuilder<TResult(TArgs...)>::get, _1));
+            std::bind(&FunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
     }
 
     uint64_t GetAddress(const TString& symbol) const;

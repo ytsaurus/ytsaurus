@@ -160,11 +160,11 @@ public:
         Capacity
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TypeBuilder<ui32>::get(context),
-            TypeBuilder<ui32>::get(context)});
+            TypeBuilder<ui32>::Get(context),
+            TypeBuilder<ui32>::Get(context)});
     }
 };
 
@@ -179,10 +179,10 @@ public:
         Header
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, ArrayRef<Type*>{
-            THeader::get(context)});
+            THeader::Get(context)});
     }
 };
 
@@ -197,10 +197,10 @@ public:
         Header
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, ArrayRef<Type*>{
-            THeader::get(context)});
+            THeader::Get(context)});
     }
 };
 
@@ -215,12 +215,12 @@ public:
         Buffer
     };
 
-    static StructType* get(LLVMContext& context, size_t size)
+    static StructType* Get(LLVMContext& context, size_t size)
     {
         return StructType::get(context, {
-            llvm::ArrayType::get(TypeBuilder<TValue>::get(context), size),
-            TypeBuilder<void* const*>::get(context),
-            TypeBuilder<TExpressionContext*>::get(context)});
+            llvm::ArrayType::get(TypeBuilder<TValue>::Get(context), size),
+            TypeBuilder<void* const*>::Get(context),
+            TypeBuilder<TExpressionContext*>::Get(context)});
     }
 };
 
@@ -239,16 +239,16 @@ public:
         FullTernaryComparer
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TypeBuilder<TComparerFunction*>::get(context),
-            TypeBuilder<THasherFunction*>::get(context),
-            TypeBuilder<TComparerFunction*>::get(context),
-            TypeBuilder<TComparerFunction*>::get(context),
-            TypeBuilder<TComparerFunction*>::get(context),
-            TypeBuilder<TComparerFunction*>::get(context),
-            TypeBuilder<TTernaryComparerFunction*>::get(context)});
+            TypeBuilder<TComparerFunction*>::Get(context),
+            TypeBuilder<THasherFunction*>::Get(context),
+            TypeBuilder<TComparerFunction*>::Get(context),
+            TypeBuilder<TComparerFunction*>::Get(context),
+            TypeBuilder<TComparerFunction*>::Get(context),
+            TypeBuilder<TComparerFunction*>::Get(context),
+            TypeBuilder<TTernaryComparerFunction*>::Get(context)});
     }
 };
 
