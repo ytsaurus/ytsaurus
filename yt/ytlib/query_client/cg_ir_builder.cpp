@@ -17,7 +17,7 @@ using llvm::Type;
 using llvm::Twine;
 using llvm::Module;
 
-using NCodegen::TypeBuilder;
+using NCodegen::TTypeBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +127,7 @@ Value* TCGIRBuilder::GetClosure()
 
     return Parent_->CreatePointerCast(
         closurePtr,
-        TypeBuilder<void**>::Get(getContext()),
+        TTypeBuilder<void**>::Get(getContext()),
         "uncastedClosure");
 }
 
@@ -153,7 +153,7 @@ void TCGIRBuilder::CreateStackRestore(Value* ptr)
 
 Type* TCGIRBuilder::getSizeType() const
 {
-    return TypeBuilder<size_t>::Get(getContext());
+    return TTypeBuilder<size_t>::Get(getContext());
 }
 
 llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(

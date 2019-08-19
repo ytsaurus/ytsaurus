@@ -38,120 +38,120 @@ using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
 template <>
-struct TypeBuilder<bool>
-    : public TypeBuilder<char>
+struct TTypeBuilder<bool>
+    : public TTypeBuilder<char>
 { };
 
 // Opaque types
 template <>
-struct TypeBuilder<TWriteOpClosure*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TWriteOpClosure*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TJoinClosure*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TJoinClosure*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TGroupByClosure*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TGroupByClosure*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TExpressionContext*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TExpressionContext*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TFunctionContext*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TFunctionContext*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TExecutionContext*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TExecutionContext*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<std::vector<TRow>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<std::vector<TRow>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<std::vector<TMutableRow>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<std::vector<TMutableRow>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<const std::vector<TRow>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<const std::vector<TRow>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<const std::vector<TMutableRow>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<const std::vector<TMutableRow>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TLookupRows*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TLookupRows*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TJoinLookupRows*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TJoinLookupRows*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TJoinLookup*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TJoinLookup*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<std::vector<std::pair<TRow, i64>>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<std::vector<std::pair<TRow, i64>>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TTopCollector*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TTopCollector*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TSharedRange<TRow>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TSharedRange<TRow>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TSharedRange<TRowRange>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TSharedRange<TRowRange>*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TJoinParameters*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TJoinParameters*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TMultiJoinParameters*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TMultiJoinParameters*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<TMultiJoinClosure*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<TMultiJoinClosure*>
+    : public TTypeBuilder<void*>
 { };
 
 template <>
-struct TypeBuilder<std::unique_ptr<TLookupRows>*>
-    : public TypeBuilder<void*>
+struct TTypeBuilder<std::unique_ptr<TLookupRows>*>
+    : public TTypeBuilder<void*>
 { };
 
 // Aggregate types
 
 template <>
-struct TypeBuilder<TRowHeader>
+struct TTypeBuilder<TRowHeader>
 {
 public:
     enum Fields
@@ -163,16 +163,16 @@ public:
     static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TypeBuilder<ui32>::Get(context),
-            TypeBuilder<ui32>::Get(context)});
+            TTypeBuilder<ui32>::Get(context),
+            TTypeBuilder<ui32>::Get(context)});
     }
 };
 
 template <>
-struct TypeBuilder<TRow>
+struct TTypeBuilder<TRow>
 {
 public:
-    typedef TypeBuilder<TRowHeader*> THeader;
+    typedef TTypeBuilder<TRowHeader*> THeader;
 
     enum Fields
     {
@@ -187,10 +187,10 @@ public:
 };
 
 template <>
-struct TypeBuilder<TMutableRow>
+struct TTypeBuilder<TMutableRow>
 {
 public:
-    typedef TypeBuilder<TRowHeader*> THeader;
+    typedef TTypeBuilder<TRowHeader*> THeader;
 
     enum Fields
     {
@@ -205,7 +205,7 @@ public:
 };
 
 template <>
-struct TypeBuilder<TExpressionClosure>
+struct TTypeBuilder<TExpressionClosure>
 {
 public:
     enum Fields
@@ -218,14 +218,14 @@ public:
     static StructType* Get(LLVMContext& context, size_t size)
     {
         return StructType::get(context, {
-            llvm::ArrayType::get(TypeBuilder<TValue>::Get(context), size),
-            TypeBuilder<void* const*>::Get(context),
-            TypeBuilder<TExpressionContext*>::Get(context)});
+            llvm::ArrayType::get(TTypeBuilder<TValue>::Get(context), size),
+            TTypeBuilder<void* const*>::Get(context),
+            TTypeBuilder<TExpressionContext*>::Get(context)});
     }
 };
 
 template <>
-struct TypeBuilder<TJoinComparers>
+struct TTypeBuilder<TJoinComparers>
 {
 public:
     enum Fields
@@ -242,13 +242,13 @@ public:
     static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TypeBuilder<TComparerFunction*>::Get(context),
-            TypeBuilder<THasherFunction*>::Get(context),
-            TypeBuilder<TComparerFunction*>::Get(context),
-            TypeBuilder<TComparerFunction*>::Get(context),
-            TypeBuilder<TComparerFunction*>::Get(context),
-            TypeBuilder<TComparerFunction*>::Get(context),
-            TypeBuilder<TTernaryComparerFunction*>::Get(context)});
+            TTypeBuilder<TComparerFunction*>::Get(context),
+            TTypeBuilder<THasherFunction*>::Get(context),
+            TTypeBuilder<TComparerFunction*>::Get(context),
+            TTypeBuilder<TComparerFunction*>::Get(context),
+            TTypeBuilder<TComparerFunction*>::Get(context),
+            TTypeBuilder<TComparerFunction*>::Get(context),
+            TTypeBuilder<TTernaryComparerFunction*>::Get(context)});
     }
 };
 

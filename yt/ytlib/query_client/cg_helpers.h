@@ -25,7 +25,7 @@ using llvm::Value;
 using llvm::StringRef;
 
 using NCodegen::TCGModulePtr;
-using NCodegen::TypeBuilder;
+using NCodegen::TTypeBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,8 +58,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TypeBuilder<TValue> TTypeBuilder;
-typedef TypeBuilder<TValueData> TDataTypeBuilder;
+typedef TTypeBuilder<TValue> TValueTypeBuilder;
+typedef TTypeBuilder<TValueData> TDataTypeBuilder;
 
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
 
@@ -145,7 +145,7 @@ public:
             isNull->getType() == builder->getInt1Ty() ||
             isNull->getType() == builder->getInt8Ty());
         if (IsStringLikeType(staticType)) {
-            YT_VERIFY(length->getType() == TTypeBuilder::TLength::Get(builder->getContext()));
+            YT_VERIFY(length->getType() == TValueTypeBuilder::TLength::Get(builder->getContext()));
         }
         YT_VERIFY(
             data->getType() == GetLLVMType(builder->getContext(), staticType) ||
@@ -164,7 +164,7 @@ public:
         Value* isNull = builder->getFalse();
         if (nullbale) {
             Value* typePtr = builder->CreateConstInBoundsGEP2_32(
-                nullptr, rowValues, index, TTypeBuilder::Type, name + ".typePtr");
+                nullptr, rowValues, index, TValueTypeBuilder::Type, name + ".typePtr");
 
             isNull = builder->CreateLoad(typePtr, name + ".type");
         }
@@ -172,13 +172,13 @@ public:
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
             Value* lengthPtr = builder->CreateConstInBoundsGEP2_32(
-                nullptr, rowValues, index, TTypeBuilder::Length, name + ".lengthPtr");
+                nullptr, rowValues, index, TValueTypeBuilder::Length, name + ".lengthPtr");
 
             length = builder->CreateLoad(lengthPtr, name + ".length");
         }
 
         Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
-            nullptr, rowValues, index, TTypeBuilder::Data, name + ".dataPtr");
+            nullptr, rowValues, index, TValueTypeBuilder::Data, name + ".dataPtr");
 
         Value* data = builder->CreateLoad(dataPtr, name + ".data");
 
@@ -233,7 +233,7 @@ public:
     {
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
-            length = llvm::UndefValue::get(TTypeBuilder::TLength::Get(builder->getContext()));
+            length = llvm::UndefValue::get(TValueTypeBuilder::TLength::Get(builder->getContext()));
         }
 
         return CreateFromValue(
@@ -247,7 +247,7 @@ public:
 
     void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine nameTwine = "") const
     {
-        const auto& type = TypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
+        const auto& type = TTypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
 
         if (IsNull_->getType() == builder->getInt1Ty()) {
             builder->CreateStore(
@@ -256,19 +256,19 @@ public:
                     ConstantInt::get(type, static_cast<int>(EValueType::Null)),
                     ConstantInt::get(type, static_cast<int>(StaticType_))),
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TTypeBuilder::Type, nameTwine + ".typePtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Type, nameTwine + ".typePtr"));
         } else {
             builder->CreateStore(
                 IsNull_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TTypeBuilder::Type, nameTwine + ".typePtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Type, nameTwine + ".typePtr"));
         }
 
         if (IsStringLikeType(StaticType_)) {
             builder->CreateStore(
                 Length_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
+                    nullptr, valuePtr, index, TValueTypeBuilder::Length, nameTwine + ".lengthPtr"));
         }
 
         Value* data = nullptr;
@@ -285,7 +285,7 @@ public:
         builder->CreateStore(
             data,
             builder->CreateConstInBoundsGEP2_32(
-                nullptr, valuePtr, index, TTypeBuilder::Data, nameTwine + ".dataPtr"));
+                nullptr, valuePtr, index, TValueTypeBuilder::Data, nameTwine + ".dataPtr"));
     }
 
     void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
@@ -464,7 +464,7 @@ private:
 struct TCodegenFragmentInfo;
 struct TCodegenFragmentInfos;
 
-typedef TypeBuilder<TExpressionClosure> TClosureTypeBuilder;
+typedef TTypeBuilder<TExpressionClosure> TClosureTypeBuilder;
 
 class TCGExprData
 {
@@ -740,7 +740,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
-            TypeBuilder<TResult(void**, TArgs...)>::Get(module->GetModule()->getContext()),
+            TTypeBuilder<TResult(void**, TArgs...)>::Get(module->GetModule()->getContext()),
             Function::ExternalLinkage,
             name,
             module->GetModule());
@@ -796,9 +796,9 @@ struct TFunctionDefiner<TResult(TArgs...)>
         auto& llvmContext = module->GetModule()->getContext();
         Function* function =  Function::Create(
             FunctionType::get(
-                TypeBuilder<TResult>::Get(llvmContext),
+                TTypeBuilder<TResult>::Get(llvmContext),
                 {
-                    TypeBuilder<TArgs>::Get(llvmContext)...
+                    TTypeBuilder<TArgs>::Get(llvmContext)...
                 },
                 false),
             Function::ExternalLinkage,

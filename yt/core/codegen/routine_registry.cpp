@@ -41,7 +41,7 @@ uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
     return it->second;
 }
 
-TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& symbol) const
+TRoutineRegistry::TValueTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& symbol) const
 {
     auto mangledSymbol = MangleSymbol(symbol);
     auto it = SymbolToTypeBuilder_.find(mangledSymbol);
@@ -52,7 +52,7 @@ TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& s
 void TRoutineRegistry::RegisterRoutineImpl(
     const char* symbol,
     uint64_t address,
-    TTypeBuilder typeBuilder)
+    TValueTypeBuilder typeBuilder)
 {
     auto mangledSymbol = MangleSymbol(symbol);
     YT_VERIFY(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);

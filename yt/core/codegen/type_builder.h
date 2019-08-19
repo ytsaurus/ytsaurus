@@ -10,13 +10,13 @@ namespace NYT::NCodegen {
 
 /////////////////////////////////////////////////////////////////////////////
 
-/// TypeBuilder - This provides a uniform API for looking up types
+/// TTypeBuilder - This provides a uniform API for looking up types
 /// known at compile time.    To support cross-compilation, we define a
 /// series of tag types in the llvm::types namespace, like i<N>,
-/// ieee_float, ppc_fp128, etc.    TypeBuilder<T> allows T to be
+/// ieee_float, ppc_fp128, etc.    TTypeBuilder<T> allows T to be
 /// any of these, a native ctx type (whose size may depend on the host
 /// compiler), or a pointer, function, or struct type built out of
-/// these.    TypeBuilder<T> removes native ctx types from this set
+/// these.    TTypeBuilder<T> removes native ctx types from this set
 /// to guarantee that its result is suitable for cross-compilation.
 /// We define the primitive types, pointer types, and functions up to
 /// 5 arguments here, but to use this
@@ -36,28 +36,28 @@ namespace NYT::NCodegen {
 /// \endcode
 ///
 /// You'll want to use
-///     Function::Create(TypeBuilder<types::i<8>(MyType*)>::Get(), ...)
+///     Function::Create(TTypeBuilder<types::i<8>(MyType*)>::Get(), ...)
 /// to declare the function, but when you first try this, your compiler will
-/// complain that TypeBuilder<MyType>::Get() doesn't exist. To fix this,
+/// complain that TTypeBuilder<MyType>::Get() doesn't exist. To fix this,
 /// write:
 ///
 /// \code{.cpp}
 ///
-///     struct TypeBuilder<MyType>
+///     struct TTypeBuilder<MyType>
 ///     {
 ///         static StructType *Get(llvm::LLVMContext& ctx) {
 ///             // If you cache this result, be sure to cache it separately
 ///             // for each llvm::LLVMContext.
 ///             return StructType::get(
-///                 TypeBuilder<types::i<32>>::Get(ctx),
-///                 TypeBuilder<types::i<32>*>::Get(ctx),
-///                 TypeBuilder<types::i<8>*[]>::Get(ctx),
+///                 TTypeBuilder<types::i<32>>::Get(ctx),
+///                 TTypeBuilder<types::i<32>*>::Get(ctx),
+///                 TTypeBuilder<types::i<8>*[]>::Get(ctx),
 ///                 nullptr);
 ///         }
 ///
 ///         // You may find this a convenient place to put some constants
 ///         // to help with getelementptr.    They don't have any effect on
-///         // the operation of TypeBuilder.
+///         // the operation of TTypeBuilder.
 ///         enum Fields {
 ///             FIELD_A,
 ///             FIELD_B,
@@ -67,11 +67,11 @@ namespace NYT::NCodegen {
 ///
 /// \endcode
 ///
-/// TypeBuilder cannot handle recursive types or types you only know at runtime.
+/// TTypeBuilder cannot handle recursive types or types you only know at runtime.
 /// If you try to give it a recursive type, it will deadlock, infinitely
 /// recurse, or do something similarly undesirable.
 template <class T>
-struct TypeBuilder { };
+struct TTypeBuilder { };
 
 // Types for use with cross-compilable TypeBuilders.    These correspond
 // exactly with an LLVM-native type.
@@ -99,55 +99,55 @@ struct x86_mmx { };
 
 // LLVM doesn't have const or volatile types.
 template <class T>
-struct TypeBuilder<const T>
-    : public TypeBuilder<T>
+struct TTypeBuilder<const T>
+    : public TTypeBuilder<T>
 { };
 
 template <class T>
-struct TypeBuilder<volatile T>
-    : public TypeBuilder<T>
+struct TTypeBuilder<volatile T>
+    : public TTypeBuilder<T>
 { };
 
 template <class T>
-struct TypeBuilder<const volatile T>
-    : public TypeBuilder<T>
+struct TTypeBuilder<const volatile T>
+    : public TTypeBuilder<T>
 { };
 
 // Pointers
 template <class T>
-struct TypeBuilder<T*>
+struct TTypeBuilder<T*>
 {
     static llvm::PointerType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::PointerType::getUnqual(TypeBuilder<T>::Get(ctx));
+        return llvm::PointerType::getUnqual(TTypeBuilder<T>::Get(ctx));
     }
 };
 
 /// There is no support for references
 template <class T>
-struct TypeBuilder<T&>
+struct TTypeBuilder<T&>
 { };
 
 // Arrays
 template <class T, size_t N>
-struct TypeBuilder<T[N]>
+struct TTypeBuilder<T[N]>
 {
     static llvm::ArrayType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::ArrayType::get(TypeBuilder<T>::Get(ctx), N);
+        return llvm::ArrayType::get(TTypeBuilder<T>::Get(ctx), N);
     }
 };
 /// LLVM uses an array of length 0 to represent an unknown-length array.
 template <class T>
-struct TypeBuilder<T[]>
+struct TTypeBuilder<T[]>
 {
     static llvm::ArrayType *Get(llvm::LLVMContext& ctx)
     {
-        return llvm::ArrayType::get(TypeBuilder<T>::Get(ctx), 0);
+        return llvm::ArrayType::get(TTypeBuilder<T>::Get(ctx), 0);
     }
 };
 
-// Define the ctx integral types only for TypeBuilder<T>.
+// Define the ctx integral types only for TTypeBuilder<T>.
 //
 // ctx integral types do not have a defined size. It would be nice to use the
 // stdint.h-defined typedefs that do have defined sizes, but we'd run into the
@@ -159,8 +159,8 @@ struct TypeBuilder<T[]>
 //     typedef long long int64_t;
 //     typedef long size_t;
 //
-// If we defined TypeBuilder<int32_t> and TypeBuilder<int64_t>, then any use of
-// TypeBuilder<size_t> would fail.    We couldn't define TypeBuilder<size_t> in
+// If we defined TTypeBuilder<int32_t> and TTypeBuilder<int64_t>, then any use of
+// TTypeBuilder<size_t> would fail.    We couldn't define TTypeBuilder<size_t> in
 // addition to the defined-size types because we'd get duplicate definitions on
 // platforms where stdint.h instead defines:
 //
@@ -171,7 +171,7 @@ struct TypeBuilder<T[]>
 // So we define all the primitive ctx types and nothing else.
 #define DEFINE_INTEGRAL_TYPEBUILDER(T) \
 template <> \
-struct TypeBuilder<T> \
+struct TTypeBuilder<T> \
 { \
 public: \
     static llvm::IntegerType *Get(llvm::LLVMContext& ctx) \
@@ -200,7 +200,7 @@ DEFINE_INTEGRAL_TYPEBUILDER(unsigned long long);
 
 template <uint32_t num_bits>
 
-struct TypeBuilder<types::i<num_bits>>
+struct TTypeBuilder<types::i<num_bits>>
 {
     static llvm::IntegerType *Get(llvm::LLVMContext& ctx)
     {
@@ -209,7 +209,7 @@ struct TypeBuilder<types::i<num_bits>>
 };
 
 template <>
-struct TypeBuilder<float>
+struct TTypeBuilder<float>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -218,7 +218,7 @@ struct TypeBuilder<float>
 };
 
 template <>
-struct TypeBuilder<double>
+struct TTypeBuilder<double>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -227,7 +227,7 @@ struct TypeBuilder<double>
 };
 
 template <>
-struct TypeBuilder<types::ieee_float>
+struct TTypeBuilder<types::ieee_float>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -236,7 +236,7 @@ struct TypeBuilder<types::ieee_float>
 };
 
 template <>
-struct TypeBuilder<types::ieee_double>
+struct TTypeBuilder<types::ieee_double>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -245,7 +245,7 @@ struct TypeBuilder<types::ieee_double>
 };
 
 template <>
-struct TypeBuilder<types::x86_fp80>
+struct TTypeBuilder<types::x86_fp80>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -254,7 +254,7 @@ struct TypeBuilder<types::x86_fp80>
 };
 
 template <>
-struct TypeBuilder<types::fp128>
+struct TTypeBuilder<types::fp128>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -263,7 +263,7 @@ struct TypeBuilder<types::fp128>
 };
 
 template <>
-struct TypeBuilder<types::ppc_fp128>
+struct TTypeBuilder<types::ppc_fp128>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -272,7 +272,7 @@ struct TypeBuilder<types::ppc_fp128>
 };
 
 template <>
-struct TypeBuilder<types::x86_mmx>
+struct TTypeBuilder<types::x86_mmx>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -281,7 +281,7 @@ struct TypeBuilder<types::x86_mmx>
 };
 
 template <>
-struct TypeBuilder<void>
+struct TTypeBuilder<void>
 {
     static llvm::Type *Get(llvm::LLVMContext& ctx)
     {
@@ -292,42 +292,42 @@ struct TypeBuilder<void>
 /// void* is disallowed in LLVM types, but it occurs often enough in ctx code that
 /// we special case it.
 template <>
-struct TypeBuilder<void*>
-    : public TypeBuilder<types::i<8>*>
+struct TTypeBuilder<void*>
+    : public TTypeBuilder<types::i<8>*>
 { };
 
 template <>
-struct TypeBuilder<const void*>
-    : public TypeBuilder<types::i<8>*>
+struct TTypeBuilder<const void*>
+    : public TTypeBuilder<types::i<8>*>
 { };
 
 template <>
-struct TypeBuilder<volatile void*>
-    : public TypeBuilder<types::i<8>*>
+struct TTypeBuilder<volatile void*>
+    : public TTypeBuilder<types::i<8>*>
 { };
 
 template <>
-struct TypeBuilder<const volatile void*>
-    : public TypeBuilder<types::i<8>*>
+struct TTypeBuilder<const volatile void*>
+    : public TTypeBuilder<types::i<8>*>
 { };
 
 template <typename R, typename... As>
-struct TypeBuilder<R(As...)>
+struct TTypeBuilder<R(As...)>
 {
     static llvm::FunctionType *Get(llvm::LLVMContext& ctx)
     {
-        llvm::Type* params[] = {TypeBuilder<As>::Get(ctx)...};
-        return llvm::FunctionType::get(TypeBuilder<R>::Get(ctx), params, false);
+        llvm::Type* params[] = {TTypeBuilder<As>::Get(ctx)...};
+        return llvm::FunctionType::get(TTypeBuilder<R>::Get(ctx), params, false);
     }
 };
 
 template <typename R, typename... As>
-struct TypeBuilder<R(As..., ...)>
+struct TTypeBuilder<R(As..., ...)>
 {
     static llvm::FunctionType *Get(llvm::LLVMContext& ctx)
     {
-        llvm::Type* params[] = {TypeBuilder<As>::Get(ctx)...};
-        return llvm::FunctionType::get(TypeBuilder<R>::Get(ctx), params, true);
+        llvm::Type* params[] = {TTypeBuilder<As>::Get(ctx)...};
+        return llvm::FunctionType::get(TTypeBuilder<R>::Get(ctx), params, true);
     }
 };
 

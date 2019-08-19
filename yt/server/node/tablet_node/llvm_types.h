@@ -11,11 +11,11 @@ namespace NYT::NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct TypeBuilder<NYT::NTabletNode::TDynamicString>
+struct TTypeBuilder<NYT::NTabletNode::TDynamicString>
 {
 public:
-    typedef TypeBuilder<i32> TLength;
-    typedef TypeBuilder<char> TData;
+    typedef TTypeBuilder<i32> TLength;
+    typedef TTypeBuilder<char> TData;
 
     enum Fields
     {
@@ -47,14 +47,14 @@ public:
 };
 
 template <>
-struct TypeBuilder<NYT::NTabletNode::TDynamicValueData>
+struct TTypeBuilder<NYT::NTabletNode::TDynamicValueData>
 {
 public:
-    typedef TypeBuilder<char> TBoolean;
-    typedef TypeBuilder<i64> TInt64;
-    typedef TypeBuilder<ui64> TUint64;
-    typedef TypeBuilder<double> TDouble;
-    typedef TypeBuilder<NYT::NTabletNode::TDynamicString*> TStringType;
+    typedef TTypeBuilder<char> TBoolean;
+    typedef TTypeBuilder<i64> TInt64;
+    typedef TTypeBuilder<ui64> TUint64;
+    typedef TTypeBuilder<double> TDouble;
+    typedef TTypeBuilder<NYT::NTabletNode::TDynamicString*> TStringType;
 
     enum Fields
     {
@@ -68,7 +68,7 @@ public:
     static llvm::StructType* Get(llvm::LLVMContext& context)
     {
         return llvm::StructType::get(context, llvm::ArrayRef<llvm::Type*>{
-            TypeBuilder<i64>::Get(context)});
+            TTypeBuilder<i64>::Get(context)});
     }
 
     static_assert(
