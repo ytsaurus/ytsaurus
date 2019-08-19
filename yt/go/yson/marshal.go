@@ -363,15 +363,17 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 		return fmt.Errorf("yson: maps with non string keys are not supported")
 	}
 
-	// TODO(prime@): use MapRange() when 1.12 is out
 	w.BeginMap()
-	for _, key := range value.MapKeys() {
-		w.MapKeyString(key.Interface().(string))
 
-		if err = encodeAny(w, value.MapIndex(key).Interface()); err != nil {
+	mr := value.MapRange()
+	for mr.Next() {
+		w.MapKeyString(mr.Key().String())
+
+		if err = encodeAny(w, mr.Value().Interface()); err != nil {
 			return err
 		}
 	}
+
 	w.EndMap()
 	return w.Err()
 }

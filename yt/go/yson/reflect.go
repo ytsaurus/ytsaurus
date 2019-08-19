@@ -213,7 +213,8 @@ func decodeReflectPtr(r *Reader, v reflect.Value) error {
 }
 
 func decodeReflectMap(r *Reader, v reflect.Value) error {
-	if v.Type().Elem().Key().Kind() != reflect.String {
+	kt := v.Type().Elem().Key()
+	if kt.Kind() != reflect.String {
 		return &UnsupportedTypeError{v.Type().Elem()}
 	}
 
@@ -249,7 +250,7 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 			return err
 		}
 
-		m.SetMapIndex(reflect.ValueOf(keyName), elem.Elem())
+		m.SetMapIndex(reflect.ValueOf(keyName).Convert(kt), elem.Elem())
 	}
 
 	if e, err = r.Next(false); err != nil {
