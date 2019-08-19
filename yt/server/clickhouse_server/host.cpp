@@ -322,7 +322,7 @@ private:
             std::move(geoDictionariesLoader));
 
         Context = std::make_unique<DB::Context>(Context::createGlobal(std::move(runtimeComponentsFactory)));
-        Context->setQueryContext(*Context);
+        Context->makeGlobalContext();
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
         Context->setConfig(EngineConfig_);
