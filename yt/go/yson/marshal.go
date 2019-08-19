@@ -328,6 +328,18 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 
 func encodeReflect(w *Writer, value reflect.Value) error {
 	switch value.Type().Kind() {
+	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+		w.Int64(value.Int())
+		return w.Err()
+
+	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		w.Uint64(value.Uint())
+		return w.Err()
+
+	case reflect.String:
+		w.String(value.String())
+		return w.Err()
+
 	case reflect.Struct:
 		return encodeReflectStruct(w, value)
 	case reflect.Slice:
