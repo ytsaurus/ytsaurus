@@ -27,6 +27,7 @@ message TMonitoringUnistatEndpoint
     // Prefix for signal names, default is unistat.
     string prefix = 3;
     // Yasm tags for signals.
+    // TODO: ignored for now, use TMonitoringInfo.labels instead
     map<string, string> labels = 4 [(NYT.NYson.NProto.yson_map) = true];
     // Workload in pod which provides this endpoint.
     string workload_id = 5;
@@ -47,6 +48,11 @@ message TMonitoringInfo
     repeated TMonitoringUnistatEndpoint unistats = 1;
     repeated TMonitoringSubagentEndpoint yasm_subagents = 2;
     repeated TMonitoringSubagentEndpoint juggler_subagents = 3;
+    // Pod-wide yasm tags for signals.
+    // User-defined tags for deploy unit are stored here and then
+    // system tags are added by parts of Deploy stack
+    // until they arrive on node agent as part of pod spec.
+    map<string, string> labels = 4 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message THostInfraInfo
