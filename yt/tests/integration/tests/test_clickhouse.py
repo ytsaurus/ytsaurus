@@ -1360,7 +1360,7 @@ class TestJoinAndIn(ClickHouseTestBase):
 
         # Small values (uncomment for debugging):
         # row_count, key_range, chunk_count = 5, 7, 2
-        # Large values
+        # Large values:
         row_count, key_range, chunk_count = 300, 500, 15
 
         def generate_rows(row_count, key_range, chunk_count, payload_column_name, payload_value):
@@ -1440,7 +1440,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                         for globalness in ("", "global"):
                             for kind in ("inner", "left", "right", "full"):
                                 # TODO(max42): CHYT-182.
-                                if (globalness == "global" or rhs_arg == "(select * from \"//tmp/t2\")") and kind in ("right", "full"):
+                                if kind in ("right", "full"):
                                     continue
                                 query = \
                                     "select key, lhs, rhs from {lhs_arg} {globalness} {kind} join {rhs_arg} " \
