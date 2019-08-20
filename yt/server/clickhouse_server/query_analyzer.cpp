@@ -20,6 +20,8 @@ namespace NYT::NClickHouseServer {
 
 using namespace NChunkPools;
 using namespace NChunkClient;
+using namespace NTableClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +42,115 @@ void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPo
 TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo)
     : Context_(context)
     , QueryInfo_(queryInfo)
-    , Logger_(GetQueryContext(context)->Logger)
-{
-    const auto& Logger = Logger_;
+    , Logger(GetQueryContext(context)->Logger)
+{ }
 
+void TQueryAnalyzer::ValidateKeyColumns()
+{
+    const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
+    YT_VERIFY(Storages_.size() == 2);
+    YT_VERIFY(Storages_[0]);
+
+    struct TJoinArgument
+    {
+        int Index;
+        TTableSchema TableSchema;
+        std::vector<TRichYPath> Paths;
+        THashMap<TString, int> KeyColumnToIndex;
+        std::vector<TString> JoinColumns;
+    };
+
+    std::vector<TJoinArgument> joinArguments;
+
+    for (int index = 0; index < static_cast<int>(Storages_.size()); ++index) {
+        if (const auto& storage = Storages_[index]) {
+            auto& joinArgument = joinArguments.emplace_back();
+            joinArgument.Index = index;
+            joinArgument.TableSchema = storage->GetSchema();
+            for (
+                int columnIndex = 0;
+                columnIndex < static_cast<int>(joinArgument.TableSchema.GetKeyColumns().size());
+                ++columnIndex)
+            {
+                auto column = joinArgument.TableSchema.GetKeyColumns()[columnIndex];
+                joinArgument.KeyColumnToIndex[column] = columnIndex;
+            }
+
+            joinArgument.Paths = storage->GetTablePaths();
+            if (joinArgument.Paths.size() != 1) {
+                THROW_ERROR_EXCEPTION("Invalid JOIN: only single table may currently be joined")
+                    << TErrorAttribute("table_index", index)
+                    << TErrorAttribute("table_paths", joinArgument.Paths);
+            }
+        }
+    }
+
+    YT_VERIFY(joinArguments.size() >= 1);
+    YT_VERIFY(joinArguments.size() <= 2);
+
+    auto extractColumnNames = [] (const DB::ASTs& keyAsts) {
+        std::vector<TString> result;
+        for (const auto& keyAst : keyAsts) {
+            auto* identifier = keyAst->as<DB::ASTIdentifier>();
+            YT_VERIFY(identifier);
+            result.emplace_back(identifier->shortName());
+        }
+        return result;
+    };
+
+    joinArguments[0].JoinColumns = extractColumnNames(analyzedJoin.key_asts_left);
+    if (static_cast<int>(joinArguments.size()) == 2) {
+        joinArguments[1].JoinColumns = extractColumnNames(analyzedJoin.key_asts_right);
+    }
+
+    // Check that join columns occupy prefixes of the key columns.
+    for (const auto& joinArgument : joinArguments) {
+        int maxKeyColumnIndex = -1;
+        for (const auto& joinColumn : joinArgument.JoinColumns) {
+            auto it = joinArgument.KeyColumnToIndex.find(joinColumn);
+            if (it == joinArgument.KeyColumnToIndex.end()) {
+                THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", joinColumn)
+                    << TErrorAttribute("table_index", joinArgument.Index)
+                    << TErrorAttribute("column", joinColumn)
+                    << TErrorAttribute("key_columns", joinArgument.TableSchema.GetKeyColumns());
+            }
+            maxKeyColumnIndex = std::max(maxKeyColumnIndex, it->second);
+        }
+        if (maxKeyColumnIndex + 1 != static_cast<int>(joinArgument.JoinColumns.size())) {
+            THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined columns should form prefix of joined table key columns")
+                << TErrorAttribute("table_index", joinArgument.Index)
+                << TErrorAttribute("join_columns", joinArgument.JoinColumns)
+                << TErrorAttribute("key_columns", joinArgument.TableSchema.GetKeyColumns());
+        }
+    }
+
+    if (joinArguments.size() == 2) {
+        const auto& lhsSchema = joinArguments[0].TableSchema;
+        const auto& rhsSchema = joinArguments[1].TableSchema;
+        // Check that joined columns occupy same positions in both tables.
+        for (int index = 0; index < static_cast<int>(joinArguments[0].JoinColumns.size()); ++index) {
+            const auto& lhsColumn = joinArguments[0].JoinColumns[index];
+            const auto& rhsColumn = joinArguments[1].JoinColumns[index];
+            auto lhsIt = joinArguments[0].KeyColumnToIndex.find(lhsColumn);
+            auto rhsIt = joinArguments[1].KeyColumnToIndex.find(rhsColumn);
+            YT_VERIFY(lhsIt != joinArguments[0].KeyColumnToIndex.end());
+            YT_VERIFY(rhsIt != joinArguments[1].KeyColumnToIndex.end());
+            if (lhsIt->second != rhsIt->second) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid sorted JOIN: joined columns %Qv and %Qv do not occupy same positions in key columns of joined tables",
+                    lhsColumn,
+                    rhsColumn)
+                    << TErrorAttribute("lhs_column", lhsColumn)
+                    << TErrorAttribute("rhs_column", rhsColumn)
+                    << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
+                    << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
+            }
+        }
+    }
+}
+
+void TQueryAnalyzer::ParseQuery()
+{
     auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
 
     YT_VERIFY(selectQuery);
@@ -51,38 +158,45 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
 
     auto* tablesInSelectQuery = selectQuery->tables()->as<DB::ASTTablesInSelectQuery>();
     YT_VERIFY(tablesInSelectQuery);
-    for (auto& tableInSelectQuery : tablesInSelectQuery->children) {
+    YT_VERIFY(tablesInSelectQuery->children.size() >= 1);
+    YT_VERIFY(tablesInSelectQuery->children.size() <= 2);
+
+    for (int index = 0; index < static_cast<int>(tablesInSelectQuery->children.size()); ++index) {
+        auto& tableInSelectQuery = tablesInSelectQuery->children[index];
         auto* tablesElement = tableInSelectQuery->as<DB::ASTTablesInSelectQueryElement>();
         YT_VERIFY(tablesElement);
         if (!tablesElement->table_expression) {
+            // First element should always be table expression as it is the
+            YT_VERIFY(index != 0);
             continue;
         }
 
-        int index = TableExpressions_.size();
-
         YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
 
-        auto& tableExpression = tablesElement->table_expression;
+        if (index == 1) {
+            IsJoin_ = true;
+        }
 
-        bool isGlobal = false;
+        auto& tableExpression = tablesElement->table_expression;
 
         if (tablesElement->table_join) {
             const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
             YT_VERIFY(tableJoin);
             if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
                 YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
-                isGlobal = true;
+                IsGlobalJoin_ = true;
+            }
+            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Right) ||
+                static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Full))
+            {
+                YT_LOG_DEBUG("Query is a right or full join");
+                IsRightOrFullJoin_ = true;
             }
         }
 
-        if (!isGlobal) {
-            TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
-            YT_VERIFY(TableExpressions_.back());
-            TableExpressionPtrs_.emplace_back(&tableExpression);
-        } else {
-            TableExpressions_.emplace_back(nullptr);
-            TableExpressionPtrs_.emplace_back(nullptr);
-        }
+        TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
+        YT_VERIFY(TableExpressions_.back());
+        TableExpressionPtrs_.emplace_back(&tableExpression);
     }
 
     // At least first table expression should be the one that instantiated this query analyzer (aka owner).
@@ -90,95 +204,49 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
     // More than 2 tables are not supported in CH yet.
     YT_VERIFY(TableExpressions_.size() <= 2);
 
-    YT_LOG_DEBUG("Extracted table expressions from query (Query: %v, TableExpressionCount: %v)",
-        *QueryInfo_.query,
-        TableExpressions_.size());
-
     for (const auto& tableExpression : TableExpressions_) {
         auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
         if (storage) {
             YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
             ++YtTableCount_;
         } else {
-            if (tableExpression) {
-                YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
-            }
+            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
         }
     }
 
-    if (TableExpressions_.size() == 2 && Storages_[0] && Storages_[1]) {
-        ValidateJoin();
+    if (YtTableCount_ == 2) {
+        YT_LOG_DEBUG("Query is a two-YT-table join");
+        IsTwoYtTableJoin_ = true;
     }
+
+    YT_LOG_DEBUG(
+        "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
+        "IsJoin: %v, IsGlobalJoin: %v, IsRightOrFullJoin: %v)",
+        *QueryInfo_.query,
+        TableExpressions_.size(),
+        YtTableCount_,
+        IsJoin_,
+        IsGlobalJoin_,
+        IsRightOrFullJoin_);
 }
 
-void TQueryAnalyzer::ValidateJoin()
+void TQueryAnalyzer::AppendWhereCondition()
 {
-    const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
-    YT_VERIFY(Storages_.size() == 2);
-    YT_VERIFY(Storages_[0]);
-    YT_VERIFY(Storages_[1]);
-    const auto& lhsSchema = Storages_[0]->GetSchema();
-    const auto& rhsSchema = Storages_[1]->GetSchema();
-    const auto& lhsTablePaths = Storages_[0]->GetTablePaths();
-    const auto& rhsTablePaths = Storages_[1]->GetTablePaths();
-    if (lhsTablePaths.size() != 1 || rhsTablePaths.size() != 1) {
-        THROW_ERROR_EXCEPTION("Invalid sorted JOIN: only single tables may be joined")
-            << TErrorAttribute("lhs_table_paths", lhsTablePaths)
-            << TErrorAttribute("rhs_table_paths", rhsTablePaths);
-    }
-    THashMap<TString, int> lhsKeyColumns;
-    THashMap<TString, int> rhsKeyColumns;
-    for (int index = 0; index < static_cast<int>(lhsSchema.GetKeyColumns().size()); ++index) {
-        auto column = lhsSchema.GetKeyColumns()[index];
-        lhsKeyColumns[column] = index;
-    }
-    for (int index = 0; index < static_cast<int>(rhsSchema.GetKeyColumns().size()); ++index) {
-        auto column = rhsSchema.GetKeyColumns()[index];
-        rhsKeyColumns[column] = index;
-    }
-    int maxPosition = -1;
-    YT_VERIFY(analyzedJoin.key_names_left.size() == analyzedJoin.key_names_right.size());
-    for (int index = 0; index < static_cast<int>(analyzedJoin.key_names_left.size()); ++index) {
-        auto lhsJoinColumn = analyzedJoin.key_asts_left[index]->as<DB::ASTIdentifier>()->shortName();
-        auto rhsJoinColumn = analyzedJoin.key_asts_right[index]->as<DB::ASTIdentifier>()->shortName();
 
-        // NB: we should not validate type similarity here as it will be done by CH.
-        auto lhsIt = lhsKeyColumns.find(lhsJoinColumn);
-        auto rhsIt = rhsKeyColumns.find(rhsJoinColumn);
-        if (lhsIt == lhsKeyColumns.end()) {
-            THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", lhsJoinColumn)
-                << TErrorAttribute("column", lhsJoinColumn)
-                << TErrorAttribute("key_columns", lhsSchema.GetKeyColumns());
-        }
-        if (rhsIt == rhsKeyColumns.end()) {
-            THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", rhsJoinColumn)
-                << TErrorAttribute("column", rhsJoinColumn)
-                << TErrorAttribute("key_columns", rhsSchema.GetKeyColumns());
-        }
-        if (lhsIt->second != rhsIt->second) {
-            THROW_ERROR_EXCEPTION(
-                "Invalid sorted JOIN: joined columns %Qv and %Qv do not occupy same positions in key columns of joined tables",
-                lhsJoinColumn,
-                rhsJoinColumn)
-                << TErrorAttribute("lhs_column", lhsJoinColumn)
-                << TErrorAttribute("rhs_column", rhsJoinColumn)
-                << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
-                << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
-        }
-        maxPosition = std::max(maxPosition, lhsIt->second);
-    }
-
-    if (maxPosition + 1 != static_cast<int>(analyzedJoin.key_names_left.size())) {
-        THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined columns should form prefix of joined table key columns")
-            << TErrorAttribute("lhs_join_columns", analyzedJoin.key_names_left)
-            << TErrorAttribute("rhs_join_columns", analyzedJoin.key_names_right)
-            << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
-            << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
-    }
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze()
 {
+    ParseQuery();
+
+    if (IsTwoYtTableJoin_ || IsRightOrFullJoin_) {
+        ValidateKeyColumns();
+    }
+
+    if (IsRightOrFullJoin_) {
+        AppendWhereCondition();
+    }
+
     TQueryAnalysisResult result;
 
     for (const auto& storage : Storages_) {
@@ -195,12 +263,11 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         result.TableSchemas.emplace_back(storage->GetSchema());
     }
 
-    if (Storages_.size() == 1) {
-        // Regular unordered pool case.
-        result.PoolKind = EPoolKind::Unordered;
-    } else {
+    if (IsTwoYtTableJoin_ || IsRightOrFullJoin_) {
         result.PoolKind = EPoolKind::Sorted;
         result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join.key_names_left.size();
+    } else {
+        result.PoolKind = EPoolKind::Unordered;
     }
 
     return result;
@@ -208,7 +275,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
 DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripeLists, TSubquerySpec specTemplate, int subqueryIndex)
 {
-    auto Logger = TLogger(Logger_)
+    auto Logger = this->Logger
         .AddTag("SubqueryIndex: %v", subqueryIndex);
 
     i64 totalRowCount = 0;

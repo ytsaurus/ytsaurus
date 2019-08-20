@@ -39,14 +39,25 @@ public:
 private:
     const DB::Context& Context_;
     DB::SelectQueryInfo QueryInfo_;
-    NLogging::TLogger Logger_;
+    NLogging::TLogger Logger;
     std::vector<DB::ASTTableExpression*> TableExpressions_;
     int YtTableCount_ = 0;
     std::vector<DB::ASTPtr*> TableExpressionPtrs_;
     std::vector<std::shared_ptr<IStorageDistributor>> Storages_;
-    std::vector<std::vector<TString>> JoinUsing_;
+    //! If the query contains any kind of join.
+    bool IsJoin_ = false;
+    //! If the query contains global join.
+    bool IsGlobalJoin_ = false;
+    //! If the query is about outer right or outer full join.
+    bool IsRightOrFullJoin_ = false;
+    //! If the query joins two YT tables.
+    bool IsTwoYtTableJoin_ = false;
 
-    void ValidateJoin();
+    void ParseQuery();
+
+    void ValidateKeyColumns();
+
+    void AppendWhereCondition();
 
     std::shared_ptr<IStorageDistributor> GetStorage(const DB::ASTTableExpression* tableExpression) const;
 
