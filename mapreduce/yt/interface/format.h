@@ -49,6 +49,13 @@ TFormat TFormat::Protobuf() {
     return TFormat::Protobuf({T::descriptor()});
 }
 
+namespace NDetail {
+
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GetColumnName(const ::google::protobuf::FieldDescriptor& fieldDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 } // namespace NYT
