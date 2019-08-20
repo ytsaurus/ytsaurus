@@ -1,10 +1,22 @@
 from . import logger_config
 
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
 import logging
 
 logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARNING)
 
-LOGGER = logging.getLogger("Yt")
+try:
+    if yatest_common is not None and not int(yatest_common.get_param("inside_arcadia", True)):
+        LOGGER = logging.getLogger()
+    else:
+        LOGGER = logging.getLogger("Yt")
+except:
+    LOGGER = logging.getLogger("Yt")
+
 LOGGER.propagate = False
 LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
 if logger_config.LOG_PATH is None:

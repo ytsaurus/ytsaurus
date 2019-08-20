@@ -3,8 +3,8 @@ from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_reco
 
 from yt.common import to_native_str
 import yt.subprocess_wrapper as subprocess
-from yt.wrapper.spec_builders import VanillaSpecBuilder
 from yt.wrapper.ypath import YPath
+import yt.environment.arcadia_interop as arcadia_interop
 
 import yt.wrapper as yt
 
@@ -22,7 +22,8 @@ class TestJobTool(object):
     if yatest_common is None:
         JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool")
     else:
-        JOB_TOOL_BINARY = yatest_common.binary_path("yt/python/yt/wrapper/bin/yt-job-tool_make/yt-job-tool")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        JOB_TOOL_BINARY = yatest_common.binary_path(python_root + "/yt/wrapper/bin/yt-job-tool_make/yt-job-tool")
 
     TEXT_YSON = "<format=pretty>yson"
 
@@ -103,7 +104,9 @@ class TestJobTool(object):
         assert config["job_id"] == job_id
 
         if not check_running:
-            proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path], stderr=subprocess.PIPE)
+            proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path,
+                                     "--env", '{PATH="/bin:/usr/bin:' + os.environ["PATH"] +'"}'],
+                                    stderr=subprocess.PIPE)
             proc.wait()
 
             if expect_ok_return_code:
@@ -189,7 +192,7 @@ class TestJobTool(object):
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
-        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 
@@ -206,7 +209,7 @@ class TestJobTool(object):
                         spec={"mapper": {"environment": {"YT_JOB_TOOL_TEST_VARIABLE": "present"}}})
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
-        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 
@@ -264,7 +267,7 @@ class TestJobTool(object):
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, spec=spec)
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
-        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"FROM_BASH_ENV\nOK_COMMAND\n".encode("ascii")
 
@@ -282,7 +285,7 @@ class TestJobTool(object):
                         yt_files=["<file_name=\"table_as_file.json\";format=json>" + table_as_file])
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
-        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 

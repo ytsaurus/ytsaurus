@@ -1,6 +1,6 @@
 INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 
-SET(YT_TEST_SRCDIR yt/python/yt/wrapper/tests)
+SET(YT_TEST_SRCDIR ${YT_PYTHON_ROOT}/python/yt/wrapper/tests)
 
 SET(YT_TEST_SRCS
     __init__.py
@@ -56,22 +56,48 @@ DEPENDS(
     ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_ipython
 )
 
-DATA(
-    arcadia/${YT_PYTHON_ROOT}/python/yt
+RESOURCE_FILES(
+    PREFIX yt_python_test/
+    ../files/accumulate_c.py
+    ../files/bin.cpp
+    ../files/capitalize_b.py
+    ../files/collect.py
+    ../files/driver_catch_sigint.py
+    ../files/driver_read_request_catch_sigint.py
+    ../files/empty
+    ../files/getnumber.cpp
+    ../files/helpers.py
+    ../files/many_output.py
+    ../files/my_op.py
+    ../files/split.py
+    ../files/standalone_binary.py
+    ../files/stderr_download.py
+    ../files/yt_test_lib.cpp
+    ../test_mapreduce.sh
+    ../test_yt.sh
+    ../../bin/yt
+    ../../bin/mapreduce-yt
 )
 
-REQUIREMENTS(
-    ram_disk:56
-    cpu:4
-)
+# DATA(
+#     arcadia/${YT_PYTHON_ROOT}/python/yt
+# )
+
+# REQUIREMENTS(
+#     ram_disk:56
+#     cpu:4
+# )
 
 SIZE(LARGE)
 
 TAG(
     ya:fat
-    ya:force_sandbox
+    # ya:force_sandbox
 )
 
 FORK_TEST_FILES()
+FORK_TESTS()
+
+SPLIT_FACTOR(6)
 
 NO_LINT()
