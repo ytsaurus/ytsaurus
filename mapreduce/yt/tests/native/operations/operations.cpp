@@ -76,21 +76,19 @@ static void WaitOperationIsRunning(const IOperationPtr& operation)
     WaitOperationHasState(operation, "running");
 }
 
-static TString GetOperationPath(const TOperationId& operationId)
-{
-    auto idStr = GetGuidAsString(operationId);
-    auto lastTwoDigits = idStr.substr(idStr.size() - 2, 2);
-    return TStringBuilder() << "//sys/operations/" << lastTwoDigits << "/" << idStr;
-}
-
 static TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
 {
-    return client->Get(GetOperationPath(operationId) + "/@state").AsString();
+    const auto& state = client->GetOperation(operationId).State;
+    UNIT_ASSERT(state.Defined());
+    return *state;
 }
 
 static void EmulateOperationArchivation(IClientPtr& client, const TOperationId& operationId)
 {
-    client->Remove(GetOperationPath(operationId), TRemoveOptions().Recursive(true));
+    auto idStr = GetGuidAsString(operationId);
+    auto lastTwoDigits = idStr.substr(idStr.size() - 2, 2);
+    TString path = TStringBuilder() << "//sys/operations/" << lastTwoDigits << "/" << idStr;
+    client->Remove(path, TRemoveOptions().Recursive(true));
 }
 
 void CreateTableWithFooColumn(IClientPtr client, const TString& path)
@@ -961,8 +959,9 @@ Y_UNIT_TEST_SUITE(Operations)
             }
 
             {
-                auto failedJobs = client->Get(TStringBuilder() << "//sys/operations/" << operationId << "/@brief_progress/jobs/failed");
-                UNIT_ASSERT_VALUES_EQUAL(failedJobs.AsInt64(), maxFail);
+                const auto& briefProgress = client->GetOperation(operationId).BriefProgress;
+                UNIT_ASSERT(briefProgress);
+                UNIT_ASSERT_VALUES_EQUAL(briefProgress->Failed, maxFail);
             }
         }
     }
@@ -993,8 +992,9 @@ Y_UNIT_TEST_SUITE(Operations)
             operationId = e.GetOperationId();
         }
 
-        auto failedJobs = client->Get(TStringBuilder() << "//sys/operations/" << operationId << "/@brief_progress/jobs/failed");
-        UNIT_ASSERT_VALUES_EQUAL(failedJobs.AsInt64(), 1);
+        const auto& briefProgress = client->GetOperation(operationId).BriefProgress;
+        UNIT_ASSERT(briefProgress);
+        UNIT_ASSERT_VALUES_EQUAL(briefProgress->Failed, 1);
     }
 
     Y_UNIT_TEST(StderrTablePath)
@@ -1137,8 +1137,9 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         auto getJobCount = [=] (const TOperationId& operationId) {
-            auto result = client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@brief_progress/jobs/completed");
-            return (result.IsInt64() ? result : result["total"]).AsInt64();
+            const auto& briefProgress = client->GetOperation(operationId).BriefProgress;
+            UNIT_ASSERT(briefProgress);
+            return briefProgress->Completed;
         };
 
         std::function<TOperationId(ui32,ui64)> runOperationFunctionList[] = {
