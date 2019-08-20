@@ -84,7 +84,7 @@ def _add_binaries_to_path():
 
 def _which_yt_binaries():
     result = {}
-    binaries = ["ytserver-master", "ytserver-clock", "ytserver-node", "ytserver-scheduler"]
+    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
         if which(binary):
             version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)

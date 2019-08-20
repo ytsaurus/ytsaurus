@@ -288,7 +288,7 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
         for patch in NODE_CONFIG_PATCHES:
             update_inplace(config, patch)
 
-        for store_location in config.get("store_locations", []):
+        for store_location in config["data_node"].get("store_locations", []):
             for patch in NODE_STORE_LOCATION_PATCHES:
                 update_inplace(store_location, patch)
 
