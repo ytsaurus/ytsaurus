@@ -17,9 +17,11 @@ const TScalarAttributeSchema<TInternetAddress, TInternetAddress::TStatus> TInter
 
 TInternetAddress::TInternetAddress(
     const TObjectId& id,
+    const TObjectId& ip4AddressPoolId,
     IObjectTypeHandler* typeHandler,
     ISession* session)
-    : TObject(id, TObjectId(), typeHandler, session)
+    : TObject(id, ip4AddressPoolId, typeHandler, session)
+    , IP4AddressPool_(this)
     , Spec_(this, &SpecSchema)
     , Status_(this, &StatusSchema)
 { }

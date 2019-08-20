@@ -200,7 +200,8 @@ private:
                 return true;
             }
 
-            if (request.enable_internet() != allocation.has_internet_address()) {
+            const auto shouldAllocateIP4Address = request.enable_internet() || !request.ip4_address_pool_id().empty();
+            if (shouldAllocateIP4Address != allocation.has_internet_address()) {
                 return true;
             }
 

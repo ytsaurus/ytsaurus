@@ -10,19 +10,20 @@ namespace NYP::NServer::NNet {
 ////////////////////////////////////////////////////////////////////////////////
 
 void TInternetAddressManager::ReconcileState(
-    THashMap<TString, TQueue<TString>> moduleIdToAddressIds)
+    TIP4AddressPoolIdToFreeIP4Addresses ip4AddressPoolIdToFreeAddresses)
 {
-    ModuleIdToAddressIds_ = std::move(moduleIdToAddressIds);
+    IP4AddressPoolIdToFreeAddresses_ = std::move(ip4AddressPoolIdToFreeAddresses);
 }
 
 std::optional<TString> TInternetAddressManager::TakeInternetAddress(
-    const TString& networkModuleId)
+    const NObjects::TObjectId& ip4AddressPoolId,
+    const TNetworkModuleId& networkModuleId)
 {
-    if (!ModuleIdToAddressIds_.contains(networkModuleId)) {
+    if (!IP4AddressPoolIdToFreeAddresses_.contains({ip4AddressPoolId, networkModuleId})) {
         return std::nullopt;
     }
 
-    auto& queue = ModuleIdToAddressIds_[networkModuleId];
+    auto& queue = IP4AddressPoolIdToFreeAddresses_[std::make_pair(ip4AddressPoolId, networkModuleId)];
     if (queue.empty()) {
         return std::nullopt;
     }
@@ -42,11 +43,18 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
 
     for (int addressIndex = 0; addressIndex < ip6AddressRequests.size(); ++addressIndex) {
         const auto& ip6AddressRequest = ip6AddressRequests[addressIndex];
-        if (!ip6AddressRequest.enable_internet()) {
+        if (!ip6AddressRequest.enable_internet() && ip6AddressRequest.ip4_address_pool_id().empty()) {
             continue;
         }
 
-        auto scheduledInternetAddressId = TakeInternetAddress(node->Spec().Load().network_module_id());
+        NObjects::TObjectId ip4AddressPoolId;
+        if (ip6AddressRequest.has_ip4_address_pool_id()) {
+            ip4AddressPoolId = ip6AddressRequest.ip4_address_pool_id();
+        } else {
+            ip4AddressPoolId = GetDefaultIP4AddressPoolId();
+        }
+
+        auto scheduledInternetAddressId = TakeInternetAddress(ip4AddressPoolId, node->Spec().Load().network_module_id());
         if (!scheduledInternetAddressId) {
             THROW_ERROR_EXCEPTION("No spare internet addresses in network module %Qv for pod %Qv at node %Qv",
                 node->Spec().Load().network_module_id(),
@@ -77,9 +85,16 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
             auto* internetAddress = transaction->GetInternetAddress(allocation.internet_address().id());
             internetAddress->Status()->Clear();
             allocation.clear_internet_address();
-            ModuleIdToAddressIds_[internetAddress->Spec().Load().network_module_id()].push(internetAddress->GetId());
+            const auto& addressSpec = internetAddress->Spec().Load();
+            const auto& addressId = internetAddress->GetId();
+            const auto& ip4AddressPool = internetAddress->GetParentId();
+            IP4AddressPoolIdToFreeAddresses_[std::make_pair(ip4AddressPool, addressSpec.network_module_id())].push(addressId);
         }
     }
+}
+
+TString TInternetAddressManager::GetDefaultIP4AddressPoolId() {
+    return "default_ip4_address_pool";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

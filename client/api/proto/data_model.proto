@@ -782,11 +782,15 @@ message TPodSpec
         // If non-empty, full DNS name is prepended with this string (plus dot).
         optional string dns_prefix = 6;
 
-        // If true, internet tunnels is configured (InternetAddress is allocated and assigned to pod).
+        // If true, internet tunnels is configured (InternetAddress is allocated and assigned to pod). See st/YP-1213.
         optional bool enable_internet = 7;
 
         // If given, virtual service tunnels are configured.
         repeated string virtual_service_ids = 8;
+
+        // If given, InternetAddress is allocated in given pool.
+        // Otherwise InternetAddress is allocated in default pool if enable_internet is set.
+        optional string ip4_address_pool_id = 9;
     }
     // IP6 addresses to allocate for this pod upon assignment.
     repeated TIP6AddressRequest ip6_address_requests = 5 [(NYP.NClient.NApi.NProto.etc) = true];
@@ -1454,19 +1458,24 @@ message TInternetAddressStatus
     optional string pod_id = 1;
 }
 
+message TInternetAddressMetaBase
+{
+    optional string ip4_address_pool_id = 4;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 option (NYP.NClient.NApi.NProto.object_type) = {
-    camel_case_name: "IP4Pool"
-    snake_case_name: "ip4_pool"
+    camel_case_name: "IP4AddressPool"
+    snake_case_name: "ip4_address_pool"
     human_readable_name: "IP4 pool"
     type_value: 21
 };
 
-message TIP4PoolSpec
+message TIP4AddressPoolSpec
 { }
 
-message TIP4PoolStatus
+message TIP4AddressPoolStatus
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

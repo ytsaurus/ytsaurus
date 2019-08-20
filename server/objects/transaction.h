@@ -241,7 +241,7 @@ public:
 
     TPodDisruptionBudget* GetPodDisruptionBudget(const TObjectId& id);
 
-    TIP4Pool* GetIP4Pool(const TObjectId& id);
+    TIP4AddressPool* GetIP4AddressPool(const TObjectId& id);
 
     TFuture<TTransactionCommitResult> Commit();
     void Abort();

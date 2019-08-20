@@ -1,19 +1,19 @@
-#include "ip4_pool_type_handler.h"
+#include "ip4_address_pool_type_handler.h"
 
 #include "db_schema.h"
-#include "ip4_pool.h"
+#include "ip4_address_pool.h"
 #include "type_handler_detail.h"
 
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIP4PoolsTypeHandler
+class TIP4AddressPoolsTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TIP4PoolsTypeHandler(NMaster::TBootstrap* bootstrap)
-        : TObjectTypeHandlerBase(bootstrap, EObjectType::IP4Pool)
+    explicit TIP4AddressPoolsTypeHandler(NMaster::TBootstrap* bootstrap)
+        : TObjectTypeHandlerBase(bootstrap, EObjectType::IP4AddressPool)
     { }
 
     virtual void Initialize() override
@@ -21,25 +21,25 @@ public:
         TObjectTypeHandlerBase::Initialize();
 
         SpecAttributeSchema_
-            ->SetAttribute(TIP4Pool::SpecSchema);
+            ->SetAttribute(TIP4AddressPool::SpecSchema);
 
         StatusAttributeSchema_
-            ->SetAttribute(TIP4Pool::StatusSchema);
+            ->SetAttribute(TIP4AddressPool::StatusSchema);
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
     {
-        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TIP4Pool>();
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TIP4AddressPool>();
     }
 
     virtual const TDBTable* GetTable() override
     {
-        return &IP4PoolsTable;
+        return &IP4AddressPoolsTable;
     }
 
     virtual const TDBField* GetIdField() override
     {
-        return &IP4PoolsTable.Fields.Meta_Id;
+        return &IP4AddressPoolsTable.Fields.Meta_Id;
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(
@@ -48,13 +48,13 @@ public:
         ISession* session) override
     {
         YT_VERIFY(!parentId);
-        return std::unique_ptr<TObject>(new TIP4Pool(id, this, session));
+        return std::unique_ptr<TObject>(new TIP4AddressPool(id, this, session));
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateIP4PoolsTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreateIP4AddressPoolsTypeHandler(NMaster::TBootstrap* bootstrap)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TIP4PoolsTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TIP4AddressPoolsTypeHandler(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

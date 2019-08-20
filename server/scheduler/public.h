@@ -21,6 +21,7 @@ class TPodSet;
 class TNodeSegment;
 class TAccount;
 class TInternetAddress;
+class TIP4AddressPool;
 class TNetworkModule;
 class TResource;
 class TPodDisruptionBudget;

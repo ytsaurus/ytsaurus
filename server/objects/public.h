@@ -89,7 +89,7 @@ class TAccount;
 class TMultiClusterReplicaSet;
 class TStage;
 class TPodDisruptionBudget;
-class TIP4Pool;
+class TIP4AddressPool;
 
 class TAttributeSchema;
 
@@ -155,7 +155,7 @@ DEFINE_ENUM(EObjectType,
     // ((Node2)                  (18))
     ((Stage)                  (19))
     ((PodDisruptionBudget)    (20))
-    ((IP4Pool)                (21))
+    ((IP4AddressPool)         (21))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

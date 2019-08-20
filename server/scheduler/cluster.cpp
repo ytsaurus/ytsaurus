@@ -5,6 +5,7 @@
 #include "pod_set.h"
 #include "resource.h"
 #include "internet_address.h"
+#include "ip4_address_pool.h"
 #include "network_module.h"
 #include "topology_zone.h"
 #include "node_segment.h"
@@ -97,6 +98,7 @@ public:
     IMPLEMENT_ACCESSORS(PodSet, PodSets)
     IMPLEMENT_ACCESSORS(Pod, Pods)
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
+    IMPLEMENT_ACCESSORS(IP4AddressPool, IP4AddressPools)
     IMPLEMENT_ACCESSORS(Account, Accounts)
     IMPLEMENT_ACCESSORS(NetworkModule, NetworkModules)
     IMPLEMENT_ACCESSORS(Resource, Resources)
@@ -132,6 +134,23 @@ public:
                 Timestamp_);
 
             auto* session = transaction->GetSession();
+
+            PROFILE_TIMING("/cluster_snapshot/time/load_ip4_address_pools") {
+                session->ScheduleLoad(
+                    [&] (ILoadContext* context) {
+                        context->ScheduleSelect(
+                            GetIP4AddressPoolQueryString(),
+                            [&](const IUnversionedRowsetPtr& rowset) {
+                                YT_LOG_INFO("Parsing ip4 pools");
+                                for (auto row : rowset->GetRows()) {
+                                    ParseIP4AddressPoolFromRow(row);
+                                }
+                            });
+                    });
+
+                YT_LOG_INFO("Querying ip4 pools");
+                session->FlushLoads();
+            }
 
             PROFILE_TIMING("/cluster_snapshot/time/load_internet_addresses") {
                 session->ScheduleLoad(
@@ -324,6 +343,7 @@ private:
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
     THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
     THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
+    THashMap<TObjectId, std::unique_ptr<TIP4AddressPool>> IP4AddressPoolMap_;
     THashMap<TObjectId, std::unique_ptr<TNetworkModule>> NetworkModuleMap_;
     THashMap<TObjectId, std::unique_ptr<TResource>> ResourceMap_;
 
@@ -551,7 +571,8 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            InternetAddressesTable.Fields.Meta_IP4AddressPoolId.Name,
             InternetAddressesTable.Fields.Meta_Id.Name,
             InternetAddressesTable.Fields.Labels.Name,
             InternetAddressesTable.Fields.Spec.Name,
@@ -562,24 +583,71 @@ private:
 
     void ParseInternetAddressFromRow(TUnversionedRow row)
     {
+        TObjectId ip4AddressPoolId;
         TObjectId internetAddressId;
         TYsonString labels;
         NClient::NApi::NProto::TInternetAddressSpec spec;
         NClient::NApi::NProto::TInternetAddressStatus status;
         FromUnversionedRow(
             row,
+            &ip4AddressPoolId,
             &internetAddressId,
             &labels,
             &spec,
             &status);
 
+        auto* ip4AddressPool = FindIP4AddressPool(ip4AddressPoolId);
+        if (!ip4AddressPool) {
+            YT_LOG_WARNING("InternetAddress refers to an unknown IP4AddressPool (InternetAddressId: %v, Ip4AddressPoolId: %v)",
+                internetAddressId,
+                ip4AddressPoolId);
+            return;
+        }
+
         auto internetAddress = std::make_unique<TInternetAddress>(
             internetAddressId,
+            ip4AddressPoolId,
             std::move(labels),
             std::move(spec),
             std::move(status));
 
         YT_VERIFY(InternetAddressMap_.emplace(internetAddressId, std::move(internetAddress)).second);
+    }
+
+
+    TString GetIP4AddressPoolQueryString()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        return Format(
+            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            IP4AddressPoolsTable.Fields.Meta_Id.Name,
+            IP4AddressPoolsTable.Fields.Labels.Name,
+            IP4AddressPoolsTable.Fields.Spec.Name,
+            IP4AddressPoolsTable.Fields.Status.Name,
+            ytConnector->GetTablePath(&IP4AddressPoolsTable),
+            ObjectsTable.Fields.Meta_RemovalTime.Name);
+    }
+
+    void ParseIP4AddressPoolFromRow(TUnversionedRow row)
+    {
+        TObjectId ip4AddressPoolId;
+        TYsonString labels;
+        NClient::NApi::NProto::TIP4AddressPoolSpec spec;
+        NClient::NApi::NProto::TIP4AddressPoolStatus status;
+        FromUnversionedRow(
+            row,
+            &ip4AddressPoolId,
+            &labels,
+            &spec,
+            &status);
+
+        auto ip4AddressPool = std::make_unique<TIP4AddressPool>(
+            ip4AddressPoolId,
+            std::move(labels),
+            std::move(spec),
+            std::move(status));
+
+        YT_VERIFY(IP4AddressPoolMap_.emplace(ip4AddressPoolId, std::move(ip4AddressPool)).second);
     }
 
 
@@ -945,6 +1013,7 @@ private:
         PodSetMap_.clear();
         AccountMap_.clear();
         InternetAddressMap_.clear();
+        IP4AddressPoolMap_.clear();
         NetworkModuleMap_.clear();
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
@@ -1025,6 +1094,11 @@ TNodeSegment* TCluster::GetNodeSegmentOrThrow(const TObjectId& id)
 std::vector<TInternetAddress*> TCluster::GetInternetAddresses()
 {
     return Impl_->GetInternetAddresses();
+}
+
+std::vector<TIP4AddressPool*> TCluster::GetIP4AddressPools()
+{
+    return Impl_->GetIP4AddressPools();
 }
 
 std::vector<TAccount*> TCluster::GetAccounts()

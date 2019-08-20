@@ -510,12 +510,13 @@ extern const struct TInternetAddressesTable
     TInternetAddressesTable()
         : TDBTable("internet_addresses")
     {
-        Key = {&TObjectTableBase::Fields.Meta_Id};
+        Key = {&Fields.Meta_IP4AddressPoolId, &TObjectTableBase::Fields.Meta_Id};
     }
 
     struct TFields
         : public TObjectTableBase::TFields
     {
+        TDBField Meta_IP4AddressPoolId{"meta.ip4_address_pool_id", NTableClient::EValueType::String};
         TDBField Spec{"spec", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
@@ -523,12 +524,12 @@ extern const struct TInternetAddressesTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const struct TIP4PoolsTable
+extern const struct TIP4AddressPoolsTable
     : public TDBTable
     , public TObjectTableBase
 {
-    TIP4PoolsTable()
-        : TDBTable("ip4_pools")
+    TIP4AddressPoolsTable()
+        : TDBTable("ip4_address_pools")
     {
         Key = {&TObjectTableBase::Fields.Meta_Id};
     }
@@ -539,7 +540,7 @@ extern const struct TIP4PoolsTable
         TDBField Spec{"spec", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
-} IP4PoolsTable;
+} IP4AddressPoolsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

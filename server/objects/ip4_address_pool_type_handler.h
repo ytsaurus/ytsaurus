@@ -8,7 +8,7 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IObjectTypeHandler> CreateIP4PoolsTypeHandler(NMaster::TBootstrap* bootstrap);
+std::unique_ptr<IObjectTypeHandler> CreateIP4AddressPoolsTypeHandler(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

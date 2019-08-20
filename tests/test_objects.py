@@ -334,7 +334,11 @@ class TestObjects(object):
         _check("virtual_service")
         _check("user")
         _check("group")
-        _check("internet_address", attributes={"spec": {"ip4_address": "1.2.3.4", "network_module_id": "xyz"}})
+        _check("ip4_address_pool", attributes={"meta": {"acl": []}})
+        _check("internet_address", attributes={
+            "meta": {"ip4_address_pool_id": "default_ip4_address_pool"},
+            "spec": {"ip4_address": "1.2.3.4", "network_module_id": "xyz"}
+        })
         _check("dns_record_set")
         _check("account")
         _check("multi_cluster_replica_set")

@@ -9,7 +9,7 @@
 #include "group.h"
 #include "helpers.h"
 #include "internet_address.h"
-#include "ip4_pool.h"
+#include "ip4_address_pool.h"
 #include "network_project.h"
 #include "node.h"
 #include "node_segment.h"
@@ -736,9 +736,9 @@ public:
         return GetTypedObject<TPodDisruptionBudget>(id);
     }
 
-    TIP4Pool* GetIP4Pool(const TObjectId& id)
+    TIP4AddressPool* GetIP4AddressPool(const TObjectId& id)
     {
-        return GetTypedObject<TIP4Pool>(id);
+        return GetTypedObject<TIP4AddressPool>(id);
     }
 
 

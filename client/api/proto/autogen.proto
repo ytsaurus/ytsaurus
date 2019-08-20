@@ -67,8 +67,8 @@ enum EObjectType
     OT_INTERNET_ADDRESS = 11
     [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
 
-    OT_IP4_POOL = 21
-    [(NYT.NYson.NProto.enum_value_name) = "ip4_pool"];
+    OT_IP4_ADDRESS_POOL = 21
+    [(NYT.NYson.NProto.enum_value_name) = "ip4_address_pool"];
 
     OT_DNS_RECORD_SET = 14
     [(NYT.NYson.NProto.enum_value_name) = "dns_record_set"];
@@ -384,6 +384,8 @@ message TInternetAddressMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string ip4_address_pool_id = 4;
 }
 
 message TInternetAddress
@@ -397,7 +399,7 @@ message TInternetAddress
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TIP4PoolMeta
+message TIP4AddressPoolMeta
 {
     string id = 1;
     string uuid = 12;
@@ -408,11 +410,11 @@ message TIP4PoolMeta
     repeated TAccessControlEntry acl = 11;
 }
 
-message TIP4Pool
+message TIP4AddressPool
 {
-    TIP4PoolMeta meta = 1;
-    TIP4PoolSpec spec = 2;
-    TIP4PoolStatus status = 3;
+    TIP4AddressPoolMeta meta = 1;
+    TIP4AddressPoolSpec spec = 2;
+    TIP4AddressPoolStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

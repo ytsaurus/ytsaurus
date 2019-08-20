@@ -49,6 +49,9 @@ class TestInternetAddresses(object):
 
     def _create_inet_addr(self, yp_client, network_module_id, addr):
         inet_addr_id = yp_client.create_object("internet_address", attributes={
+                "meta": {
+                    "ip4_address_pool_id": "default_ip4_address_pool"
+                },
                 "spec": {
                     "ip4_address": addr,
                     "network_module_id": network_module_id,
@@ -98,7 +101,10 @@ class TestInternetAddresses(object):
         inet_addr_id = yp_client.create_object(
             object_type="internet_address",
             attributes={
-                "meta": {"id": "inet_addr"},
+                "meta": {
+                    "ip4_address_pool_id": "default_ip4_address_pool",
+                    "id": "inet_addr",
+                },
                 "spec": {
                     "ip4_address": "1.2.3.4",
                     "network_module_id": "VLA01,VLA02,VLA03"

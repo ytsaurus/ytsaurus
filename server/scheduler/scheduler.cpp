@@ -390,15 +390,16 @@ private:
             const TClusterPtr& cluster,
             NNet::TInternetAddressManager* internetAddressManager)
         {
-            THashMap<TString, TQueue<TString>> moduleIdToAddressIds;
+            NNet::TIP4AddressPoolIdToFreeIP4Addresses ip4AddressPoolIdToFreeAddresses;
             for (auto* address : cluster->GetInternetAddresses()) {
                 if (!address->Status().has_pod_id()) {
+                    const auto& ip4AddressPoolId = address->GetParentId();
                     const auto& networkModuleId = address->Spec().network_module_id();
-                    moduleIdToAddressIds[networkModuleId].push(address->GetId());
+                    ip4AddressPoolIdToFreeAddresses[std::make_pair(ip4AddressPoolId, networkModuleId)].push(address->GetId());
                 }
             }
 
-            internetAddressManager->ReconcileState(std::move(moduleIdToAddressIds));
+            internetAddressManager->ReconcileState(std::move(ip4AddressPoolIdToFreeAddresses));
         }
 
         void RevokePodsWithAcknowledgedEviction()

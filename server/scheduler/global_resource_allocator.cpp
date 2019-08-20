@@ -146,7 +146,7 @@ public:
                 statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressVlan);
                 result = false;
             }
-            if (addressRequest.enable_internet()) {
+            if (addressRequest.enable_internet() || !addressRequest.ip4_address_pool_id().empty()) {
                 ++internetAddressCount;
             }
         }

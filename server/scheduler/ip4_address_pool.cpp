@@ -1,17 +1,15 @@
-#include "internet_address.h"
+#include "ip4_address_pool.h"
 
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInternetAddress::TInternetAddress(
+TIP4AddressPool::TIP4AddressPool(
     const TObjectId& id,
-    const TObjectId& ip4AddressPoolId,
     NYT::NYson::TYsonString labels,
-    NClient::NApi::NProto::TInternetAddressSpec spec,
-    NClient::NApi::NProto::TInternetAddressStatus status)
+    NClient::NApi::NProto::TIP4AddressPoolSpec spec,
+    NClient::NApi::NProto::TIP4AddressPoolStatus status)
     : TObject(id, std::move(labels))
-    , ParentId_(ip4AddressPoolId)
     , Spec_(spec)
     , Status_(status)
 { }

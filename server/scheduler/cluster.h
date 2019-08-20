@@ -33,6 +33,7 @@ public:
     TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id);
 
     std::vector<TInternetAddress*> GetInternetAddresses();
+    std::vector<TIP4AddressPool*> GetIP4AddressPools();
 
     std::vector<TAccount*> GetAccounts();
 

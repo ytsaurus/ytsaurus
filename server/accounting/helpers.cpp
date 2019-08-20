@@ -48,7 +48,7 @@ ui64 GetInternetAddressCapacityFromRequests(const NObjects::TPodIP6AddressReques
 {
     ui64 result = 0;
     for (const auto& request : requests) {
-        if (request.enable_internet()) {
+        if (request.enable_internet() || !request.ip4_address_pool_id().empty()) {
             ++result;
         }
     }

@@ -1,7 +1,7 @@
-#include "virtual_service_type_handler.h"
-#include "type_handler_detail.h"
-#include "internet_address.h"
 #include "db_schema.h"
+#include "internet_address.h"
+#include "ip4_address_pool.h"
+#include "type_handler_detail.h"
 
 namespace NYP::NServer::NObjects {
 
@@ -18,6 +18,13 @@ public:
     virtual void Initialize() override
     {
         TObjectTypeHandlerBase::Initialize();
+
+        MetaAttributeSchema_
+            ->AddChildren({
+                ParentIdAttributeSchema_ = MakeAttributeSchema("ip4_address_pool_id")
+                    ->SetParentIdAttribute()
+                    ->SetMandatory()
+            });
 
         SpecAttributeSchema_
             ->SetAttribute(TInternetAddress::SpecSchema);
@@ -41,13 +48,32 @@ public:
         return &InternetAddressesTable.Fields.Meta_Id;
     }
 
+    virtual EObjectType GetParentType() override
+    {
+        return EObjectType::IP4AddressPool;
+    }
+
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TInternetAddress>()->IP4AddressPool().Load();
+    }
+
+    virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
+    {
+        return &parent->As<TIP4AddressPool>()->InternetAddresses();
+    }
+
+    virtual const TDBField* GetParentIdField() override
+    {
+        return &InternetAddressesTable.Fields.Meta_IP4AddressPoolId;
+    }
+
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
         const TObjectId& parentId,
         ISession* session) override
     {
-        YT_VERIFY(!parentId);
-        return std::unique_ptr<TObject>(new TInternetAddress(id, this, session));
+        return std::unique_ptr<TObject>(new TInternetAddress(id, parentId, this, session));
     }
 };
 

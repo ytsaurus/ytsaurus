@@ -10,26 +10,29 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIP4Pool
+class TIP4AddressPool
     : public TObject
-    , public NYT::TRefTracked<TIP4Pool>
+    , public NYT::TRefTracked<TIP4AddressPool>
 {
 public:
-    static constexpr EObjectType Type = EObjectType::IP4Pool;
+    static constexpr EObjectType Type = EObjectType::IP4AddressPool;
 
-    TIP4Pool(
+    TIP4AddressPool(
         const TObjectId& id,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
 
-    using TSpec = NYP::NClient::NApi::NProto::TIP4PoolSpec;
-    static const TScalarAttributeSchema<TIP4Pool, TSpec> SpecSchema;
+    using TInternetAddressesAttribute = TChildrenAttribute<TInternetAddress>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TInternetAddressesAttribute, InternetAddresses);
+
+    using TSpec = NYP::NClient::NApi::NProto::TIP4AddressPoolSpec;
+    static const TScalarAttributeSchema<TIP4AddressPool, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
-    using TStatus = NYP::NClient::NApi::NProto::TIP4PoolStatus;
-    static const TScalarAttributeSchema<TIP4Pool, TStatus> StatusSchema;
+    using TStatus = NYP::NClient::NApi::NProto::TIP4AddressPoolStatus;
+    static const TScalarAttributeSchema<TIP4AddressPool, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };
 

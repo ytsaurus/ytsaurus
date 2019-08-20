@@ -9,7 +9,7 @@
 #include "endpoint_type_handler.h"
 #include "group_type_handler.h"
 #include "internet_address_type_handler.h"
-#include "ip4_pool_type_handler.h"
+#include "ip4_address_pool_type_handler.h"
 #include "multi_cluster_replica_set_type_handler.h"
 #include "network_project_type_handler.h"
 #include "node_segment_type_handler.h"
@@ -89,7 +89,7 @@ public:
         RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreateIP4PoolsTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateIP4AddressPoolsTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));

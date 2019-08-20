@@ -109,7 +109,7 @@ def main(arguments):
     if not arguments.dry_run:
         db_manager.run_map("pods", abort_pod_eviction)
 
-    db_manager.mount_tables()
+    db_manager.mount_unmounted_tables()
 
 
 def parse_arguments():
