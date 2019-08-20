@@ -251,5 +251,7 @@ message TTvmConfig
 
 message TLogbrokerConfig {
     // Custom push agent.
-    TDownloadableResource push_agent_binary = 6;
+    TDownloadableResource push_agent_layer = 1;
+    reserved 6;
+    reserved "push_agent_binary";
 }
