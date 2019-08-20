@@ -4,7 +4,7 @@
 
 from typing import overload
 from typing import Any, Callable, Dict, List, Optional, TypeVar
-from pyspark.ml.util import Identifiable
+import pyspark.ml.util
 from pyspark.ml.linalg import DenseVector, Matrix
 
 U = TypeVar('U')
@@ -43,7 +43,7 @@ class TypeConverters:
     @staticmethod
     def toBoolean(value: Any) -> bool: ...
 
-class Params(Identifiable):
+class Params(pyspark.ml.util.Identifiable):
     __metaclass__ = ...  # type: Any
     def __init__(self) -> None: ...
     @property
