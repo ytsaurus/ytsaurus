@@ -56,6 +56,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    void OnDynamicConfigChanged();
     const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
     bool IsEnabled();
     void ScanCells();
@@ -69,6 +70,9 @@ TTabletTracker::TImpl::TImpl(NCellMaster::TBootstrap* bootstrap)
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TTabletTracker::TImpl::Start()
@@ -97,6 +101,13 @@ void TTabletTracker::TImpl::Stop()
     }
 
     TabletTrackerImpl_.Reset();
+}
+
+void TTabletTracker::TImpl::OnDynamicConfigChanged()
+{
+    if (PeriodicExecutor_) {
+        PeriodicExecutor_->SetPeriod(GetDynamicConfig()->CellScanPeriod);
+    }
 }
 
 const TDynamicTabletManagerConfigPtr& TTabletTracker::TImpl::GetDynamicConfig()
