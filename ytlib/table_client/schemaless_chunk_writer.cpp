@@ -6,6 +6,7 @@
 #include "table_ypath_proxy.h"
 #include "helpers.h"
 #include "skynet_column_evaluator.h"
+#include "versioned_chunk_writer.h"
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
@@ -37,6 +38,7 @@
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaless_row_reorderer.h>
@@ -53,6 +55,8 @@
 
 #include <yt/core/ytree/helpers.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -62,6 +66,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTableClient::NProto;
 using namespace NTableChunkFormat;
+using namespace NTabletClient;
 using namespace NRpc;
 using namespace NApi;
 using namespace NTransactionClient;
@@ -1432,6 +1437,253 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnversionedUpdateMultiChunkWriterTag {};
+
+class TUnversionedUpdateMultiChunkWriter
+    : public TSchemalessMultiChunkWriterBase
+{
+public:
+    TUnversionedUpdateMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        NNative::IClientPtr client,
+        TCellTag cellTag,
+        TTransactionId transactionId,
+        TChunkListId parentChunkListId,
+        std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        TOwningKey lastKey,
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
+        : TSchemalessMultiChunkWriterBase(
+            config,
+            options,
+            client,
+            cellTag,
+            transactionId,
+            parentChunkListId,
+            nameTable,
+            schema.ToUnversionedUpdate(),
+            lastKey,
+            trafficMeter,
+            throttler,
+            blockCache)
+        , CreateChunkWriter_(createChunkWriter)
+        , OriginalSchema_(schema)
+    { }
+
+    virtual bool Write(TRange<TUnversionedRow> rows) override
+    {
+        YT_VERIFY(!SwitchingSession_);
+
+        try {
+            auto reorderedRows = ReorderAndValidateRows(rows);
+
+            RowBuffer_->Clear();
+            std::vector<TVersionedRow> versionedRows;
+            versionedRows.reserve(reorderedRows.size());
+            for (const auto& row : reorderedRows) {
+                versionedRows.push_back(MakeVersionedRow(row));
+            }
+
+            // Return true if current writer is ready for more data and
+            // we didn't switch to the next chunk.
+            bool readyForMore = CurrentWriter_->Write(versionedRows);
+            bool switched = TrySwitchSession();
+            return readyForMore && !switched;
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            return false;
+        }
+    }
+
+private:
+    const std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
+    TTableSchema OriginalSchema_;
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TUnversionedUpdateMultiChunkWriterTag());
+
+    IVersionedChunkWriterPtr CurrentWriter_;
+
+    virtual TNameTablePtr GetChunkNameTable() override
+    {
+        return GetNameTable();
+    }
+
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    {
+        CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
+        ResetIdMapping();
+        return CurrentWriter_;
+    }
+
+    EUnversionedUpdateDataFlags FlagsFromValue(TUnversionedValue value) const
+    {
+        return value.Type == EValueType::Null
+            ? EUnversionedUpdateDataFlags{}
+            : FromUnversionedValue<EUnversionedUpdateDataFlags>(value);
+    }
+
+    int ToOriginalId(int id, int keyColumnCount) const
+    {
+        return (id - keyColumnCount - 1) / 2 + keyColumnCount;
+    }
+
+    void ValidateModificationType(ERowModificationType modificationType) const
+    {
+        if (modificationType != ERowModificationType::Write && modificationType != ERowModificationType::Delete) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Unknown modification type with raw value %v",
+                ToUnderlying(modificationType));
+        }
+    }
+
+    void ValidateFlags(TUnversionedValue flags, const NTableClient::TColumnSchema& columnSchema) const
+    {
+        if (flags.Type == EValueType::Null) {
+            return;
+        }
+        YT_ASSERT(flags.Type == EValueType::Uint64);
+        if (flags.Data.Uint64 > ToUnderlying(MaxValidUnversionedUpdateDataFlags)) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Flags column %Qv has value %v which exceeds its maximum value %v",
+                columnSchema.Name(),
+                flags.Data.Uint64,
+                ToUnderlying(MaxValidUnversionedUpdateDataFlags));
+        }
+    }
+
+    void ValidateValueColumns(TUnversionedRow row, int keyColumnCount, bool isKey) const
+    {
+        if (isKey) {
+            for (int index = keyColumnCount + 1; index < row.GetCount(); ++index) {
+                if (row[index].Type != EValueType::Null) {
+                    THROW_ERROR_EXCEPTION(
+                        EErrorCode::SchemaViolation,
+                        "Column %Qv must be %Qlv when modification type is \"delete\"",
+                        Schema_.Columns()[index].Name(),
+                        EValueType::Null);
+                }
+            }
+        } else {
+            for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+                // NB. All validation is done in ReorderAndValidateRows so here we safely
+                // assume these conditions to be true.
+                YT_ASSERT(row[index].Id == index);
+                YT_ASSERT(index + 1 < row.GetCount());
+                YT_ASSERT(row[index + 1].Id == row[index].Id + 1);
+
+                const auto& value = row[index];
+                const auto& flags = row[index + 1];
+                int originalId = ToOriginalId(value.Id, keyColumnCount);
+
+                ValidateFlags(flags, Schema_.Columns()[index + 1]);
+
+                bool isMissing = Any(FlagsFromValue(flags) & EUnversionedUpdateDataFlags::Missing);
+
+                const auto& columnSchema = OriginalSchema_.Columns()[originalId];
+                if (columnSchema.Required()) {
+                    if (isMissing) {
+                        THROW_ERROR_EXCEPTION(
+                            EErrorCode::SchemaViolation,
+                            "Flags for required column %Qv cannot have %Qlv bit set",
+                            columnSchema.Name(),
+                            EUnversionedUpdateDataFlags::Missing);
+                    }
+                    if (value.Type == EValueType::Null) {
+                        THROW_ERROR_EXCEPTION(
+                            EErrorCode::SchemaViolation,
+                            "Required column %Qv cannot have %Qlv value",
+                            columnSchema.Name(),
+                            value.Type);
+                    }
+                }
+            }
+        }
+    }
+
+    TVersionedRow MakeVersionedRow(const TUnversionedRow row)
+    {
+        if (!row) {
+            return TVersionedRow();
+        }
+
+        int keyColumnCount = OriginalSchema_.GetKeyColumnCount();
+
+        for (int index = 0; index < keyColumnCount; ++index) {
+            YT_ASSERT(row[index].Id == index);
+        }
+
+        YT_ASSERT(row[keyColumnCount].Id == keyColumnCount);
+
+        auto modificationType = ERowModificationType(row[keyColumnCount].Data.Int64);
+        ValidateModificationType(modificationType);
+        ValidateValueColumns(row, keyColumnCount, modificationType == ERowModificationType::Delete);
+
+        switch (modificationType) {
+            case ERowModificationType::Write: {
+                int valueColumnCount = 0;
+
+                for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+                    auto flags = FlagsFromValue(row[index + 1]);
+                    if (None(flags & EUnversionedUpdateDataFlags::Missing)) {
+                        ++valueColumnCount;
+                    }
+                }
+
+                auto versionedRow = TMutableVersionedRow::Allocate(
+                    RowBuffer_->GetPool(),
+                    keyColumnCount,
+                    valueColumnCount,
+                    1,
+                    0);
+
+                ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
+
+                TVersionedValue* currentValue = versionedRow.BeginValues();
+                for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+                    auto flags = FlagsFromValue(row[index + 1]);
+
+                    if (Any(flags & EUnversionedUpdateDataFlags::Missing)) {
+                        continue;
+                    }
+
+                    // NB: Any timestamp works here. The reader will replace it with the correct one.
+                    *currentValue = MakeVersionedValue(row[index], MinTimestamp);
+                    currentValue->Id = ToOriginalId(currentValue->Id, keyColumnCount);
+                    currentValue->Aggregate = Any(flags & EUnversionedUpdateDataFlags::Aggregate);
+                    ++currentValue;
+                }
+
+                versionedRow.BeginWriteTimestamps()[0] = MinTimestamp;
+                return versionedRow;
+            }
+
+            case ERowModificationType::Delete: {
+                auto versionedRow = TMutableVersionedRow::Allocate(
+                    RowBuffer_->GetPool(),
+                    keyColumnCount,
+                    0,
+                    0,
+                    1);
+
+                ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
+
+                versionedRow.BeginDeleteTimestamps()[0] = MinTimestamp;
+
+                return versionedRow;
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+};
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -1447,34 +1699,71 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
-        return CreateSchemalessChunkWriter(
-            config,
-            options,
-            schema,
-            underlyingWriter,
-            chunkTimestamps,
-            blockCache);
-    };
+    switch (options->OutputChunkFormat) {
+        case EOutputChunkFormat::Unversioned: {
+            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+                return CreateSchemalessChunkWriter(
+                    config,
+                    options,
+                    schema,
+                    underlyingWriter,
+                    chunkTimestamps,
+                    blockCache);
+            };
 
-    auto writer = New<TSchemalessMultiChunkWriter>(
-        config,
-        options,
-        client,
-        cellTag,
-        transactionId,
-        parentChunkListId,
-        createChunkWriter,
-        nameTable,
-        schema,
-        lastKey,
-        trafficMeter,
-        throttler,
-        blockCache);
+            auto writer = New<TSchemalessMultiChunkWriter>(
+                config,
+                options,
+                client,
+                cellTag,
+                transactionId,
+                parentChunkListId,
+                createChunkWriter,
+                nameTable,
+                schema,
+                lastKey,
+                trafficMeter,
+                throttler,
+                blockCache);
 
-    writer->Init();
+            writer->Init();
 
-    return writer;
+            return writer;
+        }
+
+        case EOutputChunkFormat::UnversionedUpdate: {
+            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+                return CreateVersionedChunkWriter(
+                    config,
+                    options,
+                    schema,
+                    underlyingWriter,
+                    blockCache);
+            };
+
+            auto writer = New<TUnversionedUpdateMultiChunkWriter>(
+                config,
+                options,
+                client,
+                cellTag,
+                transactionId,
+                parentChunkListId,
+                createChunkWriter,
+                nameTable,
+                schema,
+                lastKey,
+                trafficMeter,
+                throttler,
+                blockCache);
+
+            writer->Init();
+
+            return writer;
+        }
+
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,11 +37,7 @@ protected:
 
     std::unique_ptr<TChunkOwner> DoCreateImpl(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account,
+        const NCypressServer::TCreateNodeContext& context,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         NErasure::ECodec erasureCodec);

@@ -96,7 +96,7 @@ def _reset_nodes(driver=None):
         if node.attributes["user_tags"] != []:
             requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@user_tags".format(node_name), input=[]))
 
-    responses = yt_commands.execute_batch(requests)
+    responses = yt_commands.execute_batch(requests, driver=driver)
     for response in responses:
         assert not yt_commands.get_batch_output(response)
 
@@ -287,8 +287,15 @@ def patch_subclass(parent, skip_condition, reason=""):
                 setattr(cls, attr, build_skipped_method(parent.__dict__[attr],
                                                         cls, skip_condition, reason))
                 for key in parent.__dict__[attr].__dict__:
-                    if key == "parametrize" or "flaky" in key or "skip" in key:
+                    if key == "parametrize" or "flaky" in key or "skip" in key or key == "authors":
                         cls.__dict__[attr].__dict__[key] = parent.__dict__[attr].__dict__[key]
+
+                    if key == "pytestmark":
+                        if key in cls.__dict__[attr].__dict__:
+                            cls.__dict__[attr].__dict__[key] += parent.__dict__[attr].__dict__[key]
+                        else:
+                            cls.__dict__[attr].__dict__[key] = parent.__dict__[attr].__dict__[key]
+
         return cls
 
     return patcher
@@ -459,6 +466,7 @@ class Restarter(object):
 
 class YTEnvSetup(object):
     NUM_MASTERS = 3
+    NUM_CLOCKS = 0
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
@@ -467,7 +475,7 @@ class YTEnvSetup(object):
     DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
-    ENABLE_PROXY = False
+    ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 1
     HTTP_PROXY_PORTS = None
     ENABLE_RPC_PROXY = None
@@ -552,11 +560,12 @@ class YTEnvSetup(object):
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
+            clock_count=cls.get_param("NUM_CLOCKS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
-            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_PROXY", index) else 0,
+            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),

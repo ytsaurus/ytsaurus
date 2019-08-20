@@ -315,7 +315,7 @@ public:
                 type,
                 name
             ] (TCGExprContext& builder) {
-                auto unversionedValueType = llvm::TypeBuilder<TValue, false>::get(builder->getContext());
+                auto unversionedValueType = TTypeBuilder<TValue>::Get(builder->getContext());
 
                 auto resultPtr = builder->CreateAlloca(unversionedValueType, nullptr, "resultPtr");
                 auto valuePtr = builder->CreateAlloca(unversionedValueType);

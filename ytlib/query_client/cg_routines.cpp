@@ -44,18 +44,18 @@
 
 #include <string.h>
 
-namespace llvm {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Cross>
-class TypeBuilder<re2::RE2*, Cross>
-    : public TypeBuilder<void*, Cross>
+template <>
+struct TTypeBuilder<re2::RE2*>
+    : public TTypeBuilder<void*>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace llvm
+} // namespace NYT::NCodegen
 
 namespace NYT::NQueryClient {
 namespace NRoutines {

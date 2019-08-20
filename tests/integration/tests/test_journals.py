@@ -16,6 +16,7 @@ class TestJournals(YTEnvSetup):
         write_journal(path, data)
         wait_until_sealed(path)
 
+    @authors("ignat")
     def test_create_success(self):
         create("journal", "//tmp/j")
         assert get("//tmp/j/@replication_factor") == 3
@@ -26,12 +27,14 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@row_count") == 0
         assert get("//tmp/j/@chunk_ids") == []
 
+    @authors("babenko", "ignat")
     def test_create_failure(self):
         with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"replication_factor": 1})
         with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"read_quorum": 4})
         with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"write_quorum": 4})
         with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"replication_factor": 4})
 
+    @authors("babenko", "ignat")
     def test_readwrite1(self):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
@@ -43,6 +46,7 @@ class TestJournals(YTEnvSetup):
         for i in xrange(0, len(self.DATA)):
             assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [{"data" : "payload" + str(i)}]
 
+    @authors("babenko", "ignat")
     def test_readwrite2(self):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
@@ -60,6 +64,7 @@ class TestJournals(YTEnvSetup):
 
         assert read_journal("//tmp/j[#200:]") == []
 
+    @authors("babenko")
     def test_resource_usage(self):
         wait(lambda: get_account_committed_disk_space("tmp") == 0)
 
@@ -84,10 +89,12 @@ class TestJournals(YTEnvSetup):
         wait(lambda: get_account_committed_disk_space("tmp") == 0 and \
                      get_account_disk_space("tmp") == 0)
 
+    @authors("babenko")
     def test_no_copy(self):
         create("journal", "//tmp/j1")
         with pytest.raises(YtError): copy("//tmp/j1", "//tmp/j2")
 
+    @authors("babenko")
     def test_move(self):
         create("journal", "//tmp/j1")
         self._write_and_wait_until_sealed("//tmp/j1", self.DATA)
@@ -95,12 +102,14 @@ class TestJournals(YTEnvSetup):
         move('//tmp/j1', '//tmp/j2')
         assert read_journal("//tmp/j2") == self.DATA
 
+    @authors("babenko")
     def test_no_storage_change_after_creation(self):
         create("journal", "//tmp/j", attributes={"replication_factor": 5, "read_quorum": 3, "write_quorum": 3})
         with pytest.raises(YtError): set("//tmp/j/@replication_factor", 6)
         with pytest.raises(YtError): set("//tmp/j/@vital", False)
         with pytest.raises(YtError): set("//tmp/j/@primary_medium", "default")
 
+    @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
@@ -163,6 +172,7 @@ class TestJournals(YTEnvSetup):
 
         wait(replicator_has_done_well)
 
+    @authors("kiselyovp")
     def test_write_future_semantics(self):
         create("journal", "//tmp/j1")
         write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
@@ -176,5 +186,5 @@ class TestJournalsMulticell(TestJournals):
 class TestJournalsRpcProxy(TestJournals):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

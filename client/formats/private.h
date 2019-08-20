@@ -1,11 +1,13 @@
-package NYT.NTransactionServer.NProto;
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCommitTimestamp
-{
-    required int64 timestamp = 1;
-}
+DECLARE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NYT::NFormats

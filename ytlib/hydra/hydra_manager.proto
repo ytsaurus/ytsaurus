@@ -25,6 +25,7 @@ message TMutationHeader
     required int32 segment_id = 5;
     required int32 record_id = 6;
     optional NYT.NProto.TGuid mutation_id = 7;
+    optional int32 reign = 8 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

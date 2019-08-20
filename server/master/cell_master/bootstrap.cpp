@@ -56,7 +56,6 @@
 #include <yt/server/master/tablet_server/replicated_table_tracker.h>
 
 #include <yt/server/master/transaction_server/cypress_integration.h>
-#include <yt/server/master/transaction_server/timestamp_manager.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/server/master/transaction_server/transaction_service.h>
 
@@ -65,6 +64,8 @@
 #include <yt/server/lib/admin/admin_service.h>
 
 #include <yt/server/lib/core_dump/core_dumper.h>
+
+#include <yt/server/lib/timestamp_server/timestamp_manager.h>
 
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -118,34 +119,35 @@
 
 namespace NYT::NCellMaster {
 
-using namespace NApi;
 using namespace NAdmin;
+using namespace NApi;
 using namespace NBus;
-using namespace NRpc;
-using namespace NNet;
-using namespace NYTree;
+using namespace NChunkServer;
+using namespace NConcurrency;
+using namespace NCypressServer;
 using namespace NElection;
-using namespace NHydra;
+using namespace NFileServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
+using namespace NHydra;
+using namespace NJournalServer;
+using namespace NJournalServer;
+using namespace NMonitoring;
+using namespace NNet;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
-using namespace NTransactionClient;
-using namespace NTransactionServer;
-using namespace NChunkServer;
-using namespace NJournalServer;
-using namespace NObjectServer;
 using namespace NObjectClient;
-using namespace NCypressServer;
-using namespace NMonitoring;
+using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NConcurrency;
-using namespace NFileServer;
-using namespace NTableServer;
-using namespace NJournalServer;
+using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NTableServer;
 using namespace NTabletServer;
+using namespace NTimestampServer;
+using namespace NTransactionClient;
+using namespace NTransactionServer;
+using namespace NYTree;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionManagerPtr;

@@ -29,6 +29,37 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCallbackChunkSliceFetcherFactory
+    : public IChunkSliceFetcherFactory
+{
+public:
+    TCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
+        : FactoryCallback_(std::move(factoryCallback))
+    { }
+
+    virtual IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
+    {
+        return FactoryCallback_();
+    }
+
+
+    virtual void Persist(const TPersistenceContext& context) override
+    {
+        // This implementation is not persistable.
+        Y_UNREACHABLE();
+    }
+
+private:
+    TCallback<IChunkSliceFetcherPtr()> FactoryCallback_;
+};
+
+IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
+{
+    return New<TCallbackChunkSliceFetcherFactory>(std::move(factoryCallback));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSortedJobOptions::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -72,12 +103,17 @@ public:
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , Task_(options.Task)
+        , RowBuffer_(options.RowBuffer)
     {
         ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
+
+        if (!RowBuffer_) {
+            RowBuffer_ = New<TRowBuffer>();
+        }
 
         YT_LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
@@ -209,6 +245,7 @@ public:
             Logger.AddTag("OperationId: %v", OperationId_);
             Logger.AddTag("Task: %v", Task_);
             JobManager_->SetLogger(Logger);
+            RowBuffer_ = New<TRowBuffer>();
         }
     }
 
@@ -257,7 +294,7 @@ private:
 
     TGuid ChunkPoolId_ = TGuid::Create();
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    TRowBufferPtr RowBuffer_;
 
     i64 TotalDataSliceCount_ = 0;
 

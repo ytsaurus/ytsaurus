@@ -741,7 +741,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     RecoveryRecordCount_ += 1;
     RecoveryDataSize_ += recordData.Size();
 
-    TMutationRequest request;
+    auto request = TMutationRequest(header.reign());
     request.Type = header.mutation_type();
     if (header.has_mutation_id()) {
         request.MutationId = FromProto<TMutationId>(header.mutation_id());
@@ -783,6 +783,7 @@ const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
+    MutationHeader_.set_reign(pendingMutation.Request.Reign);
     if (pendingMutation.Request.MutationId) {
         ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
     }
@@ -834,7 +835,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
 
     auto version = LoggedVersion_.load();
 
-    TMutationRequest request;
+    auto request = TMutationRequest(MutationHeader_.reign());
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
     request.MutationId = MutationHeader_.has_mutation_id()
@@ -1012,6 +1013,11 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
+void TDecoratedAutomaton::RotateAutomatonVersionAfterRecovery()
+{
+    RotateAutomatonVersion(LoggedVersion_.load().SegmentId);
+}
+
 void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1044,6 +1050,14 @@ EPeerState TDecoratedAutomaton::GetState() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return State_;
+}
+
+TEpochContextPtr TDecoratedAutomaton::GetEpochContext()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(EpochContextLock_);
+    return EpochContext_;
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
@@ -1170,8 +1184,9 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
+    TWriterGuard guard(EpochContextLock_);
     YT_VERIFY(!EpochContext_);
-    EpochContext_ = std::move(epochContext);
+    std::swap(epochContext, EpochContext_);
 }
 
 void TDecoratedAutomaton::CancelSnapshot()
@@ -1200,7 +1215,12 @@ void TDecoratedAutomaton::StopEpoch()
 
     RotatingChangelog_ = false;
     Changelog_.Reset();
-    EpochContext_.Reset();
+    {
+        TWriterGuard guard(EpochContextLock_);
+        TEpochContextPtr epochContext;
+        std::swap(epochContext, EpochContext_);
+        guard.Release();
+    }
     SnapshotVersion_ = TVersion();
     LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
@@ -1211,6 +1231,8 @@ void TDecoratedAutomaton::StopEpoch()
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 {
+    auto Logger = HydraLogger;
+
     if (GetAutomatonVersion() != SnapshotVersion_)
         return;
 
@@ -1225,6 +1247,16 @@ bool TDecoratedAutomaton::IsRecovery()
     return
         State_ == EPeerState::LeaderRecovery ||
         State_ == EPeerState::FollowerRecovery;
+}
+
+TReign TDecoratedAutomaton::GetCurrentReign() const
+{
+    return Automaton_->GetCurrentReign();
+}
+
+EFinalRecoveryAction TDecoratedAutomaton::GetFinalRecoveryAction() const
+{
+    return Automaton_->GetFinalRecoveryAction();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

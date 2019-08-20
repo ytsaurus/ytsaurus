@@ -55,6 +55,11 @@ DEFINE_ENUM(EInterface,
     ((HTTP)(2))
 );
 
+DEFINE_ENUM(EInstanceState,
+    ((Active)(0))
+    ((Stopped)(1))
+);
+
 using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +122,7 @@ class IRuntimeComponentsFactory;
 struct ProcessListForUser;
 struct QueryStatusInfo;
 class IAST;
+struct ASTTableExpression;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);

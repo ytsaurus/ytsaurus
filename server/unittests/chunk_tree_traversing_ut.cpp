@@ -119,7 +119,8 @@ public:
         TChunk* chunk,
         i64 rowIndex,
         const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit) override
+        const TReadLimit& upperLimit,
+        TTransactionId /*timestampTransactionId*/) override
     {
         ChunkInfos.insert(TChunkInfo(chunk, rowIndex, lowerLimit, upperLimit));
         return true;

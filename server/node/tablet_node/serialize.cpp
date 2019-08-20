@@ -1,23 +1,37 @@
 #include "serialize.h"
 
+#include <util/generic/cast.h>
+
 namespace NYT::NTabletNode {
+
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
+TReign GetCurrentReign()
 {
-    return 100012;
+    return ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue());
 }
 
-bool ValidateSnapshotVersion(int version)
+bool ValidateSnapshotReign(TReign reign)
 {
-    return
-        version == 100008 || // aozeritsky
-        version == 100009 || // savrus: Save last commit timestamps for all cells.
-        version == 100010 || // savrus: Add tablet cell life stage
-        version == 100011 || // ifsmirnov: Serialize chunk read range.
-        version == 100012 || // savrus: Lock manager.
-        false;
+    for (auto v : TEnumTraits<ETabletReign>::GetDomainValues()) {
+        if (ToUnderlying(v) == reign) {
+            return true;
+        }
+    }
+    return false;
+}
+
+NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
+{
+    YT_VERIFY(reign <= GetCurrentReign());
+
+    if (reign < GetCurrentReign()) {
+        return EFinalRecoveryAction::BuildSnapshotAndRestart;
+    }
+
+    return EFinalRecoveryAction::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

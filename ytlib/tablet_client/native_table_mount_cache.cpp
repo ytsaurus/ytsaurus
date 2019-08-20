@@ -145,8 +145,8 @@ private:
 
         TTableId TableId_;
         TCellTag CellTag_;
-        std::optional<i64> PrimaryRevision_;
-        std::optional<i64> SecondaryRevision_;
+        ui64 PrimaryRevision_ = 0;
+        ui64 SecondaryRevision_ = 0;
 
         NLogging::TLogger Logger;
 

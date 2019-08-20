@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 
+from yt_commands import authors
 from yt_env_setup import SANDBOX_ROOTDIR
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
@@ -15,6 +16,7 @@ def which(file):
 
     return None
 
+@authors("ignat")
 def test_grpc():
     sandbox_dir = os.path.join(SANDBOX_ROOTDIR, "test_grpc")
     if not os.path.exists(sandbox_dir):
@@ -39,5 +41,5 @@ def test_grpc():
 
     hello_pb2.HelloRequest()
     hello_pb2.HelloResponse()
-    
+
 

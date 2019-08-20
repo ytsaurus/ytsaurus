@@ -269,6 +269,7 @@
     XX(Tags, tags) \
     XX(TargetPath, target_path) \
     XX(Timeout, timeout) \
+    XX(Timestamp, timestamp) \
     XX(Title, title) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \

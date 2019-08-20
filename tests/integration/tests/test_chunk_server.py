@@ -13,12 +13,14 @@ class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 21
 
+    @authors("babenko", "ignat")
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#" + chunk_id + "/@owning_nodes") == ["//tmp/t"]
 
+    @authors("babenko", "ignat")
     def test_owning_nodes2(self):
         create("table", "//tmp/t")
         tx = start_transaction()
@@ -27,6 +29,7 @@ class TestChunkServer(YTEnvSetup):
         assert get("#" + chunk_id + "/@owning_nodes") == \
             [to_yson_type("//tmp/t", attributes = {"transaction_id" : tx})]
 
+    @authors("babenko", "shakurov")
     def test_replication(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
@@ -69,11 +72,13 @@ class TestChunkServer(YTEnvSetup):
                 return False
         return True
 
+    @authors("babenko")
     def test_decommission_regular(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 3)
 
+    @authors("shakurov")
     def test_decommission_regular2(self):
         create("table", "//tmp/t", attributes={"replication_factor": 4})
         write_table("//tmp/t", {"a" : "b"})
@@ -90,18 +95,21 @@ class TestChunkServer(YTEnvSetup):
         for node in nodes:
             assert not get("//sys/cluster_nodes/%s/@decommissioned" % node)
 
+    @authors("babenko")
     def test_decommission_erasure(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 16)
 
+    @authors("shakurov")
     def test_decommission_erasure2(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 16, 4)
 
+    @authors("ignat")
     def test_decommission_erasure3(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
@@ -123,16 +131,19 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/%s/@decommissioned" % nodes[0]))
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 16)
 
+    @authors("babenko")
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
         self._test_decommission("//tmp/j", 3)
 
+    @authors("babenko")
     def test_list_chunk_owners(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
         ls("//sys/chunks", attributes=["owning_nodes"])
 
+    @authors("babenko")
     def test_disable_replicator_when_few_nodes_are_online(self):
         set("//sys/@config/chunk_manager/safe_online_node_count", 3)
         
@@ -146,6 +157,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
+    @authors("babenko")
     def test_disable_replicator_when_explicitly_requested_so(self):
         assert get("//sys/@chunk_replicator_enabled")
 
@@ -153,6 +165,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
+    @authors("babenko", "ignat")
     def test_hide_chunk_attrs(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
@@ -164,6 +177,7 @@ class TestChunkServer(YTEnvSetup):
         for c in json.loads(chunks_json):
             assert isinstance(c, basestring)
 
+    @authors("shakurov")
     def test_chunk_requisition_registry_orchid(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
@@ -184,6 +198,7 @@ class TestChunkServer(YTEnvSetup):
         assert len(new_requisition["entries"]) == 1
         assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4
 
+    @authors("shakurov")
     def test_node_chunk_replica_count(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
@@ -201,6 +216,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(check_replica_count, sleep_backoff=1.0)
 
+    @authors("babenko")
     def test_max_replication_factor(self):
         old_max_rf = get("//sys/media/default/@config/max_replication_factor")
         try:
@@ -227,6 +243,7 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
+    @authors("babenko")
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -251,6 +268,7 @@ class TestChunkServerMulticell(TestChunkServer):
             get("#" + chunk_id + "/@owning_nodes"),
             ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
 
+    @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
         pass
 
@@ -265,6 +283,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
         }
     }
 
+    @authors("babenko")
     def test_allow_multiple_erasure_parts_per_node(self):
         create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
         rows = [{"a": "b"}]

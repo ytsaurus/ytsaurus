@@ -91,8 +91,8 @@ void TGarbageCollector::SaveValues(NCellMaster::TSaveContext& context) const
 void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
 {
     // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterSnapshotVersion::WeakGhostsSaveLoad ||
-        (EMasterSnapshotVersion::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterSnapshotVersion::SameAsVer718ButIn19_4))
+    if (context.GetVersion() < EMasterReign::WeakGhostsSaveLoad ||
+        (EMasterReign::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterReign::SameAsVer718ButIn19_4))
     {
         return;
     }
@@ -133,8 +133,8 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     Load(context, Zombies_);
 
     // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterSnapshotVersion::WeakGhostsSaveLoad ||
-        (EMasterSnapshotVersion::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterSnapshotVersion::SameAsVer718ButIn19_4))
+    if (context.GetVersion() < EMasterReign::WeakGhostsSaveLoad ||
+        (EMasterReign::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterReign::SameAsVer718ButIn19_4))
     {
         THashSet<TObject*> weakGhosts;
         for (const auto& pair : WeakGhosts_) {

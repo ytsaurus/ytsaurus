@@ -388,6 +388,7 @@ class TestListJobs(YTEnvSetup):
         job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
 
+    @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
     def test_list_jobs(self, data_source):
@@ -412,6 +413,7 @@ class TestListJobs(YTEnvSetup):
 
         wait_assert(self._check_after_finish, op, job_ids, data_source=data_source)
 
+    @authors("ermolovd", "levysotsky")
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
     def test_running_jobs_stderr_size(self, data_source):
         input_table, output_table = self._create_tables()
@@ -451,6 +453,7 @@ class TestListJobs(YTEnvSetup):
         wait_assert(any_has_spec)
 
 
+    @authors("ignat", "levysotsky")
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
     def test_aborted_jobs(self, data_source):
         input_table, output_table = self._create_tables()
@@ -476,6 +479,7 @@ class TestListJobs(YTEnvSetup):
         assert all((date_string_to_datetime(job["start_time"]) > before_start) for job in res)
         assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
 
+    @authors("ignat")
     def test_running_aborted_jobs(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -508,6 +512,7 @@ class TestListJobs(YTEnvSetup):
             return len(jobs) == 1
         wait(check)
 
+    @authors("asaitgalin", "levysotsky")
     def test_stderrs_and_hash_buckets_storage(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -526,6 +531,7 @@ class TestListJobs(YTEnvSetup):
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0
 
+    @authors("asaitgalin", "levysotsky")
     def test_list_jobs_of_vanilla_operation(self):
         spec = {
             "tasks": {
@@ -545,6 +551,7 @@ class TestListJobs(YTEnvSetup):
         jobs = checked_list_jobs(op.id, data_source="archive")["jobs"]
         assert len(jobs) == 1
 
+    @authors("levysotsky")
     def test_errors(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -570,5 +577,5 @@ class TestListJobs(YTEnvSetup):
 class TestListJobsRpcProxy(TestListJobs):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

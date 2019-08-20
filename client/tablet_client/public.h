@@ -44,7 +44,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidMountRevision)     (1704))
     ((TableReplicaAlreadyExists)(1705))
     ((InvalidTabletState)       (1706))
-    ((QueryRetryRequested)      (1707))
+    ((TabletSnapshotExpired)    (1707))
 );
 
 DEFINE_ENUM(EInMemoryMode,
@@ -81,6 +81,23 @@ struct TReplicationLogTable
 {
     static const TString ChangeTypeColumnName;
     static const TString KeyColumnNamePrefix;
+    static const TString ValueColumnNamePrefix;
+    static const TString FlagsColumnNamePrefix;
+};
+
+DEFINE_BIT_ENUM(EUnversionedUpdateDataFlags,
+    ((None)      (0x0000))
+    ((Missing)   (0x0001))
+    ((Aggregate) (0x0002))
+);
+
+constexpr EUnversionedUpdateDataFlags MinValidUnversionedUpdateDataFlags = EUnversionedUpdateDataFlags::None;
+constexpr EUnversionedUpdateDataFlags MaxValidUnversionedUpdateDataFlags =
+    EUnversionedUpdateDataFlags::Missing | EUnversionedUpdateDataFlags::Aggregate;
+
+struct TUnversionedUpdateSchema
+{
+    static const TString ChangeTypeColumnName;
     static const TString ValueColumnNamePrefix;
     static const TString FlagsColumnNamePrefix;
 };

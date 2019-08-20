@@ -105,9 +105,7 @@ public:
     {
         return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);
-            auto req = proxy.CommitMutation();
-            req->set_type(HeartbeatMutationType);
-            req->Attachments().push_back(TSharedRef());
+            auto req = proxy.Poke();
             return req->Invoke().template As<void>();
         }));
     }

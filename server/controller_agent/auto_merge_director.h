@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/core/actions/signal.h>
-
 #include <yt/server/lib/controller_agent/serialize.h>
+
+#include <yt/core/actions/signal.h>
 
 namespace NYT::NControllerAgent {
 

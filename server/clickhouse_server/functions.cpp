@@ -91,7 +91,7 @@ public:
             columnYson = &nullableColumnYson->getNestedColumn();
         } else {
             throw Exception(
-                "Illegal column " + block.getByPosition(arguments[1]).column->getName() + " of second argument of function " + getName(),
+                "Illegal column " + block.getByPosition(arguments[0]).column->getName() + " of first argument of function " + getName(),
                 ErrorCodes::ILLEGAL_COLUMN);
         }
 
@@ -261,6 +261,82 @@ using TFunctionYPathArrayUInt64 = TArrayYPathFunction<DataTypeUInt64, std::vecto
 using TFunctionYPathArrayBoolean = TArrayYPathFunction<DataTypeUInt8, std::vector<bool>, false, TNameYPathArrayBoolean>;
 using TFunctionYPathArrayDouble = TArrayYPathFunction<DataTypeFloat64, std::vector<double>, false, TNameYPathArrayDouble>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TFunctionConvertYson : public IFunction
+{
+public:
+    static constexpr auto name = "ConvertYson";
+    static FunctionPtr create(const Context &)
+    {
+        return std::make_shared<TFunctionConvertYson>();
+    }
+
+    String getName() const override
+    {
+        return name;
+    }
+
+    size_t getNumberOfArguments() const override
+    {
+        return 2;
+    }
+
+    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
+    {
+        if (!isString(removeNullable(arguments[0]))) {
+            throw Exception(
+                "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+        if (!isString(removeNullable(arguments[1]))) {
+            throw Exception(
+                "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+
+        return std::make_shared<DataTypeString>();
+    }
+
+    void executeImpl(Block & block, const ColumnNumbers & arguments, size_t result, size_t inputRowCount) override
+    {
+        const IColumn* columnYson = block.getByPosition(arguments[0]).column.get();
+        const IColumn* columnFormat = block.getByPosition(arguments[1]).column.get();
+        const ColumnUInt8* nullMap = nullptr;
+        if (checkColumn<ColumnString>(columnYson) || checkColumnConst<ColumnString>(columnYson)) {
+            // Everything is just fine.
+        } else if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
+            nullMap = &nullableColumnYson->getNullMapColumn();
+            columnYson = &nullableColumnYson->getNestedColumn();
+        } else {
+            throw Exception(
+                "Illegal column " + block.getByPosition(arguments[0]).column->getName() + " of first argument of function " + getName(),
+                ErrorCodes::ILLEGAL_COLUMN);
+        }
+
+        auto columnTo = DataTypeString().createColumn();
+        columnTo->reserve(inputRowCount);
+
+        for (size_t i = 0; i < inputRowCount; ++i) {
+            const auto& yson = columnYson->getDataAt(i);
+            const auto& format = columnFormat->getDataAt(i);
+
+            NYson::EYsonFormat ysonFormat = ConvertTo<NYson::EYsonFormat>(TString(format.data, format.size));
+            auto ysonString = TYsonString(yson.data, yson.size);
+
+            if (!nullMap || nullMap->getUInt(i) == 0) {
+                columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
+            } else {
+                columnTo->insertDefault();
+            }
+        }
+
+        block.getByPosition(result).column = std::move(columnTo);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void RegisterFunctions()
 {
     auto& factory = FunctionFactory::instance();
@@ -287,6 +363,7 @@ void RegisterFunctions()
     factory.registerFunction<TFunctionYPathArrayDouble>();
     factory.registerFunction<TFunctionYPathArrayBoolean>();
 
+    factory.registerFunction<TFunctionConvertYson>();
 }
 
 /////////////////////////////////////////////////////////////////////////////

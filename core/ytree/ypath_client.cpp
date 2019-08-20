@@ -42,17 +42,17 @@ TYPathRequest::TYPathRequest(const TRequestHeader& header)
 { }
 
 TYPathRequest::TYPathRequest(
-    const TString& service,
-    const TString& method,
-    const TYPath& path,
+    TString service,
+    TString method,
+    TYPath path,
     bool mutating)
 {
-    Header_.set_service(service);
-    Header_.set_method(method);
+    Header_.set_service(std::move(service));
+    Header_.set_method(std::move(method));
 
     auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     ypathExt->set_mutating(mutating);
-    ypathExt->set_path(path);
+    ypathExt->set_target_path(std::move(path));
 }
 
 bool TYPathRequest::IsHeavy() const
@@ -212,16 +212,28 @@ void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
+const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
-    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ext.path();
+    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ypathExt.target_path();
 }
 
-void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
+const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
-    auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    ext->set_path(path);
+    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ypathExt.has_original_target_path() ? ypathExt.original_target_path() : ypathExt.target_path();
+}
+
+void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
+{
+    auto* ypathExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_target_path(std::move(path));
+}
+
+bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ext.mutating();
 }
 
 void ResolveYPath(
@@ -236,12 +248,12 @@ void ResolveYPath(
 
     auto currentService = rootService;
 
-    const auto& path = GetRequestYPath(context->RequestHeader());
-    auto currentPath = path;
+    const auto& originalPath = GetOriginalRequestTargetYPath(context->RequestHeader());
+    auto currentPath = GetRequestTargetYPath(context->RequestHeader());
 
     int iteration = 0;
     while (true) {
-        ValidateYPathResolutionDepth(path, ++iteration);
+        ValidateYPathResolutionDepth(originalPath, ++iteration);
 
         try {
             auto result = currentService->Resolve(currentPath, context);
@@ -264,7 +276,7 @@ void ResolveYPath(
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "Error resolving path %v",
-                path)
+                originalPath)
                 << TErrorAttribute("method", context->GetMethod())
                 << ex;
         }
@@ -290,7 +302,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
-    SetRequestYPath(&requestHeader, suffixPath);
+    SetRequestTargetYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
@@ -325,7 +337,7 @@ void ExecuteVerb(
     auto requestMessage = context->GetRequestMessage();
     NRpc::NProto::TRequestHeader requestHeader;
     YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
-    SetRequestYPath(&requestHeader, suffixPath);
+    SetRequestTargetYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 

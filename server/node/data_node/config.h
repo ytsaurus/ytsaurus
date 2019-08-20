@@ -896,20 +896,15 @@ public:
 
     i64 GetCacheCapacity() const
     {
-        bool unlimited = false;
         i64 capacity = 0;
-
         for (const auto& config : CacheLocations) {
-            if (!unlimited) {
-                if (config->Quota) {
-                    capacity += *config->Quota;
-                } else {
-                    unlimited = true;
-                }
+            if (config->Quota) {
+                capacity += *config->Quota;
+            } else {
+                return std::numeric_limits<i64>::max();
             }
         }
-
-        return unlimited ? std::numeric_limits<i64>::max() : capacity;
+        return capacity;
     }
 };
 

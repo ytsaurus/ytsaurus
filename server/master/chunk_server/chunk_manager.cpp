@@ -626,6 +626,8 @@ public:
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
+        CancelChunkExpiration(chunk);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         const auto* mutationContext = GetCurrentMutationContext();
@@ -908,7 +910,7 @@ public:
         StageChunkTree(chunkList, transaction, account);
     }
 
-    void StageChunk(TChunk* chunk, TInstant now, TTransaction* transaction, TAccount* account)
+    void StageChunk(TChunk* chunk, TTransaction* transaction, TAccount* account)
     {
         StageChunkTree(chunk, transaction, account);
 
@@ -916,8 +918,7 @@ public:
             UpdateTransactionResourceUsage(chunk, +1);
         }
 
-        chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
-        ExpirationTracker_->OnChunkStaged(chunk);
+        ScheduleChunkExpiration(chunk);
     }
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
@@ -940,11 +941,7 @@ public:
 
     void UnstageChunk(TChunk* chunk)
     {
-        if (chunk->IsStaged()) {
-            ExpirationTracker_->OnChunkUnstaged(chunk);
-            chunk->SetExpirationTime(TInstant::Zero());
-        }
-
+        CancelChunkExpiration(chunk);
         UnstageChunkTree(chunk);
     }
 
@@ -971,6 +968,24 @@ public:
 
         chunkTree->SetStagingTransaction(nullptr);
         chunkTree->SetStagingAccount(nullptr);
+    }
+
+    void ScheduleChunkExpiration(TChunk* chunk)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(chunk->IsStaged());
+
+        auto now = GetCurrentMutationContext()->GetTimestamp();
+        chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
+        ExpirationTracker_->OnChunkStaged(chunk);
+    }
+
+    void CancelChunkExpiration(TChunk* chunk)
+    {
+        if (chunk->IsStaged()) {
+            ExpirationTracker_->OnChunkUnstaged(chunk);
+            chunk->SetExpirationTime(TInstant::Zero());
+        }
     }
 
     TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes)
@@ -2190,6 +2205,10 @@ private:
                 continue;
             }
 
+            if (chunk->IsConfirmed()) {
+                continue;
+            }
+
             transactionManager->UnstageObject(chunk->GetStagingTransaction(), chunk, false /*recursive*/);
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unstaged expired chunk (ChunkId: %v)",
@@ -2320,8 +2339,7 @@ private:
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
-        auto now = GetCurrentMutationContext()->GetTimestamp();
-        StageChunk(chunk, now, transaction, account);
+        StageChunk(chunk, transaction, account);
 
         transactionManager->StageObject(transaction, chunk);
 
@@ -2512,7 +2530,7 @@ private:
         MediumMap_.LoadKeys(context);
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
+        if (context.GetVersion() >= EMasterReign::ChunkView) {
             ChunkViewMap_.LoadKeys(context);
         }
     }
@@ -2527,25 +2545,25 @@ private:
         Load(context, ChunkRequisitionRegistry_);
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::PersistRequisitionUpdateRequests) {
+        if (context.GetVersion() >= EMasterReign::PersistRequisitionUpdateRequests) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
         // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterSnapshotVersion::ChunkView) {
+        if (context.GetVersion() >= EMasterReign::ChunkView) {
             ChunkViewMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterSnapshotVersion::PersistTNodeResourceUsageLimits;
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterReign::PersistTNodeResourceUsageLimits;
 
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
-            EMasterSnapshotVersion::YT_10639_CumulativeStatisticsInDynamicTables;
+            EMasterReign::YT_10639_CumulativeStatisticsInDynamicTables;
 
         // COMPAT(ifsmirnov)
         NeedSetChunkViewParents_ = context.GetVersion() <
-            EMasterSnapshotVersion::ChunkViewToParentsArray;
+            EMasterReign::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override

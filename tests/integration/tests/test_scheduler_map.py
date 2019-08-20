@@ -56,6 +56,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
+    @authors("ignat")
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -63,12 +64,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
+    @authors("babenko")
     def test_no_outputs(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"key": "value"}])
         op = map(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2")
         check_all_stderrs(op, "stderr\n", 1)
 
+    @authors("acid", "ignat")
     def test_empty_range(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -81,6 +84,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert [] == read_table("//tmp/t2", verbose=False)
 
+    @authors("ignat")
     @unix_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
@@ -105,6 +109,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 
+    @authors("ignat")
     def test_big_input(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -119,6 +124,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
 
+    @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -142,6 +148,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t_output2") == [{"value": 42}]
         assert sorted([row.items() for row in read_table("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
 
+    @authors("ignat")
     def test_write_two_outputs_consistently(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -162,6 +169,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 file=[file1],
                 verbose=True)
 
+    @authors("psushin")
     @unix_only
     def test_in_equal_to_out(self):
         create("table", "//tmp/t1")
@@ -171,6 +179,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
+    @authors("psushin")
     def test_input_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -184,6 +193,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         row_count = get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum")
         assert row_count == 1
 
+    @authors("psushin")
     def test_multiple_output_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -197,6 +207,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         row_count = get(op.get_path() + "/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum")
         assert row_count == 1
 
+    @authors("renadeen")
     def test_codec_statistics(self):
         create("table", "//tmp/t1", attributes={"compression_codec": "lzma_9"})
         create("table", "//tmp/t2", attributes={"compression_codec": "lzma_1"})
@@ -212,6 +223,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert decode_time > 0
         assert encode_time > 0
 
+    @authors("psushin")
     @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
@@ -238,6 +250,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"key": 0, "value": "one"}, {"key": 0, "value": "two"},
                                           {"key": 0, "value": "one"}, {"key": 1, "value": "two"}]
 
+    @authors("psushin")
     def test_sorted_output_overlap(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -252,6 +265,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
+    @authors("psushin")
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -266,6 +280,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
+    @authors("psushin")
     @unix_only
     def test_job_count(self):
         create("table", "//tmp/t1")
@@ -285,6 +300,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t2", 3, 3)
         check("//tmp/t3", 10, 5) # number of jobs cannot be more than number of rows.
 
+    @authors("max42")
     @unix_only
     def test_skewed_rows(self):
         create("table", "//tmp/t1")
@@ -303,6 +319,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     # We skip this one in porto because it requires a lot of interaction with porto
     # (since there are a lot of operations with large number of jobs).
     # There is completely nothing porto-specific here.
+    @authors("ignat")
     @unix_only
     @skip_if_porto
     def test_job_per_row(self):
@@ -355,14 +372,17 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == [{"v": 1}]
         assert read_table(output_tables[2]) == [{"v": 2}]
 
+    @authors("ignat")
     @unix_only
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
+    @authors("ignat")
     @unix_only
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
+    @authors("ignat")
     @unix_only
     def test_output_tables_switch(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
@@ -386,6 +406,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == []
         assert read_table(output_tables[2]) == [{"v": 0}, {"v": 1}]
 
+    @authors("ignat")
     @unix_only
     def test_executable_mapper(self):
         create("table", "//tmp/t_in")
@@ -410,6 +431,7 @@ cat > /dev/null; echo {hello=world}
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
+    @authors("ignat")
     @unix_only
     def test_table_index(self):
         create("table", "//tmp/t1")
@@ -444,6 +466,7 @@ print row + table_index
                     {"key": "b", "value": "value1"}]
         assert_items_equal(read_table("//tmp/out"), expected)
 
+    @authors("ignat")
     @unix_only
     def test_range_index(self):
         create("table", "//tmp/t_in")
@@ -481,6 +504,7 @@ print row + table_index
         check_all_stderrs(op, '"range_index"=0;', 1, substring=True)
         check_all_stderrs(op, '"range_index"=1;', 1, substring=True)
 
+    @authors("ogorod")
     def test_insane_demand(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -524,15 +548,19 @@ print row + table_index
         assert get(statistics_path) == expected_value
 
 
+    @authors("ogorod")
     def test_check_input_fully_consumed_statistics_simple(self):
         self.check_input_fully_consumed_statistics_base("python3 -c 'print(input())'", expected_output=[{"foo": "bar"}])
 
+    @authors("acid", "ogorod")
     def test_check_input_fully_consumed_statistics_all_consumed(self):
         self.check_input_fully_consumed_statistics_base("cat", expected_value=0)
 
+    @authors("tramsmm", "ogorod")
     def test_check_input_fully_consumed_statistics_throw_on_failure(self):
         self.check_input_fully_consumed_statistics_base("exit 0", throw_on_failure=True, expected_output=[])
 
+    @authors("max42")
     def test_live_preview(self):
         create_user("u")
 
@@ -577,6 +605,7 @@ print row + table_index
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    @authors("max42")
     def test_new_live_preview_multiple_output_tables(self):
         create_user("u")
 
@@ -614,6 +643,7 @@ print row + table_index
         op.track()
 
 
+    @authors("max42", "ignat")
     def test_row_sampling(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -639,6 +669,7 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
+    @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
     @unix_only
     def test_map_row_count_limit(self, ordered):
@@ -667,6 +698,7 @@ print row + table_index
         assert len(read_table("//tmp/output")) == 3
 
 
+    @authors("psushin")
     @unix_only
     def test_job_controller_orchid(self):
         create("table", "//tmp/input")
@@ -696,6 +728,7 @@ print row + table_index
 
         op.abort()
 
+    @authors("psushin")
     @unix_only
     def test_map_row_count_limit_second_output(self):
         create("table", "//tmp/input")
@@ -722,6 +755,7 @@ print row + table_index
         assert len(read_table("//tmp/out_1")) == 0
         assert len(read_table("//tmp/out_2")) == 3
 
+    @authors("psushin")
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")
 
@@ -731,6 +765,7 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
         schema = make_schema(
@@ -775,6 +810,7 @@ print row + table_index
                 out="//tmp/output",
                 command="cat")
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_columns_simple(seld, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -789,6 +825,7 @@ print row + table_index
             command="cat")
         assert read_table("//tmp/tout") == [{"b": 42}]
 
+    @authors("dakovalkov")
     def test_rename_columns_without_schema(self):
         create("table", "//tmp/tin")
         create("table", "//tmp/tout")
@@ -799,6 +836,7 @@ print row + table_index
                 out="//tmp/tout",
                 command="cat")
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_raname_columns_overlapping_names_in_schema(self, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -815,6 +853,7 @@ print row + table_index
                 out="//tmp/tout",
                 command="cat")
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_columns_overlapping_names_in_chunk(self, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -833,6 +872,7 @@ print row + table_index
                 out="//tmp/tout",
                 command="cat")
 
+    @authors("dakovalkov")
     def test_rename_columns_wrong_name(self):
         create("table", "//tmp/tin", attributes={
                 "schema": [{"name": "a", "type": "int64"}],
@@ -854,6 +894,7 @@ print row + table_index
                 out="//tmp/tout",
                 command="cat")
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_columns_swap(self, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -870,6 +911,7 @@ print row + table_index
 
         assert read_table("//tmp/tout") == [{"b": 42, "a": 34}]
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_columns_filter(self, optimize_for):
         create("table", "//tmp/tin", attributes={
@@ -886,6 +928,7 @@ print row + table_index
 
         assert read_table("//tmp/tout") == [{"d": 42}]
 
+    @authors("lukyan")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_computed_columns(self, mode):
         create("table", "//tmp/t1")
@@ -908,6 +951,7 @@ print row + table_index
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
 
+    @authors("psushin", "ignat")
     def test_map_max_data_size_per_job(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -925,6 +969,7 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
+    @authors("psushin")
     def test_ordered_map_multiple_ranges(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -953,6 +998,7 @@ print row + table_index
         assert read_table("//tmp/t_output") == rows
 
 
+    @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):
         create("table", "//tmp/in_1")
@@ -1010,7 +1056,42 @@ print row + table_index
         assert 0 < job_indexes[1] < 99999
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type)) == len(result) - 2
 
+    @authors("dakovalkov")
+    def test_map_soft_interrupt_job(self):
+        create_test_tables(row_count=1)
+
+        command = """BREAKPOINT ; python -c "
+import time
+print('{interrupt=41};')
+try:
+    time.sleep(10)
+except KeyboardInterrupt:
+    print('{interrupt=42};')
+print('{interrupt=43};')"
+"""
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint(command),
+            spec={
+                "max_failed_job_count": 0,
+                "mapper": {
+                    "interruption_signal": "SIGINT",
+                },
+            })
+
+        jobs = wait_breakpoint()
+        release_breakpoint()
+        time.sleep(1)
+        interrupt_job(jobs[0])
+        op.track()
+
+        assert read_table("//tmp/t_out") == [{"interrupt": 41}, {"interrupt": 42}, {"interrupt": 43}]
+
     # YT-6324: false job interrupt when it does not consume any input data.
+    @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_no_consumption(self, ordered):
         create("table", "//tmp/in_1")
@@ -1048,6 +1129,7 @@ print row + table_index
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
         assert get(op.get_path() + "/@progress/jobs/completed/non-interrupted") == 1
 
+    @authors("savrus")
     def test_ordered_map_many_jobs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -1065,6 +1147,7 @@ print row + table_index
         assert get(op.get_path() + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data
 
+    @authors("max42", "savrus")
     @pytest.mark.parametrize("with_output_schema", [False, True])
     def test_ordered_map_remains_sorted(self, with_output_schema):
         create("table", "//tmp/t_input", attributes={"schema":[{"name": "key", "sort_order": "ascending", "type": "int64"}]})
@@ -1089,6 +1172,7 @@ print row + table_index
         assert read_table("//tmp/t_output") == original_data
 
     # This is a really strange case that was added after YT-7507.
+    @authors("max42")
     def test_ordered_map_job_count_consider_only_primary_size(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -1105,6 +1189,7 @@ print row + table_index
         jobs = get(op.get_path() + "/jobs/@count")
         assert jobs == 10
 
+    @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_job_splitter(self, ordered):
         create("table", "//tmp/in_1")
@@ -1159,6 +1244,7 @@ done
             del row["data"]
         assert sorted(got) == sorted(expected)
 
+    @authors("babenko")
     def test_job_splitter_max_input_table_count(self):
         create("table", "//tmp/in_1")
         write_table(
@@ -1190,6 +1276,7 @@ class TestSchedulerMapCommandsPorto(YTEnvSetup):
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("babenko")
     def test_multicell_input_fetch(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -1223,6 +1310,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         }
     }
 
+    @authors("max42")
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
@@ -1251,6 +1339,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
+    @authors("max42")
     def test_map_job_size_adjuster_max_limit(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
@@ -1273,6 +1362,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
 
+    @authors("ignat")
     def test_map_unavailable_chunk(self):
         create("table", "//tmp/t_input", attributes={"replication_factor": 1})
         original_data = [{"index": "%05d" % i} for i in xrange(20)]
@@ -1362,6 +1452,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             })
         create_dynamic_table(path, **attributes)
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
@@ -1425,6 +1516,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_dynamic_table_as_user_file(self, external, optimize_for):
@@ -1470,6 +1562,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         rows = sorted(rows, key=lambda r: r["key"])
         assert read_table("//tmp/t_out") == rows
 
+    @authors("savrus")
     @parametrize_external
     def test_ordered_dynamic_table_as_user_file(self, external):
         sync_create_cells(1)
@@ -1502,6 +1595,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows + rows1
 
+    @authors("savrus")
     @parametrize_external
     def test_dynamic_table_timestamp(self, external):
         sync_create_cells(1)
@@ -1541,6 +1635,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 command="cat")
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_input_data_statistics(self, external, optimize_for):
@@ -1565,6 +1660,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_column_filter(self, optimize_for, external):
@@ -1616,6 +1712,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
+    @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_dynamic_table_simple(self, optimize_for):
         sync_create_cells(1)
@@ -1696,6 +1793,7 @@ class TestInputOutputFormats(YTEnvSetup):
         }
     }
 
+    @authors("ignat")
     @unix_only
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
@@ -1721,6 +1819,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
+    @authors("ignat")
     @unix_only
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
@@ -1751,6 +1850,7 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
+    @authors("ignat")
     @unix_only
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
@@ -1779,6 +1879,7 @@ print "key\\tsubkey\\tvalue"
 
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
+    @authors("ignat")
     @unix_only
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
@@ -1804,6 +1905,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
+    @authors("ignat")
     def test_type_conversion(self):
         create("table", "//tmp/s")
         write_table("//tmp/s", {"foo": "42"})
@@ -1834,6 +1936,7 @@ print '{hello=world}'
             spec={"max_failed_job_count": 1, "mapper": {"output_format": yson_with_type_conversion}})
 
     #@unix_only
+    @authors("max42")
     def test_invalid_row_indices(self):
         create("table", "//tmp/t_in")
         write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10)])

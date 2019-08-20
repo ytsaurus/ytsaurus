@@ -143,6 +143,7 @@ public:
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
     DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
+    DEFINE_SIGNAL(void(), TabletCellPeersAssigned);
 
 public:
     explicit TImpl(
@@ -151,13 +152,13 @@ public:
         : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
         , Config_(config)
         , TabletService_(New<TTabletService>(Bootstrap_))
-        , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
-        , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
+        , TabletTracker_(New<TTabletTracker>(Bootstrap_))
+        , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
-        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
-        , TabletActionManager_(New<TTabletActionManager>(Config_->TabletActionManager, Bootstrap_))
+        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
+        , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
-            Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
+            New<TThroughputThrottlerConfig>(),
             TabletServerLogger,
             TabletServerProfiler.AppendPath("/table_statistics_gossip_throttler")))
     {
@@ -248,6 +249,8 @@ public:
 
         TabletService_->Initialize();
         BundleNodeTracker_->Initialize();
+
+        OnDynamicConfigChanged();
     }
 
     TTabletCellBundle* CreateTabletCellBundle(
@@ -304,6 +307,46 @@ public:
         YT_VERIFY(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
 
         TabletCellBundleDestroyed_.Fire(cellBundle);
+    }
+
+    void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
+    {
+        if (options->PeerCount != cellBundle->GetOptions()->PeerCount && !cellBundle->TabletCells().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
+                cellBundle->TabletCells().size());
+        }
+
+        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
+        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).GetData();
+
+        cellBundle->SetOptions(std::move(options));
+
+        for (auto* cell : cellBundle->TabletCells()) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+
+            if (Bootstrap_->IsPrimaryMaster()) {
+                if (auto node = FindCellNode(cell->GetId())) {
+                    auto cellNode = node->AsMap();
+
+                    {
+                        auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                        req->set_value(snapshotAcl);
+                        SyncExecuteVerb(cellNode, req);
+                    }
+                    {
+                        auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                        req->set_value(changelogAcl);
+                        SyncExecuteVerb(cellNode, req);
+                    }
+                }
+
+                RestartPrerequisiteTransaction(cell);
+            }
+
+            ReconfigureCell(cell);
+        }
     }
 
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
@@ -3601,7 +3644,7 @@ private:
             Persist(context, TabletResourceUsage);
 
             // COMPAT(aozeritsky)
-            if (context.GetVersion() >= EMasterSnapshotVersion::OldVersion814) {
+            if (context.GetVersion() >= EMasterReign::OldVersion814) {
                 Persist(context, ModificationTime);
                 Persist(context, AccessTime);
             }
@@ -3637,17 +3680,46 @@ private:
 
     void OnDynamicConfigChanged()
     {
-        const auto& dynamicConfig = GetDynamicConfig();
+        const auto& config = GetDynamicConfig();
+
+        // COMPAT(savrus)
+        if (config->CompatibilityVersion == 0) {
+            config->ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
+            config->ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
+            config->ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
+
+            config->ChunkReader->RetryTimeout = TDuration::Seconds(15);
+            config->ChunkReader->SessionTimeout = TDuration::Minutes(1);
+
+            config->ChunkReader->GroupSize = 16777216;
+            config->ChunkReader->WindowSize = 20971520;
+
+            config->ChunkWriter->BlockSize = 262144;
+            config->ChunkWriter->SampleRate = 0.0005;
+
+            config->CellScanPeriod = Config_->CellScanPeriod;
+            config->SafeOnlineNodeCount = Config_->SafeOnlineNodeCount;
+            config->LeaderReassignmentTimeout = Config_->LeaderReassignmentTimeout;
+            config->PeerRevocationTimeout = Config_->PeerRevocationTimeout;
+
+            config->MulticellGossip = Config_->MulticellGossip;
+
+            config->TabletActionManager = Config_->TabletActionManager;
+
+            config->TabletCellDecommissioner = Config_->TabletCellDecommissioner;
+
+            config->TabletBalancer->ConfigCheckPeriod = Config_->TabletBalancer->ConfigCheckPeriod;
+            config->TabletBalancer->BalancePeriod = Config_->TabletBalancer->BalancePeriod;
+
+            config->CompatibilityVersion = 1;
+        }
+
         if (CleanupExecutor_) {
-            CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
+            CleanupExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
         }
-        if (TabletCellDecommissioner_) {
-            auto& config = dynamicConfig->TabletCellDecommissioner
-                ? dynamicConfig->TabletCellDecommissioner
-                : Config_->TabletCellDecommissioner;
-            TabletCellDecommissioner_->Reconfigure(config);
-        }
-        if (auto gossipConfig = dynamicConfig->MulticellGossipConfig) {
+
+        {
+            const auto& gossipConfig = config->MulticellGossip;
             TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
             if (TabletCellStatisticsGossipExecutor_) {
                 TabletCellStatisticsGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatisticsGossipPeriod);
@@ -3657,6 +3729,10 @@ private:
             }
             EnableUpdateStatisticsOnHeartbeat_ = gossipConfig->EnableUpdateStatisticsOnHeartbeat;
         }
+
+        TabletCellDecommissioner_->Reconfigure(config->TabletCellDecommissioner);
+        TabletActionManager_->Reconfigure(config->TabletActionManager);
+        TabletBalancer_->Reconfigure(config->TabletBalancer);
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -3700,20 +3776,20 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
         // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+        if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
             Load(context, TableStatisticsUpdates_);
         }
 
         // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterSnapshotVersion::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
+        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
         // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
+        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
         // COMPAT(ifsmirnov)
-        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterSnapshotVersion::FixTabletErrorCountLag);
+        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterReign::FixTabletErrorCountLag);
         // COMPAT(savrus)
-        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables);
+        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
         // COMPAT(savrus)
-        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterSnapshotVersion::MakeTabletStateBackwardCompatible);
+        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterReign::MakeTabletStateBackwardCompatible);
     }
 
 
@@ -4248,11 +4324,10 @@ private:
                 peerId);
         };
 
-        auto requestConfigureSlot = [&] (const TNode::TTabletSlot* slot) {
+        auto requestConfigureSlot = [&] (const TTabletCell* cell) {
             if (!response)
                 return;
 
-            const auto* cell = slot->Cell;
             if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
@@ -4372,6 +4447,15 @@ private:
                 continue;
             }
 
+            if (state == EPeerState::Stopped) {
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
+                    slotInfo.peer_id(),
+                    address,
+                    cellId);
+                requestRemoveSlot(cellId);
+                continue;
+            }
+
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
@@ -4393,19 +4477,19 @@ private:
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
-                slot.Cell->GetId(),
+                cell->GetId(),
                 slot.PeerId,
-                slot.PeerState,
+                state,
                 cellInfo.ConfigVersion);
 
-            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
-                requestConfigureSlot(&slot);
+            if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
+                requestConfigureSlot(cell);
             }
 
             if (slotInfo.has_dynamic_config_version() &&
                 slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
             {
-                requestUpdateSlot(slot.Cell);
+                requestUpdateSlot(cell);
             }
         }
 
@@ -4431,6 +4515,7 @@ private:
                     }
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
+                        requestConfigureSlot(cell);
                         requestUpdateSlot(cell);
                         --availableSlots;
                     }
@@ -4658,6 +4743,8 @@ private:
         for (auto& assignment : *request->mutable_assignments()) {
             HydraAssignPeers(&assignment);
         }
+
+        TabletCellPeersAssigned_.Fire();
 
         // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
     }
@@ -5679,6 +5766,8 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
+        OnDynamicConfigChanged();
+
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (Bootstrap_->IsPrimaryMaster()) {
@@ -5698,18 +5787,16 @@ private:
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnTabletCellStatisticsGossip, MakeWeak(this)),
-            Config_->MulticellGossipConfig->TabletCellStatisticsGossipPeriod);
+            dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
-                Config_->MulticellGossipConfig->TableStatisticsGossipPeriod);
+                dynamicConfig->MulticellGossip->TableStatisticsGossipPeriod);
             TableStatisticsGossipExecutor_->Start();
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
@@ -5836,7 +5923,7 @@ private:
                     result += cell->LocalStatistics().MemorySize;
                     tabletCount = cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
                         cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
-                    result += tabletCount * Config_->TabletDataSizeFootprint;
+                    result += tabletCount * GetDynamicConfig()->TabletDataSizeFootprint;
                     break;
                 }
                 default:
@@ -5874,7 +5961,7 @@ private:
                 default:
                     YT_ABORT();
             }
-            result += Config_->TabletDataSizeFootprint;
+            result += GetDynamicConfig()->TabletDataSizeFootprint;
             return result;
         };
 
@@ -6193,7 +6280,7 @@ private:
     void GetTableSettings(
         TTableNode* table,
         TTableMountConfigPtr* mountConfig,
-        NTabletNode::TTabletChunkReaderConfigPtr *readerConfig,
+        NTabletNode::TTabletChunkReaderConfigPtr* readerConfig,
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
@@ -6214,7 +6301,7 @@ private:
         // Parse and prepare table reader config.
         try {
             *readerConfig = UpdateYsonSerializable(
-                Config_->ChunkReader,
+                GetDynamicConfig()->ChunkReader,
                 tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkReader)));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
@@ -6237,7 +6324,7 @@ private:
 
         // Parse and prepare table writer config.
         try {
-            auto config = CloneYsonSerializable(Config_->ChunkWriter);
+            auto config = CloneYsonSerializable(GetDynamicConfig()->ChunkWriter);
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
 
             *writerConfig = UpdateYsonSerializable(
@@ -6363,15 +6450,15 @@ private:
 
                 auto thresholdId = NHydra::GetSnapshotThresholdId(
                     snapshots,
-                    Config_->MaxSnapshotCountToKeep,
-                    Config_->MaxSnapshotSizeToKeep);
+                    GetDynamicConfig()->MaxSnapshotCountToKeep,
+                    GetDynamicConfig()->MaxSnapshotSizeToKeep);
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
 
                 int snapshotsRemoved = 0;
                 for (const auto& key : snapshotKeys) {
-                    if (snapshotsRemoved >= Config_->MaxSnapshotCountToRemovePerCheck) {
+                    if (snapshotsRemoved >= GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck) {
                         break;
                     }
 
@@ -6415,7 +6502,7 @@ private:
                 int changelogsRemoved = 0;
                 auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
                 for (const auto& key : changelogKeys) {
-                    if (changelogsRemoved >= Config_->MaxChangelogCountToRemovePerCheck) {
+                    if (changelogsRemoved >= GetDynamicConfig()->MaxChangelogCountToRemovePerCheck) {
                         break;
                     }
 
@@ -6569,7 +6656,7 @@ private:
         }
 
         descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
-        descriptor->set_starting_row_index(*startingRowIndex); 
+        descriptor->set_starting_row_index(*startingRowIndex);
         *startingRowIndex += chunk->MiscExt().row_count();
     }
 
@@ -6956,6 +7043,11 @@ void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
     Impl_->DestroyTabletCellBundle(cellBundle);
 }
 
+void TTabletManager::SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
+{
+    Impl_->SetTabletCellBundleOptions(cellBundle, std::move(options));
+}
+
 TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
     const TString& clusterName,
@@ -7057,6 +7149,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleCreated, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleDestroyed, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleNodeTagFilterChanged, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(), TabletCellPeersAssigned, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

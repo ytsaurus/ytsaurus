@@ -92,7 +92,7 @@ void RunKiller(const TString& processGroupPath)
     group.Lock();
 
     auto children = group.GetChildren();
-    auto pids = group.GetTasks();
+    auto pids = group.GetProcesses();
     if (children.empty() && pids.empty())
         return;
 
@@ -189,12 +189,12 @@ bool TNonOwningCGroup::Exists() const
     return NFS::Exists(FullPath_);
 }
 
-std::vector<int> TNonOwningCGroup::GetTasks() const
+std::vector<int> TNonOwningCGroup::GetProcesses() const
 {
     std::vector<int> results;
     if (!IsNull()) {
 #ifdef _linux_
-        auto values = ReadAllValues(GetPath("tasks"));
+        auto values = ReadAllValues(GetPath("cgroup.procs"));
         for (const auto& value : values) {
             int pid = FromString<int>(value);
             results.push_back(pid);
@@ -343,7 +343,7 @@ void TNonOwningCGroup::DoKill() const
 
 #ifdef _linux_
     while (true) {
-        auto pids = GetTasks();
+        auto pids = GetProcesses();
         if (pids.empty())
             break;
 

@@ -412,6 +412,7 @@ struct TLookupRowsOptionsBase
 {
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
+    bool EnablePartialResult = false;
 };
 
 struct TLookupRowsOptions

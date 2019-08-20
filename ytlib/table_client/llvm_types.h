@@ -3,47 +3,51 @@
 #include "public.h"
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/core/codegen/type_builder.h>
 
 #include <type_traits>
 
-#include <llvm/IR/TypeBuilder.h>
+namespace NYT::NCodegen {
 
-namespace llvm {
+using llvm::Type;
+using llvm::StructType;
+using llvm::LLVMContext;
+using llvm::ArrayRef;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Cross>
-class TypeBuilder<NYT::NTableClient::TUnversionedValueData, Cross>
+template <>
+struct TTypeBuilder<NYT::NTableClient::TUnversionedValueData>
 {
 public:
-    typedef TypeBuilder<char, Cross> TBoolean;
-    typedef TypeBuilder<i64, Cross> TInt64;
-    typedef TypeBuilder<ui64, Cross> TUint64;
-    typedef TypeBuilder<double, Cross> TDouble;
-    typedef TypeBuilder<const char*, Cross> TStringType;
-    typedef TypeBuilder<const char*, Cross> TAny;
+    typedef TTypeBuilder<char> TBoolean;
+    typedef TTypeBuilder<i64> TInt64;
+    typedef TTypeBuilder<ui64> TUint64;
+    typedef TTypeBuilder<double> TDouble;
+    typedef TTypeBuilder<const char*> TStringType;
+    typedef TTypeBuilder<const char*> TAny;
 
-    static Type* get(LLVMContext& context)
+    static Type* Get(LLVMContext& context)
     {
-        return TypeBuilder<i64, Cross>::get(context);
+        return TTypeBuilder<i64>::Get(context);
     }
 
-    static Type* get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
+    static Type* Get(LLVMContext& context, NYT::NTableClient::EValueType staticType)
     {
         using NYT::NTableClient::EValueType;
         switch (staticType) {
             case EValueType::Boolean:
-                return TBoolean::get(context);
+                return TBoolean::Get(context);
             case EValueType::Int64:
-                return TInt64::get(context);
+                return TInt64::Get(context);
             case EValueType::Uint64:
-                return TUint64::get(context);
+                return TUint64::Get(context);
             case EValueType::Double:
-                return TDouble::get(context);
+                return TDouble::Get(context);
             case EValueType::String:
-                return TStringType::get(context);
+                return TStringType::Get(context);
             case EValueType::Any:
-                return TAny::get(context);
+                return TAny::Get(context);
             default:
                 YT_ABORT();
         }
@@ -57,15 +61,15 @@ public:
         "TUnversionedValueData size must be 64bit");
 };
 
-template <bool Cross>
-class TypeBuilder<NYT::NTableClient::TUnversionedValue, Cross>
+template <>
+struct TTypeBuilder<NYT::NTableClient::TUnversionedValue>
 {
 public:
-    typedef TypeBuilder<ui16, Cross> TId;
-    typedef TypeBuilder<ui8, Cross> TType;
-    typedef TypeBuilder<ui8, Cross> TAggregate;
-    typedef TypeBuilder<ui32, Cross> TLength;
-    typedef TypeBuilder<NYT::NTableClient::TUnversionedValueData, Cross> TData;
+    typedef TTypeBuilder<ui16> TId;
+    typedef TTypeBuilder<ui8> TType;
+    typedef TTypeBuilder<ui8> TAggregate;
+    typedef TTypeBuilder<ui32> TLength;
+    typedef TTypeBuilder<NYT::NTableClient::TUnversionedValueData> TData;
 
     enum Fields
     {
@@ -76,14 +80,14 @@ public:
         Data
     };
 
-    static StructType* get(LLVMContext& context)
+    static StructType* Get(LLVMContext& context)
     {
         return StructType::get(context, {
-            TId::get(context),
-            TType::get(context),
-            TAggregate::get(context),
-            TLength::get(context),
-            TData::get(context)});
+            TId::Get(context),
+            TType::Get(context),
+            TAggregate::Get(context),
+            TLength::Get(context),
+            TData::Get(context)});
     }
 
     static_assert(
@@ -116,5 +120,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace llvm
+} // namespace NYT::NCodegen
 

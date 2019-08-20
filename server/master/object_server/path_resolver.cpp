@@ -5,6 +5,7 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/link_node.h>
 #include <yt/server/master/cypress_server/portal_entrance_node.h>
 #include <yt/server/master/cypress_server/helpers.h>
 #include <yt/server/master/cypress_server/resolve_cache.h>
@@ -210,7 +211,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             const auto* link = currentNode->As<TLinkNode>();
             auto rewrittenPath =
-                link->GetTargetPath() +
+                link->ComputeEffectiveTargetPath() +
                 (slashSkipped ? SlashYPath : EmptyYPath) +
                 Tokenizer_.GetInput();
             Tokenizer_.Reset(std::move(rewrittenPath));

@@ -29,6 +29,9 @@
 
 #include <yt/ytlib/transaction_client/action.h>
 
+#include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_pool.h>
@@ -329,6 +332,12 @@ private:
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 
+            auto currentTimestamp = transaction->GetStartTimestamp();
+            auto retainedTimestamp = std::min(
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetConfig()->MinDataTtl).second,
+                currentTimestamp
+            );
+
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
 
@@ -336,7 +345,7 @@ private:
 
             auto asyncFlushResult = flushCallback
                 .AsyncVia(ThreadPool_->GetInvoker())
-                .Run(transaction, std::move(throttler));
+                .Run(transaction, std::move(throttler), currentTimestamp);
 
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
@@ -351,6 +360,10 @@ private:
             actionRequest.set_mount_revision(tablet->GetMountRevision());
             ToProto(actionRequest.mutable_stores_to_add(), flushResult);
             ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
+
+            if (tabletSnapshot->Config->MergeRowsOnFlush) {
+                actionRequest.set_retained_timestamp(retainedTimestamp);
+            }
 
             auto actionData = MakeTransactionActionData(actionRequest);
             auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));

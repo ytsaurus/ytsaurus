@@ -2,21 +2,22 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/TypeBuilder.h>
 
 #include <yt/core/misc/assert.h>
 
 #include <yt/core/codegen/llvm_migrate_helpers.h>
+#include <yt/core/codegen/type_builder.h>
 
 namespace NYT::NQueryClient {
 
 using llvm::Function;
 using llvm::BasicBlock;
-using llvm::TypeBuilder;
 using llvm::Value;
 using llvm::Type;
 using llvm::Twine;
 using llvm::Module;
+
+using NCodegen::TTypeBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +127,7 @@ Value* TCGIRBuilder::GetClosure()
 
     return Parent_->CreatePointerCast(
         closurePtr,
-        TypeBuilder<void**, false>::get(getContext()),
+        TTypeBuilder<void**>::Get(getContext()),
         "uncastedClosure");
 }
 
@@ -152,7 +153,7 @@ void TCGIRBuilder::CreateStackRestore(Value* ptr)
 
 Type* TCGIRBuilder::getSizeType() const
 {
-    return TypeBuilder<size_t, false>::get(getContext());
+    return TTypeBuilder<size_t>::Get(getContext());
 }
 
 llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(

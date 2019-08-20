@@ -1,5 +1,7 @@
 import pytest
 
+from yt_commands import authors
+
 from compression_testcases import TESTCASE_MAP
 
 from yt.wrapper.client import Yt
@@ -49,6 +51,7 @@ class CachingFileGetter(object):
 def caching_file_getter(yt_proxy):
     return CachingFileGetter(yt_proxy)
 
+@authors("ermolovd")
 @pytest.mark.parametrize("testcase_info", get_testcase_info_list())
 def test_compression(yt_proxy, caching_file_getter, testcase_info):
     if yt_proxy is None:

@@ -6,7 +6,7 @@ class TestCypressAnnotations(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
     DELTA_SCHEDULER_CONFIG = {
@@ -34,6 +34,7 @@ class TestCypressAnnotations(YTEnvSetup):
         "cypress_annotations" : { "whoami" : "rpc_proxy" }
     }
 
+    @authors("prime", "psushin")
     def test_annotations(self):
         n = ls("//sys/cluster_nodes")[0]
         assert "node" == get("//sys/cluster_nodes/{0}/@annotations/whoami".format(n))

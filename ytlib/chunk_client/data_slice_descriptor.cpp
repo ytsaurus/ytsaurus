@@ -60,6 +60,33 @@ int TDataSliceDescriptor::GetRangeIndex() const
        : ChunkSpecs.front().range_index();
 }
 
+TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
+{
+    TStringBuilder stringBuilder;
+    stringBuilder.AppendChar('{');
+    bool isFirst = true;
+    for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+        if (!isFirst) {
+            stringBuilder.AppendString(", ");
+        }
+        stringBuilder.AppendString(ToString(FromProto<TChunkId>(chunkSpec.chunk_id())));
+        if (chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) {
+            stringBuilder.AppendChar('[');
+            if (chunkSpec.has_lower_limit()) {
+                stringBuilder.AppendString(ToString(FromProto<TReadLimit>(chunkSpec.lower_limit())));
+            }
+            stringBuilder.AppendChar(':');
+            if (chunkSpec.has_upper_limit()) {
+                stringBuilder.AppendString(ToString(FromProto<TReadLimit>(chunkSpec.upper_limit())));
+            }
+            stringBuilder.AppendChar(']');
+        }
+        isFirst = false;
+    }
+    stringBuilder.AppendChar('}');
+    return stringBuilder.Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)

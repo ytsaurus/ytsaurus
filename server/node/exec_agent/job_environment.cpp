@@ -41,9 +41,7 @@ using namespace NCGroup;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NJobProxy;
-#ifdef _linux_
 using namespace NContainers;
-#endif
 using namespace NDataNode;
 using namespace NYTree;
 using namespace NTools;
@@ -157,6 +155,16 @@ public:
     virtual bool ExternalJobMemory() const override
     {
         return false;
+    }
+
+    virtual TFuture<void> RunSetupCommands(
+        int /*slotIndex*/,
+        TJobId /*jobId*/,
+        const std::vector<NJobAgent::TShellCommandConfigPtr>& /*commands*/,
+        const TRootFS& /*rootFS*/) override
+    {
+        THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
+            BasicConfig_->Type);
     }
 
 protected:
@@ -492,6 +500,24 @@ public:
         return Config_->ExternalJobContainer.operator bool();
     }
 
+    virtual TFuture<void> RunSetupCommands(
+        int slotIndex,
+        TJobId jobId,
+        const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
+        const TRootFS& rootFS) override
+    {
+        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS);
+
+        return BIND([instance, commands] {
+            for (const auto& command : commands) {
+                auto process = CreateSetupProcess(instance, command);
+                WaitFor(process->Spawn()).ThrowOnError();
+            }
+        })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run();
+    }
+
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
     IPortoExecutorPtr PortoExecutor_;
@@ -578,7 +604,7 @@ private:
         auto getMetaContainer = [&] () -> IInstancePtr {
             if (Config_->ExternalJobContainer) {
                 return GetPortoInstance(PortoExecutor_, *Config_->ExternalJobContainer);
-            }   else {
+            } else {
                 auto self = GetSelfPortoInstance(PortoExecutor_);
                 auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
 
@@ -649,6 +675,7 @@ private:
                 GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
                 PortoExecutor_);
 
+            //TODO: remove because of deprecation
             if (Config_->ExternalJobRootVolume) {
                 TRootFS rootFS;
                 rootFS.RootPath = *Config_->ExternalJobRootVolume;
@@ -704,6 +731,22 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to update resource limits from porto");
         }
+    }
+
+    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS)
+    {
+        auto instance = CreatePortoInstance(
+            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/setup_" + ToString(jobId),
+            PortoExecutor_);
+        instance->SetRoot(rootFS);
+        return instance;
+    }
+
+    static TProcessBasePtr CreateSetupProcess(const IInstancePtr& instance, const NJobAgent::TShellCommandConfigPtr& command)
+    {
+        auto process = New<TPortoProcess>(command->Path, instance);
+        process->AddArguments(command->Args);
+        return process;
     }
 };
 

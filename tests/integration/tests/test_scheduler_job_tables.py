@@ -83,6 +83,7 @@ class TestStderrTable(YTEnvSetup):
         }
     }
 
+    @authors("ermolovd")
     @unix_only
     def test_map(self):
         create("table", "//tmp/t_input")
@@ -100,6 +101,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_aborted_operation(self):
         create("table", "//tmp/t_input")
@@ -129,6 +131,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_ordered_map(self):
         create("table", "//tmp/t_input")
@@ -147,6 +150,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_reduce(self):
         create("table", "//tmp/t_input")
@@ -165,6 +169,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["REDUCE\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_join_reduce(self):
         create("table", "//tmp/t_foreign")
@@ -196,6 +201,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["REDUCE\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
@@ -215,6 +221,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["FOO\n", "BAR\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_map_reduce_no_map(self):
         create("table", "//tmp/t_input")
@@ -233,6 +240,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["BAR\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_map_reduce_only_reduce(self):
         create("table", "//tmp/t_input")
@@ -251,6 +259,7 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["BAZ\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_map_combine_reduce(self):
         create("table", "//tmp/t_input")
@@ -281,6 +290,7 @@ class TestStderrTable(YTEnvSetup):
                 "REDUCER\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
+    @authors("ermolovd")
     @unix_only
     def test_failed_jobs(self):
         create("table", "//tmp/t_input")
@@ -304,6 +314,7 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted")
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
+    @authors("ermolovd")
     @unix_only
     def test_append_stderr_prohibited(self):
         create("table", "//tmp/t_input")
@@ -322,6 +333,7 @@ class TestStderrTable(YTEnvSetup):
                 }
             )
 
+    @authors("ermolovd")
     @unix_only
     def test_failing_write(self):
         create("table", "//tmp/t_input")
@@ -345,6 +357,7 @@ class TestStderrTable(YTEnvSetup):
             )
 
 
+    @authors("ermolovd")
     @unix_only
     def test_max_part_size(self):
         create("table", "//tmp/t_input")
@@ -365,6 +378,7 @@ class TestStderrTable(YTEnvSetup):
             }
         )
 
+    @authors("ermolovd")
     @unix_only
     def test_big_stderr(self):
         create("table", "//tmp/t_input")
@@ -386,6 +400,7 @@ class TestStderrTable(YTEnvSetup):
 
         assert str("".join(item["data"] for item in stderr_rows)) == str("x " * (30 * 1024 * 1024))
 
+    @authors("max42", "ermolovd")
     @unix_only
     def test_scheduler_revive(self):
         create("table", "//tmp/t_input")
@@ -614,6 +629,7 @@ class TestCoreTable(YTEnvSetup):
             content[row["job_id"]][row["core_id"]] += row["data"]
         return content
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -625,6 +641,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {}
         assert self._get_core_table_content() == {}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -644,6 +661,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -664,6 +682,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content(assert_rows_number_geq=2) == {job: [ret_dict["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -707,6 +726,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict1["core_data"], ret_dict2["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -728,6 +748,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -740,6 +761,7 @@ class TestCoreTable(YTEnvSetup):
         assert ret_dict["return_code"] == 0
         assert open(temp_file_path).read() == "core_data"
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -795,6 +817,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict2["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
@@ -822,6 +845,7 @@ class TestCoreTable(YTEnvSetup):
         assert not "size" in core_info
         assert "error" in core_info
 
+    @authors("max42")
     @skip_if_porto
     @require_enabled_core_dump
     @require_ytserver_root_privileges
@@ -846,6 +870,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @authors("max42")
     @skip_if_porto
     @require_enabled_core_dump
     @require_ytserver_root_privileges
@@ -876,6 +901,7 @@ class TestCoreTablePorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
+    @authors("dcherednik")
     @require_ytserver_root_privileges
     @unix_only
     def test_core_when_user_job_was_killed_porto(self):

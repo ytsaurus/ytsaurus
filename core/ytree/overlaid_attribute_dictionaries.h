@@ -61,9 +61,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Type deduction helper. All arguments are expected to be of same time.
+// Type deduction helper. All arguments are expected to be of same type.
 template <class T, class... Args>
-TOverlaidAttributeDictionary<typename std::remove_reference<T>::type> OverlayAttributeDictionaries(
+TOverlaidAttributeDictionary<typename std::decay<T>::type> OverlayAttributeDictionaries(
     T&& topmostUnderlyingDict,
     Args&&... underlyingDicts);
 

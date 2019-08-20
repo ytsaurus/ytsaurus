@@ -107,8 +107,11 @@ public:
 
     virtual bool IsBalancingRequired() override
     {
-        auto waitTime = Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
+        if (!GetConfig()->EnableTabletCellSmoothing) {
+            return false;
+        }
+
+        auto waitTime = GetConfig()->RebalanceWaitTime;
 
         if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
             BalanceRequestTime_.reset();
@@ -128,28 +131,38 @@ private:
             BalanceRequestTime_ = Now();
         }
     }
+
+    const TDynamicTabletCellBalancerMasterConfigPtr& GetConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()
+            ->TabletManager->TabletCellBalancer;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletTrackerImpl::TTabletTrackerImpl(
-    TTabletManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap,
     TInstant startTime)
-    : Config_(std::move(config))
-    , Bootstrap_(bootstrap)
+    : Bootstrap_(bootstrap)
     , StartTime_(startTime)
     , TTabletCellBalancerProvider_(New<TTabletCellBalancerProvider>(Bootstrap_))
     , Profiler("/tablet_server/tablet_tracker")
 {
-    YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    tabletManager->SubscribeTabletCellPeersAssigned(BIND(&TTabletTrackerImpl::OnTabletCellPeersReassigned, MakeWeak(this)));
 }
 
 void TTabletTrackerImpl::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (WaitForCommit_) {
+        return;
+    }
 
     auto balancer = CreateTabletCellBalancer(TTabletCellBalancerProvider_);
 
@@ -213,8 +226,20 @@ void TTabletTrackerImpl::ScanCells()
         }
     }
 
+    WaitForCommit_ = true;
+
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
+}
+
+void TTabletTrackerImpl::OnTabletCellPeersReassigned()
+{
+    WaitForCommit_ = false;
+}
+
+const TDynamicTabletManagerConfigPtr& TTabletTrackerImpl::GetDynamicConfig()
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
 void TTabletTrackerImpl::ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
@@ -241,7 +266,7 @@ void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
     TError error;
 
     if (!leadingPeer.Descriptor.IsNull()) {
-        error = IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), Config_->LeaderReassignmentTimeout);
+        error = IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->LeaderReassignmentTimeout);
         if (error.IsOK()) {
             return;
         }
@@ -308,7 +333,7 @@ void TTabletTrackerImpl::SchedulePeerAssignment(TTabletCell* cell, ITabletCellBa
 void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer)
 {
     // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout) {
+    if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout) {
         return;
     }
 
@@ -318,7 +343,7 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
             continue;
         }
 
-        auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout);
+        auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
             YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",

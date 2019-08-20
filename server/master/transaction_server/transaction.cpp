@@ -84,7 +84,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, SecondaryCellTags_);
     Load(context, NestedNativeTransactions_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterSnapshotVersion::ShardedUploads) {
+    if (context.GetVersion() >= EMasterReign::ShardedUploads) {
         Load(context, NestedExternalTransactionIds_);
         Load(context, UnregisterFromParentOnCommit_);
         Load(context, UnregisterFromParentOnAbort_);
@@ -101,21 +101,21 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterSnapshotVersion::RemoveTTransactionSystem) {
+    if (context.GetVersion() < EMasterReign::RemoveTTransactionSystem) {
         Load<bool>(context); // drop System_
     }
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
     // COMPAT(ignat)
-    if (context.GetVersion() >= EMasterSnapshotVersion::PersistTransactionDeadline) {
+    if (context.GetVersion() >= EMasterReign::PersistTransactionDeadline) {
         Load(context, Deadline_);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+    if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, LockedDynamicTables_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterSnapshotVersion::TransactionDepth) {
+    if (context.GetVersion() >= EMasterReign::TransactionDepth) {
         Load(context, Depth_);
     }
 }

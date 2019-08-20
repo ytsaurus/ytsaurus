@@ -32,7 +32,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
 
 public:
-    NCellMaster::EMasterSnapshotVersion GetVersion();
+    EMasterReign GetVersion();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ public:
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
-    NCellMaster::EMasterSnapshotVersion GetVersion();
+    EMasterReign GetVersion();
 };
 
 template <>
@@ -78,6 +78,9 @@ private:
         ICheckpointableOutputStream* output) override;
     virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) override;
+
+    virtual NHydra::TReign GetCurrentReign() override;
+    virtual NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterAutomaton)

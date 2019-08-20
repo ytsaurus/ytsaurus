@@ -59,6 +59,7 @@ class TestSkynetIntegration(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    @authors("prime")
     def test_locate_single_part(self):
         create("table", "//tmp/table")
 
@@ -74,6 +75,7 @@ class TestSkynetIntegration(YTEnvSetup):
         assert chunk_specs[0]["row_index"] == 0
         assert chunk_specs[0]["row_count"] == 1
 
+    @authors("prime")
     def test_locate_multiple_parts(self):
         create("table", "//tmp/table")
 
@@ -94,6 +96,7 @@ class TestSkynetIntegration(YTEnvSetup):
         assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0, 'row_count': 2}
         assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0, 'row_count': 1}
 
+    @authors("prime")
     def test_multiple_ranges(self):
         create("table", "//tmp/table")
 
@@ -110,6 +113,7 @@ class TestSkynetIntegration(YTEnvSetup):
         assert chunk_specs[0] == {'chunk_id': chunk, 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 0, 'range_index': 0, 'row_count': 1}
         assert chunk_specs[1] == {'chunk_id': chunk, 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 1, 'row_count': 1}
 
+    @authors("prime")
     def test_node_locations(self):
         create("table", "//tmp/table", attributes={
             "replication_factor": 5
@@ -147,6 +151,7 @@ class TestSkynetIntegration(YTEnvSetup):
         rsp.raise_for_status()
         return rsp.content
 
+    @authors("prime")
     def test_http_checks_access(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", [
@@ -169,6 +174,7 @@ class TestSkynetIntegration(YTEnvSetup):
             self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
                 lower_row_index=0, upper_row_index=2, start_part_index=0)
 
+    @authors("prime")
     def test_write_null_fields(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -178,6 +184,7 @@ class TestSkynetIntegration(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/table", [{}])
 
+    @authors("prime")
     def test_download_single_part_by_http(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -203,6 +210,7 @@ class TestSkynetIntegration(YTEnvSetup):
         assert "abc" == self.get_skynet_part(node_id, info["nodes"], chunk_id=chunk_id,
                                              lower_row_index=0, upper_row_index=1, start_part_index=0)
 
+    @authors("prime")
     def test_http_edge_cases(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -246,6 +254,7 @@ class TestSkynetIntegration(YTEnvSetup):
                                                   upper_row_index=upper_row_index,
                                                   start_part_index=part_index)
 
+    @authors("prime")
     def test_operation_output(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", [
@@ -279,6 +288,7 @@ class TestSkynetIntegration(YTEnvSetup):
             in_=["//tmp/table", "//tmp/table2"],
             out="//tmp/merged")
 
+    @authors("prime")
     def test_same_filename_in_two_shards(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -290,6 +300,7 @@ class TestSkynetIntegration(YTEnvSetup):
             {"sky_share_id": 1, "filename": "a", "part_index": 0, "data": "aaa"},
         ])
 
+    @authors("prime")
     def test_skynet_hashes(self):
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -320,11 +331,11 @@ class TestSkynetIntegration(YTEnvSetup):
 class TestSkynetManager(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
 
-    
+
     def wait_skynet_manager(self):
         url = "http://localhost:{}/debug/healthcheck".format(self.Env.configs["skynet_manager"][0]["port"])
 
@@ -337,7 +348,7 @@ class TestSkynetManager(YTEnvSetup):
             return True
 
         wait(skynet_manager_ready)
-        
+
 
     def setup(self):
         sync_create_cells(1)
@@ -368,7 +379,8 @@ class TestSkynetManager(YTEnvSetup):
             "chunk_writer": {"desired_chunk_weight": 1 * 1024 * 1024},
         })
         write_table(table_path, [
-            {"filename": "test0.txt", "part_index": 0, "data": "testtesttest"}
+            {"filename": "test00.txt", "part_index": 0, "data": "testtesttest"},
+            {"filename": "test01.txt", "part_index": 0, "data": "testtesttest"},
         ])
 
         write_table("<append=%true>" + table_path, [
@@ -408,21 +420,24 @@ class TestSkynetManager(YTEnvSetup):
 
         raise RuntimeError("Failed to share {} in 60 seconds".format(path))
 
-    @flaky(max_runs=5)
+    @authors("prime")
+    # @flaky(max_runs=5)
     def test_create_share(self):
         self.prepare_table("//tmp/table")
         rbtorrentid = self.share("//tmp/table")
 
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_0", rbtorrentid])
 
+    @authors("prime")
     def test_no_table(self):
         with pytest.raises(YtError):
             self.share("//tmp/no_table")
 
+    @authors("prime")
     @flaky(max_runs=5)
     def test_empty_file(self):
         self.wait_skynet_manager()
-        
+
         create("table", "//tmp/table_with_empty_file", attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
@@ -447,11 +462,13 @@ class TestSkynetManager(YTEnvSetup):
         else:
             rsp.raise_for_status()
 
+    @authors("prime")
     def test_wrong_table_attributes(self):
         create("table", "//tmp/table_with_wrong_attrs")
         with pytest.raises(YtError):
             self.share("//tmp/table_with_wrong_attrs")
 
+    @authors("prime")
     def test_duplicate_table_content(self):
         self.prepare_table("//tmp/orig_table")
         copy("//tmp/orig_table", "//tmp/copy_table")
@@ -460,6 +477,7 @@ class TestSkynetManager(YTEnvSetup):
         rbtorrentid1 = self.share("//tmp/copy_table")
         assert rbtorrentid0 == rbtorrentid1
 
+    @authors("prime")
     def test_table_remove(self):
         self.prepare_table("//tmp/removed_table")
         rbtorrentid = self.share("//tmp/removed_table")
@@ -473,6 +491,7 @@ class TestSkynetManager(YTEnvSetup):
                 pass
         wait(share_is_removed)
 
+    @authors("prime")
     def test_replication(self):
         self.prepare_table("//tmp/replicated_table")
         rbtorrentid = self.share("//tmp/replicated_table")
@@ -484,6 +503,7 @@ class TestSkynetManager(YTEnvSetup):
 
         wait(share_is_replicated)
 
+    @authors("prime")
     @flaky(max_runs=5)
     def test_recovery(self):
         self.wait_skynet_manager()
@@ -496,6 +516,7 @@ class TestSkynetManager(YTEnvSetup):
 
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_1", rbtorrentid])
 
+    @authors("prime")
     @flaky(max_runs=5)
     def test_many_shards(self):
         self.wait_skynet_manager()
@@ -518,6 +539,7 @@ class TestSkynetManager(YTEnvSetup):
         subprocess.check_call(["sky", "get", "-t", "60", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid1])
         assert second_file == open(self.path_to_run + "/test_download_2/a").read()
 
+    @authors("prime")
     @flaky(max_runs=5)
     def test_share_many(self):
         self.wait_skynet_manager()

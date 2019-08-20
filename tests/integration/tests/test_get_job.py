@@ -41,6 +41,7 @@ class TestGetJob(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
+    @authors("levysotsky")
     def test_get_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -83,5 +84,5 @@ class TestGetJobRpcProxy(TestGetJob):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

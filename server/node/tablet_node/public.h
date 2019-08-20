@@ -65,6 +65,7 @@ DECLARE_REFCOUNTED_CLASS(TOrderedStoreManager)
 DECLARE_REFCOUNTED_CLASS(TReplicatedStoreManager)
 
 DECLARE_REFCOUNTED_CLASS(TLockManager)
+using TLockManagerEpoch = i64;
 
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 

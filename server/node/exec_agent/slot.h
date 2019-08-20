@@ -5,6 +5,7 @@
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/public.h>
 
+#include <yt/server/lib/containers/public.h>
 #include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -72,6 +73,11 @@ struct ISlot
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
+
+    virtual TFuture<void> RunSetupCommands(
+        TJobId jobId,
+        const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
+        const NContainers::TRootFS& rootFS) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlot)

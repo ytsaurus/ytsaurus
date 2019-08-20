@@ -16,6 +16,8 @@ import pytest
 import random
 import os
 import copy
+import signal
+import threading
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -227,7 +229,7 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NODE_PORT_SET_SIZE = 5
 
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     DELTA_PROXY_CONFIG = {
         "proxy": {
@@ -278,11 +280,22 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
+def get_scheduling_options(user_slots):
+    return {
+        "scheduling_options_per_pool_tree": {
+            "default": {
+                "resource_limits": {
+                    "user_slots": user_slots
+                }
+            }
+        }
+    }
 
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
         with Clique(instance_count) as clique:
@@ -298,6 +311,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
+    @authors("max42")
     def test_aggregation_with_multiple_string_columns(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
@@ -310,6 +324,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
             assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
+    @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_cast(self, instance_count):
         with Clique(instance_count) as clique:
@@ -319,6 +334,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query('select CAST(a as datetime) from "//tmp/t"')
             assert result == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
+    @authors("max42")
     def test_settings(self):
         with Clique(1) as clique:
             # I took some random option from the documentation and changed it in config.yson.
@@ -328,6 +344,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert result[0]["value"] == "1234"
             assert result[0]["changed"] == 1
 
+    @authors("max42")
     def test_schema_caching(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -340,6 +357,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
+    @authors("max42")
     def test_concat_inside_link(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/dir")
@@ -350,6 +368,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/link/t2", [{"i": 1}])
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
+    @authors("dakovalkov")
     def test_system_clique(self):
         with Clique(3) as clique:
             time.sleep(1)
@@ -370,10 +389,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 3 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
+            wait(lambda: clique.get_active_instance_count() == 3)
 
             time.sleep(1)
 
@@ -387,6 +403,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert responses2[1] == responses2[2]
             assert responses != responses2
 
+    @authors("dakovalkov")
     def test_ban_nodes(self):
         patch = {
             "discovery": {
@@ -407,12 +424,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 3 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
+            wait(lambda: clique.get_active_instance_count() == 3)
 
-            time.sleep(2)
+            time.sleep(1)
 
             instances = clique.get_active_instances()
             # One instnace is dead, but the lock should be alive.
@@ -425,6 +439,141 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 response = clique.make_direct_query(instance, "select * from system.clique")
                 assert len(response) == 2
 
+    @authors("dakovalkov")
+    def test_single_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 1000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.5)
+            assert len(clique.get_active_instances()) == 0
+            assert clique.make_direct_query(instances[0], "select 1") == [{"1": 1}]
+            time.sleep(0.6)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+        
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+            
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+            
+    @authors("dakovalkov")
+    def test_double_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 10000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            assert len(clique.get_active_instances()) == 0
+            assert clique.make_direct_query(instances[0], "select 1") == [{"1": 1}]
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+            
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+
+    @authors("dakovalkov")
+    def test_long_query_interrupt(self):
+        patch = {
+            "interruption_graceful_timeout": 1000,
+        }
+        with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            signal_job(instances[0], "SIGINT")
+            time.sleep(0.2)
+            assert clique.get_active_instance_count() == 0
+            assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
+            time.sleep(0.1)
+            with pytest.raises(Exception):
+                clique.make_direct_query(instances[0], "select 1")
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            wait(lambda: clique.get_active_instance_count() == 1)
+
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 1
+            assert new_instances != instances
+
+    @authors("dakovalkov")
+    def test_clique_availability(self):
+        create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
+        write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
+        patch = {
+            "interruption_graceful_timeout": 600,
+        }
+        with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
+            running = True
+            def pinger():
+                while running:
+                    response = sorted(clique.make_query("select * from \"//tmp/table\""))
+                    assert response == [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}]
+
+            ping_thread = threading.Thread(target=pinger, )
+            ping_thread.start()
+            time.sleep(1)
+            
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+            
+            signal_job(instances[0], "SIGINT")
+            time.sleep(3)
+            wait(lambda: clique.get_active_instance_count() == 2)
+            
+            new_instances = clique.get_active_instances()
+            assert len(new_instances) == 2
+            assert new_instances != instances
+
+            assert ping_thread.is_alive()
+            running = False
+            ping_thread.join()
+
+    @authors("dakovalkov")
+    def test_convert_yson(self):
+        create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "any"}, {"name": "fmt", "type": "string"}]})
+        value1 = 1
+        value2 = [1, 2]
+        value3 = {"key": "value"}
+        write_table("//tmp/table", [{"i": value1, "fmt": "binary"}, {"i": value2, "fmt": "pretty"}, {"i": value3, "fmt": "text"}])
+        with Clique(1) as clique:
+            value = {"key": [1, 2]}
+            func = "ConvertYson('" + yson.dumps(value, yson_format='text') + "', 'pretty')"
+            assert clique.make_query("select " + func) == [{func: yson.dumps(value, yson_format='pretty')}]
+            func = "ConvertYson(NULL, 'text')"
+            assert clique.make_query("select " + func) == [{func: None}]
+            func = "ConvertYson(i, 'text')"
+            assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
+                {func: yson.dumps(value1, yson_format='text')},
+                {func: yson.dumps(value2, yson_format='text')},
+                {func: yson.dumps(value3, yson_format='text')}]
+            func = "ConvertYson(i, fmt)"
+            assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
+                {func: yson.dumps(value1, yson_format='binary')},
+                {func: yson.dumps(value2, yson_format='pretty')},
+                {func: yson.dumps(value3, yson_format='text')}]
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{{{{', 'binary')")
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson(1, 'text')")
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
@@ -438,6 +587,7 @@ class TestJobInput(ClickHouseTestBase):
         else:
             assert min <= result["statistics"]["rows_read"] <= max
 
+    @authors("max42")
     def test_chunk_filter(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
         for i in xrange(10):
@@ -448,6 +598,8 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', exact=4)
             self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=2)
 
+    @authors("max42")
+    @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
     def test_chunk_slicing(self):
         create("table",
                "//tmp/t",
@@ -479,6 +631,7 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
             self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
+    @authors("max42")
     def test_sampling(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": i} for i in range(1000)], verbose=False)
@@ -493,6 +646,7 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
 
+    @authors("max42")
     def test_CHYT_143(self):
         # Issues with chunk name table ids, read schema ids and unversioned value row indices.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
@@ -508,6 +662,7 @@ class TestMutations(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_insert_values(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i64", "type": "int64"},
                                                           {"name": "ui64", "type": "uint64"},
@@ -541,6 +696,7 @@ class TestMutations(ClickHouseTestBase):
             ]
             assert get("//tmp/t/@chunk_count") == 1
 
+    @authors("max42")
     def test_insert_select(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},
                                                            {"name": "ui64", "type": "uint64"},
@@ -599,6 +755,7 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": 4, "ui64": 5, "str": None, "dbl": None, "bool": None},
             ]
 
+    @authors("max42")
     def test_create_table_simple(self):
         with Clique(1, config_patch={"engine": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
@@ -649,6 +806,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query('create table "//tmp/t3"(b String) engine YtTable(\'{schema=[{name=a;type=int64}]}\')')
             assert get("//tmp/t3/@schema/0/name") == "b"
 
+    @authors("max42")
     def test_create_table_as_select(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},
                                                            {"name": "ui64", "type": "uint64"},
@@ -668,6 +826,7 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": 0},
             ]
 
+    @authors("max42")
     def test_create_table_as_table(self):
         schema = [{"name": "i64", "type": "int64", "required": False, "sort_order": "ascending"},
                   {"name": "ui64", "type": "uint64", "required": False},
@@ -735,6 +894,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             }
         ])
 
+    @authors("max42")
     def test_read_int64_strict(self):
         with Clique(1) as clique:
             for i in xrange(4):
@@ -746,16 +906,19 @@ class TestCompositeTypes(ClickHouseTestBase):
                     result = clique.make_query(query)
                     assert result[0].popitem()[1] == -42
 
+    @authors("max42")
     def test_read_uint64_strict(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
             assert result[0].popitem()[1] == 57
 
+    @authors("max42")
     def test_read_from_subnode(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
             assert result[0].popitem()[1] == 123
 
+    @authors("max42")
     def test_read_int64_non_strict(self):
         with Clique(1) as clique:
             query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
@@ -768,6 +931,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                 else:
                     assert item.popitem()[1] == 0
 
+    @authors("max42")
     def test_read_all_types_strict(self):
         query = "select YPathInt64Strict(v, '/i64') as i64, YPathUInt64Strict(v, '/ui64') as ui64, " \
                 "YPathDoubleStrict(v, '/dbl') as dbl, YPathBooleanStrict(v, '/bool') as bool, " \
@@ -788,6 +952,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             "arr_bool": [False, True, False],
         }]
 
+    @authors("max42")
     def test_read_all_types_non_strict(self):
         query = "select YPathInt64(v, '/i64') as i64, YPathUInt64(v, '/ui64') as ui64, " \
                 "YPathDouble(v, '/dbl') as dbl, YPathBoolean(v, '/bool') as bool, " \
@@ -808,11 +973,13 @@ class TestCompositeTypes(ClickHouseTestBase):
             "arr_bool": [],
         }]
 
+    @authors("max42")
     def test_const_args(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
         assert result == [{"str": "xyz"}]
 
+    @authors("max42")
     def test_nulls(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
@@ -820,6 +987,7 @@ class TestCompositeTypes(ClickHouseTestBase):
         assert result == [{"a": None, "b": None, "c": None}]
 
     # CHYT-157.
+    @authors("max42")
     def test_int64_as_any(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
@@ -839,6 +1007,7 @@ class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_int_key_flat(self):
         create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
                                                              {"name": "value_str", "type": "string", "required": True},
@@ -875,6 +1044,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             {"number": 4, "str": "n/a", "i64": 42},
         ]
 
+    @authors("max42")
     def test_composite_key_hashed(self):
         create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "string", "required": True},
                                                              {"name": "subkey", "type": "int64", "required": True},
@@ -913,6 +1083,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             result = clique.make_query("select dictGetString('dict', 'value', tuple(key, subkey)) as value from \"//tmp/queries\"")
         assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
+    @authors("max42")
     def test_lifetime(self):
         create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
                                                              {"name": "value", "type": "string", "required": True}]})
@@ -957,6 +1128,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_missing_schema(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": 42, "value": "x"}])
@@ -968,6 +1140,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
     def _strip_description(self, rows):
         return [{key: value for key, value in row.iteritems() if key in ("name", "type")} for row in rows]
 
+    @authors("max42")
     def test_common_schema_unsorted(self):
         create("table", "//tmp/t1", attributes={"schema": [
             {"name": "a", "type": "int64"},
@@ -995,6 +1168,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\", \"//tmp/t3\")")
 
+    @authors("max42")
     def test_common_schema_sorted(self):
         create("table", "//tmp/t1", attributes={"schema": [
             {"name": "a", "type": "int64", "sort_order": "ascending"},
@@ -1021,6 +1195,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
 
+    @authors("max42")
     def test_nulls_in_primary_key(self):
         create("table", "//tmp/t", attributes={"schema": [
             {"name": "a", "type": "int64", "sort_order": "ascending"}
@@ -1039,6 +1214,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_clique_access(self):
         create_user("u")
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -1067,6 +1243,7 @@ class TestQueryLog(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_query_log(self):
         with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
             clique.make_query("select 1")
@@ -1079,6 +1256,7 @@ class TestQueryRegistry(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     def test_codicils(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
         # Normal footprint at start of clique should be around 1.5 Gb
@@ -1097,6 +1275,7 @@ class TestJoinAndIn(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42")
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_global_join(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
@@ -1123,6 +1302,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by t1.a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
 
+    @authors("max42")
     def test_global_in(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
@@ -1139,6 +1319,35 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select toInt64(42) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [1]
             assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]
 
+    @authors("max42")
+    def test_sorted_join(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "lhs", "type": "string", "required": True}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "rhs", "type": "string", "required": True}]})
+        lhs_rows = [
+            [{"key": 1, "lhs": "foo1"}],
+            [{"key": 2, "lhs": "foo2"}, {"key": 3, "lhs": "foo3"}],
+            [{"key": 4, "lhs": "foo4"}],
+        ]
+        rhs_rows = [
+            [{"key": 1, "rhs": "bar1"}, {"key": 2, "rhs": "bar2"}],
+            [{"key": 3, "rhs": "bar3"}, {"key": 4, "rhs": "bar4"}],
+        ]
+
+        for rows in lhs_rows:
+            write_table("<append=%true>//tmp/t1", rows)
+        for rows in rhs_rows:
+            write_table("<append=%true>//tmp/t2", rows)
+
+        with Clique(3) as clique:
+            expected = [{"key": 1, "lhs": "foo1", "rhs": "bar1"},
+                        {"key": 2, "lhs": "foo2", "rhs": "bar2"},
+                        {"key": 3, "lhs": "foo3", "rhs": "bar3"},
+                        {"key": 4, "lhs": "foo4", "rhs": "bar4"}]
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" join \"//tmp/t2\" using key order by key") == expected
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
+
 class TestHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -1147,6 +1356,7 @@ class TestHttpProxy(ClickHouseTestBase):
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
+    @authors("dakovalkov")
     def test_http_proxy(self):
         with Clique(1) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
@@ -1160,12 +1370,7 @@ class TestHttpProxy(ClickHouseTestBase):
             abort_job(jobs[0])
             time.sleep(2)
 
-            counter = 0
-            while clique.get_active_instance_count() < 1 and counter < 40:
-                time.sleep(0.5)
-                counter += 1
-
-            time.sleep(2)
+            wait(lambda: clique.get_active_instance_count() == 1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
             response = clique.make_query("select * from system.clique")

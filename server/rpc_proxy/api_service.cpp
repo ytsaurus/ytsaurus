@@ -396,9 +396,7 @@ private:
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
-        if (!Coordinator_->IsOperable(context)) {
-            THROW_ERROR_EXCEPTION("Proxy coordinator is not operable");
-        }
+        Coordinator_->ValidateOperable();
 
         const auto& user = context->GetUser();
 
@@ -1497,6 +1495,12 @@ private:
         if (request->has_mode()) {
             options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
         }
+        if (request->has_preserve_timestamps()) {
+            options.PreserveTimestamps = request->preserve_timestamps();
+        }
+        if (request->has_atomicity()) {
+            options.Atomicity = CheckedEnumCast<EAtomicity>(request->atomicity());
+        }
 
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
             replicaId,
@@ -2121,6 +2125,7 @@ private:
             : TColumnFilter(std::move(columnFilterIndexes));
         options->Timestamp = request->timestamp();
         options->KeepMissingRows = request->keep_missing_rows();
+        options->EnablePartialResult = request->enable_partial_result();
 
         context->SetRequestInfo("Path: %v, Rows: %v",
             request->path(),

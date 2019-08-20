@@ -65,6 +65,7 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NFormats;
+using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -387,24 +388,11 @@ public:
                 return cookieValue.As<IChunkPtr>();
             }
 
-            return cookieValue.Apply(BIND(
-                [Logger, cache = MakeStrong(this), key, options] (const TErrorOr<TCachedBlobChunkPtr>& chunkOrError) -> TFuture<IChunkPtr> {
-                    if (!chunkOrError.IsOK()) {
-                        YT_LOG_INFO(chunkOrError, "Failed to download chunk into cache");
-                        return MakeFuture(chunkOrError).As<IChunkPtr>();
-                    }
-
-                    return chunkOrError.Value()->Validate().Apply(BIND(
-                        [Logger, chunk = chunkOrError.Value(), cache, key, options] (const TError& validationStatus) -> TFuture<IChunkPtr> {
-                            if (validationStatus.IsOK()) {
-                                return MakeFuture(chunk).As<IChunkPtr>();
-                            } else {
-                                YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)", chunk->GetId());
-                                cache->TryRemove(chunk);
-                                return cache->DownloadArtifact(key, options);
-                            }
-                        }));
-                }));
+            return cookieValue.Apply(BIND(&TImpl::OnChunkCookiePrepared,
+                MakeStrong(this),
+                Logger,
+                key,
+                options));
         } else {
             YT_LOG_INFO("Loading artifact into cache");
 
@@ -494,6 +482,36 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    TFuture<IChunkPtr> OnChunkCookiePrepared(
+        const TLogger& Logger,
+        const TArtifactKey& key,
+        const TArtifactDownloadOptions& options,
+        const TErrorOr<TCachedBlobChunkPtr>& chunkOrError)
+    {
+        if (!chunkOrError.IsOK()) {
+            YT_LOG_INFO(chunkOrError, "Failed to download chunk into cache");
+            return MakeFuture(chunkOrError).As<IChunkPtr>();
+        }
+
+        return chunkOrError.Value()->Validate().Apply(BIND(&TImpl::OnChunkValidationFinished,
+            MakeStrong(this), Logger, chunkOrError.Value(), key, options));
+    }
+
+    TFuture<IChunkPtr> OnChunkValidationFinished(
+        const TLogger& Logger,
+        const TCachedBlobChunkPtr& chunk,
+        const TArtifactKey& key,
+        const TArtifactDownloadOptions& options,
+        const TError& validationStatus)
+    {
+        if (validationStatus.IsOK()) {
+            return MakeFuture(chunk).As<IChunkPtr>();
+        } else {
+            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading");
+            TryRemove(chunk);
+            return DownloadArtifact(key, options);
+        }
+    }
 
     void OnChunkCreated(
         const TCacheLocationPtr& location,
@@ -782,8 +800,6 @@ private:
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
             auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
             cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
                 chunkId)
@@ -813,8 +829,6 @@ private:
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
                 << ex;

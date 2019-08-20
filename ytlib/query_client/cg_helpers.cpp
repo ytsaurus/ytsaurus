@@ -19,13 +19,13 @@ StringRef ToStringRef(TRef ref)
 
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
-    return TDataTypeBuilder::get(context, staticType);
+    return TDataTypeBuilder::Get(context, staticType);
 }
 
 Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
     if (staticType == EValueType::Boolean) {
-        return TypeBuilder<llvm::types::i<1>, false>::get(context);
+        return TTypeBuilder<NCodegen::TTypes::i<1>>::Get(context);
     }
 
     return GetABIType(context, staticType);
@@ -53,7 +53,7 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
             Builder_->getInt32(0),
             Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentResults),
             Builder_->getInt32(ExpressionFragments.Items[index].Index),
-            Builder_->getInt32(TTypeBuilder::Type)
+            Builder_->getInt32(TValueTypeBuilder::Type)
         },
         Twine("flag#") + Twine(index));
 }
@@ -94,7 +94,7 @@ TCGExprContext TCGExprContext::Make(
 {
     if (!expressionClosurePtr) {
         expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size()),
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
             nullptr,
             "expressionClosurePtr");
     }

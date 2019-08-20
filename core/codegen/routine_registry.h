@@ -1,9 +1,9 @@
 #pragma once
 
+#include "type_builder.h"
+
 #include <util/generic/hash.h>
 #include <util/generic/string.h>
-
-#include <llvm/IR/TypeBuilder.h>
 
 namespace NYT::NCodegen {
 
@@ -12,18 +12,18 @@ namespace NYT::NCodegen {
 TString MangleSymbol(const TString& name);
 TString DemangleSymbol(const TString& name);
 
-template <typename TSignature, bool Cross>
+template <typename TSignature>
 class FunctionTypeBuilder;
 
-template <typename R, typename... Args, bool Cross>
-class FunctionTypeBuilder<R(Args...), Cross>
+template <typename R, typename... Args>
+class FunctionTypeBuilder<R(Args...)>
 {
 public:
-    static llvm::FunctionType *get(llvm::LLVMContext &Context) {
+    static llvm::FunctionType *Get(llvm::LLVMContext &Context) {
         llvm::Type *params[] = {
-            llvm::TypeBuilder<Args, Cross>::get(Context)...
+            TTypeBuilder<Args>::Get(Context)...
         };
-        return llvm::FunctionType::get(llvm::TypeBuilder<R, Cross>::get(Context),
+        return llvm::FunctionType::get(TTypeBuilder<R>::Get(Context),
             params, false);
     }
 };
@@ -31,7 +31,7 @@ public:
 class TRoutineRegistry
 {
 public:
-    typedef std::function<llvm::FunctionType*(llvm::LLVMContext&)> TTypeBuilder;
+    typedef std::function<llvm::FunctionType*(llvm::LLVMContext&)> TValueTypeBuilder;
 
     template <class TResult, class... TArgs>
     void RegisterRoutine(
@@ -42,21 +42,21 @@ public:
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&FunctionTypeBuilder<TResult(TArgs...), false>::get, _1));
+            std::bind(&FunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
     }
 
     uint64_t GetAddress(const TString& symbol) const;
-    TTypeBuilder GetTypeBuilder(const TString& symbol) const;
+    TValueTypeBuilder GetTypeBuilder(const TString& symbol) const;
 
 private:
     void RegisterRoutineImpl(
         const char* symbol,
         uint64_t address,
-        TTypeBuilder typeBuilder);
+        TValueTypeBuilder typeBuilder);
 
 private:
     THashMap<TString, uint64_t> SymbolToAddress_;
-    THashMap<TString, TTypeBuilder> SymbolToTypeBuilder_;
+    THashMap<TString, TValueTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

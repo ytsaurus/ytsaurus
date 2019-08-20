@@ -31,7 +31,7 @@ void TReplicatedTableNode::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Replicas_);
-    if (context.GetVersion() >= EMasterSnapshotVersion::AddReplicatedTableOptions) {
+    if (context.GetVersion() >= EMasterReign::AddReplicatedTableOptions) {
         Load(context, *ReplicatedTableOptions_);
     }
 }

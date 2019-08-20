@@ -7,6 +7,8 @@
 
 #include <yt/server/master/object_server/object_detail.h>
 
+#include <yt/server/master/transaction_server/transaction_manager.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkServer {
@@ -35,6 +37,8 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        const auto* chunkView = GetThisImpl();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkId));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentIds)
             .SetOpaque(true));
@@ -42,6 +46,10 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LowerLimit));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpperLimit));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransactionId)
+            .SetPresent(chunkView->GetTransactionId().operator bool()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timestamp)
+            .SetPresent(chunkView->GetTransactionId().operator bool()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -75,6 +83,25 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(readRange.UpperLimit());
                 return true;
+
+            case EInternedAttributeKey::TransactionId:
+                if (!chunkView->GetTransactionId()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunkView->GetTransactionId());
+                return true;
+
+            case EInternedAttributeKey::Timestamp: {
+                if (!chunkView->GetTransactionId()) {
+                    break;
+                }
+                const auto& transactionManager = Bootstrap_->GetTransactionManager();
+                auto timestamp = transactionManager->GetTimestampHolderTimestamp(chunkView->GetTransactionId());
+                BuildYsonFluently(consumer)
+                    .Value(timestamp);
+                return true;
+            }
 
             default:
                 break;

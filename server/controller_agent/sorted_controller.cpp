@@ -453,7 +453,7 @@ protected:
         return true;
     }
 
-    virtual i64 MinTeleportChunkSize()  = 0;
+    virtual i64 GetMinTeleportChunkSize()  = 0;
 
     virtual void AdjustKeyColumns() = 0;
 
@@ -562,7 +562,7 @@ protected:
         }
 
         chunkPoolOptions.SortedJobOptions = jobOptions;
-        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
+        chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
         return chunkPoolOptions;
@@ -672,7 +672,7 @@ public:
         return nullptr;
     }
 
-    virtual i64 MinTeleportChunkSize() override
+    virtual i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform) {
             return std::numeric_limits<i64>::max();
@@ -882,7 +882,7 @@ public:
         return OutputTeleportTableIndex_;
     }
 
-    virtual i64 MinTeleportChunkSize() override
+    virtual i64 GetMinTeleportChunkSize() override
     {
         return 0;
     }

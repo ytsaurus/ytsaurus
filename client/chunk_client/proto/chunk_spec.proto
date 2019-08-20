@@ -56,6 +56,9 @@ message TChunkSpec
     // if fetch returns the same chunk with different limits
     // (e.g. the chunk is shared between dynamic table tablets).
     optional int64 chunk_index = 17;
+
+    // Timestamp with which the chunk should be read. May be set by some chunk view.
+    optional uint64 override_timestamp = 18;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

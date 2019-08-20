@@ -374,6 +374,11 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
             continue;
         }
 
+        auto md5 = to_lower(HexEncode(file.md5sum()));
+        if (links.find(md5) != links.end()) {
+            continue;
+        }
+
         for (i64 partIndex = 0; partIndex < file.row_count(); ) {
             i64 startRow = file.start_row() + partIndex;
 
@@ -413,7 +418,6 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
                     partIndex));
             }
 
-            auto md5 = to_lower(HexEncode(file.md5sum()));
             links[md5].push_back(link);
             partIndex += (endRow - startRow);
         }

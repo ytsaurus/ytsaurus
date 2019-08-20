@@ -15,6 +15,7 @@ class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+    @authors("kiselyovp")
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)
         wait(lambda: not exists("//sys/transactions/" + tx))
@@ -28,7 +29,7 @@ class TestRpcProxyBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
     _schema_dicts = [{"name": "index", "type": "int64"},
                      {"name": "str", "type": "string"}]
@@ -91,6 +92,7 @@ class TestRpcProxyBase(YTEnvSetup):
 ##################################################################
 
 class TestOperationsRpcProxy(TestRpcProxyBase):
+    @authors("kiselyovp")
     def test_map_reduce_simple(self):
         self._create_simple_table("//tmp/t_in",
                                   data=[self._sample_line])
@@ -107,6 +109,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         assert len(lookup_rows("//tmp/t_out", [{"index": self._sample_index - 2}])) == 0
         assert len(lookup_rows("//tmp/t_out", [{"index": self._sample_index}])) == 1
 
+    @authors("kiselyovp")
     def test_sort(self):
         size = 10 ** 3
         original_table = [{"index": num, "str": "number " + str(num)} for num in range(size)]
@@ -130,6 +133,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         assert select_rows("* from [//tmp/t_out] LIMIT " + str(2 * size)) == original_table
 
+    @authors("kiselyovp")
     def test_abort_operation(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -138,6 +142,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         wait(lambda: op.get_state() == "aborted")
 
+    @authors("kiselyovp")
     def test_complete_operation(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -175,6 +180,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         assert filter_attrs(res_get_operation) == filter_attrs(res_cypress)
 
+    @authors("kiselyovp")
     def test_suspend_resume_operation(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -191,6 +197,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         op.track()
         assert op.get_state() == "completed"
 
+    @authors("kiselyovp")
     def test_update_op_params_check_perms(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -227,6 +234,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
         }
     }
 
+    @authors("kiselyovp")
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -282,6 +290,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
     def _is_account_chunk_count_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/chunk_count".format(account))
 
+    @authors("kiselyovp")
     def test_chunk_count_limits(self):
         create_account("max")
         self._set_account_tablet_count_limit("max", 100500)
@@ -299,6 +308,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
         assert exists("//tmp/a/t")
 
+    @authors("kiselyovp")
     def test_disk_space_limits(self):
         create_account("max")
         self._set_account_tablet_count_limit("max", 100500)
@@ -351,6 +361,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
         sync_unmount_table("//tmp/table")
         remove("//tmp/table")
 
+    @authors("kiselyovp")
     def test_modify_rows_batching(self):
         self._test_modify_rows_batching(60, 7, "tablet")
         self._test_modify_rows_batching(65, 7, "master")

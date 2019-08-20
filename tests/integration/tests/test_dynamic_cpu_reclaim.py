@@ -54,6 +54,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     def test_sleeping(self):
         with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100").with_tag("pool", "root") as smoothed_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
@@ -69,6 +70,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         print_debug(smoothed_cpu.differentiate())
         print_debug(max_cpu.differentiate())
 
+    @authors("renadeen")
     @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
     def test_busy(self):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
@@ -117,6 +119,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
         run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), SPEC_WITH_CPU_MONITOR)
         job_id = wait_breakpoint()[0]
@@ -130,6 +133,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] >= 85)
         wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] == 0)
 
+    @authors("renadeen")
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
         # node has 1.5 cpu, min spare cpu to schedule new jobs is 1
 
@@ -142,6 +146,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         run_test_vanilla(with_breakpoint("BREAKPOINT", "Op2"))
         wait_breakpoint("Op2")
 
+    @authors("renadeen")
     def test_node_aborts_job_on_lack_of_cpu(self):
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done", "Op1"), spec=SPEC_WITH_CPU_MONITOR)
         wait_breakpoint("Op1")
@@ -190,6 +195,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
@@ -227,6 +233,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
         }
     }
 
+    @authors("renadeen")
     @pytest.mark.xfail(run = False, reason = "Currently broken")
     def test_node_aborts_job_on_lack_of_memory(self):
         memory_consume_command = 'python -c "import time\ncount = 100*1000*1000\nx = list(range(count))\ntime.sleep(1000)"'

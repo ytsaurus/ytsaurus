@@ -20,6 +20,8 @@
 #include "config.h"
 #include "storage_distributor.h"
 
+#include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
+
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/misc/discovery.h>
@@ -183,7 +185,7 @@ public:
             Config_->Discovery,
             Bootstrap_->GetRootClient(),
             ControlInvoker_,
-            std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port"},
+            std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port", "pid"},
             Logger);
         
         SetupContext();
@@ -198,6 +200,7 @@ public:
             {"monitoring_port", ConvertToNode(MonitoringPort_)},
             {"tcp_port", ConvertToNode(TcpPort_)},
             {"http_port", ConvertToNode(HttpPort_)},
+            {"pid", ConvertToNode(getpid())},
         };
 
         WaitFor(Discovery_->Enter(InstanceId_, attributes))
@@ -214,6 +217,23 @@ public:
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
             Config_->GossipPeriod);
         GossipExecutor_->Start();
+    }
+
+    TFuture<void> StopDiscovery()
+    {
+        return Discovery_->Leave();
+    }
+
+    void StopTcpServers()
+    {
+        for (auto& server : Servers) {
+            if (auto httpPtr = dynamic_cast<Poco::Net::HTTPServer*>(server.get())) {
+                // Special method of HTTP Server, will break all active connections.
+                httpPtr->stopAll(true);
+            } else {
+                server->stop();
+            }
+        }
     }
 
     Poco::Logger& logger() const override
@@ -302,7 +322,7 @@ private:
             std::move(geoDictionariesLoader));
 
         Context = std::make_unique<DB::Context>(Context::createGlobal(std::move(runtimeComponentsFactory)));
-        Context->setGlobalContext(*Context);
+        Context->makeGlobalContext();
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
         Context->setConfig(EngineConfig_);
@@ -529,13 +549,16 @@ private:
 
         auto responseIt = responses.begin();
         for (auto [name, attributes] : nodes) {
-            if (!responseIt->IsOK() || responseIt->Value()->instance_id() != name) {
-                YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v)",
+            if (!responseIt->IsOK() || responseIt->Value()->instance_id() != name ||
+                responseIt->Value()->instance_state() == EInstanceState::Stopped)
+            {
+                YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v, State: %v)",
                     attributes["host"]->GetValue<TString>(),
                     attributes["http_port"]->GetValue<ui64>(),
                     attributes["tcp_port"]->GetValue<ui64>(),
                     attributes["rpc_port"]->GetValue<ui64>(),
-                    name);
+                    name,
+                    (responseIt->IsOK() ? Format("%v", EInstanceState(responseIt->Value()->instance_state())) : "Request failed"));
                 Discovery_->Ban(name);
                 ++bannedCount;
             }
@@ -571,6 +594,16 @@ TClickHouseHost::TClickHouseHost(
 void TClickHouseHost::Start()
 {
     Impl_->Start();
+}
+
+TFuture<void> TClickHouseHost::StopDiscovery()
+{
+    return Impl_->StopDiscovery();
+}
+
+void TClickHouseHost::StopTcpServers()
+{
+    return Impl_->StopTcpServers();
 }
 
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const

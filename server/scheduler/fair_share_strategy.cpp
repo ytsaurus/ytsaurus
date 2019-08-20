@@ -555,16 +555,16 @@ public:
                     .Item("default_fair_share_tree").Value(*DefaultTreeId_);
             })
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
-                    const auto& treeId = pair.first;
-                    const auto& tree = pair.second;
+                const auto& treeId = pair.first;
+                const auto& tree = pair.second;
 
-                    auto it = descriptorsPerPoolTree.find(treeId);
-                    YT_VERIFY(it != descriptorsPerPoolTree.end());
+                auto it = descriptorsPerPoolTree.find(treeId);
+                YT_VERIFY(it != descriptorsPerPoolTree.end());
 
-                    fluent
-                        .Item(treeId).BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, it->second))
-                        .EndMap();
+                fluent
+                    .Item(treeId).BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, it->second))
+                    .EndMap();
             });
     }
 

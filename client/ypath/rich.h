@@ -117,6 +117,9 @@ public:
     // "bypass_artifact_cache"
     bool GetBypassArtifactCache() const;
 
+    // "output_chunk_format"
+    NTableClient::EOutputChunkFormat GetOutputChunkFormat() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

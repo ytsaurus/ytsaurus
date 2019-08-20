@@ -113,6 +113,7 @@ class TestMasterSnapshots(YTEnvSetup):
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
 
+    @authors("ermolovd")
     def test(self):
         CHECKER_LIST = [
             check_simple_node,

@@ -135,18 +135,22 @@ class TestDataCenters(YTEnvSetup):
         return max(dc_to_counter.itervalues())
 
 
+    @authors("shakurov")
     def test_create(self):
         create_data_center("d")
         assert get_data_centers() == ["d"]
         assert get("//sys/data_centers/d/@name") == "d"
 
+    @authors("shakurov")
     def test_empty_name_fail(self):
         with pytest.raises(YtError): create_data_center("")
 
+    @authors("shakurov")
     def test_duplicate_name_fail(self):
         create_data_center("d")
         with pytest.raises(YtError): create_data_center("d")
 
+    @authors("shakurov")
     def test_rename_success(self):
         create_data_center("d1")
         create_rack("r1")
@@ -165,11 +169,13 @@ class TestDataCenters(YTEnvSetup):
         assert get("//sys/data_centers/d2/@name") == "d2"
         assert self._get_data_center("r1") == "d2"
 
+    @authors("shakurov")
     def test_rename_fail(self):
         create_data_center("d1")
         create_data_center("d2")
         with pytest.raises(YtError): set("//sys/data_centers/d1/@name", "d2")
 
+    @authors("shakurov")
     def test_assign_success1(self):
         create_data_center("d")
         create_rack("r")
@@ -179,6 +185,7 @@ class TestDataCenters(YTEnvSetup):
         assert self._get_data_center("r") == "d"
         assert self._get_data_center(self._get_rack(n)) == "d"
 
+    @authors("shakurov")
     def test_assign_success2(self):
         self._init_n_racks(10)
         self._init_n_data_centers(1)
@@ -187,6 +194,7 @@ class TestDataCenters(YTEnvSetup):
             assert self._get_data_center(self._get_rack(node)) == "d0"
         assert_items_equal(get("//sys/data_centers/d0/@racks"), get_racks())
 
+    @authors("shakurov")
     def test_unassign(self):
         create_data_center("d")
         create_rack("r")
@@ -196,6 +204,7 @@ class TestDataCenters(YTEnvSetup):
         self._unset_data_center("r")
         assert not self._has_data_center("r")
 
+    @authors("shakurov")
     def test_tags(self):
         n = get_nodes()[0]
 
@@ -222,6 +231,7 @@ class TestDataCenters(YTEnvSetup):
         assert "r" in tags
         assert "d" not in tags
 
+    @authors("shakurov")
     def test_remove(self):
         self._init_n_racks(10)
         self._init_n_data_centers(1)
@@ -230,30 +240,35 @@ class TestDataCenters(YTEnvSetup):
         for rack in racks:
             assert not self._has_data_center(rack)
 
+    @authors("shakurov")
     def test_assign_fail(self):
         create_rack("r")
         n = get_nodes()[0]
         self._set_rack(n, "r")
         with pytest.raises(YtError): self._set_data_center("r", "d")
 
+    @authors("shakurov")
     def test_write_regular(self):
         self._init_n_racks(10)
         self._init_n_data_centers(3)
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
+    @authors("shakurov")
     def test_write_erasure(self):
         self._init_n_racks(10)
         self._init_n_data_centers(3)
         create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
         write_file("//tmp/file", self.FILE_DATA)
 
+    @authors("shakurov")
     def test_write_journal(self):
         self._init_n_racks(10)
         self._init_n_data_centers(3)
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
 
+    @authors("shakurov")
     def test_journals_with_degraded_data_centers(self):
         self._init_n_racks(10)
         self._init_n_data_centers(2)
@@ -264,6 +279,7 @@ class TestDataCenters(YTEnvSetup):
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 
+    @authors("shakurov")
     def test_data_center_count_limit(self):
         for i in xrange(16):
             create_data_center("d" + str(i))

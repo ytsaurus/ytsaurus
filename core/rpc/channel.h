@@ -52,7 +52,7 @@ struct TStreamingParameters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Controls the lifetime of a request sent via IChannel::Sent.
+//! Controls the lifetime of a request sent via IChannel::Send.
 struct IClientRequestControl
     : public virtual TRefCounted
 {

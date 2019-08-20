@@ -11,6 +11,7 @@ class CheckPermissionBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
+    @authors("kiselyovp")
     def test_descendants_only_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})
         create("map_node", "//tmp/m/s")
@@ -19,12 +20,14 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
+    @authors("kiselyovp")
     def test_object_only_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "object_only")]})
         create("map_node", "//tmp/m/s")
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
 
+    @authors("kiselyovp")
     def test_immediate_descendants_only_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]})
         create("map_node", "//tmp/m/s")
@@ -33,14 +36,17 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
+    @authors("kiselyovp")
     def test_banned_user_permission(self):
         create_user("u")
         set("//sys/users/u/@banned", True)
         assert check_permission("u", "read", "//tmp")["action"] == "deny"
 
+    @authors("kiselyovp")
     def test_check_permission_for_virtual_maps(self):
         assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
 
+    @authors("kiselyovp")
     def test_owner_user(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -56,6 +62,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
         assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
 
+    @authors("kiselyovp")
     def test_owner_group(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -70,6 +77,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
         assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
 
+    @authors("kiselyovp")
     def test_check_permission_by_acl(self):
         create_user("u1")
         create_user("u2")
@@ -77,6 +85,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
         assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
 
+    @authors("kiselyovp")
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
     def test_check_permission_for_columnar_acl(self, acl_path):
         create_user("u1")
@@ -122,10 +131,12 @@ class CheckPermissionBase(YTEnvSetup):
 class TestCypressAcls(CheckPermissionBase):
     NUM_SCHEDULERS = 1
 
+    @authors("babenko", "ignat")
     def test_empty_names_fail(self):
         with pytest.raises(YtError): create_user("")
         with pytest.raises(YtError): create_group("")
 
+    @authors("babenko")
     def test_default_acl_sanity(self):
         create_user("u")
         with pytest.raises(YtError): set("/", {}, authenticated_user="u")
@@ -156,16 +167,19 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): get(rw_path, authenticated_user=rw_user)
         with pytest.raises(YtError): set(rw_path, "d", authenticated_user=rw_user)
 
+    @authors("babenko", "ignat")
     def test_denying_acl1(self):
         create_user("u")
         self._test_denying_acl("//tmp/a", "u", "//tmp/a", "u")
 
+    @authors("babenko", "ignat")
     def test_denying_acl2(self):
         create_user("u")
         create_group("g")
         add_member("u", "g")
         self._test_denying_acl("//tmp/a", "u", "//tmp/a", "g")
 
+    @authors("babenko")
     def test_denying_acl3(self):
         create_user("u")
         set("//tmp/p", {})
@@ -183,30 +197,36 @@ class TestCypressAcls(CheckPermissionBase):
         set(acl_path + "/@acl/end", make_ace("allow", acl_subject, ["read"]))
         with pytest.raises(YtError): set(rw_path, "d", authenticated_user=rw_user)
 
+    @authors("babenko", "ignat")
     def test_allowing_acl1(self):
         self._test_allowing_acl("//tmp/a", "guest", "//tmp/a", "guest")
 
+    @authors("babenko", "ignat")
     def test_allowing_acl2(self):
         create_group("g")
         add_member("guest", "g")
         self._test_allowing_acl("//tmp/a", "guest", "//tmp/a", "g")
 
+    @authors("babenko", "ignat")
     def test_allowing_acl3(self):
         set("//tmp/p", {})
         self._test_allowing_acl("//tmp/p/a", "guest", "//tmp/p", "guest")
 
+    @authors("babenko")
     def test_schema_acl1(self):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")
         set("//sys/schemas/table/@acl/end", make_ace("deny", "u", "create"))
         with pytest.raises(YtError): create("table", "//tmp/t2", authenticated_user="u")
 
+    @authors("babenko")
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
         set("//sys/schemas/transaction/@acl/end", make_ace("deny", "u", "create"))
         with pytest.raises(YtError): start_transaction(authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_user_destruction(self):
         old_acl = get("//tmp/@acl")
 
@@ -216,6 +236,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove_user("u")
         assert get("//tmp/@acl") == old_acl
 
+    @authors("babenko", "ignat")
     def test_group_destruction(self):
         old_acl = get("//tmp/@acl")
 
@@ -225,6 +246,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove_group("g")
         assert get("//tmp/@acl") == old_acl
 
+    @authors("babenko", "ignat")
     def test_account_acl(self):
         create_account("a")
         create_user("u")
@@ -243,6 +265,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/t/@account", "a", authenticated_user="u")
         assert get("//tmp/t/@account") == "a"
 
+    @authors("babenko")
     def test_init_acl_in_create(self):
         create_user("u1")
         create_user("u2")
@@ -252,6 +275,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/t/@x", 1, authenticated_user="u1")
         with pytest.raises(YtError): set("//tmp/t/@x", 1, authenticated_user="u2")
 
+    @authors("babenko")
     def test_init_acl_in_set(self):
         create_user("u1")
         create_user("u2")
@@ -274,18 +298,21 @@ class TestCypressAcls(CheckPermissionBase):
         # just a sanity check
         map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
+    @authors("babenko")
     @unix_only
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t1/@acl/end", make_ace("deny", "u", "read"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
+    @authors("babenko")
     @unix_only
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@acl/end", make_ace("deny", "u", "write"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
+    @authors("babenko")
     @unix_only
     def test_scheduler_account_quota(self):
         self._prepare_scheduler_test()
@@ -295,6 +322,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
 
+    @authors("acid")
     def test_scheduler_operation_abort_by_owners(self):
         self._prepare_scheduler_test()
         create_user("u1")
@@ -308,6 +336,7 @@ class TestCypressAcls(CheckPermissionBase):
         )
         op.abort(authenticated_user="u1")
 
+    @authors("babenko")
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)
@@ -321,6 +350,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert ls("//tmp/p", authenticated_user="u") == ["a"]
         assert get("//tmp/p/a", authenticated_user="u") == "b"
 
+    @authors("shakurov")
     def test_create_with_replace(self):
         create_user("u")
 
@@ -341,18 +371,21 @@ class TestCypressAcls(CheckPermissionBase):
         create("table", "//tmp/c", force=True, authenticated_user="u")
 
 
+    @authors("babenko")
     def test_create_in_tx1(self):
         create_user("u")
         tx = start_transaction()
         create("table", "//tmp/a", tx=tx, authenticated_user="u")
         assert read_table("//tmp/a", tx=tx, authenticated_user="u") == []
 
+    @authors("babenko")
     def test_create_in_tx2(self):
         create_user("u")
         tx = start_transaction()
         create("table", "//tmp/a/b/c", recursive=True, tx=tx, authenticated_user="u")
         assert read_table("//tmp/a/b/c", tx=tx, authenticated_user="u") == []
 
+    @authors("babenko", "ignat")
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_snapshot_remove(self):
         set("//tmp/a", {"b" : {"c" : "d"}})
@@ -365,6 +398,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/a")
         assert get(path, authenticated_user="u", tx=tx) == "d"
 
+    @authors("babenko", "ignat")
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_snapshot_no_inherit(self):
         set("//tmp/a", "b")
@@ -373,17 +407,20 @@ class TestCypressAcls(CheckPermissionBase):
         lock("//tmp/a", mode="snapshot", tx=tx)
         assert not get("//tmp/a/@inherit_acl", tx=tx)
 
+    @authors("babenko", "ignat")
     def test_administer_permission1(self):
         create_user("u")
         create("table", "//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@acl", [], authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_administer_permission2(self):
         create_user("u")
         create("table", "//tmp/t")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "administer"))
         set("//tmp/t/@acl", [], authenticated_user="u")
 
+    @authors("babenko")
     def test_administer_permission3(self):
         create("table", "//tmp/t")
         create_user("u")
@@ -395,6 +432,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/t/@acl", acl, authenticated_user="u")
         remove("//tmp/t/@acl/1", authenticated_user="u")
 
+    @authors("babenko")
     def test_administer_permission4(self):
         create("table", "//tmp/t")
         create_user("u")
@@ -407,6 +445,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             set("//tmp/t/@inherit_acl", False, authenticated_user="u")
 
+    @authors("shakurov")
     def test_administer_permission5(self):
         create_user("u")
 
@@ -430,33 +469,39 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): create("table", "//tmp/dir3/t2", attributes={"inherit_acl": False}, authenticated_user="u")
         create("table", "//tmp/dir4/t2", attributes={"inherit_acl": False}, authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_user_rename_success(self):
         create_user("u1")
         set("//sys/users/u1/@name", "u2")
         assert get("//sys/users/u2/@name") == "u2"
 
+    @authors("babenko", "ignat")
     def test_user_rename_fail(self):
         create_user("u1")
         create_user("u2")
         with pytest.raises(YtError):
             set("//sys/users/u1/@name", "u2")
 
+    @authors("babenko", "ignat")
     def test_deny_create(self):
         create_user("u")
         with pytest.raises(YtError):
             create("account_map", "//tmp/accounts", authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_deny_copy_src(self):
         create_user("u")
         with pytest.raises(YtError):
             copy("//sys", "//tmp/sys", authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_deny_copy_dst(self):
         create_user("u")
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             copy("//tmp/t", "//sys/t", authenticated_user="u", preserve_account=True)
 
+    @authors("babenko")
     def test_document1(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -479,6 +524,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): remove("//tmp/d/foo", authenticated_user="u")
         with pytest.raises(YtError): remove("//tmp/d", authenticated_user="u")
 
+    @authors("babenko")
     def test_document2(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -502,6 +548,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): remove("//tmp/d/foo", authenticated_user="u")
         with pytest.raises(YtError): remove("//tmp/d", authenticated_user="u")
 
+    @authors("babenko")
     def test_document3(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -525,6 +572,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/d/foo", authenticated_user="u")
         remove("//tmp/d", authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_copy_account1(self):
         create_account("a")
         create_user("u")
@@ -535,6 +583,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
+    @authors("babenko", "ignat")
     def test_copy_account2(self):
         create_account("a")
         create_user("u")
@@ -546,6 +595,7 @@ class TestCypressAcls(CheckPermissionBase):
         copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
         assert get("//tmp/y/@account") == "a"
 
+    @authors("babenko", "ignat")
     def test_copy_account3(self):
         create_account("a")
         create_user("u")
@@ -556,6 +606,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
+    @authors("sandello", "babenko")
     def test_copy_non_writable_src(self):
         # YT-4175
         create_user("u")
@@ -565,6 +616,7 @@ class TestCypressAcls(CheckPermissionBase):
         copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         assert get("//tmp/s/y", authenticated_user="u") == get("//tmp/s/x", authenticated_user="u")
 
+    @authors("sandello", "babenko")
     def test_copy_and_move_require_read_on_source(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -573,6 +625,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
+    @authors("sandello", "babenko")
     def test_copy_and_move_require_write_on_target_parent(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -581,6 +634,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
+    @authors("sandello", "babenko")
     def test_copy_and_move_requires_remove_on_target_if_exists(self):
         create_user("u")
         set("//tmp/s", {"x": {}, "y": {}})
@@ -589,6 +643,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", force=True, authenticated_user="u")
         with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", force=True, authenticated_user="u")
 
+    @authors("sandello", "babenko")
     def test_move_requires_remove_on_self_and_write_on_self_parent(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -601,6 +656,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s/@acl", [make_ace("allow", "u", ["read", "write", "remove"])])
         move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
+    @authors("babenko", "ignat")
     def test_superusers(self):
         create("table", "//sys/protected")
         create_user("u")
@@ -609,6 +665,7 @@ class TestCypressAcls(CheckPermissionBase):
         add_member("u", "superusers")
         remove("//sys/protected", authenticated_user="u")
 
+    @authors("babenko")
     def test_remove_self_requires_permission(self):
         create_user("u")
         set("//tmp/x", {})
@@ -631,6 +688,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/@acl", [make_ace("allow", "u", "remove")])
         remove("//tmp/x", authenticated_user="u")
 
+    @authors("babenko")
     def test_remove_recursive_requires_permission(self):
         create_user("u")
         set("//tmp/x", {})
@@ -644,6 +702,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y/@acl", [make_ace("allow", "u", "remove")])
         remove("//tmp/x/*", authenticated_user="u")
 
+    @authors("babenko")
     def test_set_self_requires_remove_permission(self):
         create_user("u")
         set("//tmp/x", {})
@@ -663,6 +722,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y", {}, authenticated_user="u")
         set("//tmp/x", {}, authenticated_user="u")
 
+    @authors("babenko")
     def test_guest_can_remove_users_groups_accounts(self):
         create_user("u")
         create_group("g")
@@ -684,6 +744,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//sys/schemas/group/@acl/-1")
         remove("//sys/schemas/account/@acl/-1")
 
+    @authors("babenko")
     def test_set_acl_upon_construction(self):
         create_user("u")
         create("table", "//tmp/t", attributes={
@@ -692,6 +753,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert len(get("//tmp/t/@acl")) == 1
 
 
+    @authors("babenko")
     def test_group_write_acl(self):
         create_user("u")
         create_group("g")
@@ -699,12 +761,14 @@ class TestCypressAcls(CheckPermissionBase):
         set("//sys/groups/g/@acl/end", make_ace("allow", "guest", "write"))
         add_member("u", "g", authenticated_user="guest")
 
+    @authors("babenko")
     def test_user_remove_acl(self):
         create_user("u")
         with pytest.raises(YtError): remove("//sys/users/u", authenticated_user="guest")
         set("//sys/users/u/@acl/end", make_ace("allow", "guest", "remove"))
         remove("//sys/users/u", authenticated_user="guest")
 
+    @authors("babenko")
     def test_group_remove_acl(self):
         create_group("g")
         with pytest.raises(YtError): remove("//sys/groups/g", authenticated_user="guest")
@@ -712,10 +776,12 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//sys/groups/g", authenticated_user="guest")
 
 
+    @authors("babenko")
     def test_default_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove")]})
         assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
 
+    @authors("babenko")
     def test_read_from_cache(self):
         create_user("u")
         set("//tmp/a", "b")
@@ -723,9 +789,11 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u")
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u", read_from="cache")
 
+    @authors("babenko")
     def test_no_owner_auth(self):
         with pytest.raises(YtError): get("//tmp", authenticated_user="owner")
 
+    @authors("babenko")
     def test_list_with_attr_yt_7165(self):
         create_user("u")
         create("map_node", "//tmp/x")
@@ -735,6 +803,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y/@attr", "value")
         assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
 
+    @authors("savrus")
     def test_safe_mode(self):
         create_user("u")
         with pytest.raises(YtError):
@@ -746,6 +815,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
 
+    @authors("levysotsky")
     def test_effective_acl(self):
         create_user("u")
         for ch in "abcd":
@@ -814,6 +884,7 @@ class TestCypressAcls(CheckPermissionBase):
             make_ace("allow", "d2", "read", "object_only"),
             make_ace("allow", "d3", "read", "object_and_descendants")])
 
+    @authors("babenko")
     def test_read_table_with_denied_columns(self):
         create_user("u")
 
@@ -827,7 +898,7 @@ class TestCypressAcls(CheckPermissionBase):
                 ]
             })
         write_table("//tmp/t", [{"public": "a", "secret": "b"}])
-        
+
         assert read_table("//tmp/t{public}") == [{"public": "a"}]
 
         with pytest.raises(YtError):
@@ -835,6 +906,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
+    @authors("babenko")
     def test_columnar_acl_sanity(self):
         create_user("u")
         create("table", "//tmp/t", attributes={
@@ -845,6 +917,7 @@ class TestCypressAcls(CheckPermissionBase):
                 "acl": [make_ace("allow", "u", "write", columns="secret")]
             })
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("strict", [False, True])
     def test_read_table_with_omitted_columns(self, optimize_for, strict):
@@ -868,7 +941,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         public_row = row
         public_row.pop("secret", None)
-        
+
         write_table("//tmp/t", [row])
 
         def do(path, expected_row, expected_omitted_columns):
@@ -881,6 +954,7 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t", public_row, ["secret"])
         do("//tmp/t{secret}", {}, ["secret"])
 
+    @authors("babenko")
     def test_map_table_with_denied_columns(self):
         create_user("u")
 
@@ -905,6 +979,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
              map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", authenticated_user="u")
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("strict", [False, True])
     def test_map_table_with_omitted_columns(self, optimize_for, strict):
@@ -926,7 +1001,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         public_row = row
         public_row.pop("secret", None)
-        
+
         write_table("//tmp/t_in", [row])
 
         def do(input_path, expected_row, expect_alert):
@@ -946,6 +1021,7 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t_in", public_row, True)
         do("//tmp/t_in{secret}", {}, True)
 
+    @authors("shakurov")
     def test_orphaned_node(self):
         create_user("u")
 
@@ -969,6 +1045,6 @@ class TestCypressAclsMulticell(TestCypressAcls):
 
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
     DRIVER_BACKEND = "rpc"
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 

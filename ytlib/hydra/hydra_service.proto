@@ -115,6 +115,7 @@ message TReqCommitMutation
     required string type = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     optional bool retry = 3 [default = false];
+    optional int32 reign = 4 [default = 0];
     // Request data is passed via attachment.
 }
 
@@ -122,6 +123,14 @@ message TRspCommitMutation
 {
     // Response data is passed via attachments.
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPoke
+{ }
+
+message TRspPoke
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

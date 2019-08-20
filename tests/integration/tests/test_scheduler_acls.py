@@ -173,6 +173,7 @@ class TestSchedulerAcls(YTEnvSetup):
                 pass
 
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_read_job_from_node_actions(self, should_update_operation_parameters):
         def _dump_job_context(operation_id, job_id, **kwargs):
@@ -191,6 +192,7 @@ class TestSchedulerAcls(YTEnvSetup):
                 self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_read_job_from_cypress_actions(self, should_update_operation_parameters):
         actions = [
@@ -205,6 +207,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
 
+    @authors("levysotsky")
     def test_read_job_from_archive_actions(self):
         actions = [
             get_job_fail_context,
@@ -220,6 +223,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_job_actions(self, should_update_operation_parameters):
         def _signal_job(job_id, **kwargs):
@@ -239,6 +243,7 @@ class TestSchedulerAcls(YTEnvSetup):
             with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
                 self._validate_access(self.manage_and_read_user, True, action, job_id=job_id)
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_and_read_job_actions(self, should_update_operation_parameters):
         def spawn_job_shell(operation_id, job_id, **kwargs):
@@ -260,6 +265,7 @@ class TestSchedulerAcls(YTEnvSetup):
                 self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_operation_actions(self, should_update_operation_parameters):
         def _complete_op(**kwargs):
@@ -287,6 +293,7 @@ class TestSchedulerAcls(YTEnvSetup):
             with self._run_op_context_manager(should_update_operation_parameters) as (op, _):
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id)
 
+    @authors("levysotsky")
     def test_scheduler_operation_abort_by_owners(self):
         spec = {"owners": [self.manage_and_read_user]}
         with self._run_op_context_manager(spec=spec) as (op, job_id):
@@ -295,6 +302,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.manage_only_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
+    @authors("levysotsky")
     def test_acl_priority_over_owners(self):
         spec = {
             "owners": [self.no_rights_user],
@@ -307,6 +315,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.manage_only_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
+    @authors("levysotsky")
     def test_acl_errors(self):
         # "deny" action.
         with pytest.raises(YtError):
@@ -322,6 +331,7 @@ class TestSchedulerAcls(YTEnvSetup):
             }):
                 pass
 
+    @authors("levysotsky")
     def test_acl_update_errors(self):
         with self._run_op_context_manager() as (op, job_id):
             # "deny" action.
@@ -346,6 +356,7 @@ class TestSchedulerAcls(YTEnvSetup):
             update_op_parameters(op.id, parameters={"acl": []})
             wait(lambda: not op.get_alerts())
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("allow_access", [False, True])
     def test_allow_users_group_access_to_intermediate_data(self, allow_access):
         flag_path = "//sys/controller_agents/config/allow_users_group_read_intermediate_data"
@@ -391,6 +402,7 @@ class TestSchedulerAcls(YTEnvSetup):
             set(flag_path, False)
             time.sleep(0.5)
 
+    @authors("levysotsky")
     @pytest.mark.parametrize("add_authenticated_user", [False, True])
     def test_add_authenticated_user_to_acl(self, add_authenticated_user):
         spec = {

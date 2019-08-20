@@ -59,9 +59,10 @@ EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
             return EWireType::Boolean;
         case EValueType::Double:
             return EWireType::Double;
+        case EValueType::Null:
+            return EWireType::Nothing;
         case EValueType::Min:
         case EValueType::Max:
-        case EValueType::Null:
         case EValueType::TheBottom:
             break;
     }
@@ -111,6 +112,8 @@ constexpr EYsonItemType WireTypeToYsonItemType()
         return EYsonItemType::BooleanValue;
     } else if constexpr (wireType == EWireType::String32) {
         return EYsonItemType::StringValue;
+    } else if constexpr (wireType == EWireType::Nothing) {
+        return EYsonItemType::EntityValue;
     } else {
         static_assert(wireType == EWireType::Int64);
     }
@@ -188,31 +191,101 @@ TOptionalTypesMatch MatchOptionalTypes(
     const TSkiffSchemaPtr& skiffSchema,
     bool allowOmitOptional)
 {
+    // NB. Here we have a problem:
+    // variant_tuple<null, T> has exactly the same skiff representation as optional<T>.
+    // We need to perform nontrivial analysis of schemas in order to align these schemas.
+    //
+    // When reading this code you can keep in mind following examples
+    //   1. logical type: optional<varaint_tuple<null, T>>
+    //      skiff type: variant8<nothing, variant8<nothing, T>>
+    //      Outer skiff `variant8` encodes logical outer `optional` type
+    //   2. logical type: optional<variant_tuple<null, T>>
+    //      skiff type: variant8<nothing, T>
+    //      Outer `variant8` skiff type encodes logical inner `variant_tuple` type when allowOmitOptional is true.
+
+    // When logical type is either optional<T> or variant_tuple<null, T> this function returns descriptor of T.
+    // Otherwise it returns std::nullopt.
+    const auto& getLogicalOptionalLikeChild = [] (const TComplexTypeFieldDescriptor& descriptor) -> std::optional<TComplexTypeFieldDescriptor> {
+        const auto& type = descriptor.GetType();
+        switch (type->GetMetatype()) {
+            case ELogicalMetatype::Optional:
+                return descriptor.OptionalElement();
+            case ELogicalMetatype::VariantTuple: {
+                const auto& variantType = type->AsVariantTupleTypeRef();
+                if (variantType.GetElements().size() == 2
+                    && *variantType.GetElements()[0] == *SimpleLogicalType(ESimpleLogicalValueType::Null))
+                {
+                    return descriptor.VariantTupleElement(1);
+                } else {
+                    return {};
+                }
+            }
+            default:
+                return {};
+        }
+    };
+
     try {
-        auto innerDescriptor = descriptor;
-        int logicalNesting = 0;
-        while (innerDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
-            ++logicalNesting;
-            innerDescriptor = innerDescriptor.OptionalElement();
-        }
-        YT_VERIFY(logicalNesting);
 
-        int skiffNesting = 0;
-        TSkiffSchemaPtr innerSkiffSchema = skiffSchema;
-        while (auto child = GetOptionalChild(innerSkiffSchema)) {
-            ++skiffNesting;
-            innerSkiffSchema = child;
+        // First of all we compute sctrict and relaxed depths of optional chain.
+        // Strict depth is the depth of chain where each element is optinonal<T>.
+        // Relaxed depth is the depth of chain where each element is optional<T> or variant<null, T>
+
+        int logicalNestingRelaxed = 0;
+        int logicalNestingStrict = 0;
+        {
+            auto innerDescriptor = descriptor;
+            while (auto element = getLogicalOptionalLikeChild(innerDescriptor)) {
+                if (innerDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional &&
+                    logicalNestingStrict == logicalNestingRelaxed) {
+                    ++logicalNestingStrict;
+                }
+                ++logicalNestingRelaxed;
+                innerDescriptor = *element;
+            }
+        }
+        YT_VERIFY(logicalNestingStrict);
+        YT_VERIFY(logicalNestingRelaxed >= logicalNestingStrict);
+
+        // Then we compute depth of corresponding skiff chain of variant<nothing, T>
+        // This chain should match to logical relaxed chain.
+        int skiffNestingRelaxed = 0;
+        {
+            TSkiffSchemaPtr innerSkiffSchema = skiffSchema;
+            while (auto child = GetOptionalChild(innerSkiffSchema)) {
+                ++skiffNestingRelaxed;
+                innerSkiffSchema = child;
+            }
         }
 
-        if (logicalNesting != skiffNesting &&
-            !(allowOmitOptional && logicalNesting == skiffNesting + 1))
+        if (logicalNestingRelaxed != skiffNestingRelaxed &&
+            !(allowOmitOptional && logicalNestingRelaxed == skiffNestingRelaxed + 1))
         {
             THROW_ERROR_EXCEPTION("Optional nesting mismatch, logical type nesting: %Qv, skiff nesting: %Qv",
-                logicalNesting,
-                skiffNesting);
+                logicalNestingRelaxed,
+                skiffNestingRelaxed);
         }
 
-        return {{std::move(innerDescriptor), innerSkiffSchema}, logicalNesting, skiffNesting};
+        // NB. We only allow to omit outer optional of the column so in order to match lengths of inner chains must be
+        // equal. Based on this assertion we compute lengths of skiff chain corresponding to length of
+        auto skiffNestingStrict = skiffNestingRelaxed - (logicalNestingRelaxed - logicalNestingStrict);
+        YT_VERIFY(skiffNestingRelaxed >= 0);
+
+        // We descend over strict chains once again to get matching inner types.
+        auto innerDescriptor = descriptor;
+        for (int i = 0; i < logicalNestingStrict; ++i) {
+            YT_VERIFY(innerDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional);
+            innerDescriptor = innerDescriptor.OptionalElement();
+        }
+        YT_VERIFY(innerDescriptor.GetType()->GetMetatype() != ELogicalMetatype::Optional);
+
+        auto innerSkiffSchema = skiffSchema;
+        for (int i = 0; i < skiffNestingStrict; ++i) {
+            innerSkiffSchema = GetOptionalChild(innerSkiffSchema);
+            YT_VERIFY(innerSkiffSchema);
+        }
+
+        return {{std::move(innerDescriptor), innerSkiffSchema}, logicalNestingStrict, skiffNestingStrict};
     } catch (const std::exception& ex) {
         RethrowCannotMatchField(descriptor, skiffSchema, ex);
     }
@@ -419,6 +492,8 @@ public:
                 writer->WriteDouble(ysonItem.UncheckedAsDouble());
             } else if constexpr (wireType == EWireType::String32) {
                 writer->WriteString32(ysonItem.UncheckedAsString());
+            } else if constexpr (wireType == EWireType::Nothing) {
+                // do nothing
             } else {
                 static_assert(wireType == EWireType::Int64);
             }
@@ -457,6 +532,7 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
         CASE(EWireType::Double)
         CASE(EWireType::String32)
         CASE(EWireType::Yson32)
+        CASE(EWireType::Nothing)
 #undef CASE
         default:
             YT_ABORT();
@@ -858,6 +934,8 @@ public:
         } else if constexpr (wireType == EWireType::Yson32) {
             auto yson = parser->ParseYson32();
             ParseYsonStringBuffer(yson, EYsonType::Node, consumer);
+        } else if constexpr (wireType == EWireType::Nothing) {
+            consumer->OnEntity();
         } else {
             static_assert(wireType == EWireType::Int64);
         }
@@ -892,6 +970,7 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
         CASE(EWireType::Double)
         CASE(EWireType::String32)
         CASE(EWireType::Yson32)
+        CASE(EWireType::Nothing)
 #undef CASE
         default:
             YT_ABORT();

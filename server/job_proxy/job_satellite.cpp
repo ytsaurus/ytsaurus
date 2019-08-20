@@ -92,7 +92,7 @@ public:
 
     virtual std::vector<int> GetPids() override
     {
-        return Freezer_.GetTasks();
+        return Freezer_.GetProcesses();
     }
 
 private:
@@ -124,10 +124,13 @@ class TContainerPidsHolder
     : public IPidsHolder
 {
 public:
+    explicit TContainerPidsHolder(int uid)
+        : Uid_(uid)
+    { }
 
     virtual std::vector<int> GetPids() override
     {
-        auto pids = GetPidsByUid();
+        auto pids = GetPidsByUid(Uid_);
         auto myPid = ::getpid();
         auto it = std::find(pids.begin(), pids.end(), myPid);
         if (it != pids.end()) {
@@ -135,6 +138,9 @@ public:
         }
         return pids;
     }
+
+private:
+    const int Uid_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,7 +231,7 @@ void TJobProbeTools::Init(TJobId jobId)
             break;
 
         case EJobEnvironmentType::Porto:
-            PidsHolder_.reset(new TContainerPidsHolder());
+            PidsHolder_.reset(new TContainerPidsHolder(Uid_));
             break;
 
         case EJobEnvironmentType::Simple:

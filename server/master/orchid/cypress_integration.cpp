@@ -55,8 +55,7 @@ public:
 
     virtual void Invoke(const IServiceContextPtr& context) override
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating()) {
+        if (IsRequestMutating(context->RequestHeader())) {
             THROW_ERROR_EXCEPTION("Orchid nodes are read-only");
         }
 
@@ -69,7 +68,7 @@ public:
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, GetRequestYPath(context->RequestHeader()));
+        auto path = GetRedirectPath(manifest, GetRequestTargetYPath(context->RequestHeader()));
         const auto& method = context->GetMethod();
 
         auto requestMessage = context->GetRequestMessage();
@@ -79,7 +78,7 @@ public:
             return;
         }
 
-        SetRequestYPath(&requestHeader, path);
+        SetRequestTargetYPath(&requestHeader, path);
 
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 

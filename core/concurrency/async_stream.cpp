@@ -232,7 +232,7 @@ public:
     virtual void MakeCheckpoint() override
     {
         DoFlush();
-        TBlockHeader sentinel{TBlockHeader::CheckpointSentinel};
+        TCheckpointableStreamBlockHeader sentinel{TCheckpointableStreamBlockHeader::CheckpointSentinel};
         Adapter_->WriteToStream(&sentinel, sizeof(sentinel));
     }
 
@@ -272,7 +272,7 @@ private:
 
     void WriteSize(size_t size)
     {
-        TBlockHeader length{size};
+        TCheckpointableStreamBlockHeader length{size};
         Adapter_->WriteToStream(&length, sizeof(length));
     }
 

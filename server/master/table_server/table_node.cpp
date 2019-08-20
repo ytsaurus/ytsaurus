@@ -83,7 +83,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     // COMPAT(savrus)
-    if (context.GetVersion() < EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
+    if (context.GetVersion() < EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
         Load(context, TabletCellBundle);
     }
     Load(context, LastCommitTimestamp);
@@ -91,7 +91,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, Tablets);
     // COMPAT(savrus)
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
+    if (context.GetVersion() < EMasterReign::PerTableTabletBalancerConfig) {
         std::optional<bool> enableTabletBalancer;
         Load(context, enableTabletBalancer);
         TabletBalancerConfig->EnableAutoReshard = enableTabletBalancer.value_or(true);
@@ -102,12 +102,12 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, InMemoryMode);
     // COMPAT(savrus)
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
+    if (context.GetVersion() < EMasterReign::PerTableTabletBalancerConfig) {
         Load(context, TabletBalancerConfig->DesiredTabletCount);
     }
     Load(context, TabletErrorCount);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
         Load(context, ForcedCompactionRevision);
         Load(context, Dynamic);
         Load(context, MountPath);
@@ -117,29 +117,29 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TabletCountByExpectedState);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::MakeTabletStateBackwardCompatible) {
+    if (context.GetVersion() >= EMasterReign::MakeTabletStateBackwardCompatible) {
         Load(context, ActualTabletState);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::AddPrimaryLastMountTransactionId) {
+    if (context.GetVersion() >= EMasterReign::AddPrimaryLastMountTransactionId) {
         Load(context, PrimaryLastMountTransactionId);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::UseCurrentMountTransactionIdToLockTableNodeDuringMount) {
+    if (context.GetVersion() >= EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount) {
         Load(context, CurrentMountTransactionId);
     }
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
+    if (context.GetVersion() >= EMasterReign::PerTableTabletBalancerConfig) {
         Load(context, *TabletBalancerConfig);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+    if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, DynamicTableLocks);
         Load(context, UnconfirmedDynamicTableLockCount);
     }
 
     // COMPAT(savrus)
-    if (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() < EMasterReign::MulticellForDynamicTables) {
         Dynamic = !Tablets.empty();
     }
 }
@@ -279,7 +279,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
+    if (context.GetVersion() >= EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
         Load(context, TabletCellBundle_);
     }
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
@@ -331,7 +331,7 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < EMasterSnapshotVersion::MulticellForDynamicTables) {
+    if (context.GetVersion() < EMasterReign::MulticellForDynamicTables) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -384,7 +384,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
     }
 
     //COMPAT(savrus)
-    if (context.GetVersion() < EMasterSnapshotVersion::RemoveDynamicTableAttrsFromStaticTables) {
+    if (context.GetVersion() < EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
         if (HasCustomDynamicTableAttributes()) {
             TabletCellBundle_ = DynamicTableAttributes_->TabletCellBundle;
 

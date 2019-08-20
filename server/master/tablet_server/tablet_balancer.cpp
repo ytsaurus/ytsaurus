@@ -66,19 +66,14 @@ class TTabletBalancer::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        TTabletBalancerMasterConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
-        : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
         , BalanceExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletBalancer),
-            BIND(&TImpl::Balance, MakeWeak(this)),
-            Config_->BalancePeriod))
+            BIND(&TImpl::Balance, MakeWeak(this))))
         , ConfigCheckExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnCheckConfig, MakeWeak(this)),
-            Config_->ConfigCheckPeriod))
+            BIND(&TImpl::OnCheckConfig, MakeWeak(this))))
         , Profiler("/tablet_server/tablet_balancer")
         , QueueSizeCounter_("/queue_size")
         , LastBalancingTime_(TruncatedNow())
@@ -86,6 +81,7 @@ public:
 
     void Start()
     {
+        DoReconfigure();
         OnCheckConfig();
         BalanceExecutor_->Start();
         ConfigCheckExecutor_->Start();
@@ -97,6 +93,12 @@ public:
         ConfigCheckExecutor_->Stop();
         BalanceExecutor_->Stop();
         Started_ = false;
+    }
+
+    void Reconfigure(TTabletBalancerMasterConfigPtr config)
+    {
+        Config_ = std::move(config);
+        DoReconfigure();
     }
 
     void OnTabletHeartbeat(TTablet* tablet)
@@ -160,10 +162,11 @@ private:
         i64 DesiredTabletSize;
     };
 
-    const TTabletBalancerMasterConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
-    const NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr ConfigCheckExecutor_;
+
+    TTabletBalancerMasterConfigPtr Config_ = New<TTabletBalancerMasterConfig>();
+    NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
+    NConcurrency::TPeriodicExecutorPtr ConfigCheckExecutor_;
 
     bool Enabled_ = false;
     bool Started_ = false;
@@ -183,6 +186,12 @@ private:
 
     TInstant LastBalancingTime_;
     TInstant CurrentTime_;
+
+    void DoReconfigure()
+    {
+        BalanceExecutor_->SetPeriod(Config_->BalancePeriod);
+        ConfigCheckExecutor_->SetPeriod(Config_->ConfigCheckPeriod);
+    }
 
     bool IsTabletReshardable(const TTablet* tablet, bool ignoreConfig = false)
     {
@@ -1105,10 +1114,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletBalancer::TTabletBalancer(
-    TTabletBalancerMasterConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TTabletBalancer::TTabletBalancer(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TTabletBalancer::~TTabletBalancer() = default;
@@ -1121,6 +1128,11 @@ void TTabletBalancer::Start()
 void TTabletBalancer::Stop()
 {
     Impl_->Stop();
+}
+
+void TTabletBalancer::Reconfigure(TTabletBalancerMasterConfigPtr config)
+{
+    Impl_->Reconfigure(std::move(config));
 }
 
 void TTabletBalancer::OnTabletHeartbeat(TTablet* tablet)

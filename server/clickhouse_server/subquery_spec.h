@@ -31,12 +31,8 @@ public:
     NTableClient::TTableSchema ReadSchema;
     // TODO(max42): CHYT-154.
     NYson::TYsonString MembershipHint;
-
-private:
-    const std::vector<NChunkClient::TDataSource>& DataSources() const
-    {
-        return DataSourceDirectory->DataSources();
-    }
+    int SubqueryIndex;
+    int TableIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

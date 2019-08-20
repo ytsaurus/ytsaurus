@@ -16,16 +16,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define EXPECT_EXCEPTION_WITH_MESSAGE(expr, message) \
-    do { \
-        try { \
-            expr; \
-            ADD_FAILURE() << "expected to throw"; \
-        } catch (const std::exception& ex) { \
-            EXPECT_THAT(ex.what(), testing::HasSubstr(message)); \
-        } \
-    } while (0)
-
 TEST(TLogicalTypeTest, TestSimplifyLogicalType)
 {
     using TPair = std::pair<std::optional<ESimpleLogicalValueType>, bool>;
@@ -35,15 +25,19 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(ESimpleLogicalValueType::Int64, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false)),
-        TPair(ESimpleLogicalValueType::Uint64, false));
-
-    EXPECT_EQ(
         SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
         TPair(ESimpleLogicalValueType::Int64, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false))),
+        SimplifyLogicalType(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))),
+        TPair(std::nullopt, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)),
+        TPair(ESimpleLogicalValueType::Null, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
         TPair(std::nullopt, false));
 
     EXPECT_EQ(
@@ -60,21 +54,29 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
             SimpleLogicalType(ESimpleLogicalValueType::Uint64)
         })),
         TPair(std::nullopt, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Uint64)
+        })),
+        TPair(std::nullopt, true));
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Simple types
+    SimpleLogicalType(ESimpleLogicalValueType::Null),
     SimpleLogicalType(ESimpleLogicalValueType::Int64),
     SimpleLogicalType(ESimpleLogicalValueType::String),
     SimpleLogicalType(ESimpleLogicalValueType::Utf8),
-    SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
 
     // Optionals
     OptionalLogicalType(
-        SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))),
     OptionalLogicalType(
         ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false))),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)))),
 
     // Lists
     ListLogicalType(
@@ -103,10 +105,10 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Tuples
     TupleLogicalType({
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
     }),
     TupleLogicalType({
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
     }),
     TupleLogicalType({
@@ -267,7 +269,7 @@ class TCombineLogicalMetatypeTests
 TEST_P(TCombineLogicalMetatypeTests, TestValidate)
 {
     auto badType = StructLogicalType({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}});
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", badType)),
         "Name of struct field #0 is empty");
 
@@ -277,11 +279,11 @@ TEST_P(TCombineLogicalMetatypeTests, TestValidate)
     EXPECT_NE(*combinedType1, *badType);
     EXPECT_NE(*combinedType1, *combinedType2);
 
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combinedType1)),
         "Name of struct field #0 is empty");
 
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combinedType2)),
         "Name of struct field #0 is empty");
 }
@@ -311,23 +313,23 @@ TEST_P(TStructValidationTest, Test)
 
     EXPECT_NO_THROW(validate({}));
 
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         validate({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
         "Name of struct field #0 is empty");
 
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         validate({
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),
         "Struct field name \"a\" is used twice");
 
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         validate({
             {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),
         "Name of struct field #0 exceeds limit");
-    EXPECT_EXCEPTION_WITH_MESSAGE(
+    EXPECT_THROW_WITH_SUBSTRING(
         validate({
             {"\xFF", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),

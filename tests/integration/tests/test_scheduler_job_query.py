@@ -40,6 +40,7 @@ class TestJobQuery(YTEnvSetup):
         abs_impl_path = find_ut_file("test_udfs.bc")
         write_local_file(abs_path, abs_impl_path)
 
+    @authors("lukyan")
     def test_query_simple(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"}]
@@ -52,6 +53,7 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @authors("lukyan")
     def test_query_two_input_tables(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"},
@@ -71,6 +73,7 @@ class TestJobQuery(YTEnvSetup):
         expected = [{"a": "1", "b": "1", "c": None}, {"a": "2", "b": None, "c": "2"}]
         assert_items_equal(read_table("//tmp/t_out"), expected)
 
+    @authors("savrus", "lukyan")
     def test_query_reader_projection(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}],
@@ -89,6 +92,7 @@ class TestJobQuery(YTEnvSetup):
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") < attrs["compressed_data_size"]
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") < attrs["data_weight"]
 
+    @authors("lukyan")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
         create("table", "//tmp/t1", attributes={
@@ -102,6 +106,7 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
+    @authors("lukyan")
     def test_query_asterisk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -131,6 +136,7 @@ class TestJobQuery(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t2"), rows)
 
+    @authors("lukyan")
     def test_query_schema_in_spec(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"}]
@@ -152,6 +158,7 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"a": "b"}]
 
+    @authors("lukyan")
     def test_query_udf(self):
         self._init_udf_registry()
 
@@ -164,6 +171,7 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": -1}]
 
+    @authors("lukyan")
     def test_query_wrong_schema(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"}]
@@ -175,6 +183,7 @@ class TestJobQuery(YTEnvSetup):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat",
                 spec={"input_query": "a", "input_schema": [{"name": "a", "type": "int64"}]})
 
+    @authors("lukyan")
     def test_query_range_inference(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
@@ -202,6 +211,7 @@ class TestJobQuery(YTEnvSetup):
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
         _test("[10]", "a where a > 0", [{"a": 10}], 1)
 
+    @authors("savrus")
     def test_query_range_inference_with_computed_columns(self):
         create("table", "//tmp/t", attributes={
             "schema": [

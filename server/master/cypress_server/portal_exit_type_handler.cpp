@@ -46,8 +46,10 @@ private:
     {
         TMapNodeTypeHandlerImpl::DoDestroy(node);
 
-        const auto& portalManager = Bootstrap_->GetPortalManager();
-        portalManager->DestroyExitNode(node);
+        if (node->IsTrunk()) {
+            const auto& portalManager = Bootstrap_->GetPortalManager();
+            portalManager->DestroyExitNode(node);
+        }
     }
 };
 

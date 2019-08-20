@@ -33,6 +33,8 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 
+DECLARE_REFCOUNTED_STRUCT(ILocalSnapshotJanitor)
+
 struct TDistributedHydraManagerOptions;
 
 class TMutation;
@@ -53,7 +55,11 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TSnapshotKeeperConfig)
+DECLARE_REFCOUNTED_CLASS(TLocalSnapshotJanitorConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
+
+using TReign = int;
 
 //! A special value representing an invalid snapshot (or changelog) id.
 const int InvalidSegmentId = -1;
@@ -89,6 +95,13 @@ using TEntityKey = typename TEntityTraits<T>::TKey;
 
 template <class T>
 using TEntityHash = typename TEntityTraits<T>::THash;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EFinalRecoveryAction,
+    (None)
+    (BuildSnapshotAndRestart)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

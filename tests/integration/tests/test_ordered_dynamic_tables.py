@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE, skip_if_rpc_driver_backend
+from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -56,6 +56,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         for tablet_chunk_list in tablet_chunk_lists:
             self._verify_cumulative_statistics_match_statistics(tablet_chunk_list)
 
+    @authors("babenko")
     def test_mount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -72,6 +73,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         tablet_ids = get("//sys/tablet_cells/" + cell_id + "/@tablet_ids")
         assert tablet_ids == [tablet_id]
 
+    @authors("babenko", "levysotsky")
     def test_unmount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -84,6 +86,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         sync_unmount_table("//tmp/t")
 
+    @authors("savrus")
     def test_access_to_frozen(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -95,6 +98,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
     # TODO(savrus): fix flaps.
+    @authors("gridem")
     @flaky(max_runs=3)
     def test_ordered_tablet_node_profiling(self):
         path = "//tmp/x"
@@ -137,6 +141,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert get_all_counters("data_weight") == (406, 246, 246)
         assert select_profiling.get_counter("select/cpu_time") > 0
 
+    @authors("babenko", "levysotsky")
     def test_insert(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -148,6 +153,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
+    @authors("babenko")
     def test_flush(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -161,6 +167,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#" + chunk_id + "/@row_count") == 100
 
+    @authors("babenko")
     def test_insert_with_explicit_tablet_index(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -173,6 +180,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         for i in xrange(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
 
+    @authors("babenko")
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_select_from_single_tablet(self, dynamic):
         sync_create_cells(1)
@@ -196,6 +204,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert select_rows("a from [//tmp/t]") == [{"a": a} for a in xrange(100)]
         assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in xrange(1, 11)]
 
+    @authors("babenko")
     def test_select_from_dynamic_multi_tablet(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -209,6 +218,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         assert_items_equal(select_rows("a from [//tmp/t]"), [{"a": j} for i in xrange(10) for j in xrange(100)])
 
+    @authors("babenko")
     def test_select_from_multi_store(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -225,6 +235,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
 
+    @authors("babenko")
     def test_select_with_limits(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -242,6 +253,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] < 20") == query_rows[10:20]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] <= 20") == query_rows[10:21]
 
+    @authors("babenko")
     def test_dynamic_to_static(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -257,6 +269,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert get("//tmp/t/@row_count") == 100
         assert read_table("//tmp/t") == rows
 
+    @authors("babenko")
     def test_static_to_dynamic(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -273,6 +286,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
+    @authors("savrus", "babenko")
     def test_no_duplicate_chunks_in_dynamic(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -283,6 +297,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             mount_table("//tmp/t")
 
+    @authors("savrus")
     def test_chunk_list_kind(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -301,6 +316,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         chunk_list = get("//tmp/t/@chunk_list_id")
         assert get("#{0}/@kind".format(chunk_list)) == "static"
 
+    @authors("babenko")
     def test_trim_failure(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -310,6 +326,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError): trim_rows("//tmp/t", +1, 0)
         with pytest.raises(YtError): trim_rows("//tmp/t", 0, 100)
 
+    @authors("babenko")
     def test_trim_noop(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -318,6 +335,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
+    @authors("babenko")
     def test_trim_drops_chunks(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -344,6 +362,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 1000)
         wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
 
+    @authors("babenko")
     def test_read_obeys_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -353,6 +372,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 30)
         assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
 
+    @authors("babenko")
     def test_make_static_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -371,6 +391,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
 
+    @authors("babenko")
     def test_trimmed_rows_perserved_on_unmount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -397,6 +418,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
+    @authors("babenko")
     def test_trim_optimizes_chunk_list(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -431,6 +453,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         _trim(18)
         _check(2, 0, chunk_ids[18:])
 
+    @authors("babenko")
     def test_reshard_adds_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -462,6 +485,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("babenko")
     def test_reshard_joins_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -495,6 +519,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("babenko")
     def test_reshard_join_fails_on_trimmed_rows(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -507,6 +532,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("savrus")
     def test_reshard_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -531,6 +557,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         _verify(2, 1)
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("savrus")
     def test_snapshot_lock_after_reshard_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -579,6 +606,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("ifsmirnov")
     def test_chunk_read_limit_after_chunk_list_cow(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
@@ -607,7 +635,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         self._verify_chunk_tree_statistics("//tmp/t")
 
-    @skip_if_rpc_driver_backend
+    @authors("ifsmirnov")
     def test_chunk_read_limit_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
@@ -659,6 +687,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         _validate_read(18, 18)
         _validate_read(18, 20)
 
+    @authors("ifsmirnov")
     def test_cumulative_statistics_after_cow(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
@@ -687,6 +716,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_flush_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("babenko", "levysotsky")
     def test_freeze_empty(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -696,23 +726,27 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
 
+    @authors("babenko")
     def test_change_commit_ordering(self):
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@commit_ordering", "weak")
         set("//tmp/t/@commit_ordering", "strong")
         with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "cool")
 
+    @authors("babenko", "levysotsky")
     def test_no_commit_ordering_change_for_mounted(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "strong")
 
+    @authors("babenko")
     def test_set_commit_ordering_upon_construction(self):
         self._create_simple_table("//tmp/t", commit_ordering="strong")
         assert get("//tmp/t/@commit_ordering") == "strong"
 
 
+    @authors("babenko")
     def test_set_tablet_count_upon_construction_fail(self):
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", tablet_count=0)
@@ -721,11 +755,13 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[[]])
 
+    @authors("babenko")
     def test_set_tablet_count_upon_construction_success(self):
         self._create_simple_table("//tmp/t", tablet_count=10)
         assert get("//tmp/t/@tablet_count") == 10
 
 
+    @authors("babenko")
     def test_tablet_snapshots(self):
         sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
@@ -753,6 +789,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    @authors("savrus")
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
@@ -769,6 +806,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         actual = read_table("//tmp/t")
         assert actual == rows
 
+    @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory(self, mode, optimize_for):
@@ -827,6 +865,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
+    @authors("babenko", "levysotsky")
     def test_reshard_trimmed_shared_yt_6948(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", tablet_count=5)
@@ -848,6 +887,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_reshard_table("//tmp/t", 1)
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("savrus", "levysotsky")
     def test_copy_trimmed_yt_7422(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -862,6 +902,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_freeze_table("//tmp/t")
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
 
+    @authors("babenko")
     def test_timestamp_column(self):
         sync_create_cells(1)
         create_dynamic_table("//tmp/t", schema=[
@@ -881,6 +922,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert timestamp1 < timestamp2
         assert timestamp2 < timestamp3
 
+    @authors("savrus", "levysotsky")
     def test_data_ttl(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", min_data_ttl=0, max_data_ttl=0, min_data_versions=0)
@@ -889,6 +931,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_flush_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
 
+    @authors("ifsmirnov")
     def test_required_columns(self):
         schema = [
                 {"name": "a", "type": "int64", "required": True},
@@ -906,6 +949,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         insert_rows("//tmp/t", [dict(a=1)])
         insert_rows("//tmp/t", [dict(a=1, b=1)])
 
+    @authors("ifsmirnov")
     def test_required_computed_column_fails(self):
         schema = [
                 {"name": "key", "type": "int64"},
@@ -916,6 +960,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", schema=schema)
 
+    @authors("ifsmirnov")
     def test_required_aggregate_columns(self):
         schema = [
                 {"name": "key", "type": "int64"},

@@ -7,6 +7,7 @@
 #include "schema.h"
 #include "type_handler.h"
 #include "path_resolver.h"
+#include "helpers.h"
 
 #include <yt/server/master/cypress_server/public.h>
 
@@ -25,6 +26,7 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/server/lib/election/election_manager.h>
 
@@ -88,6 +90,39 @@ using namespace NProfiling;
 static const auto& Logger = ObjectServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const IObjectTypeHandlerPtr NullTypeHandler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TPathResolver::TResolveResult ResolvePath(
+    NCellMaster::TBootstrap* bootstrap,
+    const TYPath& path,
+    const IServiceContextPtr& context)
+{
+    TPathResolver resolver(
+        bootstrap,
+        context->GetService(),
+        context->GetMethod(),
+        path,
+        GetTransactionId(context));
+    auto result = resolver.Resolve();
+    if (result.CanCacheResolve) {
+        // XXX(babenko): profiling
+        auto populateResult = resolver.Resolve(TPathResolverOptions{
+            .PopulateResolveCache = true
+        });
+        YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
+        auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
+        YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
+            path,
+            payload.ObjectId,
+            populateResult.UnresolvedPathSuffix);
+    }
+    return result;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -306,44 +341,103 @@ public:
         }
 
         const auto& hydraManager  = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating() && hydraManager->GetAutomatonState() != EPeerState::Leading) {
+        bool isMutating = IsRequestMutating(context->RequestHeader());
+        if (isMutating && hydraManager->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
 
         auto requestMessage = context->GetRequestMessage();
-        auto requestHeader = context->RequestHeader();
+        auto forwardedRequestHeader = context->RequestHeader();
 
-        auto redirectedPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
-        SetRequestYPath(&requestHeader, redirectedPath);
-        auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
+        auto* forwardedYPathExt = forwardedRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto cellTag = CellTagFromId(ObjectId_);
-        auto asyncResponseMessage = objectManager->ForwardObjectRequest(
-            std::move(updatedMessage),
-            cellTag,
-            ypathExt.mutating() ? EPeerKind::Leader : EPeerKind::Follower,
-            context->GetTimeout());
+        auto targetPathRewrite = MakeYPathRewrite(
+            GetOriginalRequestTargetYPath(context->RequestHeader()),
+            ObjectId_,
+            forwardedYPathExt->target_path());
+        forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
 
-        asyncResponseMessage
-            .Subscribe(
-                BIND([
-                    bootstrap = Bootstrap_,
-                    mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId,
-                    context
-                ] (const TErrorOr<TSharedRefArray>& messageOrError) {
-                    if (messageOrError.IsOK()) {
-                        context->Reply(messageOrError.Value());
-                    } else {
-                        context->Reply(TError(messageOrError));
-                    }
+        auto forwardedCellTag = CellTagFromId(ObjectId_);
 
+        SmallVector<TYPathRewrite, 4> additionalPathRewrites;
+        for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
+            const auto& additionalPath =forwardedYPathExt->additional_paths(index);
+            auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
+            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
+            if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
+                THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
+                    forwardedYPathExt->original_target_path(),
+                    forwardedYPathExt->additional_paths(index));
+            }
+            auto additionalPathRewrite = MakeYPathRewrite(
+                additionalPath,
+                additionalPayload->ObjectId,
+                additionalResolveResult.UnresolvedPathSuffix);
+            forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
+            additionalPathRewrites.push_back(std::move(additionalPathRewrite));
+        }
+        auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
+
+        auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto channel = multicellManager->GetMasterChannelOrThrow(forwardedCellTag, peerKind);
+
+        TObjectServiceProxy proxy(std::move(channel));
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
+        batchReq->SetUser(context->GetUser());
+        batchReq->AddRequestMessage(std::move(forwardedMessage));
+
+        auto forwardedRequestId = batchReq->GetRequestId();
+
+        YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
+            "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            context->GetRequestId(),
+            forwardedRequestId,
+            context->GetService(),
+            context->GetMethod(),
+            targetPathRewrite,
+            additionalPathRewrites,
+            context->GetUser(),
+            isMutating,
+            forwardedCellTag,
+            peerKind);
+
+        batchReq->Invoke().Subscribe(
+            BIND([
+                context,
+                forwardedRequestId,
+                bootstrap = Bootstrap_,
+                mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId
+            ] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
+
+                if (!batchRspOrError.IsOK()) {
+                    YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
+                        context->GetRequestId(),
+                        forwardedRequestId);
+                    auto error = TError(NRpc::EErrorCode::Unavailable, "Forwarded request failed")
+                        << batchRspOrError;
+                    context->Reply(error);
                     if (mutationId) {
-                        const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
-                        responseKeeper->EndRequest(mutationId, messageOrError, false);
+                        responseKeeper->EndRequest(mutationId, error, false);
                     }
-                }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
+                    return;
+                }
+
+                YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v)",
+                    context->GetRequestId(),
+                    forwardedRequestId);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                const auto& responseMessage = batchRsp->GetResponseMessage(0);
+
+                context->Reply(responseMessage);
+                if (mutationId) {
+                    responseKeeper->EndRequest(mutationId, responseMessage, false);
+                }
+            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
     virtual void DoWriteAttributesFragment(
@@ -377,8 +471,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
-        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating() && !HasMutationContext()) {
+        if (IsRequestMutating(context->RequestHeader()) && !HasMutationContext()) {
             // Nested call or recovery.
             return TResolveResultHere{path};
         } else {
@@ -420,33 +513,13 @@ private:
     TBootstrap* const Bootstrap_;
 
 
-    TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
+    TResolveResult DoResolveThere(const TYPath& targetPath, const IServiceContextPtr& context)
     {
-        TPathResolver resolver(
-            Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
-            path,
-            GetTransactionId(context));
-        auto result = resolver.Resolve();
-
-        if (result.CanCacheResolve) {
-            // XXX(babenko): profiling
-            auto populateResult = resolver.Resolve(TPathResolverOptions{
-                .PopulateResolveCache = true
-            });
-            YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
-            auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
-            YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
-                path,
-                payload.ObjectId,
-                populateResult.UnresolvedPathSuffix);
-        }
-
+        auto resolvePath = ResolvePath(Bootstrap_, targetPath, context);
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto proxy = Visit(result.Payload,
-            [&] (const TPathResolver::TLocalObjectPayload& payload) -> IYPathServicePtr {
-                return objectManager->GetProxy(payload.Object, payload.Transaction);
+        auto proxy = Visit(resolvePath.Payload,
+            [&] (const TPathResolver::TLocalObjectPayload& targetPayload) -> IYPathServicePtr {
+                return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
             [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
                 return objectManager->CreateRemoteProxy(payload.ObjectId);
@@ -457,7 +530,7 @@ private:
 
         return TResolveResultThere{
             std::move(proxy),
-            std::move(result.UnresolvedPathSuffix)
+            std::move(resolvePath.UnresolvedPathSuffix)
         };
     }
 };
@@ -1272,10 +1345,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(header.user());
-    // NB: since single-subrequest batches are never backed off, this flag will
-    // have no effect. Still, let's keep it correct just in case.
-    bool needsSettingRetry = !header.retry() && FromProto<TMutationId>(header.mutation_id());
-    batchReq->AddRequestMessage(std::move(requestMessage), needsSettingRetry);
+    batchReq->AddRequestMessage(std::move(requestMessage));
 
     YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, User: %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
@@ -1283,7 +1353,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
         batchReq->GetRequestId(),
         header.service(),
         header.method(),
-        ypathExt.path(),
+        ypathExt.target_path(),
         header.user(),
         ypathExt.mutating(),
         cellTag,

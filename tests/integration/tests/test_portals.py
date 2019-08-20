@@ -5,6 +5,8 @@ from yt_commands import *
 
 from yt.common import YtError
 
+from yt.test_helpers import assert_items_equal, are_almost_equal
+
 from dateutil.tz import tzlocal
 
 ##################################################################
@@ -14,10 +16,21 @@ class TestPortals(YTEnvSetup):
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
+
+    def _purge_resolve_cache(self, flag, path):
+        if not flag:
+            return;
+        tx = start_transaction()
+        lock(path, tx=tx)
+        abort_transaction(tx)
+        assert not get(path + "/@resolve_cached")
+
+    @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
         with pytest.raises(YtError):
             create("portal_entrance", "//tmp/p")
 
+    @authors("babenko")
     def test_create_portal(self):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         assert get("//tmp/p&/@type") == "portal_entrance"
@@ -37,6 +50,7 @@ class TestPortals(YTEnvSetup):
 
         assert exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
 
+    @authors("babenko")
     def test_cannot_enable_acl_inheritance(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
@@ -45,7 +59,9 @@ class TestPortals(YTEnvSetup):
         with pytest.raises(YtError):
             set("#{}/@inherit_acl".format(exit_id), True, driver=get_driver(1))
 
-    def test_portal_reads(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_portal_reads(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
 
@@ -54,38 +70,58 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/@id") == exit_id
 
         create("table", "#{}/t".format(exit_id), driver=get_driver(1))
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert get("//tmp/p") == {"t": yson.YsonEntity()}
 
-    def test_portal_writes(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_portal_writes(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t")
 
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert get("//tmp/p") == {"t": yson.YsonEntity()}
 
-    def test_remove_portal(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_remove_portal(self, purge_resolve_cache):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
         table_id = create("table", "//tmp/p/t")
 
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p")
         wait(lambda: not exists("#{}".format(exit_id)) and \
                      not exists("#{}".format(entrance_id), driver=get_driver(1)) and \
                      not exists("#{}".format(table_id), driver=get_driver(1)))
 
-    def test_remove_all_portal_children(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_remove_all_portal_children(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p/*")
 
-    def test_portal_set(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_portal_set(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         set("//tmp/p/key", "value", force=True)
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert get("//tmp/p/key") == "value"
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         set("//tmp/p/map/key", "value", force=True, recursive=True)
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert get("//tmp/p/map/key") == "value"
 
-    @pytest.mark.parametrize("with_outer_tx,external_cell_tag",
-                             [(with_outer_tx, external_cell_tag) for with_outer_tx in [False, True] for external_cell_tag in [1, 2]])
-    def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag):
+    @pytest.mark.parametrize("with_outer_tx,external_cell_tag,purge_resolve_cache",
+                             [(with_outer_tx, external_cell_tag, purge_resolve_cache)
+                             for with_outer_tx in [False, True]
+                             for external_cell_tag in [1, 2]
+                             for purge_resolve_cache in [False, True]])
+    @authors("babenko")
+    def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": external_cell_tag})
         PAYLOAD = [{"key": "value"}]
@@ -93,6 +129,7 @@ class TestPortals(YTEnvSetup):
         if with_outer_tx:
             tx = start_transaction()
             write_args["tx"] = tx
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         write_table("//tmp/p/t", PAYLOAD, **write_args)
         if with_outer_tx:
             commit_transaction(tx)
@@ -101,11 +138,16 @@ class TestPortals(YTEnvSetup):
         chunk_ids = get("//tmp/p/t/@chunk_ids")
         assert len(chunk_ids) == 1
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/t"]
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert read_table("//tmp/p/t") == PAYLOAD
 
-    @pytest.mark.parametrize("with_outer_tx,external_cell_tag",
-                             [(with_outer_tx, external_cell_tag) for with_outer_tx in [False, True] for external_cell_tag in [1, 2]])
-    def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag):
+    @pytest.mark.parametrize("with_outer_tx,external_cell_tag,purge_resolve_cache",
+                             [(with_outer_tx, external_cell_tag, purge_resolve_cache)
+                             for with_outer_tx in [False, True]
+                             for external_cell_tag in [1, 2]
+                             for purge_resolve_cache in [False, True]])
+    @authors("babenko")
+    def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("file", "//tmp/p/f", attributes={"external": True, "external_cell_tag": external_cell_tag})
         PAYLOAD = "a" *  100
@@ -113,6 +155,7 @@ class TestPortals(YTEnvSetup):
         if with_outer_tx:
             tx = start_transaction()
             write_args["tx"] = tx
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         write_file("//tmp/p/f", PAYLOAD, **write_args)
         if with_outer_tx:
             commit_transaction(tx)
@@ -121,8 +164,10 @@ class TestPortals(YTEnvSetup):
         chunk_ids = get("//tmp/p/f/@chunk_ids")
         assert len(chunk_ids) == 1
         assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/f"]
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert read_file("//tmp/p/f") == PAYLOAD
 
+    @authors("babenko")
     def test_account_lifetime(self):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
@@ -141,25 +186,31 @@ class TestPortals(YTEnvSetup):
 
     def _now(self):
         return datetime.now(tzlocal())
-    
+
+    @authors("babenko")
     def test_expiration_time(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t", attributes={"expiration_time": str(self._now())})
         wait(lambda: not exists("//tmp/p/t"))
 
-    def test_remove_table_in_portal(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_remove_table_in_portal(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         table_id = create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 2})
         wait(lambda: exists("#{}".format(table_id), driver=get_driver(2)))
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p/t")
         wait(lambda: not exists("#{}".format(table_id), driver=get_driver(2)))
 
+    @authors("babenko")
     def test_root_shard(self):
         shard_id = get("//@shard_id")
         assert exists("//sys/cypress_shards/{}".format(shard_id))
         assert get("//@id") == get("#{}/@root_node_id".format(shard_id))
         assert get("#{}/@account_statistics/sys/node_count".format(shard_id)) > 0
- 
+
+    @authors("babenko")
     def test_shard_statistics(self):
         shard_id = get("//@shard_id")
         create_account("a")
@@ -175,6 +226,7 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/*")
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
 
+    @authors("babenko")
     def test_portal_shard(self):
         create_account("a")
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
@@ -189,3 +241,70 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p")
         wait(lambda: not exists("#{}".format(shard_id)))
 
+    @authors("babenko")
+    def test_special_exit_attrs(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        assert get("//tmp/p/@key") == "p"
+        assert get("//tmp/p/@parent_id") == get("//tmp/@id")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_shard_links_forbidden(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        with pytest.raises(YtError):
+            link("//tmp", "//tmp/p/l")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_intra_shard_links(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t")
+
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        link("//tmp/p/t", "//tmp/p/t_")
+
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        link("//tmp/p", "//tmp/p/_")
+
+        assert_items_equal(ls("//tmp/p/_"), ["t", "t_", "_"])
+        assert get("//tmp/p/t_&/@target_path") == "//tmp/p/t"
+        assert get("//tmp/p/t_/@id") == get("//tmp/p/t/@id")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_intra_shard_copy_move(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t")
+        assert exists("//tmp/p/t")
+        
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        copy("//tmp/p/t", "//tmp/p/t1")
+        assert exists("//tmp/p/t")
+        assert exists("//tmp/p/t1")
+        
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        move("//tmp/p/t", "//tmp/p/t2")
+
+        assert not exists("//tmp/p/t")
+        assert exists("//tmp/p/t2")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_shard_copy_forbidden1(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/t")
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        with pytest.raises(YtError):
+            copy("//tmp/t", "//tmp/p/t")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_shard_copy_forbidden2(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("table", "//tmp/p1/t")
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p1")
+        self._purge_resolve_cache(purge_resolve_cache, "//tmp/p2")
+        with pytest.raises(YtError):
+            copy("//tmp/p1/t", "//tmp/p2/t")

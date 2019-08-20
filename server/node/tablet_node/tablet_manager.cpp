@@ -681,7 +681,7 @@ private:
         TabletMap_.LoadValues(context);
 
         // COMPAT(savrus)
-        if (context.GetVersion() >= 100010) {
+        if (context.GetVersion() >= ETabletReign::AddTabletCellLifeState) {
             Load(context, CellLifeStage_);
         } else {
             CellLifeStage_ = ETabletCellLifeStage::Running;
@@ -704,7 +704,6 @@ private:
             }
         }
     }
-
 
     virtual void OnAfterSnapshotLoaded() noexcept override
     {
@@ -903,7 +902,8 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId,
-            retainedTimestamp);
+            retainedTimestamp,
+            GetCurrentMutationContext()->Request().Reign < static_cast<TReign>(ETabletReign::SafeReplicatedLogSchema));
 
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
@@ -1118,7 +1118,7 @@ private:
         auto lockTimestamp = static_cast<TTimestamp>(request->lock().timestamp());
 
         const auto& lockManager = tablet->GetLockManager();
-        lockManager->Lock(lockTimestamp, transactionId, false);
+        lockManager->Lock(lockTimestamp, transactionId, /*confirmed*/ false);
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet locked (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -1184,15 +1184,18 @@ private:
             storeManager->AddStore(store, false);
         }
 
-        UpdateTabletSnapshot(tablet);
-
         const auto& lockManager = tablet->GetLockManager();
+
+        auto nextEpoch = lockManager->GetEpoch() + 1;
+        UpdateTabletSnapshot(tablet, nextEpoch);
         lockManager->Unlock(transactionId);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(),
+            "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
             tabletId,
             transactionId,
-            addedStoreIds);
+            addedStoreIds,
+            lockManager->GetEpoch());
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -3161,11 +3164,11 @@ private:
     }
 
 
-    void UpdateTabletSnapshot(TTablet* tablet)
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
     {
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->RegisterTabletSnapshot(Slot_, tablet);
+            slotManager->RegisterTabletSnapshot(Slot_, tablet, epoch);
         }
     }
 
