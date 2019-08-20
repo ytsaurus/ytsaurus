@@ -58,6 +58,7 @@ def authors(*the_authors):
 def raises_yt_error(code):
     try:
         yield
+        raise AssertionError("Expected exception to be raised.")
     except YtError as e:
         if not e.contains_code(code):
             raise AssertionError("Raised error {} doesn't contain error code {}".format(
