@@ -1,11 +1,11 @@
 from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
-                      get_environment_for_binary_test, set_config_option, get_python)
+                      get_environment_for_binary_test, set_config_option, get_python, yatest_common)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
-from yt.common import flatten, makedirp
+from yt.common import flatten, makedirp, which
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
@@ -113,7 +113,7 @@ class TestYamrMode(object):
 
         sandbox_dir = os.path.join(get_tests_sandbox(), "TestMapreduceBinary_" + uuid.uuid4().hex[:8])
         makedirp(sandbox_dir)
-        test_binary = os.path.join(get_tests_location(), "test_mapreduce.sh")
+        test_binary = get_test_file_path("test_mapreduce.sh", use_files=False)
 
         yt.remove("//home/wrapper_tests", recursive=True)
         proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
@@ -209,6 +209,9 @@ class TestYamrMode(object):
         assert list(yt.read_table(output_table)) == data[::-1]
 
     def test_run_operations(self):
+        if not which("g++") and yatest_common is not None:
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [b"0\ta\tA\n", b"1\tb\tB\n", b"2\tc\tC\n"])

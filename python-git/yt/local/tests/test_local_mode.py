@@ -7,6 +7,7 @@ from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
@@ -33,7 +34,8 @@ import random
 
 def _get_tests_location():
     if yatest_common is not None:
-        return yatest_common.source_path("yt/python/yt/local/tests")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        return yatest_common.source_path(python_root + "/yt/local/tests")
     return os.path.dirname(os.path.abspath(__file__))
 
 def _get_tests_sandbox():
@@ -50,7 +52,8 @@ def _get_local_mode_tests_sandbox():
 
 def _get_yt_local_binary():
     if yatest_common is not None:
-        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        return yatest_common.binary_path(python_root + "/yt/local/bin/yt_local_make/yt_local")
     return os.path.join(os.path.dirname(_get_tests_location()), "bin", "yt_local")
 
 def _get_instance_path(instance_id):

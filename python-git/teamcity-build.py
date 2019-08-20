@@ -14,9 +14,9 @@ from teamcity.teamcity import (
     StepFailedWithNonCriticalError)
 
 from teamcity.helpers import (mkdirp, run, run_captured, cwd, rm_content,
-                     rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
-                     postprocess_junit_xml, sudo_rmtree, kill_by_name,
-                     set_yt_binaries_suid_bit)
+                              rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
+                              postprocess_junit_xml, sudo_rmtree, kill_by_name,
+                              set_yt_binaries_suid_bit)
 
 from teamcity.pytest_helpers import (
     copy_artifacts,
@@ -32,10 +32,12 @@ import pprint
 import socket
 import functools
 import re
+import shutil
 
 def get_bin_dir(options):
     return os.path.join(options.yt_build_directory, "bin")
 
+# TODO(ignat): move functions below to some common library.
 def get_ya_cache_dir(options):
     ya_cache = os.environ.get("YA_CACHE_DIR", None)
     if ya_cache is None:
@@ -47,12 +49,25 @@ def ya_make_env(options):
         "YA_CACHE_DIR": get_ya_cache_dir(options),
     }
 
+def ya_make_args(options):
+    return ["--build", "debug"]
 
 def skip_step_if_tests_are_disabled(func):
     @functools.wraps(func)
     def wrapper(options):
         if not options.enabled_python_versions:
             teamcity_message('Skipping step "{0}" since tests are disabled'
+                             .format(func.__name__))
+            return
+
+        return func(options)
+    return wrapper
+
+def skip_if_ya_tests_disabled(func):
+    @functools.wraps(func)
+    def wrapper(options):
+        if not options.run_ya_tests:
+            teamcity_message('Skipping step "{0}" since ya tests disabled'
                              .format(func.__name__))
             return
 
@@ -153,6 +168,30 @@ def checkout(options):
         run(["git", "checkout", "master"], cwd=options.yt_source_directory)
         run(["git", "pull"], cwd=options.yt_source_directory)
         run(["git", "submodule", "update", "--init", "--recursive"], cwd=options.yt_source_directory)
+
+    if options.run_ya_tests:
+        commit = open(os.path.join(options.checkout_directory, ".git/FETCH_HEAD")).read().split()[0]
+        run([
+                "git",
+                "fetch",
+                "origin",
+                commit
+            ],
+            cwd=os.path.join(options.yt_source_directory, "python"))
+        run([
+                "git",
+                "checkout",
+                commit
+            ],
+            cwd=os.path.join(options.yt_source_directory, "python"))
+        run([
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ],
+            cwd=os.path.join(options.yt_source_directory, "python"))
 
 @build_step
 @skip_step_if_tests_are_disabled
@@ -269,6 +308,63 @@ def _run_tests_for_python_version(options, python_version):
     prepare_python_bindings(options.checkout_directory, options.yt_build_directory, bindings_version)
     _run_tests(options, python_version)
 
+def _run_ya_tests(options, python_version):
+    if python_version == "2":
+        targets = [
+            "yt/local/tests",
+            "yt/skiff/tests",
+            "yt/yson/tests/py2",
+            "yt/wrapper/tests/py2",
+            "yt/wrapper/system_python_tests/py2",
+        ]
+    elif python_version == "3":
+        targets = [
+            "yt/yson/tests/py3",
+            "yt/wrapper/tests/py3",
+            "yt/wrapper/system_python_tests/py3",
+        ]
+
+    archive_dir = os.path.join(options.archive_path, "ya_python_" + python_version)
+    mkdirp(archive_dir)
+
+    junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
+
+    env = ya_make_env(options)
+    args = [
+        os.path.join(options.yt_source_directory, "ya"),
+        "make",
+        "--dist", "--new-dist",
+        "-E", "--output", archive_dir,
+        "--junit", junit_output,
+        "--test-param", "inside_arcadia=0",
+        "-ttt",
+    ]
+    args += ya_make_args(options)
+
+    args += targets
+
+    error = None
+
+    try:
+        run(args, env=env, cwd=os.path.join(options.yt_source_directory, "python"))
+    except ChildHasNonZeroExitCode as err:
+        error = err
+
+    if error is None:
+        shutil.rmtree(archive_dir)
+    else:
+        raise StepFailedWithNonCriticalError("Tests failed: " + str(error))
+
+@build_step
+@skip_if_ya_tests_disabled
+def run_python_2_ya_tests(options):
+    _run_ya_tests(options, "2")
+
+@build_step
+@skip_if_ya_tests_disabled
+def run_python_3_ya_tests(options):
+    _run_ya_tests(options, "3")
+
 @build_step
 def run_python_2_7_tests(options):
     _run_tests_for_python_version(options, "2.7")
@@ -330,6 +426,9 @@ def main():
         type=parse_bool, action="store", default=False)
     parser.add_argument(
         "--package",
+        type=parse_bool, action="store", default=False)
+    parser.add_argument(
+        "--run-ya-tests",
         type=parse_bool, action="store", default=False)
 
     parser.add_argument(

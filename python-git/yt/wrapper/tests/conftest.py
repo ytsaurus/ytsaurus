@@ -47,6 +47,10 @@ def _pytest_finalize_func(environment, process_call_args):
                 .format(" ".join(process_call_args)))
     environment.stop()
 
+def rmtree(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
 class YtTestEnvironment(object):
     def __init__(self,
                  test_name,
@@ -215,10 +219,8 @@ class YtTestEnvironment(object):
         self.reload_global_configuration()
         self.env.stop()
         for node_config in self.env.configs["node"]:
-            for path in (node_config["data_node"]["store_locations"][0]["path"],
-                         node_config["data_node"]["cache_locations"][0]["path"]):
-                if os.path.exists(path):
-                    shutil.rmtree(path)
+            rmtree(node_config["data_node"]["store_locations"][0]["path"])
+            rmtree(node_config["data_node"]["cache_locations"][0]["path"])
         self.save_sandbox()
 
     def save_sandbox(self):
