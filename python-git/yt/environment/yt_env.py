@@ -196,12 +196,10 @@ class YTInstance(object):
 
         self._binaries = _which_yt_binaries()
         if ("ytserver-master" in self._binaries and
-            "ytserver-clock" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
             logger.info("Using multiple YT binaries with the following versions:")
             logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
-            logger.info("  ytserver-clock      %s", self._binaries["ytserver-clock"].literal)
             logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
             logger.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
 
