@@ -213,6 +213,8 @@ public:
     virtual TFuture<void> Write(const TSharedRef& data) override;
     virtual TFuture<void> Close() override;
 
+    ~TRpcClientOutputStream();
+
 private:
     const IClientRequestPtr Request_;
 

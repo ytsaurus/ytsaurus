@@ -710,6 +710,11 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
         BIND(&TRpcClientOutputStream::OnFeedback, MakeWeak(this)));
 }
 
+TRpcClientOutputStream::~TRpcClientOutputStream()
+{
+    InvokeResult_.Cancel();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef GenerateWriterFeedbackMessage(
