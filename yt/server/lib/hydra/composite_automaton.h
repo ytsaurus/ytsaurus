@@ -195,6 +195,7 @@ public:
     virtual void Clear() override;
     virtual void SetZeroState() override;
 
+    void RememberReign(TReign reign);
     virtual EFinalRecoveryAction GetFinalRecoveryAction() override;
 
 protected:

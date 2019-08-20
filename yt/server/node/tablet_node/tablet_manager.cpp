@@ -667,6 +667,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        // COMPAT(savrus)
+        if (context.GetVersion() < ETabletReign::SafeReplicatedLogSchema) {
+            Automaton_->RememberReign(static_cast<int>(context.GetVersion()));
+        }
+
         TabletMap_.LoadKeys(context);
     }
 
