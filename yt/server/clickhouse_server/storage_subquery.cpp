@@ -44,6 +44,8 @@ public:
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
         }
+        Logger = queryContext->Logger;
+        Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v", SubquerySpec_.SubqueryIndex, SubquerySpec_.TableIndex);
 
         setColumns(ColumnsDescription(SubquerySpec_.Columns));
     }
@@ -69,8 +71,6 @@ public:
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
-        const auto& Logger = QueryContext_->Logger;
-
         // TODO(max42): ?
         auto columns = ToString(columnNames);
 
@@ -187,6 +187,7 @@ public:
 private:
     TQueryContext* QueryContext_;
     TSubquerySpec SubquerySpec_;
+    TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

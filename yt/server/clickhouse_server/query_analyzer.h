@@ -41,6 +41,7 @@ private:
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger_;
     std::vector<DB::ASTTableExpression*> TableExpressions_;
+    int YtTableCount_ = 0;
     std::vector<DB::ASTPtr*> TableExpressionPtrs_;
     std::vector<std::shared_ptr<IStorageDistributor>> Storages_;
     std::vector<std::vector<TString>> JoinUsing_;
