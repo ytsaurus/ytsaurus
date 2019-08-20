@@ -61,7 +61,7 @@ private:
                 ValidateSimpleType(type->AsSimpleTypeRef().GetElement(), fieldId);
                 return;
             case ELogicalMetatype::Optional:
-                ValidateOptionalType(type->AsOptionalTypeRef(), fieldId.OptionalElement());
+                ValidateOptionalType(type->AsOptionalTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::List:
                 ValidateListType(type->AsListTypeRef(), fieldId);
