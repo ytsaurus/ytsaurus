@@ -514,6 +514,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             &hasWaitingJobs);
     }
 
+    bool skipScheduleJobs = false;
     if (hasWaitingJobs || isThrottlingActive) {
         if (hasWaitingJobs) {
             YT_LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
@@ -521,57 +522,58 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         if (isThrottlingActive) {
             YT_LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
         }
-        response->set_scheduling_skipped(true);
-    } else {
-        auto schedulingContext = CreateSchedulingContext(
-            Id_,
-            Config_,
-            node,
-            runningJobs);
-
-        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitJobsToStrategy();
-        }
-
-        PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-            node->SetHasOngoingJobsScheduling(true);
-            Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
-            node->SetHasOngoingJobsScheduling(false);
-        }
-
-        const auto statistics = schedulingContext->GetSchedulingStatistics();
-        context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, "
-            "StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            schedulingContext->StartedJobs().size(),
-            schedulingContext->PreemptedJobs().size(),
-            statistics.ScheduledDuringPreemption,
-            statistics.PreemptableJobCount,
-            FormatResources(statistics.ResourceUsageDiscount),
-            statistics.ControllerScheduleJobCount,
-            statistics.NonPreemptiveScheduleJobAttempts,
-            statistics.PreemptiveScheduleJobAttempts,
-            statistics.HasAggressivelyStarvingElements);
-
-        node->SetResourceUsage(schedulingContext->ResourceUsage());
-        node->SetLastHeartbeatStatistics(statistics);
-
-        ProcessScheduledJobs(
-            schedulingContext,
-            context);
-
-        // NB: some jobs maybe considered aborted after processing scheduled jobs.
-        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitJobsToStrategy();
-        }
-
-        response->set_scheduling_skipped(false);
+        skipScheduleJobs = true;
     }
+
+    response->set_scheduling_skipped(skipScheduleJobs);
+
+    auto schedulingContext = CreateSchedulingContext(
+        Id_,
+        Config_,
+        node,
+        runningJobs);
+
+    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        SubmitJobsToStrategy();
+    }
+
+    PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
+        node->SetHasOngoingJobsScheduling(true);
+        Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
+        node->SetHasOngoingJobsScheduling(false);
+    }
+
+    const auto& statistics = schedulingContext->GetSchedulingStatistics();
+
+    node->SetResourceUsage(schedulingContext->ResourceUsage());
+    node->SetLastHeartbeatStatistics(statistics);
+
+    ProcessScheduledJobs(
+        schedulingContext,
+        /* requestContext */ context);
+
+    // NB: some jobs maybe considered aborted after processing scheduled jobs.
+    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        SubmitJobsToStrategy();
+    }
+
+    context->SetResponseInfo(
+        "NodeId: %v, NodeAddress: %v, "
+        "StartedJobs: %v, PreemptedJobs: %v, "
+        "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+        "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
+        "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
+        nodeId,
+        descriptor.GetDefaultAddress(),
+        schedulingContext->StartedJobs().size(),
+        schedulingContext->PreemptedJobs().size(),
+        statistics.ScheduledDuringPreemption,
+        statistics.PreemptableJobCount,
+        FormatResources(statistics.ResourceUsageDiscount),
+        statistics.ControllerScheduleJobCount,
+        statistics.NonPreemptiveScheduleJobAttempts,
+        statistics.PreemptiveScheduleJobAttempts,
+        statistics.HasAggressivelyStarvingElements);
 
     context->Reply();
 }
