@@ -209,7 +209,7 @@ class TestOperations(object):
 
         yt.write_table(table,
                        [
-                           {"a": 12,  "b": "ignat"},
+                           {"a": 12, "b": "ignat"},
                                      {"b": "max"},
                            {"a": "x", "b": "name", "c": 0.5}
                        ])
@@ -321,7 +321,7 @@ class TestOperations(object):
                 yield row
 
         yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
-                      reduce_by=["x","y"], join_by=["x"],
+                      reduce_by=["x", "y"], join_by=["x"],
                       format=yt.YsonFormat())
         check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
@@ -1980,3 +1980,60 @@ print(op.id)
 
         op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
         wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
+
+    def test_map_without_output(self, tmpdir):
+        input_table = TEST_DIR + "/input"
+        yt.write_table(input_table, [{"x": 1}, {"x": 2}, {"x": 3}])
+        first_file = str(tmpdir.join("first.txt"))
+        second_file = str(tmpdir.join("second.txt"))
+
+        def mapper_without_output(row):
+            with open(first_file, "a+") as f:
+                f.write("{}\n".format(row["x"]))
+
+        def mapper_with_output(row):
+            with open(second_file, "a+") as f:
+                f.write("{}\n".format(row["x"]))
+            yield 10
+            yield 20
+            yield 30
+
+        for path, mapper in zip([first_file, second_file], [mapper_without_output, mapper_with_output]):
+            open(path, "w").close()
+            os.chmod(path, 0o666)
+            yt.run_map(mapper, input_table)
+            with open(path, "r") as f:
+                data = f.read()
+            assert set(data.split()) == {"1", "2", "3"}
+
+    def test_reduce_without_output(self, tmpdir):
+        input_table = TEST_DIR + "/input"
+        yt.write_table(input_table, [
+            {"x": 1, "y": 150},
+            {"x": 1, "y": 250},
+            {"x": 1, "y": 300},
+        ])
+        yt.run_sort(input_table, input_table, sort_by=["x"])
+        first_file = str(tmpdir.join("first.txt"))
+        second_file = str(tmpdir.join("second.txt"))
+
+        def reducer_without_output(key, rows):
+            y = sum(row["y"] for row in rows)
+            with open(first_file, "a") as f:
+                f.write("{}\n".format(y))
+
+        def reducer_with_output(key, rows):
+            y = sum(row["y"] for row in rows)
+            with open(second_file, "a") as f:
+                f.write("{}\n".format(y))
+            yield 10
+            yield 20
+            yield 30
+
+        for path, reducer in zip([first_file, second_file], [reducer_without_output, reducer_with_output]):
+            open(path, "w").close()
+            os.chmod(path, 0o666)
+            yt.run_reduce(reducer, input_table, reduce_by="x")
+            with open(path, "r") as f:
+                data = f.read()
+            assert int(data.strip()) == 700

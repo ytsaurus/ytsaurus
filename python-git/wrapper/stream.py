@@ -136,6 +136,7 @@ class RawStream(Stream):
             self.size = get_stream_size_or_none(input)
 
         try:
+            # NB: os.readlink is not defined on Windows.
             self.filename_hint = os.readlink("/proc/self/fd/0")
         except (IOError, OSError, AttributeError):
             self.filename_hint = None

@@ -246,7 +246,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             .end_reduce_combiner()
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
-def run_map(binary, source_table, destination_table,
+def run_map(binary, source_table, destination_table=None,
             local_files=None, yt_files=None,
             format=None, input_format=None, output_format=None,
             sync=True,
@@ -286,7 +286,7 @@ def run_map(binary, source_table, destination_table,
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
-def run_reduce(binary, source_table, destination_table,
+def run_reduce(binary, source_table, destination_table=None,
                local_files=None, yt_files=None,
                format=None, input_format=None, output_format=None,
                sync=True,
@@ -509,7 +509,7 @@ def _run_sort_optimizer(spec, client=None):
 def _run_reduce_optimizer(spec, client=None):
     operations_list = [("reduce", spec, [])]
     are_sorted_output = False
-    for table in spec["output_table_paths"]:
+    for table in spec.get("output_table_paths", []):
         table = TablePath(table)
         if "sorted_by" in table.attributes:
             are_sorted_output = True

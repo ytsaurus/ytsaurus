@@ -41,7 +41,7 @@ class FakeFileManager(object):
     def upload_files(self):
         return []
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommands(object):
     def _test_read_write(self):
         table = TEST_DIR + "/table"
@@ -435,7 +435,7 @@ class TestTableCommands(object):
         wait(check)
 
     def test_banned_proxy(self):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
         table = TEST_DIR + "/table"
@@ -506,7 +506,7 @@ class TestTableCommands(object):
 
         with open(filename, "rb") as f:
             with set_config_option("proxy/content_encoding", "gzip"):
-                if yt.config["backend"] == "native":
+                if yt.config["backend"] in ("native", "rpc"):
                     with pytest.raises(yt.YtError):  # not supported for native backend
                         yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
                 else:
@@ -642,7 +642,7 @@ class TestTableCommands(object):
 
     def test_read_lost_chunk(self):
         mode = yt.config["backend"]
-        if mode != "native":
+        if mode not in ("native", "rpc"):
             mode = yt.config["api_version"]
 
         test_name = "TestYtWrapper" + mode.capitalize()
@@ -650,10 +650,17 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
+            instance = start(
+                path=dir,
+                id=id,
+                node_count=10,
+                start_proxy=(yt.config["backend"] != "native"),
+                start_rpc_proxy=(yt.config["backend"] == "rpc"),
+                enable_debug_logging=True)
             client = instance.create_client()
-            client.config["driver_config"] = instance.configs["driver"]
+            client.config["driver_config"] = instance.configs["rpc_driver"] if yt.config["backend"] == "rpc" else instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]
+
             client.config["read_retries"]["backoff"]["constant_time"] = 5000
             client.config["read_retries"]["backoff"]["policy"] = "constant_time"
 
