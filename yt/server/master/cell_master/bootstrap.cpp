@@ -33,8 +33,12 @@
 #include <yt/server/lib/hydra/local_snapshot_store.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/master/journal_server/journal_node_type_handler.h>
+
 #include <yt/server/master/journal_server/journal_manager.h>
+#include <yt/server/master/journal_server/journal_node.h>
+#include <yt/server/master/journal_server/journal_node_type_handler.h>
+
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
@@ -152,6 +156,7 @@ using namespace NTimestampServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NCellServer;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionManagerPtr;
@@ -324,6 +329,11 @@ const TJournalManagerPtr& TBootstrap::GetJournalManager() const
 const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
+}
+
+const TTamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
+{
+    return TamedCellManager_;
 }
 
 const TTabletManagerPtr& TBootstrap::GetTabletManager() const
@@ -580,6 +590,8 @@ void TBootstrap::DoInitialize()
 
     JournalManager_ = New<NJournalServer::TJournalManager>(this);
 
+    TamedCellManager_ = New<TTamedCellManager>(this);
+
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
@@ -623,13 +635,14 @@ void TBootstrap::DoInitialize()
     NodeTracker_->Initialize();
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
+    TamedCellManager_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,
         CellDirectory_,
-        TabletManager_,
+        TamedCellManager_,
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();

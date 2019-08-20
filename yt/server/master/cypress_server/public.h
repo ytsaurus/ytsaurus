@@ -61,6 +61,7 @@ class TLinkNode;
 class TDocumentNode;
 class TPortalEntranceNode;
 class TPortalExitNode;
+class TCompositeNodeBase;
 
 template <class T>
 class TScalarNodeTypeHandler;

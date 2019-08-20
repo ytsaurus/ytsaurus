@@ -5,15 +5,15 @@
 #include <yt/server/master/node_tracker_server/public.h>
 #include <yt/server/master/node_tracker_server/node.h>
 
-#include <yt/server/master/tablet_server/tablet_cell_balancer.h>
-#include <yt/server/master/tablet_server/tablet_cell_bundle.h>
-#include <yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/server/master/cell_server/cell_balancer.h>
+#include <yt/server/master/cell_server/cell_bundle.h>
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <util/random/random.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 namespace {
 
 using namespace NYTree;
@@ -34,7 +34,7 @@ using TCompleteSettingParam = std::tuple<
     THashMap<TString, std::vector<int>>>;
 
 class TSetting
-    : public ITabletCellBalancerProvider
+    : public ICellBalancerProvider
 {
 public:
     TSetting(
@@ -91,13 +91,13 @@ public:
         }
 
         THashSet<const TNode*> seenNodes;
-        THashMap<const TTabletCell*, int> peers;
+        THashMap<const TCellBase*, int> peers;
 
         for (auto& pair : cellDistribution) {
             auto* node = GetNode(pair.first);
             YT_VERIFY(seenNodes.insert(node).second);
 
-            TTabletCellSet cellSet;
+            TCellSet cellSet;
 
             for (int index : pair.second) {
                 auto* cell = GetCell(index);
@@ -113,11 +113,11 @@ public:
             auto* node = pair.second;
             if (!seenNodes.contains(node)) {
                 seenNodes.insert(node);
-                NodeHolders_.emplace_back(node, tabletSlotCount, TTabletCellSet{});
+                NodeHolders_.emplace_back(node, tabletSlotCount, TCellSet{});
             }
         }
 
-        for (auto& pair : TabletCellMap_) {
+        for (auto& pair : CellMap_) {
             auto* cell = pair.second;
             for (int peer = peers[cell]; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
                 UnassignedPeers_.emplace_back(cell, peer);
@@ -129,12 +129,12 @@ public:
         InitialDistribution_ = GetDistribution();
     }
 
-    const TTabletCellSet& GetUnassignedPeers()
+    const TCellSet& GetUnassignedPeers()
     {
         return UnassignedPeers_;
     }
 
-    void ApplyMoveDescriptors(const std::vector<TTabletCellMoveDescriptor> descriptors)
+    void ApplyMoveDescriptors(const std::vector<TCellMoveDescriptor> descriptors)
     {
         THashMap<const NNodeTrackerServer::TNode*, TNodeHolder*> nodeToHolder;
         for (auto& holder : NodeHolders_) {
@@ -151,7 +151,7 @@ public:
         }
     }
 
-    void ValidateAssignment(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
+    void ValidateAssignment(const std::vector<TCellMoveDescriptor>& moveDescriptors)
     {
         ApplyMoveDescriptors(moveDescriptors);
 
@@ -174,7 +174,7 @@ public:
             .DoMapFor(NodeHolders_, [&] (TFluentMap fluent, const TNodeHolder& holder) {
                 fluent
                     .Item(NodeToName_[holder.GetNode()])
-                    .DoListFor(holder.GetSlots(), [&] (TFluentList fluent, const std::pair<const TTabletCell*, int>& slot) {
+                    .DoListFor(holder.GetSlots(), [&] (TFluentList fluent, const std::pair<const TCellBase*, int>& slot) {
                         fluent
                             .Item().Value(Format("(%v,%v,%v)",
                                 slot.first->GetCellBundle()->GetName(),
@@ -190,12 +190,12 @@ public:
         return NodeHolders_;
     }
 
-    virtual const NHydra::TReadOnlyEntityMap<TTabletCellBundle>& TabletCellBundles() override
+    virtual const NHydra::TReadOnlyEntityMap<TCellBundle>& CellBundles() override
     {
-        return TabletCellBundleMap_;
+        return CellBundleMap_;
     }
 
-    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TTabletCellBundle* bundle) override
+    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TCellBundle* bundle) override
     {
         if (auto it = FeasibilityMap_.find(node)) {
             return it->second.contains(bundle);
@@ -214,26 +214,26 @@ public:
     }
 
 private:
-    TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
-    TEntityMap<TTabletCell> TabletCellMap_;
+    TEntityMap<TCellBundle> CellBundleMap_;
+    TEntityMap<TCellBase> CellMap_;
     TEntityMap<TNode> NodeMap_;
     std::vector<TNodeHolder> NodeHolders_;
 
-    THashMap<const TNode*, THashSet<const TTabletCellBundle*>> FeasibilityMap_;
+    THashMap<const TNode*, THashSet<const TCellBundle*>> FeasibilityMap_;
 
-    THashMap<TString, TTabletCellBundle*> NameToBundle_;
+    THashMap<TString, TCellBundle*> NameToBundle_;
     THashMap<TString, const TNode*> NameToNode_;
     THashMap<const TNode*, TString> NodeToName_;
-    THashMap<int, TTabletCell*> IndexToCell_;
-    THashMap<const TTabletCell*, int> CellToIndex_;
+    THashMap<int, TCellBase*> IndexToCell_;
+    THashMap<const TCellBase*, int> CellToIndex_;
 
-    TTabletCellSet UnassignedPeers_;
+    TCellSet UnassignedPeers_;
 
     TString PeersPerCell_;
     TString CellLists_;
     TString InitialDistribution_;
 
-    TTabletCellBundle* GetBundle(const TString& name, bool create = true)
+    TCellBundle* GetBundle(const TString& name, bool create = true)
     {
         if (auto it = NameToBundle_.find(name)) {
             return it->second;
@@ -242,28 +242,28 @@ private:
         YT_VERIFY(create);
 
         auto id = GenerateTabletCellBundleId();
-        auto bundleHolder = std::make_unique<TTabletCellBundle>(id);
+        auto bundleHolder = std::make_unique<TCellBundle>(id);
         bundleHolder->SetName(name);
-        auto* bundle = TabletCellBundleMap_.Insert(id, std::move(bundleHolder));
+        auto* bundle = CellBundleMap_.Insert(id, std::move(bundleHolder));
         YT_VERIFY(NameToBundle_.insert(std::make_pair(name, bundle)).second);
         bundle->RefObject();
         return bundle;
     }
 
-    void CreateCell(TTabletCellBundle* bundle, int index)
+    void CreateCell(TCellBundle* bundle, int index)
     {
         auto id = GenerateTabletCellId();
-        auto cellHolder = std::make_unique<TTabletCell>(id);
+        auto cellHolder = std::make_unique<TCellBase>(id);
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
-        auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
+        auto* cell = CellMap_.Insert(id, std::move(cellHolder));
         YT_VERIFY(IndexToCell_.insert(std::make_pair(index, cell)).second);
         YT_VERIFY(CellToIndex_.insert(std::make_pair(cell, index)).second);
         cell->RefObject();
-        YT_VERIFY(bundle->TabletCells().insert(cell).second);
+        YT_VERIFY(bundle->Cells().insert(cell).second);
     }
 
-    TTabletCell* GetCell(int index)
+    TCellBase* GetCell(int index)
     {
         auto it = IndexToCell_.find(index);
         YT_VERIFY(it != IndexToCell_.end());
@@ -290,13 +290,13 @@ private:
         return node;
     }
 
-    void RevokePeer(TNodeHolder* holder, const TTabletCell* cell, int peerId)
+    void RevokePeer(TNodeHolder* holder, const TCellBase* cell, int peerId)
     {
         auto pair = holder->RemoveCell(cell);
         YT_VERIFY(pair.second == peerId);
     }
 
-    void AssignPeer(TNodeHolder* holder, const TTabletCell* cell, int peerId)
+    void AssignPeer(TNodeHolder* holder, const TCellBase* cell, int peerId)
     {
         holder->InsertCell(std::make_pair(cell, peerId));
     }
@@ -304,7 +304,7 @@ private:
     void ValidatePeerAssignment()
     {
         for (const auto& holder : NodeHolders_) {
-            THashSet<const TTabletCell*> cellSet;
+            THashSet<const TCellBase*> cellSet;
             for (const auto& slot : holder.GetSlots()) {
                 if (cellSet.contains(slot.first)) {
                     THROW_ERROR_EXCEPTION("Cell %v has two peers assigned to node %v",
@@ -316,7 +316,7 @@ private:
         }
 
         {
-            THashMap<std::pair<const TTabletCell*, int>, const TNode*> cellSet;
+            THashMap<std::pair<const TCellBase*, int>, const TNode*> cellSet;
             for (const auto& holder : NodeHolders_) {
                 for (const auto& slot : holder.GetSlots()) {
                     if (cellSet.contains(slot)) {
@@ -330,7 +330,7 @@ private:
                 }
             }
 
-            for (const auto& pair : TabletCellMap_) {
+            for (const auto& pair : CellMap_) {
                 auto* cell = pair.second;
                 for (int peer = 0; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
                     if (!cellSet.contains(std::make_pair(cell, peer))) {
@@ -346,7 +346,7 @@ private:
     void ValidateNodeFeasibility()
     {
         for (const auto& holder : NodeHolders_) {
-            THashSet<const TTabletCell*> cellSet;
+            THashSet<const TCellBase*> cellSet;
             for (const auto& slot : holder.GetSlots()) {
                 if (!IsPossibleHost(holder.GetNode(), slot.first->GetCellBundle())) {
                     THROW_ERROR_EXCEPTION("Cell %v is assigned to infeasible node %v",
@@ -359,7 +359,7 @@ private:
 
     void ValidateSmoothness()
     {
-        for (const auto& pair : TabletCellBundleMap_) {
+        for (const auto& pair : CellBundleMap_) {
             auto* bundle = pair.second;
             THashMap<const TNode*, int> cellsPerNode;
             int feasibleNodes = 0;
@@ -402,17 +402,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellBalancerTest
+class TCellBaseBalancerTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TSettingParam>
 { };
 
-class TTabletCellBalancerRevokeTest
+class TCellBaseBalancerRevokeTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TSettingParam>
 { };
 
-class TTabletCellBalancerStressTest
+class TCellBaseBalancerStressTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TStressSettingParam>
 {
@@ -455,12 +455,12 @@ public:
 
     virtual void TearDown() override {
         auto setting = New<TSetting>(PeersPerCell_, CellLists_, NodeFeasibility_, TabletSlotCount_, CellDistribution_);
-        auto balancer = CreateTabletCellBalancer(setting);
+        auto balancer = CreateCellBalancer(setting);
         for (auto& unassigned : setting->GetUnassignedPeers()) {
             balancer->AssignPeer(unassigned.first, unassigned.second);
         }
 
-        setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
+        setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
     }
 
 protected:
@@ -480,7 +480,7 @@ protected:
     THashMap<TString, std::vector<int>> CellDistribution_;
 };
 
-TEST_P(TTabletCellBalancerStressTest, TestBalancerEmptyDistribution)
+TEST_P(TCellBaseBalancerStressTest, TestBalancerEmptyDistribution)
 {
     CellDistribution_.clear();
     for (int i = 0; i < NodesNum_; ++i) {
@@ -489,7 +489,7 @@ TEST_P(TTabletCellBalancerStressTest, TestBalancerEmptyDistribution)
 }
 
 // Emplace full bundles (first bundles first) while possible.
-TEST_P(TTabletCellBalancerStressTest, TestBalancerGeneratedDistribution1)
+TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution1)
 {
     int initialBundleIdx = 0;
     int initialNodeIdx = 0;
@@ -513,7 +513,7 @@ TEST_P(TTabletCellBalancerStressTest, TestBalancerGeneratedDistribution1)
 }
 
 // Fill all nodes except last 2 with all cells.
-TEST_P(TTabletCellBalancerStressTest, TestBalancerGeneratedDistribution2)
+TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution2)
 {
     int node = 0;
     int cell = 0;
@@ -538,7 +538,7 @@ TEST_P(TTabletCellBalancerStressTest, TestBalancerGeneratedDistribution2)
     }
 }
 
-TEST_P(TTabletCellBalancerStressTest, TestBalancerRandomDistribution)
+TEST_P(TCellBaseBalancerStressTest, TestBalancerRandomDistribution)
 {
     std::vector<THashSet<int>> filledNodes(NodesNum_);
     auto checkEmplace = [&] (int cell, int nodeIdx) -> bool {
@@ -579,40 +579,40 @@ TEST_P(TTabletCellBalancerStressTest, TestBalancerRandomDistribution)
     }
 }
 
-TEST_P(TTabletCellBalancerRevokeTest, TestBalancer)
+TEST_P(TCellBaseBalancerRevokeTest, TestBalancer)
 {
     auto setting = New<TSetting>(GetParam());
-    auto balancer = CreateTabletCellBalancer(setting);
+    auto balancer = CreateCellBalancer(setting);
 
     for (auto& unassigned : setting->GetUnassignedPeers()) {
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 
     for (auto& assigned : setting->GetUnassignedPeers()) {
         balancer->RevokePeer(assigned.first, assigned.second);
     }
 
-    setting->ApplyMoveDescriptors(balancer->GetTabletCellMoveDescriptors());
+    setting->ApplyMoveDescriptors(balancer->GetCellMoveDescriptors());
 
     for (auto& unassigned : setting->GetUnassignedPeers()) {
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 }
 
-TEST_P(TTabletCellBalancerTest, TestBalancer)
+TEST_P(TCellBaseBalancerTest, TestBalancer)
 {
     auto setting = New<TSetting>(GetParam());
-    auto balancer = CreateTabletCellBalancer(setting);
+    auto balancer = CreateCellBalancer(setting);
 
     for (auto& unassigned : setting->GetUnassignedPeers()) {
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 }
 
 /*
@@ -624,8 +624,8 @@ TEST_P(TTabletCellBalancerTest, TestBalancer)
  * number of cells per bundle
  */
 INSTANTIATE_TEST_CASE_P(
-    TabletCellBalancer,
-    TTabletCellBalancerStressTest,
+    CellBalancer,
+    TCellBaseBalancerStressTest,
     ::testing::Values(
         std::make_tuple(4, 20, 2, 5, 8),
         std::make_tuple(6, 30, 4, 9, 5),
@@ -641,8 +641,8 @@ INSTANTIATE_TEST_CASE_P(
         "{node_name: [cell_index; ...]; ...}"
 */
 INSTANTIATE_TEST_CASE_P(
-    TabletCellBalancer,
-    TTabletCellBalancerRevokeTest,
+    CellBalancer,
+    TCellBaseBalancerRevokeTest,
     ::testing::Values(
         std::make_tuple(
             "{a=1;}",
@@ -653,8 +653,8 @@ INSTANTIATE_TEST_CASE_P(
     ));
 
 INSTANTIATE_TEST_CASE_P(
-    TabletCellBalancer,
-    TTabletCellBalancerTest,
+    CellBalancer,
+    TCellBaseBalancerTest,
     ::testing::Values(
         std::make_tuple(
             "{a=1;}",
@@ -704,5 +704,5 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer
 

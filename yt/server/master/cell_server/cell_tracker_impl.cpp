@@ -1,10 +1,10 @@
 #include "bundle_node_tracker.h"
 #include "config.h"
 #include "private.h"
-#include "tablet_cell.h"
-#include "tablet_cell_bundle.h"
-#include "tablet_manager.h"
-#include "tablet_tracker_impl.h"
+#include "cell_base.h"
+#include "cell_bundle.h"
+#include "tamed_cell_manager.h"
+#include "cell_tracker_impl.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -17,6 +17,8 @@
 
 #include <yt/server/master/table_server/table_node.h>
 
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -25,7 +27,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -34,23 +36,24 @@ using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
 using namespace NHydra;
 using namespace NHiveServer;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellBalancerProvider
-    : public ITabletCellBalancerProvider
+class TCellBalancerProvider
+    : public ICellBalancerProvider
 {
 public:
-    explicit TTabletCellBalancerProvider(const TBootstrap* bootstrap)
+    explicit TCellBalancerProvider(const TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , BalanceRequestTime_(Now())
     {
-        const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
-        bundleNodeTracker->SubscribeBundleNodesChanged(BIND(&TTabletCellBalancerProvider::OnBundleNodesChanged, MakeWeak(this)));
+        const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
+        bundleNodeTracker->SubscribeBundleNodesChanged(BIND(&TCellBalancerProvider::OnBundleNodesChanged, MakeWeak(this)));
     }
 
     virtual std::vector<TNodeHolder> GetNodes() override
@@ -58,15 +61,15 @@ public:
         BalanceRequestTime_.reset();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
         auto isGood = [&] (const auto* node) {
-            return CheckIfNodeCanHostTabletCells(node) && node->GetTotalTabletSlots() > 0;
+            return CheckIfNodeCanHostCells(node) && node->GetTotalTabletSlots() > 0;
         };
 
         int nodeCount = 0;
-        for (const auto& pair : nodeTracker->Nodes()) {
-            if (isGood(pair.second)) {
+        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+            if (isGood(node)) {
                 ++nodeCount;
             }
         }
@@ -74,30 +77,29 @@ public:
         std::vector<TNodeHolder> nodes;
         nodes.reserve(nodeCount);
 
-        for (const auto& pair : nodeTracker->Nodes()) {
-            const auto* node = pair.second;
+        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
             if (!isGood(node)) {
                 continue;
             }
 
-            const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress());
+            const auto* cells = cellManager->FindAssignedCells(node->GetDefaultAddress());
             nodes.emplace_back(
                 node,
                 node->GetTotalTabletSlots(),
-                cells ? *cells : TTabletCellSet());
+                cells ? *cells : TCellSet());
         }
 
         return nodes;
     }
 
-    virtual const TReadOnlyEntityMap<TTabletCellBundle>& TabletCellBundles() override
+    virtual const TReadOnlyEntityMap<TCellBundle>& CellBundles() override
     {
-        return Bootstrap_->GetTabletManager()->TabletCellBundles();
+        return Bootstrap_->GetTamedCellManager()->CellBundles();
     }
 
-    virtual bool IsPossibleHost(const TNode* node, const TTabletCellBundle* bundle) override
+    virtual bool IsPossibleHost(const TNode* node, const TCellBundle* bundle) override
     {
-        const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
+        const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
         return bundleNodeTracker->GetBundleNodes(bundle).contains(node);
     }
 
@@ -127,7 +129,7 @@ private:
     const TBootstrap* Bootstrap_;
     std::optional<TInstant> BalanceRequestTime_;
 
-    void OnBundleNodesChanged(const TTabletCellBundle* /*bundle*/)
+    void OnBundleNodesChanged(const TCellBundle* /*bundle*/)
     {
         if (!BalanceRequestTime_) {
             BalanceRequestTime_ = Now();
@@ -143,22 +145,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletTrackerImpl::TTabletTrackerImpl(
+TCellTrackerImpl::TCellTrackerImpl(
     NCellMaster::TBootstrap* bootstrap,
     TInstant startTime)
     : Bootstrap_(bootstrap)
     , StartTime_(startTime)
-    , TTabletCellBalancerProvider_(New<TTabletCellBalancerProvider>(Bootstrap_))
+    , TCellBalancerProvider_(New<TCellBalancerProvider>(Bootstrap_))
     , Profiler("/tablet_server/tablet_tracker")
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    tabletManager->SubscribeTabletCellPeersAssigned(BIND(&TTabletTrackerImpl::OnTabletCellPeersReassigned, MakeWeak(this)));
+    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+    cellManager->SubscribeCellPeersAssigned(BIND(&TCellTrackerImpl::OnCellPeersReassigned, MakeWeak(this)));
 }
 
-void TTabletTrackerImpl::ScanCells()
+void TCellTrackerImpl::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -168,12 +170,11 @@ void TTabletTrackerImpl::ScanCells()
 
     TBundleCounter leaderReassignmentCounter, peerRevocationCounter, peerAssignmentCounter;
 
-    auto balancer = CreateTabletCellBalancer(TTabletCellBalancerProvider_);
+    auto balancer = CreateCellBalancer(TCellBalancerProvider_);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    const auto& tabletManger = Bootstrap_->GetTabletManager();
-    for (const auto& pair : tabletManger->TabletCells()) {
-        auto* cell = pair.second;
+    const auto& cellManger = Bootstrap_->GetTamedCellManager();
+    for (const auto [cellId, cell] : cellManger->Cells()) {
         if (!IsObjectAlive(cell))
             continue;
 
@@ -182,14 +183,14 @@ void TTabletTrackerImpl::ScanCells()
         SchedulePeerRevocation(cell, balancer.get(), &peerRevocationCounter);
     }
 
-    auto moveDescriptors = balancer->GetTabletCellMoveDescriptors();
+    auto moveDescriptors = balancer->GetCellMoveDescriptors();
     Profile(moveDescriptors, leaderReassignmentCounter, peerRevocationCounter, peerAssignmentCounter);
 
     TReqReassignPeers request;
 
     {
         TReqRevokePeers* revocation;
-        const TTabletCell* cell = nullptr;
+        const TCellBase* cell = nullptr;
 
         for (const auto& moveDescriptor : moveDescriptors) {
             const auto* source = moveDescriptor.Source;
@@ -213,7 +214,7 @@ void TTabletTrackerImpl::ScanCells()
 
     {
         TReqAssignPeers* assignment;
-        const TTabletCell* cell = nullptr;
+        const TCellBase* cell = nullptr;
 
         for (const auto& moveDescriptor : moveDescriptors) {
             if (moveDescriptor.Target) {
@@ -236,18 +237,18 @@ void TTabletTrackerImpl::ScanCells()
         ->CommitAndLog(Logger);
 }
 
-void TTabletTrackerImpl::OnTabletCellPeersReassigned()
+void TCellTrackerImpl::OnCellPeersReassigned()
 {
     WaitForCommit_ = false;
 }
 
-const TDynamicTabletManagerConfigPtr& TTabletTrackerImpl::GetDynamicConfig()
+const TDynamicCellManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
-void TTabletTrackerImpl::Profile(
-    const std::vector<TTabletCellMoveDescriptor>& moveDescriptors,
+void TCellTrackerImpl::Profile(
+    const std::vector<TCellMoveDescriptor>& moveDescriptors,
     const TBundleCounter& leaderReassignmentCounter,
     const TBundleCounter& peerRevocationCounter,
     const TBundleCounter& peerAssignmentCounter)
@@ -291,7 +292,7 @@ void TTabletTrackerImpl::Profile(
     }
 }
 
-void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell, TBundleCounter* counter)
+void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter)
 {
     // Try to move the leader to a good peer.
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
@@ -329,7 +330,7 @@ void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell, TBundleCo
         ->CommitAndLog(Logger);
 }
 
-void TTabletTrackerImpl::SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter)
+void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter)
 {
     const auto& peers = cell->Peers();
 
@@ -343,7 +344,7 @@ void TTabletTrackerImpl::SchedulePeerAssignment(TTabletCell* cell, ITabletCellBa
             continue;
         }
 
-        auto* slot = node->FindTabletSlot(cell);
+        auto* slot = node->FindCellSlot(cell);
         if (!slot) {
             continue;
         }
@@ -374,7 +375,7 @@ void TTabletTrackerImpl::SchedulePeerAssignment(TTabletCell* cell, ITabletCellBa
     (*counter)[NProfiling::TTagIdList{cell->GetCellBundle()->GetProfilingTag()}] += assignCount;
 }
 
-void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter)
+void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter)
 {
     // Don't perform failover until enough time has passed since the start.
     if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout) {
@@ -407,8 +408,8 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
     }
 }
 
-TError TTabletTrackerImpl::IsFailed(
-    const TTabletCell::TPeer& peer,
+TError TCellTrackerImpl::IsFailed(
+    const TCellBase::TPeer& peer,
     const TBooleanFormula& nodeTagFilter,
     TDuration timeout)
 {
@@ -443,7 +444,7 @@ TError TTabletTrackerImpl::IsFailed(
     return TError("Node is not assigned");
 }
 
-bool TTabletTrackerImpl::IsDecommissioned(
+bool TCellTrackerImpl::IsDecommissioned(
     const TNode* node,
     const TBooleanFormula& nodeTagFilter)
 {
@@ -470,11 +471,11 @@ bool TTabletTrackerImpl::IsDecommissioned(
     return false;
 }
 
-int TTabletTrackerImpl::FindGoodPeer(const TTabletCell* cell)
+int TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
 {
     for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
         const auto& peer = cell->Peers()[id];
-        if (CheckIfNodeCanHostTabletCells(peer.Node)) {
+        if (CheckIfNodeCanHostCells(peer.Node)) {
             return id;
         }
     }
@@ -483,4 +484,4 @@ int TTabletTrackerImpl::FindGoodPeer(const TTabletCell* cell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

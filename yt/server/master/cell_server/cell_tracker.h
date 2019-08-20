@@ -12,15 +12,15 @@
 #include <yt/core/misc/small_set.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTracker
+class TCellTracker
     : public TRefCounted
 {
 public:
-    explicit TTabletTracker(NCellMaster::TBootstrap* bootstrap);
+    explicit TCellTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -30,8 +30,8 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletTracker)
+DEFINE_REFCOUNTED_TYPE(TCellTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

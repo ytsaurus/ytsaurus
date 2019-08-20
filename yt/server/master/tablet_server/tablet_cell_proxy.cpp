@@ -8,11 +8,11 @@
 
 #include <yt/server/master/node_tracker_server/node.h>
 
+#include <yt/server/master/cell_server/cell_proxy_base.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/object_server/object_detail.h>
-
-#include <yt/server/master/transaction_server/transaction.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -32,6 +32,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
+using namespace NCellServer;
 
 using NYT::ToProto;
 using ::ToString;
@@ -77,7 +78,7 @@ TYsonString CombineObjectIds(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCellProxy
-    : public TNonversionedObjectProxyBase<TTabletCell>
+    : public TCellProxyBase
 {
 public:
     TTabletCellProxy(
@@ -88,47 +89,27 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TTabletCell> TBase;
+    typedef TCellProxyBase TBase;
 
     virtual void ValidateRemoval() override
     {
-        const auto* cell = GetThisImpl();
+        const auto* cell = GetThisImpl<TTabletCell>();
 
         ValidatePermission(cell->GetCellBundle(), EPermission::Write);
 
-        if (!cell->DecommissionCompleted()) {
+        if (!cell->IsDecommissionCompleted()) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
                 cell->GetId());
         }
 
-        if (!cell->ClusterStatistics().Decommissioned) {
+        if (!cell->GossipStatus().Cluster().Decommissioned) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on all masters",
                 cell->GetId());
         }
 
-        if (cell->ClusterStatistics().TabletCount != 0) {
+        if (cell->GossipStatistics().Cluster().TabletCount != 0) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has active tablet(s)",
                 cell->GetId());
-        }
-    }
-
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
-    {
-        auto* cell = GetThisImpl();
-        if (cell->DecommissionCompleted()) {
-            TBase::RemoveSelf(request, response, context);
-        } else {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (!multicellManager->IsPrimaryMaster()) {
-                THROW_ERROR_EXCEPTION("Tablet cell is the primary world object and cannot be removed by a secondary master");
-            }
-
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->RemoveTabletCell(cell, request->force());
-
-            context->Reply();
         }
     }
 
@@ -136,74 +117,25 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* cell = GetThisImpl();
-
-        descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
-            .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::Peers);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::ConfigVersion);
         descriptors->push_back(EInternedAttributeKey::TotalStatistics);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrerequisiteTransactionId)
-            .SetPresent(cell->GetPrerequisiteTransaction()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
-            .SetReplicated(true)
-            .SetMandatory(true));
-        descriptors->push_back(EInternedAttributeKey::TabletCellLifeStage);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
             .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* cell = GetThisImpl();
+        const auto* cell = GetThisImpl<TTabletCell>();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         switch (key) {
-            case EInternedAttributeKey::LeadingPeerId:
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetLeadingPeerId());
-                return true;
-
-            case EInternedAttributeKey::Health:
-                if (multicellManager->IsMulticell()) {
-                    BuildYsonFluently(consumer)
-                        .Value(cell->GetMulticellHealth());
-                } else {
-                    BuildYsonFluently(consumer)
-                        .Value(cell->GetHealth());
-                }
-                return true;
-
-            case EInternedAttributeKey::Peers:
-                BuildYsonFluently(consumer)
-                    .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
-                        if (peer.Descriptor.IsNull()) {
-                            fluent
-                                .Item().BeginMap()
-                                    .Item("state").Value(EPeerState::None)
-                                .EndMap();
-                        } else {
-                            const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
-                            auto state = slot ? slot->PeerState : EPeerState::None;
-                            fluent
-                                .Item().BeginMap()
-                                    .Item("address").Value(peer.Descriptor.GetDefaultAddress())
-                                    .Item("state").Value(state)
-                                    .Item("last_seen_time").Value(peer.LastSeenTime)
-                                .EndMap();
-                        }
-                    });
-                return true;
-
             case EInternedAttributeKey::TabletIds:
                 if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
@@ -235,34 +167,21 @@ private:
                 break;
             }
 
-            case EInternedAttributeKey::ConfigVersion:
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetConfigVersion());
-                return true;
-
             case EInternedAttributeKey::TotalStatistics:
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletCellStatistics>(
-                        cell->ClusterStatistics(),
+                        cell->GossipStatistics().Cluster(),
                         chunkManager));
                 return true;
 
             case EInternedAttributeKey::MulticellStatistics:
                 BuildYsonFluently(consumer)
-                    .DoMapFor(cell->MulticellStatistics(), [&] (TFluentMap fluent, const auto& pair) {
+                    .DoMapFor(cell->GossipStatistics().Multicell(), [&] (TFluentMap fluent, const auto& pair) {
                         auto serializableStatistics = New<TSerializableTabletCellStatistics>(
                             pair.second,
                             chunkManager);
                         fluent.Item(ToString(pair.first)).Value(serializableStatistics);
                     });
-                return true;
-
-            case EInternedAttributeKey::PrerequisiteTransactionId:
-                if (!cell->GetPrerequisiteTransaction()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetPrerequisiteTransaction()->GetId());
                 return true;
 
             case EInternedAttributeKey::TabletCellBundle:
@@ -271,11 +190,6 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(cell->GetCellBundle()->GetName());
-                return true;
-
-            case EInternedAttributeKey::TabletCellLifeStage:
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetTabletCellLifeStage());
                 return true;
 
             default:
@@ -287,7 +201,7 @@ private:
 
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
     {
-        const auto* cell = GetThisImpl();
+        const auto* cell = GetThisImpl<TTabletCell>();
 
         switch (key) {
             case EInternedAttributeKey::TabletCount: {

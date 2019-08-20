@@ -8,7 +8,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +23,11 @@ public:
     ~TBundleNodeTracker();
 
     void Initialize();
-    void OnAfterSnapshotLoaded();
     void Clear();
 
-    const TNodeSet& GetBundleNodes(const TTabletCellBundle* bundle) const;
+    const TNodeSet& GetBundleNodes(const TCellBundle* bundle) const;
 
-    DECLARE_SIGNAL(void(const TTabletCellBundle*), BundleNodesChanged);
+    DECLARE_SIGNAL(void(const TCellBundle*), BundleNodesChanged);
 
 private:
     class TImpl;
@@ -39,9 +38,8 @@ DEFINE_REFCOUNTED_TYPE(TBundleNodeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CheckIfNodeCanHostTabletCells(const NNodeTrackerServer::TNode* node);
+bool CheckIfNodeCanHostCells(const NNodeTrackerServer::TNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
-
+} // namespace NYT::NCellServer
