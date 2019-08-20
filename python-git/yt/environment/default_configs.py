@@ -505,9 +505,6 @@ def get_proxy_config():
 def get_watcher_config():
     return {
         "logs_rotate_max_part_count": 1000,
-        "logs_rotate_size": "8M",
-        "logs_rotate_interval": 120,
-        # NB(ignat): new settings may be the reason of build problem, it is commented temporarily.
-        # "logs_rotate_size": "1M",
-        # "logs_rotate_interval": 1,
+        "logs_rotate_size": "1M",
+        "logs_rotate_interval": 10,
     }
