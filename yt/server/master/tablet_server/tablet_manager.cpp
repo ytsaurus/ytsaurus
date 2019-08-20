@@ -249,8 +249,6 @@ public:
 
         TabletService_->Initialize();
         BundleNodeTracker_->Initialize();
-
-        OnDynamicConfigChanged();
     }
 
     TTabletCellBundle* CreateTabletCellBundle(
@@ -3697,40 +3695,64 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
 
+    void UpdateDynamicConfigAsync()
+    {
+        const auto& config = GetDynamicConfig();
+
+        if (config->CompatibilityVersion == 1) {
+            return;
+        }
+
+        auto newConfig = CloneYsonSerializable(config);
+
+        newConfig->ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
+        newConfig->ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
+        newConfig->ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
+
+        newConfig->ChunkReader->RetryTimeout = TDuration::Seconds(15);
+        newConfig->ChunkReader->SessionTimeout = TDuration::Minutes(1);
+
+        newConfig->ChunkReader->GroupSize = 16777216;
+        newConfig->ChunkReader->WindowSize = 20971520;
+
+        newConfig->ChunkWriter->BlockSize = 262144;
+        newConfig->ChunkWriter->SampleRate = 0.0005;
+
+        newConfig->CellScanPeriod = Config_->CellScanPeriod;
+        newConfig->SafeOnlineNodeCount = Config_->SafeOnlineNodeCount;
+        newConfig->LeaderReassignmentTimeout = Config_->LeaderReassignmentTimeout;
+        newConfig->PeerRevocationTimeout = Config_->PeerRevocationTimeout;
+
+        newConfig->MulticellGossip = Config_->MulticellGossip;
+
+        newConfig->TabletActionManager = Config_->TabletActionManager;
+
+        newConfig->TabletCellDecommissioner = Config_->TabletCellDecommissioner;
+
+        newConfig->TabletBalancer->ConfigCheckPeriod = Config_->TabletBalancer->ConfigCheckPeriod;
+        newConfig->TabletBalancer->BalancePeriod = Config_->TabletBalancer->BalancePeriod;
+
+        newConfig->CompatibilityVersion = 1;
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Updating dynamic tablet config (NewConfig: %v)",
+            ConvertToYsonString(newConfig, EYsonFormat::Text).GetData());
+
+        auto req = TYPathProxy::Set("//sys/@config/tablet_manager");
+        req->set_value(ConvertToYsonString(newConfig).GetData());
+        auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        ExecuteVerb(rootService, req);
+    }
+
     void OnDynamicConfigChanged()
     {
         const auto& config = GetDynamicConfig();
 
         // COMPAT(savrus)
         if (config->CompatibilityVersion == 0) {
-            config->ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
-            config->ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
-            config->ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
-
-            config->ChunkReader->RetryTimeout = TDuration::Seconds(15);
-            config->ChunkReader->SessionTimeout = TDuration::Minutes(1);
-
-            config->ChunkReader->GroupSize = 16777216;
-            config->ChunkReader->WindowSize = 20971520;
-
-            config->ChunkWriter->BlockSize = 262144;
-            config->ChunkWriter->SampleRate = 0.0005;
-
-            config->CellScanPeriod = Config_->CellScanPeriod;
-            config->SafeOnlineNodeCount = Config_->SafeOnlineNodeCount;
-            config->LeaderReassignmentTimeout = Config_->LeaderReassignmentTimeout;
-            config->PeerRevocationTimeout = Config_->PeerRevocationTimeout;
-
-            config->MulticellGossip = Config_->MulticellGossip;
-
-            config->TabletActionManager = Config_->TabletActionManager;
-
-            config->TabletCellDecommissioner = Config_->TabletCellDecommissioner;
-
-            config->TabletBalancer->ConfigCheckPeriod = Config_->TabletBalancer->ConfigCheckPeriod;
-            config->TabletBalancer->BalancePeriod = Config_->TabletBalancer->BalancePeriod;
-
-            config->CompatibilityVersion = 1;
+            if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
+                UpdateDynamicConfigAsync();
+            }
+            return;
         }
 
         if (CleanupExecutor_) {
