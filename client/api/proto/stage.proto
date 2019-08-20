@@ -80,6 +80,8 @@ message TDeployUnitSpec
         message TPerClusterSettings
         {
             uint32 pod_count = 1;
+            // If present, override replica_set_template.deployment_strategy value.
+            NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 2;
         }
 
         NYP.NClient.NApi.NProto.TReplicaSetSpec replica_set_template = 1;
