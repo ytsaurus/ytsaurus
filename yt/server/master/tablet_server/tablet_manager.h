@@ -41,8 +41,6 @@ public:
 
     void Initialize();
 
-    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const;
-
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
     void PrepareMountTable(
@@ -161,20 +159,16 @@ public:
 
     void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwniner);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
+    TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
-    TTabletCellBundle* FindTabletCellBundleByName(const TString& name);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name);
-    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName);
-    void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
     void SetTabletCellBundle(NCypressServer::TCompositeNodeBase* node, TTabletCellBundle* cellBundle);
     void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
-    void RemoveTabletCell(TTabletCell* cell, bool force);
+    void ZombifyTabletCell(TTabletCell* cell);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);
@@ -182,10 +176,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
-    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
-    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
-    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
-    DECLARE_SIGNAL(void(), TabletCellPeersAssigned);
+    // COMPAT(svrus)
+    NHydra::TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap();
+    NHydra::TEntityMap<TTabletCell>& CompatTabletCellMap();
 
 private:
     template <class TImpl>

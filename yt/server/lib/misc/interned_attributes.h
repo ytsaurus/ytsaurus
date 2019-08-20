@@ -31,6 +31,7 @@
     XX(Builtin, builtin) \
     XX(Cache, cache) \
     XX(CachedReplicas, cached_replicas) \
+    XX(CellBalancerConfig, cell_balancer_config) \
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
@@ -172,6 +173,7 @@
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \
     XX(MulticellStatistics, multicell_statistics) \
+    XX(MulticellStatus, multicell_status) \
     XX(Name, name) \
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeId, node_id) \
@@ -247,6 +249,7 @@
     XX(StartTime, start_time) \
     XX(State, state) \
     XX(Statistics, statistics) \
+    XX(Status, status) \
     XX(StoredReplicas, stored_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \

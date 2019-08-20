@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "tablet_cell.h"
-#include "tablet_cell_balancer.h"
+#include "cell_base.h"
+#include "cell_balancer.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -13,15 +13,15 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/public.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTrackerImpl
+class TCellTrackerImpl
     : public TRefCounted
 {
 public:
-    TTabletTrackerImpl(
+    TCellTrackerImpl(
         NCellMaster::TBootstrap* bootstrap,
         TInstant startTime);
 
@@ -32,39 +32,37 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
-    const ITabletCellBalancerProviderPtr TTabletCellBalancerProvider_;
+    const ICellBalancerProviderPtr TCellBalancerProvider_;
     const NProfiling::TProfiler Profiler;
     bool WaitForCommit_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void OnTabletCellPeersReassigned();
+    void OnCellPeersReassigned();
 
-    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
+    const TDynamicCellManagerConfigPtr& GetDynamicConfig();
 
     void Profile(
-        const std::vector<TTabletCellMoveDescriptor>& moveDescriptors,
+        const std::vector<TCellMoveDescriptor>& moveDescriptors,
         const TBundleCounter& leaderReassignmentCounter,
         const TBundleCounter& peerRevocationCounter,
         const TBundleCounter& peerAssignmentCounter
     );
 
-    void ScheduleLeaderReassignment(TTabletCell* cell, TBundleCounter* counter);
-    void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter);
-    void SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter);
+    void ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter);
+    void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
+    void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
 
     TError IsFailed(
-        const TTabletCell::TPeer& peer,
+        const TCellBase::TPeer& peer,
         const TBooleanFormula& nodeTagFilter,
         TDuration timeout);
     bool IsDecommissioned(
         const NNodeTrackerServer::TNode* node,
         const TBooleanFormula& nodeTagFilter);
-    static int FindGoodPeer(const TTabletCell* cell);
+    static int FindGoodPeer(const TCellBase* cell);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
-
-
+} // namespace NYT::NCellServer

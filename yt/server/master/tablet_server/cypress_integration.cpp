@@ -5,6 +5,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
+
 #include <yt/server/master/cypress_server/node_detail.h>
 #include <yt/server/master/cypress_server/node_proxy_detail.h>
 #include <yt/server/master/cypress_server/virtual.h>
@@ -78,8 +80,8 @@ private:
         auto key = GetParent()->AsMap()->GetChildKeyOrThrow(this);
         auto id = TTabletCellId::FromString(key);
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* cell = tabletManager->GetTabletCellOrThrow(id);
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cell = cellManager->GetCellOrThrow(id);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(cell, nullptr);
@@ -187,20 +189,20 @@ private:
 
     virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return ToNames(GetValues(tabletManager->TabletCellBundles(), sizeLimit));
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        return ToNames(GetValues(cellManager->CellBundles(), sizeLimit));
     }
 
     virtual i64 GetSize() const override
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return tabletManager->TabletCellBundles().GetSize();
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        return cellManager->CellBundles().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* cellBundle = tabletManager->FindTabletCellBundleByName(TString(key));
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cellBundle = cellManager->FindCellBundleByName(TString(key));
         if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }

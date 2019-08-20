@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/server/master/cell_server/public.h>
 
 #include <yt/server/lib/hydra/public.h>
 
@@ -21,7 +21,7 @@ public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         NHiveClient::TCellDirectoryPtr cellDirectory,
-        NTabletServer::TTabletManagerPtr tabletManager,
+        NCellServer::TTamedCellManagerPtr cellManager,
         NHydra::IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker);
     ~TCellDirectorySynchronizer();

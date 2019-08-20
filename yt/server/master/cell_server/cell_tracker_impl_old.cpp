@@ -1,10 +1,10 @@
 #include "bundle_node_tracker.h"
 #include "config.h"
 #include "private.h"
-#include "tablet_cell.h"
-#include "tablet_cell_bundle.h"
-#include "tablet_manager.h"
-#include "tablet_tracker_impl_old.h"
+#include "cell_base.h"
+#include "cell_bundle.h"
+#include "tamed_cell_manager.h"
+#include "cell_tracker_impl_old.h"
 
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/config.h>
@@ -17,13 +17,15 @@
 
 #include <yt/server/master/table_server/table_node.h>
 
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/small_set.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 using namespace NConcurrency;
 using namespace NTabletClient;
@@ -33,11 +35,11 @@ using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTrackerImplOld::TCandidatePool
+class TCellTrackerImplOld::TCandidatePool
 {
 public:
     explicit TCandidatePool(const NCellMaster::TBootstrap* bootstrap)
@@ -45,7 +47,7 @@ public:
     { }
 
     TNode* TryAllocate(
-        TTabletCell* cell,
+        TCellBase* cell,
         const SmallSet<TString, TypicalPeerCount>& forbiddenAddresses)
     {
         LazyInitialization();
@@ -70,7 +72,7 @@ private:
     struct TNodeData
     {
         TNode* Node;
-        THashMap<TTabletCellBundle*, TQueueType::iterator> Iterators;
+        THashMap<TCellBundle*, TQueueType::iterator> Iterators;
     };
 
     class THostilityChecker
@@ -80,7 +82,7 @@ private:
             : Node_(node)
         { }
 
-        bool IsPossibleHost(const TTabletCellBundle* bundle)
+        bool IsPossibleHost(const TCellBundle* bundle)
         {
             const auto& tagFilter = bundle->NodeTagFilter();
             auto formula = tagFilter.GetFormula();
@@ -103,7 +105,7 @@ private:
 
     bool Initialized_ = false;
     std::vector<TNodeData> Nodes_;
-    THashMap<TTabletCellBundle*, TQueueType> Queues_;
+    THashMap<TCellBundle*, TQueueType> Queues_;
 
 
     void LazyInitialization()
@@ -112,14 +114,14 @@ private:
             return;
         }
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            Queues_.emplace(pair.second, TQueueType());
+        const auto& tabletManager = Bootstrap_->GetTamedCellManager();
+        for (const auto [bundleId, bundle] : tabletManager->CellBundles()) {
+            Queues_.emplace(bundle, TQueueType());
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            AddNode(pair.second);
+        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+            AddNode(node);
         }
 
         Initialized_ = true;
@@ -127,19 +129,18 @@ private:
 
     void AddNode(TNode* node)
     {
-        if (!CheckIfNodeCanHostTabletCells(node)) {
+        if (!CheckIfNodeCanHostCells(node)) {
             return;
         }
 
         TNodeData data{node};
         int index = Nodes_.size();
         int spare = node->GetTotalTabletSlots();
-        THashMap<TTabletCellBundle*, int> cellCount;
+        THashMap<TCellBundle*, int> cellCount;
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress())) {
-            for (auto& pair : *cells) {
-                auto* cell = pair.first;
+        const auto& tabletManager = Bootstrap_->GetTamedCellManager();
+        if (const auto* cells = tabletManager->FindAssignedCells(node->GetDefaultAddress())) {
+            for (auto [cell, peerId] : *cells) {
                 auto bundle = cell->GetCellBundle();
                 cellCount[bundle] += 1;
                 --spare;
@@ -150,7 +151,7 @@ private:
         }
 
         auto hostilityChecker = THostilityChecker(node);
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
+        for (const auto& pair : tabletManager->CellBundles()) {
             auto* bundle = pair.second;
             if (!hostilityChecker.IsPossibleHost(bundle)) {
                 continue;
@@ -169,10 +170,10 @@ private:
         Nodes_.push_back(std::move(data));
     }
 
-    void ChargeNode(int index, TTabletCell* cell)
+    void ChargeNode(int index, TCellBase* cell)
     {
         auto& node = Nodes_[index];
-        SmallVector<TTabletCellBundle*, TypicalTabletSlotCount> remove;
+        SmallVector<TCellBundle*, TypicalTabletSlotCount> remove;
 
         for (auto& pair : node.Iterators) {
             auto* bundle = pair.first;
@@ -202,7 +203,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletTrackerImplOld::TTabletTrackerImplOld(
+TCellTrackerImplOld::TCellTrackerImplOld(
     NCellMaster::TBootstrap* bootstrap,
     TInstant startTime)
     : Bootstrap_(bootstrap)
@@ -212,14 +213,14 @@ TTabletTrackerImplOld::TTabletTrackerImplOld(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 
-void TTabletTrackerImplOld::ScanCells()
+void TCellTrackerImplOld::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TCandidatePool pool(Bootstrap_);
 
-    auto tabletManger = Bootstrap_->GetTabletManager();
-    for (const auto& pair : tabletManger->TabletCells()) {
+    auto tabletManger = Bootstrap_->GetTamedCellManager();
+    for (const auto& pair : tabletManger->Cells()) {
         auto* cell = pair.second;
         if (!IsObjectAlive(cell))
             continue;
@@ -230,7 +231,7 @@ void TTabletTrackerImplOld::ScanCells()
     }
 }
 
-void TTabletTrackerImplOld::ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool)
+void TCellTrackerImplOld::ScheduleLeaderReassignment(TCellBase* cell, TCandidatePool* pool)
 {
     // Try to move the leader to a good peer.
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
@@ -254,12 +255,12 @@ void TTabletTrackerImplOld::ScheduleLeaderReassignment(TTabletCell* cell, TCandi
         ->CommitAndLog(Logger);
 }
 
-const TDynamicTabletManagerConfigPtr& TTabletTrackerImplOld::GetDynamicConfig()
+const TDynamicCellManagerConfigPtr& TCellTrackerImplOld::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
-void TTabletTrackerImplOld::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool)
+void TCellTrackerImplOld::SchedulePeerAssignment(TCellBase* cell, TCandidatePool* pool)
 {
     const auto& peers = cell->Peers();
 
@@ -271,7 +272,7 @@ void TTabletTrackerImplOld::SchedulePeerAssignment(TTabletCell* cell, TCandidate
         auto* node = peer.Node;
         if (!node)
             continue;
-        auto* slot = node->FindTabletSlot(cell);
+        auto* slot = node->FindCellSlot(cell);
         if (!slot)
             continue;
 
@@ -321,7 +322,7 @@ void TTabletTrackerImplOld::SchedulePeerAssignment(TTabletCell* cell, TCandidate
         ->CommitAndLog(Logger);
 }
 
-void TTabletTrackerImplOld::SchedulePeerRevocation(TTabletCell* cell)
+void TCellTrackerImplOld::SchedulePeerRevocation(TCellBase* cell)
 {
     // Don't perform failover until enough time has passed since the start.
     if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout)
@@ -349,8 +350,8 @@ void TTabletTrackerImplOld::SchedulePeerRevocation(TTabletCell* cell)
         ->CommitAndLog(Logger);
 }
 
-bool TTabletTrackerImplOld::IsFailed(
-    const TTabletCell::TPeer& peer,
+bool TCellTrackerImplOld::IsFailed(
+    const TCellBase::TPeer& peer,
     const TBooleanFormula& nodeTagFilter,
     TDuration timeout)
 {
@@ -385,11 +386,11 @@ bool TTabletTrackerImplOld::IsFailed(
     return true;
 }
 
-int TTabletTrackerImplOld::FindGoodPeer(const TTabletCell* cell)
+int TCellTrackerImplOld::FindGoodPeer(const TCellBase* cell)
 {
     for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
         const auto& peer = cell->Peers()[id];
-        if (CheckIfNodeCanHostTabletCells(peer.Node)) {
+        if (CheckIfNodeCanHostCells(peer.Node)) {
             return id;
         }
     }
@@ -398,4 +399,4 @@ int TTabletTrackerImplOld::FindGoodPeer(const TTabletCell* cell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

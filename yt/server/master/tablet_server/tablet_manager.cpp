@@ -1,4 +1,3 @@
-#include "bundle_node_tracker.h"
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
@@ -14,7 +13,6 @@
 #include "tablet_cell_type_handler.h"
 #include "tablet_manager.h"
 #include "tablet_service.h"
-#include "tablet_tracker.h"
 #include "tablet_type_handler.h"
 
 #include <yt/server/master/cell_master/config.h>
@@ -22,6 +20,8 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/serialize.h>
+
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_view.h>
@@ -120,6 +120,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NCellServer;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
@@ -140,21 +141,13 @@ class TTabletManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
-    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
-    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
-    DEFINE_SIGNAL(void(), TabletCellPeersAssigned);
-
-public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
         , Config_(config)
         , TabletService_(New<TTabletService>(Bootstrap_))
-        , TabletTracker_(New<TTabletTracker>(Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
-        , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
         , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
         , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
@@ -183,12 +176,6 @@ public:
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
 
-        RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraReassignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
@@ -201,21 +188,14 @@ public:
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellHealthStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCellOnMaster, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnMaster, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTabletCellConfigVersion, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
     }
 
     void Initialize()
@@ -224,273 +204,54 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_, &TabletCellBundleMap_));
-        objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_, &TabletCellMap_));
+        objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_));
+        objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateTabletTypeHandler(Bootstrap_, &TabletMap_));
         objectManager->RegisterHandler(CreateTableReplicaTypeHandler(Bootstrap_, &TableReplicaMap_));
         objectManager->RegisterHandler(CreateTabletActionTypeHandler(Bootstrap_, &TabletActionMap_));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeWeak(this)));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
-            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
-        }
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
+        cellManager->SubscribeCellBundleDestroyed(BIND(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
+        cellManager->SubscribeCellDecommissionStarted(BIND(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
 
         TabletService_->Initialize();
-        BundleNodeTracker_->Initialize();
     }
 
-
-    TTabletCellBundle* CreateTabletCellBundle(
-        const TString& name,
-        TObjectId hintId,
-        TTabletCellOptionsPtr options)
+    void OnTabletCellBundleDestroyed(TCellBundle* cellBundle)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTabletCellBundleName(name);
-
-        if (FindTabletCellBundleByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Tablet cell bundle %Qv already exists",
-                name);
+        if (cellBundle->GetType() != EObjectType::TabletCellBundle) {
+            return;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
-        return DoCreateTabletCellBundle(id, name, std::move(options));
-    }
-
-    void DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        auto* tabletCellBundle = cellBundle->As<TTabletCellBundle>();
 
         // Unbind tablet actions associated with the bundle.
-        for (auto* action : cellBundle->TabletActions()) {
+        for (auto* action : tabletCellBundle->TabletActions()) {
             action->SetTabletCellBundle(nullptr);
         }
-
-        // Remove tablet cell bundle from maps.
-        YT_VERIFY(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
-
-        TabletCellBundleDestroyed_.Fire(cellBundle);
     }
-
-    void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
-    {
-        if (options->PeerCount != cellBundle->GetOptions()->PeerCount && !cellBundle->TabletCells().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
-                cellBundle->TabletCells().size());
-        }
-
-        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
-        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).GetData();
-
-        cellBundle->SetOptions(std::move(options));
-
-        for (auto* cell : GetValuesSortedByKey(cellBundle->TabletCells())) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
-                if (auto node = FindCellNode(cell->GetId())) {
-                    auto cellNode = node->AsMap();
-
-                    try {
-                        {
-                            auto req = TCypressYPathProxy::Set("/snapshots/@acl");
-                            req->set_value(snapshotAcl);
-                            SyncExecuteVerb(cellNode, req);
-                        }
-                        {
-                            auto req = TCypressYPathProxy::Set("/changelogs/@acl");
-                            req->set_value(changelogAcl);
-                            SyncExecuteVerb(cellNode, req);
-                        }
-                    } catch (const std::exception& ex) {
-                        // TODO(savrus) Replace by YT_LOG_ALLERT
-                        YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
-                            cellBundle->GetName(),
-                            cell->GetId());
-                    }
-                }
-
-                RestartPrerequisiteTransaction(cell);
-            }
-
-            ReconfigureCell(cell);
-        }
-    }
-
-    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(cellBundle, EPermission::Use);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
-        auto cellHolder = std::make_unique<TTabletCell>(id);
-
-        cellHolder->Peers().resize(cellBundle->GetOptions()->PeerCount);
-        cellHolder->SetCellBundle(cellBundle);
-        YT_VERIFY(cellBundle->TabletCells().insert(cellHolder.get()).second);
-        objectManager->RefObject(cellBundle);
-
-        ReconfigureCell(cellHolder.get());
-
-        auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
-
-        // Make the fake reference.
-        YT_VERIFY(cell->RefObject() == 1);
-
-        InitializeTabletCellStatistics(cell);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->CreateMailbox(id);
-
-        auto cellMapNodeProxy = GetCellMapNode();
-        auto cellNodePath = "/" + ToString(id);
-
-        try {
-            // NB: Users typically are not allowed to create these types.
-            auto* rootUser = securityManager->GetRootUser();
-            TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-
-            // Create Cypress node.
-            {
-                auto req = TCypressYPathProxy::Create(cellNodePath);
-                req->set_type(static_cast<int>(EObjectType::TabletCellNode));
-
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("opaque", true);
-                ToProto(req->mutable_node_attributes(), *attributes);
-
-                SyncExecuteVerb(cellMapNodeProxy, req);
-            }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("inherit_acl", false);
-
-                // Create "snapshots" child.
-                {
-                    auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
-                    req->set_type(static_cast<int>(EObjectType::MapNode));
-                    attributes->Set("acl", cellBundle->GetOptions()->SnapshotAcl);
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    SyncExecuteVerb(cellMapNodeProxy, req);
-                }
-
-                // Create "changelogs" child.
-                {
-                    auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
-                    req->set_type(static_cast<int>(EObjectType::MapNode));
-                    attributes->Set("acl", cellBundle->GetOptions()->ChangelogAcl);
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    SyncExecuteVerb(cellMapNodeProxy, req);
-                }
-            }
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(
-                IsRecovery(),
-                ex,
-                "Error registering tablet cell in Cypress (CellId: %v)",
-                cell->GetId());
-
-            objectManager->UnrefObject(cell);
-            THROW_ERROR_EXCEPTION("Error registering tablet cell in Cypress")
-                << ex;
-        }
-
-        return cell;
-    }
-
-    void DestroyTabletCell(TTabletCell* cell)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto actions = cell->Actions();
-        for (auto* action : actions) {
-            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
-            UnbindTabletActionFromCells(action);
-            OnTabletActionDisturbed(action, TError("Tablet cell %v has been removed", cell->GetId()));
-        }
-        YT_VERIFY(cell->Actions().empty());
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto cellId = cell->GetId();
-        auto* mailbox = hiveManager->FindMailbox(cellId);
-        if (mailbox) {
-            hiveManager->RemoveMailbox(mailbox);
-        }
-
-        for (const auto& peer : cell->Peers()) {
-            if (peer.Node) {
-                peer.Node->DetachTabletCell(cell);
-            }
-            if (!peer.Descriptor.IsNull()) {
-                RemoveFromAddressToCellMap(peer.Descriptor, cell);
-            }
-        }
-        cell->Peers().clear();
-
-        auto* cellBundle = cell->GetCellBundle();
-        YT_VERIFY(cellBundle->TabletCells().erase(cell) == 1);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(cellBundle);
-        cell->SetCellBundle(nullptr);
-
-        // NB: Code below interacts with other master parts and may require root permissions
-        // (for example, when aborting a transaction).
-        // We want this code to always succeed.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* rootUser = securityManager->GetRootUser();
-        TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            AbortPrerequisiteTransaction(cell);
-            AbortCellSubtreeTransactions(cell);
-        }
-
-        auto cellNodeProxy = FindCellNode(cellId);
-        if (cellNodeProxy) {
-            try {
-                // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
-                cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error unregisterting tablet cell from Cypress");
-            }
-        }
-    }
-
 
     TTablet* GetTabletOrThrow(TTabletId id)
-{
-    auto* tablet = FindTablet(id);
-    if (!IsObjectAlive(tablet)) {
-        THROW_ERROR_EXCEPTION(
-            NYTree::EErrorCode::ResolveError,
-            "No tablet %v",
-            id);
+    {
+        auto* tablet = FindTablet(id);
+        if (!IsObjectAlive(tablet)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No tablet %v",
+                id);
+        }
+        return tablet;
     }
-    return tablet;
-}
 
     TTablet* CreateTablet(TTableNode* table)
     {
@@ -932,14 +693,6 @@ public:
     }
 
 
-    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
-    {
-        auto it = AddressToCell_.find(address);
-        return it != AddressToCell_.end()
-            ? &it->second
-            : nullptr;
-    }
-
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
@@ -1355,9 +1108,9 @@ public:
                     tablet->GetId(),
                     cell->GetId());
 
-                cell->LocalStatistics() -= GetTabletStatistics(tablet);
+                cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
                 tablet->SetInMemoryMode(mountConfig->InMemoryMode);
-                cell->LocalStatistics() += GetTabletStatistics(tablet);
+                cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1771,7 +1524,7 @@ public:
             }
 
             auto* cell = tablet->GetCell();
-            cell->LocalStatistics() += deltaStatistics;
+            cell->GossipStatistics().Local() += deltaStatistics;
 
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
@@ -1870,11 +1623,8 @@ public:
         }
     }
 
-    void ValidateEndCopyTable(
-        TAccount* account)
-    {
-
-    }
+    void ValidateEndCopyTable(TAccount* account)
+    { }
 
     void CloneTable(
         TTableNode* sourceTable,
@@ -2068,7 +1818,6 @@ public:
             table->GetId());
     }
 
-
     void ValidateMakeTableStatic(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2214,44 +1963,30 @@ public:
         return cell;
     }
 
-    void RemoveTabletCell(TTabletCell* cell, bool force)
+    void ZombifyTabletCell(TTabletCell *cell)
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing tablet cell (TabletCellId: %v, Force: %v)",
-            cell->GetId(),
-            force);
-
-        switch (cell->GetTabletCellLifeStage()) {
-            case ETabletCellLifeStage::Running: {
-                // Decommission tablet cell on primary master.
-                DecommissionTabletCell(cell);
-
-                // Decommission tablet cell on secondary masters.
-                TReqDecommissionTabletCellOnMaster req;
-                ToProto(req.mutable_cell_id(), cell->GetId());
-                multicellManager->PostToMasters(req, multicellManager->GetRegisteredMasterCellTags());
-
-                // Decommission tablet cell on node.
-                if (force) {
-                    OnTabletCellDecommissionedOnNode(cell);
-                }
-
-                break;
-            }
-
-            case ETabletCellLifeStage::DecommissioningOnMaster:
-            case ETabletCellLifeStage::DecommissioningOnNode:
-                if (force) {
-                    OnTabletCellDecommissionedOnNode(cell);
-                }
-
-                break;
-
-            default:
-                YT_ABORT();
+        auto actions = cell->Actions();
+        for (auto* action : actions) {
+            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
+            UnbindTabletActionFromCells(action);
+            OnTabletActionDisturbed(action, TError("Tablet cell %v has been removed", cell->GetId()));
         }
+        YT_VERIFY(cell->Actions().empty());
+    }
+
+
+    TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id)
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* bundle = cellManager->FindCellBundle(id);
+        if (!bundle) {
+            return nullptr;
+        }
+        return bundle->GetType() == EObjectType::TabletCellBundle
+            ? bundle->As<TTabletCellBundle>()
+            : nullptr;
     }
 
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id)
@@ -2266,12 +2001,6 @@ public:
         return cellBundle;
     }
 
-    TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
-    {
-        auto it = NameToTabletCellBundleMap_.find(name);
-        return it == NameToTabletCellBundleMap_.end() ? nullptr : it->second;
-    }
-
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name)
     {
         auto* cellBundle = FindTabletCellBundleByName(name);
@@ -2282,34 +2011,6 @@ public:
                 name);
         }
         return cellBundle;
-    }
-
-    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName)
-    {
-        if (newName == cellBundle->GetName()) {
-            return;
-        }
-
-        ValidateTabletCellBundleName(newName);
-
-        if (FindTabletCellBundleByName(newName)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Tablet cell bundle %Qv already exists",
-                newName);
-        }
-
-        YT_VERIFY(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
-        YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(newName, cellBundle)).second);
-        cellBundle->SetName(newName);
-    }
-
-    void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula)
-    {
-        if (bundle->NodeTagFilter().GetFormula() != formula) {
-            bundle->NodeTagFilter() = MakeBooleanFormula(formula);
-            TabletCellBundleNodeTagFilterChanged_.Fire(bundle);
-        }
     }
 
     TTabletCellBundle* GetDefaultTabletCellBundle()
@@ -2367,47 +2068,40 @@ public:
         }
 
         YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
-        auto* table = static_cast<TTableNode*>(chunkOwner);
+        auto* table = chunkOwner->As<TTableNode>();
         YT_VERIFY(table->IsDynamic());
 
         SendTableStatisticsUpdates(table);
     }
 
 
-    const TBundleNodeTrackerPtr& GetBundleNodeTracker()
+    TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap()
     {
-        return BundleNodeTracker_;
+        return CompatTabletCellBundleMap_;
     }
 
+    TEntityMap<TTabletCell>& CompatTabletCellMap()
+    {
+        return CompatTabletCellMap_;
+    }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
 private:
-    friend class TTabletCellBundleTypeHandler;
-
     const TTabletManagerConfigPtr Config_;
 
     const TTabletServicePtr TabletService_;
-    const TTabletTrackerPtr TabletTracker_;
     const TTabletBalancerPtr TabletBalancer_;
-    const TBundleNodeTrackerPtr BundleNodeTracker_;
     const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
     const TTabletActionManagerPtr TabletActionManager_;
 
-    TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
-    TEntityMap<TTabletCell> TabletCellMap_;
+    TEntityMap<TTabletCellBundle> CompatTabletCellBundleMap_;
+    TEntityMap<TTabletCell> CompatTabletCellMap_;
     TEntityMap<TTablet> TabletMap_;
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
-
-    THashMap<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
-
-    THashMap<TString, TTabletCellSet> AddressToCell_;
-    THashMap<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     struct TTableStatistics
     {
@@ -2448,29 +2142,35 @@ private:
     bool ValidateAllTablesUnmounted_ = false;
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
 
-    TPeriodicExecutorPtr CleanupExecutor_;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    TTabletCellBundle* DoCreateTabletCellBundle(
-        TTabletCellBundleId id,
-        const TString& name,
-        TTabletCellOptionsPtr options)
+
+    void OnTabletCellDecommissionStarted(TCellBase* cellBase)
     {
-        auto cellBundleHolder = std::make_unique<TTabletCellBundle>(id);
-        cellBundleHolder->SetName(name);
+        if (cellBase->GetType() != EObjectType::TabletCell){
+            return;
+        }
 
-        auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
-        YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-        cellBundle->SetOptions(std::move(options));
+        auto* cell = cellBase->As<TTabletCell>();
+        auto actions = cell->Actions();
+        for (auto* action : actions) {
+            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
+            UnbindTabletActionFromCells(action);
+            OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
+        }
+    }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(cellBundle);
-
-        TabletCellBundleCreated_.Fire(cellBundle);
-
-        return cellBundle;
+    TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* bundle = cellManager->FindCellBundleByName(name);
+        if (!bundle) {
+            return nullptr;
+        }
+        return bundle->GetType() == EObjectType::TabletCellBundle
+            ? bundle->As<TTabletCellBundle>()
+            : nullptr;
     }
 
 
@@ -2562,6 +2262,7 @@ private:
         UnbindTabletActionFromCells(action);
     }
 
+
     std::vector<TOwningKey> CalculatePivotKeys(
         TTableNode* table,
         int firstTabletIndex,
@@ -2632,6 +2333,7 @@ private:
 
         return pivotKeys;
     }
+
 
     void MountMissedInActionTablets(TTabletAction* action)
     {
@@ -3033,16 +2735,25 @@ private:
 
     void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* request)
     {
-        auto orphanedActionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
 
-        THashSet<TTabletCellBundle*> healthyBundles;
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (IsCellActive(cell)) {
-                healthyBundles.insert(cell->GetCellBundle());
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        THashSet<TCellBundle*> healthyBundles;
+        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+            if (!IsObjectAlive(bundle) || bundle->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            for (auto* cellBase : bundle->Cells()) {
+                YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
+                auto* cell = cellBase->As<TTabletCell>();
+                if (IsCellActive(cell)) {
+                    healthyBundles.insert(cell->GetCellBundle());
+                    continue;
+                }
             }
         }
 
+        auto orphanedActionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
         for (auto actionId : orphanedActionIds) {
             auto* action = FindTabletAction(actionId);
             if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
@@ -3137,7 +2848,7 @@ private:
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
-            cell->LocalStatistics() += GetTabletStatistics(tablet);
+            cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
@@ -3241,7 +2952,6 @@ private:
 
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
-
 
     void DoFreezeTablet(TTablet* tablet)
     {
@@ -3354,7 +3064,6 @@ private:
 
         transaction->LockedDynamicTables().clear();
     }
-
 
     int DoReshardTable(
         TTableNode* table,
@@ -3725,8 +3434,8 @@ private:
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
     {
         const auto expirationTime = Now() + DefaultSyncTabletActionKeepalivePeriod;
-        for (const auto& id : actionIds) {
-            auto* action = GetTabletAction(id);
+        for (const auto actionId : actionIds) {
+            auto* action = GetTabletAction(actionId);
             action->SetExpirationTime(expirationTime);
         }
     }
@@ -3800,10 +3509,6 @@ private:
             return;
         }
 
-        if (CleanupExecutor_) {
-            CleanupExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
-        }
-
         {
             const auto& gossipConfig = config->MulticellGossip;
             TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
@@ -3824,8 +3529,6 @@ private:
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
-        TabletCellBundleMap_.SaveKeys(context);
-        TabletCellMap_.SaveKeys(context);
         TabletMap_.SaveKeys(context);
         TableReplicaMap_.SaveKeys(context);
         TabletActionMap_.SaveKeys(context);
@@ -3833,8 +3536,6 @@ private:
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
-        TabletCellBundleMap_.SaveValues(context);
-        TabletCellMap_.SaveValues(context);
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
@@ -3846,8 +3547,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletCellBundleMap_.LoadKeys(context);
-        TabletCellMap_.LoadKeys(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() < EMasterReign::CellServer) {
+            CompatTabletCellBundleMap_.LoadKeys(context);
+            CompatTabletCellMap_.LoadKeys(context);
+        }
         TabletMap_.LoadKeys(context);
         TableReplicaMap_.LoadKeys(context);
         TabletActionMap_.LoadKeys(context);
@@ -3857,8 +3561,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletCellBundleMap_.LoadValues(context);
-        TabletCellMap_.LoadValues(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() < EMasterReign::CellServer) {
+            CompatTabletCellBundleMap_.LoadValues(context);
+            CompatTabletCellMap_.LoadValues(context);
+        }
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
@@ -3870,7 +3577,7 @@ private:
         // COMPAT(savrus)
         RecomputeTabletCountByState_ = (context.GetVersion() < EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
         // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
+        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::CellServer);
         // COMPAT(ifsmirnov)
         RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterReign::FixTabletErrorCountLag);
         // COMPAT(savrus)
@@ -3884,40 +3591,12 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        NameToTabletCellBundleMap_.clear();
-        for (const auto& pair : TabletCellBundleMap_) {
-            auto* cellBundle = pair.second;
-            YT_VERIFY(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
-        }
-
-        AddressToCell_.clear();
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            for (int peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-                const auto& peer = cell->Peers()[peerId];
-                if (!peer.Descriptor.IsNull()) {
-                    AddToAddressToCellMap(peer.Descriptor, cell, peerId);
-                }
-            }
-            auto* transaction = cell->GetPrerequisiteTransaction();
-            if (transaction) {
-                YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
-            }
-
-            InitializeTabletCellStatistics(cell);
-        }
-
-        BundleNodeTracker_->OnAfterSnapshotLoaded();
         InitBuiltins();
 
         // COMPAT(savrus)
         if (RecomputeTabletCountByState_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
+            for (const auto [nodeId, node] : cypressManager->Nodes()) {
                 if (node->IsTrunk() && IsTableType(node->GetType())) {
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
@@ -3935,22 +3614,9 @@ private:
         }
 
         // COMPAT(savrus)
-        if (RecomputeTabletCellStatistics_) {
-            for (const auto& pair : TabletCellMap_) {
-                auto* cell = pair.second;
-                cell->LocalStatistics() = NTabletServer::TTabletCellStatistics();
-                cell->LocalStatistics().Decommissioned = cell->DecommissionStarted();
-                for (const auto& tablet : cell->Tablets()) {
-                    cell->LocalStatistics() += GetTabletStatistics(tablet);
-                }
-            }
-        }
-
-        // COMPAT(savrus)
         if (RecomputeExpectedTabletStates_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
+            for (const auto [nodeId, node] : cypressManager->Nodes()) {
                 if (!node->IsTrunk() || !IsTableType(node->GetType())) {
                     continue;
                 }
@@ -4006,8 +3672,7 @@ private:
         // COMPAT(savrus)
         if (ValidateAllTablesUnmounted_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
+            for (const auto [nodeId, node] : cypressManager->Nodes()) {
                 if (!node->IsTrunk() || node->IsExternal() || !IsTableType(node->GetType())) {
                     continue;
                 }
@@ -4020,6 +3685,63 @@ private:
                 YT_VERIFY(table->TabletCountByState()[ETabletState::Unmounted] == table->Tablets().size());
             }
         }
+
+        // COMPAT(ifsmirnov)
+        if (RecomputeTabletErrorCount_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto [nodeId, node] : cypressManager->Nodes()) {
+                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->IsDynamic()) {
+                        int errorCount = 0;
+                        for (const auto* tablet : table->Tablets()) {
+                            errorCount += tablet->GetErrorCount();
+                        }
+                        table->SetTabletErrorCount(errorCount);
+                    }
+                }
+            }
+        }
+    }
+
+    void OnAfterCellManagerSnapshotLoaded()
+    {
+        InitBuiltins();
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+        for (const auto [cellId, cellBase] : cellManager->Cells()) {
+            if (cellBase->GetType() != EObjectType::TabletCell) {
+                continue;
+            }
+
+            auto* cell = cellBase->As<TTabletCell>();
+            cell->GossipStatistics().Initialize(Bootstrap_);
+        }
+
+        // COMPAT(savrus)
+        if (RecomputeTabletCellStatistics_) {
+            for (const auto [cellId, cellBase] : cellManager->Cells()) {
+                if (cellBase->GetType() != EObjectType::TabletCell) {
+                    continue;
+                }
+
+                auto* cell = cellBase->As<TTabletCell>();
+                cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
+                for (const auto* tablet : cell->Tablets()) {
+                    cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+                }
+            }
+        }
+
+        for (const auto [actionId, action] : TabletActionMap_) {
+            // NB: Process non-alive objects to pair with DestroyTabletAction.
+            auto bundle = action->GetTabletCellBundle();
+            bundle->TabletActions().insert(action);
+            if (!action->IsFinished()) {
+                bundle->IncreaseActiveTabletActionCount();
+            }
+        }
     }
 
     virtual void Clear() override
@@ -4028,17 +3750,12 @@ private:
 
         TMasterAutomatonPart::Clear();
 
-        TabletCellBundleMap_.Clear();
-        TabletCellMap_.Clear();
+        CompatTabletCellBundleMap_.Clear();
+        CompatTabletCellMap_.Clear();
         TabletMap_.Clear();
         TableReplicaMap_.Clear();
         TabletActionMap_.Clear();
-        NameToTabletCellBundleMap_.clear();
-        AddressToCell_.clear();
-        TransactionToCellMap_.clear();
         TableStatisticsUpdates_.Clear();
-
-        BundleNodeTracker_->Clear();
 
         DefaultTabletCellBundle_ = nullptr;
     }
@@ -4078,37 +3795,20 @@ private:
         if (cellBundle) {
             return false;
         }
-        cellBundle = FindTabletCellBundle(id);
-        if (cellBundle) {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        if (auto* bundle = cellManager->FindCellBundle(id)) {
+            YT_VERIFY(bundle->GetType() == EObjectType::TabletCellBundle);
+            cellBundle = bundle->As<TTabletCellBundle>();
             return false;
         }
         auto options = New<TTabletCellOptions>();
         options->ChangelogAccount = DefaultStoreAccountName;
         options->SnapshotAccount = DefaultStoreAccountName;
-        cellBundle = DoCreateTabletCellBundle(id, name, std::move(options));
+
+        auto holder = std::make_unique<TTabletCellBundle>(id);
+        cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
+            ->As<TTabletCellBundle>();
         return true;
-    }
-
-    void InitializeTabletCellStatistics(TTabletCell* cell)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
-
-        if (secondaryCellTags.empty()) {
-            cell->SetLocalStatisticsPtr(&cell->ClusterStatistics());
-        } else {
-            auto& multicellStatistics = cell->MulticellStatistics();
-            if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-                multicellStatistics[cellTag] = cell->ClusterStatistics();
-            }
-
-            for (auto secondaryCellTag : secondaryCellTags) {
-                multicellStatistics[secondaryCellTag];
-            }
-
-            cell->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-        }
     }
 
     void ScheduleTableStatisticsUpdate(
@@ -4262,24 +3962,6 @@ private:
                     FromProto<TInstant>(entry.access_time())));
             }
         }
-
-        // COMPAT(ifsmirnov)
-        if (RecomputeTabletErrorCount_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        int errorCount = 0;
-                        for (const auto* tablet : table->Tablets()) {
-                            errorCount += tablet->GetErrorCount();
-                        }
-                        table->SetTabletErrorCount(errorCount);
-                    }
-                }
-            }
-        }
     }
 
     void OnTabletCellStatisticsGossip()
@@ -4294,50 +3976,24 @@ private:
         NProto::TReqSetTabletCellStatistics request;
         request.set_cell_tag(multicellManager->GetCellTag());
 
-        for (auto [id, cell] : TabletCellMap_) {
-            if (!IsObjectAlive(cell)) {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (const auto [cellId, cellBase] : cellManager->Cells()) {
+            if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
                 continue;
             }
 
+            auto* cell = cellBase->As<TTabletCell>();
             auto* entry = request.add_entries();
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
             ToProto(
                 entry->mutable_statistics(),
-                multicellManager->IsPrimaryMaster() ? cell->ClusterStatistics() : cell->LocalStatistics());
+                multicellManager->IsPrimaryMaster() ? cell->GossipStatistics().Cluster() : cell->GossipStatistics().Local());
         }
 
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, NProto::TReqUpdateTabletCellHealthStatistics())
-            ->CommitAndLog(Logger);
-
-        if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->PostToSecondaryMasters(request, false);
+    if (multicellManager->IsPrimaryMaster()) {
+        multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
-        }
-    }
-
-    void HydraUpdateTabletCellHealthStatistics(NProto::TReqUpdateTabletCellHealthStatistics* request)
-    {
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-
-            cell->LocalStatistics().Health = cell->GetHealth();
-        }
-
-        for (const auto& pair : TabletCellBundleMap_) {
-            auto* bundle = pair.second;
-            if (!IsObjectAlive(bundle)) {
-                continue;
-            }
-
-            bundle->Health() = ETabletCellHealth::Good;
-            for (const auto& cell : bundle->TabletCells()) {
-                bundle->Health() = TTabletCell::CombineHealths(cell->LocalStatistics().Health, bundle->Health());
-            }
         }
     }
 
@@ -4364,33 +4020,14 @@ private:
                 continue;
 
             auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
+
             if (multicellManager->IsPrimaryMaster()) {
-                *cell->GetCellStatistics(cellTag) = newStatistics;
+                *cell->GossipStatistics().Remote(cellTag) = newStatistics;
                 cell->RecomputeClusterStatistics();
             } else {
-                cell->ClusterStatistics() = newStatistics;
+                cell->GossipStatistics().Cluster() = newStatistics;
             }
         }
-    }
-
-    void OnNodeRegistered(TNode* node)
-    {
-        node->InitTabletSlots();
-    }
-
-    void OnNodeUnregistered(TNode* node)
-    {
-        for (const auto& slot : node->TabletSlots()) {
-            auto* cell = slot.Cell;
-            if (cell) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
-                    node->GetDefaultAddress(),
-                    cell->GetId(),
-                    slot.PeerId);
-                cell->DetachPeer(node);
-            }
-        }
-        node->ClearTabletSlots();
     }
 
     void OnIncrementalHeartbeat(
@@ -4399,242 +4036,6 @@ private:
         TRspIncrementalHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        // Various request helpers.
-        auto requestCreateSlot = [&] (const TTabletCell* cell) {
-            if (!response) {
-                return;
-            }
-
-            if (multicellManager->IsSecondaryMaster() || !cell->GetPrerequisiteTransaction()) {
-                return;
-            }
-
-            auto* protoInfo = response->add_tablet_slots_to_create();
-
-            auto cellId = cell->GetId();
-            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
-
-            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
-            protoInfo->set_peer_id(peerId);
-
-            const auto* cellBundle = cell->GetCellBundle();
-            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).GetData());
-
-            protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
-                node->GetDefaultAddress(),
-                cellId,
-                peerId);
-        };
-
-        auto requestConfigureSlot = [&] (const TTabletCell* cell) {
-            if (!response) {
-                return;
-            }
-
-            if (multicellManager->IsSecondaryMaster() || !cell->GetPrerequisiteTransaction()) {
-                return;
-            }
-
-            auto* protoInfo = response->add_tablet_slots_configure();
-
-            auto cellId = cell->GetId();
-            auto cellDescriptor = cell->GetDescriptor();
-
-            auto prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
-
-            ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
-            ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
-                "(Address: %v, CellId: %v, Version: %v, PrerequisiteTransactionId: %v)",
-                node->GetDefaultAddress(),
-                cellId,
-                cellDescriptor.ConfigVersion,
-                prerequisiteTransactionId);
-        };
-
-        auto requestUpdateSlot = [&] (const TTabletCell* cell) {
-            if (!response) {
-                return;
-            }
-
-            if (multicellManager->IsSecondaryMaster()) {
-                return;
-            }
-
-            auto* protoInfo = response->add_tablet_slots_update();
-
-            auto cellId = cell->GetId();
-
-            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
-
-            const auto* cellBundle = cell->GetCellBundle();
-            protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
-            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
-                node->GetDefaultAddress(),
-                cellId,
-                cellBundle->GetDynamicConfigVersion());
-        };
-
-        auto requestRemoveSlot = [&] (TTabletCellId cellId) {
-            if (!response) {
-                return;
-            }
-
-            if (multicellManager->IsSecondaryMaster()) {
-                return;
-            }
-
-            auto* protoInfo = response->add_tablet_slots_to_remove();
-            ToProto(protoInfo->mutable_cell_id(), cellId);
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
-                node->GetDefaultAddress(),
-                cellId);
-        };
-
-        const auto* mutationContext = GetCurrentMutationContext();
-        auto mutationTimestamp = mutationContext->GetTimestamp();
-
-        const auto& address = node->GetDefaultAddress();
-
-        // Our expectations.
-        THashSet<TTabletCell*> expectedCells;
-        for (const auto& slot : node->TabletSlots()) {
-            auto* cell = slot.Cell;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            YT_VERIFY(expectedCells.insert(cell).second);
-        }
-
-        THashMap<TCellId, EPeerState> cellIdToPeerState;
-
-        // Figure out and analyze the reality.
-        THashSet<const TTabletCell*> actualCells;
-        for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
-            // Pre-erase slot.
-            auto& slot = node->TabletSlots()[slotIndex];
-            slot = TNode::TTabletSlot();
-
-            const auto& slotInfo = request->tablet_slots(slotIndex);
-
-            auto state = EPeerState(slotInfo.peer_state());
-            if (state == EPeerState::None)
-                continue;
-
-            auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
-            auto cellId = cellInfo.CellId;
-            auto* cell = FindTabletCell(cellId);
-            if (!IsObjectAlive(cell)) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
-                    address,
-                    cellId);
-                requestRemoveSlot(cellId);
-                continue;
-            }
-
-            auto peerId = cell->FindPeerId(address);
-            if (peerId == InvalidPeerId) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
-                    address,
-                    cellId);
-                requestRemoveSlot(cellId);
-                continue;
-            }
-
-            if (slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId)  {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
-                    slotInfo.peer_id(),
-                    peerId,
-                    address,
-                    cellId);
-                requestRemoveSlot(cellId);
-                continue;
-            }
-
-            if (state == EPeerState::Stopped) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
-                    slotInfo.peer_id(),
-                    address,
-                    cellId);
-                requestRemoveSlot(cellId);
-                continue;
-            }
-
-            auto expectedIt = expectedCells.find(cell);
-            if (expectedIt == expectedCells.end()) {
-                cell->AttachPeer(node, peerId);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
-                    address,
-                    cellId,
-                    peerId);
-            }
-
-            cellIdToPeerState.emplace(cellId, state);
-
-            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-            YT_VERIFY(actualCells.insert(cell).second);
-
-            // Populate slot.
-            slot.Cell = cell;
-            slot.PeerState = state;
-            slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
-                address,
-                cell->GetId(),
-                slot.PeerId,
-                state,
-                cellInfo.ConfigVersion);
-
-            if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
-                requestConfigureSlot(cell);
-            }
-
-            if (slotInfo.has_dynamic_config_version() &&
-                slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
-            {
-                requestUpdateSlot(cell);
-            }
-        }
-
-        // Check for expected slots that are missing.
-        for (auto* cell : expectedCells) {
-            if (actualCells.find(cell) == actualCells.end()) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
-                    cell->GetId(),
-                    address);
-                cell->DetachPeer(node);
-            }
-        }
-
-        // Request slot starts.
-        {
-            int availableSlots = node->Statistics().available_tablet_slots();
-            auto it = AddressToCell_.find(address);
-            if (it != AddressToCell_.end()) {
-                for (auto& pair : it->second) {
-                    auto* cell = pair.first;
-                    if (!IsObjectAlive(cell)) {
-                        continue;
-                    }
-                    if (actualCells.find(cell) == actualCells.end()) {
-                        requestCreateSlot(cell);
-                        requestConfigureSlot(cell);
-                        requestUpdateSlot(cell);
-                        --availableSlots;
-                    }
-                }
-            }
-        }
 
         // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
@@ -4648,21 +4049,18 @@ private:
             }
 
             auto* cell = tablet->GetCell();
-            if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+            if (!IsObjectAlive(cell)){
                 continue;
             }
 
-            auto found = cellIdToPeerState.find(cell->GetId());
-
-            if (found == cellIdToPeerState.end() ||
-                found->second != EPeerState::Leading && found->second != EPeerState::LeaderRecovery)
-            {
+            auto* slot = node->FindCellSlot(cell);
+            if (!slot || (slot->PeerState != EPeerState::Leading && slot->PeerState != EPeerState::LeaderRecovery)) {
                 continue;
             }
 
-            cell->LocalStatistics() -= GetTabletStatistics(tablet);
+            cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
-            cell->LocalStatistics() += GetTabletStatistics(tablet);
+            cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
 
             auto* table = tablet->GetTable();
             if (table) {
@@ -4730,165 +4128,6 @@ private:
 
             TabletBalancer_->OnTabletHeartbeat(tablet);
         }
-    }
-
-
-    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell, int peerId)
-    {
-        const auto& address = descriptor.GetDefaultAddress();
-        auto cellsIt = AddressToCell_.find(address);
-        if (cellsIt == AddressToCell_.end()) {
-            cellsIt = AddressToCell_.insert(std::make_pair(address, TTabletCellSet())).first;
-        }
-        auto& set = cellsIt->second;
-        auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
-            return pair.first == cell;
-        });
-        YT_VERIFY(it == set.end());
-        set.emplace_back(cell, peerId);
-    }
-
-    void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
-    {
-        const auto& address = descriptor.GetDefaultAddress();
-        auto cellsIt = AddressToCell_.find(address);
-        YT_VERIFY(cellsIt != AddressToCell_.end());
-        auto& set = cellsIt->second;
-        auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
-            return pair.first == cell;
-        });
-        YT_VERIFY(it != set.end());
-        set.erase(it);
-        if (set.empty()) {
-            AddressToCell_.erase(cellsIt);
-        }
-    }
-
-
-    void HydraAssignPeers(TReqAssignPeers* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        const auto* mutationContext = GetCurrentMutationContext();
-        auto mutationTimestamp = mutationContext->GetTimestamp();
-
-        bool leadingPeerAssigned = false;
-        for (const auto& peerInfo : request->peer_infos()) {
-            auto peerId = peerInfo.peer_id();
-            auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
-
-            auto& peer = cell->Peers()[peerId];
-            if (!peer.Descriptor.IsNull())
-                continue;
-
-            if (peerId == cell->GetLeadingPeerId()) {
-                leadingPeerAssigned = true;
-            }
-
-            AddToAddressToCellMap(descriptor, cell, peerId);
-            cell->AssignPeer(descriptor, peerId);
-            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
-                cellId,
-                descriptor.GetDefaultAddress(),
-                peerId);
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            // Once a peer is assigned, we must ensure that the cell has a valid prerequisite transaction.
-            if (leadingPeerAssigned || !cell->GetPrerequisiteTransaction()) {
-                RestartPrerequisiteTransaction(cell);
-            }
-
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        }
-
-        ReconfigureCell(cell);
-    }
-
-    void HydraRevokePeers(TReqRevokePeers* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        bool leadingPeerRevoked = false;
-        for (auto peerId : request->peer_ids()) {
-            if (peerId == cell->GetLeadingPeerId()) {
-                leadingPeerRevoked = true;
-            }
-            DoRevokePeer(cell, peerId);
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            if (leadingPeerRevoked) {
-                AbortPrerequisiteTransaction(cell);
-                AbortCellSubtreeTransactions(cell);
-            }
-
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        }
-
-        ReconfigureCell(cell);
-    }
-
-    void HydraReassignPeers(TReqReassignPeers* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        for (auto& revocation : *request->mutable_revocations()) {
-            HydraRevokePeers(&revocation);
-        }
-
-        for (auto& assignment : *request->mutable_assignments()) {
-            HydraAssignPeers(&assignment);
-        }
-
-        TabletCellPeersAssigned_.Fire();
-
-        // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
-    }
-
-    void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        auto peerId = request->peer_id();
-        cell->SetLeadingPeerId(peerId);
-
-        const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
-            cellId,
-            descriptor.GetDefaultAddress(),
-            peerId);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            RestartPrerequisiteTransaction(cell);
-
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        }
-
-        ReconfigureCell(cell);
     }
 
     void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
@@ -5349,7 +4588,7 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        cell->LocalStatistics() -= GetTabletStatistics(tablet);
+        cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         tablet->NodeStatistics().Clear();
@@ -5721,7 +4960,7 @@ private:
         auto deltaStatistics = newStatistics - oldStatistics;
 
         // Update cell statistics.
-        cell->LocalStatistics() += deltaStatistics;
+        cell->GossipStatistics().Local() += deltaStatistics;
 
         // Update table resource usage.
 
@@ -5881,80 +5120,6 @@ private:
         }
     }
 
-    void HydraOnTabletCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
-    {
-        auto cellId = FromProto<TTabletId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        if (cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster) {
-            return;
-        }
-
-        // Decommission tablet cell on node.
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting tablet cell decommission on node (TabletCellId: %v)",
-            cell->GetId());
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnNode);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-        hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
-    }
-
-    void HydraDecommissionTabletCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
-    {
-        auto cellId = FromProto<TTabletId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-        DecommissionTabletCell(cell);
-        OnTabletCellDecommissionedOnNode(cell);
-    }
-
-    void DecommissionTabletCell(TTabletCell* cell)
-    {
-        if (cell->DecommissionStarted()) {
-            return;
-        }
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnMaster);
-        cell->LocalStatistics().Decommissioned = true;
-
-        auto actions = cell->Actions();
-        for (auto* action : actions) {
-            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
-            UnbindTabletActionFromCells(action);
-            OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
-        }
-    }
-
-    void HydraOnTabletCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
-    {
-        auto cellId = FromProto<TTabletId>(response->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-        OnTabletCellDecommissionedOnNode(cell);
-    }
-
-    void OnTabletCellDecommissionedOnNode(TTabletCell* cell)
-    {
-        if (cell->DecommissionCompleted()) {
-            return;
-        }
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::Decommissioned);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (TabletCellId: %v)",
-            cell->GetId());
-    }
-
 
     virtual void OnLeaderActive() override
     {
@@ -5966,17 +5131,6 @@ private:
 
         const auto& dynamicConfig = GetDynamicConfig();
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            TabletTracker_->Start();
-
-            CleanupExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-                BIND(&TImpl::OnCleanup, MakeWeak(this)),
-                dynamicConfig->TabletCellsCleanupPeriod);
-            CleanupExecutor_->Start();
-        }
-
         TabletCellDecommissioner_->Start();
         TabletBalancer_->Start();
         TabletActionManager_->Start();
@@ -5987,6 +5141,7 @@ private:
             dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
@@ -6002,15 +5157,9 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
-        TabletTracker_->Stop();
         TabletCellDecommissioner_->Stop();
         TabletBalancer_->Stop();
         TabletActionManager_->Stop();
-
-        if (CleanupExecutor_) {
-            CleanupExecutor_->Stop();
-            CleanupExecutor_.Reset();
-        }
 
         if (TabletCellStatisticsGossipExecutor_) {
             TabletCellStatisticsGossipExecutor_->Stop();
@@ -6023,36 +5172,18 @@ private:
     }
 
 
-    void ReconfigureCell(TTabletCell* cell)
-    {
-        cell->SetConfigVersion(cell->GetConfigVersion() + 1);
-
-        auto config = cell->GetConfig();
-        config->Addresses.clear();
-        for (const auto& peer : cell->Peers()) {
-            if (peer.Descriptor.IsNull()) {
-                config->Addresses.push_back(std::nullopt);
-            } else {
-                config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));
-            }
-        }
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
-            cell->GetId(),
-            cell->GetConfigVersion());
-    }
-
-
     bool CheckHasHealthyCells(TTabletCellBundle* bundle)
     {
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
+        for (auto* cellBase: bundle->Cells()) {
+            if (cellBase->GetType() != EObjectType::TabletCell) {
+                continue;
+            }
+
+            auto* cell = cellBase->As<TTabletCell>();
             if (!IsCellActive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == bundle &&
-                cell->GetHealth() == ETabletCellHealth::Good)
-            {
+            if (cell->GetHealth() == ETabletCellHealth::Good) {
                 return true;
             }
         }
@@ -6070,8 +5201,19 @@ private:
 
     bool IsCellActive(TTabletCell* cell)
     {
-        return IsObjectAlive(cell) && !cell->DecommissionStarted();
+        return IsObjectAlive(cell) && !cell->IsDecommissionStarted();
     }
+
+    TTabletCell* FindTabletCell(TTabletCellId id)
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cell = cellManager->FindCell(id);
+        if (cell && cell->GetType() != EObjectType::TabletCell) {
+            return nullptr;
+        }
+        return cell->As<TTabletCell>();
+    }
+
 
     std::vector<std::pair<TTablet*, TTabletCell*>> ComputeTabletAssignment(
         TTableNode* table,
@@ -6117,9 +5259,9 @@ private:
                     break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed: {
-                    result += cell->LocalStatistics().MemorySize;
-                    tabletCount = cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
-                        cell->LocalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
+                    result += cell->GossipStatistics().Local().MemorySize;
+                    tabletCount = cell->GossipStatistics().Local().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
+                        cell->GossipStatistics().Local().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
                     result += tabletCount * GetDynamicConfig()->TabletDataSizeFootprint;
                     break;
                 }
@@ -6130,7 +5272,12 @@ private:
         };
 
         std::vector<TCellKey> cellKeys;
-        for (auto* cell : GetValuesSortedByKey(TabletCellMap_)) {
+        for (auto* cellBase : GetValuesSortedByKey(table->GetTabletCellBundle()->Cells())) {
+            if (cellBase->GetType() != EObjectType::TabletCell) {
+                continue;
+            }
+
+            auto* cell = cellBase->As<TTabletCell>();
             if (!IsCellActive(cell)) {
                 continue;
             }
@@ -6183,186 +5330,6 @@ private:
         }
 
         return assignment;
-    }
-
-
-    void RestartPrerequisiteTransaction(TTabletCell* cell)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-
-        AbortPrerequisiteTransaction(cell);
-        AbortCellSubtreeTransactions(cell);
-        StartPrerequisiteTransaction(cell);
-    }
-
-    void StartPrerequisiteTransaction(TTabletCell* cell)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-
-        const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->StartTransaction(
-            nullptr,
-            {},
-            secondaryCellTags,
-            secondaryCellTags,
-            std::nullopt,
-            /* deadline */ std::nullopt,
-            Format("Prerequisite for cell %v", cell->GetId()),
-            EmptyAttributes());
-
-        YT_VERIFY(!cell->GetPrerequisiteTransaction());
-        cell->SetPrerequisiteTransaction(transaction);
-        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
-
-        TReqStartPrerequisiteTransaction request;
-        ToProto(request.mutable_cell_id(), cell->GetId());
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
-        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
-            transaction->GetId());
-    }
-
-    void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransaction* request)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
-
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = transactionManager->FindTransaction(transactionId);
-
-        if (!IsObjectAlive(transaction)) {
-            YT_LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, TransactionId: %v)",
-                cellId,
-                transactionId);
-            return;
-        }
-
-        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
-            transaction->GetId());
-    }
-
-    void AbortCellSubtreeTransactions(TTabletCell* cell)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto cellNodeProxy = FindCellNode(cell->GetId());
-        if (cellNodeProxy) {
-            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
-        }
-    }
-
-    void AbortPrerequisiteTransaction(TTabletCell* cell)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-
-        auto* transaction = cell->GetPrerequisiteTransaction();
-        if (!transaction) {
-            return;
-        }
-
-        // Suppress calling OnTransactionFinished.
-        YT_VERIFY(TransactionToCellMap_.erase(transaction) == 1);
-        cell->SetPrerequisiteTransaction(nullptr);
-
-        // Suppress calling OnTransactionFinished on secondary masters.
-        TReqAbortPrerequisiteTransactoin request;
-        ToProto(request.mutable_cell_id(), cell->GetId());
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
-        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
-
-        // NB: Make a copy, transaction will die soon.
-        auto transactionId = transaction->GetId();
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->AbortTransaction(transaction, true);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
-            transactionId);
-    }
-
-    void HydraAbortPrerequisiteTransaction(TReqAbortPrerequisiteTransactoin* request)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
-
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = transactionManager->FindTransaction(transactionId);
-
-        if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Prerequisite transaction not found at secondary master (CellId: %v, TransactionId: %v)",
-                cellId,
-                transactionId);
-            return;
-        }
-
-        // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
-        TransactionToCellMap_.erase(transaction);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
-            cellId,
-            transactionId);
-    }
-
-    void OnTransactionFinished(TTransaction* transaction)
-    {
-        auto it = TransactionToCellMap_.find(transaction);
-        if (it == TransactionToCellMap_.end()) {
-            return;
-        }
-
-        auto* cell = it->second;
-        cell->SetPrerequisiteTransaction(nullptr);
-        TransactionToCellMap_.erase(it);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
-            transaction->GetId());
-
-        for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-            DoRevokePeer(cell, peerId);
-        }
-    }
-
-
-    void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
-    {
-        const auto& peer = cell->Peers()[peerId];
-        const auto& descriptor = peer.Descriptor;
-        if (descriptor.IsNull()) {
-            return;
-        }
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
-            cell->GetId(),
-            descriptor.GetDefaultAddress(),
-            peerId);
-
-        if (peer.Node) {
-            peer.Node->DetachTabletCell(cell);
-        }
-        RemoveFromAddressToCellMap(descriptor, cell);
-        cell->RevokePeer(peerId);
     }
 
     void DoUnmountTable(
@@ -6584,163 +5551,6 @@ private:
         YT_VERIFY(error.IsOK());
     }
 
-    IMapNodePtr GetCellMapNode()
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
-    }
-
-    INodePtr FindCellNode(TCellId cellId)
-    {
-        auto cellMapNodeProxy = GetCellMapNode();
-        return cellMapNodeProxy->FindChild(ToString(cellId));
-    }
-
-
-    void OnCleanup()
-    {
-        try {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto cellIds = GetKeys(TabletCellMap_);
-
-            for (auto cellId : cellIds) {
-                auto* cell = FindTabletCell(cellId);
-                if (!IsObjectAlive(cell)) {
-                    continue;
-                }
-
-                auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
-                IMapNodePtr snapshotsMap;
-                try {
-                    snapshotsMap = cypressManager->ResolvePathToNodeProxy(snapshotsPath)->AsMap();
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
-                        cellId);
-                    continue;
-                }
-
-                auto request = TYPathProxy::List(TYPath());
-                std::vector<TString> attributeKeys{
-                    "compressed_data_size"
-                };
-                ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
-
-                auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
-                    .ValueOrThrow();
-                auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
-                auto children = list->GetChildren();
-
-                std::vector<TSnapshotInfo> snapshots;
-                std::vector<TString> snapshotKeys;
-                snapshots.reserve(children.size());
-                snapshotKeys.reserve(children.size());
-                for (const auto& child : children) {
-                    const auto key = ConvertTo<TString>(child);
-                    snapshotKeys.push_back(key);
-                    int snapshotId;
-                    if (!TryFromString<int>(key, snapshotId)) {
-                        YT_LOG_WARNING("Unrecognized item in tablet snapshot store (CellId: %v, Name: %v)",
-                            cellId,
-                            key);
-                        continue;
-                    }
-                    const auto& attributes = child->Attributes();
-                    snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
-                }
-
-                auto thresholdId = NHydra::GetSnapshotThresholdId(
-                    snapshots,
-                    GetDynamicConfig()->MaxSnapshotCountToKeep,
-                    GetDynamicConfig()->MaxSnapshotSizeToKeep);
-
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                auto rootService = objectManager->GetRootService();
-
-                int snapshotsRemoved = 0;
-                for (const auto& key : snapshotKeys) {
-                    if (snapshotsRemoved >= GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck) {
-                        break;
-                    }
-
-                    int snapshotId;
-                    if (!TryFromString<int>(key, snapshotId)) {
-                        // Ignore, cf. logging above.
-                        continue;
-                    }
-
-                    if (snapshotId < thresholdId) {
-                        YT_LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
-                            cellId,
-                            snapshotId);
-                        auto req = TYPathProxy::Remove(snapshotsPath + "/" + ToYPathLiteral(key));
-                        ExecuteVerb(rootService, req)
-                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
-                                if (rspOrError.IsOK()) {
-                                    YT_LOG_INFO("Tablet cell snapshot removed successfully (CellId: %v, SnapshotId: %v)",
-                                        cellId,
-                                        snapshotId);
-                                } else {
-                                    YT_LOG_INFO(rspOrError, "Error removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
-                                        cellId,
-                                        snapshotId);
-                                }
-                            }));
-                        ++snapshotsRemoved;
-                    }
-                }
-
-                auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
-                IMapNodePtr changelogsMap;
-                try {
-                    changelogsMap = cypressManager->ResolvePathToNodeProxy(changelogsPath)->AsMap();
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
-                        cellId);
-                    continue;
-                }
-
-                int changelogsRemoved = 0;
-                auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
-                for (const auto& key : changelogKeys) {
-                    if (changelogsRemoved >= GetDynamicConfig()->MaxChangelogCountToRemovePerCheck) {
-                        break;
-                    }
-
-                    int changelogId;
-                    if (!TryFromString<int>(key, changelogId)) {
-                        YT_LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
-                            cellId,
-                            key);
-                        continue;
-                    }
-
-                    if (changelogId < thresholdId) {
-                        YT_LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
-                            cellId,
-                            changelogId);
-                        auto req = TYPathProxy::Remove(changelogsPath + "/" + ToYPathLiteral(key));
-                        ExecuteVerb(rootService, req)
-                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
-                                if (rspOrError.IsOK()) {
-                                    YT_LOG_INFO("Tablet cell changelog removed successfully (CellId: %v, ChangelodId: %v)",
-                                        cellId,
-                                        changelogId);
-                                } else {
-                                    YT_LOG_WARNING(rspOrError, "Error removing tablet cell changelog (CellId: %v, ChangelodId: %v)",
-                                        cellId,
-                                        changelogId);
-                                }
-                            }));
-                        ++changelogsRemoved;
-                    }
-                }
-            }
-
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error performing tablets cleanup");
-        }
-    }
-
     std::pair<std::vector<TTablet*>::iterator, std::vector<TTablet*>::iterator> GetIntersectingTablets(
         std::vector<TTablet*>& tablets,
         const NChunkClient::TReadRange readRange)
@@ -6768,64 +5578,6 @@ private:
         }
 
         return std::make_pair(beginIt, endIt);
-    }
-
-    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
-        for (auto* tabletCellBundle : tabletCellBundles) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCellBundle, cellTag);
-        }
-
-        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
-        for (auto* tabletCell : tabletCells) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCell, cellTag);
-        }
-    }
-
-    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
-        for (auto* tabletCellBundle : tabletCellBundles) {
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCellBundle, cellTag);
-        }
-
-        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
-        for (auto* tabletCell : tabletCells) {
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCell, cellTag);
-            ReplicateTabletCellPropertiesToSecondaryMaster(tabletCell, cellTag);
-        }
-    }
-
-    void ReplicateTabletCellPropertiesToSecondaryMaster(TTabletCell* cell, TCellTag cellTag)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        {
-            TReqSetTabletCellConfigVersion req;
-            ToProto(req.mutable_cell_id(), cell->GetId());
-            req.set_config_version(cell->GetConfigVersion());
-            multicellManager->PostToMaster(req, cellTag);
-        }
-
-        if (cell->DecommissionStarted()) {
-            TReqDecommissionTabletCellOnMaster req;
-            ToProto(req.mutable_cell_id(), cell->GetId());
-            multicellManager->PostToMaster(req, cellTag);
-        }
-    }
-
-    void HydraSetTabletCellConfigVersion(TReqSetTabletCellConfigVersion* request)
-    {
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
-            return;
-        cell->SetConfigVersion(request->config_version());
     }
 
     void FillStoreDescriptor(
@@ -6860,7 +5612,6 @@ private:
         *startingRowIndex += chunk->MiscExt().row_count();
     }
 
-
     void ValidateNodeCloneMode(TTableNode* trunkNode, ENodeCloneMode mode)
     {
         try {
@@ -6887,13 +5638,6 @@ private:
         }
     }
 
-
-    static void ValidateTabletCellBundleName(const TString& name)
-    {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
-        }
-    }
 
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
@@ -6925,8 +5669,6 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TabletCellBundleMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TabletCellMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TableReplica, TTableReplica, TableReplicaMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletAction, TTabletAction, TabletActionMap_)
@@ -6944,11 +5686,6 @@ TTabletManager::~TTabletManager() = default;
 void TTabletManager::Initialize()
 {
     return Impl_->Initialize();
-}
-
-const TTabletCellSet* TTabletManager::FindAssignedTabletCells(const TString& address) const
-{
-    return Impl_->FindAssignedTabletCells(address);
 }
 
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
@@ -7192,11 +5929,6 @@ void TTabletManager::CheckDynamicTableLock(
     Impl_->CheckDynamicTableLock(table, transaction, response);
 }
 
-const TBundleNodeTrackerPtr& TTabletManager::GetBundleNodeTracker()
-{
-    return Impl_->GetBundleNodeTracker();
-}
-
 TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
 {
     return Impl_->GetTabletOrThrow(id);
@@ -7207,34 +5939,19 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
-void TTabletManager::RemoveTabletCell(TTabletCell* cell, bool force)
-{
-    return Impl_->RemoveTabletCell(cell, force);
-}
-
 TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id)
 {
     return Impl_->GetTabletCellBundleOrThrow(id);
 }
 
-TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const TString& name)
+TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)
 {
-    return Impl_->FindTabletCellBundleByName(name);
+    return Impl_->FindTabletCellBundle(id);
 }
 
 TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TString& name)
 {
     return Impl_->GetTabletCellBundleByNameOrThrow(name);
-}
-
-void TTabletManager::RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName)
-{
-    return Impl_->RenameTabletCellBundle(cellBundle, newName);
-}
-
-void TTabletManager::SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula)
-{
-    return Impl_->SetTabletCellBundleNodeTagFilter(bundle, formula);
 }
 
 TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
@@ -7257,32 +5974,9 @@ void TTabletManager::DestroyTablet(TTablet* tablet)
     Impl_->DestroyTablet(tablet);
 }
 
-TTabletCell* TTabletManager::CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
+void TTabletManager::ZombifyTabletCell(TTabletCell* cell)
 {
-    return Impl_->CreateTabletCell(cellBundle, hintId);
-}
-
-void TTabletManager::DestroyTabletCell(TTabletCell* cell)
-{
-    Impl_->DestroyTabletCell(cell);
-}
-
-TTabletCellBundle* TTabletManager::CreateTabletCellBundle(
-    const TString& name,
-    TObjectId hintId,
-    TTabletCellOptionsPtr options)
-{
-    return Impl_->CreateTabletCellBundle(name, hintId, std::move(options));
-}
-
-void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
-{
-    Impl_->DestroyTabletCellBundle(cellBundle);
-}
-
-void TTabletManager::SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options)
-{
-    Impl_->SetTabletCellBundleOptions(cellBundle, std::move(options));
+    Impl_->ZombifyTabletCell(cell);
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(
@@ -7377,16 +6071,20 @@ void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     Impl_->SendTableStatisticsUpdates(chunkOwner);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, *Impl_)
+TEntityMap<TTabletCellBundle>& TTabletManager::CompatTabletCellBundleMap()
+{
+    return Impl_->CompatTabletCellBundleMap();
+}
+
+TEntityMap<TTabletCell>& TTabletManager::CompatTabletCellMap()
+{
+    return Impl_->CompatTabletCellMap();
+}
+
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_)
-
-DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleCreated, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleNodeTagFilterChanged, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(), TabletCellPeersAssigned, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

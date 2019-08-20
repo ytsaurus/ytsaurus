@@ -1,13 +1,13 @@
 #include "public.h"
 #include "private.h"
 #include "bundle_node_tracker.h"
-#include "tablet_manager.h"
+#include "tamed_cell_manager.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerServer::NProto;
@@ -15,7 +15,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto static& Logger = TabletServerLogger;
+const auto static& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,26 +39,27 @@ public:
         nodeTracker->SubscribeNodeTagsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnNodeFullHeartbeat, MakeWeak(this)));
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->SubscribeTabletCellBundleCreated(BIND(&TImpl::OnTabletCellBundleCreated, MakeWeak(this)));
-        tabletManager->SubscribeTabletCellBundleDestroyed(BIND(&TImpl::OnTabletCellBundleRemoved, MakeWeak(this)));
-        tabletManager->SubscribeTabletCellBundleNodeTagFilterChanged(BIND(&TImpl::OnTabletCellBundleChanged, MakeWeak(this)));
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        cellManager->SubscribeCellBundleCreated(BIND(&TImpl::OnCellBundleCreated, MakeWeak(this)));
+        cellManager->SubscribeCellBundleDestroyed(BIND(&TImpl::OnCellBundleRemoved, MakeWeak(this)));
+        cellManager->SubscribeCellBundleNodeTagFilterChanged(BIND(&TImpl::OnCellBundleChanged, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterSnapshotLoaded, MakeWeak(this)));
     }
 
     void OnAfterSnapshotLoaded()
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            YT_VERIFY(NodeMap_.emplace(pair.second, TNodeSet()).second);
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+            YT_VERIFY(NodeMap_.emplace(bundle, TNodeSet()).second);
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            OnNodeChanged(pair.second);
+        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+            OnNodeChanged(node);
         }
     }
 
-    const TNodeSet& GetBundleNodes(const TTabletCellBundle* bundle) const
+    const TNodeSet& GetBundleNodes(const TCellBundle* bundle) const
     {
         if (auto it = NodeMap_.find(bundle)) {
             return it->second;
@@ -72,40 +73,40 @@ public:
         NodeMap_.clear();
     }
 
-    DEFINE_SIGNAL(void(const TTabletCellBundle* bundle), BundleNodesChanged);
+    DEFINE_SIGNAL(void(const TCellBundle* bundle), BundleNodesChanged);
 
 private:
     const TBootstrap* const Bootstrap_;
-    THashMap<const TTabletCellBundle*, TNodeSet> NodeMap_;
+    THashMap<const TCellBundle*, TNodeSet> NodeMap_;
     static const TNodeSet EmptyNodeSet;
 
-    void OnTabletCellBundleCreated(TTabletCellBundle* bundle)
+    void OnCellBundleCreated(TCellBundle* bundle)
     {
         YT_LOG_DEBUG("Bundle node tracker caught bundle create signal (BundleId: %v)",
             bundle->GetId());
 
         auto result = NodeMap_.emplace(bundle, TNodeSet());
         YT_VERIFY(result.second);
-        RevisitTabletCellBundleNodes(&result.first->second, bundle);
+        RevisitCellBundleNodes(&result.first->second, bundle);
     }
 
-    void OnTabletCellBundleChanged(TTabletCellBundle* bundle)
+    void OnCellBundleChanged(TCellBundle* bundle)
     {
         YT_LOG_DEBUG("Bundle node tracker caught bundle change signal (BundleId: %v)",
             bundle->GetId());
 
-        RevisitTabletCellBundleNodes(&NodeMap_[bundle], bundle);
+        RevisitCellBundleNodes(&NodeMap_[bundle], bundle);
     }
 
-    void RevisitTabletCellBundleNodes(TNodeSet* nodeSet, TTabletCellBundle* bundle)
+    void RevisitCellBundleNodes(TNodeSet* nodeSet, TCellBundle* bundle)
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            AddOrRemoveNode(nodeSet, bundle, pair.second);
+        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+            AddOrRemoveNode(nodeSet, bundle, node);
         }
     }
 
-    void OnTabletCellBundleRemoved(TTabletCellBundle* bundle)
+    void OnCellBundleRemoved(TCellBundle* bundle)
     {
         YT_LOG_DEBUG("Bundle node tracker caught bundle remove signal (BundleId: %v)",
             bundle->GetId());
@@ -123,18 +124,16 @@ private:
         YT_LOG_DEBUG("Bundle node tracker caught node change signal (NodeAddress: %v)",
             node->GetDefaultAddress());
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            auto* bundle = pair.second;
-
-            // TODO(savrus) Use hostility checker from tablet tracker.
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+            // TODO(savrus) Use hostility checker from cell tracker.
             AddOrRemoveNode(&NodeMap_[bundle], bundle, node);
         }
     }
 
-    void AddOrRemoveNode(TNodeSet* nodeSet, TTabletCellBundle* bundle, TNode* node)
+    void AddOrRemoveNode(TNodeSet* nodeSet, TCellBundle* bundle, TNode* node)
     {
-        bool good = CheckIfNodeCanHostTabletCells(node);
+        bool good = CheckIfNodeCanHostCells(node);
         bool satisfy = bundle->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
         YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, IsGood: %v, Satisfy: %v)",
@@ -180,26 +179,21 @@ void TBundleNodeTracker::Initialize()
     Impl_->Initialize();
 }
 
-void TBundleNodeTracker::OnAfterSnapshotLoaded()
-{
-    Impl_->OnAfterSnapshotLoaded();
-}
-
 void TBundleNodeTracker::Clear()
 {
     Impl_->Clear();
 }
 
-const TBundleNodeTracker::TNodeSet& TBundleNodeTracker::GetBundleNodes(const TTabletCellBundle* bundle) const
+const TBundleNodeTracker::TNodeSet& TBundleNodeTracker::GetBundleNodes(const TCellBundle* bundle) const
 {
     return Impl_->GetBundleNodes(bundle);
 }
 
-DELEGATE_SIGNAL(TBundleNodeTracker, void(const TTabletCellBundle*), BundleNodesChanged, *Impl_);
+DELEGATE_SIGNAL(TBundleNodeTracker, void(const TCellBundle*), BundleNodesChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CheckIfNodeCanHostTabletCells(const TNode* node)
+bool CheckIfNodeCanHostCells(const TNode* node)
 {
     if (!IsObjectAlive(node)) {
         return false;
@@ -226,5 +220,4 @@ bool CheckIfNodeCanHostTabletCells(const TNode* node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
-
+} // namespace NYT::NCellServer
