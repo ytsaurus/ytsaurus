@@ -774,6 +774,7 @@ class YTEnvSetup(object):
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
+            shutil.rmtree(os.path.join(cls.path_to_run, "runtime_data"))
             shutil.move(cls.path_to_run, destination_path)
 
 
