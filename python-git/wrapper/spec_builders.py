@@ -796,13 +796,12 @@ class SpecBuilder(object):
         spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
 
         output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
-        require(output_tables_param in spec,
-                lambda: YtError("You should specify {0}".format(output_tables_param)))
-        self._output_table_paths = _prepare_destination_tables(spec[output_tables_param], client=client)
-        if single_output_table:
-            spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
-        else:
-            spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
+        if output_tables_param in spec:
+            self._output_table_paths = _prepare_destination_tables(spec[output_tables_param], client=client)
+            if single_output_table:
+                spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
+            else:
+                spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
     def _build_user_job_spec(self, spec, job_type, job_io_type, input_tables, output_tables,
                              requires_command=True, requires_format=True, group_by=None, client=None):

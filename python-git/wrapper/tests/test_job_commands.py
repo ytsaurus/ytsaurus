@@ -1,7 +1,6 @@
 from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, create_job_events
 
 from yt.wrapper.job_shell import JobShell
-from yt.wrapper.driver import get_command_list
 import yt.yson
 import yt.ypath
 
@@ -13,7 +12,7 @@ import os
 import pytest
 import re
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestJobCommands(object):
     def _poll_until_prompt(self, shell):
         output = b""
@@ -40,7 +39,7 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_job_shell(self, job_events):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
         table = TEST_DIR + "/table"
@@ -80,7 +79,7 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_job_shell_command(self, yt_env, job_events):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
         table = TEST_DIR + "/table"
@@ -109,7 +108,7 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_secure_vault_variables_in_job_shell(self):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
         table = TEST_DIR + "/table"

@@ -203,6 +203,29 @@ b"""
 }
 """)
 
+def get_clock_config():
+    return yson.loads(
+b"""
+{
+    timestamp_provider = {
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
+        update_period = 500;
+    };
+
+    changelogs = {
+        flush_period = 10;
+    };
+
+    timestamp_manager = {
+        commit_advance = 2000;
+        request_backoff_time = 10;
+        calibration_period = 10;
+    };
+}
+""")
+
+
 def get_controller_agent_config():
     return yson.loads(
 b"""
@@ -479,33 +502,12 @@ def get_proxy_config():
 }
 """)
 
-def get_ui_config():
-    return """
-tm.managers = {
-    production: {
-        url: '//transfer-manager.yt.yandex.net/api/v1',
-        version: '1'
-    }
-};
-
-YT.odinPath = '';
-
-YT.clusters = {
-    'ui' : {
-        name: 'Local',
-        proxy: %%proxy_address%%,
-        oauthApplication: '',
-        type: 'infrastructural',
-        theme: 'grapefruit',
-        description: 'Local',
-        %%masters%%
-    }
-};
-"""
-
 def get_watcher_config():
     return {
-        "logs_rotate_max_part_count": 100,
+        "logs_rotate_max_part_count": 1000,
         "logs_rotate_size": "8M",
-        "logs_rotate_interval": 120
+        "logs_rotate_interval": 120,
+        # NB(ignat): new settings may be the reason of build problem, it is commented temporarily.
+        # "logs_rotate_size": "1M",
+        # "logs_rotate_interval": 1,
     }

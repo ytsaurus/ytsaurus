@@ -177,16 +177,16 @@ class OperationState(object):
         self.name = name
 
     def is_finished(self):
-        return self.name in ["aborted", "completed", "failed"]
+        return self.name in ("aborted", "completed", "failed")
 
     def is_unsuccessfully_finished(self):
-        return self.name in ["aborted", "failed"]
+        return self.name in ("aborted", "failed")
 
     def is_running(self):
         return self.name == "running"
 
     def is_starting(self):
-        return self.name in ["starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"]
+        return self.name in ("starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs")
 
     def __eq__(self, other):
         return self.name == str(other)
@@ -297,8 +297,8 @@ def get_operation_progress(operation, client=None):
     return progress
 
 def order_progress(progress):
-    filter_out = ["completed_details"]
-    keys = ["running", "completed", "pending", "failed", "aborted", "lost", "total"]
+    filter_out = ("completed_details")
+    keys = ("running", "completed", "pending", "failed", "aborted", "lost", "total")
     result = []
     for key in keys:
         if key in filter_out:
@@ -328,9 +328,9 @@ class PrintOperationInfo(object):
 
     def __call__(self, state):
         if (self.state is None or self.state.is_starting()) and not state.is_starting():
-            unrecognised_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
-            if unrecognised_spec:
-                self.log("%s: %s", "Unrecognized spec", str(unrecognised_spec["unrecognized_spec"]))
+            unrecognized_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
+            if unrecognized_spec and unrecognized_spec.get("unrecognized_spec"):
+                self.log("Unrecognized spec: %s", str(unrecognized_spec["unrecognized_spec"]))
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
             if progress and progress != self.progress:

@@ -304,7 +304,11 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
         result = process_frozen_dict(result)
 
-        params.output_format.dump_rows(result, output_streams, raw=raw)
+        if output_streams:
+            params.output_format.dump_rows(result, output_streams, raw=raw)
+        else:
+            # NB: we need to exhaust generator to run user code.
+            for _ in result: pass
 
     # Read out all input
     if rows is None:

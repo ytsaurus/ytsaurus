@@ -216,6 +216,12 @@ NODE_CONFIG_PATCHES = [
     }
 ]
 
+NODE_STORE_LOCATION_PATCHES = [
+    {
+        "max_trash_ttl": 0,
+    }
+]
+
 NODE_MEMORY_LIMIT_ADDITION = 500 * MB + 200 * MB + 500 * MB  # block_cache + tablet_node, see above
 
 DRIVER_CONFIG_PATCH = {
@@ -281,6 +287,10 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
     for config in cluster_configuration["node"]:
         for patch in NODE_CONFIG_PATCHES:
             update_inplace(config, patch)
+
+        for store_location in config.get("store_locations", []):
+            for patch in NODE_STORE_LOCATION_PATCHES:
+                update_inplace(store_location, patch)
 
         if node_config_patch:
             update_inplace(config, node_config_patch)

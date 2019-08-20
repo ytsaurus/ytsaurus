@@ -526,7 +526,6 @@ if __name__ == '__main__':
 test_empty_destination()
 {
     $MAPREDUCE_YT -write "ignat/empty_table" </dev/null
-    check_failed '$MAPREDUCE_YT -map "cat" -src "ignat/empty_table"'
 }
 
 test_dsv_reduce()
