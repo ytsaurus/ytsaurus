@@ -50,8 +50,10 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
     YT_VERIFY(selectQuery->tables());
 
     auto* tablesInSelectQuery = selectQuery->tables()->as<DB::ASTTablesInSelectQuery>();
+    YT_VERIFY(tablesInSelectQuery);
     for (auto& tableInSelectQuery : tablesInSelectQuery->children) {
         auto* tablesElement = tableInSelectQuery->as<DB::ASTTablesInSelectQueryElement>();
+        YT_VERIFY(tablesElement);
         if (!tablesElement->table_expression) {
             continue;
         }
@@ -60,17 +62,27 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
 
         YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
 
-        std::vector<TString> joinUsing;
+        auto& tableExpression = tablesElement->table_expression;
+
+        bool isGlobal = false;
+
         if (tablesElement->table_join) {
             const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
+            YT_VERIFY(tableJoin);
             if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
-                continue;
+                YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
+                isGlobal = true;
             }
         }
 
-        auto& tableExpression = tablesElement->table_expression;
-        TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
-        TableExpressionPtrs_.emplace_back(&tableExpression);
+        if (!isGlobal) {
+            TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
+            YT_VERIFY(TableExpressions_.back());
+            TableExpressionPtrs_.emplace_back(&tableExpression);
+        } else {
+            TableExpressions_.emplace_back(nullptr);
+            TableExpressionPtrs_.emplace_back(nullptr);
+        }
     }
 
     // At least first table expression should be the one that instantiated this query analyzer (aka owner).
@@ -86,12 +98,15 @@ TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQuery
         auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
         if (storage) {
             YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
+            ++YtTableCount_;
         } else {
-            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
+            if (tableExpression) {
+                YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
+            }
         }
     }
 
-    if (TableExpressions_.size() == 2) {
+    if (TableExpressions_.size() == 2 && Storages_[0] && Storages_[1]) {
         ValidateJoin();
     }
 }
@@ -100,6 +115,8 @@ void TQueryAnalyzer::ValidateJoin()
 {
     const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
     YT_VERIFY(Storages_.size() == 2);
+    YT_VERIFY(Storages_[0]);
+    YT_VERIFY(Storages_[1]);
     const auto& lhsSchema = Storages_[0]->GetSchema();
     const auto& rhsSchema = Storages_[1]->GetSchema();
     const auto& lhsTablePaths = Storages_[0]->GetTablePaths();
@@ -112,11 +129,11 @@ void TQueryAnalyzer::ValidateJoin()
     THashMap<TString, int> lhsKeyColumns;
     THashMap<TString, int> rhsKeyColumns;
     for (int index = 0; index < static_cast<int>(lhsSchema.GetKeyColumns().size()); ++index) {
-        const auto& column = lhsSchema.GetKeyColumns()[index];
+        auto column = lhsSchema.GetKeyColumns()[index];
         lhsKeyColumns[column] = index;
     }
     for (int index = 0; index < static_cast<int>(rhsSchema.GetKeyColumns().size()); ++index) {
-        const auto& column = rhsSchema.GetKeyColumns()[index];
+        auto column = rhsSchema.GetKeyColumns()[index];
         rhsKeyColumns[column] = index;
     }
     int maxPosition = -1;
@@ -165,7 +182,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
     TQueryAnalysisResult result;
 
     for (const auto& storage : Storages_) {
-        YT_VERIFY(storage);
+        if (!storage) {
+            continue;
+        }
         result.TablePaths.emplace_back(storage->GetTablePaths());
         auto clickHouseSchema = storage->GetClickHouseSchema();
         std::optional<DB::KeyCondition> keyCondition;
@@ -176,7 +195,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         result.TableSchemas.emplace_back(storage->GetSchema());
     }
 
-    if (Storages_.size() == 1 || (Storages_.size() == 2 && Storages_[1] == nullptr)) {
+    if (Storages_.size() == 1) {
         // Regular unordered pool case.
         result.PoolKind = EPoolKind::Unordered;
     } else {
@@ -212,13 +231,22 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
 
     std::vector<DB::ASTPtr> newTableExpressions;
 
-    for (int index = 0; index < static_cast<int>(TableExpressions_.size()); ++index) {
+    for (int index = 0; index < YtTableCount_; ++index) {
         auto tableExpression = TableExpressions_[index];
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& stripeList : stripeLists) {
-            YT_VERIFY(stripeList->Stripes.size() == TableExpressions_.size());
-            stripes.emplace_back(stripeList->Stripes[index]);
+            TChunkStripePtr currentTableStripe;
+            for (const auto& stripe : stripeList->Stripes) {
+                if (stripe->GetTableIndex() == index) {
+                    YT_VERIFY(!currentTableStripe);
+                    currentTableStripe = stripe;
+                }
+            }
+            if (!currentTableStripe) {
+                currentTableStripe = New<TChunkStripe>();
+            }
+            stripes.emplace_back(std::move(currentTableStripe));
         }
 
         auto spec = specTemplate;
@@ -242,6 +270,7 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
 
         auto clonedTableExpression = tableExpression->clone();
         auto* typedTableExpression = clonedTableExpression->as<DB::ASTTableExpression>();
+        YT_VERIFY(typedTableExpression);
         typedTableExpression->table_function = std::move(tableFunction);
         typedTableExpression->database_and_table_name = nullptr;
         typedTableExpression->subquery = nullptr;
@@ -260,6 +289,9 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
 
 std::shared_ptr<IStorageDistributor> TQueryAnalyzer::GetStorage(const DB::ASTTableExpression* tableExpression) const
 {
+    if (!tableExpression) {
+        return nullptr;
+    }
     DB::StoragePtr storage;
     if (tableExpression->table_function) {
         storage = const_cast<DB::Context&>(Context_.getQueryContext()).executeTableFunction(tableExpression->table_function);
@@ -273,13 +305,15 @@ std::shared_ptr<IStorageDistributor> TQueryAnalyzer::GetStorage(const DB::ASTTab
 
 DB::ASTPtr TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions)
 {
-    YT_VERIFY(newTableExpressions.size() == TableExpressionPtrs_.size());
+    YT_VERIFY(static_cast<int>(newTableExpressions.size()) == YtTableCount_);
     for (int index = 0; index < static_cast<int>(newTableExpressions.size()); ++index) {
+        YT_VERIFY(newTableExpressions[index]);
         newTableExpressions[index].swap(*TableExpressionPtrs_[index]);
     }
     auto result = QueryInfo_.query->clone();
     for (int index = 0; index < static_cast<int>(newTableExpressions.size()); ++index) {
         newTableExpressions[index].swap(*TableExpressionPtrs_[index]);
+        YT_VERIFY(newTableExpressions[index]);
     }
     return result;
 }

@@ -3675,6 +3675,11 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
         }
     }
 
+    if (State != EControllerState::Running) {
+        YT_LOG_DEBUG("Stale schedule job attempt");
+        return nullptr;
+    }
+
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -4398,13 +4403,30 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
         State = EControllerState::Failing;
     }
 
-    for (const auto& joblet : JobletMap) {
-        Host->FailJob(joblet.first);
+    auto error = GetTimeLimitError();
+
+    bool hasJobsToFail = false;
+    for (const auto& [jobId, joblet] : JobletMap) {
+        switch (joblet->JobType) {
+            // TODO(ignat): YT-11247, add helper with list of job types with user code.
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::SortedReduce:
+            case EJobType::JoinReduce:
+            case EJobType::PartitionMap:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
+            case EJobType::Vanilla:
+                hasJobsToFail = true;
+                Host->FailJob(jobId);
+                break;
+            default:
+                Host->AbortJob(jobId, error);
+        }
     }
 
-    auto error = GetTimeLimitError();
-    if (!JobletMap.empty()) {
-        TDelayedExecutor::MakeDelayed(Config->OperationControllerFailTimeout)
+    if (hasJobsToFail) {
+        TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
             .Apply(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), error, /* flush */ true)
             .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)));
     } else {
