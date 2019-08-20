@@ -57,6 +57,7 @@
             "max_threads" = 1;
             "max_distributed_connections" = 1;
             "enable_optimize_predicate_expression" = 0;
+            "join_use_nulls" = 1;
         };
     };
     "discovery" = {
