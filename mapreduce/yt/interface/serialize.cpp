@@ -123,7 +123,22 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
             fluent.Item("required").Value(columnSchema.Required_);
         })
         .DoIf(columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("type_v2").Value(*columnSchema.RawTypeV2_);
+            const auto& rawTypeV2 = *columnSchema.RawTypeV2_;
+            fluent.Item("type_v2").Value(rawTypeV2);
+
+            // COMPAT(levysotsky): Fill "type" and "required" for (optional) simple types.
+            if (rawTypeV2.IsString()) {
+                fluent
+                    .Item("type").Value(columnSchema.RawTypeV2_->AsString())
+                    .Item("required").Value(true);
+                return;
+            }
+            Y_ENSURE(rawTypeV2.IsMap());
+            if (rawTypeV2["metatype"] == "optional" && rawTypeV2["element"].IsString()) {
+                fluent
+                    .Item("type").Value(rawTypeV2["element"].AsString())
+                    .Item("required").Value(false);
+            }
         })
         .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder_));
