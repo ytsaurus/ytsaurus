@@ -335,6 +335,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("time_limit", TimeLimit)
         .Default();
 
+    RegisterParameter("time_limit_job_fail_timeout", TimeLimitJobFailTimeout)
+        .Default(TDuration::Minutes(2));
+
     RegisterParameter("testing", TestingOperationOptions)
         .DefaultNew();
 

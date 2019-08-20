@@ -391,9 +391,6 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("task_update_period", TaskUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("operation_controller_fail_timeout", OperationControllerFailTimeout)
-        .Default(TDuration::Seconds(120));
-
     RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
         .Default(TDuration::Seconds(5));
 

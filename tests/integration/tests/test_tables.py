@@ -197,7 +197,6 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table3/@row_count") == 1
 
     @authors("psushin")
-    @pytest.mark.skipif("True", reason="Fails with RPC proxy")
     def test_malformed_table_data(self):
         create("table", "//tmp/table")
 

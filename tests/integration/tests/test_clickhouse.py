@@ -4,6 +4,7 @@ from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
+from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
 
@@ -16,7 +17,6 @@ import pytest
 import random
 import os
 import copy
-import signal
 import threading
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
@@ -1320,7 +1320,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]
 
     @authors("max42")
-    def test_sorted_join(self):
+    def test_sorted_join_simple(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
@@ -1347,6 +1347,119 @@ class TestJoinAndIn(ClickHouseTestBase):
                         {"key": 4, "lhs": "foo4", "rhs": "bar4"}]
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" join \"//tmp/t2\" using key order by key") == expected
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
+
+    @authors("max42")
+    def test_sorted_join_stress(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "lhs", "type": "string", "required": True}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "rhs", "type": "string", "required": True}]})
+        rnd = random.Random(x=42)
+
+        # Small values (uncomment for debugging):
+        # row_count, key_range, chunk_count = 5, 7, 2
+        # Large values
+        row_count, key_range, chunk_count = 300, 500, 15
+
+        def generate_rows(row_count, key_range, chunk_count, payload_column_name, payload_value):
+            keys = [rnd.randint(0, key_range - 1) for i in range(row_count)]
+            keys = sorted(keys)
+            delimiters = [0] + sorted([rnd.randint(0, row_count) for i in range(chunk_count - 1)]) + [row_count]
+            rows = []
+            for i in range(chunk_count):
+                rows.append([{"key": key, payload_column_name: "%s%03d" % (payload_value, key)} for key in keys[delimiters[i]:delimiters[i + 1]]])
+            return rows
+
+        def write_multiple_chunks(path, row_batches):
+            for row_batch in row_batches:
+                write_table("<append=%true>" + path, row_batch)
+            print_debug("Table {}".format(path))
+            chunk_ids = get(path + "/@chunk_ids", verbose=False)
+            for chunk_id in chunk_ids:
+                attrs = get("#" + chunk_id + "/@", attributes=["min_key", "max_key", "row_count"], verbose=False)
+                print_debug("{}: rc = {}, bk = ({}, {})".format(chunk_id, attrs["row_count"], attrs["min_key"], attrs["max_key"]))
+
+
+        lhs_rows = generate_rows(row_count, key_range, chunk_count, "lhs", "foo")
+        rhs_rows = generate_rows(row_count, key_range, chunk_count, "rhs", "bar")
+
+        write_multiple_chunks("//tmp/t1", lhs_rows)
+        write_multiple_chunks("//tmp/t2", rhs_rows)
+
+        lhs_rows = sum(lhs_rows, [])
+        rhs_rows = sum(rhs_rows, [])
+
+        def expected_result(kind, key_range, lhs_rows, rhs_rows):
+            it_lhs = 0
+            it_rhs = 0
+            result = []
+            for key in range(key_range):
+                start_lhs = it_lhs
+                while it_lhs < len(lhs_rows) and lhs_rows[it_lhs]["key"] == key:
+                    it_lhs += 1
+                finish_lhs = it_lhs
+                start_rhs = it_rhs
+                while it_rhs < len(rhs_rows) and rhs_rows[it_rhs]["key"] == key:
+                    it_rhs += 1
+                finish_rhs = it_rhs
+                maybe_lhs_null = []
+                maybe_rhs_null = []
+                if start_lhs == finish_lhs and start_rhs == finish_rhs:
+                    continue
+                if kind in ("right", "full") and start_lhs == finish_lhs:
+                    maybe_lhs_null.append({"key": key, "lhs": None})
+                if kind in ("left", "full") and start_rhs == finish_rhs:
+                    maybe_rhs_null.append({"key": key, "rhs": None})
+                for lhs_row in lhs_rows[start_lhs:finish_lhs] + maybe_lhs_null:
+                    for rhs_row in rhs_rows[start_rhs:finish_rhs] + maybe_rhs_null:
+                        result.append({"key": key, "lhs": lhs_row["lhs"], "rhs": rhs_row["rhs"]})
+            return result
+
+        expected_results = {}
+        for kind in ("inner", "left", "right", "full"):
+            expected_results[kind] = expected_result(kind, key_range, lhs_rows, rhs_rows)
+
+        # Transform unicode strings into non-unicode.
+        def sanitize(smth):
+            if type(smth) == unicode:
+                return str(smth)
+            else:
+                return smth
+
+        # Same for dictionaries
+        def sanitize_dict(unicode_dict):
+            return dict([(sanitize(key), sanitize(value)) for key, value in unicode_dict.iteritems()])
+
+        index = 0
+        for instance_count in range(1, 6):
+            with Clique(instance_count) as clique:
+                for lhs_arg in ("\"//tmp/t1\"", "(select * from \"//tmp/t1\")"):
+                    for rhs_arg in ("\"//tmp/t2\"", "(select * from \"//tmp/t2\")"):
+                        for globalness in ("", "global"):
+                            for kind in ("inner", "left", "right", "full"):
+                                # TODO(max42): CHYT-182.
+                                if (globalness == "global" or rhs_arg == "(select * from \"//tmp/t2\")") and kind in ("right", "full"):
+                                    continue
+                                query = \
+                                    "select key, lhs, rhs from {lhs_arg} {globalness} {kind} join {rhs_arg} " \
+                                    "using key order by key, lhs, rhs nulls first".format(**locals())
+                                result = list(imap(sanitize_dict, clique.make_query(query, verbose=False)))
+
+                                expected = expected_results[kind]
+                                print_debug("Query #{}: '{}' produced {} rows, expected {} rows".format(index, query, len(result), len(expected)))
+                                index += 1
+                                result = list(imap(str, result))
+                                expected = list(imap(str, expected))
+                                if result != expected:
+                                    print_debug("Produced:")
+                                    for row in result:
+                                        char = "+" if row not in expected else " "
+                                        print_debug(char + " " + row)
+                                    print_debug("Expected:")
+                                    for row in expected:
+                                        char = "-" if row not in result else " "
+                                        print_debug(char + " " + row)
+                                    assert False
 
 class TestHttpProxy(ClickHouseTestBase):
     def setup(self):
