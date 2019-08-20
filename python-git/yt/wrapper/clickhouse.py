@@ -174,7 +174,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
         },
         "tasks": {
             "instances": {
-                "user_job_memory_digest_lower_bound": 1.0
+                "user_job_memory_digest_lower_bound": 1.0,
+                "restart_completed_jobs": True,
             }
         },
     }
@@ -265,6 +266,9 @@ def prepare_clickhouse_config(instance_count,
         },
         "profile_manager": {
             "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},
+        },
+        "discovery": {
+            "directory": "//sys/clickhouse/cliques",
         },
     }
 
