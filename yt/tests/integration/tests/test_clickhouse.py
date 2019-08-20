@@ -1320,6 +1320,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]
 
     @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_sorted_join_simple(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
@@ -1349,6 +1350,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
 
     @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_sorted_join_stress(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
