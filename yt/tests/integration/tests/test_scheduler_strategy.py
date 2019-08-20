@@ -745,6 +745,13 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     @authors("mrkastep")
     def test_ignoring_tentative_pool_operation_limit(self):
+        nodes = ls("//sys/cluster_nodes")
+        for normal_node in nodes[:2]:
+            set("//sys/cluster_nodes/{0}/@user_tags".format(normal_node), ["normal"])
+        for tentative_node in nodes[2:]:
+            set("//sys/cluster_nodes/{0}/@user_tags".format(tentative_node), ["tentative"])
+
+        set("//sys/pool_trees/default/@nodes_filter", "!(normal|tentative)")
         create("map_node", "//sys/pool_trees/normal", attributes={"nodes_filter": "normal"})
         create("map_node", "//sys/pool_trees/normal/pool", attributes={"max_operation_count": 5})
         create("map_node", "//sys/pool_trees/tentative", attributes={"nodes_filter": "tentative"})
@@ -798,6 +805,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         for op in ops:
             op.abort()
+
+        set("//sys/pool_trees/default/@nodes_filter", "")
 
 
     @authors("ignat")
