@@ -165,6 +165,7 @@ public:
             BannedPeerTracker_.AddPeer(cell, peerId, node);
             PeerTracker_.RemovePeer(cell, peerId, node);
             if (auto it = NodeToIndex_.find(node)) {
+                MoveNodeToFreedListIfNotFilled(&Nodes_[it->second]);
                 Nodes_[it->second].RemoveCell(cell);
             }
         }
@@ -307,7 +308,7 @@ private:
     TPeerTracker PeerTracker_;
     TPeerTracker BannedPeerTracker_;
     THashMap<const TTabletCellBundle*, std::vector<int>> FreeNodes_;
-    THashMap<const TTabletCellBundle*, std::vector<int>> FilledNodes_;
+    THashMap<const TTabletCellBundle*, THashSet<int>> FilledNodes_;
 
     std::vector<TTabletCellMoveDescriptor> TabletCellMoveDescriptors_;
 
@@ -338,14 +339,16 @@ private:
             const auto& node = Nodes_[nodeIndex];
             NodeToIndex_[node.GetNode()] = nodeIndex;
 
-            if (node.GetTotalSlots() > node.GetSlots().size()) {
-                for (const auto& pair : Provider_->TabletCellBundles()) {
-                    const auto* bundle = pair.second;
-                    if (!IsObjectAlive(bundle)) {
-                        continue;
-                    }
-                    if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
-                        FreeNodes_[pair.second].push_back(nodeIndex);
+            for (const auto& pair : Provider_->TabletCellBundles()) {
+                const auto* bundle = pair.second;
+                if (!IsObjectAlive(bundle)) {
+                    continue;
+                }
+                if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
+                    if (node.GetTotalSlots() > node.GetSlots().size()) {
+                        FreeNodes_[bundle].push_back(nodeIndex);
+                    } else {
+                        FilledNodes_[bundle].insert(nodeIndex);
                     }
                 }
             }
@@ -400,7 +403,9 @@ private:
             if (node->GetTotalSlots() == node->GetSlots().size()) {
                 std::swap(queue[index], queue.back());
                 queue.pop_back();
-                FilledNodes_[bundle].push_back(nodeIndex);
+                YT_ASSERT(!FilledNodes_[bundle].contains(nodeIndex));
+                FilledNodes_[bundle].insert(nodeIndex);
+                --index;
             } else if (!NodeInPeers(cell, node)) {
                 return node;
             } else {
@@ -470,6 +475,7 @@ private:
 
     void MoveCell(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode)
     {
+        MoveNodeToFreedListIfNotFilled(srcNode);
         auto srcCell = srcNode->ExtractCell(srcIndex);
         dstNode->InsertCell(srcCell);
         // TODO(savrus) use peerId form ExtractCell.
@@ -488,6 +494,34 @@ private:
         int dstPeerId = PeerTracker_.MoveCell(dstCell.first, dstNode->GetNode(), srcNode->GetNode());
         TabletCellMoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
         TabletCellMoveDescriptors_.emplace_back(dstCell.first, dstPeerId, dstNode->GetNode(), srcNode->GetNode());
+    }
+
+    void MoveNodeToFreedListIfNotFilled(TNodeHolder* node)
+    {
+        /* This function is called from MoveCell and RevokePeer to process the situation
+         * when node stops being filled, so it can be added to vector of FreeNodes of possibly hosted bundles.
+         * In other cases when exchange is done it swaps real nodes, so filled nodes remain filled.
+         * There is no need to update nodes from free to filled, because it is done lazily upon peer assigning.
+         */
+
+        if (node->GetTotalSlots() != node->GetSlots().size()) {
+            return;
+        }
+
+        auto nodeIndex = NodeToIndex_[node->GetNode()];
+        for (const auto& pair : Provider_->TabletCellBundles()) {
+            const auto* bundle = pair.second;
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+            if (Provider_->IsPossibleHost(node->GetNode(), bundle)) {
+                if (FilledNodes_[bundle].contains(nodeIndex)) {
+                    FilledNodes_[bundle].erase(nodeIndex);
+                    YT_ASSERT(std::find(FreeNodes_[bundle].begin(), FreeNodes_[bundle].end(), nodeIndex) == FreeNodes_[bundle].end());
+                    FreeNodes_[bundle].emplace_back(nodeIndex);
+                }
+            }
+        }
     }
 
     bool NodeInPeers(const TTabletCell* cell, const TNodeHolder* node)

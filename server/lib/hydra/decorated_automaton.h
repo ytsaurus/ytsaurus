@@ -15,6 +15,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/async_batcher.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -142,6 +143,8 @@ public:
 
     EPeerState GetState() const;
 
+    TEpochContextPtr GetEpochContext();
+
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
@@ -186,6 +189,11 @@ public:
 
     bool HasReadyMutations() const;
 
+    void RotateAutomatonVersionAfterRecovery();
+
+    TReign GetCurrentReign() const;
+    EFinalRecoveryAction GetFinalRecoveryAction() const;
+
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -210,7 +218,9 @@ private:
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
+    NConcurrency::TReaderWriterSpinLock EpochContextLock_;
     TEpochContextPtr EpochContext_;
+
     IChangelogPtr Changelog_;
 
     int RecoveryRecordCount_ = 0;

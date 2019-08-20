@@ -50,6 +50,9 @@ public:
     // Users should use ValidateLogicalType function.
     virtual void ValidateNode() const = 0;
 
+    // Whether or not element might be null.
+    virtual bool IsNullable() const = 0;
+
 private:
     const ELogicalMetatype Metatype_;
 };
@@ -74,7 +77,7 @@ bool IsSubtypeOf(const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs);
 // Function converts new type to old typesystem if possible.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType
 // if logicalType is either T or optional<T> and T is simple. Otherwise the first element of result is nullopt.
-// The second element of resut is false if logicalType is optional<A> where A is any type otherwise it's true.
+// The second element of resut is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType);
 
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType);
@@ -95,12 +98,17 @@ public:
 
     std::optional<ESimpleLogicalValueType> Simplify() const;
 
+    // Cached value of GetElement()->IsNullable(), useful for performance reasons.
+    bool IsElementNullable() const;
+
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
 
 private:
     const TLogicalTypePtr Element_;
+    const bool ElementIsNullable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +124,7 @@ public:
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -134,6 +143,7 @@ public:
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
 
 private:
     TLogicalTypePtr Element_;
@@ -189,6 +199,7 @@ public:
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
 
 private:
     std::vector<TStructField> Fields_;
@@ -207,6 +218,7 @@ public:
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
     virtual void ValidateNode() const override;
+    virtual bool IsNullable() const override;
 
 private:
     std::vector<TLogicalTypePtr> Elements_;
@@ -254,14 +266,19 @@ extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required = true);
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
-TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements);
 TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+
+// Creates logical type from legacy schema fields.
+TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType type, bool required);
+
+TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,6 +10,7 @@
 #include <yt/core/codegen/module.h>
 #include <yt/core/codegen/llvm_migrate_helpers.h>
 #include <yt/core/codegen/routine_registry.h>
+#include <yt/core/codegen/type_builder.h>
 
 #include <mutex>
 
@@ -19,7 +20,6 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Type.h>
-#include <llvm/IR/TypeBuilder.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +171,7 @@ public:
         , NullKeyMask_(nullKeyMask)
     {
         YT_VERIFY(nullKeyMask->getType() == Type::getInt32Ty(Builder_.Context_));
-        YT_VERIFY((keyPtr->getType() == TypeBuilder<TDynamicValueData*, false>::get(Builder_.Context_)));
+        YT_VERIFY((keyPtr->getType() == TTypeBuilder<TDynamicValueData*>::Get(Builder_.Context_)));
     }
 
     Value* GetType(int index) override
@@ -180,7 +180,7 @@ public:
         auto* nullKeyBit = Builder_.CreateAnd(
             Builder_.getInt32(1U << index),
             NullKeyMask_);
-        const auto& type = TypeBuilder<TUnversionedValue, false>::TType::get(Builder_.getContext());
+        const auto& type = TTypeBuilder<TUnversionedValue>::TType::Get(Builder_.getContext());
         auto* nullType = ConstantInt::get(type, static_cast<int>(EValueType::Null));
         auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.Schema_.Columns()[index].GetPhysicalType()));
         return Builder_.CreateSelect(
@@ -193,7 +193,7 @@ public:
     {
         return GetElement(
             index,
-            TypeBuilder<TDynamicValueData, false>::Fields::Any,
+            TTypeBuilder<TDynamicValueData>::Fields::Any,
             GetDynamicValueDataType(type));
     }
 
@@ -203,7 +203,7 @@ public:
             nullptr,
             GetStringPtr(index),
             0,
-            TypeBuilder<TDynamicString, false>::Fields::Data);
+            TTypeBuilder<TDynamicString>::Fields::Data);
     }
 
     Value* GetStringLength(int index) override
@@ -213,7 +213,7 @@ public:
                 nullptr,
                 GetStringPtr(index),
                 0,
-                TypeBuilder<TDynamicString, false>::Fields::Length));
+                TTypeBuilder<TDynamicString>::Fields::Length));
     }
 
 private:
@@ -221,7 +221,7 @@ private:
     {
         return GetElement(
             index,
-            TypeBuilder<TDynamicValueData, false>::Fields::String,
+            TTypeBuilder<TDynamicValueData>::Fields::String,
             GetDynamicValueDataType(EValueType::String));
     }
 
@@ -229,15 +229,15 @@ private:
     {
         switch(type) {
             case EValueType::Int64:
-                return TypeBuilder<TDynamicValueData, false>::TInt64::get(Builder_.Context_);
+                return TTypeBuilder<TDynamicValueData>::TInt64::Get(Builder_.Context_);
             case EValueType::Uint64:
-                return TypeBuilder<TDynamicValueData, false>::TUint64::get(Builder_.Context_);
+                return TTypeBuilder<TDynamicValueData>::TUint64::Get(Builder_.Context_);
             case EValueType::Boolean:
-                return TypeBuilder<TDynamicValueData, false>::TBoolean::get(Builder_.Context_);
+                return TTypeBuilder<TDynamicValueData>::TBoolean::Get(Builder_.Context_);
             case EValueType::Double:
-                return TypeBuilder<TDynamicValueData, false>::TDouble::get(Builder_.Context_);
+                return TTypeBuilder<TDynamicValueData>::TDouble::Get(Builder_.Context_);
             case EValueType::String:
-                return TypeBuilder<TDynamicValueData, false>::TStringType::get(Builder_.Context_);
+                return TTypeBuilder<TDynamicValueData>::TStringType::Get(Builder_.Context_);
             default:
                 YT_ABORT();
         }
@@ -258,14 +258,14 @@ public:
     TUnversionedValueBuilder(TComparerBuilder& builder, Value* keyPtr)
         : TValueBuilderBase(builder, keyPtr)
     {
-        YT_VERIFY((keyPtr->getType() == TypeBuilder<TUnversionedValue*, false>::get(Builder_.Context_)));
+        YT_VERIFY((keyPtr->getType() == TTypeBuilder<TUnversionedValue*>::Get(Builder_.Context_)));
     }
 
     Value* GetType(int index) override
     {
         return GetElement(
             index,
-            TypeBuilder<TUnversionedValue, false>::Fields::Type);
+            TTypeBuilder<TUnversionedValue>::Fields::Type);
     }
 
     Value* GetData(int index, EValueType type) override
@@ -282,7 +282,7 @@ public:
     {
         return GetElement(
             index,
-            TypeBuilder<TUnversionedValue, false>::Fields::Length);
+            TTypeBuilder<TUnversionedValue>::Fields::Length);
     }
 
 private:
@@ -291,7 +291,7 @@ private:
         return LoadElement(
             GetElementPtr(
                 index,
-                TypeBuilder<TUnversionedValue, false>::Fields::Data),
+                TTypeBuilder<TUnversionedValue>::Fields::Data),
             type);
     }
 
@@ -299,15 +299,15 @@ private:
     {
         switch(type) {
             case EValueType::Int64:
-                return TypeBuilder<TUnversionedValueData, false>::TInt64::get(Builder_.Context_);
+                return TTypeBuilder<TUnversionedValueData>::TInt64::Get(Builder_.Context_);
             case EValueType::Uint64:
-                return TypeBuilder<TUnversionedValueData, false>::TUint64::get(Builder_.Context_);
+                return TTypeBuilder<TUnversionedValueData>::TUint64::Get(Builder_.Context_);
             case EValueType::Boolean:
-                return TypeBuilder<TUnversionedValueData, false>::TBoolean::get(Builder_.Context_);
+                return TTypeBuilder<TUnversionedValueData>::TBoolean::Get(Builder_.Context_);
             case EValueType::Double:
-                return TypeBuilder<TUnversionedValueData, false>::TDouble::get(Builder_.Context_);
+                return TTypeBuilder<TUnversionedValueData>::TDouble::Get(Builder_.Context_);
             case EValueType::String:
-                return TypeBuilder<TUnversionedValueData, false>::TStringType::get(Builder_.Context_);
+                return TTypeBuilder<TUnversionedValueData>::TStringType::Get(Builder_.Context_);
             default:
                 YT_ABORT();
         }
@@ -333,7 +333,7 @@ TComparerBuilder::TComparerBuilder(
 void TComparerBuilder::BuildDDComparer(TString& functionName)
 {
     Function_ = Function::Create(
-        TypeBuilder<TDDComparerSignature, false>::get(Context_),
+        TTypeBuilder<TDDComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
         functionName.c_str(),
         Module_->GetModule());
@@ -353,7 +353,7 @@ void TComparerBuilder::BuildDDComparer(TString& functionName)
 void TComparerBuilder::BuildDUComparer(TString& functionName)
 {
     Function_ = Function::Create(
-        TypeBuilder<TDUComparerSignature, false>::get(Context_),
+        TTypeBuilder<TDUComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
         functionName.c_str(),
         Module_->GetModule());
@@ -374,7 +374,7 @@ void TComparerBuilder::BuildDUComparer(TString& functionName)
 void TComparerBuilder::BuildUUComparer(TString& functionName)
 {
     Function_ = Function::Create(
-        TypeBuilder<TUUComparerSignature, false>::get(Context_),
+        TTypeBuilder<TUUComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
         functionName.c_str(),
         Module_->GetModule());

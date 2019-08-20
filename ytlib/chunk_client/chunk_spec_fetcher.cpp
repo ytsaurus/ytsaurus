@@ -48,12 +48,13 @@ TChunkSpecFetcher::TChunkSpecFetcher(
 { }
 
 void TChunkSpecFetcher::Add(
-    const TYPath& path,
-    TCellTag cellTag,
+    TObjectId objectId,
+    TCellTag externalCellTag,
     i64 chunkCount,
+    int tableIndex,
     const std::vector<TReadRange>& ranges)
 {
-    auto& state = GetCellState(cellTag);
+    auto& state = GetCellState(externalCellTag);
 
     auto oldReqCount = state.ReqCount;
 
@@ -72,27 +73,25 @@ void TChunkSpecFetcher::Add(
             }
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
-            auto req = TChunkOwnerYPathProxy::Fetch(path);
-            // XXX(babenko): AddCellTagToSyncWith(req, )
+            auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
+            AddCellTagToSyncWith(req, objectId);
             InitializeFetchRequest_(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
             state.RangeIndices.push_back(rangeIndex);
-            state.TableIndices.push_back(TableIndex_);
+            state.TableIndices.push_back(tableIndex);
         }
     }
 
-    YT_LOG_DEBUG("Table added for chunk spec fetching (Path: %v, CellTag: %v, ChunkCount: %v, RangeCount: %v, "
+    YT_LOG_DEBUG("Table added for chunk spec fetching (ObjectId: %v, ExternalCellTag: %v, ChunkCount: %v, RangeCount: %v, "
         "TableIndex: %v, ReqCount: %v)",
-        path,
-        cellTag,
+        objectId,
+        externalCellTag,
         chunkCount,
         ranges.size(),
-        TableIndex_,
+        tableIndex,
         state.ReqCount - oldReqCount);
-
-    ++TableIndex_;
 }
 
 TChunkSpecFetcher::TCellState& TChunkSpecFetcher::GetCellState(TCellTag cellTag)

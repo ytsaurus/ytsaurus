@@ -2706,7 +2706,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             blockCache,
             chunkSpec,
             nullptr,
-            NullTimestamp,
+            chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
             nullptr,
             performanceCounters,
             nullptr);

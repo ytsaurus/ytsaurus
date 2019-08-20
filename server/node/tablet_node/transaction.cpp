@@ -56,9 +56,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, TabletId);
     Load(context, Data);
     Load(context, RowCount);
-    if (context.GetVersion() >= 100006) {
-        Load(context, DataWeight);
-    }
+    Load(context, DataWeight);
     Load(context, SyncReplicaIds);
 }
 

@@ -59,7 +59,7 @@ namespace NYT::NYTree {
 // procedures.
 //
 // An important notation: we will refer to a function whose first argument
-// is either TFluentXxx or raw IYsonConsumer* as TFuncXxx.
+// is TFluentXxx as TFuncXxx.
 //
 //
 // BRIEF LIST OF AVAILABLE METHODS

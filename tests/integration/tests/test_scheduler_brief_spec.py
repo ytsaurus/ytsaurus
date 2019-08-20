@@ -34,6 +34,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    @authors("acid", "babenko", "ignat")
     def test_map(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -41,6 +42,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["mapper", "input_table_path", "output_table_path"])
 
+    @authors("babenko", "klyachin")
     def test_sort(self):
         create("table", "//tmp/t1")
 
@@ -51,6 +53,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["input_table_path", "output_table_path_1"])
 
+    @authors("ignat", "klyachin")
     def test_reduce(self):
         create("table", "//tmp/t1")
         write_table(
@@ -67,6 +70,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["reducer", "input_table_path", "output_table_path"])
 
+    @authors("klyachin")
     def test_join_reduce(self):
         create("table", "//tmp/t1")
         write_table(
@@ -90,6 +94,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["reducer", "input_table_path", "output_table_path"])
 
+    @authors("klyachin")
     def test_map_reduce(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -103,6 +108,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
+    @authors("klyachin")
     def test_merge(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -115,6 +121,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         check_attributes(op, ["input_table_path", "output_table_path_1"])
 
+    @authors("babenko")
     def test_erase(self):
         create("table", "//tmp/t1")
 

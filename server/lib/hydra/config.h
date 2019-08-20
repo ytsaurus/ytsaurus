@@ -176,8 +176,50 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
+class TSnapshotKeeperConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> MaxSnapshotCountToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
+
+    TSnapshotKeeperConfig()
+    {
+        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
+            .GreaterThanOrEqual(0)
+            .Default(10);
+        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotKeeperConfig)
+
+class TLocalSnapshotJanitorConfig
+    : public TSnapshotKeeperConfig
+{
+public:
+    TDuration CleanupPeriod;
+
+    NHydra::TFileChangelogStoreConfigPtr Changelogs;
+    NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
+
+    TLocalSnapshotJanitorConfig()
+    {
+        RegisterParameter("cleanup_period", CleanupPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("changelogs", Changelogs);
+        RegisterParameter("snapshots", Snapshots);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocalSnapshotJanitorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDistributedHydraManagerConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Timeout for various control RPC requests.

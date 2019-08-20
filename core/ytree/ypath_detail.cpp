@@ -126,7 +126,7 @@ bool TYPathServiceBase::ShouldHideAttributes()
 #define IMPLEMENT_SUPPORTS_VERB_RESOLVE(method, onPathError) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
-        NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader())); \
+        NYPath::TTokenizer tokenizer(GetRequestTargetYPath(context->RequestHeader())); \
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) { \
             method##Self(request, response, context); \
             return; \
@@ -235,7 +235,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultiset, Multiset)
 {
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
-    NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader()));
+    NYPath::TTokenizer tokenizer(GetRequestTargetYPath(context->RequestHeader()));
 
     // NOTE(asaitgalin): Not tokenizing keys in subrequests intentionally, key a/b/c will be treated
     // as the whole key, not path.
@@ -1318,7 +1318,7 @@ protected:
         builder.AppendFormat("%v:%v %v <- ",
             GetService(),
             GetMethod(),
-            ypathExt.path());
+            ypathExt.target_path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
@@ -1357,7 +1357,7 @@ protected:
         builder.AppendFormat("%v:%v %v -> ",
             GetService(),
             GetMethod(),
-            ypathExt.path());
+            ypathExt.target_path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 

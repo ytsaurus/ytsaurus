@@ -21,6 +21,8 @@ struct TSortedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
     TString Task;
+    //! External row buffer, if it is available.
+    NTableClient::TRowBufferPtr RowBuffer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +35,9 @@ struct IChunkSliceFetcherFactory
 
     virtual void Persist(const TPersistenceContext& context) = 0;
 };
+
+IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
+    TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -17,22 +18,23 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Fetch data slices for given input tables and fill given subquery spec template.
-std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
+NChunkPools::TChunkStripeListPtr FetchInput(
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<NYPath::TRichYPath> inputTablePaths,
-    const DB::KeyCondition* keyCondition,
+    std::vector<NTableClient::TTableSchema> tableSchemas,
+    std::vector<std::vector<NYPath::TRichYPath>> inputTablePaths,
+    std::vector<std::optional<DB::KeyCondition>> keyConditions,
     NTableClient::TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);
 
-NChunkPools::TChunkStripeListPtr BuildThreadStripes(
-    const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
+std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+    const NChunkPools::TChunkStripeListPtr& inputStripeList,
+    std::optional<int> keyColumnCount,
+    EPoolKind poolKind,
     int jobCount,
     std::optional<double> samplingRate,
-    TQueryId queryId);
-
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
+    const DB::Context& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

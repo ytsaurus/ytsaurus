@@ -645,6 +645,8 @@ public:
     //! This option should not be used outside tests.
     bool ForceCoreDump;
 
+    std::optional<TString> InterruptionSignal;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

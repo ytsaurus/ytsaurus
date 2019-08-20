@@ -130,6 +130,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 #include <yt/core/misc/collection_helpers.h>
 
@@ -199,6 +200,34 @@ TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrder
     key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], Index.IdHi);
     key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], Index.IdLo);
     return key;
+}
+
+TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonString& archiveProgress)
+{
+    auto getBuildTime = [&] (const TYsonString& progress) {
+        if (!progress) {
+            return TInstant();
+        }
+        auto maybeTimeString = NYTree::TryGetString(progress.GetData(), "/build_time");
+        if (!maybeTimeString) {
+            return TInstant();
+        }
+        return ConvertTo<TInstant>(*maybeTimeString);
+    };
+
+    return getBuildTime(cypressProgress) > getBuildTime(archiveProgress)
+        ? cypressProgress
+        : archiveProgress;
+}
+
+TYsonString GetValueIgnoringTimeout(const TErrorOr<TYsonString>& resultOrError)
+{
+    if (resultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+        resultOrError.ThrowOnError();
+    }
+    return resultOrError.IsOK()
+        ? resultOrError.Value()
+        : TYsonString();
 }
 
 constexpr int FileCacheHashDigitCount = 2;
@@ -367,10 +396,6 @@ public:
         };
 
         auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
-            // NB: Caching is only possible for the primary master.
-            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag()) {
-                return;
-            }
             MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
         };
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
@@ -923,12 +948,12 @@ private:
     {
         auto promise = NewPromise<T>();
         ConcurrentRequestsSemaphore_->AsyncAcquire(
-            BIND([commandName, promise, callback = std::move(callback), this_ = MakeWeak(this)] (TAsyncSemaphoreGuard /*guard*/) mutable {
-                auto client = this_.Lock();
-                if (!client) {
-                    return;
-                }
-
+            BIND([
+                commandName,
+                promise,
+                callback = std::move(callback),
+                Logger = Logger
+            ] (TAsyncSemaphoreGuard /*guard*/) mutable {
                 if (promise.IsCanceled()) {
                     return;
                 }
@@ -938,7 +963,6 @@ private:
                     promise.OnCanceled(std::move(canceler));
                 }
 
-                const auto& Logger = client->Logger;
                 try {
                     YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
@@ -1677,6 +1701,10 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
     {
+        if (options.EnablePartialResult && options.KeepMissingRows) {
+            THROW_ERROR_EXCEPTION("Options \"enable_partial_result\" and \"keep_missing_rows\" cannot be used together");
+        }
+
         const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
@@ -1862,6 +1890,7 @@ private:
                 req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
                 req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
                 req->set_timestamp(options.Timestamp);
+                req->set_enable_partial_result(options.EnablePartialResult);
 
                 if (inMemory && *inMemory) {
                     req->Header().set_uncancelable(true);
@@ -1880,18 +1909,29 @@ private:
                 asyncResults[cellIndex] = req->Invoke();
             }
 
-            auto results = WaitFor(Combine(std::move(asyncResults)))
+            auto results = WaitFor(CombineAll(std::move(asyncResults)))
                 .ValueOrThrow();
 
-            uniqueResultRows.resize(currentResultIndex);
+            uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
 
             auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
 
             for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+                if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
+                    continue;
+                }
+
                 const auto& batches = batchesByCells[cellIndex];
+                const auto& result = results[cellIndex].ValueOrThrow();
 
                 for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
-                    auto responseData = responseCodec->Decompress(results[cellIndex]->Attachments()[batchIndex]);
+                    const auto& attachment = result->Attachments()[batchIndex];
+
+                    if (options.EnablePartialResult && attachment.Empty()) {
+                        continue;
+                    }
+
+                    auto responseData = responseCodec->Decompress(result->Attachments()[batchIndex]);
                     TWireProtocolReader reader(responseData, outputRowBuffer);
 
                     const auto& batch = batches[batchIndex];
@@ -1967,7 +2007,7 @@ private:
             resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
-        if (!options.KeepMissingRows) {
+        if (!options.KeepMissingRows && !options.EnablePartialResult) {
             resultRows.erase(
                 std::remove_if(
                     resultRows.begin(),
@@ -2241,7 +2281,7 @@ private:
             this,
             Logger);
 
-        for (const auto &path : paths) {
+        for (const auto& path : paths) {
             YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
             auto transactionId = path.GetTransactionId();
@@ -2699,7 +2739,7 @@ private:
         }
 
         auto bundle = attributes->Get<TString>("tablet_cell_bundle");
-        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Write);
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
 
         auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
         SetMutationId(req, options);
@@ -2794,7 +2834,7 @@ private:
         const std::vector<TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options)
     {
-        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Write);
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Use);
 
         std::vector<TFuture<TTabletCellBundleYPathProxy::TRspBalanceTabletCellsPtr>> cellResponses;
 
@@ -3095,7 +3135,10 @@ private:
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
+        // COMPAT(babenko)
         req->set_source_path(srcPath);
+        auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ypathExt->add_additional_paths(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_preserve_creation_time(options.PreserveCreationTime);
@@ -3124,7 +3167,10 @@ private:
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
+        // COMPAT(babenko)
         req->set_source_path(srcPath);
+        auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ypathExt->add_additional_paths(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_remove_source(true);
@@ -4526,21 +4572,32 @@ private:
         auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
             .ValueOrThrow();
 
-        auto cypressResult = cypressFuture.Get().ValueOrThrow();
-        auto archiveResult = archiveFuture.Get().ValueOrThrow();
+        auto cypressResult = GetValueIgnoringTimeout(cypressFuture.Get());
+        auto archiveResult = GetValueIgnoringTimeout(archiveFuture.Get());
 
         if (archiveResult && cypressResult) {
             // Merging goes here.
             auto cypressNode = ConvertToNode(cypressResult)->AsMap();
-            auto archiveNode = ConvertToNode(archiveResult)->AsMap();
 
             std::vector<TString> fieldNames = {"brief_progress", "progress"};
             for (const auto& fieldName : fieldNames) {
-                auto archiveField = archiveNode->FindChild(fieldName);
-                if (archiveField) {
-                    cypressNode->RemoveChild(fieldName);
-                    archiveNode->RemoveChild(fieldName);
-                    cypressNode->AddChild(fieldName, archiveField);
+                auto cypressFieldNode = cypressNode->FindChild(fieldName);
+                cypressNode->RemoveChild(fieldName);
+
+                auto archiveFieldString = NYTree::TryGetAny(archiveResult.GetData(), "/" + fieldName);
+
+                TYsonString archiveFieldYsonString;
+                if (archiveFieldString) {
+                    archiveFieldYsonString = TYsonString(*archiveFieldString);
+                }
+
+                TYsonString cypressFieldYsonString;
+                if (cypressFieldNode) {
+                    cypressFieldYsonString = ConvertToYsonString(cypressFieldNode);
+                }
+
+                if (auto result = GetLatestProgress(cypressFieldYsonString, archiveFieldYsonString)) {
+                    cypressNode->AddChild(fieldName, ConvertToNode(result));
                 }
             }
             return ConvertToYsonString(cypressNode);
@@ -4552,7 +4609,9 @@ private:
             THROW_ERROR_EXCEPTION(
                 NApi::EErrorCode::NoSuchOperation,
                 "No such operation %v",
-                operationId);
+                operationId)
+                << cypressFuture.Get()
+                << archiveFuture.Get();
         }
     }
 
@@ -5639,18 +5698,6 @@ private:
                     continue;
                 }
 
-                if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
-                    continue;
-                }
-
-                if (options.CursorTime) {
-                    if (options.CursorDirection == EOperationSortDirection::Past && *operation.StartTime >= *options.CursorTime) {
-                        continue;
-                    } else if (options.CursorDirection == EOperationSortDirection::Future && *operation.StartTime <= *options.CursorTime) {
-                        continue;
-                    }
-                }
-
                 if (areAllRequestedAttributesLight) {
                     filteredOperations.push_back(CreateOperationFromNode(operationNode, requestedAttributes));
                 } else {
@@ -5658,6 +5705,67 @@ private:
                 }
             }
         }
+
+        // Lookup all operations with certain ids, add their brief progress.
+        if (DoesOperationsArchiveExist()) {
+            std::vector<TUnversionedRow> keys;
+
+            TOrderedByIdTableDescriptor tableDescriptor;
+            auto rowBuffer = New<TRowBuffer>();
+            for (const auto& operation : filteredOperations) {
+                keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
+            }
+
+            std::vector<int> columnIndexes = {tableDescriptor.NameTable->GetIdOrThrow("brief_progress")};
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+            lookupOptions.Timeout = options.ArchiveFetchingTimeout;
+            lookupOptions.KeepMissingRows = true;
+            auto rowsetOrError = WaitFor(LookupRows(
+                GetOperationsArchiveOrderedByIdPath(),
+                tableDescriptor.NameTable,
+                MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+                lookupOptions));
+
+            if (!rowsetOrError.IsOK()) {
+                YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
+            } else {
+                const auto& rows = rowsetOrError.Value()->GetRows();
+
+                for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+                    const auto& row = rows[rowIndex];
+                    if (!row) {
+                        continue;
+                    }
+
+                    auto& operation = filteredOperations[rowIndex];
+                    if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
+                        auto briefProgressValue = row[*briefProgressPosition];
+                        if (briefProgressValue.Type != EValueType::Null) {
+                            auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
+                        }
+                    }
+                }
+            }
+        }
+
+        auto shouldRemove = [&] (const TOperation& operation) {
+            if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
+                return true;
+            }
+            return options.CursorTime &&
+                ((options.CursorDirection == EOperationSortDirection::Past && *operation.StartTime >= *options.CursorTime) ||
+                (options.CursorDirection == EOperationSortDirection::Future && *operation.StartTime <= *options.CursorTime));
+        };
+
+        filteredOperations.erase(
+            std::remove_if(
+                filteredOperations.begin(),
+                filteredOperations.end(),
+                shouldRemove),
+            filteredOperations.end());
 
         // Retain more operations than limit to track (in)completeness of the response.
         auto operationsToRetain = options.Limit + 1;
@@ -6131,7 +6239,7 @@ private:
         }
 
         // Fetching progress for operations with mentioned ids.
-        if (DoesOperationsArchiveExist() && !options.IncludeArchive) {
+        if (DoesOperationsArchiveExist()) {
             std::vector<TUnversionedRow> keys;
 
             TOrderedByIdTableDescriptor tableDescriptor;
@@ -6163,8 +6271,7 @@ private:
                 GetOperationsArchiveOrderedByIdPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-                lookupOptions)
-                .WithTimeout(options.ArchiveFetchingTimeout));
+                lookupOptions));
 
             if (!rowsetOrError.IsOK()) {
                 YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
@@ -6181,13 +6288,15 @@ private:
                     if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
                         auto briefProgressValue = row[*briefProgressPosition];
                         if (briefProgressValue.Type != EValueType::Null) {
-                            operation.BriefProgress = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
+                            operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
                         }
                     }
                     if (auto progressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.Progress)) {
                         auto progressValue = row[*progressPosition];
                         if (progressValue.Type != EValueType::Null) {
-                            operation.Progress = FromUnversionedValue<TYsonString>(progressValue);
+                            auto progressYsonString = FromUnversionedValue<TYsonString>(progressValue);
+                            operation.Progress = GetLatestProgress(operation.Progress, progressYsonString);
                         }
                     }
                 }

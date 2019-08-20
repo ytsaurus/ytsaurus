@@ -13,6 +13,7 @@
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -79,26 +80,8 @@ struct TInputTable
     int ChunkCount = 0;
     bool IsDynamic = false;
     TTableSchema Schema;
+    int TableIndex = 0;
 };
-
-TString GetDataSliceStatisticsDebugString(const std::vector<TInputDataSlicePtr>& dataSlices)
-{
-    i64 dataSliceCount = 0;
-    i64 totalRowCount = 0;
-    i64 totalDataWeight = 0;
-    i64 totalCompressedDataSize = 0;
-    for (const auto& dataSlice : dataSlices) {
-        ++dataSliceCount;
-        totalRowCount += dataSlice->GetRowCount();
-        totalDataWeight += dataSlice->GetDataWeight();
-        totalCompressedDataSize += dataSlice->GetSingleUnversionedChunkOrThrow()->GetCompressedDataSize();
-    }
-    return Format("{DataSliceCount: %v, TotalRowCount: %v, TotalDataWeight: %v, TotalCompressedDataSize: %v}",
-        dataSliceCount,
-        totalRowCount,
-        totalDataWeight,
-        totalCompressedDataSize);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,20 +93,22 @@ public:
     // TODO(max42): use from bootstrap?
     DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
     DEFINE_BYREF_RW_PROPERTY(TNodeDirectoryPtr, NodeDirectory, New<TNodeDirectory>());
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TInputDataSlicePtr>, DataSlices);
+    DEFINE_BYREF_RW_PROPERTY(TChunkStripeListPtr, ResultStripeList, New<TChunkStripeList>());
 
 public:
     TDataSliceFetcher(
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        std::vector<TRichYPath> inputTablePaths,
-        const KeyCondition* keyCondition,
+        std::vector<TTableSchema> tableSchemas,
+        std::vector<std::vector<TRichYPath>> inputTablePaths,
+        std::vector<std::optional<KeyCondition>> keyConditions,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
         : Client_(std::move(client))
         , Invoker_(std::move(invoker))
+        , TableSchemas_(std::move(tableSchemas))
         , InputTablePaths_(std::move(inputTablePaths))
-        , KeyCondition_(keyCondition)
+        , KeyConditions_(std::move(keyConditions))
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
     {}
@@ -142,8 +127,9 @@ private:
 
     IInvokerPtr Invoker_;
 
-    std::vector<TRichYPath> InputTablePaths_;
-    const KeyCondition* KeyCondition_;
+    std::vector<TTableSchema> TableSchemas_;
+    std::vector<std::vector<TRichYPath>> InputTablePaths_;
+    std::vector<std::optional<KeyCondition>> KeyConditions_;
 
     int KeyColumnCount_ = 0;
     TKeyColumns KeyColumns_;
@@ -151,8 +137,6 @@ private:
     DataTypes KeyColumnDataTypes_;
 
     std::vector<TInputTable> InputTables_;
-
-    std::vector<TInputChunkPtr> PartiallyNeededChunks_;
 
     TRowBufferPtr RowBuffer_;
 
@@ -165,25 +149,26 @@ private:
         CollectTablesAttributes();
         ValidateSchema();
         FetchChunks();
-        if (KeyCondition_) {
-            FilterChunks();
-            YT_LOG_INFO("Input chunks filtered (FinalDataSliceCount: %v, PartiallyNeededChunkCount: %v)",
-                DataSlices_.size(),
-                PartiallyNeededChunks_.size());
-            if (!PartiallyNeededChunks_.empty() &&
-                static_cast<int>(PartiallyNeededChunks_.size()) < Config_->MaxSlicedChunkCount)
+
+        std::vector<TChunkStripePtr> stripes;
+        for (int index = 0; index < static_cast<int>(InputTablePaths_.size()); ++index) {
+            stripes.emplace_back(New<TChunkStripe>());
+        }
+        for (const auto& chunk : InputChunks_) {
+            if (!chunk->BoundaryKeys() ||
+                GetRangeMask(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, chunk->GetTableIndex()).can_be_true)
             {
-                FilterChunkSlices();
-            } else {
-                for (const auto& chunk : PartiallyNeededChunks_) {
-                    DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
-                }
-            }
-        } else {
-            for (const auto& chunk : InputChunks_) {
-                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
+                stripes[chunk->GetTableIndex()]->DataSlices.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
             }
         }
+        for (auto& stripe : stripes) {
+            ResultStripeList_->AddStripe(std::move(stripe));
+        }
+        YT_LOG_INFO(
+            "Input chunks fetched (TotalChunkCount: %v, TotalDataWeight: %v, TotalRowCount: %v)",
+            ResultStripeList_->TotalChunkCount,
+            ResultStripeList_->TotalDataWeight,
+            ResultStripeList_->TotalRowCount);
     }
 
     // TODO(max42): get rid of duplicating code.
@@ -191,16 +176,16 @@ private:
     {
         YT_LOG_DEBUG("Requesting basic object attributes");
 
-        InputTables_.resize(InputTablePaths_.size());
-        for (size_t i = 0; i < InputTablePaths_.size(); ++i) {
-            InputTables_[i].Path = InputTablePaths_[i];
-            if (InputTables_[i].Path.HasNontrivialRanges()) {
-                for (const auto& range : InputTables_[i].Path.GetRanges()) {
-                    if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
-                        THROW_ERROR_EXCEPTION("Keys in YPath ranges are not supported yet (CHYT-48)")
-                            << TErrorAttribute("path", InputTables_[i].Path);
-                    }
-                }
+        for (
+            int logicalTableIndex = 0;
+            logicalTableIndex < static_cast<int>(InputTablePaths_.size());
+            ++logicalTableIndex)
+        {
+            auto tablePaths = InputTablePaths_[logicalTableIndex];
+            for (const auto& tablePath : tablePaths) {
+                auto& table = InputTables_.emplace_back();
+                table.Path = tablePath;
+                table.TableIndex = logicalTableIndex;
             }
         }
 
@@ -291,13 +276,6 @@ private:
         KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
-    void LogStatistics(const TStringBuf& stage)
-    {
-        YT_LOG_INFO("Data slice statistics (Stage: %v, Statistics: %v)",
-            stage,
-            GetDataSliceStatisticsDebugString(DataSlices_));
-    }
-
     void FetchChunks()
     {
         i64 totalChunkCount = 0;
@@ -323,8 +301,8 @@ private:
             },
             Logger);
 
-        for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
-            auto& table = InputTables_[tableIndex];
+        for (const auto& table : InputTables_) {
+            auto logicalTableIndex = table.TableIndex;
 
             if (table.IsDynamic) {
                 THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
@@ -332,15 +310,20 @@ private:
             }
 
             auto dataSource = MakeUnversionedDataSource(
-                table.Path.GetPath(),
+                std::nullopt /* path */,
                 table.Schema,
-                /* columns */ std::nullopt,
+                std::nullopt /* columns */,
                 // TODO(max42): YT-10402, omitted inaccessible columns
                 {});
 
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
 
-            chunkSpecFetcher->Add(FromObjectId(table.ObjectId), table.ExternalCellTag, table.ChunkCount, table.Path.GetRanges());
+            chunkSpecFetcher->Add(
+                table.ObjectId,
+                table.ExternalCellTag,
+                table.ChunkCount,
+                logicalTableIndex,
+                table.Path.GetRanges());
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
@@ -352,12 +335,14 @@ private:
             auto inputChunk = New<TInputChunk>(chunkSpec);
             InputChunks_.emplace_back(std::move(inputChunk));
         }
-
-        LogStatistics("FetchChunks");
     }
 
-    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey)
+    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int tableIndex)
     {
+        if (!KeyConditions_[tableIndex]) {
+            return BoolMask(true, true);
+        }
+
         YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
         YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
 
@@ -366,52 +351,7 @@ private:
         ConvertToFieldRow(lowerKey, KeyColumnCount_, minKey);
         ConvertToFieldRow(upperKey, KeyColumnCount_, maxKey);
 
-        return KeyCondition_->getMaskInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
-    }
-
-    void FilterChunks()
-    {
-        for (const auto& chunk : InputChunks_) {
-            auto mask = GetRangeMask(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey);
-
-            if (mask.can_be_true && mask.can_be_false) {
-                PartiallyNeededChunks_.emplace_back(chunk);
-            } else if (mask.can_be_true && !mask.can_be_false) {
-                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
-            }
-        }
-
-        LogStatistics("FilterChunks");
-    }
-
-    void FilterChunkSlices()
-    {
-        auto chunkSliceFetcher = CreateChunkSliceFetcher(
-            Config_->ChunkSliceFetcher,
-            1 /* chunkSliceSize */,
-            KeyColumns_,
-            false /* sliceByKeys */,
-            NodeDirectory_,
-            Invoker_,
-            nullptr /* fetcherChunkScraper */,
-            Client_,
-            RowBuffer_,
-            Logger);
-
-        for (const auto& chunk : PartiallyNeededChunks_) {
-            chunkSliceFetcher->AddChunk(chunk);
-        }
-
-        WaitFor(chunkSliceFetcher->Fetch())
-            .ThrowOnError();
-
-        for (const auto& chunkSlice : chunkSliceFetcher->GetChunkSlices()) {
-            auto mask = GetRangeMask(chunkSlice->LowerLimit().Key, chunkSlice->UpperLimit().Key);
-            if (mask.can_be_true) {
-                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(chunkSlice));
-            }
-        }
-        LogStatistics("FilterChunkSlices");
+        return KeyConditions_[tableIndex]->checkInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
     }
 };
 
@@ -419,11 +359,12 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TInputDataSlicePtr> FetchDataSlices(
+TChunkStripeListPtr FetchInput(
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<TRichYPath> inputTablePaths,
-    const KeyCondition* keyCondition,
+    std::vector<TTableSchema> tableSchemas,
+    std::vector<std::vector<TRichYPath>> inputTablePaths,
+    std::vector<std::optional<KeyCondition>> keyConditions,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
@@ -431,40 +372,43 @@ std::vector<TInputDataSlicePtr> FetchDataSlices(
     auto dataSliceFetcher = New<TDataSliceFetcher>(
         std::move(client),
         invoker,
+        std::move(tableSchemas),
         std::move(inputTablePaths),
-        keyCondition,
+        std::move(keyConditions),
         std::move(rowBuffer),
         std::move(config));
     WaitFor(dataSliceFetcher->Fetch())
         .ThrowOnError();
 
-    specTemplate.NodeDirectory = std::move(dataSliceFetcher->NodeDirectory());
+    if (!specTemplate.NodeDirectory) {
+        specTemplate.NodeDirectory = New<TNodeDirectory>();
+    }
+    specTemplate.NodeDirectory->MergeFrom(dataSliceFetcher->NodeDirectory());
+    YT_VERIFY(!specTemplate.DataSourceDirectory);
     specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 
-    return std::move(dataSliceFetcher->DataSlices());
+    return std::move(dataSliceFetcher->ResultStripeList());
 }
 
-NChunkPools::TChunkStripeListPtr BuildThreadStripes(
-    const std::vector<TInputDataSlicePtr>& dataSlices,
+std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+    const TChunkStripeListPtr& inputStripeList,
+    std::optional<int> keyColumnCount,
+    EPoolKind poolKind,
     int jobCount,
     std::optional<double> samplingRate,
-    TQueryId queryId)
+    const DB::Context& context)
 {
     if (jobCount == 0) {
         jobCount = 1;
     }
 
-    TChunkStripeListPtr result = New<TChunkStripeList>();
+    auto* queryContext = GetQueryContext(context);
 
-    i64 totalDataWeight = 0;
-    i64 totalRowCount = 0;
-    for (const auto& dataSlice : dataSlices) {
-        totalDataWeight += dataSlice->GetDataWeight();
-        totalRowCount += dataSlice->GetRowCount();
-    }
-    auto dataWeightPerJob = totalDataWeight / jobCount;
+    std::vector<TChunkStripeListPtr> result;
 
-    if (totalRowCount * samplingRate.value_or(1.0) < 1.0) {
+    auto dataWeightPerJob = inputStripeList->TotalDataWeight / jobCount;
+
+    if (inputStripeList->TotalRowCount * samplingRate.value_or(1.0) < 1.0) {
         return result;
     }
 
@@ -478,82 +422,87 @@ NChunkPools::TChunkStripeListPtr BuildThreadStripes(
     }
 
     std::unique_ptr<IChunkPool> chunkPool;
-    chunkPool = CreateUnorderedChunkPool(
-        TUnorderedChunkPoolOptions{
-            .JobSizeConstraints = CreateExplicitJobSizeConstraints(
-                false /* canAdjustDataWeightPerJob */,
-                true /* isExplicitJobCount */,
-                jobCount,
-                0 /* dataWeightPerJob */,
-                1_TB /* primaryDataWeightPerJob */,
-                dataWeightPerJob,
-                10_GB /* maxDataWeightPerJob */,
-                10_GB /* primaryMaxDataWeightPerJob */,
-                std::max<i64>(1, dataWeightPerJob * 0.26) /* inputSliceDataWeight */,
-                std::max<i64>(1, totalRowCount / jobCount) /* inputSliceRowCount */,
-                std::nullopt /* samplingRate */),
-            .OperationId = queryId
-        },
-        TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
 
-    chunkPool->Add(New<TChunkStripe>(dataSlices));
+    auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
+        false /* canAdjustDataWeightPerJob */,
+        true /* isExplicitJobCount */,
+        jobCount,
+        0 /* dataWeightPerJob */,
+        1_TB /* primaryDataWeightPerJob */,
+        dataWeightPerJob,
+        10_GB /* maxDataWeightPerJob */,
+        10_GB /* primaryMaxDataWeightPerJob */,
+        std::max<i64>(1, dataWeightPerJob * 0.26) /* inputSliceDataWeight */,
+        std::max<i64>(1, inputStripeList->TotalRowCount / jobCount) /* inputSliceRowCount */,
+        std::nullopt /* samplingRate */);
+
+    if (poolKind == EPoolKind::Unordered) {
+        chunkPool = CreateUnorderedChunkPool(
+            TUnorderedChunkPoolOptions{
+                .JobSizeConstraints = std::move(jobSizeConstraints),
+                .OperationId = queryContext->QueryId,
+            },
+            TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
+    } else if (poolKind == EPoolKind::Sorted) {
+        YT_VERIFY(keyColumnCount);
+        chunkPool = CreateSortedChunkPool(
+            TSortedChunkPoolOptions{
+                .SortedJobOptions = TSortedJobOptions{
+                    .EnableKeyGuarantee = true,
+                    .PrimaryPrefixLength = *keyColumnCount,
+                    .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
+                },
+                .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
+                .JobSizeConstraints = jobSizeConstraints,
+                .OperationId = queryContext->QueryId,
+                .RowBuffer = queryContext->RowBuffer,
+            },
+            CreateCallbackChunkSliceFetcherFactory(BIND([] { return nullptr; })),
+            TInputStreamDirectory({
+                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */),
+                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)
+            }));
+    } else {
+        Y_UNREACHABLE();
+    }
+
+    for (const auto& chunkStripe : inputStripeList->Stripes) {
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            InferLimitsFromBoundaryKeys(dataSlice, queryContext->RowBuffer);
+        }
+        chunkPool->Add(chunkStripe);
+    }
     chunkPool->Finish();
+
     while (true) {
         auto cookie = chunkPool->Extract();
         if (cookie == IChunkPoolOutput::NullCookie) {
             break;
         }
-        auto& resultStripe = result->Stripes.emplace_back(New<TChunkStripe>());
         auto stripeList = chunkPool->GetStripeList(cookie);
-        for (const auto& stripe : stripeList->Stripes) {
-            for (auto&& dataSlice : stripe->DataSlices) {
-                resultStripe->DataSlices.emplace_back(dataSlice);
+        if (poolKind == EPoolKind::Unordered) {
+            // Stripelists from unordered pool consist of lot of stripes; we expect a single
+            // stripe with lots of data slices inside, so we flatten them.
+            auto flattenedStripe = New<TChunkStripe>();
+            for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    flattenedStripe->DataSlices.emplace_back(dataSlice);
+                }
             }
+            auto flattenedStripeList = New<TChunkStripeList>();
+            flattenedStripeList->Stripes.emplace_back(std::move(flattenedStripe));
+            stripeList.Swap(flattenedStripeList);
         }
+        result.emplace_back(stripeList);
     }
 
     if (originalJobCount != jobCount) {
-        TChunkStripeListPtr sampledList = New<TChunkStripeList>();
         std::mt19937 gen;
-        std::shuffle(result->Stripes.begin(), result->Stripes.end(), gen);
-        for (int index = 0; index < std::min<int>(result->Stripes.size(), originalJobCount); ++index) {
-            auto stat = result->Stripes[index]->GetStatistics();
-            AddStripeToList(result->Stripes[index], stat.DataWeight, stat.RowCount, sampledList);
-        }
-        result.Swap(sampledList);
+        std::shuffle(result.begin(), result.end(), gen);
+        result.resize(std::min<int>(result.size(), originalJobCount));
     }
 
     return result;
-}
-
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<TChunkStripePtr>& chunkStripes)
-{
-    for (const auto& chunkStripe : chunkStripes) {
-        auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
-            const auto& chunkSlice = dataSlice->ChunkSlices[0];
-            auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-            auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-            // TODO(max42): wtf?
-            chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-            chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-            if (chunkSlice->LowerLimit().RowIndex) {
-                chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
-            }
-            if (chunkSlice->UpperLimit().RowIndex) {
-                chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-            }
-            NChunkClient::NProto::TMiscExt miscExt;
-            miscExt.set_row_count(chunk->GetTotalRowCount());
-            miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-            miscExt.set_data_weight(chunk->GetTotalDataWeight());
-            miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-            chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-            chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

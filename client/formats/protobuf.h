@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "private.h"
 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
@@ -108,7 +109,6 @@ private:
     THashMap<TString, TEnumerationDescription> EnumerationDescriptionMap_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,7 +58,8 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     TChunk* chunk,
     i64 /*rowIndex*/,
     const TReadLimit& /*startLimit*/,
-    const TReadLimit& /*endLimit*/)
+    const TReadLimit& /*endLimit*/,
+    TTransactionId /*timestampTransactionId*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

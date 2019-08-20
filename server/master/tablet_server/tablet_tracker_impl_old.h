@@ -18,7 +18,6 @@ class TTabletTrackerImplOld
 {
 public:
     TTabletTrackerImplOld(
-        TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TInstant startTime);
 
@@ -27,11 +26,12 @@ public:
 private:
     class TCandidatePool;
 
-    const TTabletManagerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
     const TInstant StartTime_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
 
     void ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool);
     void SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool);

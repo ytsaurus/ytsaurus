@@ -118,11 +118,6 @@ inline constexpr bool IsStringLikeType(EValueType type)
     return type == EValueType::String || type == EValueType::Any;
 }
 
-inline constexpr bool IsComparableType(EValueType type)
-{
-    return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;
-}
-
 inline constexpr bool IsValueType(EValueType type)
 {
     return

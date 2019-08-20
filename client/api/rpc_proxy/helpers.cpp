@@ -312,7 +312,7 @@ void FromProto(
     if (proto.has_state_counts()) {
         result->StateCounts.emplace();
         std::fill(result->StateCounts->begin(), result->StateCounts->end(), 0);
-        for (const auto &stateCount: proto.state_counts().entries()) {
+        for (const auto& stateCount: proto.state_counts().entries()) {
             auto state = ConvertOperationStateFromProto(stateCount.state());
             YT_VERIFY(result->StateCounts->IsDomainValue(state));
             YT_VERIFY((*result->StateCounts)[state] == 0);
@@ -324,7 +324,7 @@ void FromProto(
     if (proto.has_type_counts()) {
         result->TypeCounts.emplace();
         std::fill(result->TypeCounts->begin(), result->TypeCounts->end(), 0);
-        for (const auto &typeCount: proto.type_counts().entries()) {
+        for (const auto& typeCount: proto.type_counts().entries()) {
             auto type = ConvertOperationTypeFromProto(typeCount.type());
             YT_VERIFY(result->TypeCounts->IsDomainValue(type));
             YT_VERIFY((*result->TypeCounts)[type] == 0);
@@ -426,14 +426,14 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
 {
     schema->SetName(protoSchema.name());
     if (protoSchema.has_logical_type()) {
-        auto logicalType = SimpleLogicalType(
+        auto logicalType = MakeLogicalType(
             CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(protoSchema.logical_type()),
             protoSchema.required());
         schema->SetLogicalType(std::move(logicalType));
         YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
     } else {
         auto physicalType = CheckedEnumCast<NTableClient::EValueType>(protoSchema.type());
-        schema->SetLogicalType(SimpleLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
+        schema->SetLogicalType(MakeLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
     }
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
@@ -1324,10 +1324,10 @@ TTableSchema DeserializeRowsetSchema(
         // TODO (ermolovd) YT-7178, support complex schemas.
         if (descriptor.columns(i).has_logical_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
+            columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         } else if (descriptor.columns(i).has_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
+            columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
     return TTableSchema(std::move(columns));

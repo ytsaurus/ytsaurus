@@ -26,7 +26,7 @@ public:
     virtual bool SetAvailableState(bool available) override;
     virtual bool GetAvailableState() const override;
 
-    virtual bool IsOperable(const NRpc::IServiceContextPtr& context) const override;
+    virtual void ValidateOperable() const override;
 
 private:
     std::atomic<bool> IsBanned_ = {false};
@@ -68,22 +68,15 @@ bool TProxyCoordinator::GetAvailableState() const
     return IsAvailable_.load(std::memory_order_relaxed);
 }
 
-bool TProxyCoordinator::IsOperable(const IServiceContextPtr& context) const
+void TProxyCoordinator::ValidateOperable() const
 {
     if (!GetAvailableState()) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Proxy cannot synchronize with cluster"));
-        return false;
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Proxy cannot synchronize with cluster");
     }
     if (GetBannedState()) {
-        context->Reply(TError(
-            NApi::NRpcProxy::EErrorCode::ProxyBanned,
-            "Proxy has been banned")
-            << TErrorAttribute("message", GetBanMessage()));
-        return false;
+        THROW_ERROR_EXCEPTION(NApi::NRpcProxy::EErrorCode::ProxyBanned, "Proxy has been banned")
+            << TErrorAttribute("message", GetBanMessage());
     }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

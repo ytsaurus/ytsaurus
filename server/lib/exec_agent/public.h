@@ -32,6 +32,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobProxyPreparationTimeout)    (1114))
     ((JobPreparationTimeout)         (1115))
     ((JobProxyFailed)                (1120))
+    ((SetupCommandFailed)            (1121))
 );
 
 DEFINE_ENUM(ESandboxKind,

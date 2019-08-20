@@ -83,6 +83,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create_dynamic_table(path, **attributes)
 
     # usual cases
+    @authors("panin", "ignat")
     def test_unordered(self):
         self._prepare_tables()
 
@@ -93,6 +94,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 7
 
+    @authors("panin", "ignat")
     def test_unordered_combine(self):
         self._prepare_tables()
 
@@ -104,6 +106,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("klyachin")
     def test_unordered_with_mixed_chunks(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -123,6 +126,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@chunk_count") == 2
         assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
 
+    @authors("dakovalkov")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_rename_columns(self, merge_mode):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
@@ -137,6 +141,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert sorted(read_table("//tmp/t_out")) == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}]
 
+    @authors("panin", "ignat")
     def test_ordered(self):
         self._prepare_tables()
 
@@ -147,6 +152,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == self.v1 + self.v2
         assert get("//tmp/t_out/@chunk_count") ==7
 
+    @authors("panin", "ignat")
     def test_ordered_combine(self):
         self._prepare_tables()
 
@@ -158,6 +164,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == self.v1 + self.v2
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("ignat")
     def test_sorted(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -175,6 +182,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    @authors("dakovalkov")
     def test_sorted_different_types(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
@@ -193,6 +201,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 in_=["//tmp/t1", "//tmp/t2"],
                 out="//tmp/out")
 
+    @authors("psushin")
     def test_sorted_column_filter(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": 1, "b" : 3}, {"a": 10, "b" : 2}, {"a": 100, "b" : 1}], sorted_by="a")
@@ -203,6 +212,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                   in_=["<columns=[b]>//tmp/t"],
                   out="//tmp/t_out")
 
+    @authors("klyachin")
     def test_sorted_merge_result_is_sorted(self):
         create("table", "//tmp/t1")
 
@@ -235,6 +245,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(len(result)-1):
             assert result[i]["key"] <= result[i + 1]["key"]
 
+    @authors("psushin", "ignat")
     def test_sorted_trivial(self):
         create("table", "//tmp/t1")
 
@@ -251,6 +262,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    @authors("monster")
     def test_append_not_sorted(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -264,6 +276,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t_out/@sorted") == False
 
+    @authors("ignat")
     def test_sorted_with_same_chunks(self):
         t1 = "//tmp/t1"
         t2 = "//tmp/t2"
@@ -285,6 +298,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key1"]
 
+    @authors("ignat")
     def test_sorted_combine(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -303,6 +317,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    @authors("dakovalkov")
     def test_sorted_row_count_limit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -322,6 +337,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                                            {"k": "b", "s": 1}, {"k": "b", "s": 2},
                                            {"k": "b", "s": 2}, {"k": "c", "s": 0}]
 
+    @authors("dakovalkov")
     def test_sorted_row_count_limit_2(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -340,6 +356,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
 
     # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
+    @authors("ignat")
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -402,6 +419,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["k", "s"]
 
+    @authors("ignat")
     def test_sorted_with_maniacs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -422,6 +440,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    @authors("psushin")
     def test_sorted_with_row_limits(self):
         create("table", "//tmp/t1")
 
@@ -436,6 +455,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"a": 2}, {"a": 3}]
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("ignat")
     def test_sorted_by(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -473,6 +493,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique_simple(self, optimize_for):
         create("table", "//tmp/t1")
@@ -514,6 +535,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
         assert get("//tmp/t_out/@schema/@unique_keys")
 
+    @authors("psushin")
     def test_sorted_unique_teleport(self):
         create("table", "//tmp/t1", attributes={
             "schema": make_schema([
@@ -541,6 +563,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [a1, a2]
         assert get("//tmp/t_out/@schema/@unique_keys")
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique_with_wider_key_columns(self, optimize_for):
         create("table", "//tmp/t1")
@@ -574,6 +597,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") == ["key1", "key2"]
         assert get("//tmp/t_out/@schema/@unique_keys")
 
+    @authors("ignat")
     def test_empty_in_ordered(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -588,6 +612,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [v]
 
+    @authors("psushin")
     def test_empty_in_sorted(self):
         create("table", "//tmp/t1", attributes = {"schema" : [
             {"name" : "a", "type" : "int64", "sort_order" : "ascending"}]})
@@ -599,6 +624,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == []
 
+    @authors("ignat")
     def test_non_empty_out(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -618,6 +644,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [v3, v1, v2]
 
+    @authors("panin", "ignat")
     def test_multiple_in(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -632,6 +659,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [v, v, v]
 
+    @authors("panin", "ignat")
     def test_in_equal_to_out(self):
         create("table", "//tmp/t_in")
 
@@ -649,6 +677,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_in") == [v, v, v, v]
         assert get("//tmp/t_in/@chunk_count") == 3 # only result of merge is combined
 
+    @authors("ignat")
     def test_selectors(self):
         self._prepare_tables()
 
@@ -659,6 +688,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
+    @authors("ignat")
     def test_column_selectors(self):
         self._prepare_tables()
 
@@ -669,6 +699,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [self.v1[1], {}, {}])
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("savrus", "ermolovd")
     @pytest.mark.parametrize("mode", ["ordered", "unordered", "sorted"])
     def test_column_selectors_schema_inference(self, mode):
         create("table", "//tmp/t", attributes={
@@ -742,6 +773,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             schema[1]["sort_order"] = "ascending"
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
+    @authors("savrus")
     @pytest.mark.parametrize("mode", ["ordered", "sorted"])
     def test_column_selectors_output_schema_validation(self, mode):
         create("table", "//tmp/t", attributes={
@@ -761,6 +793,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
 
+    @authors("savrus")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
         create("table", "//tmp/t1", attributes={
@@ -789,6 +822,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         schema[0]["name"] = "b"
         assert get("//tmp/t2/@schema") == schema
 
+    @authors("savrus")
     def test_sorted_merge_query_filtering(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -802,6 +836,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"input_query": "a where a > 0"})
 
+    @authors("savrus")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering_output_schema_validation(self, mode):
         create("table", "//tmp/t", attributes={
@@ -823,6 +858,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{"k": r["key"]} for r in rows])
 
+    @authors("babenko")
     @unix_only
     def test_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
@@ -840,6 +876,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         wait(lambda: get_chunk_replication_factor(chunk_id) == 3 and \
                      get("#" + chunk_id + "/@vital"))
 
+    @authors("ignat")
     @unix_only
     def test_chunk_indices(self):
         create("table", "//tmp/t1")
@@ -858,6 +895,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": i} for i in xrange(1, 3)]
 
+    @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_auto_schema_inference_unordered(self, optimize_for):
         loose_schema = make_schema([{"name" : "key", "type" : "int64"}], strict=False)
@@ -912,6 +950,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(in_="//tmp/input_loose", out="//tmp/output_sorted", spec={"schema_inference_mode" : "from_output"})
 
 
+    @authors("psushin")
     def test_auto_schema_inference_ordered(self):
         output_schema = make_schema([{"name" : "key", "type" : "int64"}, {"name" : "value", "type" : "string"}])
         good_schema = make_schema([{"name" : "key", "type" : "int64"}])
@@ -934,6 +973,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         with pytest.raises(YtError):
             merge(in_=["//tmp/input_bad", "//tmp/input_good"], out="//tmp/output_weak")
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation_unordered(self, optimize_for):
         create("table", "//tmp/input")
@@ -962,6 +1002,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation_ordered(self, optimize_for):
         create("table", "//tmp/input")
@@ -992,6 +1033,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation_sorted(self, optimize_for):
         create("table", "//tmp/input")
@@ -1025,6 +1067,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
     def test_schema_validation_complex_types(self, mode):
         first_column = {"name": "index", "type_v2": "int64"}
@@ -1080,6 +1123,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
 
 
+    @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_merge_on_dynamic_table(self, external, optimize_for):
@@ -1114,6 +1158,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows1[:5] + rows2)
 
+    @authors("savrus")
     @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
     def test_computed_columns(self, mode):
         create("table", "//tmp/t1")
@@ -1134,6 +1179,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    @authors("psushin")
     def test_sort_order_validation_failure(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
@@ -1157,6 +1203,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @authors("savrus")
     def test_writer_config(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out",
@@ -1178,6 +1225,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
+    @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     def test_merge_interrupt(self, mode):
         create("table", "//tmp/t_in", attributes={
@@ -1212,6 +1260,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
         assert rows == [{"a" : i} for i in range(25)]
 
+    @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     def test_merge_job_splitter(self, mode):
         create("table", "//tmp/t_in", attributes={
@@ -1251,6 +1300,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         rows = read_table("//tmp/t_out", verbose=False)
         assert rows == expected
 
+    @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
     def test_sampling(self, mode):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
@@ -1312,6 +1362,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                    get(op.get_path() + "/@progress/jobs/completed/total")
 
 
+    @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
     def test_sampling_teleport(self, mode):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]})
@@ -1326,6 +1377,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "enable_job_splitting": False})
         assert 0 <= get("//tmp/t2/@chunk_count") <= 20
 
+    @authors("max42", "psushin")
     def test_overlapping_ranges_in_sorted_merge(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t2")
@@ -1337,6 +1389,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"key": 0}, {"key": 0}, {"key": 1}, {"key": 1}]
 
+    @authors("ermolovd")
     def test_schema_compatibility(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64"}]})
         write_table("//tmp/t1", [{"key": None}])
@@ -1346,12 +1399,68 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2"
             )
 
+    @authors("ermolovd")
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_infer_output_yt_8661_first(self, mode):
+        schema = make_schema([{'name': 'x', 'type': 'uint64'}], strict=False)
+        schemaful_table = "//tmp/schemaful_table"
+        schemaless_table = "//tmp/schemaless_table"
+
+        create("table", schemaful_table, attributes={
+            "schema": schema,
+            "optimize_for": "scan",
+        })
+        create("table", schemaless_table)
+
+        write_table(schemaful_table, [{'x': i} for i in xrange(100)])
+        write_table(schemaless_table, [{'x': str(i)} for i in xrange(100, 200)])
+
+        # merging non-strict table with strict table
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_=[schemaless_table, schemaful_table],
+                out=schemaful_table,
+                spec={'schema_inference_mode': 'from_output'})
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_infer_output_yt_8661_second(self, mode):
+        schema1 = make_schema([
+            {"name": "x", "type": "uint64", "required": True},
+            {"name": "y", "type": "uint64", "required": True},
+        ])
+        schema2 = make_schema([
+            {"name": "y", "type": "uint64", "required": True},
+        ])
+        table1 = "//tmp/table1"
+        table2 = "//tmp/table2"
+
+        create("table", table1, attributes={
+            "schema": schema1,
+        })
+        create("table", table2, attributes={
+            "schema": schema2,
+        })
+
+        write_table(table1, [{'x': i, "y": i} for i in xrange(100)])
+        write_table(table2, [{"y": i} for i in xrange(100, 200)])
+
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_=[table2, table1],
+                out=table1,
+                spec={'schema_inference_mode': 'from_output'})
+
+
 
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("babenko")
     @unix_only
     def test_multicell_merge_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -1389,6 +1498,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                      get("#" + chunk_id2 + "/@exports") == {} and \
                      ls("//sys/foreign_chunks", driver=get_driver(0)) == [])
 
+    @authors("babenko")
     @unix_only
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -1442,6 +1552,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         wait(lambda: not exists("#" + chunk_id))
 
+    @authors("babenko")
     @unix_only
     def test_multicell_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False, "external_cell_tag": 1})
@@ -1484,6 +1595,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(lambda: get_chunk_replication_factor(chunk_id) == 1 and \
              not get("#" + chunk_id + "/@vital"))
 
+    @authors("babenko")
     @unix_only
     def test_yt_4259(self):
         create("table", "//tmp/t", attributes={"external": False})
@@ -1502,6 +1614,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
             })
 
+    @authors("shakurov")
     def test_teleporting_chunks_dont_disappear(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])

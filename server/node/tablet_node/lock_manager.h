@@ -17,7 +17,8 @@ public:
     void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed);
     std::vector<TTransactionId> RemoveUnconfirmedTransactions();
     void Unlock(TTransactionId transactionId);
-    void Wait(TTimestamp timestamp);
+    TLockManagerEpoch GetEpoch() const;
+    void Wait(TTimestamp timestamp, TLockManagerEpoch epoch);
 
     bool IsLocked();
 

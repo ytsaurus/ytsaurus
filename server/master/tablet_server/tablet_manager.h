@@ -178,6 +178,7 @@ public:
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
     void SetTabletCellBundle(NCypressServer::TCompositeNodeBase* node, TTabletCellBundle* cellBundle);
+    void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
@@ -192,6 +193,7 @@ public:
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
     DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
+    DECLARE_SIGNAL(void(), TabletCellPeersAssigned);
 
 private:
     template <class TImpl>

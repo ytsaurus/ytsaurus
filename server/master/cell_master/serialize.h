@@ -25,12 +25,13 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion();
-bool ValidateSnapshotVersion(int version);
+NHydra::TReign GetCurrentReign();
+bool ValidateSnapshotReign(NHydra::TReign);
+NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EMasterSnapshotVersion,
+DEFINE_ENUM(EMasterReign,
     ((OldVersion711)                                                 (711))  // shakurov
     ((OldVersion712)                                                 (712))  // aozeritsky
     ((AddTabletCellDecommission)                                     (713))  // savrus
@@ -84,6 +85,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((BulkInsert)                                                    (902))  // savrus
     ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
+    ((MorePortalAttributes)                                          (905))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

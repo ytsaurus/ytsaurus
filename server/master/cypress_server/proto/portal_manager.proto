@@ -14,6 +14,8 @@ message TReqCreatePortalExit
     required NYT.NYTree.NProto.TAttributeDictionary explicit_node_attributes = 4;
     required NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 5;
     required bytes acl = 6;
+    required NYT.NProto.TGuid parent_id = 7;
+    optional string key = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -153,4 +153,101 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTimestampResettingAdapter
+    : public IVersionedReader
+{
+public:
+    TTimestampResettingAdapter(
+        IVersionedReaderPtr underlyingReader,
+        TTimestamp timestamp)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , Timestamp_(timestamp)
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        rows->clear();
+        auto hasMore = UnderlyingReader_->Read(rows);
+        if (rows->empty()) {
+            return hasMore;
+        }
+
+        YT_VERIFY(hasMore);
+
+        for (auto row : *rows) {
+            ResetTimestamp(row);
+        }
+
+        return true;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        YT_ABORT();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        YT_ABORT();
+    }
+
+private:
+    const IVersionedReaderPtr UnderlyingReader_;
+    const TTimestamp Timestamp_;
+
+    void ResetTimestamp(TVersionedRow row) const
+    {
+        TMutableVersionedRow mutableRow(row.ToTypeErasedRow());
+
+        YT_VERIFY(row.GetWriteTimestampCount() <= 1);
+        for (int i = 0; i < row.GetWriteTimestampCount(); ++i) {
+            mutableRow.BeginWriteTimestamps()[i] = Timestamp_;
+        }
+
+        YT_VERIFY(row.GetDeleteTimestampCount() <= 1);
+        for (int i = 0; i < row.GetDeleteTimestampCount(); ++i) {
+            mutableRow.BeginDeleteTimestamps()[i] = Timestamp_;
+        }
+
+        for (auto* value = mutableRow.BeginValues(); value != mutableRow.EndValues(); ++value) {
+            value->Timestamp = Timestamp_;
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTimestampResettingAdapter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedReaderPtr CreateTimestampResettingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    TTimestamp timestamp)
+{
+    return New<TTimestampResettingAdapter>(
+        std::move(underlyingReader),
+        timestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

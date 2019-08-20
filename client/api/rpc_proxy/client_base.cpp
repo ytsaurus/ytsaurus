@@ -642,6 +642,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+    req->set_enable_partial_result(options.EnablePartialResult);
 
     ToProto(req->mutable_tablet_read_options(), options);
 

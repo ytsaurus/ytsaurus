@@ -60,6 +60,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NApi;
 using namespace NRpc;
 
@@ -91,7 +92,8 @@ public:
     }
 
 private:
-    NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
+    const NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
+    
     bool Enabled_ = false;
 
     static TAsyncExpiringCacheConfigPtr GetAsyncExpiringCacheConfig() {
@@ -103,7 +105,7 @@ private:
     }
 
     class TBundleHealthCache
-        : public TAsyncExpiringCache<std::pair<NApi::IConnectionPtr, TString>, ETabletCellHealth>
+        : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
     {
     public:
         TBundleHealthCache()
@@ -111,13 +113,11 @@ private:
         { }
 
     protected:
-        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IConnectionPtr, TString>& key) override
+        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key) override
         {
-            auto& [connection, bundleName] = key;
-            auto client = connection->CreateClient(NApi::TClientOptions(RootUserName));
-
-            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health")
-                .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& error) {
+            const auto& [client, bundleName] = key;
+            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
+                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
                     // COMPAT(aozeritsky): Remove after updating all clusters
                     if (!error.IsOK() && error.FindMatching(NYTree::EErrorCode::ResolveError)) {
                         return ETabletCellHealth::Good;
@@ -128,7 +128,7 @@ private:
     };
 
     using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
-    TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
+    const TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
 
     class TReplica
         : public TRefCounted
@@ -155,6 +155,21 @@ private:
             CreateClient();
         }
 
+        TObjectId GetId()
+        {
+            return Id_;
+        }
+
+        const TString& GetClusterName()
+        {
+            return ClusterName_;
+        }
+
+        const TYPath& GetPath()
+        {
+            return Path_;
+        }
+
         TDuration GetLag() const
         {
             return Lag_;
@@ -167,42 +182,16 @@ private:
 
         TFuture<void> Check()
         {
-            if (!Connection_) {
-                return VoidFuture;
+            if (!Client_) {
+                static const auto NoClientResult = MakeFuture<void>(TError("No connection is available"));
+                return NoClientResult;
             }
 
-            auto check1 = Client_->ListNode("/").As<void>();
-
-            auto check2 = Client_->NodeExists(Path_).Apply(BIND([path = Path_] (const TErrorOr<bool>& error) {
-                auto flag = error.ValueOrThrow();
-                if (!flag) {
-                    THROW_ERROR_EXCEPTION("Node %v does not exist",
-                        path);
-                }
-            }));
-
-            auto check3 = CheckBundleHealth();
-
             return Combine(std::vector<TFuture<void>>{
-                check1,
-                check2,
-                check3
+                CheckListRoot(),
+                CheckTableExists(),
+                CheckBundleHealth()
             });
-        }
-
-        TFuture<void> CheckBundleHealth()
-        {
-            return GetAsyncTabletCellBundleName()
-                .Apply(BIND([connection = Connection_, bundleHealthCache = BundleHealthCache_, path = Path_] (const TErrorOr<TString>& tabletCellBundleNameOrError) {
-                    return bundleHealthCache->Get({connection, tabletCellBundleNameOrError.ValueOrThrow()});
-                })).Apply(BIND([path = Path_] (const TErrorOr<ETabletCellHealth>& tabletCellHealthOrError) {
-                    auto tabletCellHealth = tabletCellHealthOrError.ValueOrThrow();
-                    if (tabletCellHealth != ETabletCellHealth::Good) {
-                        THROW_ERROR_EXCEPTION(
-                            "Bad tablet cell health %v for %v",
-                            tabletCellHealth, path);
-                    }
-                }));
         }
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
@@ -284,6 +273,43 @@ private:
 
         TInstant LastUpdateTime_;
 
+        TFuture<void> CheckListRoot()
+        {
+            return Client_->ListNode("/")
+                .Apply(BIND([] (const TErrorOr<TYsonString>& result) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error listing root");
+                }));
+        }
+
+        TFuture<void> CheckBundleHealth()
+        {
+            return GetAsyncTabletCellBundleName()
+                .Apply(BIND([client = Client_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
+                    const auto& bundleName = bundleNameOrError.Value();
+                    return bundleHealthCache->Get({client, bundleName});
+                })).Apply(BIND([] (const TErrorOr<ETabletCellHealth>& healthOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
+                    auto health = healthOrError.Value();
+                    if (health != ETabletCellHealth::Good) {
+                        THROW_ERROR_EXCEPTION("Bad tablet cell health %Qlv",
+                            health);
+                    }
+                }));
+        }
+
+        TFuture<void> CheckTableExists()
+        {
+            return Client_->NodeExists(Path_)
+                .Apply(BIND([] (const TErrorOr<bool>& result) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking table existence");
+                    auto exists = result.Value();
+                    if (!exists) {
+                        THROW_ERROR_EXCEPTION("Table does not exist");
+                    }
+                }));
+        }
+
         TFuture<TString> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
@@ -291,10 +317,11 @@ private:
                 ? RetryOnFailureInterval
                 : TabletCellBundleNameTtl;
 
-            if (LastUpdateTime_ + interval > now) {
+            if (LastUpdateTime_ + interval < now) {
                 LastUpdateTime_ = now;
                 AsyncTabletCellBundleName_ = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
-                    .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& bundleNameOrError) {
+                    .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
+                        THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
                         return ConvertTo<TString>(bundleNameOrError.ValueOrThrow());
                     }));
             }
@@ -356,12 +383,15 @@ private:
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
                 std::vector<TReplicaPtr> asyncReplicas;
-                int desiredSyncReplicas = 0;
+                int maxSyncReplicas;
+                int minSyncReplicas;
 
                 {
                     auto guard = Guard(Lock_);
-                    desiredSyncReplicas = Config_->SyncReplicaCount;
+                    maxSyncReplicas = Config_->MaxSyncReplicaCount.value_or(static_cast<int>(Replicas_.size()));
+                    minSyncReplicas = Config_->MinSyncReplicaCount.value_or(maxSyncReplicas);
                     asyncReplicas.reserve(Replicas_.size());
+                    syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
                         if (replica->IsSync()) {
                             syncReplicas.push_back(replica);
@@ -372,46 +402,91 @@ private:
                 }
 
                 std::vector<TFuture<void>> futures;
-                futures.reserve(syncReplicas.size());
+                futures.reserve(syncReplicas.size() + asyncReplicas.size());
+
                 for (const auto& syncReplica : syncReplicas) {
                     futures.push_back(syncReplica->Check());
                 }
+                for (const auto& asyncReplica : asyncReplicas) {
+                    futures.push_back(asyncReplica->Check());
+                }
 
                 CheckFuture_ = CombineAll(futures)
-                    .Apply(BIND([bootstrap, syncReplicas, asyncReplicas, desiredSyncReplicas] (const std::vector<TErrorOr<void>>& results) mutable {
+                    .Apply(BIND([
+                        bootstrap,
+                        syncReplicas,
+                        asyncReplicas,
+                        maxSyncReplicas,
+                        minSyncReplicas,
+                        id = Id_
+                    ] (const std::vector<TErrorOr<void>>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
                         std::vector<TReplicaPtr> goodSyncReplicas;
+                        std::vector<TReplicaPtr> goodAsyncReplicas;
                         goodSyncReplicas.reserve(syncReplicas.size());
                         badSyncReplicas.reserve(syncReplicas.size());
-                        for (size_t index = 0; index < results.size(); ++index) {
-                            if (results[index].IsOK()) {
-                                goodSyncReplicas.push_back(syncReplicas[index]);
-                            } else {
-                                badSyncReplicas.push_back(syncReplicas[index]);
+                        goodAsyncReplicas.reserve(asyncReplicas.size());
+
+                        auto logLivenessCheckResult = [&] (const TError& error, const TReplicaPtr& replica) {
+                            YT_LOG_DEBUG_IF(!error.IsOK(), error, "Replica liveness check failed (ReplicatedTableId: %v, ReplicaId: %v, "
+                                "ReplicaTablePath: %v, ReplicaClusterName: %v)",
+                                id,
+                                replica->GetId(),
+                                replica->GetPath(),
+                                replica->GetClusterName());
+                        };
+
+                        {
+                            int index = 0;
+                            for (; index < static_cast<int>(syncReplicas.size()); ++index) {
+                                const auto& result = results[index];
+                                const auto& replica = syncReplicas[index];
+                                logLivenessCheckResult(result, replica);
+                                if (result.IsOK()) {
+                                    goodSyncReplicas.push_back(replica);
+                                } else {
+                                    badSyncReplicas.push_back(replica);
+                                }
+                            }
+                            for (; index < static_cast<int>(results.size()); ++index) {
+                                const auto& result = results[index];
+                                const auto& replica = asyncReplicas[index - syncReplicas.size()];
+                                logLivenessCheckResult(result, replica);
+                                if (result.IsOK()) {
+                                    goodAsyncReplicas.push_back(replica);
+                                }
                             }
                         }
 
                         std::sort(
-                            asyncReplicas.begin(),
-                            asyncReplicas.end(),
-                            [&] (const auto& lhs, const auto& rhs) {
+                            goodAsyncReplicas.begin(),
+                            goodAsyncReplicas.end(),
+                            [] (const auto& lhs, const auto& rhs) {
                                 return lhs->GetLag() > rhs->GetLag();
                             });
 
-                        // Don't check async replicas.
-                        // If any is bad we will switch to anther one on the next iteration.
                         std::vector<TFuture<void>> futures;
                         futures.reserve(syncReplicas.size() + asyncReplicas.size());
-                        for (int index = goodSyncReplicas.size(); index < desiredSyncReplicas && !asyncReplicas.empty(); ++index) {
-                            futures.push_back(asyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
-                            asyncReplicas.pop_back();
+
+                        int totalSyncReplicas;
+                        {
+                            int index;
+                            for (index = static_cast<int>(goodSyncReplicas.size()); index < maxSyncReplicas && !goodAsyncReplicas.empty(); ++index) {
+                                futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
+                                goodAsyncReplicas.pop_back();
+                            }
+
+                            totalSyncReplicas = maxSyncReplicas < static_cast<int>(goodSyncReplicas.size())
+                                ? maxSyncReplicas
+                                : index;
                         }
 
-                        for (const auto& replica : badSyncReplicas) {
-                            futures.push_back(replica->SetMode(bootstrap, ETableReplicaMode::Async));
-                        }
+                        YT_VERIFY(totalSyncReplicas <= maxSyncReplicas);
 
-                        for (int index = desiredSyncReplicas; index < goodSyncReplicas.size(); ++index) {
+                        for (int index = Max(0, minSyncReplicas - totalSyncReplicas); index < static_cast<int>(badSyncReplicas.size()); ++index) {
+                            futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
+                        }
+                        for (int index = maxSyncReplicas; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
@@ -423,7 +498,7 @@ private:
         }
 
     private:
-        TObjectId Id_;
+        const TObjectId Id_;
         NTableServer::TReplicatedTableOptionsPtr Config_;
 
         TSpinLock Lock_;
@@ -687,14 +762,15 @@ private:
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
-        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
+        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicas: %v, DesiredMinSyncReplicas: %v)",
             newTable ? "added" : "updated",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
             asyncReplicas,
             skippedReplicas,
-            config->SyncReplicaCount);
+            config->MaxSyncReplicaCount,
+            config->MinSyncReplicaCount);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);

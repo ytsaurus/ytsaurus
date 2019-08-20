@@ -22,6 +22,8 @@ struct TDataSliceDescriptor
     std::optional<i64> GetTag() const;
 };
 
+TString ToString(const TDataSliceDescriptor& dataSliceDescriptor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInterruptDescriptor

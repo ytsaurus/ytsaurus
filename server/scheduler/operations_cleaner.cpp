@@ -30,6 +30,7 @@
 #include <yt/core/utilex/random.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NScheduler {
 
@@ -231,8 +232,24 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 
 bool HasFailedJobs(const TYsonString& briefProgress)
 {
-    auto jobsNode = ConvertToNode(briefProgress)->AsMap()->FindChild("jobs");
-    return jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
+    YT_VERIFY(briefProgress);
+    auto failedJobs = NYTree::TryGetInt64(briefProgress.GetData(), "/jobs/failed");
+    return failedJobs && *failedJobs > 0;
+}
+
+// If progress has state field, we overwrite Archive with Cypress's progress only if operation is finished.
+// Otherwise, let's think that information in Archive is the newest (in most cases it is true).
+bool NeedProgressInRequest(const TYsonString& progress)
+{
+    YT_VERIFY(progress);
+    auto stateString = NYTree::TryGetString(progress.GetData(), "/state");
+    if (!stateString) {
+        return false;
+    }
+    auto stateEnum = ParseEnum<NControllerAgent::EControllerState>(*stateString);
+    return stateEnum == NControllerAgent::EControllerState::Completed ||
+        stateEnum == NControllerAgent::EControllerState::Failed ||
+        stateEnum == NControllerAgent::EControllerState::Aborted;
 }
 
 TUnversionedRow BuildOrderedByIdTableRow(
@@ -253,10 +270,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
     builder.AddValue(MakeUnversionedStringValue(state, index.State));
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
-    if (request.Progress) {
+    if (request.Progress && NeedProgressInRequest(request.Progress)) {
         builder.AddValue(MakeUnversionedAnyValue(request.Progress.GetData(), index.Progress));
     }
-    if (request.BriefProgress) {
+    if (request.BriefProgress && NeedProgressInRequest(request.BriefProgress)) {
         builder.AddValue(MakeUnversionedAnyValue(request.BriefProgress.GetData(), index.BriefProgress));
     }
     builder.AddValue(MakeUnversionedAnyValue(request.Spec.GetData(), index.Spec));

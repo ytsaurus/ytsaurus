@@ -57,7 +57,6 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
 
@@ -77,6 +76,8 @@
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/public.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -1973,7 +1974,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table->OutputChunkListId);
                 if (table->Dynamic) {
-                    ToProto(req->mutable_transaction_id(), table->UploadTransactionId);
+                    ToProto(req->mutable_transaction_id(), OutputTransaction->GetId());
                 }
             }
 
@@ -2084,7 +2085,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : tables) {
                 {
-                    // XXX(babenko): portals
                     auto req = TTableYPathProxy::EndUpload(table->GetObjectIdPath());
                     SetTransactionId(req, table->UploadTransactionId);
                     GenerateMutationId(req);
@@ -3178,6 +3178,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     TExecNodeDescriptor observedExecNode;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
+    int nonMatchingFilterNodeCount = 0;
+    int matchingButInsufficientResourcesNodeCount = 0;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
 
@@ -3190,6 +3192,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             }
         }
         if (!hasSuitableTree) {
+            ++nonMatchingFilterNodeCount;
             continue;
         }
 
@@ -3208,6 +3211,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             }
         }
         if (hasNonTrivialTasks && !hasEnoughResources) {
+            ++matchingButInsufficientResourcesNodeCount;
             continue;
         }
 
@@ -3227,16 +3231,28 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     if (!AvailableExecNodesObserved_) {
         OnOperationFailed(TError(
             EErrorCode::NoOnlineNodeToScheduleJob,
-            "No online nodes match operation scheduling tag filter %Qv in trees %v",
+            "No online nodes that match operation scheduling tag filter %Qv "
+            "and have sufficient resources to schedule a job found in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_)));
+            GetKeys(PoolTreeToSchedulingTagFilter_))
+            << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
+            << TErrorAttribute("matching_but_insufficient_resources_node_count", matchingButInsufficientResourcesNodeCount));
         return;
     }
 
     if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
-        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
+        TStringBuilder errorMessageBuilder;
+        errorMessageBuilder.AppendFormat(
+            "All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_)));
+            GetKeys(PoolTreeToSchedulingTagFilter_));
+        // NB(eshcherbin): This should happen always, currently this option could be the only reason to ban a node.
+        if (Spec_->BanNodesWithFailedJobs) {
+            errorMessageBuilder.AppendString(
+                " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
+        }
+        auto errorMessage = errorMessageBuilder.Flush();
+        OnOperationFailed(TError(errorMessage));
         return;
     }
 
@@ -5082,6 +5098,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         // NB(psushin): This option must be set before PrepareOutputTables call.
         table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
+        table->TableWriterOptions->OutputChunkFormat = table->TableUploadOptions.OutputChunkFormat;
+
         YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
             table->TableUploadOptions.TableSchema,
@@ -6485,38 +6503,42 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
 }
 
 void TOperationControllerBase::RegisterTeleportChunk(
-    TInputChunkPtr chunkSpec,
+    TInputChunkPtr chunk,
     TChunkStripeKey key,
     int tableIndex)
 {
     auto& table = OutputTables_[tableIndex];
 
     if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
-        YT_VERIFY(chunkSpec->BoundaryKeys());
-        YT_VERIFY(chunkSpec->GetRowCount() > 0);
-        YT_VERIFY(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
+        YT_VERIFY(chunk->BoundaryKeys());
+        YT_VERIFY(chunk->GetRowCount() > 0);
+        YT_VERIFY(chunk->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
         NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
         resultBoundaryKeys.set_sorted(true);
-        resultBoundaryKeys.set_unique_keys(chunkSpec->GetUniqueKeys());
-        ToProto(resultBoundaryKeys.mutable_min(), chunkSpec->BoundaryKeys()->MinKey);
-        ToProto(resultBoundaryKeys.mutable_max(), chunkSpec->BoundaryKeys()->MaxKey);
+        resultBoundaryKeys.set_unique_keys(chunk->GetUniqueKeys());
+        ToProto(resultBoundaryKeys.mutable_min(), chunk->BoundaryKeys()->MinKey);
+        ToProto(resultBoundaryKeys.mutable_max(), chunk->BoundaryKeys()->MaxKey);
 
         key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardEdgeDescriptors_[tableIndex], RowBuffer);
     }
 
-    table->OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());
+    table->OutputChunkTreeIds.emplace_back(key, chunk->ChunkId());
 
-    if (IsOutputLivePreviewSupported()) {
-        AttachToLivePreview(chunkSpec->ChunkId(), table->LivePreviewTableId);
+    if (table->Dynamic) {
+        table->OutputChunks.push_back(chunk);
     }
 
-    RegisterOutputRows(chunkSpec->GetRowCount(), tableIndex);
+    if (IsOutputLivePreviewSupported()) {
+        AttachToLivePreview(chunk->ChunkId(), table->LivePreviewTableId);
+    }
+
+    RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
-        chunkSpec->ChunkId(),
+        chunk->ChunkId(),
         key);
 }
 
@@ -6950,6 +6972,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
     }
 
     fluent
+        .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -6997,9 +7020,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
     if (IsPrepared() && DataFlowGraph_) {
-        fluent.Item("jobs").Do(BIND([&] (TFluentAny fluent) {
-            SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
-        }));
+        fluent
+            .Item("state").Value(State.load())
+            .Item("jobs").Do(BIND([&] (TFluentAny fluent) {
+                SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+            }))
+            .Item("build_time").Value(TInstant::Now());
     }
 }
 
@@ -7479,6 +7505,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     if (config->InodeLimit) {
         jobSpec->set_inode_limit(*config->InodeLimit);
+    }
+    if (config->InterruptionSignal) {
+        jobSpec->set_interruption_signal(*config->InterruptionSignal);
     }
 
     if (Config->IopsThreshold) {

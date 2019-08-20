@@ -55,23 +55,40 @@ TEST(TValidateLogicalTypeTest, TestBasicTypes)
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 42u ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " 3.14 ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " %false ");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " # ");
 
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::String), " 76 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Int64), " %true ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 14 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " bar ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " 1 ");
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " 0 ");
 }
 
 TEST(TValidateLogicalTypeTest, TestSimpleOptionalTypes)
 {
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false), " foo ");
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false), " # ");
-    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false), " 42 ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)), " foo ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)), " # ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)), " 42 ");
 
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false), " 42u ");
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false), " # ");
-    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false), " 42 ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " 42u ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " # ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)), " 42 ");
+}
+
+TEST(TValidateLogicalTypeTest, TestOptionalNull)
+{
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " # ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [#] ");
+
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [] ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)), " [[#]] ");
+
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[#]] ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [#] ");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " # ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[[#]]] ");
+    EXPECT_BAD_TYPE(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))), " [[[]]] ");
 }
 
 TEST(TValidateLogicalTypeTest, TestLogicalTypes)
@@ -145,17 +162,17 @@ TEST(TValidateLogicalTypeTest, TestAnyType)
 
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "[142; 53u; {foo=bar; bar=[baz]};]");
 
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any, /*required*/ false), "#");
-    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any, /*required*/ false), "[{bar=<type=list>[]}; bar; [baz];]");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)), "#");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)), "[{bar=<type=list>[]}; bar; [baz];]");
 
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "<>1");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "[<>1]");
 }
 
-TEST(TValidateLogicalTypeTest, TestComplexOptionalType)
+TEST(TValidateLogicalTypeTest, TestOptionalComplexType)
 {
     const auto optionalOptionalInt = OptionalLogicalType(
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false)
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
     );
     EXPECT_GOOD_TYPE(optionalOptionalInt, " [5] ");
     EXPECT_GOOD_TYPE(optionalOptionalInt, " [#] ");
@@ -189,7 +206,7 @@ TEST(TValidateLogicalTypeTest, TestComplexOptionalType)
 
     const auto optionalOptionalOptionalAny = OptionalLogicalType(
         OptionalLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Any, /*required*/ false)
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))
         )
     );
     EXPECT_GOOD_TYPE(optionalOptionalOptionalAny, " [[5]] ");
@@ -218,7 +235,7 @@ TEST(TValidateLogicalTypeTest, TestStructType)
     const auto struct1 = StructLogicalType({
         {"number",  SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"english", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"russian", SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false)},
+        {"russian", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
     });
 
     EXPECT_GOOD_TYPE(struct1, " [3; three; TRI ] ");
@@ -231,9 +248,9 @@ TEST(TValidateLogicalTypeTest, TestStructType)
     EXPECT_BAD_TYPE(struct1, " [ ] ");
 
     const auto struct2 = StructLogicalType({
-        {"key",  SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false)},
-        {"subkey", SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false)},
-        {"value", SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false)},
+        {"key",  OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        {"subkey", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
     });
 
     EXPECT_GOOD_TYPE(struct2, " [k ; s ; v ] ");
@@ -249,7 +266,7 @@ TEST(TValidateLogicalTypeTest, TestTupleType)
     const auto tuple1 = TupleLogicalType({
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
         SimpleLogicalType(ESimpleLogicalValueType::String),
-        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
     });
 
     EXPECT_GOOD_TYPE(tuple1, " [3; three; TRI ] ");
@@ -263,9 +280,9 @@ TEST(TValidateLogicalTypeTest, TestTupleType)
     EXPECT_BAD_TYPE(tuple1, " [ ] ");
 
     const auto tuple2 = TupleLogicalType({
-        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
-        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
-        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
     });
 
     EXPECT_GOOD_TYPE(tuple2, " [k ; s ; v ] ");

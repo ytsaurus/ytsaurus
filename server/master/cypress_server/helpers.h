@@ -87,6 +87,13 @@ void DetachChild(
     bool unref);
 
 bool NodeHasKey(const TCypressNode* node);
+std::optional<TString> FindNodeKey(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNode* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+
+bool NodeHasParentId(const TCypressNode* node);
+TNodeId GetNodeParentId(const TCypressNode* node);
 
 bool IsAncestorOf(
     const TCypressNode* trunkAncestor,

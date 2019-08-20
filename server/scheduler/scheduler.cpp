@@ -2149,6 +2149,10 @@ private:
             std::vector<TString> erasedTrees;
             for (const auto& [treeId, error] : poolLimitViolations) {
                 if (spec->TentativePoolTrees && spec->TentativePoolTrees->contains(treeId)) {
+                    YT_LOG_INFO(
+                        error,
+                        "Tree is erased for operation since pool limits violations (OperationId: %v)",
+                        operation->GetId());
                     erasedTrees.push_back(treeId);
                     // No need to throw now.
                     continue;

@@ -16,6 +16,8 @@
 #include "shard_type_handler.h"
 #include "shard_map_type_handler.h"
 #include "resolve_cache.h"
+#include "link_node_type_handler.h"
+#include "document_node_type_handler.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -276,13 +278,16 @@ public:
         }
 
         auto* trunkNode = cypressManager->CreateNode(
-            NullObjectId,
-            externalCellTag,
             handler,
-            account,
-            Transaction_,
-            inheritedAttributes,
-            explicitAttributes);
+            NullObjectId,
+            TCreateNodeContext{
+                .ExternalCellTag = externalCellTag,
+                .Transaction = Transaction_,
+                .InheritedAttributes = inheritedAttributes,
+                .ExplicitAttributes = explicitAttributes,
+                .Account = account,
+                .Shard = Shard_
+            });
 
         if (Shard_) {
             cypressManager->SetShard(trunkNode, Shard_);
@@ -556,8 +561,8 @@ public:
         RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
+        RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_));
+        RegisterHandler(CreateDocumentNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateShardMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
@@ -729,31 +734,21 @@ public:
     }
 
     TCypressNode* CreateNode(
-        TNodeId hintId,
-        TCellTag externalCellTag,
         const INodeTypeHandlerPtr& handler,
-        TAccount* account,
-        TTransaction* transaction,
-        IAttributeDictionary* inheritedAttributes,
-        IAttributeDictionary* explicitAttributes)
+        TNodeId hintId,
+        const TCreateNodeContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(handler);
-        YT_VERIFY(account);
-        YT_VERIFY(inheritedAttributes);
-        YT_VERIFY(explicitAttributes);
+        YT_VERIFY(context.Account);
+        YT_VERIFY(context.InheritedAttributes);
+        YT_VERIFY(context.ExplicitAttributes);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+        securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
 
-        auto nodeHolder = handler->Create(
-            hintId,
-            externalCellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
+        auto nodeHolder = handler->Create(hintId, context);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set owner.
@@ -1573,7 +1568,7 @@ private:
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        if (context.GetVersion() >= EMasterReign::CypressShards) {
             ShardMap_.LoadKeys(context);
         }
     }
@@ -1585,14 +1580,14 @@ private:
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterSnapshotVersion::CypressShards) {
+        if (context.GetVersion() >= EMasterReign::CypressShards) {
             ShardMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov) see YT-10852
-        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterSnapshotVersion::YT_10852;
+        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterReign::YT_10852;
         // COMPAT(babenko)
-        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterSnapshotVersion::CypressShards;
+        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
     }
 
     virtual void Clear() override
@@ -2884,13 +2879,15 @@ private:
 
         const auto& handler = GetHandler(type);
         auto* trunkNode = CreateNode(
-            nodeId,
-            NotReplicatedCellTag,
             handler,
-            account,
-            transaction,
-            inheritedAttributes.get(),
-            explicitAttributes.get());
+            nodeId,
+            TCreateNodeContext{
+                .ExternalCellTag = NotReplicatedCellTag,
+                .Transaction = transaction,
+                .InheritedAttributes = inheritedAttributes.get(),
+                .ExplicitAttributes = explicitAttributes.get(),
+                .Account = account
+            });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
@@ -3193,22 +3190,14 @@ std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
 }
 
 TCypressNode* TCypressManager::CreateNode(
-    TNodeId hintId,
-    TCellTag externalCellTag,
     const INodeTypeHandlerPtr& handler,
-    TAccount* account,
-    TTransaction* transaction,
-    IAttributeDictionary* inheritedAttributes,
-    IAttributeDictionary* explicitAttributes)
+    TNodeId hintId,
+    const TCreateNodeContext& context)
 {
     return Impl_->CreateNode(
+        handler,
         hintId,
-        externalCellTag,
-        std::move(handler),
-        account,
-        transaction,
-        inheritedAttributes,
-        explicitAttributes);
+        context);
 }
 
 TCypressNode* TCypressManager::InstantiateNode(

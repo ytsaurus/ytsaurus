@@ -162,14 +162,10 @@ protected:
 
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
-        TCellTag cellTag,
-        TTransaction* transaction,
-        IAttributeDictionary* inheritedAttributes,
-        IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) override
+        const TCreateNodeContext& context) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
-        auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+        auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
         auto replicationFactor = combinedAttributes.GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         auto readQuorum = combinedAttributes.GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         auto writeQuorum = combinedAttributes.GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
@@ -187,11 +183,7 @@ protected:
 
         auto nodeHolder = DoCreateImpl(
             id,
-            cellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account,
+            context,
             replicationFactor,
             NCompression::ECodec::None,
             NErasure::ECodec::None);

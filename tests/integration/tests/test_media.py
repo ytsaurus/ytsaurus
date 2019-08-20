@@ -122,26 +122,33 @@ class TestMedia(YTEnvSetup):
                 banned = True
         assert banned
 
+    @authors()
     def test_default_store_medium_name(self):
         assert get("//sys/media/default/@name") == "default"
 
+    @authors()
     def test_default_store_medium_index(self):
         assert get("//sys/media/default/@index") == 0
 
+    @authors()
     def test_default_cache_medium_name(self):
         assert get("//sys/media/cache/@name") == "cache"
 
+    @authors()
     def test_default_cache_medium_index(self):
         assert get("//sys/media/cache/@index") == 1
 
+    @authors("shakurov")
     def test_create(self):
         assert get("//sys/media/hdd4/@name") == "hdd4"
         assert get("//sys/media/hdd4/@index") > 0
 
+    @authors()
     def test_create_too_many_fails(self):
         with pytest.raises(YtError) :
             create_medium("excess_medium")
 
+    @authors("aozeritsky", "shakurov")
     def test_rename(self):
         hdd4_index = get("//sys/media/hdd4/@index")
 
@@ -152,19 +159,24 @@ class TestMedia(YTEnvSetup):
         assert not exists("//sys/media/hdd4")
         set("//sys/media/hdd144/@name", "hdd4")
 
+    @authors()
     def test_rename_duplicate_name_fails(self):
         with pytest.raises(YtError): set("//sys/media/hdd4/@name", "hdd5")
 
+    @authors()
     def test_rename_default_fails(self):
         with pytest.raises(YtError): set("//sys/media/default/@name", "new_default")
         with pytest.raises(YtError): set("//sys/media/cache/@name", "new_cache")
 
+    @authors()
     def test_create_empty_name_fails(self):
         with pytest.raises(YtError): create_medium("")
 
+    @authors()
     def test_create_duplicate_name_fails(self):
         with pytest.raises(YtError): create_medium(TestMedia.NON_DEFAULT_MEDIUM)
 
+    @authors("babenko")
     def test_new_table_attributes(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a" : "b"})
@@ -180,6 +192,7 @@ class TestMedia(YTEnvSetup):
         assert not tbl_media["default"]["data_parts_only"]
         wait(lambda: self._check_account_and_table_usage_equal("t1"))
 
+    @authors("shakurov", "babenko")
     def test_assign_additional_medium(self):
         create("table", "//tmp/t2")
         write_table("//tmp/t2", {"a" : "b"})
@@ -202,6 +215,7 @@ class TestMedia(YTEnvSetup):
                      self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7 and \
                      self._check_account_and_table_usage_equal("t2"))
 
+    @authors("babenko")
     def test_move_between_media(self):
         create("table", "//tmp/t3")
         write_table("//tmp/t3", {"a" : "b"})
@@ -226,6 +240,7 @@ class TestMedia(YTEnvSetup):
         wait(lambda: self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM) and \
                      self._check_account_and_table_usage_equal("t3"))
 
+    @authors("babenko")
     def test_move_between_media_shortcut(self):
         create("table", "//tmp/t4")
         write_table("//tmp/t4", {"a" : "b"})
@@ -244,6 +259,7 @@ class TestMedia(YTEnvSetup):
         wait(lambda: self._check_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM) and \
                      self._check_account_and_table_usage_equal("t4"))
 
+    @authors("shakurov")
     def test_assign_empty_medium_fails(self):
         create("table", "//tmp/t5")
         write_table("//tmp/t5", {"a" : "b"})
@@ -254,6 +270,7 @@ class TestMedia(YTEnvSetup):
         parity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
         with pytest.raises(YtError): set("//tmp/t5/@media", parity_loss_tbl_media)
 
+    @authors("babenko", "shakurov")
     def test_write_to_non_default_medium(self):
         create("table", "//tmp/t6")
         # Move table into non-default medium.
@@ -263,6 +280,7 @@ class TestMedia(YTEnvSetup):
         wait(lambda: self._check_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM) and \
                      self._check_account_and_table_usage_equal("t6"))
 
+    @authors("shakurov", "babenko")
     def test_chunks_inherit_properties(self):
         create("table", "//tmp/t7")
         write_table("//tmp/t7", {"a" : "b"})
@@ -295,9 +313,11 @@ class TestMedia(YTEnvSetup):
         wait(lambda: chunk_media_2 == get("#" + chunk_id + "/@media") and \
                      chunk_vital_2 == get("#" + chunk_id + "/@vital"))
 
+    @authors("babenko")
     def test_no_create_cache_media(self):
         with pytest.raises(YtError): create_medium("new_cache", attributes={"cache": True})
 
+    @authors("shakurov")
     def test_chunks_intersecting_by_nodes(self):
         create("table", "//tmp/t8")
         write_table("//tmp/t8", {"a" : "b"})
@@ -317,13 +337,16 @@ class TestMedia(YTEnvSetup):
         wait(lambda: self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES and \
                      self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES)
 
+    @authors("shakurov")
     def test_default_media_priorities(self):
         assert get("//sys/media/default/@priority") == 0
         assert get("//sys/media/cache/@priority") == 0
 
+    @authors("shakurov")
     def test_new_medium_default_priority(self):
         assert get("//sys/media/{}/@priority".format(TestMedia.NON_DEFAULT_MEDIUM)) == 0
 
+    @authors("shakurov")
     def test_set_medium_priority(self):
         assert get("//sys/media/hdd4/@priority") == 0
         set("//sys/media/hdd4/@priority", 7)
@@ -333,11 +356,13 @@ class TestMedia(YTEnvSetup):
         set("//sys/media/hdd4/@priority", 0)
         assert get("//sys/media/hdd4/@priority") == 0
 
+    @authors("shakurov")
     def test_set_incorrect_medium_priority(self):
         assert get("//sys/media/hdd5/@priority") == 0
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", 11)
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", -1)
 
+    @authors("babenko")
     def test_journal_medium(self):
         create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
@@ -348,6 +373,7 @@ class TestMedia(YTEnvSetup):
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
+    @authors("babenko")
     def test_file_medium(self):
         create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
@@ -356,6 +382,7 @@ class TestMedia(YTEnvSetup):
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
+    @authors("babenko")
     def test_table_medium(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/t/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
@@ -364,6 +391,7 @@ class TestMedia(YTEnvSetup):
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
+    @authors("babenko", "shakurov")
     def test_chunk_statuses_1_media(self):
         codec = "reed_solomon_6_3"
         codec_replica_count = 9
@@ -383,6 +411,7 @@ class TestMedia(YTEnvSetup):
 
         wait(lambda: self._check_chunk_ok(False, chunk_id, {"default"}))
 
+    @authors("shakurov")
     def test_chunk_statuses_2_media(self):
         codec = "reed_solomon_6_3"
         codec_replica_count = 9
@@ -408,10 +437,12 @@ class TestMedia(YTEnvSetup):
 
         wait(lambda: self._check_chunk_ok(False, chunk_id, relevant_media))
 
+    @authors("babenko")
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError): create_medium("x", attributes={"priority": "hello"})
         assert not exists("//sys/media/x")
 
+    @authors("shakurov")
     def test_transient_only_chunks_not_vital_yt_9133(self):
         create("table", "//tmp/t10_persistent",
                attributes={

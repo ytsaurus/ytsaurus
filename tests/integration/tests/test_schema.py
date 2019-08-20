@@ -16,6 +16,7 @@ GOOD_VALUE_LIST = [
     {"ui8": 0}, {"ui8": 2 ** 8 - 1}, {"ui8": None},
 
     {"utf8": "ff"}, {"utf8": "ЫТЬ"}, {"utf8": None},
+    {"null": None},
 ]
 
 BAD_VALUE_LIST = [
@@ -28,6 +29,7 @@ BAD_VALUE_LIST = [
     {"ui8": 2 ** 8},
 
     {"utf8": "\xFF"},
+    {"null": 0}, {"null": False}, {"null": ""},
 ]
 
 SCHEMA = [
@@ -64,10 +66,15 @@ SCHEMA = [
         "type": "utf8",
         "name": "utf8",
     },
+    {
+        "type": "null",
+        "name": "null",
+    },
 ]
 
 
 class TestComplexTypes(YTEnvSetup):
+    @authors("ermolovd")
     def test_set_old_schema(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema(
@@ -114,6 +121,7 @@ class TestComplexTypes(YTEnvSetup):
 
         assert get("//tmp/table/@schema/0/type_v2") == optional_type("utf8")
 
+    @authors("ermolovd")
     def test_set_new_schema(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema(
@@ -147,6 +155,7 @@ class TestComplexTypes(YTEnvSetup):
         assert get("//tmp/table/@schema/0/type") == "string"
         assert get("//tmp/table/@schema/0/required") == True
 
+    @authors("ermolovd")
     def test_set_both_schemas(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -195,6 +204,7 @@ class TestComplexTypes(YTEnvSetup):
                 }])
             })
 
+    @authors("ermolovd")
     def test_complex_optional(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -221,6 +231,7 @@ class TestComplexTypes(YTEnvSetup):
                 {"column": [257]},
             ])
 
+    @authors("ermolovd")
     def test_struct(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -252,6 +263,7 @@ class TestComplexTypes(YTEnvSetup):
         check_bad(["bar", "baz"])
 
 
+    @authors("ermolovd")
     def test_malformed_struct(self):
         try:
             create("table", "//tmp/table", force=True, attributes={
@@ -275,6 +287,7 @@ class TestComplexTypes(YTEnvSetup):
             assert "Name of struct field #0 is empty" in str(e)
 
 
+    @authors("ermolovd")
     def test_list(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -301,6 +314,7 @@ class TestComplexTypes(YTEnvSetup):
         check_bad({})
         check_bad([1,None])
 
+    @authors("ermolovd")
     def test_tuple(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -333,6 +347,7 @@ class TestComplexTypes(YTEnvSetup):
         variant_tuple_type(["utf8", optional_type("int64")]),
         variant_struct_type([("a", "utf8"), ("b", optional_type("int64"))]),
     ])
+    @authors("ermolovd")
     def test_variant(self, logical_type):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -362,6 +377,81 @@ class TestComplexTypes(YTEnvSetup):
         check_bad([1, 3.14])
         check_bad([2, None])
 
+    @authors("ermolovd")
+    def test_null_type(self):
+        def check_schema():
+            column_schema = get("//tmp/table/@schema/0")
+            assert column_schema["required"] == False
+            assert column_schema["type"] == "null"
+            assert column_schema["type_v2"] == "null"
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": "null",
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type": "null",
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type": "null",
+                "required": False,
+            }])
+        })
+        check_schema()
+
+        # no exception
+        write_table("//tmp/table", [{}, {"column": None}])
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": 0}])
+
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/table", force=True, attributes={
+                "schema": make_schema([{
+                    "name": "column",
+                    "type": "null",
+                    "required": True,
+                }])
+        })
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": list_type("null"),
+            }])
+        })
+        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
+        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": [0]}])
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": optional_type("null")
+            }])
+        })
+        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": []}])
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"column": []}])
+
+
+    @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
         with pytest.raises(YtError):
@@ -379,6 +469,7 @@ class TestComplexTypes(YTEnvSetup):
                 ], unique_keys=True),
                 "dynamic": True})
 
+    @authors("ermolovd")
     def test_complex_types_disallowed_alter(self):
         create("table", "//table", attributes={
             "schema": make_schema([
@@ -424,6 +515,7 @@ class TestComplexTypes(YTEnvSetup):
 class TestLogicalType(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
+    @authors("ermolovd")
     def test_static_tables(self):
         create("table", "//test-table", attributes={"schema": SCHEMA})
 
@@ -434,6 +526,7 @@ class TestLogicalType(YTEnvSetup):
             with pytest.raises(YtError):
                 write_table("//test-table", [bad_value])
 
+    @authors("ermolovd")
     def test_dynamic_tables(self):
         sync_create_cells(1)
         create("table", "//test-dynamic-table", attributes={"schema": SCHEMA, "dynamic": True})
@@ -456,6 +549,7 @@ class TestLogicalType(YTEnvSetup):
 
         sync_unmount_table("//test-dynamic-table")
 
+    @authors("ermolovd")
     def test_bad_alter_table(self):
         def single_column_schema(typename):
             return [{"name": "column_name", "type": typename}]
@@ -478,6 +572,7 @@ class TestLogicalType(YTEnvSetup):
                     [{"name": "column_name", "type": source_type}],
                     [{"name": "column_name", "type": destination_type}])
 
+    @authors("ermolovd")
     def test_logical_type_column_constrains(self):
         with pytest.raises(YtError):
             create("table", "//test-table",
@@ -494,6 +589,7 @@ class TestLogicalType(YTEnvSetup):
 class TestRequiredOption(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
+    @authors("ermolovd")
     def test_required_static_tables(self):
         create("table", "//tmp/required_table",
                attributes={
@@ -514,6 +610,7 @@ class TestRequiredOption(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/required_table", [{}])
 
+    @authors("ermolovd")
     def test_required_any_is_disallowed(self):
         with pytest.raises(YtError):
             create("table", "//tmp/required_table",
@@ -544,6 +641,7 @@ class TestRequiredOption(YTEnvSetup):
                        ],
                    })
 
+    @authors("ermolovd")
     def test_alter_required_column(self):
         table = "//tmp/static_table"
         create("table", table,
@@ -621,6 +719,7 @@ class TestRequiredOption(YTEnvSetup):
                 ]
             )
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("sorted_table", [False, True])
     def test_infer_required_column(self, sorted_table):
         if sorted_table:
@@ -647,6 +746,7 @@ class TestRequiredOption(YTEnvSetup):
 
         assert normalize_schema(get("//tmp/output/@schema")) == schema
 
+    @authors("ermolovd")
     def test_infer_mixed_requiredness(self):
         table = "//tmp/input1"
         create("table", table, attributes={"schema": make_schema([
@@ -666,6 +766,7 @@ class TestRequiredOption(YTEnvSetup):
             # Schemas are incompatible
             merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
 
+    @authors("ifsmirnov")
     def test_required_columns_in_dynamic_tables_schema(self):
         schema = [
                 {"name": "key_req", "type": "int64", "sort_order": "ascending", "required": True},
@@ -700,10 +801,12 @@ class TestRequiredOption(YTEnvSetup):
         alter_table("//tmp/t", schema=good_schema)
 
 class TestSchemaDeduplication(YTEnvSetup):
+    @authors("ermolovd")
     def test_empty_schema(self):
         create("table", "//tmp/table")
         assert get("//tmp/table/@schema_duplicate_count") == 0
 
+    @authors("ermolovd")
     def test_simple_schema(self):
         def get_schema(strict):
             return make_schema([{"name": "value", "type": "string", "required": True}], unique_keys=False, strict=strict)
@@ -724,6 +827,7 @@ class TestSchemaDeduplication(YTEnvSetup):
 
 
 class TestSchemaValidation(YTEnvSetup):
+    @authors("ermolovd")
     def test_schema_complexity(self):
         def make_schema(size):
             return [

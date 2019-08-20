@@ -610,8 +610,6 @@ TCachedBlobChunk::TCachedBlobChunk(
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
     , Destroyed_(destroyed)
-    , ValidationResult_(NewPromise<void>())
-    , ValidationLaunched_(false)
 { }
 
 TCachedBlobChunk::~TCachedBlobChunk()
@@ -639,7 +637,10 @@ void TCachedBlobChunk::DoValidate()
     const auto& chunkId = GetId();
     const auto& location = GetLocation();
 
-    YT_LOG_INFO("Begin chunk validation (ChunkId: %v)", chunkId);
+    auto Logger = NLogging::TLogger(DataNodeLogger)
+        .AddTag("ChunkId: %v", chunkId);
+
+    YT_LOG_INFO("Chunk validation started");
 
     auto dataFileName = location->GetChunkPath(chunkId);
 
@@ -651,12 +652,13 @@ void TCachedBlobChunk::DoValidate()
     TClientBlockReadOptions blockReadOptions{
         TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
         New<TChunkReaderStatistics>(),
-        TReadSessionId::Create() };
+        TReadSessionId::Create()
+    };
 
     auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
 
     if (!metaOrError.IsOK()) {
-        YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta (ChunkId: %v)", chunkId);
+        YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta");
         metaOrError.ThrowOnError();
     }
 
@@ -666,17 +668,17 @@ void TCachedBlobChunk::DoValidate()
     try {
         TFile dataFile(dataFileName, OpenExisting);
         if (dataFile.GetLength() != miscExt.compressed_data_size()) {
-            THROW_ERROR_EXCEPTION("Failed to validate cached chunk size")
+            THROW_ERROR_EXCEPTION("Chunk length mismatch")
                 << TErrorAttribute("chunk_id", chunkId)
                 << TErrorAttribute("expected_size", miscExt.compressed_data_size())
                 << TErrorAttribute("actual_size", dataFile.GetLength());
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to validate cached chunk size (ChunkId: %v)", chunkId);
+        YT_LOG_WARNING(ex, "Failed to validate cached chunk size");
         throw;
     }
 
-    YT_LOG_INFO("Chunk has been successfully validated (ChunkId: %v)", chunkId);
+    YT_LOG_INFO("Chunk validation completed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

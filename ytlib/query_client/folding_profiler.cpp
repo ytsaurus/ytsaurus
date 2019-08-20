@@ -226,7 +226,10 @@ struct TExpressionFragmentPrinter
             });
 
             Builder->AppendString(
-                Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName));
+                Format("[%x%v]", FarmFingerprint(
+                    referenceExpr->ColumnName.data(),
+                    referenceExpr->ColumnName.size()),
+                columnName));
         } else {
             Builder->AppendString(Format("[%v]", columnName));
         }

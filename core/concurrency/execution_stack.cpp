@@ -169,15 +169,10 @@ template <NConcurrency::EExecutionStackKind Kind, size_t Size>
 struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Kind, Size>, void>
     : public TPooledObjectTraitsBase<NConcurrency::TPooledExecutionStack<Kind, Size>>
 {
-    typedef NConcurrency::TPooledExecutionStack<Kind, Size> TStackType;
+    using TStack = NConcurrency::TPooledExecutionStack<Kind, Size>;
 
-    static void Clean(TStackType* stack)
+    static void Clean(TStack* stack)
     {
-#if !defined(NDEBUG) && !defined(_asan_enabled_)
-        if (stack->GetStack()) {
-            memset(stack->GetStack(), 0, stack->GetSize());
-        }
-#endif
 #if defined(_asan_enabled_)
         if (stack->GetStack()) {
             NSan::Poison(stack->GetStack(), stack->GetSize());

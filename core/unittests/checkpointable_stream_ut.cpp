@@ -75,16 +75,6 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     EXPECT_EQ(0, input->Read(buffer.data(), 10));
 }
 
-TEST(TCheckpointableStreamTest, Encapsulated)
-{
-    TString data("this is a test");
-    TStringInput rawInput(data);
-    auto encapsulatedInput = EscapsulateAsCheckpointableInputStream(&rawInput);
-    auto checkpointableInput = CreateCheckpointableInputStream(encapsulatedInput.get());
-    checkpointableInput->SkipToCheckpoint();
-    EXPECT_EQ(data, checkpointableInput->ReadAll());
-}
-
 TEST(TCheckpointableStreamTest, Buffered)
 {
     TStringStream stringOutput;

@@ -12,16 +12,19 @@ class TestSecurityTags(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    @authors("babenko")
     def test_security_tags_empty_by_default(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@security_tags") == []
 
+    @authors("babenko")
     def test_set_security_tags_upon_create(self):
         create("table", "//tmp/t", attributes={
                 "security_tags": ["tag1", "tag2"]
             })
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_write_table_with_security_tags(self):
         create("table", "//tmp/t")
 
@@ -37,6 +40,7 @@ class TestSecurityTags(YTEnvSetup):
         write_table("<security_tags=[]>//tmp/t", [{"a": "b"}])
         assert_items_equal(get("//tmp/t/@security_tags"), [])
 
+    @authors("babenko")
     def test_write_table_with_security_tags_append(self):
         create("table", "//tmp/t")
 
@@ -44,6 +48,7 @@ class TestSecurityTags(YTEnvSetup):
         write_table("<append=true>//tmp/t", [{"c": "d"}])
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_write_file_with_security_tags(self):
         create("file", "//tmp/f")
 
@@ -59,6 +64,7 @@ class TestSecurityTags(YTEnvSetup):
         write_file("<security_tags=[]>//tmp/f", "test")
         assert_items_equal(get("//tmp/f/@security_tags"), [])
 
+    @authors("babenko")
     def test_write_file_with_security_tags_append(self):
         create("file", "//tmp/f")
 
@@ -66,6 +72,7 @@ class TestSecurityTags(YTEnvSetup):
         write_file("<append=true>//tmp/f", "test")
         assert_items_equal(get("//tmp/f/@security_tags"), ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_overwrite_table_in_tx(self):
         create("table", "//tmp/t")
 
@@ -79,6 +86,7 @@ class TestSecurityTags(YTEnvSetup):
 
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag2", "tag3"])
 
+    @authors("babenko")
     def test_append_table_in_tx(self):
         create("table", "//tmp/t")
 
@@ -92,6 +100,7 @@ class TestSecurityTags(YTEnvSetup):
 
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2", "tag3"])
 
+    @authors("babenko")
     def test_operation(self):
         create("table", "//tmp/t_in1", attributes={
                 "security_tags": ["tag1"]
@@ -127,6 +136,7 @@ class TestSecurityTags(YTEnvSetup):
         assert_items_equal(get("//tmp/t_out2/@security_tags"), ["tag5"])
         assert_items_equal(get("//tmp/t_out3/@security_tags"), ["tag3", "tag6"])
 
+    @authors("babenko")
     def test_update_security_tags1(self):
         create("table", "//tmp/t")
         assert_items_equal(get("//tmp/t/@security_tags"), [])
@@ -134,6 +144,7 @@ class TestSecurityTags(YTEnvSetup):
         set("//tmp/t/@security_tags", ["tag1", "tag2"])
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_update_security_tags2(self):
         tx = start_transaction()
 
@@ -147,6 +158,7 @@ class TestSecurityTags(YTEnvSetup):
 
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_cannot_update_security_tags_in_append_mode(self):
         create("table", "//tmp/t")
 
@@ -155,6 +167,7 @@ class TestSecurityTags(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
 
+    @authors("babenko")
     def test_can_update_security_tags_in_overwrite_mode1(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
@@ -167,6 +180,7 @@ class TestSecurityTags(YTEnvSetup):
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
         assert_items_equal(read_table("//tmp/t"), [{"a": "b"}])
 
+    @authors("babenko")
     def test_can_update_security_tags_in_overwrite_mode2(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
@@ -180,6 +194,7 @@ class TestSecurityTags(YTEnvSetup):
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
         assert_items_equal(read_table("//tmp/t"), [{"a": "b"}, {"c": "d"}])
 
+    @authors("babenko")
     def test_update_security_tags_involves_exclusive_lock(self):
         create("table", "//tmp/t")
 
@@ -189,6 +204,7 @@ class TestSecurityTags(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/t/@security_tags", ["tag1", "tag2"])
 
+    @authors("babenko")
     def test_concatenate(self):
         create("table", "//tmp/t1", attributes={
                 "security_tags": ["tag1", "tag2"]
@@ -206,6 +222,7 @@ class TestSecurityTags(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
         assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3"])
 
+    @authors("babenko")
     def test_concatenate_append(self):
         create("table", "//tmp/t1", attributes={
                 "security_tags": ["tag1", "tag2"]
@@ -226,6 +243,7 @@ class TestSecurityTags(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "z"}, {"key": "x"}, {"key": "y"}]
         assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"])
 
+    @authors("babenko")
     def test_concatenate_override(self):
         create("table", "//tmp/t1", attributes={
                 "security_tags": ["tag1", "tag2"]
@@ -243,6 +261,7 @@ class TestSecurityTags(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
         assert_items_equal(get("//tmp/union/@security_tags"), ["tag0"])
 
+    @authors("babenko")
     def test_tag_naming_on_set(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -251,6 +270,7 @@ class TestSecurityTags(YTEnvSetup):
             set("//tmp/t/@security_tags", ["a" * 129])
         set("//tmp/t/@security_tags", ["a" * 128])
 
+    @authors("babenko")
     def test_tag_naming_on_create(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"security_tags": [""]})
@@ -258,6 +278,7 @@ class TestSecurityTags(YTEnvSetup):
             create("table", "//tmp/t", attributes={"security_tags": ["a" * 129]})
         create("table", "//tmp/t", attributes={"security_tags": ["a" * 128]})
 
+    @authors("babenko")
     def test_tag_naming_on_write(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):

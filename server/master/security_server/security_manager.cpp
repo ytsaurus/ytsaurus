@@ -1678,15 +1678,15 @@ private:
         RecomputeAccountResourceUsage_ = false;
 
         // COMPAT(shakurov)
-        NeedAdjustUserReadRateLimits_ = context.GetVersion() < EMasterSnapshotVersion::MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers;
+        NeedAdjustUserReadRateLimits_ = context.GetVersion() < EMasterReign::MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers;
 
         // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterSnapshotVersion::YT_10952_DelayedMembershipClosureRecomputation) {
+        if (context.GetVersion() >= EMasterReign::YT_10952_DelayedMembershipClosureRecomputation) {
             MustRecomputeMembershipClosure_ = Load<bool>(context);
         }
 
         // COMPAT(ifsmirnov)
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterSnapshotVersion::ChunkViewToParentsArray;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override

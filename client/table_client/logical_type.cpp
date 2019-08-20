@@ -145,6 +145,7 @@ TString ToString(const TLogicalType& logicalType)
 TOptionalLogicalType::TOptionalLogicalType(TLogicalTypePtr element)
     : TLogicalType(ELogicalMetatype::Optional)
     , Element_(element)
+    , ElementIsNullable_(Element_->IsNullable())
 { }
 
 const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
@@ -154,11 +155,16 @@ const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
 
 std::optional<ESimpleLogicalValueType> TOptionalLogicalType::Simplify() const
 {
-    if (GetElement()->GetMetatype() == ELogicalMetatype::Simple) {
+    if (!IsElementNullable() && GetElement()->GetMetatype() == ELogicalMetatype::Simple) {
         return GetElement()->AsSimpleTypeRef().GetElement();
     } else {
         return std::nullopt;
     }
+}
+
+bool TOptionalLogicalType::IsElementNullable() const
+{
+    return ElementIsNullable_;
 }
 
 size_t TOptionalLogicalType::GetMemoryUsage() const
@@ -182,6 +188,11 @@ int TOptionalLogicalType::GetTypeComplexity() const
 
 void TOptionalLogicalType::ValidateNode() const
 { }
+
+bool TOptionalLogicalType::IsNullable() const
+{
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +220,11 @@ int TSimpleLogicalType::GetTypeComplexity() const
 void TSimpleLogicalType::ValidateNode() const
 { }
 
+bool TSimpleLogicalType::IsNullable() const
+{
+    return Element_ == ESimpleLogicalValueType::Null;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListLogicalType::TListLogicalType(TLogicalTypePtr element)
@@ -233,6 +249,11 @@ int TListLogicalType::GetTypeComplexity() const
 
 void TListLogicalType::ValidateNode() const
 { }
+
+bool TListLogicalType::IsNullable() const
+{
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,6 +412,11 @@ void TStructLogicalTypeBase::ValidateNode() const
     }
 }
 
+bool TStructLogicalTypeBase::IsNullable() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTupleLogicalTypeBase::TTupleLogicalTypeBase(ELogicalMetatype metatype, std::vector<NYT::NTableClient::TLogicalTypePtr> elements)
@@ -425,6 +451,11 @@ int TTupleLogicalTypeBase::GetTypeComplexity() const
 void TTupleLogicalTypeBase::ValidateNode() const
 { }
 
+bool TTupleLogicalTypeBase::IsNullable() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStructLogicalType::TStructLogicalType(std::vector<NYT::NTableClient::TStructField> fields)
@@ -455,7 +486,7 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
 {
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
-            return std::make_tuple(std::make_optional(logicalType->AsSimpleTypeRef().GetElement()), true);
+            return std::make_pair(std::make_optional(logicalType->AsSimpleTypeRef().GetElement()), !logicalType->IsNullable());
         case ELogicalMetatype::Optional:
             return std::make_pair(logicalType->AsOptionalTypeRef().Simplify(), false);
         case ELogicalMetatype::List:
@@ -919,9 +950,19 @@ TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element)
     return OptionalLogicalType(std::move(element));
 }
 
-TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required)
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element)
 {
-    if (required) {
+    return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
+}
+
+TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType element, bool required)
+{
+    if (element == ESimpleLogicalValueType::Null) {
+        if (required) {
+            THROW_ERROR_EXCEPTION("Null type cannot be required");
+        }
+        return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
+    } else if (required) {
         return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
     } else {
         return Singleton<TSimpleTypeStore>()->GetOptionalType(element);

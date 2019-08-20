@@ -77,7 +77,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, Acd_);
     Load(context, *Options_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterSnapshotVersion::AddDynamicTabletCellOptions) {
+    if (context.GetVersion() >= EMasterReign::AddDynamicTabletCellOptions) {
         Load(context, *DynamicOptions_);
         Load(context, DynamicConfigVersion_);
     }
@@ -85,12 +85,12 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, TabletCells_);
     Load(context, *TabletBalancerConfig_);
     // COMPAT(aozeritsky)
-    if (context.GetVersion() >= EMasterSnapshotVersion::TTabletCellBundleHealthAdded) {
+    if (context.GetVersion() >= EMasterReign::TTabletCellBundleHealthAdded) {
         Load(context, Health_);
     }
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterSnapshotVersion::SynchronousHandlesForTabletBalancer) {
+    if (context.GetVersion() >= EMasterReign::SynchronousHandlesForTabletBalancer) {
         Load(context, TabletActions_);
         Load(context, ActiveTabletActionCount_);
     }

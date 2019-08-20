@@ -1,4 +1,4 @@
-from yt_commands import is_debug, print_debug
+from yt_commands import is_debug, print_debug, authors
 
 from yt.wrapper.client import YtClient
 
@@ -85,6 +85,7 @@ class TestYsonPerformance(object):
         ("access_log", 5.0, 4.0),
         ("numbers", 2.5, 2.5)
     ])
+    @authors("asaitgalin")
     def test_yson_performance(self, dataset, expected_loads_time, expected_dumps_time):
         if is_debug() or yson.TYPE != "BINARY":
             pytest.skip()

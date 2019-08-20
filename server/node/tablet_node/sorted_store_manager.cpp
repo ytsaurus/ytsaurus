@@ -412,7 +412,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
-    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction, IThroughputThrottlerPtr throttler) {
+    return BIND([=, this_ = MakeStrong(this)] (
+        ITransactionPtr transaction,
+        IThroughputThrottlerPtr throttler,
+        TTimestamp currentTimestamp
+    ) {
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
@@ -462,7 +466,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->QuerySchema.GetKeyColumnCount(),
             TColumnFilter(),
             tabletSnapshot->Config,
-            transaction->GetStartTimestamp(),
+            currentTimestamp,
             0,
             tabletSnapshot->ColumnEvaluator,
             false,

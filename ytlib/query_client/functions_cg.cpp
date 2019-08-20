@@ -199,7 +199,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
         llvmArgs.push_back(resultPtr);
 
         auto resultLength = builder->CreateAlloca(
-            TTypeBuilder::TLength::get(builder->getContext()),
+            TValueTypeBuilder::TLength::Get(builder->getContext()),
             nullptr,
             "resultLength");
         llvmArgs.push_back(resultLength);
@@ -298,7 +298,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 {
     auto argumentValues = std::vector<Value*>();
 
-    auto unversionedValueType = llvm::TypeBuilder<TValue, false>::get(builder->getContext());
+    auto unversionedValueType = TTypeBuilder<TValue>::Get(builder->getContext());
     auto unversionedValueOpaqueType = GetOpaqueType(
         builder,
         UnversionedValueStructName);

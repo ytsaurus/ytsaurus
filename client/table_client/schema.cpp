@@ -41,14 +41,14 @@ TColumnSchema::TColumnSchema(
     const TString& name,
     EValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, SimpleLogicalType(GetLogicalType(type), /*required*/ false), sortOrder)
+    : TColumnSchema(name, MakeLogicalType(GetLogicalType(type), /*required*/ false), sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
     const TString& name,
     ESimpleLogicalValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, SimpleLogicalType(type, /*required*/ false), sortOrder)
+    : TColumnSchema(name, MakeLogicalType(type, /*required*/ false), sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
@@ -173,7 +173,7 @@ struct TSerializableColumnSchema
                             *RequiredV1_);
                     }
                 } else if (LogicalTypeV1_) {
-                    SetLogicalType(SimpleLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
+                    SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
                 } else {
                     THROW_ERROR_EXCEPTION("Column type is not specified");
                 }
@@ -311,12 +311,12 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
         schema->SetLogicalType(logicalType);
     } else if (protoSchema.has_simple_logical_type()) {
         schema->SetLogicalType(
-            SimpleLogicalType(
+            MakeLogicalType(
                 CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.simple_logical_type()),
                 protoSchema.required()));
     } else {
         auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
-        schema->SetLogicalType(SimpleLogicalType(GetLogicalType(physicalType), protoSchema.required()));
+        schema->SetLogicalType(MakeLogicalType(GetLogicalType(physicalType), protoSchema.required()));
     }
     YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
 
@@ -677,7 +677,7 @@ TTableSchema TTableSchema::ToReplicationLog() const
                 columns.push_back(
                     TColumnSchema(
                         TReplicationLogTable::KeyColumnNamePrefix + column.Name(),
-                        MakeOptionalIfNot(column.LogicalType())));
+                        column.LogicalType()));
             } else {
                 columns.push_back(
                     TColumnSchema(
@@ -697,6 +697,66 @@ TTableSchema TTableSchema::ToReplicationLog() const
         columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }
     return TTableSchema(std::move(columns), true, false);
+}
+
+TTableSchema TTableSchema::ToBuggyReplicationLog() const
+{
+    std::vector<TColumnSchema> columns;
+    columns.push_back(TColumnSchema(TimestampColumnName, ESimpleLogicalValueType::Uint64));
+    if (IsSorted()) {
+        columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ESimpleLogicalValueType::Int64));
+        for (const auto& column : Columns_) {
+            if (column.SortOrder()) {
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name(), column.LogicalType()));
+            } else {
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ESimpleLogicalValueType::Uint64));
+            }
+        }
+    } else {
+        for (const auto& column : Columns_) {
+            columns.push_back(
+                TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
+        }
+        columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
+    }
+    return TTableSchema(std::move(columns), true, false);
+}
+
+TTableSchema TTableSchema::ToUnversionedUpdate() const
+{
+    YT_VERIFY(IsSorted());
+
+    std::vector<TColumnSchema> columns;
+    columns.reserve(GetKeyColumnCount() + 1 + GetValueColumnCount() * 2);
+
+    // Keys.
+    for (int columnIndex = 0; columnIndex < GetKeyColumnCount(); ++columnIndex) {
+        const auto& column = Columns_[columnIndex];
+        columns.push_back(column);
+    }
+
+    // Modification type.
+    columns.emplace_back(
+        TUnversionedUpdateSchema::ChangeTypeColumnName,
+        ESimpleLogicalValueType::Uint64);
+
+    // Values.
+    for (int columnIndex = GetKeyColumnCount(); columnIndex < GetColumnCount(); ++columnIndex) {
+        const auto& column = Columns_[columnIndex];
+        YT_VERIFY(!column.SortOrder());
+        columns.emplace_back(
+            TUnversionedUpdateSchema::ValueColumnNamePrefix + column.Name(),
+            MakeOptionalIfNot(column.LogicalType()));
+        columns.emplace_back(
+            TUnversionedUpdateSchema::FlagsColumnNamePrefix + column.Name(),
+            MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false));
+    }
+
+    return TTableSchema(std::move(columns), /*strict*/ true, /*uniqueKeys*/ true);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const

@@ -647,12 +647,9 @@ i64 TLocation::GetAdditionalSpace() const
 
 bool TLocation::ShouldSkipFileName(const TString& fileName) const
 {
-    // Skip cell_id file.
-    if (fileName == CellIdFileName) {
-        return true;
-    }
-
-    return false;
+    return
+        fileName == CellIdFileName ||
+        fileName == LocationUuidFileName;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
@@ -674,7 +671,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
             TChunkId chunkId;
             auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
             if (!TChunkId::FromString(bareFileName, &chunkId)) {
-                YT_LOG_ERROR("Unrecognized file %v in location directory", fileName);
+                YT_LOG_ERROR("Unrecognized file in location directory (FileName: %v)", fileName);
                 continue;
             }
 
@@ -1138,7 +1135,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
             TChunkId chunkId;
             auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
             if (!TChunkId::FromString(bareFileName, &chunkId)) {
-                YT_LOG_ERROR("Unrecognized file %v in location trash directory", fileName);
+                YT_LOG_ERROR("Unrecognized file in location trash directory (FileName: %v)", fileName);
                 continue;
             }
             trashChunkIds.insert(chunkId);

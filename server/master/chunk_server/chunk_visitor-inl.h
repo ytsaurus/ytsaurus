@@ -42,7 +42,8 @@ private:
         TChunk* chunk,
         i64 /*rowIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override
+        const NChunkClient::TReadLimit& /*endLimit*/,
+        TTransactionId /*timestampTransactionId*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

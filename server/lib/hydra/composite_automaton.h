@@ -195,6 +195,8 @@ public:
     virtual void Clear() override;
     virtual void SetZeroState() override;
 
+    virtual EFinalRecoveryAction GetFinalRecoveryAction() override;
+
 protected:
     bool SerializationDumpEnabled_ = false;
 
@@ -270,6 +272,8 @@ private:
     THashSet<TString> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;
     std::vector<TAsyncSaverDescriptor> AsyncSavers_;
+
+    EFinalRecoveryAction FinalRecoveryAction_ = EFinalRecoveryAction::None;
 
     NProfiling::TMonotonicCounter MutationCounter_ = {"/mutation_count"};
     NProfiling::TAggregateGauge MutationWaitTimeCounter_ = {"/mutation_wait_time"};

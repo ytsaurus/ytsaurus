@@ -97,7 +97,10 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     int initialChangelogId;
     if (snapshotVersion > currentVersion) {
         // Load the snapshot.
-        YT_LOG_INFO("Using snapshot %v for recovery", snapshotId);
+        YT_LOG_INFO("Using snapshot for recovery (SnapshotId: %v, SnapshotVersion: %v, CurrentVersion: %v)",
+            snapshotId,
+            snapshotVersion,
+            currentVersion);
 
         if (ResponseKeeper_) {
             ResponseKeeper_->Stop();
@@ -107,7 +110,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
-        YT_LOG_INFO("Not using snapshots for recovery");
+        YT_LOG_INFO("Not using snapshots for recovery (SnapshotVersion: %v, CurrentVersion: %v)",
+            snapshotVersion,
+            currentVersion);
         initialChangelogId = currentVersion.SegmentId;
     }
 

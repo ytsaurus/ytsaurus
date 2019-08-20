@@ -46,16 +46,11 @@ public:
         i64 offset)
         : FileName_(fileName)
         , SnapshotId_(snapshotId)
-        , IsRaw_(raw)
+        , Raw_(raw)
         , Offset_(offset)
-    {
-        Logger.AddTag("Path: %v", FileName_);
-    }
-
-    int GetSnapshotId() const
-    {
-        return SnapshotId_;
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", FileName_))
+    { }
 
     virtual TFuture<void> Open() override
     {
@@ -84,15 +79,14 @@ public:
 private:
     const TString FileName_;
     const int SnapshotId_;
-    const bool IsRaw_;
+    const bool Raw_;
     const i64 Offset_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TUnbufferedFileInput> FileInput_;
     std::unique_ptr<IInputStream> CodecInput_;
-    std::unique_ptr<IInputStream> FakeCheckpointableInput_;
     IInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
@@ -102,7 +96,7 @@ private:
     void DoOpen()
     {
         YT_LOG_DEBUG("Opening local snapshot reader (Raw: %v, Offset: %v)",
-            IsRaw_,
+            Raw_,
             Offset_);
 
         try {
@@ -136,13 +130,13 @@ private:
                 ReadPadded(input, serializedMeta);
                 DeserializeProto(&Meta_, serializedMeta);
 
-                if (IsRaw_) {
+                if (Raw_) {
                     File_->Seek(Offset_, sSet);
                 }
 
                 FileInput_.reset(new TUnbufferedFileInput(*File_));
 
-                if (IsRaw_) {
+                if (Raw_) {
                     FacadeInput_ = FileInput_.get();
                 } else {
                     auto codec = CheckedEnumCast<ECodec>(Header_.Codec);
@@ -179,7 +173,6 @@ private:
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileSnapshotReader)
@@ -454,7 +447,7 @@ public:
                     int snapshotId = FromString<int>(name);
                     RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
-                    YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
+                    YT_LOG_WARNING("Found unrecognized file in snapshot directory (FileName: %v)", fileName);
                 }
             }
         }

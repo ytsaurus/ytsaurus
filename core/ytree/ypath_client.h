@@ -29,9 +29,9 @@ public:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
 
     TYPathRequest(
-        const TString& service,
-        const TString& method,
-        const NYPath::TYPath& path,
+        TString service,
+        TString method,
+        NYPath::TYPath path,
         bool mutating);
 
     virtual NRpc::TRequestId GetRequestId() const override;
@@ -181,8 +181,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
-void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
+const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path);
+
+bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header);
 
 //! Runs a sequence of IYPathService::Resolve calls aimed to discover the
 //! ultimate endpoint responsible for serving a given request.

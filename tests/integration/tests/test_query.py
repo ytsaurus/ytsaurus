@@ -65,6 +65,7 @@ class TestQuery(YTEnvSetup):
         sync_mount_table(path)
         insert_rows(path, data)
 
+    @authors("sandello")
     def test_simple(self):
         sync_create_cells(1)
         for i in xrange(0, 50, 10):
@@ -75,11 +76,13 @@ class TestQuery(YTEnvSetup):
 
             assert len(result) == 10 * i
 
+    @authors("lukyan")
     def test_full_scan(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         with pytest.raises(YtError): select_rows("* from [//tmp/t]", allow_full_scan=False)
 
+    @authors("sandello")
     def test_project1(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
@@ -87,6 +90,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
         assert expected == actual
 
+    @authors("sandello")
     def test_group_by1(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
@@ -94,6 +98,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
         assert_items_equal(actual, expected)
 
+    @authors("sandello", "lukyan", "asaitgalin")
     def test_group_by2(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
@@ -101,6 +106,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     def test_group_by_primary_prefix(self):
         sync_create_cells(1)
 
@@ -134,6 +140,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     def test_group_by_disjoint(self):
         sync_create_cells(1)
 
@@ -182,6 +189,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     def test_having(self):
         sync_create_cells(3)
 
@@ -207,6 +215,7 @@ class TestQuery(YTEnvSetup):
             having mb < 5""")
         assert expected == actual
 
+    @authors("lbrown")
     def test_merging_group_by(self):
         sync_create_cells(1)
 
@@ -238,6 +247,7 @@ class TestQuery(YTEnvSetup):
             order by k limit 2""")
         assert expected == actual
 
+    @authors("lbrown")
     def test_merging_group_by2(self):
         sync_create_cells(1)
 
@@ -265,6 +275,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
+    @authors("lukyan")
     def test_limit(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
@@ -272,6 +283,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/t] limit 1")
         assert expected == actual
 
+    @authors("lukyan")
     def test_order_by(self):
         sync_create_cells(1)
 
@@ -309,6 +321,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10")
         assert expected == actual
 
+    @authors("lukyan")
     def test_inefficient_join(self):
         sync_create_cells(1)
         self._create_table(
@@ -329,6 +342,7 @@ class TestQuery(YTEnvSetup):
 
         with pytest.raises(YtError): select_rows("* from [//tmp/jl] join [//tmp/jr] on b = d", allow_join_without_index=False)
 
+    @authors("lukyan")
     def test_join(self):
         sync_create_cells(1)
 
@@ -397,6 +411,7 @@ class TestQuery(YTEnvSetup):
              where (l.a, l.b) in ((2, 1))""", allow_join_without_index=True)
         assert expected == actual
 
+    @authors("lukyan")
     def test_join_common_prefix(self):
         sync_create_cells(1)
 
@@ -447,6 +462,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/jl] left join [//tmp/jr] using a, b")
         assert sorted(expected) == sorted(actual)
 
+    @authors("lukyan")
     def test_join_common_prefix2(self):
         sync_create_cells(1)
 
@@ -478,6 +494,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/jl] l left join [//tmp/jr] r on (l.a, 2) = (r.a, r.b) where l.a = 1")
         assert sorted(expected) == sorted(actual)
 
+    @authors("lukyan")
     def test_join_many(self):
         sync_create_cells(1)
 
@@ -535,6 +552,7 @@ class TestQuery(YTEnvSetup):
             allow_join_without_index=True)
         assert sorted(expected) == sorted(actual)
 
+    @authors("lukyan")
     def test_types(self):
         sync_create_cells(1)
 
@@ -560,6 +578,7 @@ class TestQuery(YTEnvSetup):
         assert select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
+    @authors("lukyan")
     def test_tablets(self):
         sync_create_cells(1)
 
@@ -590,6 +609,7 @@ class TestQuery(YTEnvSetup):
 
         with pytest.raises(YtError): select_rows("* from [//tmp/t] where key < 51")
 
+    @authors("babenko", "savrus", "lukyan")
     def test_computed_column_simple(self):
         sync_create_cells(1)
 
@@ -619,6 +639,7 @@ class TestQuery(YTEnvSetup):
         actual = sorted(select_rows("* from [//tmp/t] where key in (10, 20, 30)"))
         assert_items_equal(actual, expected)
 
+    @authors("savrus")
     def test_computed_column_far_divide(self):
         sync_create_cells(1)
 
@@ -653,6 +674,7 @@ class TestQuery(YTEnvSetup):
         actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
+    @authors("savrus")
     def test_computed_column_modulo(self):
         sync_create_cells(1)
 
@@ -687,6 +709,7 @@ class TestQuery(YTEnvSetup):
         actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
+    @authors("lbrown")
     def test_udf(self):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
@@ -712,6 +735,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     def test_udf_custom_path(self):
         registry_path =  "//home/udfs"
         create("map_node", "//home")
@@ -738,6 +762,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]", udf_registry_path=registry_path)
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     def test_udf_fc(self):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
@@ -764,6 +789,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("udf_fc(2 * a) as s from [//tmp/u]")
         assert_items_equal(actual, expected)
 
+    @authors("lbrown")
     def test_udaf(self):
         registry_path = "//tmp/udfs"
         create("map_node", registry_path)
@@ -792,6 +818,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
         assert_items_equal(actual, expected)
 
+    @authors("lukyan")
     @flaky(max_runs=5)
     def test_udf_cache(self):
         sync_create_cells(1)
@@ -849,6 +876,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows(query)
         assert_items_equal(actual, expected_sum)
 
+    @authors("savrus", "lbrown")
     def test_aggregate_string_capture(self):
         sync_create_cells(1)
 
@@ -873,6 +901,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("min(lower(a)) as m from [//tmp/t] group by 1")
         assert_items_equal(actual, expected)
 
+    @authors("lbrown")
     def test_cardinality(self):
         sync_create_cells(1)
 
@@ -905,6 +934,7 @@ class TestQuery(YTEnvSetup):
         assert actual[2]["b"] > 1.95 * 10000
         assert actual[2]["b"] < 2.05 * 10000
 
+    @authors("babenko")
     def test_yt_2375(self):
         sync_create_cells(1)
         create("table", "//tmp/t",
@@ -922,6 +952,7 @@ class TestQuery(YTEnvSetup):
         # should not raise
         select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
 
+    @authors("savrus")
     def test_null(self):
         sync_create_cells(1)
 
@@ -943,6 +974,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/t] where a = null")
         assert actual == expected
 
+    @authors("ifsmirnov")
     def test_nan(self):
         sync_create_cells(1)
 
@@ -1014,6 +1046,7 @@ class TestQuery(YTEnvSetup):
         assert select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0] == False
         assert select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0] == False
 
+    @authors("lukyan")
     def test_bad_limits(self):
         sync_create_cells(1)
 
@@ -1039,6 +1072,7 @@ class TestQuery(YTEnvSetup):
 
         select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
 
+    @authors("lukyan")
     def test_multi_between(self):
         sync_create_cells(1)
 

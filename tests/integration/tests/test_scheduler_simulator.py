@@ -283,6 +283,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         }
     }
 
+    @authors("antonkikh")
     def test_scheduler_simulator(self):
         resource_limits = {"cpu": 1, "memory": ONE_GB, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})

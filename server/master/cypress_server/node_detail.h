@@ -109,21 +109,11 @@ public:
 
     virtual std::unique_ptr<TCypressNode> Create(
         TNodeId hintId,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) override
+        const TCreateNodeContext& context) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
-        return DoCreate(
-            TVersionedNodeId(id),
-            externalCellTag,
-            transaction,
-            inheritedAttributes,
-            explicitAttributes,
-            account);
+        return DoCreate(TVersionedNodeId(id), context);
     }
 
     virtual void FillAttributes(
@@ -250,14 +240,10 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* /*transaction*/,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account)
+        const TCreateNodeContext& context)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
-        nodeHolder->SetExternalCellTag(externalCellTag);
+        nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
         if (NObjectClient::CellTagFromId(nodeHolder->GetId()) != Bootstrap_->GetCellTag()) {
             nodeHolder->SetForeign();
@@ -265,12 +251,12 @@ protected:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+        securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
         // Null is passed as transaction because DoCreate() always creates trunk nodes.
         securityManager->SetAccount(
             nodeHolder.get(),
             nullptr /* oldAccount */,
-            account,
+            context.Account,
             nullptr /* transaction*/);
 
         return nodeHolder;
@@ -909,128 +895,6 @@ private:
     virtual bool HasBranchedChangesImpl(
         TListNode* originatingNode,
         TListNode* branchedNode) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLinkNode
-    : public TCypressNode
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TargetPath);
-
-public:
-    using TCypressNode::TCypressNode;
-
-    virtual NYTree::ENodeType GetNodeType() const override;
-
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLinkNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TLinkNode>
-{
-public:
-    explicit TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual NYTree::ENodeType GetNodeType() const override;
-
-private:
-    typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
-
-    virtual ICypressNodeProxyPtr DoGetProxy(
-        TLinkNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override;
-
-    virtual std::unique_ptr<TLinkNode> DoCreate(
-        const TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes,
-        NSecurityServer::TAccount* account) override;
-
-    virtual void DoBranch(
-        const TLinkNode* originatingNode,
-        TLinkNode* branchedNode,
-        const TLockRequest& lockRequest) override;
-
-    virtual void DoMerge(
-        TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override;
-
-    virtual void DoClone(
-        TLinkNode* sourceNode,
-        TLinkNode* clonedNode,
-        ICypressNodeFactory* factory,
-        ENodeCloneMode mode,
-        NSecurityServer::TAccount* account) override;
-
-    virtual bool HasBranchedChangesImpl(
-        TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDocumentNode
-    : public TCypressNode
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Value);
-
-public:
-    explicit TDocumentNode(const TVersionedNodeId& id);
-
-    virtual NYTree::ENodeType GetNodeType() const override;
-
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDocumentNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TDocumentNode>
-{
-public:
-    explicit TDocumentNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual NYTree::ENodeType GetNodeType() const override;
-
-private:
-    typedef TCypressNodeTypeHandlerBase<TDocumentNode> TBase;
-
-    virtual ICypressNodeProxyPtr DoGetProxy(
-        TDocumentNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override;
-
-    virtual void DoBranch(
-        const TDocumentNode* originatingNode,
-        TDocumentNode* branchedNode,
-        const TLockRequest& lockRequest) override;
-
-    virtual void DoMerge(
-        TDocumentNode* originatingNode,
-        TDocumentNode* branchedNode) override;
-
-    virtual void DoClone(
-        TDocumentNode* sourceNode,
-        TDocumentNode* clonedNode,
-        ICypressNodeFactory* factory,
-        ENodeCloneMode mode,
-        NSecurityServer::TAccount* account) override;
-
-    virtual bool HasBranchedChangesImpl(
-        TDocumentNode* originatingNode,
-        TDocumentNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

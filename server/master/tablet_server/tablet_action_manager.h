@@ -15,13 +15,13 @@ class TTabletActionManager
     : public TRefCounted
 {
 public:
-    TTabletActionManager(
-        TTabletActionManagerMasterConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTabletActionManager(NCellMaster::TBootstrap* bootstrap);
     ~TTabletActionManager();
 
     void Start();
     void Stop();
+
+    void Reconfigure(TTabletActionManagerMasterConfigPtr config);
 
 private:
     class TImpl;

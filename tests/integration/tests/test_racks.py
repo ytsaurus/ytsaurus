@@ -71,18 +71,22 @@ class TestRacks(YTEnvSetup):
         return max(rack_to_counter.itervalues())
 
 
+    @authors("babenko", "ignat")
     def test_create(self):
         create_rack("r")
         assert get_racks() == ["r"]
         assert get("//sys/racks/r/@name") == "r"
 
+    @authors("babenko", "ignat")
     def test_empty_name_fail(self):
         with pytest.raises(YtError): create_rack("")
 
+    @authors("babenko", "ignat")
     def test_duplicate_name_fail(self):
         create_rack("r")
         with pytest.raises(YtError): create_rack("r")
 
+    @authors("babenko", "ignat")
     def test_rename_success(self):
         create_rack("r1")
         n = get_nodes()[0]
@@ -92,17 +96,20 @@ class TestRacks(YTEnvSetup):
         assert get("//sys/racks/r2/@name") == "r2"
         assert self._get_rack(n) == "r2"
 
+    @authors("babenko", "ignat")
     def test_rename_fail(self):
         create_rack("r1")
         create_rack("r2")
         with pytest.raises(YtError): set("//sys/racks/r1/@name", "r2")
 
+    @authors("babenko", "ignat")
     def test_assign_success1(self):
         create_rack("r")
         n = get_nodes()[0]
         self._set_rack(n, "r")
         assert self._get_rack(n) == "r"
 
+    @authors("babenko", "ignat")
     def test_assign_success2(self):
         create_rack("r")
         nodes = get_nodes()
@@ -112,6 +119,7 @@ class TestRacks(YTEnvSetup):
             assert self._get_rack(node) == "r"
         assert_items_equal(get("//sys/racks/r/@nodes"), nodes)
         
+    @authors("babenko", "ignat")
     def test_remove(self):
         create_rack("r")
         nodes = get_nodes()
@@ -121,25 +129,30 @@ class TestRacks(YTEnvSetup):
         for node in nodes:
             assert not self._has_rack(node)
 
+    @authors("babenko")
     def test_assign_fail(self):
         n = get_nodes()[0]
         with pytest.raises(YtError): self._set_rack(n, "r")
 
+    @authors("babenko", "ignat")
     def test_write_regular(self):
         self._init_n_racks(2)
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
+    @authors("babenko", "ignat")
     def test_write_erasure(self):
         self._init_n_racks(6)
         create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
         write_file("//tmp/file", self.FILE_DATA)
 
+    @authors("babenko", "ignat")
     def test_write_journal(self):
         self._init_n_racks(3)
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
 
+    @authors("babenko")
     def test_unsafely_placed(self):
         create_rack("r1")
         create_rack("r2")
@@ -160,6 +173,7 @@ class TestRacks(YTEnvSetup):
         self._reset_all_racks()
         wait(lambda: not get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
 
+    @authors("babenko")
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
@@ -183,6 +197,7 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 2
 
+    @authors("babenko", "ignat")
     def test_erasure_move_to_safe_place(self):
         create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
         write_file("//tmp/file", self.FILE_DATA)
@@ -229,6 +244,7 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 3
 
+    @authors("shakurov")
     def test_decommission_with_3_racks_yt_9720(self):
         set("//sys/media/default/@config/max_regular_replicas_per_rack", 1)
 
@@ -258,6 +274,9 @@ class TestRacks(YTEnvSetup):
 
         wait(decommission_successful)
 
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 64)
+
+    @authors("babenko")
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
@@ -281,6 +300,7 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 
+    @authors("babenko")
     def test_journals_with_degraded_racks(self):
         map = {}
         nodes = get_nodes()
@@ -294,11 +314,13 @@ class TestRacks(YTEnvSetup):
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 
+    @authors("babenko")
     def test_rack_count_limit(self):
         for i in xrange(255):
             create_rack("r" + str(i))
         with pytest.raises(YtError): create_rack("too_many")
 
+    @authors("shakurov")
     def test_max_replication_factor(self):
         set("//sys/media/default/@config/max_regular_replicas_per_rack", 1)
         self._init_n_racks(6)
@@ -318,6 +340,8 @@ class TestRacks(YTEnvSetup):
             return not replication_status["underreplicated"] and not replication_status["unsafely_placed"]
 
         wait(lambda: chunk_is_ok)
+
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 64)
 
 ##################################################################
 

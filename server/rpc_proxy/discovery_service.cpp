@@ -340,9 +340,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscoverProxies)
     {
-        if (!Coordinator_->IsOperable(context)) {
-            return;
-        }
+        Coordinator_->ValidateOperable();
 
         TString roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
 

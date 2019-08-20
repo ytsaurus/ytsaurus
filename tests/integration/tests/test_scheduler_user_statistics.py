@@ -35,6 +35,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         }
     }
 
+    @authors("tramsmm")
     @require_ytserver_root_privileges
     def test_job_statistics(self):
         create("table", "//tmp/t1")
@@ -51,6 +52,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
         assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
 
+    @authors("max42")
     @require_ytserver_root_privileges
     def test_tricky_names(self):
         create("table", "//tmp/t1")
@@ -74,6 +76,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1},
                 command='cat; echo "{\\"\\"=42}">&5')
 
+    @authors("tramsmm", "acid")
     @require_ytserver_root_privileges
     def test_name_is_too_long(self):
         create("table", "//tmp/t1")
@@ -89,6 +92,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1},
                 command='cat; echo "{ ' + long_name + '=42};">&5')
 
+    @authors("tramsmm")
     @require_ytserver_root_privileges
     def test_too_many_custom_statistics(self):
         create("table", "//tmp/t1")
@@ -106,6 +110,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1, "mapper":{"custom_statistics_count_limit": custom_statistics_count_limit}},
                 command="cat; " + write_line)
 
+    @authors("tramsmm")
     @require_ytserver_root_privileges
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
@@ -116,6 +121,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
 
+    @authors("tramsmm", "acid", "babenko")
     @require_ytserver_root_privileges
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")

@@ -398,6 +398,10 @@ void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason r
 
 IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 {
+    if (CookiePool_->empty()) {
+        return IChunkPoolInput::NullCookie;
+    }
+
     auto cookie = *CookiePool_->begin();
 
     Jobs_[cookie].UpdateCounters(&TProgressCounter::Start);

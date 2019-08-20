@@ -58,7 +58,7 @@ private:
     {
         switch (type->GetMetatype()) {
             case ELogicalMetatype::Simple:
-                ValidateSimpleType(type->AsSimpleTypeRef().GetElement(), true, fieldId);
+                ValidateSimpleType(type->AsSimpleTypeRef().GetElement(), fieldId);
                 return;
             case ELogicalMetatype::Optional:
                 ValidateOptionalType(type->AsOptionalTypeRef(), fieldId.OptionalElement());
@@ -82,19 +82,15 @@ private:
         YT_ABORT();
     }
 
-    template <ESimpleLogicalValueType type, bool required>
+    template <ESimpleLogicalValueType type>
     void ValidateSimpleType(const TFieldId& fieldId)
     {
         if constexpr (type == ESimpleLogicalValueType::Any) {
             switch (Cursor_.GetCurrent().GetType()) {
                 case EYsonItemType::EntityValue:
-                    if constexpr (required) {
-                        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                            "Cannot parse %Qv; unexpected entity value",
-                            GetDescription(fieldId));
-                    }
-                    Cursor_.Next();
-                    return;
+                    THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                        "Cannot parse %Qv; unexpected entity value",
+                        GetDescription(fieldId));
                 case EYsonItemType::Int64Value:
                 case EYsonItemType::BooleanValue:
                 case EYsonItemType::Uint64Value:
@@ -120,24 +116,11 @@ private:
             static_assert(type != ESimpleLogicalValueType::Any);
             constexpr auto expectedYsonEventType = ExpectedYsonItemType<GetPhysicalType(type)>();
             if (Cursor_.GetCurrent().GetType() != expectedYsonEventType) {
-                if (required) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                        "Cannot parse %Qv; expected: %Qv found: %Qv",
-                        GetDescription(fieldId),
-                        expectedYsonEventType,
-                        Cursor_.GetCurrent().GetType());
-                } else if (Cursor_.GetCurrent().GetType() == EYsonItemType::EntityValue) {
-                    YT_ASSERT(!required);
-                    Cursor_.Next();
-                    return;
-                } else {
-                    THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                        "Cannot parse %Qv; expected: %Qv or %Qv found: %Qv",
-                        GetDescription(fieldId),
-                        expectedYsonEventType,
-                        EYsonItemType::EntityValue,
-                        Cursor_.GetCurrent().GetType());
-                }
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; expected: %Qv found: %Qv",
+                    GetDescription(fieldId),
+                    expectedYsonEventType,
+                    Cursor_.GetCurrent().GetType());
             }
 
             if constexpr (expectedYsonEventType == EYsonItemType::EntityValue) {
@@ -159,17 +142,13 @@ private:
         }
     }
 
-    Y_FORCE_INLINE void ValidateSimpleType(ESimpleLogicalValueType type, bool required, const TFieldId& fieldId)
+    Y_FORCE_INLINE void ValidateSimpleType(ESimpleLogicalValueType type, const TFieldId& fieldId)
     {
         switch (type) {
 #define CASE(x) \
             case x: \
-                    if (required) { \
-                        ValidateSimpleType<x, true>(fieldId); \
-                    } else { \
-                        ValidateSimpleType<x, false>(fieldId); \
-                    } \
-                    return;
+                ValidateSimpleType<x>(fieldId); \
+                return;
             CASE(ESimpleLogicalValueType::Null)
             CASE(ESimpleLogicalValueType::Int64)
             CASE(ESimpleLogicalValueType::Uint64)
@@ -196,7 +175,7 @@ private:
             return;
         }
 
-        if (type.GetElement()->GetMetatype() != ELogicalMetatype::Optional) {
+        if (!type.IsElementNullable()) {
             ValidateLogicalType(type.GetElement(), fieldId.OptionalElement());
             return;
         }

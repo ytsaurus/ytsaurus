@@ -45,7 +45,7 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Action);
     Persist(context, InheritanceMode);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterSnapshotVersion::ColumnarAcls) {
+    if (context.GetVersion() >= EMasterReign::ColumnarAcls) {
         Persist(context, Columns);
     }
 }

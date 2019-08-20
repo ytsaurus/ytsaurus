@@ -18,7 +18,7 @@
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/server/lib/hydra/file_helpers.h>
+#include <yt/server/lib/hydra/local_snapshot_janitor.h>
 #include <yt/server/lib/hydra/private.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
@@ -27,8 +27,6 @@
 #include <yt/server/master/security_server/acl.h>
 #include <yt/server/master/security_server/group.h>
 #include <yt/server/master/security_server/security_manager.h>
-
-#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -40,8 +38,6 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/fair_share_action_queue.h>
-
-#include <yt/core/misc/fs.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/response_keeper.h>
@@ -63,7 +59,6 @@ using namespace NHiveServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
-static const auto SnapshotCleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,17 +123,23 @@ public:
         ElectionManager_->Initialize();
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
+
+        auto janitorConfig = New<TLocalSnapshotJanitorConfig>();
+        janitorConfig->Changelogs = Config_->Changelogs;
+        janitorConfig->Snapshots = Config_->Snapshots;
+        janitorConfig->MaxSnapshotCountToKeep = Config_->HydraManager->MaxSnapshotCountToKeep;
+        janitorConfig->MaxSnapshotSizeToKeep = Config_->HydraManager->MaxSnapshotSizeToKeep;
+
+        SnapshotJanitor_ = CreateLocalSnapshotJanitor(
+            std::move(janitorConfig),
+            GetHydraIOInvoker());
     }
 
     void Initialize()
     {
         HydraManager_->Initialize();
 
-        SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
-            GetHydraIOInvoker(),
-            BIND(&TImpl::OnSnapshotCleanup, MakeWeak(this)),
-            SnapshotCleanupPeriod);
-        SnapshotCleanupExecutor_->Start();
+        SnapshotJanitor_->Start();
     }
 
     void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
@@ -225,7 +226,7 @@ private:
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
 
-    TPeriodicExecutorPtr SnapshotCleanupExecutor_;
+    ILocalSnapshotJanitorPtr SnapshotJanitor_;
 
 
     void OnStartEpoch()
@@ -240,87 +241,6 @@ private:
     void OnStopEpoch()
     {
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
-    }
-
-
-    void OnSnapshotCleanup()
-    {
-        const auto& snapshotsPath = Config_->Snapshots->Path;
-        std::vector<TSnapshotInfo> snapshots;
-        auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
-        for (const auto& fileName : snapshotFileNames) {
-            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
-                continue;
-
-            int snapshotId;
-            i64 snapshotSize;
-            try {
-                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                snapshotSize = NFS::GetFileStatistics(NFS::CombinePaths(snapshotsPath, fileName)).Size;
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING("Unrecognized item %v in snapshot store",
-                    fileName);
-                continue;
-            }
-            snapshots.push_back({snapshotId, snapshotSize});
-        }
-
-        auto thresholdId = NHydra::GetSnapshotThresholdId(
-            snapshots,
-            Config_->HydraManager->MaxSnapshotCountToKeep,
-            Config_->HydraManager->MaxSnapshotSizeToKeep);
-
-        for (const auto& fileName : snapshotFileNames) {
-            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
-                continue;
-
-            int snapshotId;
-            try {
-                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-            } catch (const std::exception& ex) {
-                // Ignore, cf. logging above.
-                continue;
-            }
-
-            if (snapshotId < thresholdId) {
-                YT_LOG_INFO("Removing snapshot %v",
-                    snapshotId);
-
-                try {
-                    NFS::Remove(NFS::CombinePaths(snapshotsPath, fileName));
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Error removing %v from snapshot store",
-                        fileName);
-                }
-            }
-        }
-
-        const auto& changelogsPath = Config_->Changelogs->Path;
-        auto changelogFileNames = NFS::EnumerateFiles(changelogsPath);
-        for (const auto& fileName : changelogFileNames) {
-            if (NFS::GetFileExtension(fileName) != ChangelogExtension)
-                continue;
-
-            int changelogId;
-            try {
-                changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING("Unrecognized item %v in changelog store",
-                    fileName);
-                continue;
-            }
-
-            if (changelogId < thresholdId) {
-                YT_LOG_INFO("Removing changelog %v",
-                    changelogId);
-                try {
-                    RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Error removing %v from changelog store",
-                        fileName);
-                }
-            }
-        }
     }
 };
 

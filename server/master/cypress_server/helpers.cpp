@@ -1,5 +1,6 @@
 #include "helpers.h"
 #include "node_detail.h"
+#include "portal_exit_node.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -343,11 +344,56 @@ void DetachChild(
 
 bool NodeHasKey(const TCypressNode* node)
 {
-    auto* parent = node->GetParent();
-    if (!parent) {
-        return false;
+    if (node->GetType() == EObjectType::PortalExit) {
+        return node->As<TPortalExitNode>()->GetKey().has_value();
+    } else {
+        auto* parent = node->GetParent();
+        return parent && parent->GetNodeType() == ENodeType::Map;
     }
-    return parent->GetNodeType() == ENodeType::Map;
+}
+
+std::optional<TString> FindNodeKey(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNode* trunkNode,
+    TTransaction* transaction)
+{
+    YT_ASSERT(trunkNode->IsTrunk());
+    if (trunkNode->GetType() == EObjectType::PortalExit) {
+        return trunkNode->As<TPortalExitNode>()->GetKey();
+    } else {
+        auto* parent = trunkNode->GetParent();
+        if (!parent || parent->GetNodeType() != ENodeType::Map) {
+            return {};
+        }
+
+        auto originators = cypressManager->GetNodeOriginators(transaction, parent);
+        for (const auto* originator : originators) {
+            const auto* mapOriginator = originator->As<TMapNode>();
+            auto it = mapOriginator->ChildToKey().find(trunkNode);
+            if (it != mapOriginator->ChildToKey().end()) {
+                return it->second;
+            }
+        }
+        return std::nullopt;
+    }
+}
+
+bool NodeHasParentId(const TCypressNode* node)
+{
+    if (node->GetType() == EObjectType::PortalExit) {
+        return true;
+    } else {
+        return node->GetParent() != nullptr;
+    }
+}
+
+TNodeId GetNodeParentId(const TCypressNode* node)
+{
+    if (node->GetType() == EObjectType::PortalExit) {
+        return node->As<TPortalExitNode>()->GetParentId();
+    } else {
+        return node->GetParent()->GetId();
+    }
 }
 
 bool IsAncestorOf(

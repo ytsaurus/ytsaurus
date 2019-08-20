@@ -12,6 +12,7 @@ class TestFileCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
+    @authors("ignat")
     def test_get_file_from_cache(self):
         cache_path = "//tmp/file_cache"
         create("file", "//tmp/file")
@@ -38,6 +39,7 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("", cache_path) == ""
 
 
+    @authors("ignat")
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
@@ -95,6 +97,7 @@ class TestFileCache(YTEnvSetup):
         put_file_to_cache("//tmp/file", hashlib.md5("aba").hexdigest(), cache_path="//tmp/cache2", authenticated_user="u")
 
 
+    @authors("levysotsky")
     def test_put_file_to_cache_no_overwriting(self):
         content = "abacaba"
         content_md5 = hashlib.md5(content).hexdigest()
@@ -112,6 +115,7 @@ class TestFileCache(YTEnvSetup):
         assert id1 == id2
 
 
+    @authors("ignat", "levysotsky")
     def test_file_cache(self):
         content = "abacaba"
         content_md5 = hashlib.md5("abacaba").hexdigest()
@@ -130,6 +134,7 @@ class TestFileCache(YTEnvSetup):
         assert read_file(path) == content
         assert date_string_to_datetime(get(path + "/@modification_time")) > modification_time
 
+    @authors("ignat")
     def test_under_transaction(self):
         tx = start_transaction()
 
@@ -153,4 +158,4 @@ class TestFileCache(YTEnvSetup):
 class TestFileCacheRpcProxy(TestFileCache):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True

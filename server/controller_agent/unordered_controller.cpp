@@ -239,7 +239,7 @@ protected:
         }
     }
 
-    virtual i64 MinTeleportChunkSize() const = 0;
+    virtual i64 GetMinTeleportChunkSize() const = 0;
 
     void InitJobSizeConstraints()
     {
@@ -288,7 +288,7 @@ protected:
     virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
     {
         TUnorderedChunkPoolOptions options;
-        options.MinTeleportChunkSize = MinTeleportChunkSize();
+        options.MinTeleportChunkSize = GetMinTeleportChunkSize();
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.OperationId = OperationId;
         options.JobSizeConstraints = JobSizeConstraints_;
@@ -613,7 +613,7 @@ private:
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual i64 MinTeleportChunkSize() const override
+    virtual i64 GetMinTeleportChunkSize() const override
     {
         return std::numeric_limits<i64>::max();
     }
@@ -710,7 +710,7 @@ private:
         return !Spec->InputQuery;
     }
 
-    virtual i64 MinTeleportChunkSize() const override
+    virtual i64 GetMinTeleportChunkSize() const override
     {
         if (Spec->ForceTransform) {
             return std::numeric_limits<i64>::max();

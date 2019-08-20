@@ -88,9 +88,11 @@ class TestGetJobStderr(YTEnvSetup):
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
 
+    @authors("ignat")
     def test_get_job_stderr(self):
         self.do_test_get_job_stderr()
 
+    @authors("ignat")
     def test_get_job_stderr_without_cypress(self):
         old_value = None
         try:
@@ -102,6 +104,7 @@ class TestGetJobStderr(YTEnvSetup):
             if old_value is not None:
                 set("//sys/controller_agents/config/enable_cypress_job_nodes", old_value, recursive=True)
 
+    @authors("ignat")
     def test_get_job_stderr_acl(self):
         create_user("u")
         create_user("other")

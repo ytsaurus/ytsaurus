@@ -36,8 +36,11 @@
 #include <yt/core/concurrency/thread_pool_poller.h>
 #include <yt/core/concurrency/thread_pool.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/core/misc/signal_registry.h>
 
 #include <yt/core/ytalloc/statistics_producer.h>
 
@@ -154,7 +157,7 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
 
     RpcServer_->RegisterService(CreateClickHouseService(
-        GetControlInvoker(), InstanceId_));
+        this, InstanceId_));
 
     RpcServer_->Configure(Config_->RpcServer);
 
@@ -204,11 +207,37 @@ void TBootstrap::DoRun()
     }
 
     Host_->Start();
+
+    TSignalRegistry::Get()->RegisterHandler(SIGINT, BIND(&TBootstrap::SigintHandler, this));
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+EInstanceState TBootstrap::GetState() const
+{
+    return SigintCounter_ == 0 ? EInstanceState::Active : EInstanceState::Stopped;
+}
+
+void TBootstrap::SigintHandler()
+{
+    ++SigintCounter_;
+    if (SigintCounter_ > 1) {
+        _exit(InterruptionExitCode);
+    }
+    YT_LOG_INFO("Stopping server due to SIGINT");
+    Host_->StopDiscovery().Apply(BIND([this] {
+        TDelayedExecutor::WaitForDuration(Config_->InterruptionGracefulTimeout);
+        WaitFor(GetQueryRegistry()->GetIdleFuture()).ThrowOnError();
+        Host_->StopTcpServers();
+        Y_UNUSED(WaitFor(RpcServer_->Stop()));
+        MonitoringManager_->Stop();
+        HttpServer_->Stop();
+        TLogManager::StaticShutdown();
+        _exit(InterruptionExitCode);
+    }).Via(GetControlInvoker()));;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

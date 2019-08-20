@@ -2,20 +2,20 @@
 
 #include "dynamic_store_bits.h"
 
+#include <yt/core/codegen/type_builder.h>
+
 #include <type_traits>
 
-#include <llvm/IR/TypeBuilder.h>
-
-namespace llvm {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Cross>
-class TypeBuilder<NYT::NTabletNode::TDynamicString, Cross>
+template <>
+struct TTypeBuilder<NYT::NTabletNode::TDynamicString>
 {
 public:
-    typedef TypeBuilder<i32, Cross> TLength;
-    typedef TypeBuilder<char, Cross> TData;
+    typedef TTypeBuilder<i32> TLength;
+    typedef TTypeBuilder<char> TData;
 
     enum Fields
     {
@@ -23,11 +23,11 @@ public:
         Data
     };
 
-    static StructType* get(LLVMContext& context)
+    static llvm::StructType* Get(llvm::LLVMContext& context)
     {
-        return StructType::get(context, {
-            TLength::get(context),
-            TData::get(context)});
+        return llvm::StructType::get(context, {
+            TLength::Get(context),
+            TData::Get(context)});
     }
 
     static_assert(
@@ -46,15 +46,15 @@ public:
         "TDynamicString must be of type {i32, i8}");
 };
 
-template <bool Cross>
-class TypeBuilder<NYT::NTabletNode::TDynamicValueData, Cross>
+template <>
+struct TTypeBuilder<NYT::NTabletNode::TDynamicValueData>
 {
 public:
-    typedef TypeBuilder<char, Cross> TBoolean;
-    typedef TypeBuilder<i64, Cross> TInt64;
-    typedef TypeBuilder<ui64, Cross> TUint64;
-    typedef TypeBuilder<double, Cross> TDouble;
-    typedef TypeBuilder<NYT::NTabletNode::TDynamicString*, Cross> TStringType;
+    typedef TTypeBuilder<char> TBoolean;
+    typedef TTypeBuilder<i64> TInt64;
+    typedef TTypeBuilder<ui64> TUint64;
+    typedef TTypeBuilder<double> TDouble;
+    typedef TTypeBuilder<NYT::NTabletNode::TDynamicString*> TStringType;
 
     enum Fields
     {
@@ -65,10 +65,10 @@ public:
         Any = 0,
     };
 
-    static StructType* get(LLVMContext& context)
+    static llvm::StructType* Get(llvm::LLVMContext& context)
     {
-        return StructType::get(context, ArrayRef<Type*>{
-            TypeBuilder<i64, Cross>::get(context)});
+        return llvm::StructType::get(context, llvm::ArrayRef<llvm::Type*>{
+            TTypeBuilder<i64>::Get(context)});
     }
 
     static_assert(
@@ -81,5 +81,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace llvm
+} // namespace NYT::NCodegen
 

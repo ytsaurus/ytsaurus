@@ -33,9 +33,11 @@ class TestErasure(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
 
+    @authors("psushin", "ignat")
     def test_reed_solomon(self):
         self._do_test_simple("reed_solomon_6_3")
 
+    @authors("astiunov")
     def test_lrc(self):
         self._do_test_simple("lrc_12_2_2")
 
@@ -128,6 +130,7 @@ class TestErasure(YTEnvSetup):
 
         return has_failed
 
+    @authors("astiunov")
     def test_slow_read(self):
         replicas, _ = self._prepare_table()
             
@@ -161,10 +164,12 @@ class TestErasure(YTEnvSetup):
             set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
             wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
+    @authors("astiunov")
     def test_throw_error(self):
         has_failed = self._test_fetching_specs("throw_error")
         assert has_failed, "Expected to fail due to unavailable chunk specs"
 
+    @authors("astiunov")
     def test_repair_works(self):
         has_failed = self._test_fetching_specs("restore")
         assert has_failed == False, "Expected successful read"
@@ -211,18 +216,23 @@ class TestErasure(YTEnvSetup):
         else:
             assert not response.is_ok(), "Read finished successfully, but expected to fail (due to unavailable part and disabled repairing)"
 
+    @authors("astiunov")
     def test_repair_on_spot_successful(self):
         self._test_repair_on_spot(True)
 
+    @authors("astiunov")
     def test_repair_on_spot_failed(self):
         self._test_repair_on_spot(False)
 
+    @authors("ignat")
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)
 
+    @authors("psushin", "ignat")
     def test_lrc_repair(self):
         self._test_repair("lrc_12_2_2", 16, 12)
 
+    @authors("psushin", "ignat")
     def test_map(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
@@ -233,6 +243,7 @@ class TestErasure(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
+    @authors("max42")
     def test_slice_erasure_chunks_by_parts(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@erasure_codec", "lrc_12_2_2")
@@ -247,6 +258,7 @@ class TestErasure(YTEnvSetup):
         chunk_count = get(op2.get_path() + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count")
         assert chunk_count == 1
 
+    @authors("prime")
     def test_erasure_attribute_in_output_table(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
@@ -255,6 +267,7 @@ class TestErasure(YTEnvSetup):
         map(in_="//tmp/t1", out="<erasure_codec=lrc_12_2_2>//tmp/t2", command="cat")
         assert get("//tmp/t2/@erasure_codec") == "lrc_12_2_2"
 
+    @authors("ignat")
     def test_sort(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -277,6 +290,7 @@ class TestErasure(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    @authors("babenko")
     def test_part_ids(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
@@ -287,6 +301,7 @@ class TestErasure(YTEnvSetup):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
             assert get("#" + part_id + "/@id") == chunk_id
 
+    @authors("prime")
     def test_write_table_with_erasure(self):
         create("table", "//tmp/table")
 
@@ -299,6 +314,7 @@ class TestErasure(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("<append=true;erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
 
+    @authors("prime")
     def test_write_file_with_erasure(self):
         create("file", "//tmp/f")
 

@@ -553,6 +553,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("force_core_dump", ForceCoreDump)
         .Default(false);
+    RegisterParameter("interruption_signal", InterruptionSignal)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

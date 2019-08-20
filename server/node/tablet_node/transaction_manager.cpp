@@ -801,13 +801,13 @@ private:
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
         // COMPAT(savrus)
-        if (context.GetVersion() >= 100009) {
+        if (context.GetVersion() >= ETabletReign::SaveLastCommitTimestamp) {
             Load(context, LastSerializedCommitTimestamps_);
         } else {
             Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 100010) {
+        if (context.GetVersion() >= ETabletReign::AddTabletCellLifeState) {
             Load(context, Decommissioned_);
         } else {
             Decommissioned_ = false;

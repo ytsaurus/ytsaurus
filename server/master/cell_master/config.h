@@ -24,6 +24,8 @@
 
 #include <yt/server/master/journal_server/config.h>
 
+#include <yt/server/lib/timestamp_server/config.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/election/config.h>
@@ -42,22 +44,13 @@ namespace NYT::NCellMaster {
 
 class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
+    , public NHydra::TSnapshotKeeperConfig
 {
 public:
-    std::optional<int> MaxSnapshotCountToKeep;
-    std::optional<i64> MaxSnapshotSizeToKeep;
-
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     TMasterHydraManagerConfig()
     {
-        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
-            .GreaterThanOrEqual(0)
-            .Default(10);
-        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
-            .GreaterThanOrEqual(0)
-            .Default();
-
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
@@ -151,7 +144,7 @@ public:
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
-    NTransactionServer::TTimestampManagerConfigPtr TimestampManager;
+    NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 

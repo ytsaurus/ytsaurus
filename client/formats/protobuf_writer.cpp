@@ -228,9 +228,9 @@ void WriteProtobufField(
                     enumValue = fieldDescription.EnumerationDescription->GetValue(getter.GetString());
                     break;
                 default:
-                    THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from value of type %Qv",
+                    THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from value of type %Qlv",
                         getEnumerationName(),
-                        FormatEnum(getter.GetType()));
+                        getter.GetType());
             }
             if (Y_UNLIKELY(!inRange)) {
                 THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
@@ -243,19 +243,19 @@ void WriteProtobufField(
         case EProtobufType::Any:
         case EProtobufType::OtherColumns:
         case EProtobufType::StructuredMessage:
-            THROW_ERROR_EXCEPTION("Wrong protobuf type: %Qv",
-                FormatEnum(fieldDescription.Type));
+            THROW_ERROR_EXCEPTION("Wrong protobuf type %Qlv",
+                fieldDescription.Type);
     }
     YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateYsonCursorType(TYsonPullParserCursor* cursor, EYsonItemType expected)
+void ValidateYsonCursorType(const TYsonPullParserCursor* cursor, EYsonItemType expected)
 {
     auto actual = cursor->GetCurrent().GetType();
     if (Y_UNLIKELY(actual != expected)) {
-        THROW_ERROR_EXCEPTION("Protobuf writing error: bad YSON item, expected: %Qv, actual: %Qv",
+        THROW_ERROR_EXCEPTION("Protobuf writing error: bad YSON item, expected %Qlv, actual %Qlv",
             expected,
             actual);
     }
@@ -286,8 +286,8 @@ public:
             case EYsonItemType::StringValue:
                 return EValueType::String;
             default:
-                THROW_ERROR_EXCEPTION("EYsonItemType %Qv cannot be converted to EValueType",
-                    FormatEnum(Cursor_->GetCurrent().GetType()));
+                THROW_ERROR_EXCEPTION("EYsonItemType %Qlv cannot be converted to EValueType",
+                    Cursor_->GetCurrent().GetType());
         }
     }
 
@@ -322,7 +322,7 @@ public:
     }
 
 private:
-    TYsonPullParserCursor* Cursor_;
+    const TYsonPullParserCursor* const Cursor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

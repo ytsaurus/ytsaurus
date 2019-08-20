@@ -204,7 +204,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
-    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction, IThroughputThrottlerPtr throttler) {
+    return BIND([=, this_ = MakeStrong(this)] (
+        ITransactionPtr transaction,
+        IThroughputThrottlerPtr throttler,
+        TTimestamp currentTimestamp
+    ) {
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);

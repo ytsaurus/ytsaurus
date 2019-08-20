@@ -179,6 +179,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
     }
 
     virtual void Initialize() override
@@ -354,17 +356,17 @@ public:
 
     virtual TFuture<void> SyncWithUpstream() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(!HasMutationContext());
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = DecoratedAutomaton_->GetEpochContext();
         if (!epochContext || !IsActive()) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active peer"));
         }
 
-        if (GetAutomatonState() == EPeerState::Leading && UpstreamSync_.Empty()) {
+        if (epochContext->LeaderId == CellManager_->GetSelfPeerId() && UpstreamSync_.Empty()) {
+            // NB: Leader lease is already checked in IsActive.
             return VoidFuture;
         }
 
@@ -374,7 +376,6 @@ public:
     virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
 
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
@@ -425,6 +426,11 @@ public:
                     "Peer is in %Qlv state",
                     state));
         }
+    }
+
+    virtual TReign GetCurrentReign() override
+    {
+        return DecoratedAutomaton_->GetCurrentReign();
     }
 
     DEFINE_SIGNAL(void(), StartLeading);
@@ -867,13 +873,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TMutationRequest mutationRequest;
+        auto mutationRequest = TMutationRequest(request->reign());
         mutationRequest.Type = request->type();
         if (request->has_mutation_id()) {
             mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
             mutationRequest.Retry = request->retry();
         }
         mutationRequest.Data = request->Attachments()[0];
+
+        // COMPAT(savrus) Fix heartbeats from old participants.
+        if (mutationRequest.Type != HeartbeatMutationType && !mutationRequest.Reign) {
+            mutationRequest.Reign = GetCurrentReign();
+        }
 
         context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
             mutationRequest.Type,
@@ -893,6 +904,17 @@ private:
             }));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, Poke)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        context->SetRequestInfo();
+
+        CommitMutation(TMutationRequest(GetCurrentReign()))
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                context->Reply(result);
+            }));
+    }
 
     i64 GetElectionPriority()
     {
@@ -1261,6 +1283,8 @@ private:
 
             YT_LOG_INFO("Initial changelog rotated");
 
+            ApplyFinalRecoveryAction(true);
+
             LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -1377,6 +1401,8 @@ private:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
 
+            ApplyFinalRecoveryAction(false);
+
             FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -1421,6 +1447,37 @@ private:
         Participate();
 
         SystemLockGuard_.Release();
+    }
+
+    void ApplyFinalRecoveryAction(bool isLeader)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto finalAction = DecoratedAutomaton_->GetFinalRecoveryAction();
+        YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
+            finalAction);
+
+        switch (finalAction) {
+            case EFinalRecoveryAction::None:
+                break;
+
+            case EFinalRecoveryAction::BuildSnapshotAndRestart:
+                SetReadOnly(true);
+                if (isLeader || Options_.WriteSnapshotsAtFollowers) {
+                    DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
+                    WaitFor(DecoratedAutomaton_->BuildSnapshot())
+                        .ThrowOnError();
+                    YT_LOG_INFO("Compatibility snapshot saved, stopping Hydra instance");
+                }
+                SwitchTo(ControlEpochContext_->EpochControlInvoker);
+                WaitFor(Finalize())
+                    .ThrowOnError();
+                // Unreachable because Finalize stops epoch executor.
+                YT_ABORT();
+
+            default:
+                YT_ABORT();
+        }
     }
 
     void CheckForInitialPing(TVersion pingVersion)
@@ -1599,38 +1656,35 @@ private:
             asyncResults.push_back(callback.Run());
         }
 
+        // NB: Many subscribers are typically waiting for the upstream sync to complete.
+        // Make sure the promise is set in a large thread pool.
         return CombineAll(asyncResults).Apply(
-            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext));
+            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TError OnUpstreamSyncReached(
+    void OnUpstreamSyncReached(
         const TEpochContextPtr& epochContext,
         const TErrorOr<std::vector<TError>>& resultsOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        const auto& results = resultsOrError.ValueOrThrow();
         TError combinedError;
-        if (resultsOrError.IsOK()) {
-            for (const auto& error : resultsOrError.Value()) {
-                if (!error.IsOK()) {
-                    if (combinedError.IsOK()) {
-                        combinedError = TError(
-                            NRpc::EErrorCode::Unavailable,
-                            "Error synchronizing with upstream");
-                    }
-                    combinedError.InnerErrors().push_back(error);
+        for (const auto& error : results) {
+            if (!error.IsOK()) {
+                if (combinedError.IsOK()) {
+                    combinedError = TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Error synchronizing with upstream");
                 }
+                combinedError.InnerErrors().push_back(error);
             }
-        } else {
-            combinedError = resultsOrError;
         }
+        combinedError.ThrowOnError();
 
-        if (combinedError.IsOK()) {
-            YT_LOG_DEBUG("Upstream synchronization complete");
-            Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
-        }
-
-        return combinedError;
+        YT_LOG_DEBUG("Upstream synchronization complete");
+        Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
     }
 
     TFuture<void> DoSyncWithLeader()
@@ -1726,14 +1780,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (GetReadOnly()) {
+            return;
+        }
+
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(TMutationRequest())
+        CommitMutation(TMutationRequest(GetCurrentReign()))
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
-                } else {
+                } else if (!GetReadOnly()) {
                     Restart(
                         weakEpochContext,
                         TError("Heartbeat mutation commit failed") << result);

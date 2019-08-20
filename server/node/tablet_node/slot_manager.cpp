@@ -228,11 +228,11 @@ public:
         }
     }
 
-    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
+    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto newSnapshot = tablet->BuildSnapshot(slot);
+        auto newSnapshot = tablet->BuildSnapshot(slot, epoch);
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -550,9 +550,9 @@ void TSlotManager::ValidateTabletAccess(
     Impl_->ValidateTabletAccess(tabletSnapshot, permission, timestamp);
 }
 
-void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
+void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
 {
-    Impl_->RegisterTabletSnapshot(std::move(slot), tablet);
+    Impl_->RegisterTabletSnapshot(std::move(slot), tablet, epoch);
 }
 
 void TSlotManager::UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)

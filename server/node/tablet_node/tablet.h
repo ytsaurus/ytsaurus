@@ -164,6 +164,7 @@ struct TTabletSnapshot
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler;
 
     TLockManagerPtr LockManager;
+    TLockManagerEpoch LockManagerEpoch;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -371,7 +372,8 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
         NTabletClient::TTableReplicaId upstreamReplicaId,
-        TTimestamp retainedTimestamp);
+        TTimestamp retainedTimestamp,
+        bool useBuggyReplicatedSchema = false);
 
     ETabletState GetPersistentState() const;
 
@@ -447,7 +449,9 @@ public:
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    TTabletSnapshotPtr BuildSnapshot(TTabletSlotPtr slot) const;
+    TTabletSnapshotPtr BuildSnapshot(
+        TTabletSlotPtr slot,
+        std::optional<TLockManagerEpoch> epoch = std::nullopt) const;
 
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
@@ -505,7 +509,7 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
-    void Initialize();
+    void Initialize(bool useBuggyReplicatedSchema);
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 

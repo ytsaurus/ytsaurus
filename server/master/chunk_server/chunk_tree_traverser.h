@@ -22,7 +22,8 @@ struct IChunkVisitor
         TChunk* chunk,
         i64 rowIndex,
         const NChunkClient::TReadLimit& startLimit,
-        const NChunkClient::TReadLimit& endLimit) = 0;
+        const NChunkClient::TReadLimit& endLimit,
+        TTransactionId timestampTransactionId) = 0;
 
     virtual void OnFinish(const TError& error) = 0;
 

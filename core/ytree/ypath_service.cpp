@@ -468,7 +468,7 @@ bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
                 }
 
                 TCacheKey key(
-                    GetRequestYPath(context->GetRequestHeader()),
+                    GetRequestTargetYPath(context->GetRequestHeader()),
                     context->GetRequestHeader().method(),
                     context->GetRequestMessage()[1]);
 

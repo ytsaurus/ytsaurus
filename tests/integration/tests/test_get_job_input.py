@@ -90,6 +90,7 @@ class TestGetJobInput(YTEnvSetup):
             assert actual_input
             assert get_job_input(job_id) == actual_input
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("format", FORMAT_LIST)
     def test_map_in_progress(self, format):
         create("table", "//tmp/t_input")
@@ -120,6 +121,7 @@ class TestGetJobInput(YTEnvSetup):
         events_on_fs().notify_event("job_can_finish")
         op.track()
 
+    @authors("ermolovd")
     def test_map_complete(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -138,6 +140,7 @@ class TestGetJobInput(YTEnvSetup):
 
         self.check_job_ids(job_ids)
 
+    @authors("ermolovd")
     @pytest.mark.xfail(run=False, reason="Job input is unavailable while the operation is not finished")
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
@@ -177,6 +180,7 @@ class TestGetJobInput(YTEnvSetup):
         events_on_fs().notify_event("continue_reducer")
         op.track()
 
+    @authors("ermolovd")
     @pytest.mark.parametrize("format", FORMAT_LIST)
     def test_reduce_with_join(self, format):
         create("table", "//tmp/t_primary_input_1")
@@ -255,6 +259,7 @@ class TestGetJobInput(YTEnvSetup):
         paths = json.loads(get_job_input_paths(job_ids[0], output_format="json"))
         assert len(paths) == 4
 
+    @authors("psushin")
     def test_map_input_paths(self):
         create("table", "//tmp/in1")
         for i in xrange(0, 5, 2):
@@ -301,6 +306,7 @@ class TestGetJobInput(YTEnvSetup):
         actual = yson.loads(get_job_input_paths(job_ids[0]))
         assert expected == actual
 
+    @authors("ermolovd")
     def test_nonuser_job_type(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -327,6 +333,7 @@ class TestGetJobInput(YTEnvSetup):
         with pytest.raises(YtError):
             get_job_input(job_id)
 
+    @authors("ermolovd")
     def test_table_is_rewritten(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -363,6 +370,7 @@ class TestGetJobInput(YTEnvSetup):
                 get_job_input(job_id)
 
 
+    @authors("ermolovd")
     def test_wrong_spec_version(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -398,6 +406,7 @@ class TestGetJobInput(YTEnvSetup):
             with pytest.raises(YtError):
                 get_job_input(job_id)
 
+    @authors("ermolovd")
     def test_map_with_query(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -427,6 +436,7 @@ class TestGetJobInput(YTEnvSetup):
 
         self.check_job_ids(job_ids)
 
+    @authors("iskhakovt")
     @pytest.mark.parametrize("successfull_jobs", [False, True])
     def test_archive_job_spec(self, successfull_jobs):
         create("table", "//tmp/t_input")
@@ -457,5 +467,5 @@ class TestGetJobInput(YTEnvSetup):
 
 class TestGetJobInputRpcProxy(TestGetJobInput):
     DRIVER_BACKEND = "rpc"
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True

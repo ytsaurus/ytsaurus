@@ -63,7 +63,7 @@ public:
     struct TResolveResult
     {
         TNodeId PortalExitId;
-        NYPath::TYPath UnresolvedPathSufix;
+        NYPath::TYPath UnresolvedPathSuffix;
     };
     std::optional<TResolveResult> TryResolve(const NYPath::TYPath& path);
 

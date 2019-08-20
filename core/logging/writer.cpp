@@ -304,7 +304,7 @@ void TFileLogWriter::Open()
 
         // Emit a delimiter for ease of navigation.
         if (File_->GetLength() > 0) {
-            *GetOutputStream() << Endl;
+            LogFormatter->WriteLogReopenSeparator(GetOutputStream());
         }
 
         LogFormatter->WriteLogStartEvent(GetOutputStream());

@@ -189,6 +189,7 @@ class _TestListOperationsBase(ListOperationsSetup):
     #  6. sort       - pending    - user5 -  pool_no_running - False       - []            - []              - {}
     # Moreover, |self.op3| is expected to have title "op3 title".
 
+    @authors("halin-george", "levysotsky")
     def test_invalid_arguments(self):
         # Should fail when limit is invalid.
         with pytest.raises(YtError):
@@ -202,6 +203,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         with pytest.raises(YtError):
             list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.finish_time, cursor_time=self.op5.before_start_time)
 
+    @authors("levysotsky")
     def test_time_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
@@ -230,6 +232,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 0
         assert [op["id"] for op in res["operations"]] == [self.op2.id]
 
+    @authors("levysotsky")
     def test_with_cursor(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
@@ -249,6 +252,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id]
 
+    @authors("levysotsky")
     def test_without_cursor_with_direction(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, cursor_direction="past", limit=2, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
@@ -268,6 +272,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
+    @authors("levysotsky")
     def test_type_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="map_reduce", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "some_pool": 1}
@@ -284,6 +289,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="reduce", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
+    @authors("levysotsky")
     def test_state_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="completed", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
@@ -300,6 +306,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="initializing", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == []
 
+    @authors("renadeen", "levysotsky")
     def test_user_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, user="user3", read_from=read_from)
         assert res["pool_counts"] == {"user3": 2, "some_pool": 1}
@@ -310,6 +317,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
+    @authors("levysotsky")
     def test_text_filter(self, read_from):
         # Title filter.
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="op3 title", read_from=read_from)
@@ -329,6 +337,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="notation2", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op1.id]
 
+    @authors("levysotsky")
     def test_pool_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)
         assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1}
@@ -344,6 +353,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 0
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
+    @authors("levysotsky")
     def test_with_limit(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, limit=1, read_from=read_from)
         assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
@@ -359,6 +369,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
         assert res["incomplete"] == False
 
+    @authors("levysotsky")
     def test_has_failed_jobs(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=True, read_from=read_from)
         assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
@@ -372,6 +383,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=False, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
+    @authors("levysotsky")
     def test_attribute_filter(self, read_from):
         attributes = ["id", "start_time", "type", "brief_spec", "finish_time", "progress"]
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, attributes=attributes, read_from=read_from)
@@ -384,6 +396,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
         assert all(sorted(op.keys()) == sorted(attributes) for op in res["operations"])
 
+    @authors("levysotsky")
     def test_access_filter(self, read_from):
         access = {"subject": "user3", "permissions": ["read", "manage"]}
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
@@ -441,6 +454,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
+    @authors("levysotsky")
     def test_access_filter_errors(self, read_from):
         # Missing subject.
         access = {"permissions": ["read", "manage"]}
@@ -482,6 +496,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         cls.op6.before_start_time = before_start_time
         wait(lambda: get(cls.op6.get_path() + "/@state") == "pending")
 
+    @authors("levysotsky")
     def test_no_filters(self, read_from):
         res = list_operations(include_archive=self.include_archive)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
@@ -491,6 +506,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op6.id, self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
+    @authors("levysotsky")
     def test_has_failed_jobs_with_pending(self, read_from):
         res = list_operations(include_archive=self.include_archive, with_failed_jobs=True, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
@@ -519,6 +535,7 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
         }
     }
 
+    @authors("levysotsky")
     def test_time_range_missing(self):
         with pytest.raises(YtError):
             list_operations(include_archive=True, to_time=self.op5.finish_time)
@@ -554,6 +571,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
         super(TestListOperationsArchiveOnly, cls).setup_class()
         wait(lambda: not operation_nodes_exist())
 
+    @authors("ilpauzner")
     def test_list_operation_sorting(self):
         clear_start_time("//sys/operations_archive/ordered_by_start_time")
         clear_start_time("//sys/operations_archive/ordered_by_id")
@@ -563,6 +581,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
         ids = [uuid_to_parts(op["id"]) for op in ops]
         assert ids == sorted(ids, reverse=True)
 
+    @authors("kiselyovp")
     def test_archive_fetching(self):
         clear_progress("//sys/operations_archive/ordered_by_id")
         wait(lambda: select_rows("brief_progress FROM [//sys/operations_archive/ordered_by_id]")[0]["brief_progress"] == {"ivan": "ivanov"})
@@ -577,18 +596,18 @@ class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
 
 class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 
 
 class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True

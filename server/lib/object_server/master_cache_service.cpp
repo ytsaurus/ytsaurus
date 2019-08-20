@@ -472,7 +472,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
         TKey key(
             user,
-            ypathExt.path(),
+            ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
             subrequestMessage[1]);

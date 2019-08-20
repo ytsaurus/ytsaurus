@@ -17,6 +17,7 @@ class TestDiskQuota(QuotaMixin):
         write_table(tables[0], [{"foo": "bar"} for _ in xrange(200)])
         return tables
 
+    @authors("astiunov")
     def test_disk_usage(self):
         tables = self._init_tables()
         try:
@@ -33,6 +34,7 @@ class TestDiskQuota(QuotaMixin):
         else:
             assert False, "Operation expected to fail, but completed successfully"
 
+    @authors("astiunov")
     def test_inodes_count(self):
         tables = self._init_tables()
         try:

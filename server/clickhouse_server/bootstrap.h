@@ -50,6 +50,8 @@ public:
 
     const IInvokerPtr& GetControlInvoker() const;
 
+    EInstanceState GetState() const;
+
 private:
     const NYTree::INodePtr ConfigNode_;
     TString InstanceId_;
@@ -69,8 +71,13 @@ private:
 
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
 
+    std::atomic<int> SigintCounter_ = {0};
+
+    static constexpr int InterruptionExitCode = 43;
+
     void DoRun();
 
+    void SigintHandler();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

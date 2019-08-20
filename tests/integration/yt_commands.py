@@ -15,6 +15,7 @@ import contextlib
 import copy as pycopy
 import logging
 import os
+import pytest
 import random
 import stat
 import string
@@ -38,16 +39,20 @@ _events_on_fs = None
 default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
+SortOrderViolation = 301
+UniqueKeyViolation = 306
 SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
-QueryRetryRequested = 1707
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
+
+def authors(*the_authors):
+    return pytest.mark.authors(the_authors)
 
 @contextlib.contextmanager
 def raises_yt_error(code):

@@ -426,7 +426,7 @@ struct INodeFactory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A node factory with extented transactional capabilities.
+//! A node factory with extended transactional capabilities.
 /*!
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *

@@ -10,7 +10,7 @@ class TestHttpProxy(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_HTTP_PROXIES = 1
@@ -25,19 +25,23 @@ class TestHttpProxy(YTEnvSetup):
     def proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
+    @authors("prime")
     def test_ping(self):
         rsp = requests.get(self.proxy_address() + "/ping")
         rsp.raise_for_status()
 
+    @authors("prime")
     def test_version(self):
         rsp = requests.get(self.proxy_address() + "/version")
         rsp.raise_for_status()
 
+    @authors("prime")
     def test_service(self):
         service = requests.get(self.proxy_address() + "/service").json()
         assert "version" in service
         assert "start_time" in service
 
+    @authors("levysotsky")
     def test_hosts(self):
         proxy = ls("//sys/proxies")[0]
 
@@ -59,13 +63,15 @@ class TestHttpProxy(YTEnvSetup):
         assert len(hosts) == 1
         assert not hosts[0]["banned"]
 
+    @authors("prime")
     def test_supported_api_versions(self):
         assert ["v3", "v4"] == requests.get(self.proxy_address() + "/api").json()
 
+    @authors("prime")
     def test_discover_versions(self):
         rsp = requests.get(self.proxy_address() + "/internal/discover_versions").json()
         service = requests.get(self.proxy_address() + "/service").json()
-        
+
         assert len(rsp["primary_masters"]) == 1
         assert len(rsp["secondary_masters"]) == 2
         assert len(rsp["nodes"]) == 5
@@ -79,6 +85,7 @@ class TestHttpProxy(YTEnvSetup):
                 assert "start_time" in rsp[component][instant]
                 assert "version" in service
 
+    @authors("prime")
     def test_discover_versions_v2(self):
         rsp = requests.get(self.proxy_address() + "/internal/discover_versions/v2")
         rsp.raise_for_status()
@@ -87,6 +94,7 @@ class TestHttpProxy(YTEnvSetup):
         assert "details" in versions
         assert "summary" in versions
 
+    @authors("prime")
     def test_dynamic_config(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
@@ -99,6 +107,7 @@ class TestHttpProxy(YTEnvSetup):
 
         wait(config_updated)
 
+    @authors("greatkorn")
     def test_kill_nodes(self):
         create("map_node", "//sys/proxies/test_http_proxy")
         set("//sys/proxies/test_http_proxy/@liveness", {"updated_at" : "2010-06-24T11:23:30.156098Z"})
@@ -116,6 +125,7 @@ class TestHttpProxy(YTEnvSetup):
             if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
                 assert proxy.get("state") == "offline"
 
+    @authors("greatkorn")
     def test_structured_logs(self):
         client = self.Env.create_client()
         client.list("//sys")
@@ -134,5 +144,6 @@ class TestHttpProxy(YTEnvSetup):
 
         wait(logs_updated)
 
+    @authors("greatkorn")
     def test_fail_logging(self):
         requests.get(self.proxy_address() + "/api/v2/get")

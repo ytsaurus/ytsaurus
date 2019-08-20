@@ -3,24 +3,26 @@
 #include "config.h"
 #include "bootstrap.h"
 #include "block_input_stream.h"
+#include "block_output_stream.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
 #include "join_workaround.h"
-#include "table.h"
 #include "db_helpers.h"
-#include "block_output_stream.h"
 #include "query_helpers.h"
+#include "query_analyzer.h"
+
+#include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
-
-#include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/ypath/rich.h>
 
 #include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>
@@ -28,7 +30,6 @@
 #include <Interpreters/InterpreterSelectQuery.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
-#include <Storages/MergeTree/KeyCondition.h>
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <Storages/StorageFactory.h>
 #include <Parsers/ASTFunction.h>
@@ -37,10 +38,7 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTSampleRatio.h>
-#include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/queryToString.h>
-
-#include <library/string_utils/base64/base64.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -48,6 +46,7 @@ using namespace NYPath;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NChunkPools;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -141,47 +140,15 @@ DB::BlockInputStreamPtr CreateRemoteStream(
             TGuid::Create()));
 }
 
-DB::ASTPtr RewriteForSubquery(const DB::ASTPtr& queryAst, const std::string& subquerySpec, const TLogger& logger)
-{
-    const auto& Logger = logger;
-
-    auto modifiedQueryAst = queryAst->clone();
-
-    auto* tableExpression = GetFirstTableExpression(typeid_cast<DB::ASTSelectQuery &>(*modifiedQueryAst));
-    YT_VERIFY(tableExpression);
-    YT_VERIFY(!tableExpression->subquery);
-
-    auto tableFunction = makeASTFunction(
-        "ytSubquery",
-        std::make_shared<DB::ASTLiteral>(subquerySpec));
-
-    if (tableExpression->database_and_table_name) {
-        tableFunction->alias = static_cast<DB::ASTWithAlias&>(*tableExpression->database_and_table_name).alias;
-    } else {
-        tableFunction->alias = static_cast<DB::ASTWithAlias&>(*tableExpression->table_function).alias;
-    }
-
-    auto oldTableExpression = tableExpression->clone();
-
-    tableExpression->table_function = std::move(tableFunction);
-    tableExpression->database_and_table_name = nullptr;
-    tableExpression->subquery = nullptr;
-    tableExpression->sample_offset = nullptr;
-    tableExpression->sample_size = nullptr;
-
-    YT_LOG_DEBUG("Rewriting for subquery (OldTableExpression: %v, NewTableExpression: %v)",
-        queryToString(oldTableExpression),
-        queryToString(tableExpression->clone()));
-
-    return modifiedQueryAst;
-}
-
 /////////////////////////////////////////////////////////////////////////////
 
 class TStorageDistributor
     : public DB::IStorage
+    , public IStorageDistributor
 {
 public:
+    friend class TQueryAnalyzer;
+
     TStorageDistributor(
         NTableClient::TTableSchema schema,
         TClickHouseTableSchema clickHouseSchema,
@@ -198,13 +165,16 @@ public:
                 << TErrorAttribute("path", getTableName());
         }
         setColumns(DB::ColumnsDescription(ClickHouseSchema_.Columns));
-        SpecTemplate_.Columns = ClickHouseSchema_.Columns;
-        SpecTemplate_.ReadSchema = Schema_;
     }
 
     std::string getName() const override
     {
         return "StorageDistributor";
+    }
+
+    virtual std::string getDatabaseName() const override
+    {
+        return "";
     }
 
     bool isRemote() const override
@@ -255,12 +225,12 @@ public:
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         Prepare(cliqueNodes.size(), queryInfo, context);
 
-        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, StripeCount: %v)",
+        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, StripeListCount: %v)",
             columnNames,
             getTableName(),
             cliqueNodes.size(),
             static_cast<ui64>(context.getSettings().max_threads),
-            StripeList_->Stripes.size());
+            StripeLists_.size());
 
         if (cliqueNodes.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
@@ -285,27 +255,23 @@ public:
         SpecTemplate_.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
 
         for (int index = 0; index < static_cast<int>(cliqueNodes.size()); ++index) {
-            int firstStripeIndex = index * StripeList_->Stripes.size() / cliqueNodes.size();
-            int lastStripeIndex = (index + 1) * StripeList_->Stripes.size() / cliqueNodes.size();
+            int firstStripeListIndex = index * StripeLists_.size() / cliqueNodes.size();
+            int lastStripeListIndex = (index + 1) * StripeLists_.size() / cliqueNodes.size();
+
+            if (firstStripeListIndex == lastStripeListIndex) {
+                continue;
+            }
 
             const auto& cliqueNode = cliqueNodes[index];
-            auto spec = SpecTemplate_;
-            FillDataSliceDescriptors(
-                spec,
-                MakeRange(
-                    StripeList_->Stripes.begin() + firstStripeIndex,
-                    StripeList_->Stripes.begin() + lastStripeIndex));
+            auto subqueryAst = QueryAnalyzer_->RewriteQuery(
+                MakeRange(StripeLists_.begin() + firstStripeListIndex, StripeLists_.begin() + lastStripeListIndex),
+                SpecTemplate_,
+                index);
 
-            auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
-            auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
-
-            YT_LOG_DEBUG("Rewriting query (OriginalQuery: %v)", *queryInfo.query);
-            auto subqueryAst = RewriteForSubquery(queryInfo.query, encodedSpec, Logger);
-            YT_LOG_DEBUG("Query rewritten (Subquery: %v)", *subqueryAst);
-
-            YT_LOG_DEBUG("Prepared subquery to node (Node: %v, StripeCount: %v)",
+            YT_LOG_DEBUG("Prepared subquery to node (Node: %v, StripeListCount: %v, SubqueryIndex: %v)",
                 cliqueNode->GetName().ToString(),
-                lastStripeIndex - firstStripeIndex);
+                lastStripeListIndex - firstStripeListIndex,
+                index);
 
             bool isLocal = cliqueNode->IsLocal();
             // XXX(max42): weird workaround.
@@ -359,12 +325,30 @@ public:
         return CreateBlockOutputStream(std::move(writer), queryContext->Logger);
     }
 
+    // IStorageDistributor overrides.
+
+    virtual std::vector<TRichYPath> GetTablePaths() const override
+    {
+        return TablePaths_;
+    }
+
+    virtual TClickHouseTableSchema GetClickHouseSchema() const override
+    {
+        return ClickHouseSchema_;
+    }
+
+    virtual TTableSchema GetSchema() const override
+    {
+        return Schema_;
+    }
+
 private:
     TClickHouseTableSchema ClickHouseSchema_;
     NTableClient::TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
-    NChunkPools::TChunkStripeListPtr StripeList_;
+    std::vector<NChunkPools::TChunkStripeListPtr> StripeLists_;
     std::vector<TRichYPath> TablePaths_;
+    std::optional<TQueryAnalyzer> QueryAnalyzer_;
 
     void Prepare(
         int subqueryCount,
@@ -373,24 +357,18 @@ private:
     {
         auto* queryContext = GetQueryContext(context);
 
-        std::unique_ptr<DB::KeyCondition> keyCondition;
-        if (ClickHouseSchema_.HasPrimaryKey()) {
-            keyCondition = std::make_unique<DB::KeyCondition>(CreateKeyCondition(context, queryInfo, ClickHouseSchema_));
-        }
+        QueryAnalyzer_.emplace(context, queryInfo);
+        auto analyzerResult = QueryAnalyzer_->Analyze();
 
-        auto dataSlices = FetchDataSlices(
+        auto inputStripeList = FetchInput(
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
-            TablePaths_,
-            keyCondition.get(),
+            analyzerResult.TableSchemas,
+            analyzerResult.TablePaths,
+            analyzerResult.KeyConditions,
             queryContext->RowBuffer,
             queryContext->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
-
-        i64 totalRowCount = 0;
-        for (const auto& dataSlice : dataSlices) {
-            totalRowCount += dataSlice->GetRowCount();
-        }
 
         std::optional<double> samplingRate;
         const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
@@ -398,13 +376,19 @@ private:
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= totalRowCount;
+                rate /= inputStripeList->TotalRowCount;
             }
             rate = std::max(0.0, std::min(1.0, rate));
             samplingRate = rate;
         }
 
-        StripeList_ = BuildThreadStripes(dataSlices, subqueryCount * context.getSettings().max_threads, samplingRate, queryContext->QueryId);
+        StripeLists_ = BuildSubqueries(
+            inputStripeList,
+            analyzerResult.KeyColumnCount,
+            analyzerResult.PoolKind,
+            subqueryCount * context.getSettings().max_threads,
+            samplingRate,
+            context);
     }
 };
 
@@ -425,7 +409,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
             auto* identifier = dynamic_cast<DB::ASTIdentifier*>(child.get());
             if (!identifier) {
                 THROW_ERROR_EXCEPTION("CHYT does not support compound expressions as parts of key")
-                    << TErrorAttribute("expression", child->getColumnName());
+                        << TErrorAttribute("expression", child->getColumnName());
             }
             keyColumns.emplace_back(identifier->getColumnName());
         }
@@ -480,6 +464,8 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         TClickHouseTableSchema::From(*table),
         std::vector<TRichYPath>{table->Path});
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables)
 {
@@ -588,10 +574,11 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
     return storage;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void RegisterStorageDistributor()
 {
     auto& factory = DB::StorageFactory::instance();
-    // TODO(max42): do not create distributor; create some specific StorageWriter instead.
     factory.registerStorage("YtTable", CreateDistributorFromCH);
 }
 

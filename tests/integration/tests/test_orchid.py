@@ -25,15 +25,19 @@ class TestOrchid(YTEnvSetup):
             path_to_orchid = path + "/" + service + "/orchid"
             self._check_service(path_to_orchid, service_name)
 
+    @authors("babenko")
     def test_at_primary_masters(self):
         self._check_orchid("//sys/primary_masters", self.NUM_MASTERS, "master")
 
+    @authors("babenko")
     def test_at_nodes(self):
         self._check_orchid("//sys/cluster_nodes", self.NUM_NODES, "node")
 
+    @authors("babenko")
     def test_at_scheduler(self):
         self._check_service("//sys/scheduler/orchid", "scheduler")
 
+    @authors("savrus", "babenko")
     def test_at_tablet_cells(self):
         sync_create_cells(1)
         cells = ls("//sys/tablet_cells")
@@ -50,6 +54,7 @@ class TestOrchid(YTEnvSetup):
 class TestOrchidMulticell(TestOrchid):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("babenko")
     def test_at_secondary_masters(self):
         for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):
             self._check_orchid("//sys/secondary_masters/" + str(tag) , self.NUM_MASTERS, "master")

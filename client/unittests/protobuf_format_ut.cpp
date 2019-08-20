@@ -34,16 +34,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define EXPECT_THROW_WITH_SUBSTRING(expr, substr) \
-    try { \
-        expr; \
-        ADD_FAILURE(); \
-    } catch (const TErrorException& e) { \
-        EXPECT_THAT(e.what(), testing::HasSubstr(substr)); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Hardcoded serialization of file descriptor used in old format description.
 TString FileDescriptor = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
@@ -464,7 +454,7 @@ TEST(TProtobufFormat, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         parseAndValidateConfig(duplicateColumnNamesConfig),
-        "Multiple fields with same column name (\"SomeColumn\") are forbidden in protobuf format");
+        "Multiple fields with same column name \"SomeColumn\" are forbidden in protobuf format");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -915,43 +905,43 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
 {
     TTableSchema schema({
         {"first", StructLogicalType({
-            {"field_missing_from_proto1", SimpleLogicalType(ESimpleLogicalValueType::Int32, false)},
-            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-            {"int64_list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
+            {"field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"int64_list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"message_field", StructLogicalType({
-                {"key", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
-                {"value", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
+                {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             })},
             {"repeated_message_field", ListLogicalType(StructLogicalType({
-                {"key", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
-                {"value", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
+                {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             }))},
-            {"any_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
-            {"any_map_field", SimpleLogicalType(ESimpleLogicalValueType::Any, false)},
-            {"optional_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
-            {"field_missing_from_proto2", SimpleLogicalType(ESimpleLogicalValueType::Int32, false)},
+            {"any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
+            {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
-        {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
+        {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"repeated_message_field", ListLogicalType(StructLogicalType({
-            {"key", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
-            {"value", SimpleLogicalType(ESimpleLogicalValueType::String, false)},
+            {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
         }))},
         {"second", StructLogicalType({
-            {"one", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
-            {"two", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
-            {"three", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
+            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
-        {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any, true)},
+        {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
 
-        {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-        {"uint64_field", SimpleLogicalType(ESimpleLogicalValueType::Uint64, true)},
-        {"int32_field", SimpleLogicalType(ESimpleLogicalValueType::Int32, true)},
-        {"uint32_field", SimpleLogicalType(ESimpleLogicalValueType::Uint32, true)},
+        {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"uint64_field", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+        {"int32_field", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"uint32_field", SimpleLogicalType(ESimpleLogicalValueType::Uint32)},
 
-        {"enum_int_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-        {"enum_string_string_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-        {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+        {"enum_int_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"enum_string_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1519,15 +1509,15 @@ std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConf
     std::vector<TTableSchema> schemas = {
         TTableSchema({
             {"embedded", StructLogicalType({
-                {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+                {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             })},
-            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
-            {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any, true)},
+            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         }),
         TTableSchema({
-            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),
         // Empty schema.
         TTableSchema(),
@@ -1847,13 +1837,13 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_struct_with_int64 = TTableSchema({
         {"struct", StructLogicalType({
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
+            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
     });
 
     auto schema_struct_with_uint64 = TTableSchema({
         {"struct", StructLogicalType({
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Uint64, false)},
+            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
         })},
     });
 
@@ -1907,13 +1897,13 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_list_int64 = TTableSchema({
         {"repeated", ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Int64, true)
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)
         )},
     });
 
     auto schema_list_optional_int64 = TTableSchema({
         {"repeated", ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Int64, false)
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
     });
 
@@ -1959,7 +1949,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_optional_list_int64 = TTableSchema({
         {"repeated", OptionalLogicalType(
-            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))
+            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
     });
 
@@ -1973,7 +1963,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_optional_optional_int64 = TTableSchema({
         {"field", OptionalLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Int64, false)
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
     });
 
@@ -2006,8 +1996,8 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_struct_with_both = TTableSchema({
         {"struct", StructLogicalType({
-            {"required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-            {"optional_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
+            {"required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
     });
 
@@ -2124,7 +2114,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         "Fields [\"unknown_field\"] from protobuf config not found in schema");
 
     auto schema_int64 = TTableSchema({
-        {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)},
+        {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     });
 
     auto config_two_tables = BuildYsonNodeFluently()

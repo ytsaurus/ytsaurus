@@ -111,7 +111,7 @@ TEST_W(TSchedulerTest, CheckFiberStack)
         .Run();
 
     EXPECT_THROW_THAT(
-        [&] { WaitFor(asyncResult2).ThrowOnError(); },
+        WaitFor(asyncResult2).ThrowOnError(),
         ContainsRegex("Evaluation depth causes stack overflow"));
 }
 

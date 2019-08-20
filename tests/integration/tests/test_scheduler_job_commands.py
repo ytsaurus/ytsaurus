@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
 from flaky import flaky
@@ -48,6 +48,7 @@ class TestJobProber(YTEnvSetup):
 
     DELTA_NODE_CONFIG = cgroups_delta_node_config
 
+    @authors("ignat")
     @unix_only
     def test_strace_job(self):
         create("table", "//tmp/t1")
@@ -71,6 +72,7 @@ class TestJobProber(YTEnvSetup):
             assert "process_command_line" in trace
             assert "process_name" in trace
 
+    @authors("ignat")
     @unix_only
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
@@ -102,6 +104,7 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
+    @authors("ignat")
     @unix_only
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
@@ -124,7 +127,7 @@ class TestJobProber(YTEnvSetup):
         jobs = wait_breakpoint()
 
         retry_while_job_missing(lambda: signal_job(jobs[0], "SIGUSR1"))
-        
+
         release_breakpoint()
 
         op.track()
@@ -137,6 +140,7 @@ class TestJobProber(YTEnvSetup):
         # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
         check_all_stderrs(op, "stderr\n", 1, substring=True)
 
+    @authors("ignat")
     @unix_only
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -161,8 +165,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
+    @authors("ignat")
     @unix_only
-    @skip_if_rpc_driver_backend
     def test_abandon_job_sorted_empty_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -181,8 +185,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @authors("ignat")
     @unix_only
-    @skip_if_rpc_driver_backend
     def test_abandon_job_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -237,6 +241,7 @@ class TestJobProber(YTEnvSetup):
             keys=keys.encode("hex"),
             input_offset=input_offset)
 
+    @authors("ignat")
     def test_poll_job_shell(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -271,8 +276,8 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 0
 
     # Remove after YT-8596
+    @authors("ignat")
     @flaky(max_runs=5)
-    @skip_if_rpc_driver_backend
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -302,7 +307,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
-    @skip_if_rpc_driver_backend
+    @authors("ignat")
     def test_poll_job_shell_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -329,6 +334,7 @@ class TestJobProber(YTEnvSetup):
                 width=132,
                 authenticated_user="u2")
 
+    @authors("ignat")
     @unix_only
     def test_abort_job(self):
         time.sleep(2)
@@ -395,5 +401,5 @@ class TestJobProberPorto(YTEnvSetup):
 class TestJobProberRpcProxy(TestJobProber):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
+    ENABLE_HTTP_PROXY = True
 

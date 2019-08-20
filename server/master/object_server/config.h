@@ -50,11 +50,6 @@ public:
     //! Maximum amount of a single batch of Execute requests is allowed to occupy the automaton thread.
     TDuration YieldTimeout;
 
-    //! The amount of time remaining to a batch request timeout when the object
-    //! service shall try and send partial (subbatch) response.
-    //! NB: this will have no effect if the request's timeout is shorter than this.
-    TDuration TimeoutBackoffLeadTime;
-
     //! When user is banned or exceeds the queue size limit, Object Service replies
     //! with an error and caches this error for the given period of time.
     //! This helps to offload the Automaton Thread in case of DOS attack.
@@ -63,16 +58,21 @@ public:
     //! Maximum time to wait before syncing with another cell.
     TDuration CrossCellSyncDelay;
 
+    //! The amount of time remaining to a batch request timeout when the object
+    //! service shall try and send partial (subbatch) response.
+    //! NB: this will have no effect if the request's timeout is shorter than this.
+    TDuration TimeoutBackoffLeadTime;
+
     //! Default timeout for ObjectService::Execute (if a client has not provided one).
     TDuration DefaultExecuteTimeout;
+
+    //! Amount of time to reserve when computing the timeout for a forwarded request.
+    TDuration ForwardedRequestTimeoutReserve;
 
     TObjectServiceConfig()
     {
         RegisterParameter("yield_timeout", YieldTimeout)
             .Default(TDuration::MilliSeconds(10));
-
-        RegisterParameter("timeout_backoff_lead_time", TimeoutBackoffLeadTime)
-            .Default(TDuration::Seconds(5));
 
         RegisterParameter("sticky_user_error_expire_time", StickyUserErrorExpireTime)
             .Default(TDuration::Seconds(1));
@@ -80,29 +80,16 @@ public:
         RegisterParameter("cross_cell_sync_delay", CrossCellSyncDelay)
             .Default(TDuration::MilliSeconds(10));
 
+        RegisterParameter("timeout_backoff_lead_time", TimeoutBackoffLeadTime)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("default_execute_timeout", DefaultExecuteTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("forwarded_request_timeout_reserve", ForwardedRequestTimeoutReserve)
+            .Default(TDuration::Seconds(3));
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMasterCacheServiceConfig
-    : public NRpc::TThrottlingChannelConfig
-    , public TSlruCacheConfig
-{
-public:
-    TMasterCacheServiceConfig()
-    {
-        RegisterPreprocessor([&] () {
-            Capacity = 256_MB;
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterCacheServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

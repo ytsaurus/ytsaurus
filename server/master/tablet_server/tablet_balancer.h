@@ -15,13 +15,13 @@ class TTabletBalancer
     : public TRefCounted
 {
 public:
-    TTabletBalancer(
-        TTabletBalancerMasterConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTabletBalancer(NCellMaster::TBootstrap* bootstrap);
     ~TTabletBalancer();
 
     void Start();
     void Stop();
+
+    void Reconfigure(TTabletBalancerMasterConfigPtr config);
 
     void OnTabletHeartbeat(TTablet* tablet);
 

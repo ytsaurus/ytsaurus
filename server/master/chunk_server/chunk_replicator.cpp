@@ -76,6 +76,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
+using namespace NTransactionClient;
 
 using NChunkClient::TReadLimit;
 
@@ -2225,7 +2226,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             TChunk* chunk,
             i64 /*rowIndex*/,
             const TReadLimit& /*startLimit*/,
-            const TReadLimit& /*endLimit*/) override
+            const TReadLimit& /*endLimit*/,
+            TTransactionId /*timestampTransactionId*/) override
         {
             Owner_->ScheduleRequisitionUpdate(chunk);
             return true;

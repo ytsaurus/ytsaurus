@@ -687,6 +687,8 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
         .Optional();
+    RegisterParameter("enable_partial_result", Options.EnablePartialResult)
+        .Optional();
 }
 
 void TLookupRowsCommand::DoExecute(ICommandContextPtr context)

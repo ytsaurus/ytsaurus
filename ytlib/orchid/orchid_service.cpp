@@ -48,7 +48,7 @@ private:
         context->SetRequestInfo("%v:%v %v",
             requestHeader.service(),
             requestHeader.method(),
-            GetRequestYPath(requestHeader));
+            GetRequestTargetYPath(requestHeader));
 
         ExecuteVerb(RootService_, requestMessage)
             .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {

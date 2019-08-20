@@ -218,7 +218,7 @@ bool operator == (const TQuery& lhs, const TQuery& rhs)
             rhs.GroupExprs,
             rhs.HavingPredicate,
             rhs.OrderExpressions,
-            lhs.Offset,
+            rhs.Offset,
             rhs.Limit);
 }
 
