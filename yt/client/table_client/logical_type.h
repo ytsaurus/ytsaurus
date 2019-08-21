@@ -262,7 +262,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TLogicalTypePtr NullLogicalType;
+extern const TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,11 +274,12 @@ TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements);
 TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
 
-// Creates logical type from legacy schema fields.
-TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType type, bool required);
-
 TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 
+// Creates logical type from legacy schema fields.
+// IMPORTANT: Only used for compatibility reasons.
+// In modern code, one should use OptionalLogicalType + SimpleLogicalType instead.
+TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType type, bool required);
 
 ////////////////////////////////////////////////////////////////////////////////
 

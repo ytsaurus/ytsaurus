@@ -994,7 +994,7 @@ TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields)
     return New<TVariantStructLogicalType>(std::move(fields));
 }
 
-TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
+const TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
