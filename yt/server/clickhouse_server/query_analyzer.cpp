@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 #include "query_context.h"
+#include "subquery.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -11,6 +12,7 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTFunction.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
 #include <Interpreters/SyntaxAnalyzer.h>
 
@@ -174,7 +176,7 @@ void TQueryAnalyzer::ParseQuery()
         YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
 
         if (index == 1) {
-            IsJoin_ = true;
+            Join_ = true;
         }
 
         auto& tableExpression = tablesElement->table_expression;
@@ -184,13 +186,13 @@ void TQueryAnalyzer::ParseQuery()
             YT_VERIFY(tableJoin);
             if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
                 YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
-                IsGlobalJoin_ = true;
+                GlobalJoin_ = true;
             }
             if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Right) ||
                 static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Full))
             {
                 YT_LOG_DEBUG("Query is a right or full join");
-                IsRightOrFullJoin_ = true;
+                RightOrFullJoin_ = true;
             }
         }
 
@@ -216,7 +218,7 @@ void TQueryAnalyzer::ParseQuery()
 
     if (YtTableCount_ == 2) {
         YT_LOG_DEBUG("Query is a two-YT-table join");
-        IsTwoYtTableJoin_ = true;
+        TwoYTTableJoin_ = true;
     }
 
     YT_LOG_DEBUG(
@@ -225,26 +227,17 @@ void TQueryAnalyzer::ParseQuery()
         *QueryInfo_.query,
         TableExpressions_.size(),
         YtTableCount_,
-        IsJoin_,
-        IsGlobalJoin_,
-        IsRightOrFullJoin_);
-}
-
-void TQueryAnalyzer::AppendWhereCondition()
-{
-
+        Join_,
+        GlobalJoin_,
+        RightOrFullJoin_);
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze()
 {
     ParseQuery();
 
-    if (IsTwoYtTableJoin_ || IsRightOrFullJoin_) {
+    if (TwoYTTableJoin_ || RightOrFullJoin_) {
         ValidateKeyColumns();
-    }
-
-    if (IsRightOrFullJoin_) {
-        AppendWhereCondition();
     }
 
     TQueryAnalysisResult result;
@@ -263,7 +256,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         result.TableSchemas.emplace_back(storage->GetSchema());
     }
 
-    if (IsTwoYtTableJoin_ || IsRightOrFullJoin_) {
+    if (TwoYTTableJoin_ || RightOrFullJoin_) {
         result.PoolKind = EPoolKind::Sorted;
         result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join.key_names_left.size();
     } else {
@@ -273,23 +266,26 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
     return result;
 }
 
-DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripeLists, TSubquerySpec specTemplate, int subqueryIndex)
+DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries, TSubquerySpec specTemplate, int subqueryIndex, bool isLastSubquery)
 {
     auto Logger = this->Logger
         .AddTag("SubqueryIndex: %v", subqueryIndex);
 
+    YT_VERIFY(!threadSubqueries.Empty());
+
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;
     i64 totalChunkCount = 0;
-    for (const auto& stripeList : stripeLists) {
+    for (const auto& subquery : threadSubqueries) {
+        const auto& stripeList = subquery.StripeList;
         totalRowCount += stripeList->TotalRowCount;
         totalDataWeight += stripeList->TotalDataWeight;
         totalChunkCount += stripeList->TotalChunkCount;
     }
 
     YT_LOG_DEBUG(
-        "Rewriting query (StripeListCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
-        stripeLists.size(),
+        "Rewriting query (ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
+        threadSubqueries.size(),
         totalDataWeight,
         totalRowCount,
         totalChunkCount);
@@ -302,9 +298,9 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
         auto tableExpression = TableExpressions_[index];
 
         std::vector<TChunkStripePtr> stripes;
-        for (const auto& stripeList : stripeLists) {
+        for (const auto& subquery : threadSubqueries) {
             TChunkStripePtr currentTableStripe;
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : subquery.StripeList->Stripes) {
                 if (stripe->GetTableIndex() == index) {
                     YT_VERIFY(!currentTableStripe);
                     currentTableStripe = stripe;
@@ -347,7 +343,27 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TChunkStripeListPtr> stripe
         newTableExpressions.emplace_back(std::move(clonedTableExpression));
     }
 
-    auto result = ReplaceTableExpressions(newTableExpressions);
+    ReplaceTableExpressions(newTableExpressions);
+
+    if (RightOrFullJoin_) {
+        std::optional<TUnversionedOwningRow> lowerLimit;
+        if (PreviousUpperLimit_) {
+            lowerLimit = PreviousUpperLimit_;
+        }
+        std::optional<TUnversionedOwningRow> upperLimit;
+        if (!isLastSubquery) {
+            upperLimit = threadSubqueries.Back().Limits.second;
+        }
+        PreviousUpperLimit_ = upperLimit;
+        if (lowerLimit) {
+            YT_VERIFY(!upperLimit || *lowerLimit <= *upperLimit);
+        }
+        AppendWhereCondition(lowerLimit, upperLimit);
+    }
+
+    auto result = QueryInfo_.query->clone();
+
+    RollbackModifications();
 
     YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *result);
 
@@ -370,19 +386,135 @@ std::shared_ptr<IStorageDistributor> TQueryAnalyzer::GetStorage(const DB::ASTTab
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
 }
 
-DB::ASTPtr TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions)
+void TQueryAnalyzer::ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue, DB::ASTPtr previousValue)
+{
+    YT_LOG_DEBUG("Replacing query part (QueryPart: %v, NewValue: %v)", previousValue, newValue);
+    Modifications_.emplace_back(queryPart, std::move(previousValue));
+    *queryPart = std::move(newValue);
+}
+
+void TQueryAnalyzer::ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue)
+{
+    ApplyModification(queryPart, newValue, *queryPart);
+}
+
+void TQueryAnalyzer::RollbackModifications()
+{
+    YT_LOG_DEBUG("Rolling back modifications (ModificationCount: %v)", Modifications_.size());
+    while (!Modifications_.empty()) {
+        auto& [queryPart, oldValue] = Modifications_.back();
+        *queryPart = std::move(oldValue);
+        Modifications_.pop_back();
+    }
+}
+
+void TQueryAnalyzer::AppendWhereCondition(
+    std::optional<TUnversionedOwningRow> lowerLimit,
+    std::optional<TUnversionedOwningRow> upperLimit)
+{
+    auto keyAsts = QueryInfo_.syntax_analyzer_result->analyzed_join.key_asts_right;
+    int length = keyAsts.size();
+    YT_LOG_DEBUG("Appending where-condition (LowerLimit: %v, UpperLimit: %v)", lowerLimit, upperLimit);
+
+    bool lowerInclusiveness;
+    bool upperInclusiveness;
+    TUnversionedOwningRow truncatedLowerLimit;
+    TUnversionedOwningRow truncatedUpperLimit;
+
+    // It is kinda tricky to convert our rows into proper limit tuples as we have special
+    // sentinels like <max> while ClickHouse does not. So we utilize the fact that limits
+    // from sorted pool are always regular keys of length `length` plus possibly single sentinel
+    // value.
+    if (lowerLimit) {
+        YT_VERIFY(lowerLimit->GetCount() >= length);
+        YT_VERIFY(lowerLimit->GetCount() <= length + 1);
+        lowerInclusiveness = lowerLimit->GetCount() == length;
+        truncatedLowerLimit = GetKeyPrefix(*lowerLimit, length);
+        YT_LOG_DEBUG("Lower limit (LowerInclusiveness: %v, TruncatedLowerLimit: %v)",
+            lowerInclusiveness,
+            truncatedLowerLimit);
+    }
+
+    if (upperLimit) {
+        YT_VERIFY(upperLimit->GetCount() >= length);
+        YT_VERIFY(upperLimit->GetCount() <= length + 1);
+        upperInclusiveness = upperLimit->GetCount() == length + 1;
+        truncatedUpperLimit = GetKeyPrefix(*upperLimit, length);
+        YT_LOG_DEBUG("Upper limit (UpperInclusiveness: %v, TruncatedUpperLimit: %v)",
+            upperInclusiveness,
+            truncatedUpperLimit);
+    }
+
+    auto createFunction = [] (std::string name, std::vector<DB::ASTPtr> params) {
+        auto function = std::make_shared<DB::ASTFunction>();
+        function->name = std::move(name);
+        function->arguments = std::make_shared<DB::ASTExpressionList>();
+        function->children.push_back(function->arguments);
+        function->arguments->children = std::move(params);
+        return function;
+    };
+
+    auto unversionedRowToTuple = [&] (TUnversionedRow row) {
+        std::vector<DB::ASTPtr> literals;
+        literals.reserve(row.GetCount());
+        for (const auto& value : row) {
+            auto field = ConvertToField(value);
+            literals.emplace_back(std::make_shared<DB::ASTLiteral>(field));
+        }
+        return createFunction("tuple", std::move(literals));
+    };
+
+    std::vector<DB::ASTPtr> conjunctionArgs = {};
+
+    auto keyTuple = createFunction("tuple", keyAsts);
+
+    if (lowerLimit) {
+        auto lowerTuple = unversionedRowToTuple(truncatedLowerLimit);
+        auto lowerFunctionName = lowerInclusiveness ? "greaterOrEquals" : "greater";
+        auto lowerFunction = createFunction(lowerFunctionName, {keyTuple, lowerTuple});
+        conjunctionArgs.emplace_back(std::move(lowerFunction));
+    }
+
+    if (upperLimit) {
+        auto upperTuple = unversionedRowToTuple(truncatedUpperLimit);
+        auto upperFunctionName = upperInclusiveness ? "lessOrEquals" : "less";
+        auto upperFunction = createFunction(upperFunctionName, {keyTuple, upperTuple});
+        conjunctionArgs.emplace_back(std::move(upperFunction));
+    }
+
+    auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
+    YT_VERIFY(selectQuery);
+    if (selectQuery->where()) {
+        conjunctionArgs.emplace_back(selectQuery->where());
+    }
+
+    if (conjunctionArgs.empty()) {
+        return;
+    }
+
+    DB::ASTPtr newWhere;
+    if (static_cast<int>(conjunctionArgs.size()) == 1) {
+        newWhere = conjunctionArgs.front();
+    } else {
+        newWhere = createFunction("and", conjunctionArgs);
+    }
+
+    auto previousWhere = selectQuery->where();
+    if (!previousWhere) {
+        // NB: refWhere() has a weird behavior which does not allow you to call it
+        // unless something has been previously set.
+        selectQuery->setExpression(DB::ASTSelectQuery::Expression::WHERE, std::make_shared<DB::ASTFunction>());
+    }
+    ApplyModification(&selectQuery->refWhere(), std::move(newWhere), std::move(previousWhere));
+}
+
+void TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions)
 {
     YT_VERIFY(static_cast<int>(newTableExpressions.size()) == YtTableCount_);
     for (int index = 0; index < static_cast<int>(newTableExpressions.size()); ++index) {
         YT_VERIFY(newTableExpressions[index]);
-        newTableExpressions[index].swap(*TableExpressionPtrs_[index]);
+        ApplyModification(TableExpressionPtrs_[index], newTableExpressions[index]);
     }
-    auto result = QueryInfo_.query->clone();
-    for (int index = 0; index < static_cast<int>(newTableExpressions.size()); ++index) {
-        newTableExpressions[index].swap(*TableExpressionPtrs_[index]);
-        YT_VERIFY(newTableExpressions[index]);
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
