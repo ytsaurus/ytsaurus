@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait, Restarter,\
     SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE, require_ytserver_root_privileges, unix_only
 from yt_commands import *
+from yt_helpers import ProfileMetric
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -561,6 +562,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op3.get_state() == "failed")
 
 
+# TODO(eshcherbin): rewrite this suite using yt_helpers.ProfileMetric
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -887,16 +889,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _get_pool_metrics(self, metric_key, start_time):
-        result = {}
-        for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                                  options={"from_time": int(start_time) * 1000000}, verbose=False)):
-            pool = entry["tags"]["pool"]
-            if pool not in result:
-                result[pool] = entry["value"]
-        print_debug("Pool metrics: ", result)
-        return result
-
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
         return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
@@ -912,14 +904,12 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        start_time = time.time()
-        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
-
         map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
-        op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
-             self._get_cypress_metrics(op.id, statistics_name) > 0)
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/" + metric_name).with_tag("pool", "unique_pool") as metric:
+            op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
+
+        wait(lambda: metric.update().delta(verbose=True) == self._get_cypress_metrics(op.id, statistics_name) > 0)
 
     @authors("eshcherbin")
     @unix_only
@@ -932,17 +922,16 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        start_time = time.time()
-        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
-
         map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; exit 1"""
 
-        op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
-                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
-        with pytest.raises(YtError):
-            op.track()
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/" + metric_name).with_tag("pool", "unique_pool") as metric:
+            op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
+                     spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
+            with pytest.raises(YtError):
+                op.track()
+
+        wait(lambda: metric.update().delta(verbose=True) ==
              self._get_cypress_metrics(op.id, statistics_name, job_state="failed") > 0)
 
 
