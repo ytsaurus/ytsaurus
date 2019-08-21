@@ -1,4 +1,6 @@
-from yt_commands import get, YtError
+from yt_commands import get, YtError, print_debug
+
+import time
 
 
 # This class provides effective means for getting information from YT
@@ -10,11 +12,33 @@ class ProfileMetric(object):
     def __init__(self, path):
         self.path = path
         self.tags = {}
-        self.len_on_enter = None
+        self.start_time = None
+        self.start_value = None
+        self.samples = []
 
-    def _read_from_cypress(self):
+    def __enter__(self):
+        start_samples = self._read_from_cypress(verbose=False)
+        self.start_value = start_samples[-1]["value"] if start_samples else 0
+        # Need start time in mcs.
+        self.start_time = int(time.time() * 1e6)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            # False return value makes python re-raise the exception happened inside "with" section.
+            return False
+        else:
+            self.update()
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __nonzero__(self):
+        return bool(self.samples)
+
+    def _read_from_cypress(self, **kwargs):
         try:
-            entries = get(self.path)
+            entries = get(self.path, **kwargs)
         except YtError:
             return []
 
@@ -28,32 +52,36 @@ class ProfileMetric(object):
                 result.append(entry)
         return result
 
-    def __enter__(self):
-        self.len_on_enter = len(self._read_from_cypress())
+    def update(self):
+        self.samples = self._read_from_cypress(from_time=self.start_time, verbose=False)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            # False return value makes python re-raise the exception happened inside "with" section.
-            return False
-        else:
-            self.profile = self._read_from_cypress()
+    def values(self):
+        return [sample["value"] for sample in self.samples]
 
-    def update_profile(self):
-        self.profile = self._read_from_cypress()
-        return self
+    def apply(self, func):
+        return func(self.values())
 
-    def get(self):
-        return self.profile[self.len_on_enter:]
+    def sum(self):
+        return self.apply(sum)
 
-    def total(self):
-        return sum(event["value"] for event in self.get())
+    def max(self):
+        return self.apply(max)
 
-    def _up_to_moment(self, i):
-        return self.profile[i - 1]["value"] if i > 0 else 0
+    def min(self):
+        return self.apply(min)
 
-    def differentiate(self):
-        return self._up_to_moment(len(self.profile)) - self._up_to_moment(self.len_on_enter)
+    def last(self, verbose=False):
+        last = self.samples[-1]["value"]
+        if verbose:
+            print_debug("Profile metric \"{}\": last = {}".format(self.path, last))
+        return last
+
+    def delta(self, verbose=False):
+        delta = self.last() - self.start_value if self.samples else 0
+        if verbose:
+            print_debug("Profile metric \"{}\": delta = {}".format(self.path, delta))
+        return delta
 
     @staticmethod
     def at_scheduler(path):
@@ -64,7 +92,18 @@ class ProfileMetric(object):
         return ProfileMetric("//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path))
 
     def with_tag(self, tag_name, tag_value):
-        if self.len_on_enter is not None:
+        if self.start_time is not None:
             raise Exception("Cannot add tag. Profiling metric already used.")
         self.tags[tag_name] = tag_value
         return self
+
+# TODO(eshcherbin): Add ProfileMetricCollection (or similar) helper class, which would handle
+# one metric for several values of the same tag (e.g. 2 pools 1 metric).
+# This would make some tests neater, more readable and more efficient.
+#
+# Usage:
+# with ProfileMetricCollection.at_scheduler("path/to/metric").by_tag("pool", ["parent", "child"]) as metric:
+#     pass
+# assert metric["parent"].delta() == metric["child"].delta()
+#
+# See alternative options in the corresponding PR.

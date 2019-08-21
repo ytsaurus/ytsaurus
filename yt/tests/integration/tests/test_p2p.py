@@ -72,7 +72,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             self._access()
             self._access()
             time.sleep(2)
-        assert p.differentiate() == 0
+        assert p.delta() == 0
 
     @authors("max42", "psushin")
     @flaky(max_runs=5)
@@ -86,7 +86,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             self._access()
             self._access()
             time.sleep(2)
-        assert p.differentiate() > 0
+        assert p.delta() > 0
 
     @authors("max42")
     @clear_everything_after_test
@@ -100,7 +100,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             self._access()
             self._access()
             time.sleep(2)
-        assert p.differentiate() == 0
+        assert p.delta() == 0
 
 class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
     DELTA_NODE_CONFIG = {
@@ -141,7 +141,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
 
             for i in range(300):
                 self._access()
-        assert ps.differentiate() > 0
-        assert pns0.differentiate() > 0
-        assert pns1.differentiate() > 0
-        assert pns2.differentiate() > 0
+        assert ps.delta() > 0
+        assert pns0.delta() > 0
+        assert pns1.delta() > 0
+        assert pns2.delta() > 0

@@ -61,14 +61,14 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
             run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
 
-        wait(lambda: preemptable_cpu.update_profile().differentiate() > 0)
-        smoothed_cpu_diff = smoothed_cpu.update_profile().differentiate()
+        wait(lambda: preemptable_cpu.update().delta() > 0)
+        smoothed_cpu_diff = smoothed_cpu.update().delta()
         assert smoothed_cpu_diff > 0
-        assert smoothed_cpu_diff < max_cpu.update_profile().differentiate()
+        assert smoothed_cpu_diff < max_cpu.update().delta()
 
-        print_debug(preemptable_cpu.differentiate())
-        print_debug(smoothed_cpu.differentiate())
-        print_debug(max_cpu.differentiate())
+        print_debug(preemptable_cpu.delta())
+        print_debug(smoothed_cpu.delta())
+        print_debug(max_cpu.delta())
 
     @authors("renadeen")
     @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
@@ -85,13 +85,13 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             time.sleep(0.2)
             op.abort()
 
-        print_debug(smoothed_cpu.differentiate())
-        print_debug(max_cpu.differentiate())
-        print_debug(preemptable_cpu.differentiate())
+        print_debug(smoothed_cpu.delta())
+        print_debug(max_cpu.delta())
+        print_debug(preemptable_cpu.delta())
 
-        assert smoothed_cpu.differentiate() > 0
-        assert smoothed_cpu.differentiate() < max_cpu.differentiate()
-        assert preemptable_cpu.differentiate() == 0
+        assert smoothed_cpu.delta() > 0
+        assert smoothed_cpu.delta() < max_cpu.delta()
+        assert preemptable_cpu.delta() == 0
 
 
 @require_ytserver_root_privileges
