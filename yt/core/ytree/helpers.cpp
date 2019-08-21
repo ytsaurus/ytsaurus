@@ -11,20 +11,29 @@ using namespace NYson;
 
 bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs)
 {
-    auto lhsKeys = lhs.List();
-    std::sort(lhsKeys.begin(), lhsKeys.end());
-
-    auto rhsKeys = rhs.List();
-    std::sort(rhsKeys.begin(), rhsKeys.end());
-
-    if (lhsKeys != rhsKeys) {
+    auto lhsPairs = lhs.ListPairs();
+    auto rhsPairs = rhs.ListPairs();
+    if (lhsPairs.size() != rhsPairs.size()) {
         return false;
     }
 
-    for (const auto& key : lhsKeys) {
-        auto lhsValue = lhs.Get<INodePtr>(key);
-        auto rhsValue = rhs.Get<INodePtr>(key);
-        if (!AreNodesEqual(lhsValue, rhsValue)) {
+    std::sort(lhsPairs.begin(), lhsPairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    std::sort(rhsPairs.begin(), rhsPairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+
+    for (auto index = 0; index < lhsPairs.size(); ++index) {
+        if (lhsPairs[index].first != rhsPairs[index].first) {
+            return false;
+        }
+    }
+
+    for (auto index = 0; index < lhsPairs.size(); ++index) {
+        auto lhsNode = ConvertToNode(lhsPairs[index].second);
+        auto rhsNode = ConvertToNode(rhsPairs[index].second);
+        if (!AreNodesEqual(lhsNode, rhsNode)) {
             return false;
         }
     }
@@ -43,7 +52,7 @@ class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<TString> List() const override
+    virtual std::vector<TString> ListKeys() const override
     {
         std::vector<TString> keys;
         keys.reserve(Map_.size());
@@ -53,16 +62,26 @@ public:
         return keys;
     }
 
+    virtual std::vector<TKeyValuePair> ListPairs() const override
+    {
+        std::vector<TKeyValuePair> pairs;
+        pairs.reserve(Map_.size());
+        for (const auto& pair : Map_) {
+            pairs.push_back(pair);
+        }
+        return pairs;
+    }
+
     virtual TYsonString FindYson(const TString& key) const override
     {
         auto it = Map_.find(key);
-        return it == Map_.end() ? TYsonString() : TYsonString(it->second);
+        return it == Map_.end() ? TYsonString() : it->second;
     }
 
     virtual void SetYson(const TString& key, const TYsonString& value) override
     {
         YT_ASSERT(value.GetType() == EYsonType::Node);
-        Map_[key] = value.GetData();
+        Map_[key] = value;
     }
 
     virtual bool Remove(const TString& key) override
@@ -71,7 +90,7 @@ public:
     }
 
 public:
-    THashMap<TString, TString> Map_;
+    THashMap<TString, TYsonString> Map_;
 
 };
 
@@ -86,22 +105,27 @@ class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<TString> List() const override
+    virtual std::vector<TString> ListKeys() const override
     {
-        return std::vector<TString>();
+        return {};
     }
 
-    virtual TYsonString FindYson(const TString& key) const override
+    virtual std::vector<TKeyValuePair> ListPairs() const override
     {
-        return TYsonString();
+        return {};
     }
 
-    virtual void SetYson(const TString& key, const TYsonString& value) override
+    virtual TYsonString FindYson(const TString& /*key*/) const override
+    {
+        return {};
+    }
+
+    virtual void SetYson(const TString& /*key*/, const TYsonString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual bool Remove(const TString& key) override
+    virtual bool Remove(const TString& /*key*/) override
     {
         return false;
     }
@@ -116,13 +140,14 @@ const IAttributeDictionary& EmptyAttributes()
 
 void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 {
-    auto keys = attributes.List();
-    std::sort(keys.begin(), keys.end());
+    auto pairs = attributes.ListPairs();
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
     consumer->OnBeginMap();
-    for (const auto& key : keys) {
+    for (const auto& [key, value] : pairs) {
         consumer->OnKeyedItem(key);
-        auto yson = attributes.GetYson(key);
-        consumer->OnRaw(yson);
+        consumer->OnRaw(value);
     }
     consumer->OnEndMap();
 }
@@ -130,11 +155,13 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDictionary& attributes)
 {
     protoAttributes->Clear();
-    auto keys = attributes.List();
-    std::sort(keys.begin(), keys.end());
-    for (const auto& key : keys) {
-        auto value = attributes.GetYson(key);
-        auto protoAttribute = protoAttributes->add_attributes();
+    auto pairs = attributes.ListPairs();
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    protoAttributes->mutable_attributes()->Reserve(static_cast<int>(pairs.size()));
+    for (const auto& [key, value] : pairs) {
+        auto* protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
         protoAttribute->set_value(value.GetData());
     }
@@ -156,12 +183,14 @@ std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictiona
 void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, const IAttributeDictionary& obj)
 {
     using NYT::Save;
-    auto keys = obj.List();
-    std::sort(keys.begin(), keys.end());
-    TSizeSerializer::Save(context, keys.size());
-    for (const auto& key : keys) {
+    auto pairs = obj.ListPairs();
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    TSizeSerializer::Save(context, pairs.size());
+    for (const auto& [key, value] : pairs) {
         Save(context, key);
-        Save(context, obj.GetYson(key));
+        Save(context, value);
     }
 }
 
@@ -190,8 +219,6 @@ void ValidateYTreeKey(TStringBuf key)
 #endif
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateYPathResolutionDepth(const TString& path, int depth)
 {
     if (depth > MaxYPathResolveIterations) {
@@ -201,6 +228,20 @@ void ValidateYPathResolutionDepth(const TString& path, int depth)
             path)
             << TErrorAttribute("limit", MaxYPathResolveIterations);
     }
+}
+
+std::vector<IAttributeDictionary::TKeyValuePair> ListAttributesPairs(const IAttributeDictionary& attributes)
+{
+    std::vector<IAttributeDictionary::TKeyValuePair> result;
+    auto keys = attributes.ListKeys();
+    result.reserve(keys.size());
+    for (const auto& key : keys) {
+        auto value = attributes.FindYson(key);
+        if (value) {
+            result.push_back(std::make_pair(key, value));
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

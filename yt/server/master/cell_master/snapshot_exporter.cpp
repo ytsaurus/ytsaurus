@@ -175,7 +175,7 @@ void DoExportSnapshot(
             continue;
         }
 
-        auto writer = CreateYsonWriter(
+<       auto writer = CreateYsonWriter(
             &Cout,
             EYsonFormat::Text,
             EYsonType::Node,

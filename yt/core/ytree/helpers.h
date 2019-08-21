@@ -52,6 +52,11 @@ void ValidateYTreeKey(TStringBuf key);
 
 void ValidateYPathResolutionDepth(const TString& path, int depth);
 
+//! Helps implementing IAttributeDictionary::ListPairs by delegating to
+//! IAttributeDictionary::ListKeys and IAttributeDictionary::FindYson for those not capable
+//! of providing a custom efficient implementation.
+std::vector<IAttributeDictionary::TKeyValuePair> ListAttributesPairs(const IAttributeDictionary& attributes);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

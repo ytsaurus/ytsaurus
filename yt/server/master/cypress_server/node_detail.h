@@ -121,7 +121,7 @@ public:
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) override
     {
-        for (const auto& key : inheritedAttributes->List()) {
+        for (const auto& key : inheritedAttributes->ListKeys()) {
             if (!IsSupportedInheritableAttribute(key)) {
                 inheritedAttributes->Remove(key);
             }

@@ -1080,15 +1080,16 @@ void TObjectManager::TImpl::FillAttributes(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto keys = attributes.List();
-    if (keys.empty()) {
+    auto pairs = attributes.ListPairs();
+    if (pairs.empty()) {
         return;
     }
 
     auto proxy = GetProxy(object, nullptr);
-    std::sort(keys.begin(), keys.end());
-    for (const auto& key : keys) {
-        auto value = attributes.GetYson(key);
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    for (const auto& [key, value] : pairs) {
         proxy->MutableAttributes()->Set(key, value);
     }
 }

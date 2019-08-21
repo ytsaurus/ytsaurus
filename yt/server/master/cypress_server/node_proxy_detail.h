@@ -60,7 +60,8 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<TString> List() const override;
+        virtual std::vector<TString> ListKeys() const override;
+        virtual std::vector<TKeyValuePair> ListPairs() const override;
         virtual NYson::TYsonString FindYson(const TString& key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
@@ -253,7 +254,8 @@ class TInheritedAttributeDictionary
 public:
     explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
 
-    virtual std::vector<TString> List() const override;
+    virtual std::vector<TString> ListKeys() const override;
+    virtual std::vector<TKeyValuePair> ListPairs() const override;
     virtual NYson::TYsonString FindYson(const TString& key) const override;
     virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
     virtual bool Remove(const TString& key) override;
