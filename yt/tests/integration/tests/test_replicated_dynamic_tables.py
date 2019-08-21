@@ -757,6 +757,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
+    @authors("savrus")
+    def test_sync_replicated_table_options_compatibility(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": True})
+        options = get("//tmp/t/@replicated_table_options")
+        assert options["sync_replica_count"] == 1
+        assert options["min_sync_replica_count"] == 1
+        assert options["max_sync_replica_count"] == 1
+
     @authors("aozeritsky")
     def test_sync_replication_switch_bundle_health(self):
         self._create_cells()

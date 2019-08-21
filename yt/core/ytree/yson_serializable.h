@@ -37,6 +37,12 @@ public:
     typedef std::function<void()> TPostprocessor;
     typedef std::function<void()> TPreprocessor;
 
+    struct TAlias
+    {
+        TString Key;
+        bool Visible;
+    };
+
     struct IParameter
         : public TIntrinsicRefCounted
     {
@@ -45,7 +51,7 @@ public:
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool CanOmitValue() const = 0;
-        virtual const std::vector<TString>& GetAliases() const = 0;
+        virtual const std::vector<TAlias>& GetAliases() const = 0;
         virtual IMapNodePtr GetUnrecognizedRecursively() const = 0;
         virtual void SetKeepUnrecognizedRecursively() = 0;
     };
@@ -67,7 +73,7 @@ public:
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
         virtual bool CanOmitValue() const override;
-        virtual const std::vector<TString>& GetAliases() const override;
+        virtual const std::vector<TAlias>& GetAliases() const override;
         virtual IMapNodePtr GetUnrecognizedRecursively() const override;
         virtual void SetKeepUnrecognizedRecursively() override;
 
@@ -81,7 +87,7 @@ public:
         TParameter& LessThanOrEqual(TValueType value);
         TParameter& InRange(TValueType lowerBound, TValueType upperBound);
         TParameter& NonEmpty();
-        TParameter& Alias(const TString& name);
+        TParameter& Alias(const TString& name, bool visible = false);
         TParameter& MergeBy(EMergeStrategy strategy);
 
         template <class... TArgs>
@@ -91,7 +97,7 @@ public:
         T& Parameter;
         std::optional<T> DefaultValue;
         std::vector<TPostprocessor> Postprocessors;
-        std::vector<TString> Aliases;
+        std::vector<TAlias> Aliases;
         EMergeStrategy MergeStrategy;
         bool KeepUnrecognizedRecursively = false;
     };
