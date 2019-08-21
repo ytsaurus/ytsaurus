@@ -403,7 +403,7 @@ private:
     TCellTag PrimaryMasterCellTag_;
     TCellTagList SecondaryMasterCellTags_;
 
-    TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<EMasterChannelKind, THashMap<TCellTag, IChannelPtr>> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;

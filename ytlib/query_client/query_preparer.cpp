@@ -934,9 +934,9 @@ struct TOperatorTyper
     std::optional<EValueType> ResultType;
 };
 
-TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
+TEnumIndexedVector<EBinaryOp, TOperatorTyper> BuildBinaryOperatorTypers()
 {
-    TEnumIndexedVector<TOperatorTyper, EBinaryOp> result;
+    TEnumIndexedVector<EBinaryOp, TOperatorTyper> result;
 
     for (auto op : {
         EBinaryOp::Plus,
@@ -996,15 +996,15 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     return result;
 }
 
-const TEnumIndexedVector<TOperatorTyper, EBinaryOp>& GetBinaryOperatorTypers()
+const TEnumIndexedVector<EBinaryOp, TOperatorTyper>& GetBinaryOperatorTypers()
 {
     static auto result = BuildBinaryOperatorTypers();
     return result;
 }
 
-TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
+TEnumIndexedVector<EUnaryOp, TOperatorTyper> BuildUnaryOperatorTypers()
 {
-    TEnumIndexedVector<TOperatorTyper, EUnaryOp> result;
+    TEnumIndexedVector<EUnaryOp, TOperatorTyper> result;
 
     for (auto op : {
         EUnaryOp::Plus,
@@ -1029,7 +1029,7 @@ TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
     return result;
 }
 
-const TEnumIndexedVector<TOperatorTyper, EUnaryOp>& GetUnaryOperatorTypers()
+const TEnumIndexedVector<EUnaryOp, TOperatorTyper>& GetUnaryOperatorTypers()
 {
     static auto result = BuildUnaryOperatorTypers();
     return result;

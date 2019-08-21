@@ -534,9 +534,9 @@ private:
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
-    TEnumIndexedVector<i32, EUnversionedStringSegmentType> GetSegmentSizeVector() const
+    TEnumIndexedVector<EUnversionedStringSegmentType, i32> GetSegmentSizeVector() const
     {
-        TEnumIndexedVector<i32, EUnversionedStringSegmentType> sizes;
+        TEnumIndexedVector<EUnversionedStringSegmentType, i32> sizes;
         for (auto type : TEnumTraits<EUnversionedStringSegmentType>::GetDomainValues()) {
             sizes[type] = GetSegmentSize(type);
         }

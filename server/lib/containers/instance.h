@@ -28,7 +28,7 @@ DEFINE_ENUM(EStatField,
     (IOOperations)
 );
 
-using TUsage = TEnumIndexedVector<TErrorOr<ui64>, EStatField>;
+using TUsage = TEnumIndexedVector<EStatField, TErrorOr<ui64>>;
 
 struct TResourceLimits
 {
