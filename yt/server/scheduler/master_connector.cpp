@@ -225,10 +225,10 @@ public:
 
         auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
         GenerateMutationId(req);
-        for (const auto& key : attributes->List()) {
+        for (const auto& [key, value] : attributes->ListPairs()) {
             auto* subrequest = req->add_subrequests();
             subrequest->set_key(key);
-            subrequest->set_value(attributes->GetYson(key).GetData());
+            subrequest->set_value(value.GetData());
         }
         batchReq->AddRequest(req);
 

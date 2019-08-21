@@ -285,13 +285,15 @@ void TObjectProxyBase::DoWriteAttributesFragment(
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
         ListBuiltinAttributes(&builtinAttributes);
 
-        auto userKeys = customAttributes.List();
+        auto userPairs = customAttributes.ListPairs();
 
         if (stable) {
             std::sort(
-                userKeys.begin(),
-                userKeys.end());
-
+                userPairs.begin(),
+                userPairs.end(),
+                [] (const auto& lhs, const auto& rhs) {
+                    return lhs.first < rhs.first;
+                });
             std::sort(
                 builtinAttributes.begin(),
                 builtinAttributes.end(),
@@ -300,8 +302,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
                 });
         }
 
-        for (const auto& key : userKeys) {
-            auto value = customAttributes.GetYson(key);
+        for (const auto& [key, value] : userPairs) {
             consumer->OnKeyedItem(key);
             consumer->OnRaw(value);
         }
@@ -521,7 +522,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::UserAttributeKeys: {
-            auto customKeys = GetCustomAttributes()->List();
+            auto customKeys = GetCustomAttributes()->ListKeys();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
             consumer->OnBeginList();
             for (const auto& key : customKeys) {
@@ -535,13 +536,13 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         }
 
         case EInternedAttributeKey::UserAttributes: {
-            auto customKeys = GetCustomAttributes()->List();
+            auto customPairs = GetCustomAttributes()->ListPairs();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
             consumer->OnBeginMap();
-            for (const auto& key : customKeys) {
+            for (const auto& [key, value] : customPairs) {
                 if (!systemCustomKeys.contains(key)) {
                     consumer->OnKeyedItem(key);
-                    consumer->OnRaw(GetCustomAttributes()->GetYson(key));
+                    consumer->OnRaw(value);
                 }
             }
             consumer->OnEndMap();
@@ -784,12 +785,13 @@ TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::TCustomAttr
     : Proxy_(proxy)
 { }
 
-std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::List() const
+std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListKeys() const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
     std::vector<TString> keys;
     if (attributes) {
+        keys.reserve(attributes->Attributes().size());
         for (const auto& pair : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(pair.second);
@@ -799,17 +801,33 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
     return keys;
 }
 
+std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListPairs() const
+{
+    const auto* object = Proxy_->Object_;
+    const auto* attributes = object->GetAttributes();
+    std::vector<TKeyValuePair> pairs;
+    if (attributes) {
+        pairs.reserve(attributes->Attributes().size());
+        for (const auto& pair : attributes->Attributes()) {
+            // Attribute cannot be empty (i.e. deleted) in null transaction.
+            YT_ASSERT(pair.second);
+            pairs.push_back(pair);
+        }
+    }
+    return pairs;
+}
+
 TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
     if (!attributes) {
-        return TYsonString();
+        return {};
     }
 
     auto it = attributes->Attributes().find(key);
     if (it == attributes->Attributes().end()) {
-        return TYsonString();
+        return {};
     }
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.

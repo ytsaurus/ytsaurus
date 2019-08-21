@@ -304,7 +304,7 @@ void Serialize(
 void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& encoding)
 {
     Py::Object attributes = Py::Dict();
-    if (!node->Attributes().List().empty()) {
+    if (!node->Attributes().ListKeys().empty()) {
         Deserialize(attributes, node->Attributes().ToMap(), encoding);
     }
 

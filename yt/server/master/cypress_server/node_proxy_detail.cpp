@@ -63,10 +63,6 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 bool HasTrivialAcd(const TCypressNode* node)
@@ -99,13 +95,22 @@ TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::TCustomAttributeDi
     : Proxy_(proxy)
 { }
 
-std::vector<TString> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::List() const
+std::vector<TString> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListKeys() const
 {
     auto keys = ListNodeAttributes(
         Proxy_->Bootstrap_->GetCypressManager(),
         Proxy_->TrunkNode,
         Proxy_->Transaction);
     return std::vector<TString>(keys.begin(), keys.end());
+}
+
+std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListPairs() const
+{
+    auto pairs = GetNodeAttributes(
+        Proxy_->Bootstrap_->GetCypressManager(),
+        Proxy_->TrunkNode,
+        Proxy_->Transaction);
+    return std::vector<TKeyValuePair>(pairs.begin(), pairs.end());
 }
 
 TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const TString& name) const
@@ -122,7 +127,7 @@ TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYs
         }
     }
 
-    return TYsonString();
+    return {};
 }
 
 void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
@@ -151,7 +156,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
         return false;
     }
 
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, {});
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
@@ -161,7 +166,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
 
     auto* userAttributes = node->GetMutableAttributes();
     if (node->GetTransaction()) {
-        userAttributes->Attributes()[key] = TYsonString();
+        userAttributes->Attributes()[key] = {};
     } else {
         YT_VERIFY(userAttributes->Attributes().erase(key) == 1);
     }
@@ -428,8 +433,9 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         case EInternedAttributeKey::Acl:
         case EInternedAttributeKey::Owner: {
             auto attributeUpdated = TObjectProxyBase::SetBuiltinAttribute(key, value);
-            if (attributeUpdated && !GetThisImpl()->IsBeingCreated()) {
-                LogStructuredEventFluently(Logger, ELogLevel::Info)
+            auto* node = GetThisImpl();
+            if (attributeUpdated && !node->IsBeingCreated()) {
+                LogStructuredEventFluently(CypressServerLogger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
                     .Item("attribute").Value(GetUninternedAttributeKey(key))
                     .Item("path").Value(GetPath())
@@ -1852,7 +1858,7 @@ TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstr
     : Bootstrap_(bootstrap)
 { }
 
-std::vector<TString> TInheritedAttributeDictionary::List() const
+std::vector<TString> TInheritedAttributeDictionary::ListKeys() const
 {
     std::vector<TString> result;
 #define XX(camelCaseName, snakeCaseName) \
@@ -1865,13 +1871,17 @@ std::vector<TString> TInheritedAttributeDictionary::List() const
 #undef XX
 
     if (Fallback_) {
-        auto fallbackList = Fallback_->List();
-        result.insert(result.end(), fallbackList.begin(), fallbackList.end());
-        std::sort(result.begin(), result.end());
-        result.erase(std::unique(result.begin(), result.end()), result.end());
+        auto fallbackKeys = Fallback_->ListKeys();
+        result.insert(result.end(), fallbackKeys.begin(), fallbackKeys.end());
+        SortUnique(result);
     }
 
     return result;
+}
+
+std::vector<IAttributeDictionary::TKeyValuePair> TInheritedAttributeDictionary::ListPairs() const
+{
+    return ListAttributesPairs(*this);
 }
 
 TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
@@ -1889,7 +1899,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
     if (key == "primary_medium") {
         const auto& primaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex;
         if (!primaryMediumIndex) {
-            return TYsonString();
+            return {};
         }
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* medium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
@@ -1899,7 +1909,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
     if (key == "media") {
         const auto& replication = InheritedAttributes_.Media;
         if (!replication) {
-            return TYsonString();
+            return {};
         }
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return ConvertToYsonString(TSerializableChunkReplication(*replication, chunkManager));
@@ -1908,7 +1918,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
     if (key == "tablet_cell_bundle") {
         auto* tabletCellBundle = InheritedAttributes_.TabletCellBundle;
         if (!tabletCellBundle) {
-            return TYsonString();
+            return {};
         }
         return ConvertToYsonString(tabletCellBundle->GetName());
     }
@@ -1916,7 +1926,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
     return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
 }
 
-void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYsonString& value)
+void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \

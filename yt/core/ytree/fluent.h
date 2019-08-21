@@ -462,10 +462,9 @@ public:
 
         TThis& Items(const IAttributeDictionary& attributes)
         {
-            for (const auto& key : attributes.List()) {
-                const auto& yson = attributes.GetYson(key);
+            for (const auto& [key, value] : attributes.ListPairs()) {
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson);
+                this->Consumer->OnRaw(value);
             }
             return *this;
         }
@@ -553,10 +552,9 @@ public:
 
         TThis& Items(const IAttributeDictionary& attributes)
         {
-            for (const auto& key : attributes.List()) {
-                const auto& yson = attributes.GetYson(key);
+            for (const auto& [key, value] : attributes.ListPairs()) {
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson);
+                this->Consumer->OnRaw(value);
             }
             return *this;
         }
