@@ -222,7 +222,7 @@ struct TGetTabletsInfoOptions
 struct TTabletInfo
 {
     //! Currently only provided for ordered tablets.
-    //! Indicates total number of rows added to the tablet (including trimmed ones).
+    //! Indicates the total number of rows added to the tablet (including trimmed ones).
     // TODO(babenko): implement for sorted tablets
     i64 TotalRowCount = 0;
 
