@@ -664,6 +664,7 @@ void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
         .Item("fifo_index").Value(element->Attributes().FifoIndex)
         .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
+        .Item("tentative").Value(element->GetRuntimeParams()->Tentative)
         .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
 }
 

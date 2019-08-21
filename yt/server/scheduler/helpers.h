@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "operation.h"
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -49,6 +51,10 @@ TJobResources ComputeAvailableResources(
     const TJobResources& resourceLimits,
     const TJobResources& resourceUsage,
     const TJobResources& resourceDiscount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

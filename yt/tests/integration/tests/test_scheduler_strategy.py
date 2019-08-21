@@ -2887,7 +2887,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
             op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
             wait(lambda: exists(op_pool_trees_path + "other"))
-
+            assert get(op_pool_trees_path + "other/tentative")
         finally:
             remove("//sys/scheduler/config/default_tentative_pool_trees")
 

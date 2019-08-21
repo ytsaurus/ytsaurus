@@ -43,4 +43,34 @@ bool TControllerScheduleJobResult::IsScheduleStopNeeded() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(
+    NControllerAgent::NProto::TPoolTreeControllerSettingsMap* protoPoolTreeControllerSettingsMap,
+    const TPoolTreeControllerSettingsMap& poolTreeControllerSettingsMap)
+{
+    for (const auto& [treeName, settings] : poolTreeControllerSettingsMap) {
+        auto* protoTreeSettings = protoPoolTreeControllerSettingsMap->add_tree_settings();
+        protoTreeSettings->set_tree_name(treeName);
+        ToProto(protoTreeSettings->mutable_scheduling_tag_filter(), settings.SchedulingTagFilter);
+        protoTreeSettings->set_tentative(settings.Tentative);
+    }
+}
+
+void FromProto(
+    TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap,
+    const NControllerAgent::NProto::TPoolTreeControllerSettingsMap& protoPoolTreeControllerSettingsMap)
+{
+    for (const auto& protoTreeSettings : protoPoolTreeControllerSettingsMap.tree_settings()) {
+        TSchedulingTagFilter filter;
+        FromProto(&filter, protoTreeSettings.scheduling_tag_filter());
+        poolTreeControllerSettingsMap->emplace(
+            protoTreeSettings.tree_name(),
+            TPoolTreeControllerSettings{
+                .SchedulingTagFilter = filter,
+                .Tentative = protoTreeSettings.tentative()
+            });
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

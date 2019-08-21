@@ -4,6 +4,7 @@
 
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -205,7 +206,7 @@ struct ISchedulerStrategy
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) = 0;
+    virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };

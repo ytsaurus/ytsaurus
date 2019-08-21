@@ -347,12 +347,18 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) override
+    virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) override
     {
-        TPoolTreeToSchedulingTagFilter result;
-        for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
-            const auto& treeName = pair.first;
-            result.insert(std::make_pair(treeName, GetTree(treeName)->GetNodesFilter()));
+        TPoolTreeControllerSettingsMap result;
+        const auto& state = GetOperationState(operationId);
+        for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeName);
+            result.emplace(
+                treeName,
+                TPoolTreeControllerSettings{
+                    .SchedulingTagFilter = tree->GetNodesFilter(),
+                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative
+                });
         }
         return result;
     }
@@ -480,19 +486,20 @@ public:
             spec->Acl.Entries.end());
 
         auto poolTrees = ParsePoolTrees(spec, operationType);
-        for (const auto& tree : poolTrees) {
+        for (const auto& poolTreeDescription : poolTrees) {
             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
-            auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
+            auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-                treeParams->Pool = GetTree(tree)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
+                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
                 treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
             } else {
                 treeParams->Weight = spec->Weight;
-                treeParams->Pool = GetTree(tree)->CreatePoolName(spec->Pool, user);
+                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user);
                 treeParams->ResourceLimits = spec->ResourceLimits;
             }
-            YT_VERIFY(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
+            treeParams->Tentative = poolTreeDescription.Tentative;
+            YT_VERIFY(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(poolTreeDescription.Name, std::move(treeParams)).second);
         }
     }
 
@@ -869,6 +876,12 @@ private:
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
     int SnapshotRevision_ = 0;
 
+    struct TPoolTreeDescription
+    {
+        TString Name;
+        bool Tentative;
+    };
+
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {
         try {
@@ -879,7 +892,7 @@ private:
         }
     }
 
-    std::vector<TString> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
+    std::vector<TPoolTreeDescription> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
     {
         if (spec->PoolTrees) {
             for (const auto& treeId : *spec->PoolTrees) {
@@ -906,15 +919,23 @@ private:
             }
         }
 
-        std::vector<TString> result;
+        std::vector<TPoolTreeDescription> result;
         if (spec->PoolTrees) {
-            result = std::vector<TString>(spec->PoolTrees->begin(), spec->PoolTrees->end());
+            for (const auto& treeName : *spec->PoolTrees) {
+                result.push_back(TPoolTreeDescription{
+                    .Name = treeName,
+                    .Tentative = false
+                });
+            }
         } else {
             if (!DefaultTreeId_) {
                 THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
-            result.push_back(*DefaultTreeId_);
+            result.push_back(TPoolTreeDescription{
+                .Name = *DefaultTreeId_,
+                .Tentative = false
+            });
         }
 
         if (result.empty()) {
@@ -924,17 +945,18 @@ private:
         // Data shuffling shouldn't be launched in tentative trees.
         const auto& noTentativePoolOperationTypes = Config->OperationsWithoutTentativePoolTrees;
         if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
-            std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : tentativePoolTrees) {
                 if (FindTree(treeId)) {
-                    presentedTentativePoolTrees.push_back(treeId);
+                    result.push_back(TPoolTreeDescription{
+                        .Name = treeId,
+                        .Tentative = true
+                    });
                 } else {
                     if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
                         THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
                     }
                 }
             }
-            result.insert(result.end(), presentedTentativePoolTrees.begin(), presentedTentativePoolTrees.end());
         }
 
         return result;

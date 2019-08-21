@@ -227,7 +227,7 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
+    , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -3184,9 +3184,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         const auto& descriptor = nodePair.second;
 
         bool hasSuitableTree = false;
-        for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
-            const auto& filter = treePair.second;
-            if (descriptor.CanSchedule(filter)) {
+        for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
+            if (descriptor.CanSchedule(settings.SchedulingTagFilter)) {
                 hasSuitableTree = true;
                 break;
             }
@@ -3234,7 +3233,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             "No online nodes that match operation scheduling tag filter %Qv "
             "and have sufficient resources to schedule a job found in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_))
+            GetKeys(PoolTreeControllerSettingsMap_))
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
             << TErrorAttribute("matching_but_insufficient_resources_node_count", matchingButInsufficientResourcesNodeCount));
         return;
@@ -3245,7 +3244,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         errorMessageBuilder.AppendFormat(
             "All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_));
+            GetKeys(PoolTreeControllerSettingsMap_));
         // NB(eshcherbin): This should happen always, currently this option could be the only reason to ban a node.
         if (Spec_->BanNodesWithFailedJobs) {
             errorMessageBuilder.AppendString(
@@ -4161,7 +4160,9 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
+    auto it = PoolTreeControllerSettingsMap_.find(treeId);
+    YT_VERIFY(it != PoolTreeControllerSettingsMap_.end());
+    return it->second.Tentative;
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)

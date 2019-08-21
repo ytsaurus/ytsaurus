@@ -2145,10 +2145,9 @@ private:
 
             auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
 
-            const auto& spec = operation->Spec();
             std::vector<TString> erasedTrees;
             for (const auto& [treeId, error] : poolLimitViolations) {
-                if (spec->TentativePoolTrees && spec->TentativePoolTrees->contains(treeId)) {
+                if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
                     YT_LOG_INFO(
                         error,
                         "Tree is erased for operation since pool limits violations (OperationId: %v)",
@@ -2451,7 +2450,7 @@ private:
         operation->SetController(controller);
 
         Strategy_->RegisterOperation(operation.Get());
-        operation->PoolTreeToSchedulingTagFilter() = Strategy_->GetOperationPoolTreeToSchedulingTagFilter(operation->GetId());
+        operation->PoolTreeControllerSettingsMap() = Strategy_->GetOperationPoolTreeControllerSettingsMap(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(
