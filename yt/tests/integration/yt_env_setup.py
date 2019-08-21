@@ -14,6 +14,7 @@ import pytest
 import gc
 import os
 import sys
+import glob
 import logging
 import resource
 import shutil
@@ -774,6 +775,10 @@ class YTEnvSetup(object):
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
+            runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
+            for dir in runtime_data:
+                if os.path.exists(dir):
+                    shutil.rmtree(dir)
             shutil.move(cls.path_to_run, destination_path)
 
 
