@@ -946,8 +946,8 @@ struct TListOperationsResult
     std::vector<TOperation> Operations;
     std::optional<THashMap<TString, i64>> PoolCounts;
     std::optional<THashMap<TString, i64>> UserCounts;
-    std::optional<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
-    std::optional<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
+    std::optional<TEnumIndexedVector<NScheduler::EOperationState, i64>> StateCounts;
+    std::optional<TEnumIndexedVector<NScheduler::EOperationType, i64>> TypeCounts;
     std::optional<i64> FailedJobsCount;
     bool Incomplete = false;
 };
@@ -972,8 +972,8 @@ struct TJob
 
 struct TListJobsStatistics
 {
-    TEnumIndexedVector<i64, NJobTrackerClient::EJobState> StateCounts;
-    TEnumIndexedVector<i64, NJobTrackerClient::EJobType> TypeCounts;
+    TEnumIndexedVector<NJobTrackerClient::EJobState, i64> StateCounts;
+    TEnumIndexedVector<NJobTrackerClient::EJobType, i64> TypeCounts;
 };
 
 struct TListJobsResult

@@ -432,7 +432,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
-    TEnumIndexedVector<IInvokerPtr, EControlQueue> CancelableControlInvokers_;
+    TEnumIndexedVector<EControlQueue, IInvokerPtr> CancelableControlInvokers_;
 
     std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
     std::atomic<TInstant> ConnectionTime_;
@@ -453,10 +453,10 @@ private:
     std::vector<TWatcherRequester> GlobalWatcherRequesters_;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
-    TEnumIndexedVector<TPeriodicExecutorRecord, EWatcherType> CustomGlobalWatcherRecords_;
-    TEnumIndexedVector<TPeriodicExecutorPtr, EWatcherType> CustomGlobalWatcherExecutors_;
+    TEnumIndexedVector<EWatcherType, TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
+    TEnumIndexedVector<EWatcherType, TPeriodicExecutorPtr> CustomGlobalWatcherExecutors_;
 
-    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
+    TEnumIndexedVector<ESchedulerAlertType, TError> Alerts_;
 
     struct TOperationNodeUpdate
     {

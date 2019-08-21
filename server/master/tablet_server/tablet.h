@@ -42,7 +42,7 @@ struct TTabletCellStatisticsBase
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
     int TabletCount = 0;
-    TEnumIndexedVector<int, NTabletClient::EInMemoryMode> TabletCountPerMemoryMode;
+    TEnumIndexedVector<NTabletClient::EInMemoryMode, int> TabletCountPerMemoryMode;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };
@@ -223,7 +223,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTabletErrors = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+using TTabletErrors = TEnumIndexedVector<
+    NTabletClient::ETabletBackgroundActivity,
+    TError
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

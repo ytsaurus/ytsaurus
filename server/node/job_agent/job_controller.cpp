@@ -141,7 +141,7 @@ private:
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
     TProfiler GpuUtilizationProfiler_;
-    TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
+    TEnumIndexedVector<EJobOrigin, TTagId> JobOriginToTag_;
     THashMap<int, TTagId> GpuDeviceNumberToProfilingTag_;
     THashMap<TString, TTagId> GpuNameToProfilingTag_;
 
@@ -226,7 +226,7 @@ private:
 
     i64 GetUserJobsFreeMemoryWatermark() const;
 
-    TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
+    TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> GetJobsByOrigin() const;
 
     void CleanRecentlyRemovedJobs();
 };
@@ -1187,9 +1187,9 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
     Y_UNUSED(WaitFor(CombineAll(asyncResults)));
 }
 
-TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> TJobController::TImpl::GetJobsByOrigin() const
+TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> TJobController::TImpl::GetJobsByOrigin() const
 {
-    auto jobs = TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin>();
+    auto jobs = TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>>();
     for (const auto& pair : Jobs_) {
         switch (TypeFromId(pair.first)) {
             case EObjectType::MasterJob:
