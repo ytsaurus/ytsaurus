@@ -171,7 +171,7 @@ public:
     }
 
 private:
-    TEnumIndexedVector<TEnumIndexedVector<TString, EJobType>, EJobState> StatisticsSuffixes_;
+    TEnumIndexedVector<EJobState, TEnumIndexedVector<EJobType, TString>> StatisticsSuffixes_;
 
 } JobHelper;
 

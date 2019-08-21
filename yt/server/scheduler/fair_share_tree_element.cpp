@@ -1992,9 +1992,9 @@ void TOperationElementSharedState::OnOperationDeactivated(const TFairShareContex
     ++shard.DeactivationReasonsFromLastNonStarvingTime[reason];
 }
 
-TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
+TEnumIndexedVector<EDeactivationReason, int> TOperationElementSharedState::GetDeactivationReasons() const
 {
-    TEnumIndexedVector<int, EDeactivationReason> result;
+    TEnumIndexedVector<EDeactivationReason, int> result;
     for (const auto& shard : StateShards_) {
         for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
             result[reason] += shard.DeactivationReasons[reason].load();
@@ -2003,9 +2003,9 @@ TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDe
     return result;
 }
 
-TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime() const
+TEnumIndexedVector<EDeactivationReason, int> TOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime() const
 {
-    TEnumIndexedVector<int, EDeactivationReason> result;
+    TEnumIndexedVector<EDeactivationReason, int> result;
     for (const auto& shard : StateShards_) {
         for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
             result[reason] += shard.DeactivationReasonsFromLastNonStarvingTime[reason].load();
@@ -2035,12 +2035,12 @@ void TOperationElement::OnOperationDeactivated(const TFairShareContext& context,
     OperationElementSharedState_->OnOperationDeactivated(context, reason);
 }
 
-TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
+TEnumIndexedVector<EDeactivationReason, int> TOperationElement::GetDeactivationReasons() const
 {
     return OperationElementSharedState_->GetDeactivationReasons();
 }
 
-TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasonsFromLastNonStarvingTime() const
+TEnumIndexedVector<EDeactivationReason, int> TOperationElement::GetDeactivationReasonsFromLastNonStarvingTime() const
 {
     return OperationElementSharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
 }

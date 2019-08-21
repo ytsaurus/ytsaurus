@@ -52,7 +52,7 @@ private:
         switch (key) {
             case EInternedAttributeKey::CountByHealth: {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
-                TEnumIndexedVector<int, ETabletCellHealth> counts;
+                TEnumIndexedVector<ETabletCellHealth, int> counts;
                 for (const auto& pair : tabletManager->TabletCells()) {
                     const auto* cell = pair.second;
                     if (!IsObjectAlive(cell)) {

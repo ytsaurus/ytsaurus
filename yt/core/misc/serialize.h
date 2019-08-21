@@ -1112,8 +1112,8 @@ struct TOptionalListSerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TEnumIndexedVectorSerializer
 {
-    template <class T, class E, class C, E Min, E Max>
-    static void Save(C& context, const TEnumIndexedVector<T, E, Min, Max>& vector)
+    template <class E, class T, class C, E Min, E Max>
+    static void Save(C& context, const TEnumIndexedVector<E, T, Min, Max>& vector)
     {
         using NYT::Save;
 
@@ -1137,8 +1137,8 @@ struct TEnumIndexedVectorSerializer
         }
     }
 
-    template <class T, class E, class C, E Min, E Max>
-    static void Load(C& context, TEnumIndexedVector<T, E, Min, Max>& vector)
+    template <class E, class T, class C, E Min, E Max>
+    static void Load(C& context, TEnumIndexedVector<E, T, Min, Max>& vector)
     {
         std::fill(vector.begin(), vector.end(), T());
 
@@ -1637,8 +1637,8 @@ struct TSerializerTraits<THashMultiMap<K, V>, C, void>
     typedef TMultiMapSerializer<> TSerializer;
 };
 
-template <class T, class E, class C, E Min, E Max>
-struct TSerializerTraits<TEnumIndexedVector<T, E, Min, Max>, C, void>
+template <class E, class T, class C, E Min, E Max>
+struct TSerializerTraits<TEnumIndexedVector<E, T, Min, Max>, C, void>
 {
     typedef TEnumIndexedVectorSerializer<> TSerializer;
 };

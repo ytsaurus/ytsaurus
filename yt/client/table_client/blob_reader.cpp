@@ -89,7 +89,7 @@ private:
     i64 Index_ = 0;
     i64 NextPartIndex_;
 
-    TEnumIndexedVector<std::optional<size_t>, EColumnType> ColumnIndex_;
+    TEnumIndexedVector<EColumnType, std::optional<size_t>> ColumnIndex_;
 
     TSharedRef ProcessRow()
     {

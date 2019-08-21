@@ -223,8 +223,8 @@ private:
 
     TResponseKeeperPtr ResponseKeeper_;
 
-    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
-    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
 
     ILocalSnapshotJanitorPtr SnapshotJanitor_;
 
