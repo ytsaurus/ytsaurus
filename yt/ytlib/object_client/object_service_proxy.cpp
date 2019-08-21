@@ -635,9 +635,11 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
         // COMPAT(shakurov)
 
         YT_VERIFY(InnerResponseDescriptors_.size() >= body.part_counts_size());
+        YT_VERIFY(body.revisions_size() == body.part_counts_size() || body.revisions_size() == 0);
 
-        auto revisions = FromProto<std::vector<ui64>>(body.revisions());
-        YT_VERIFY(revisions.size() == body.part_counts_size());
+        auto revisions = body.revisions_size() == 0
+            ? std::vector<ui64>(body.part_counts_size())
+            : FromProto<std::vector<ui64>>(body.revisions());
 
         auto partIndex = 0;
         for (auto i = 0; i < body.part_counts_size(); ++i) {
