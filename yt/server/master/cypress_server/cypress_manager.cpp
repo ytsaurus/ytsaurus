@@ -121,14 +121,46 @@ public:
                 *entrance.ExplicitAttributes);
         }
 
-        ReleaseCreatedNodes();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        for (const auto& clone : CreatedClones_) {
+            auto* sourceNode = clone.Source;
+            auto* clonedNode = clone.Clone;
+            NProto::TReqCloneForeignNode protoRequest;
+            ToProto(protoRequest.mutable_source_node_id(), sourceNode->GetId());
+            if (sourceNode->GetTransaction()) {
+                ToProto(protoRequest.mutable_source_transaction_id(), sourceNode->GetTransaction()->GetId());
+            }
+            ToProto(protoRequest.mutable_cloned_node_id(), clonedNode->GetId());
+            if (clonedNode->GetTransaction()) {
+                ToProto(protoRequest.mutable_cloned_transaction_id(), clonedNode->GetTransaction()->GetId());
+            }
+            protoRequest.set_mode(static_cast<int>(clone.Mode));
+            ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
+
+            multicellManager->PostToMaster(protoRequest, sourceNode->GetExternalCellTag());
+        }
+
+        for (const auto& externalNode : CreatedExternalNodes_) {
+            NProto::TReqCreateForeignNode protoRequest;
+            ToProto(protoRequest.mutable_node_id(), externalNode.Node->GetId());
+            if (Transaction_) {
+                ToProto(protoRequest.mutable_transaction_id(), Transaction_->GetId());
+            }
+            protoRequest.set_type(static_cast<int>(externalNode.Node->GetType()));
+            ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
+            ToProto(protoRequest.mutable_inherited_node_attributes(), *externalNode.ReplicationInheritedAttributes);
+            ToProto(protoRequest.mutable_account_id(), externalNode.Account->GetId());
+            multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
+        }
+
+        ReleaseStagedObjects();
     }
 
     virtual void Rollback() noexcept override
     {
         TTransactionalNodeFactoryBase::Rollback();
 
-        ReleaseCreatedNodes();
+        ReleaseStagedObjects();
     }
 
     virtual IStringNodePtr CreateString() override
@@ -304,23 +336,19 @@ public:
             false,
             true);
 
-        // XXX(babenko): post on commit
         if (external) {
-            NProto::TReqCreateForeignNode replicationRequest;
-            ToProto(replicationRequest.mutable_node_id(), trunkNode->GetId());
-            if (Transaction_) {
-                ToProto(replicationRequest.mutable_transaction_id(), Transaction_->GetId());
-            }
-            replicationRequest.set_type(static_cast<int>(type));
-            ToProto(replicationRequest.mutable_explicit_node_attributes(), *replicationExplicitAttributes);
-            ToProto(replicationRequest.mutable_inherited_node_attributes(), *replicationInheritedAttributes);
-            ToProto(replicationRequest.mutable_account_id(), account->GetId());
-            multicellManager->PostToMaster(replicationRequest, externalCellTag);
+            CreatedExternalNodes_.push_back(TCreatedExternalNode{
+                .Node = StageObject(trunkNode),
+                .Account = StageObject(account),
+                .ExternalCellTag = externalCellTag,
+                .ReplicationExplicitAttributes = std::move(replicationExplicitAttributes),
+                .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes)
+            });
         }
 
         if (type == EObjectType::PortalEntrance)  {
             CreatedPortalEntrances_.push_back({
-                trunkNode->As<TPortalEntranceNode>(),
+                StageObject(trunkNode->As<TPortalEntranceNode>()),
                 inheritedAttributes->Clone(),
                 explicitAttributes->Clone()
             });
@@ -374,22 +402,12 @@ public:
         // NB: No need to call RegisterCreatedNode since
         // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
         // which calls RegisterCreatedNode.
-        // XXX(babenko): post on commit
         if (sourceNode->IsExternal()) {
-            NProto::TReqCloneForeignNode protoRequest;
-            ToProto(protoRequest.mutable_source_node_id(), sourceNode->GetId());
-            if (sourceNode->GetTransaction()) {
-                ToProto(protoRequest.mutable_source_transaction_id(), sourceNode->GetTransaction()->GetId());
-            }
-            ToProto(protoRequest.mutable_cloned_node_id(), clonedNode->GetId());
-            if (clonedNode->GetTransaction()) {
-                ToProto(protoRequest.mutable_cloned_transaction_id(), clonedNode->GetTransaction()->GetId());
-            }
-            protoRequest.set_mode(static_cast<int>(mode));
-            ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(protoRequest, sourceNode->GetExternalCellTag());
+            CreatedClones_.push_back(TCreatedClone{
+                .Mode = mode,
+                .Source =  StageObject(sourceNode),
+                .Clone = StageObject(clonedNode)
+            });
         }
 
         return clonedTrunkNode;
@@ -403,6 +421,7 @@ private:
     const TNodeFactoryOptions Options_;
 
     std::vector<TCypressNode*> CreatedNodes_;
+    std::vector<TObject*> StagedObjects_;
 
     struct TCreatedPortalEntrance
     {
@@ -411,6 +430,24 @@ private:
         std::unique_ptr<IAttributeDictionary> ExplicitAttributes;
     };
     std::vector<TCreatedPortalEntrance> CreatedPortalEntrances_;
+
+    struct TCreatedClone
+    {
+        ENodeCloneMode Mode;
+        TCypressNode* Source;
+        TCypressNode* Clone;
+    };
+    std::vector<TCreatedClone> CreatedClones_;
+
+    struct TCreatedExternalNode
+    {
+        TCypressNode* Node;
+        TAccount* Account;
+        TCellTag ExternalCellTag;
+        std::unique_ptr<IAttributeDictionary> ReplicationExplicitAttributes;
+        std::unique_ptr<IAttributeDictionary> ReplicationInheritedAttributes;
+    };
+    std::vector<TCreatedExternalNode> CreatedExternalNodes_;
 
 
     void ValidateCreatedNodeTypePermission(EObjectType type)
@@ -425,18 +462,26 @@ private:
     void RegisterCreatedNode(TCypressNode* trunkNode)
     {
         YT_ASSERT(trunkNode->IsTrunk());
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(trunkNode);
+        StageObject(trunkNode);
         CreatedNodes_.push_back(trunkNode);
     }
 
-    void ReleaseCreatedNodes()
+    template <class T>
+    T* StageObject(T* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* node : CreatedNodes_) {
-            objectManager->UnrefObject(node);
+        objectManager->RefObject(object);
+        StagedObjects_.push_back(object);
+        return object;
+    }
+
+    void ReleaseStagedObjects()
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto* object : StagedObjects_) {
+            objectManager->UnrefObject(object);
         }
-        CreatedNodes_.clear();
+        StagedObjects_.clear();
     }
 };
 
