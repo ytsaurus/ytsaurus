@@ -38,13 +38,13 @@ public:
         ++UnsatisfiedResourceCounts_[resourceType];
     }
 
-    const TEnumIndexedVector<int, EAllocatorResourceType>& GetUnsatisfiedResourceCounts() const
+    const TEnumIndexedVector<EAllocatorResourceType, int>& GetUnsatisfiedResourceCounts() const
     {
         return UnsatisfiedResourceCounts_;
     }
 
 private:
-    TEnumIndexedVector<int, EAllocatorResourceType> UnsatisfiedResourceCounts_;
+    TEnumIndexedVector<EAllocatorResourceType, int> UnsatisfiedResourceCounts_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -534,7 +534,7 @@ private:
     struct TPodComputeAllocationHistory
     {
         // Last error occurred while computing allocation per node selection strategy.
-        TEnumIndexedVector<TError, EAllocatorNodeSelectionStrategy> StrategyToLastError;
+        TEnumIndexedVector<EAllocatorNodeSelectionStrategy, TError> StrategyToLastError;
 
         // Loop iteration count before next usage of every node selection strategy.
         int IterationCountToEveryNodeSelection;

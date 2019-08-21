@@ -106,7 +106,7 @@ class TSchedulerConfig
 {
 public:
     bool Disabled;
-    TEnumIndexedVector<bool, ESchedulerLoopStage> DisableStage;
+    TEnumIndexedVector<ESchedulerLoopStage, bool> DisableStage;
     TDuration LoopPeriod;
     TDuration FailedAllocationBackoffTime;
     int AllocationCommitConcurrency;

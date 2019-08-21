@@ -424,8 +424,8 @@ public:
 
 private:
     THashSet<NObjects::EObjectType> ObjectTypes_;
-    TEnumIndexedVector<THashMap<TObjectId, std::unique_ptr<TObject>>, EObjectType> Objects_;
-    TEnumIndexedVector<std::vector<TObject*>, EObjectType> SortedObjects_;
+    TEnumIndexedVector<EObjectType, THashMap<TObjectId, std::unique_ptr<TObject>>> Objects_;
+    TEnumIndexedVector<EObjectType, std::vector<TObject*>> SortedObjects_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterObjectSnapshot)

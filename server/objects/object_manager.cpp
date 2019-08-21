@@ -149,7 +149,7 @@ private:
     const TActionQueuePtr SweepQueue_ = New<TActionQueue>("Sweep");
     const TPeriodicExecutorPtr SweepExecutor_;
 
-    TEnumIndexedVector<std::unique_ptr<IObjectTypeHandler>, EObjectType> TypeHandlers_;
+    TEnumIndexedVector<EObjectType, std::unique_ptr<IObjectTypeHandler>> TypeHandlers_;
 
 private:
     void RegisterTypeHandler(std::unique_ptr<IObjectTypeHandler> handler)

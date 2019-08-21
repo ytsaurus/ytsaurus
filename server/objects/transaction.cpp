@@ -1777,7 +1777,7 @@ private:
         TVector<std::unique_ptr<TObject>> RemovedObjectsHolders_;
 
         THashMap<std::pair<EObjectType, TObjectId>, TObject*> CreatedObjects_;
-        TEnumIndexedVector<THashMap<TObjectId, TObject*>, EObjectType> RemovedObjects_;
+        TEnumIndexedVector<EObjectType, THashMap<TObjectId, TObject*>> RemovedObjects_;
 
         std::array<std::vector<TLoadCallback>, LoadPriorityCount> ScheduledLoads_;
         std::vector<TStoreCallback> ScheduledStores_;
@@ -2051,9 +2051,9 @@ private:
     THashSet<TPod*> PodsAwaitingAccountingValidation_;
 
 
-    static TEnumIndexedVector<TObjectId, EObjectType> BuildTypeToSchemaIdMap()
+    static TEnumIndexedVector<EObjectType, TObjectId> BuildTypeToSchemaIdMap()
     {
-        TEnumIndexedVector<TObjectId, EObjectType> result;
+        TEnumIndexedVector<EObjectType, TObjectId> result;
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             result[type] = FormatEnum(type);
         }

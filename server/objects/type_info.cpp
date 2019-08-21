@@ -102,7 +102,7 @@ public:
     }
 
 private:
-    TEnumIndexedVector<std::unique_ptr<TTypeInfo>, EObjectType> TypeInfos_;
+    TEnumIndexedVector<EObjectType, std::unique_ptr<TTypeInfo>> TypeInfos_;
 
     void Initialize()
     {

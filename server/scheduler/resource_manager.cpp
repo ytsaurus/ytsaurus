@@ -111,7 +111,7 @@ public:
 
     void ValidateNodeResource(NObjects::TNode* node)
     {
-        TEnumIndexedVector<int, EResourceKind> counts{};
+        TEnumIndexedVector<EResourceKind, int> counts;
         for (auto* resource : node->Resources().Load()) {
             ++counts[resource->Kind().Load()];
         }
