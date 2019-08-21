@@ -52,8 +52,8 @@ THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
     THashSet<TString> result;
     for (const auto& pair : Parameters) {
         result.insert(pair.first);
-        for (const auto& key : pair.second->GetAliases()) {
-            result.insert(key);
+        for (const auto& alias : pair.second->GetAliases()) {
+            result.insert(alias.Key);
         }
     }
     return result;
@@ -78,15 +78,15 @@ void TYsonSerializableLite::Load(
         TString key = name;
         auto child = mapNode->FindChild(name); // can be NULL
         for (const auto& alias : parameter->GetAliases()) {
-            auto otherChild = mapNode->FindChild(alias);
+            auto otherChild = mapNode->FindChild(alias.Key);
             if (child && otherChild && !AreNodesEqual(child, otherChild)) {
-                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias)
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias.Key)
                     << TErrorAttribute("main_value", child)
                     << TErrorAttribute("aliased_value", otherChild);
             }
             if (!child && otherChild) {
                 child = otherChild;
-                key = alias;
+                key = alias.Key;
             }
         }
         auto childPath = path + "/" + key;
@@ -139,6 +139,12 @@ void TYsonSerializableLite::Save(
         if (!parameter->CanOmitValue()) {
             consumer->OnKeyedItem(key);
             parameter->Save(consumer);
+            for (const auto& alias : parameter->GetAliases()) {
+                if (alias.Visible) {
+                    consumer->OnKeyedItem(alias.Key);
+                    parameter->Save(consumer);
+                }
+            }
         }
     }
 
