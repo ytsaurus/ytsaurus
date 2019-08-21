@@ -57,7 +57,7 @@ private:
         NProfiling::TAggregateGauge UsedCounter;
     };
 
-    TEnumIndexedVector<TCategory, ECategory> Categories_;
+    TEnumIndexedVector<ECategory, TCategory> Categories_;
 
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;

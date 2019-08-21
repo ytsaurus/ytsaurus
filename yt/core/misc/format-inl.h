@@ -357,10 +357,10 @@ struct TValueFormatter<THashMultiMap<K, V>>
 };
 
 // TEnumIndexedVector
-template <class T, class E>
-struct TValueFormatter<TEnumIndexedVector<T, E>>
+template <class E, class T>
+struct TValueFormatter<TEnumIndexedVector<E, T>>
 {
-    static void Do(TStringBuilderBase* builder, const TEnumIndexedVector<T, E>& collection, TStringBuf format)
+    static void Do(TStringBuilderBase* builder, const TEnumIndexedVector<E, T>& collection, TStringBuf format)
     {
         builder->AppendChar('{');
         bool firstItem = true;

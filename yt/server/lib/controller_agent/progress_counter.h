@@ -52,11 +52,11 @@ private:
     bool TotalEnabled_;
     i64 Total_;
     i64 Running_;
-    TEnumIndexedVector<i64, EInterruptReason> Completed_;
+    TEnumIndexedVector<EInterruptReason, i64> Completed_;
     i64 Pending_;
     i64 Failed_;
     i64 Lost_;
-    TEnumIndexedVector<i64, EAbortReason> Aborted_;
+    TEnumIndexedVector<EAbortReason, i64> Aborted_;
     TProgressCounterPtr Parent_;
 };
 
