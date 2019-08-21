@@ -137,8 +137,6 @@ DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
 struct TJobStartDescriptor;
 struct TOperationControllerInitializeAttributes;
 
-using TPoolTreeToSchedulingTagFilter = THashMap<TString, TSchedulingTagFilter>;
-
 using TIncarnationId = TGuid;
 using TAgentId = TString;
 

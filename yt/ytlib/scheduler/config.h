@@ -1135,8 +1135,12 @@ public:
     std::optional<double> Weight;
     TPoolName Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+
     // Can only be enabled by an administrator.
     bool EnableDetailedLogs;
+
+    // Cannot be specified by user.
+    bool Tentative;
 
     TOperationFairShareTreeRuntimeParameters();
 };

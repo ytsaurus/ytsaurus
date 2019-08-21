@@ -96,26 +96,6 @@ void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node)
     filter.Reload(formula);
 }
 
-void ToProto(
-    NControllerAgent::NProto::TPoolTreeSchedulingTagFilters* protoTreeFilters,
-    const TPoolTreeToSchedulingTagFilter& treeFilters)
-{
-    for (const auto& pair : treeFilters) {
-        auto* protoTreeFilter = protoTreeFilters->add_tree_filter();
-        protoTreeFilter->set_tree_name(pair.first);
-        ToProto(protoTreeFilter->mutable_filter(), pair.second);
-    }
-}
-
-void FromProto(
-    TPoolTreeToSchedulingTagFilter* treeFilters,
-    const NControllerAgent::NProto::TPoolTreeSchedulingTagFilters protoTreeFilters)
-{
-    for (const auto& protoTreeFilter : protoTreeFilters.tree_filter()) {
-        treeFilters->insert(std::make_pair(protoTreeFilter.tree_name(), FromProto<TSchedulingTagFilter>(protoTreeFilter.filter())));
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

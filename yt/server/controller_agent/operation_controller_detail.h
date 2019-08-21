@@ -911,7 +911,7 @@ private:
 
     const NYTAlloc::TMemoryTag MemoryTag_;
 
-    NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
+    NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
 
     THashSet<TString> BannedTreeIds_;
 

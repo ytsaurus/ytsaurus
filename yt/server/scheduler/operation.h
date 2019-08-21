@@ -234,8 +234,8 @@ public:
     //! Structure with operation transactions.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TOperationTransactions>, Transactions);
 
-    //! Scheduling tag filters of operation pool trees.
-    DEFINE_BYREF_RW_PROPERTY(TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
+    //! Pool tree information for operation controller.
+    DEFINE_BYREF_RW_PROPERTY(TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
 
     //! YSON describing suspicous jobs of this operation.
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
