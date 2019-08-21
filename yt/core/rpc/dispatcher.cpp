@@ -146,7 +146,7 @@ private:
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
     TReaderWriterSpinLock SpinLock_;
-    TEnumIndexedVector<TBandDescriptor, EMultiplexingBand> BandToDescriptor_;
+    TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     // Using linear search in vector since number of networks is very small.
     SmallVector<TString, 8> NetworkNames_;

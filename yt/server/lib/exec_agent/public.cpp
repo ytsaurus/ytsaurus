@@ -4,7 +4,7 @@ namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames{
+const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames{
     "sandbox",
     "udf",
     "home",

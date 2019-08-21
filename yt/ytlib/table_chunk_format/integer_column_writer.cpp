@@ -314,9 +314,9 @@ private:
         }
     }
 
-    TEnumIndexedVector<i32, EUnversionedIntegerSegmentType> GetSegmentSizeVector() const
+    TEnumIndexedVector<EUnversionedIntegerSegmentType, i32> GetSegmentSizeVector() const
     {
-        TEnumIndexedVector<i32, EUnversionedIntegerSegmentType> sizes;
+        TEnumIndexedVector<EUnversionedIntegerSegmentType, i32> sizes;
 
         for (auto type : TEnumTraits<EUnversionedIntegerSegmentType>::GetDomainValues()) {
             sizes[type] = GetSegmentSize(type);

@@ -56,8 +56,8 @@ struct TLocationPerformanceCounters
     NProfiling::TAggregateGauge BlobBlockReadTime;
     NProfiling::TAggregateGauge BlobBlockReadThroughput;
     NProfiling::TMonotonicCounter BlobBlockReadBytes;
-    TEnumIndexedVector<NProfiling::TAggregateGauge, EWorkloadCategory> BlobBlockReadLatencies;
-    TEnumIndexedVector<NProfiling::TAggregateGauge, EWorkloadCategory> BlobChunkMetaReadLatencies;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TAggregateGauge> BlobBlockReadLatencies;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TAggregateGauge> BlobChunkMetaReadLatencies;
     NProfiling::TAggregateGauge BlobBlockWriteSize;
     NProfiling::TAggregateGauge BlobBlockWriteTime;
     NProfiling::TAggregateGauge BlobBlockWriteThroughput;
@@ -70,7 +70,7 @@ struct TLocationPerformanceCounters
     NProfiling::TAggregateGauge JournalChunkOpenTime;
     NProfiling::TAggregateGauge JournalChunkRemoveTime;
 
-    TEnumIndexedVector<NProfiling::TSimpleGauge, ESessionType> SessionCount;
+    TEnumIndexedVector<ESessionType, NProfiling::TSimpleGauge> SessionCount;
 
     NProfiling::TAggregateGauge AvailableSpace;
     NProfiling::TSimpleGauge Full;
@@ -231,7 +231,7 @@ private:
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
-    TEnumIndexedVector<int, ESessionType> PerTypeSessionCount_;
+    TEnumIndexedVector<ESessionType, int> PerTypeSessionCount_;
     int ChunkCount_ = 0;
 
     const NConcurrency::TActionQueuePtr MetaReadQueue_;

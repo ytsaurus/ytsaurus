@@ -802,8 +802,8 @@ private:
     TTabletAutomatonPtr Automaton_;
 
     TSpinLock InvokersLock_;
-    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
-    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedAutomatonInvokers_;
 
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 

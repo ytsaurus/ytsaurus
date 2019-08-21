@@ -86,7 +86,7 @@ namespace NYT::NScheduler {
 class TJobMetrics
 {
 public:
-    using TValues = TEnumIndexedVector<i64, EJobMetricName>;
+    using TValues = TEnumIndexedVector<EJobMetricName, i64>;
     using TCustomValues = THashMap<TCustomJobMetricDescription, i64>;
     DEFINE_BYREF_RW_PROPERTY(TValues, Values);
     DEFINE_BYREF_RW_PROPERTY(TCustomValues, CustomValues);
