@@ -547,6 +547,7 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("enable_code_cache", Options.EnableCodeCache)
         .Optional();
     RegisterParameter("max_subqueries", Options.MaxSubqueries)
+        .GreaterThan(0)
         .Optional();
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
