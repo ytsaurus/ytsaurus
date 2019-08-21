@@ -271,7 +271,7 @@ public:
     std::optional<TString> Pool;
 
     //! This options have higher priority than Pool and other options
-    //! defined in this class besides SchedulingTagFilter.
+    //! defined in this class.
     THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
