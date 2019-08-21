@@ -47,7 +47,10 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
             except:
                 pass
 
-        os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
+        if use_ytserver_all or binary not in ["exec", "tools"]:
+            os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
+        else:
+            shutil.copy(binary_path, os.path.join(destination, "ytserver-" + binary))
 
     watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
