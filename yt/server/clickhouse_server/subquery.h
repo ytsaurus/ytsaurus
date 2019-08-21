@@ -4,6 +4,7 @@
 #include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -17,6 +18,13 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSubquery
+{
+    NChunkPools::TChunkStripeListPtr StripeList;
+    NChunkPools::IChunkPoolOutput::TCookie Cookie;
+    std::pair<NTableClient::TUnversionedOwningRow, NTableClient::TUnversionedOwningRow> Limits;
+};
+
 //! Fetch data slices for given input tables and fill given subquery spec template.
 NChunkPools::TChunkStripeListPtr FetchInput(
     NApi::NNative::IClientPtr client,
@@ -28,7 +36,7 @@ NChunkPools::TChunkStripeListPtr FetchInput(
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);
 
-std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+std::vector<TSubquery> BuildSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,

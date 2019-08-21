@@ -1351,6 +1351,51 @@ class TestJoinAndIn(ClickHouseTestBase):
 
     @authors("max42")
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
+    def test_right_or_full_join_simple(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "lhs", "type": "string", "required": True}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                                                           {"name": "rhs", "type": "string", "required": True}]})
+        lhs_rows = [
+            {"key": 0, "lhs": "foo0"},
+            {"key": 1, "lhs": "foo1"},
+            {"key": 3, "lhs": "foo3"},
+            {"key": 7, "lhs": "foo7"},
+            {"key": 8, "lhs": "foo8"},
+        ]
+        rhs_rows = [
+            {"key": 0, "rhs": "bar0"},
+            {"key": 0, "rhs": "bar0"},
+            {"key": 2, "rhs": "bar2"},
+            {"key": 4, "rhs": "bar4"},
+            {"key": 9, "rhs": "bar9"},
+        ]
+
+        for row in lhs_rows:
+            write_table("<append=%true>//tmp/t1", [row])
+        for row in rhs_rows:
+            write_table("<append=%true>//tmp/t2", [row])
+
+        with Clique(2) as clique:
+            expected_right = [{"key": 0, "lhs": "foo0", "rhs": "bar0"},
+                              {"key": 0, "lhs": "foo0", "rhs": "bar0"},
+                              {"key": 2, "lhs": None, "rhs": "bar2"},
+                              {"key": 4, "lhs": None, "rhs": "bar4"},
+                              {"key": 9, "lhs": None, "rhs": "bar9"}]
+            expected_full = [{"key": 0, "lhs": "foo0", "rhs": "bar0"},
+                             {"key": 0, "lhs": "foo0", "rhs": "bar0"},
+                             {"key": 1, "lhs": "foo1", "rhs": None},
+                             {"key": 2, "lhs": None, "rhs": "bar2"},
+                             {"key": 3, "lhs": "foo3", "rhs": None},
+                             {"key": 4, "lhs": None, "rhs": "bar4"},
+                             {"key": 7, "lhs": "foo7", "rhs": None},
+                             {"key": 8, "lhs": "foo8", "rhs": None},
+                             {"key": 9, "lhs": None, "rhs": "bar9"}]
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" global right join \"//tmp/t2\" using key order by key") == expected_right
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" global full join \"//tmp/t2\" using key order by key") == expected_full
+
+    @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_sorted_join_stress(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
@@ -1439,9 +1484,6 @@ class TestJoinAndIn(ClickHouseTestBase):
                     for rhs_arg in ("\"//tmp/t2\"", "(select * from \"//tmp/t2\")"):
                         for globalness in ("", "global"):
                             for kind in ("inner", "left", "right", "full"):
-                                # TODO(max42): CHYT-182.
-                                if kind in ("right", "full"):
-                                    continue
                                 query = \
                                     "select key, lhs, rhs from {lhs_arg} {globalness} {kind} join {rhs_arg} " \
                                     "using key order by key, lhs, rhs nulls first".format(**locals())

@@ -78,7 +78,7 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
 class TSortedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithJobManagerBase
-    , public IChunkPool
+    , public ISortedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     , public TRefTracked<TSortedChunkPool>
 {
@@ -247,6 +247,11 @@ public:
             JobManager_->SetLogger(Logger);
             RowBuffer_ = New<TRowBuffer>();
         }
+    }
+
+    virtual std::pair<TUnversionedRow, TUnversionedRow> GetLimits(IChunkPoolOutput::TCookie cookie) const override
+    {
+        return JobManager_->GetLimits(cookie);
     }
 
 private:
@@ -742,7 +747,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPool> CreateSortedChunkPool(
+std::unique_ptr<ISortedChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
     IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory inputStreamDirectory)

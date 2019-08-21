@@ -8,6 +8,8 @@ namespace NYT::NChunkPools {
 
 struct IChunkPoolInput;
 struct IChunkPoolOutput;
+struct IChunkPool;
+struct ISortedChunkPool;
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 

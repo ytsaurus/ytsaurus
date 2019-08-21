@@ -30,9 +30,10 @@ public:
     TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo);
 
     DB::ASTPtr RewriteQuery(
-        const TRange<NChunkPools::TChunkStripeListPtr> stripeLists,
+        const TRange<TSubquery> subqueries,
         TSubquerySpec specTemplate,
-        int subqueryIndex);
+        int subqueryIndex,
+        bool isLastSubquery);
 
     TQueryAnalysisResult Analyze();
 
@@ -45,23 +46,35 @@ private:
     std::vector<DB::ASTPtr*> TableExpressionPtrs_;
     std::vector<std::shared_ptr<IStorageDistributor>> Storages_;
     //! If the query contains any kind of join.
-    bool IsJoin_ = false;
+    bool Join_ = false;
     //! If the query contains global join.
-    bool IsGlobalJoin_ = false;
-    //! If the query is about outer right or outer full join.
-    bool IsRightOrFullJoin_ = false;
+    bool GlobalJoin_ = false;
+    //! If the query contains outer right or outer full join.
+    bool RightOrFullJoin_ = false;
     //! If the query joins two YT tables.
-    bool IsTwoYtTableJoin_ = false;
+    bool TwoYTTableJoin_ = false;
+
+    std::optional<NTableClient::TUnversionedOwningRow> PreviousUpperLimit_;
+
+    std::vector<std::pair<DB::ASTPtr*, DB::ASTPtr>> Modifications_;
 
     void ParseQuery();
 
     void ValidateKeyColumns();
 
-    void AppendWhereCondition();
-
     std::shared_ptr<IStorageDistributor> GetStorage(const DB::ASTTableExpression* tableExpression) const;
 
-    DB::ASTPtr ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions);
+    //! Apply modification to query part which can be later rolled back by calling RollbackModifications().
+    void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue);
+    //! Version with explicit previous value specifiction specially for weird DB::ASTSelect::refWhere() behaviour.
+    void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue, DB::ASTPtr previousValue);
+    //! Rollback all modifications to the query.
+    void RollbackModifications();
+
+    void ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions);
+    void AppendWhereCondition(
+        std::optional<NTableClient::TUnversionedOwningRow> lowerLimit,
+        std::optional<NTableClient::TUnversionedOwningRow> upperLimit);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
