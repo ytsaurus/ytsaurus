@@ -300,7 +300,7 @@ private:
         { }
 
         TCellDescriptor Descriptor;
-        TEnumIndexedVector<IChannelPtr, EPeerKind> Channels;
+        TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
     };
 
     TReaderWriterSpinLock SpinLock_;

@@ -130,8 +130,8 @@ template <template<typename...> class C, class... T, class K = typename C<T...>:
 void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer);
 
 // TEnumIndexedVector
-template <class T, class E, E Min, E Max>
-void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonConsumer* consumer);
+template <class E, class T, E Min, E Max>
+void Serialize(const TEnumIndexedVector<E, T, Min, Max>& value, NYson::IYsonConsumer* consumer);
 
 // Subtypes of google::protobuf::Message
 template <class T>

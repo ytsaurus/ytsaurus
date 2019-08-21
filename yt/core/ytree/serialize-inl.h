@@ -403,8 +403,8 @@ void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer)
     NDetail::SerializeAssociative(value, consumer);
 }
 
-template <class T, class E, E Min, E Max>
-void Serialize(const TEnumIndexedVector<T, E, Min, Max>& vector, NYson::IYsonConsumer* consumer)
+template <class E, class T, E Min, E Max>
+void Serialize(const TEnumIndexedVector<E, T, Min, Max>& vector, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     for (auto key : TEnumTraits<E>::GetDomainValues()) {
@@ -553,10 +553,10 @@ void Deserialize(C<T...>& value, INodePtr node)
     NDetail::DeserializeAssociative(value, node);
 }
 
-template <class T, class E, E Min, E Max>
-void Deserialize(TEnumIndexedVector<T, E, Min, Max>& vector, INodePtr node)
+template <class E, class T, E Min, E Max>
+void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, INodePtr node)
 {
-    vector = TEnumIndexedVector<T, E, Min, Max>();
+    vector = {};
     auto mapNode = node->AsMap();
     for (const auto& pair : mapNode->GetChildren()) {
         auto key = TEnumTraits<E>::FromString(DecodeEnumValue(pair.first));

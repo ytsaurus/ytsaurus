@@ -1516,7 +1516,7 @@ private:
 
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
 
-    TEnumIndexedVector<TTagId, EJobType, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType> JobTypeToTag_;
+    TEnumIndexedVector<EJobType, TTagId, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType> JobTypeToTag_;
     THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
     THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
 

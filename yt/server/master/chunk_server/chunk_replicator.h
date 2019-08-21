@@ -71,7 +71,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
 
-    using TJobCounters = TEnumIndexedVector<int, EJobType, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
+    using TJobCounters = TEnumIndexedVector<EJobType, int, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
     // Number of jobs running - per job type. For profiling.
     DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobCounters);
 

@@ -138,7 +138,7 @@ private:
     TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
     TError TerminationError_;
-    TEnumIndexedVector<TSessionPtr, EMultiplexingBand> Sessions_;
+    TEnumIndexedVector<EMultiplexingBand, TSessionPtr> Sessions_;
 
     TSessionPtr* GetPerBandSession(EMultiplexingBand band)
     {

@@ -94,8 +94,8 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<TInstant> ModificationTime = {NProfiling::GetInstant()};
     std::atomic<TInstant> AccessTime = {TInstant::Zero()};
-    TEnumIndexedVector<std::atomic<i64>, ETabletDynamicMemoryType> DynamicMemoryUsagePerType;
-    TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
+    TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
+    TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -481,7 +481,7 @@ private:
 
     IStoreManagerPtr StoreManager_;
 
-    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
 
     std::unique_ptr<TPartition> Eden_;
 

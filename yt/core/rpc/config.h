@@ -288,7 +288,7 @@ public:
     int HeavyPoolSize;
     int CompressionPoolSize;
 
-    TEnumIndexedVector<TMultiplexingBandConfigPtr, EMultiplexingBand> MultiplexingBands;
+    TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr> MultiplexingBands;
 
     TDispatcherConfig()
     {
