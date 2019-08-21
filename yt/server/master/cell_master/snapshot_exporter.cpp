@@ -175,7 +175,7 @@ void DoExportSnapshot(
             continue;
         }
 
-<       auto writer = CreateYsonWriter(
+        auto writer = CreateYsonWriter(
             &Cout,
             EYsonFormat::Text,
             EYsonType::Node,
@@ -193,7 +193,7 @@ void DoExportSnapshot(
             .Do([&] (TFluentMap fluent) {
                 auto nodeProxy = objectManager->GetProxy(node->GetTrunkNode(), node->GetTransaction());
                 const auto& nodeAttributes = nodeProxy->Attributes();
-                std::vector<TString> keys = searchedKeys.empty() ? nodeAttributes.List() : searchedKeys;
+                auto keys = searchedKeys.empty() ? nodeAttributes.ListKeys() : searchedKeys;
 
                 fluent
                     .Item("path")
@@ -210,7 +210,7 @@ void DoExportSnapshot(
                                         auto node = ConvertToNode(result);
                                         // Attributes are forbidden on zero depth,
                                         // but we still want to have them (e.g. for schema).
-                                        if (!node->Attributes().List().empty()) {
+                                        if (!node->Attributes().ListKeys().empty()) {
                                             fluent
                                                 .Item(key + "_attributes")
                                                 .Value(node->Attributes());
