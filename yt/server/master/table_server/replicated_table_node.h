@@ -21,8 +21,7 @@ public:
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
         RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount)
-            // COMPAT(savrus)
-            .Alias("sync_replica_count", true)
+            .Alias("sync_replica_count")
             .Optional();
         RegisterParameter("min_sync_replica_count", MinSyncReplicaCount)
             .Optional();
@@ -30,9 +29,6 @@ public:
         RegisterPostprocessor([&] {
             if (!MaxSyncReplicaCount && !MinSyncReplicaCount) {
                 MaxSyncReplicaCount = 1;
-            }
-            if (!MinSyncReplicaCount) {
-                MinSyncReplicaCount = MaxSyncReplicaCount;
             }
             if (MaxSyncReplicaCount && MinSyncReplicaCount && *MinSyncReplicaCount > *MaxSyncReplicaCount) {
                 THROW_ERROR_EXCEPTION("\"min_sync_replica_count\" must be less or equal to \"max_sync_replica_count\"");

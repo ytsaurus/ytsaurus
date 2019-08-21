@@ -403,14 +403,14 @@ bool TYsonSerializableLite::TParameter<T>::CanOmitValue() const
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Alias(const TString& name, bool visible)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Alias(const TString& name)
 {
-    Aliases.push_back(TAlias{name, visible});
+    Aliases.push_back(name);
     return *this;
 }
 
 template <class T>
-const std::vector<TYsonSerializableLite::TAlias>& TYsonSerializableLite::TParameter<T>::GetAliases() const
+const std::vector<TString>& TYsonSerializableLite::TParameter<T>::GetAliases() const
 {
     return Aliases;
 }
