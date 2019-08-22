@@ -688,6 +688,7 @@ private:
         const TString& expectedMD5,
         const TPutFileToCacheOptions& options);
 
+    // Security
     void DoAddMember(
         const TString& group,
         const TString& member,
@@ -704,8 +705,24 @@ private:
     TCheckPermissionByAclResult DoCheckPermissionByAcl(
         const std::optional<TString>& user,
         NYTree::EPermission permission,
-        NYTree::INodePtr acl,
+        const NYTree::INodePtr& acl,
         const TCheckPermissionByAclOptions& options);
+        TCheckPermissionResult InternalCheckPermission(
+        const NYPath::TYPath& path,
+        NYTree::EPermission permission,
+        const TCheckPermissionOptions& options = {});
+    void InternalValidatePermission(
+        const NYPath::TYPath& path,
+        NYTree::EPermission permission,
+        const TCheckPermissionOptions& options = {});
+    void InternalValidateTableReplicaPermission(
+        NTabletClient::TTableReplicaId replicaId,
+        NYTree::EPermission permission,
+        const TCheckPermissionOptions& options = {});
+    void ValidateOperationAccess(
+        NScheduler::TJobId jobId,
+        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+        NYTree::EPermissionSet permissions);
 
     NScheduler::TOperationId DoStartOperation(
         NScheduler::EOperationType type,
@@ -755,11 +772,6 @@ private:
     NYson::TYsonString DoGetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options);
-
-    void ValidateOperationAccess(
-        NScheduler::TJobId jobId,
-        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-        NYTree::EPermissionSet permissions);
 
     void DoDumpJobContext(
         NScheduler::TJobId jobId,
@@ -976,18 +988,6 @@ private:
 
     static bool TryParseObjectId(const NYPath::TYPath& path, NObjectClient::TObjectId* objectId);
 
-    TCheckPermissionResult InternalCheckPermission(
-        const NYPath::TYPath& path,
-        NYTree::EPermission permission,
-        const TCheckPermissionOptions& options = {});
-    void InternalValidatePermission(
-        const NYPath::TYPath& path,
-        NYTree::EPermission permission,
-        const TCheckPermissionOptions& options = {});
-    void InternalValidateTableReplicaPermission(
-        NTabletClient::TTableReplicaId replicaId,
-        NYTree::EPermission permission,
-        const TCheckPermissionOptions& options = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
