@@ -2218,7 +2218,7 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 TOperationElement::TOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
-    TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
+    TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
@@ -2233,7 +2233,7 @@ TOperationElement::TOperationElement(
         treeId,
         NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, controllerConfig)
-    , RuntimeParams_(std::move(runtimeParams))
+    , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(spec)
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
@@ -2246,7 +2246,7 @@ TOperationElement::TOperationElement(
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElement(other, clonedParent)
     , TOperationElementFixedState(other)
-    , RuntimeParams_(other.RuntimeParams_)
+    , RuntimeParameters_(other.RuntimeParameters_)
     , Spec_(other.Spec_)
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
@@ -2594,7 +2594,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 std::optional<double> TOperationElement::GetSpecifiedWeight() const
 {
-    return RuntimeParams_->Weight;
+    return RuntimeParameters_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2905,7 +2905,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
-    return ComputeResourceLimitsBase(RuntimeParams_->ResourceLimits);
+    return ComputeResourceLimitsBase(RuntimeParameters_->ResourceLimits);
 }
 
 TJobResources TOperationElement::ComputeMaxPossibleResourceUsage() const

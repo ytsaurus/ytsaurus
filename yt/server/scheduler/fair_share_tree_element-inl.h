@@ -49,7 +49,7 @@ inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
 
 inline bool TOperationElement::DetailedLogsEnabled() const
 {
-    return RuntimeParams_->EnableDetailedLogs;
+    return RuntimeParameters_->EnableDetailedLogs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

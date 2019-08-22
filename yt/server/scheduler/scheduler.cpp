@@ -567,8 +567,8 @@ public:
             EObjectType::Operation,
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
-        auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, baseAcl, user, type);
+        auto runtimeParameters = New<TOperationRuntimeParameters>();
+        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
 
         auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
 
@@ -581,7 +581,7 @@ public:
             std::move(parseSpecResult.SpecString),
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
-            runtimeParams,
+            runtimeParameters,
             std::move(baseAcl),
             user,
             TInstant::Now(),
