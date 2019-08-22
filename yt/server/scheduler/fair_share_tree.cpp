@@ -721,18 +721,20 @@ void TFairShareTree::ProfileFairShare(TMetricsAccumulator& accumulator) const
 
 void TFairShareTree::LogOperationsInfo()
 {
-    for (const auto& [operationId, element] : OperationIdToElement_) {
+    for (const auto& [operationId, _] : OperationIdToElement_) {
+        auto* recentOperationElement = FindRecentOperationElementSnapshot(operationId);
         YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-            element->GetLoggingString(GetGlobalDynamicAttributes(FindRecentOperationElementSnapshot(operationId))),
+            recentOperationElement->GetLoggingString(GetGlobalDynamicAttributes(recentOperationElement)),
             operationId);
     }
 }
 
 void TFairShareTree::LogPoolsInfo()
 {
-    for (const auto& [poolName, pool] : Pools_) {
+    for (const auto& [poolName, _] : Pools_) {
+        auto recentPoolElement = FindRecentPoolSnapshot(poolName);
         YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
-            pool->GetLoggingString(GetGlobalDynamicAttributes(FindRecentPoolSnapshot(poolName))),
+            recentPoolElement->GetLoggingString(GetGlobalDynamicAttributes(recentPoolElement)),
             poolName);
     }
 }
