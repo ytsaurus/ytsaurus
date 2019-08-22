@@ -364,12 +364,6 @@ struct TLookupRowsInputBufferTag
 struct TLookupRowsOutputBufferTag
 { };
 
-struct TWriteRowsBufferTag
-{ };
-
-struct TDeleteRowsBufferTag
-{ };
-
 struct TGetInSyncReplicasTag
 { };
 
