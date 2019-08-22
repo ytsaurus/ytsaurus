@@ -1358,8 +1358,6 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         for index in xrange(4):
             create("map_node", "//sys/pools/pool" + str(index))
 
-        set("//sys/pools/pool0/@allow_aggressive_starvation_preemption", False)
-
         get_fair_share_ratio = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
 
@@ -1369,16 +1367,21 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         ops = []
         for index in xrange(4):
             create("table", "//tmp/t_out" + str(index))
+
+            spec = {
+                "pool": "pool" + str(index),
+                "job_count": 3,
+                "locality_timeout": 0,
+                "mapper": {"memory_limit": 10 * 1024 * 1024},
+            }
+            if index == 0:
+                spec["allow_aggressive_starvation_preemption"] = False
+
             op = map(
                 command="sleep 1000; cat",
                 in_=["//tmp/t_in"],
                 out="//tmp/t_out" + str(index),
-                spec={
-                    "pool": "pool" + str(index),
-                    "job_count": 3,
-                    "locality_timeout": 0,
-                    "mapper": {"memory_limit": 10 * 1024 * 1024}
-                },
+                spec=spec,
                 dont_track=True)
             ops.append(op)
 
