@@ -45,7 +45,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams);
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
 
 TFairShareStrategyOperationStatePtr
 CreateFairShareStrategyOperationState(IOperationStrategyHost* host);
@@ -101,7 +101,7 @@ public:
     bool RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters);
 
     void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state);
 
@@ -133,7 +133,7 @@ public:
 
     void UpdateOperationRuntimeParameters(
         TOperationId operationId,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters);
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
 

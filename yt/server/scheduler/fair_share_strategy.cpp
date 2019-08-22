@@ -161,14 +161,14 @@ public:
         YT_VERIFY(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
-        auto runtimeParams = operation->GetRuntimeParameters();
+        auto runtimeParameters = operation->GetRuntimeParameters();
 
         for (const auto& pair : state->TreeIdToPoolNameMap()) {
             const auto& treeId = pair.first;
             const auto& tree = GetTree(pair.first);
 
-            auto paramsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(paramsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
+            auto paramsIt = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
+            YT_VERIFY(paramsIt != runtimeParameters->SchedulingOptionsPerPoolTree.end());
 
             if (tree->RegisterOperation(state, spec, paramsIt->second)) {
                 ActivateOperations({operation->GetId()});
@@ -439,7 +439,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto state = GetOperationState(operation->GetId());
-        const auto runtimeParams = operation->GetRuntimeParameters();
+        const auto runtimeParameters = operation->GetRuntimeParameters();
 
         auto newPools = GetOperationPools(operation->GetRuntimeParameters());
 
@@ -463,8 +463,8 @@ public:
                 ActivateOperations(tree->RunWaitingOperations());
             }
 
-            auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(it != runtimeParams->SchedulingOptionsPerPoolTree.end());
+            auto it = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
+            YT_VERIFY(it != runtimeParameters->SchedulingOptionsPerPoolTree.end());
             tree->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
         }
         state->TreeIdToPoolNameMap() = newPools;
@@ -505,14 +505,14 @@ public:
 
     virtual void ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const TOperationRuntimeParametersPtr& runtimeParams,
+        const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operation->GetId());
 
-        for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
+        for (const auto& pair : runtimeParameters->SchedulingOptionsPerPoolTree) {
             auto poolTrees = state->TreeIdToPoolNameMap();
             if (poolTrees.find(pair.first) == poolTrees.end()) {
                 THROW_ERROR_EXCEPTION("Pool tree %Qv was not configured for this operation", pair.first);
@@ -520,10 +520,10 @@ public:
         }
 
         if (validatePools) {
-            ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
-            ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+            ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
+            ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParameters);
 
-            auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParams);
+            auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParameters);
             if (!poolLimitViolations.empty()) {
                 THROW_ERROR poolLimitViolations.begin()->second;
             }

@@ -752,7 +752,7 @@ public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
-        TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
+        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
@@ -862,7 +862,7 @@ public:
 
     void UpdateAncestorsAttributes(TFairShareContext* context);
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 

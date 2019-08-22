@@ -101,10 +101,10 @@ TTagId GetUserNameProfilingTag(const TString& userName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams)
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
 {
     THashMap<TString, TPoolName> pools;
-    for (const auto& [treeId, options] : runtimeParams->SchedulingOptionsPerPoolTree) {
+    for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
         pools.emplace(treeId, options->Pool);
     }
     return pools;
@@ -299,7 +299,7 @@ void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operat
 bool TFairShareTree::RegisterOperation(
     const TFairShareStrategyOperationStatePtr& state,
     const TStrategyOperationSpecPtr& spec,
-    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams)
+    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -314,7 +314,7 @@ bool TFairShareTree::RegisterOperation(
     auto operationElement = New<TOperationElement>(
         Config_,
         clonedSpec,
-        runtimeParams,
+        runtimeParameters,
         state->GetController(),
         ControllerConfig_,
         Host_,
@@ -606,7 +606,7 @@ void TFairShareTree::UpdateOperationRuntimeParameters(
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     if (const auto& element = FindOperationElement(operationId)) {
-        element->SetRuntimeParams(newParams);
+        element->SetRuntimeParameters(newParams);
     }
 }
 
@@ -640,7 +640,7 @@ void TFairShareTree::BuildOperationAttributes(TOperationId operationId, TFluentM
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     const auto& element = GetOperationElement(operationId);
-    auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
+    auto serializedParams = ConvertToAttributes(element->GetRuntimeParameters());
     fluent
         .Items(*serializedParams)
         .Item("pool").Value(element->GetParent()->GetId());
@@ -664,7 +664,7 @@ void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
         .Item("fifo_index").Value(element->Attributes().FifoIndex)
         .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
-        .Item("tentative").Value(element->GetRuntimeParams()->Tentative)
+        .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
         .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
 }
 

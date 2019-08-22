@@ -114,7 +114,7 @@ TOperation::TOperation(
     TYsonString specString,
     IMapNodePtr annotations,
     IMapNodePtr secureVault,
-    TOperationRuntimeParametersPtr runtimeParams,
+    TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
     const TString& authenticatedUser,
     TInstant startTime,
@@ -143,7 +143,7 @@ TOperation::TOperation(
     , SpecString_(specString)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
-    , RuntimeParameters_(std::move(runtimeParams))
+    , RuntimeParameters_(std::move(runtimeParameters))
     , ErasedTrees_(std::move(erasedTrees))
 {
     YT_VERIFY(SpecString_);
