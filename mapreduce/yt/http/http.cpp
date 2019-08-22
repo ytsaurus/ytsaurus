@@ -17,7 +17,7 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 #include <util/string/printf.h>
-#include <util/string/quote.h>
+#include <library/string_utils/quote/quote.h>
 #include <util/system/getpid.h>
 
 namespace NYT {
