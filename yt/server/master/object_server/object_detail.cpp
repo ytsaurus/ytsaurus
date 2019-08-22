@@ -224,8 +224,9 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
             GetTransactionId(context));
         auto result = resolver.Resolve();
         if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
-            THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
-                // XXX(babenko)
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellRequest,
+                "Request is cross-cell since it involves paths %v and %v",
                 ypathExt.original_target_path(),
                 additionalPath);
         }
