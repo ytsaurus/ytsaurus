@@ -238,7 +238,7 @@ typename std::enable_if<std::is_trivial<TValue>::value, void>::type SetPairValue
 template <class TSerializedArray, class T, class E, E Min, E Max>
 void ToProtoArrayImpl(
     TSerializedArray* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
+    const TEnumIndexedVector<E, T, Min, Max>& originalArray)
 {
     serializedArray->Clear();
     for (auto key : TEnumTraits<E>::GetDomainValues()) {
@@ -253,7 +253,7 @@ void ToProtoArrayImpl(
 
 template <class T, class E, E Min, E Max, class TSerializedArray>
 void FromProtoArrayImpl(
-    TEnumIndexedVector<T, E, Min, Max>* originalArray,
+    TEnumIndexedVector<E, T, Min, Max>* originalArray,
     const TSerializedArray& serializedArray)
 {
     for (auto key : TEnumTraits<E>::GetDomainValues()) {
@@ -362,7 +362,7 @@ void ToProto(
 template <class TSerialized, class T, class E, E Min, E Max>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
+    const TEnumIndexedVector<E, T, Min, Max>& originalArray)
 {
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
@@ -370,7 +370,7 @@ void ToProto(
 template <class TSerialized, class T, class E, E Min, E Max>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
+    const TEnumIndexedVector<E, T, Min, Max>& originalArray)
 {
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }

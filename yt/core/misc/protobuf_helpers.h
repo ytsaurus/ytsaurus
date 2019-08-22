@@ -119,12 +119,12 @@ void CheckedHashSetFromProto(
 template <class TSerialized, class T, class E, E Min, E Max>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+    const TEnumIndexedVector<E, T, Min, Max>& originalArray);
 
 template <class TSerialized, class T, class E, E Min, E Max>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+    const TEnumIndexedVector<E, T, Min, Max>& originalArray);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -138,7 +138,7 @@ private:
 
     void PushSmallArenaStatistics(
         size_t rank,
-        const TEnumIndexedVector<ssize_t, ESmallArenaCounter>& counters)
+        const TEnumIndexedVector<ESmallArenaCounter, ssize_t>& counters)
     {
         auto profiler = Profiler_.AppendPath("/small_arena").AddTags(
             {
@@ -161,7 +161,7 @@ private:
 
     void PushLargeArenaStatistics(
         size_t rank,
-        const TEnumIndexedVector<ssize_t, ELargeArenaCounter>& counters)
+        const TEnumIndexedVector<ELargeArenaCounter, ssize_t>& counters)
     {
         auto profiler = Profiler_.AppendPath("/large_arena").AddTags(
             {

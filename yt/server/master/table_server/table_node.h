@@ -39,8 +39,8 @@ class TTableNode
 {
 private:
     using TTabletStateIndexedVector = TEnumIndexedVector<
-        int,
         NTabletClient::ETabletState,
+        int,
         NTabletClient::MinValidTabletState,
         NTabletClient::MaxValidTabletState>;
     using TTabletList = std::vector<NTabletServer::TTablet*>;

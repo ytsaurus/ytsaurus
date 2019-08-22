@@ -40,7 +40,7 @@ struct TControllerScheduleJobResult
     bool IsScheduleStopNeeded() const;
 
     std::optional<TJobStartDescriptor> StartDescriptor;
-    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> Failed;
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> Failed;
     TDuration Duration;
     TIncarnationId IncarnationId;
 };

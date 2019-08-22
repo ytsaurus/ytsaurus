@@ -120,7 +120,7 @@ public:
     TTagId GetTag(T value) const;
 
 private:
-    TEnumIndexedVector<TTagId, T> Tags_;
+    TEnumIndexedVector<T, TTagId> Tags_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

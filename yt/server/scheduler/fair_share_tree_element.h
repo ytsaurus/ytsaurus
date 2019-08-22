@@ -87,7 +87,7 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TAggregateGauge PackingCheckTime;
     NProfiling::TMonotonicCounter ScheduleJobCount;
     NProfiling::TMonotonicCounter ScheduleJobFailureCount;
-    TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TMonotonicCounter> ControllerScheduleJobFail;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,13 +148,13 @@ public:
         TDuration ExecScheduleJobDuration;
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
-        TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
+        TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> FailedScheduleJob;
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
         int ScheduleJobAttempts = 0;
         int ScheduleJobFailureCount = 0;
-        TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
 
     std::optional<TStageState> StageState;
@@ -621,7 +621,7 @@ DEFINE_ENUM(EOperationPreemptionStatus,
     (ForbiddenSinceLowJobCount)
 );
 
-using TPreemptionStatusStatisticsVector = TEnumIndexedVector<int, EOperationPreemptionStatus>;
+using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 
 class TOperationElementSharedState
     : public TIntrinsicRefCounted
@@ -657,9 +657,9 @@ public:
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
     void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
-    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     void ResetDeactivationReasonsFromLastNonStarvingTime();
-    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
     TInstant GetLastScheduleJobSuccessTime() const;
 
@@ -726,8 +726,8 @@ private:
 
     struct TStateShard
     {
-        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons;
-        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime;
+        TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
+        TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         char Padding[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
@@ -842,8 +842,8 @@ public:
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
     void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
-    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
-    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
     std::optional<NProfiling::TTagId> GetCustomProfilingTag();
 

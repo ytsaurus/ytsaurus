@@ -14,9 +14,9 @@ namespace {
 #ifdef YT_ALLOC_ENABLED
 
 template <class T, size_t N>
-TEnumIndexedVector<ssize_t, T> AggregateArenaCounters(const std::array<TEnumIndexedVector<ssize_t, T>, N>& counters)
+TEnumIndexedVector<T, ssize_t> AggregateArenaCounters(const std::array<TEnumIndexedVector<T, ssize_t>, N>& counters)
 {
-    TEnumIndexedVector<ssize_t, T> result;
+    TEnumIndexedVector<T, ssize_t> result;
     for (size_t index = 0; index < counters.size(); ++index) {
         for (auto counter : TEnumTraits<T>::GetDomainValues()) {
             result[counter] += counters[index][counter];
