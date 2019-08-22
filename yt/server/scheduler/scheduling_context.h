@@ -59,6 +59,9 @@ struct ISchedulingContext
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
+    //! Returns |true| if strategy should abort jobs since resources overcommit.
+    virtual bool ShouldAbortJobsSinceResourcesOvercommit() const = 0;
+
     virtual void StartJob(
         const TString& treeId,
         TOperationId operationId,

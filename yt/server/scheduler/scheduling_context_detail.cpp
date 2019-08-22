@@ -68,6 +68,16 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
+bool TSchedulingContextBase::ShouldAbortJobsSinceResourcesOvercommit() const
+{
+    bool resourcesOvercommitted = !Dominates(ResourceLimits(), ResourceUsage());
+    auto now = NProfiling::CpuInstantToInstant(GetNow());
+    bool allowedOvercommitTimePassed = Node_->GetResourcesOvercommitStartTime()
+        ? Node_->GetResourcesOvercommitStartTime() + Config_->AllowedNodeResourcesOvercommitDuration < now
+        : false;
+    return resourcesOvercommitted && allowedOvercommitTimePassed;
+}
+
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
     TOperationId operationId,

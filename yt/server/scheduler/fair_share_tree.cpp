@@ -41,6 +41,15 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobWithPreemptionInfo
+{
+    TJobPtr Job;
+    bool IsPreemptable;
+    TOperationElementPtr OperationElement;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStrategyHost* host)
     : Host_(host)
     , Controller_(New<TFairShareStrategyOperationController>(host))
@@ -1331,6 +1340,52 @@ void TFairShareTree::DoScheduleJobs(
         DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
         context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
         context.FinishStage();
+    }
+
+    // Interrupt some jobs if usage is greater that limit.
+    if (schedulingContext->ShouldAbortJobsSinceResourcesOvercommit()) {
+        YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
+            schedulingContext->GetNodeDescriptor().Id,
+            schedulingContext->GetNodeDescriptor().Address);
+
+        std::vector<TJobWithPreemptionInfo> jobInfos;
+        for (const auto& job : schedulingContext->RunningJobs()) {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
+                YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+            jobInfos.push_back(TJobWithPreemptionInfo{
+                .Job = job,
+                .IsPreemptable = operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false),
+                .OperationElement = operationElement,
+            });
+        }
+
+        std::sort(
+            jobInfos.begin(),
+            jobInfos.end(),
+            [&] (const TJobWithPreemptionInfo& lhs, const TJobWithPreemptionInfo& rhs) {
+                if (lhs.IsPreemptable != rhs.IsPreemptable) {
+                    return lhs.IsPreemptable < rhs.IsPreemptable;
+                }
+                return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
+            }
+        );
+
+        auto currentResources = TJobResources();
+        for (const auto& jobInfo : jobInfos) {
+            if (!Dominates(schedulingContext->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
+                YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
+                    jobInfo.Job->GetId(),
+                    jobInfo.OperationElement->GetId());
+                PreemptJob(jobInfo.Job, jobInfo.OperationElement, schedulingContext);
+            } else {
+                currentResources += jobInfo.Job->ResourceUsage();
+            }
+        }
     }
 
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);

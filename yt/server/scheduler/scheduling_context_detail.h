@@ -39,6 +39,7 @@ public:
     virtual bool CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const override;
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
+    virtual bool ShouldAbortJobsSinceResourcesOvercommit() const override;
 
     virtual void StartJob(
         const TString& treeId,

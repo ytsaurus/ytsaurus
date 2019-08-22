@@ -449,6 +449,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
         .Default(true);
 
+    RegisterParameter("allowed_node_resources_overcommit_duration", AllowedNodeResourcesOvercommitDuration)
+        .Default(TDuration::Seconds(15));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

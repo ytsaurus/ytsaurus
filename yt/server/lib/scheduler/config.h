@@ -486,6 +486,9 @@ public:
     //! This option can cause performance issues.
     bool HandleNodeIdChangesStrictly;
 
+    //! Allowed resources overcommit duration before scheduler initiate job abortions.
+    TDuration AllowedNodeResourcesOvercommitDuration;
+
     TSchedulerConfig();
 };
 
