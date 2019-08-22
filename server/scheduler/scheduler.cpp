@@ -393,7 +393,7 @@ private:
             NNet::TIP4AddressPoolIdToFreeIP4Addresses ip4AddressPoolIdToFreeAddresses;
             for (auto* address : cluster->GetInternetAddresses()) {
                 if (!address->Status().has_pod_id()) {
-                    const auto& ip4AddressPoolId = address->GetParentId();
+                    const auto& ip4AddressPoolId = address->ParentId();
                     const auto& networkModuleId = address->Spec().network_module_id();
                     ip4AddressPoolIdToFreeAddresses[std::make_pair(ip4AddressPoolId, networkModuleId)].push(address->GetId());
                 }

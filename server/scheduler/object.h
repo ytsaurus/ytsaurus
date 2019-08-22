@@ -12,7 +12,7 @@ class TObject
 {
 public:
     TObject(
-        const TObjectId& id,
+        TObjectId id,
         NYT::NYson::TYsonString labels);
     virtual ~TObject() = default;
 

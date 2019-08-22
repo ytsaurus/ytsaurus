@@ -9,9 +9,11 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAccount::TAccount(
-    const TObjectId& id,
-    TYsonString labels)
-    : TObject(id, std::move(labels))
+    TObjectId id,
+    TYsonString labels,
+    TObjectId parentId)
+    : TObject(std::move(id), std::move(labels))
+    , ParentId_(std::move(parentId))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

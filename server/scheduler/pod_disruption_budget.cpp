@@ -7,11 +7,11 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPodDisruptionBudget::TPodDisruptionBudget(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels,
     TObjectId uuid,
     NClient::NApi::NProto::TPodDisruptionBudgetSpec spec)
-    : TObject(id, std::move(labels))
+    : TObject(std::move(id), std::move(labels))
     , Uuid_(std::move(uuid))
     , Spec_(std::move(spec))
 { }

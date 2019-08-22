@@ -17,7 +17,7 @@ class TPodDisruptionBudget
 {
 public:
     TPodDisruptionBudget(
-        const TObjectId& id,
+        TObjectId id,
         NYT::NYson::TYsonString labels,
         TObjectId uuid,
         NClient::NApi::NProto::TPodDisruptionBudgetSpec spec);

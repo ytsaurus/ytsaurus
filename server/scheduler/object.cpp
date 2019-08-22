@@ -7,9 +7,9 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TObject::TObject(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels)
-    : Id_(id)
+    : Id_(std::move(id))
     , Labels_(std::move(labels))
 { }
 

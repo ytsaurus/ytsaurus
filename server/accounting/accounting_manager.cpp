@@ -136,7 +136,7 @@ public:
                 };
 
                 auto* status = transactionNodeSegment->Status().Get();
-                computeTotals(status->mutable_total_resources(), nodeSegment->AllNodes());
+                computeTotals(status->mutable_total_resources(), nodeSegment->Nodes());
                 computeTotals(status->mutable_schedulable_resources(), nodeSegment->SchedulableNodes());
             }
 

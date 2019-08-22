@@ -34,6 +34,8 @@ class TAllocationPlan;
 
 struct TAllocationStatistics;
 
+DECLARE_REFCOUNTED_STRUCT(IClusterReader)
+
 DECLARE_REFCOUNTED_STRUCT(IGlobalResourceAllocator)
 DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetController)
 

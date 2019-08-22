@@ -8,11 +8,11 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPod::TPod(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels,
-    TPodSet* podSet,
-    TNode* node,
-    TAccount* account,
+    TObjectId podSetId,
+    TObjectId nodeId,
+    TObjectId accountId,
     TObjectId uuid,
     NObjects::TPodResourceRequests resourceRequests,
     const NObjects::TPodDiskVolumeRequests& diskVolumeRequests,
@@ -20,10 +20,10 @@ TPod::TPod(
     const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
     TString nodeFilter,
     NClient::NApi::NProto::TPodStatus_TEviction eviction)
-    : TObject(id, std::move(labels))
-    , PodSet_(podSet)
-    , Node_(node)
-    , Account_(account)
+    : TObject(std::move(id), std::move(labels))
+    , PodSetId_(std::move(podSetId))
+    , NodeId_(std::move(nodeId))
+    , AccountId_(std::move(accountId))
     , Uuid_(std::move(uuid))
     , ResourceRequests_(std::move(resourceRequests))
     , DiskVolumeRequests_(diskVolumeRequests)

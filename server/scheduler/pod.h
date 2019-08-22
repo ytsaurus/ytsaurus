@@ -17,11 +17,11 @@ class TPod
 {
 public:
     TPod(
-        const TObjectId& id,
+        TObjectId id,
         NYT::NYson::TYsonString labels,
-        TPodSet* podSet,
-        TNode* node,
-        TAccount* account,
+        TObjectId podSetId,
+        TObjectId nodeId,
+        TObjectId accountId,
         TObjectId uuid,
         NObjects::TPodResourceRequests resourceRequests,
         // NB! Pass some arguments by const reference due to lack of move semantics support.
@@ -31,9 +31,9 @@ public:
         TString nodeFilter,
         NClient::NApi::NProto::TPodStatus_TEviction eviction);
 
-    DEFINE_BYVAL_RO_PROPERTY(TPodSet*, PodSet);
-    DEFINE_BYVAL_RO_PROPERTY(TNode*, Node);
-    DEFINE_BYVAL_RO_PROPERTY(TAccount*, Account);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, PodSetId);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, NodeId);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, AccountId);
 
     // Meta.
     DEFINE_BYREF_RO_PROPERTY(TObjectId, Uuid);
@@ -47,6 +47,10 @@ public:
 
     // Status.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodStatus_TEviction, Eviction);
+
+    DEFINE_BYVAL_RW_PROPERTY(TPodSet*, PodSet);
+    DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
+    DEFINE_BYVAL_RW_PROPERTY(TAccount*, Account);
 
     TAccount* GetEffectiveAccount() const;
 };

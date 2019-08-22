@@ -33,9 +33,9 @@ std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
     return std::make_unique<TPod>(
         GenerateUniqueId(),
         /* labels */ NYT::NYson::TYsonString(),
-        /* podSet */ nullptr,
-        /* node */ nullptr,
-        /* account */ nullptr,
+        /* podSetId */ TObjectId(),
+        /* nodeId */ TObjectId(),
+        /* accountId */ TObjectId(),
         std::move(uuid),
         std::move(resourceRequests),
         NObjects::TPodDiskVolumeRequests(),
@@ -54,7 +54,6 @@ std::unique_ptr<TNode> CreateMockNode(
     auto node = std::make_unique<TNode>(
         GenerateUniqueId(),
         /* labels */ NYT::NYson::TYsonString(),
-        std::vector<TTopologyZone*>(),
         NServer::NObjects::EHfsmState::Unknown,
         NServer::NObjects::ENodeMaintenanceState::None,
         /* hasUnknownPods */ false,

@@ -16,7 +16,7 @@ class TIP4AddressPool
 {
 public:
     TIP4AddressPool(
-        const TObjectId& id,
+        TObjectId id,
         NYT::NYson::TYsonString labels,
         NClient::NApi::NProto::TIP4AddressPoolSpec spec,
         NClient::NApi::NProto::TIP4AddressPoolStatus status);

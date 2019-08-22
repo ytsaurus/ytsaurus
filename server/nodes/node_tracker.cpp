@@ -84,6 +84,7 @@ public:
         Node_->Status().HeartbeatSequenceNumber() = 0;
         Node_->Status().Etc()->set_agent_version(version);
         Node_->Status().Etc()->set_last_handshake_time(now.MicroSeconds());
+        Node_->Status().Etc()->set_last_handshake_master_address(Bootstrap_->GetFqdn());
 
         YT_LOG_DEBUG("Handshake received (NodeId: %v, Address: %v, Version: %v, EpochId: %v)",
             nodeId,

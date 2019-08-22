@@ -16,13 +16,13 @@ class TInternetAddress
 {
 public:
     TInternetAddress(
-        const TObjectId& id,
-        const TObjectId& ip4AddressPoolId,
+        TObjectId id,
+        TObjectId ip4AddressPoolId,
         NYT::NYson::TYsonString labels,
         NClient::NApi::NProto::TInternetAddressSpec spec,
         NClient::NApi::NProto::TInternetAddressStatus status);
 
-    DEFINE_BYVAL_RO_PROPERTY(TObjectId, ParentId);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, ParentId);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TInternetAddressSpec, Spec);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TInternetAddressStatus, Status);
 };

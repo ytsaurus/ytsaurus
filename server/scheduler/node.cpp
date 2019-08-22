@@ -110,15 +110,13 @@ bool TDiskResource::TryAllocate(
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels,
-    std::vector<TTopologyZone*> topologyZones,
     EHfsmState hfsmState,
     ENodeMaintenanceState maintenanceState,
     bool hasUnknownPods,
     NClient::NApi::NProto::TNodeSpec spec)
-    : TObject(id, std::move(labels))
-    , TopologyZones_(std::move(topologyZones))
+    : TObject(std::move(id), std::move(labels))
     , HfsmState_(hfsmState)
     , MaintenanceState_(maintenanceState)
     , HasUnknownPods_(hasUnknownPods)

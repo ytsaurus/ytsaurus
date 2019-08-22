@@ -10,16 +10,17 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeSegment::TNodeSegment(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels,
-    std::vector<TNode*> allNodes,
-    std::vector<TNode*> schedulableNodes,
-    std::unique_ptr<TLabelFilterCache<TNode>> schedulableNodeLabelFilterCache)
-    : TObject(id, std::move(labels))
-    , AllNodes_(std::move(allNodes))
-    , SchedulableNodes_(std::move(schedulableNodes))
-    , SchedulableNodeLabelFilterCache_(std::move(schedulableNodeLabelFilterCache))
+    TString nodeFilter)
+    : TObject(std::move(id), std::move(labels))
+    , NodeFilter_(std::move(nodeFilter))
 { }
+
+void TNodeSegment::SetSchedulableNodeLabelFilterCache(std::unique_ptr<TLabelFilterCache<TNode>> cache)
+{
+    SchedulableNodeLabelFilterCache_ = std::move(cache);
+}
 
 TLabelFilterCache<TNode>* TNodeSegment::GetSchedulableNodeLabelFilterCache() const
 {

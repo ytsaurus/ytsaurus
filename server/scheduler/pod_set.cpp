@@ -7,17 +7,17 @@ using namespace NYT::NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPodSet::TPodSet(
-    const TObjectId& id,
+    TObjectId id,
     TYsonString labels,
-    TNodeSegment* nodeSegment,
-    TAccount* account,
-    TPodDisruptionBudget* podDisruptionBudget,
+    TObjectId nodeSegmentId,
+    TObjectId accountId,
+    TObjectId podDisruptionBudgetId,
     std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> antiaffinityConstraints,
     TString nodeFilter)
-    : TObject(id, std::move(labels))
-    , NodeSegment_(nodeSegment)
-    , Account_(account)
-    , PodDisruptionBudget_(podDisruptionBudget)
+    : TObject(std::move(id), std::move(labels))
+    , NodeSegmentId_(std::move(nodeSegmentId))
+    , AccountId_(std::move(accountId))
+    , PodDisruptionBudgetId_(std::move(podDisruptionBudgetId))
     , AntiaffinityConstraints_(std::move(antiaffinityConstraints))
     , NodeFilter_(std::move(nodeFilter))
 { }

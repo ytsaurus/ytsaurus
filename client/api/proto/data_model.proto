@@ -318,6 +318,9 @@ message TNodeStatus
     // Timestamp of the last agent handshake.
     optional uint64 last_handshake_time = 10 [(NYP.NClient.NApi.NProto.etc) = true];
 
+    // Master address of the last agent handshake.
+    optional string last_handshake_master_address = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+
     // Used for properly sequencing master-agent communication.
     optional uint64 heartbeat_sequence_number = 3;
 

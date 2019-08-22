@@ -17,19 +17,27 @@ class TResource
 {
 public:
     TResource(
-        const TObjectId& id,
+        TObjectId id,
         NYT::NYson::TYsonString labels,
-        TNode* node,
+        TObjectId nodeId,
         EResourceKind kind,
         NClient::NApi::NProto::TResourceSpec spec,
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> scheduledAllocations,
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> actualAllocations);
 
-    DEFINE_BYVAL_RO_PROPERTY(TNode*, Node);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, NodeId);
+
+    // Meta.
     DEFINE_BYVAL_RO_PROPERTY(EResourceKind, Kind);
+
+    // Spec.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TResourceSpec, Spec);
+
+    // Status.
     DEFINE_BYREF_RO_PROPERTY(std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation>, ScheduledAllocations);
     DEFINE_BYREF_RO_PROPERTY(std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation>, ActualAllocations);
+
+    DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
