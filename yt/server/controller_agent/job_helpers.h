@@ -63,7 +63,7 @@ struct TScheduleJobStatistics
 {
     void RecordJobResult(const NScheduler::TControllerScheduleJobResult& scheduleJobResult);
 
-    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
+    TEnumIndexedVector<EScheduleJobFailReason, int> Failed;
     TDuration Duration;
     i64 Count = 0;
 

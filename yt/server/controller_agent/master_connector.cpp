@@ -247,7 +247,7 @@ private:
     TPeriodicExecutorPtr UpdateConfigExecutor_;
     TPeriodicExecutorPtr AlertsExecutor_;
 
-    TEnumIndexedVector<TError, EControllerAgentAlertType> Alerts_;
+    TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
 
     struct TUnstageRequest
     {

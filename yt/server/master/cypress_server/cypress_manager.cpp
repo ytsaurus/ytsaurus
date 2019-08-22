@@ -1530,7 +1530,7 @@ private:
     NHydra::TEntityMap<TLock> LockMap_;
     NHydra::TEntityMap<TCypressShard> ShardMap_;
 
-    TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler_;
+    TEnumIndexedVector<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
 
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;

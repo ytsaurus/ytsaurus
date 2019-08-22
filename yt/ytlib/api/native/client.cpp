@@ -904,9 +904,9 @@ private:
     const TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
     const NLogging::TLogger Logger;
 
-    TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<EMasterChannelKind, THashMap<TCellTag, IChannelPtr>> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
+    TEnumIndexedVector<EMasterChannelKind, IChannelPtr> OperationsArchiveChannels_;
     bool AreOperationsArchiveChannelsInitialized_ = false;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
@@ -5411,8 +5411,8 @@ private:
     {
         THashMap<TString, i64> PoolCounts;
         THashMap<TString, i64> UserCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationState> StateCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationType> TypeCounts;
+        TEnumIndexedVector<NScheduler::EOperationState, i64> StateCounts;
+        TEnumIndexedVector<NScheduler::EOperationType, i64> TypeCounts;
         i64 FailedJobsCount = 0;
 
         const TListOperationsOptions& Options;
