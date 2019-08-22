@@ -365,7 +365,9 @@ public:
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
-                THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::CrossCellRequest,
+                    "Request is cross-cell since it involves paths %v and %v",
                     forwardedYPathExt->original_target_path(),
                     forwardedYPathExt->additional_paths(index));
             }
