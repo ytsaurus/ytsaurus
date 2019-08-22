@@ -1256,6 +1256,13 @@ def clean_artifacts(options, build_context, n=10):
             os.unlink(path)
 
 @cleanup_step
+def clean_binaries(options, build_context):
+    for path in ls("{0}/bin".format(options.working_directory),
+                   select=lambda f: os.path.isfile(f) and os.path.basename(f).startswith("ytserver-")):
+        teamcity_message("Removing {0}...".format(path), status="WARNING")
+        os.unlink(path)
+
+@cleanup_step
 def clean_ya_cache(options, build_context):
     ya_cache_dir = get_ya_cache_dir(options)
     for name in os.listdir(ya_cache_dir):
