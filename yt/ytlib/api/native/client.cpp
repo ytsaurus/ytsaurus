@@ -1,4 +1,4 @@
-#include "client.h"
+#include "client_impl.h"
 #include "box.h"
 #include "config.h"
 #include "connection.h"
@@ -66,31 +66,21 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
-#include <yt/ytlib/job_prober_client/public.h>
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
-
 #include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/query_builder.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
-#include <yt/ytlib/query_client/ast.h>
-#include <yt/ytlib/query_client/query_service.pb.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
-#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
-#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
@@ -98,15 +88,12 @@
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
-#include <yt/ytlib/tablet_client/table_replica_ypath.h>
-#include <yt/ytlib/tablet_client/master_tablet_service.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -128,7 +115,6 @@
 #include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 #include <yt/core/ytree/ypath_resolver.h>
 
@@ -171,8 +157,6 @@ using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::TNetworkPreferenceList;
 using NNodeTrackerClient::TNodeDescriptor;
 using NTableClient::TColumnSchema;
-
-using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +237,223 @@ void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
 constexpr i64 ListJobsFromArchiveInProgressJobLimit = 100000;
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClient::TCountingFilter
+{
+    THashMap<TString, i64> PoolCounts;
+    THashMap<TString, i64> UserCounts;
+    TEnumIndexedVector<i64, NScheduler::EOperationState> StateCounts;
+    TEnumIndexedVector<i64, NScheduler::EOperationType> TypeCounts;
+    i64 FailedJobsCount = 0;
+
+    const TListOperationsOptions& Options;
+
+    explicit TCountingFilter(const TListOperationsOptions& options)
+        : Options(options)
+    { }
+
+    bool Filter(
+        std::optional<std::vector<TString>> pools,
+        TStringBuf user,
+        const EOperationState& state,
+        const NScheduler::EOperationType& type,
+        i64 count)
+    {
+        UserCounts[user] += count;
+
+        if (Options.UserFilter && *Options.UserFilter != user) {
+            return false;
+        }
+
+        if (pools) {
+            for (const auto& pool : *pools) {
+                PoolCounts[pool] += count;
+            }
+        }
+
+        if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
+            return false;
+        }
+
+        StateCounts[state] += count;
+
+        if (Options.StateFilter && *Options.StateFilter != state) {
+            return false;
+        }
+
+        TypeCounts[type] += count;
+
+        if (Options.TypeFilter && *Options.TypeFilter != type) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool FilterByFailedJobs(const NYson::TYsonString& briefProgress)
+    {
+        bool hasFailedJobs = false;
+        if (briefProgress) {
+            auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
+            auto jobsNode = briefProgressMapNode->FindChild("jobs");
+            hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
+        }
+        FailedJobsCount += hasFailedJobs;
+        return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClient::TTabletCellLookupSession
+    : public TIntrinsicRefCounted
+{
+public:
+    using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<NTableClient::TUnversionedRow>&)>;
+    using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::TWireProtocolReader*)>;
+
+    TTabletCellLookupSession(
+        TConnectionConfigPtr config,
+        const TNetworkPreferenceList& networks,
+        NObjectClient::TCellId cellId,
+        const TLookupRowsOptionsBase& options,
+        NTabletClient::TTableMountInfoPtr tableInfo,
+        const std::optional<TString>& retentionConfig,
+        TEncoder encoder,
+        TDecoder decoder)
+        : Config_(std::move(config))
+        , Networks_(networks)
+        , CellId_(cellId)
+        , Options_(options)
+        , TableInfo_(std::move(tableInfo))
+        , RetentionConfig_(retentionConfig)
+        , Encoder_(std::move(encoder))
+        , Decoder_(std::move(decoder))
+    { }
+
+    void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
+    {
+        if (Batches_.empty() ||
+            Batches_.back()->TabletInfo->TabletId != tabletInfo->TabletId ||
+            Batches_.back()->Indexes.size() >= Config_->MaxRowsPerLookupRequest)
+        {
+            Batches_.emplace_back(new TBatch(std::move(tabletInfo)));
+        }
+
+        auto& batch = Batches_.back();
+        batch->Indexes.push_back(index);
+        batch->Keys.push_back(key);
+    }
+
+    TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
+    {
+        auto* codec = NCompression::GetCodec(Config_->LookupRowsRequestCodec);
+
+        // Do all the heavy lifting here.
+        for (auto& batch : Batches_) {
+            batch->RequestData = codec->Compress(Encoder_(batch->Keys));
+        }
+
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
+        auto channel = CreateTabletReadChannel(
+            channelFactory,
+            cellDescriptor,
+            Options_,
+            Networks_);
+
+        InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
+        InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
+        InvokeProxy_->SetDefaultRequestAck(false);
+
+        InvokeNextBatch();
+        return InvokePromise_;
+    }
+
+    void ParseResponse(
+        const TRowBufferPtr& rowBuffer,
+        std::vector<NTableClient::TTypeErasedRow>* resultRows)
+    {
+        auto* responseCodec = NCompression::GetCodec(Config_->LookupRowsResponseCodec);
+        for (const auto& batch : Batches_) {
+            auto responseData = responseCodec->Decompress(batch->Response->Attachments()[0]);
+            NTableClient::TWireProtocolReader reader(responseData, rowBuffer);
+            auto batchSize = batch->Keys.size();
+            for (int index = 0; index < batchSize; ++index) {
+                (*resultRows)[batch->Indexes[index]] = Decoder_(&reader);
+            }
+        }
+    }
+
+private:
+    const TConnectionConfigPtr Config_;
+    const TNetworkPreferenceList Networks_;
+    const NObjectClient::TCellId CellId_;
+    const TLookupRowsOptionsBase Options_;
+    const NTabletClient::TTableMountInfoPtr TableInfo_;
+    const std::optional<TString> RetentionConfig_;
+    const TEncoder Encoder_;
+    const TDecoder Decoder_;
+
+    struct TBatch
+    {
+        explicit TBatch(TTabletInfoPtr tabletInfo)
+            : TabletInfo(std::move(tabletInfo))
+        { }
+
+        TTabletInfoPtr TabletInfo;
+        std::vector<int> Indexes;
+        std::vector<NTableClient::TKey> Keys;
+        TSharedRef RequestData;
+        TQueryServiceProxy::TRspReadPtr Response;
+    };
+
+    std::vector<std::unique_ptr<TBatch>> Batches_;
+    std::unique_ptr<TQueryServiceProxy> InvokeProxy_;
+    int InvokeBatchIndex_ = 0;
+    TPromise<void> InvokePromise_ = NewPromise<void>();
+
+
+    void InvokeNextBatch()
+    {
+        if (InvokeBatchIndex_ >= Batches_.size()) {
+            InvokePromise_.Set(TError());
+            return;
+        }
+
+        const auto& batch = Batches_[InvokeBatchIndex_];
+
+        auto req = InvokeProxy_->Read();
+        // TODO(babenko): set proper band
+        ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
+        req->set_mount_revision(batch->TabletInfo->MountRevision);
+        req->set_timestamp(Options_.Timestamp);
+        req->set_request_codec(static_cast<int>(Config_->LookupRowsRequestCodec));
+        req->set_response_codec(static_cast<int>(Config_->LookupRowsResponseCodec));
+        req->Attachments().push_back(batch->RequestData);
+        if (batch->TabletInfo->IsInMemory()) {
+            req->Header().set_uncancelable(true);
+        }
+        if (RetentionConfig_) {
+            req->set_retention_config(*RetentionConfig_);
+        }
+
+        req->Invoke().Subscribe(
+            BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
+    }
+
+    void OnResponse(const TQueryServiceProxy::TErrorOrRspReadPtr& rspOrError)
+    {
+        if (rspOrError.IsOK()) {
+            Batches_[InvokeBatchIndex_]->Response = rspOrError.Value();
+            ++InvokeBatchIndex_;
+            InvokeNextBatch();
+        } else {
+            InvokePromise_.Set(rspOrError);
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -366,1170 +567,6 @@ struct TLookupRowsOutputBufferTag
 
 struct TGetInSyncReplicasTag
 { };
-
-class TClient
-    : public IClient
-{
-public:
-    TClient(
-        IConnectionPtr connection,
-        const TClientOptions& options);
-
-    virtual NApi::IConnectionPtr GetConnection() override;
-    virtual const ITableMountCachePtr& GetTableMountCache() override;
-    virtual const ITimestampProviderPtr& GetTimestampProvider() override;
-    virtual const IConnectionPtr& GetNativeConnection() override;
-    virtual IFunctionRegistryPtr GetFunctionRegistry() override;
-    virtual TFunctionImplCachePtr GetFunctionImplCache() override;
-
-    virtual const TClientOptions& GetOptions() override;
-
-    virtual IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
-        TCellTag cellTag = PrimaryMasterCellTag) override;
-    virtual IChannelPtr GetCellChannelOrThrow(TCellId cellId) override;
-    virtual IChannelPtr GetSchedulerChannel() override;
-    virtual const INodeChannelFactoryPtr& GetChannelFactory() override;
-
-    virtual TFuture<void> Terminate() override;
-
-    virtual TFuture<ITransactionPtr> StartNativeTransaction(
-        ETransactionType type,
-        const TTransactionStartOptions& options) override;
-    virtual ITransactionPtr AttachNativeTransaction(
-        TTransactionId transactionId,
-        const TTransactionAttachOptions& options) override;
-    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
-        ETransactionType type,
-        const TTransactionStartOptions& options) override;
-    virtual NApi::ITransactionPtr AttachTransaction(
-        TTransactionId transactionId,
-        const TTransactionAttachOptions& options) override;
-
-#define DROP_BRACES(...) __VA_ARGS__
-#define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
-    virtual TFuture<returnType> method signature override \
-    { \
-        return Execute( \
-            AsStringBuf(#method), \
-            options, \
-            BIND( \
-                &TClient::doMethod, \
-                Unretained(this), \
-                DROP_BRACES args)); \
-    }
-
-#define IMPLEMENT_METHOD(returnType, method, signature, args) \
-    IMPLEMENT_OVERLOADED_METHOD(returnType, method, Do##method, signature, args)
-
-    IMPLEMENT_METHOD(IUnversionedRowsetPtr, LookupRows, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options),
-        (path, std::move(nameTable), std::move(keys), options))
-    IMPLEMENT_METHOD(IVersionedRowsetPtr, VersionedLookupRows, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TVersionedLookupRowsOptions& options),
-        (path, std::move(nameTable), std::move(keys), options))
-    IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
-        const TString& query,
-        const TSelectRowsOptions& options),
-        (query, options))
-    IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options),
-        (path, nameTable, keys, options))
-    IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
-        const NYPath::TYPath& path,
-        const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options),
-        (path, tabletIndexes, options))
-    IMPLEMENT_METHOD(void, MountTable, (
-        const TYPath& path,
-        const TMountTableOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, UnmountTable, (
-        const TYPath& path,
-        const TUnmountTableOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, RemountTable, (
-        const TYPath& path,
-        const TRemountTableOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, FreezeTable, (
-        const TYPath& path,
-        const TFreezeTableOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, UnfreezeTable, (
-        const TYPath& path,
-        const TUnfreezeTableOptions& options),
-        (path, options))
-    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
-        const TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TReshardTableOptions& options),
-        (path, pivotKeys, options))
-    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithTabletCount, (
-        const TYPath& path,
-        int tabletCount,
-        const TReshardTableOptions& options),
-        (path, tabletCount, options))
-    IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, ReshardTableAutomatic, (
-        const TYPath& path,
-        const TReshardTableAutomaticOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, AlterTable, (
-        const TYPath& path,
-        const TAlterTableOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, TrimTable, (
-        const TYPath& path,
-        int tabletIndex,
-        i64 trimmedRowCount,
-        const TTrimTableOptions& options),
-        (path, tabletIndex, trimmedRowCount, options))
-    IMPLEMENT_METHOD(void, AlterTableReplica, (
-        TTableReplicaId replicaId,
-        const TAlterTableReplicaOptions& options),
-        (replicaId, options))
-    IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
-        const TString& tabletCellBundle,
-        const std::vector<TYPath>& movableTables,
-        const TBalanceTabletCellsOptions& options),
-        (tabletCellBundle, movableTables, options))
-
-    IMPLEMENT_METHOD(TYsonString, GetNode, (
-        const TYPath& path,
-        const TGetNodeOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(void, SetNode, (
-        const TYPath& path,
-        const TYsonString& value,
-        const TSetNodeOptions& options),
-        (path, value, options))
-    IMPLEMENT_METHOD(void, RemoveNode, (
-        const TYPath& path,
-        const TRemoveNodeOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(TYsonString, ListNode, (
-        const TYPath& path,
-        const TListNodeOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(TNodeId, CreateNode, (
-        const TYPath& path,
-        EObjectType type,
-        const TCreateNodeOptions& options),
-        (path, type, options))
-    IMPLEMENT_METHOD(TLockNodeResult, LockNode, (
-        const TYPath& path,
-        ELockMode mode,
-        const TLockNodeOptions& options),
-        (path, mode, options))
-    IMPLEMENT_METHOD(void, UnlockNode, (
-        const TYPath& path,
-        const TUnlockNodeOptions& options),
-        (path, options))
-    IMPLEMENT_METHOD(TNodeId, CopyNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TCopyNodeOptions& options),
-        (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(TNodeId, MoveNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TMoveNodeOptions& options),
-        (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(TNodeId, LinkNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TLinkNodeOptions& options),
-        (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(void, ConcatenateNodes, (
-        const std::vector<TRichYPath>& srcPaths,
-        const TRichYPath& dstPath,
-        const TConcatenateNodesOptions& options),
-        (srcPaths, dstPath, options))
-    IMPLEMENT_METHOD(bool, NodeExists, (
-        const TYPath& path,
-        const TNodeExistsOptions& options),
-        (path, options))
-
-
-    IMPLEMENT_METHOD(TObjectId, CreateObject, (
-        EObjectType type,
-        const TCreateObjectOptions& options),
-        (type, options))
-
-
-    virtual TFuture<IFileReaderPtr> CreateFileReader(
-        const TYPath& path,
-        const TFileReaderOptions& options) override;
-    virtual IFileWriterPtr CreateFileWriter(
-        const TRichYPath& path,
-        const TFileWriterOptions& options) override;
-
-    virtual IJournalReaderPtr CreateJournalReader(
-        const TYPath& path,
-        const TJournalReaderOptions& options) override;
-
-    virtual IJournalWriterPtr CreateJournalWriter(
-        const TYPath& path,
-        const TJournalWriterOptions& options) override;
-
-    virtual TFuture<ITableReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options) override;
-
-    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
-        const NYPath::TRichYPath& path,
-        const TLocateSkynetShareOptions& options) override;
-
-    virtual TFuture<ITableWriterPtr> CreateTableWriter(
-        const NYPath::TRichYPath& path,
-        const NApi::TTableWriterOptions& options) override;
-
-    IMPLEMENT_METHOD(std::vector<TColumnarStatistics>, GetColumnarStatistics, (
-        const std::vector<TRichYPath>& paths,
-        const TGetColumnarStatisticsOptions& options),
-        (paths, options))
-
-    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
-        const TString& md5,
-        const TGetFileFromCacheOptions& options),
-        (md5, options))
-
-    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
-        const NYPath::TYPath& path,
-        const TString& expectedMD5,
-        const TPutFileToCacheOptions& options),
-        (path, expectedMD5, options))
-
-    IMPLEMENT_METHOD(void, AddMember, (
-        const TString& group,
-        const TString& member,
-        const TAddMemberOptions& options),
-        (group, member, options))
-    IMPLEMENT_METHOD(void, RemoveMember, (
-        const TString& group,
-        const TString& member,
-        const TRemoveMemberOptions& options),
-        (group, member, options))
-    IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
-        const TString& user,
-        const TYPath& path,
-        EPermission permission,
-        const TCheckPermissionOptions& options),
-        (user, path, permission, options))
-    IMPLEMENT_METHOD(TCheckPermissionByAclResult, CheckPermissionByAcl, (
-        const std::optional<TString>& user,
-        EPermission permission,
-        INodePtr acl,
-        const TCheckPermissionByAclOptions& options),
-        (user, permission, acl, options))
-
-    IMPLEMENT_METHOD(TOperationId, StartOperation, (
-        EOperationType type,
-        const TYsonString& spec,
-        const TStartOperationOptions& options),
-        (type, spec, options))
-    IMPLEMENT_METHOD(void, AbortOperation, (
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TAbortOperationOptions& options),
-        (operationIdOrAlias, options))
-    IMPLEMENT_METHOD(void, SuspendOperation, (
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TSuspendOperationOptions& options),
-        (operationIdOrAlias, options))
-    IMPLEMENT_METHOD(void, ResumeOperation, (
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TResumeOperationOptions& options),
-        (operationIdOrAlias, options))
-    IMPLEMENT_METHOD(void, CompleteOperation, (
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TCompleteOperationOptions& options),
-        (operationIdOrAlias, options))
-    IMPLEMENT_METHOD(void, UpdateOperationParameters, (
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TYsonString& parameters,
-        const TUpdateOperationParametersOptions& options),
-        (operationIdOrAlias, parameters, options))
-    IMPLEMENT_METHOD(TYsonString, GetOperation, (
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TGetOperationOptions& options),
-        (operationIdOrAlias, options))
-    IMPLEMENT_METHOD(void, DumpJobContext, (
-        TJobId jobId,
-        const TYPath& path,
-        const TDumpJobContextOptions& options),
-        (jobId, path, options))
-    IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
-        TJobId jobId,
-        const TGetJobInputOptions& options),
-        (jobId, options))
-    IMPLEMENT_METHOD(TYsonString, GetJobInputPaths, (
-        TJobId jobId,
-        const TGetJobInputPathsOptions& options),
-        (jobId, options))
-    IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobStderrOptions& options),
-        (operationId, jobId, options))
-    IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobFailContextOptions& options),
-        (operationId, jobId, options))
-    IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
-        const TListOperationsOptions& options),
-        (options))
-    IMPLEMENT_METHOD(TListJobsResult, ListJobs, (
-        TOperationId operationId,
-        const TListJobsOptions& options),
-        (operationId, options))
-    IMPLEMENT_METHOD(TYsonString, GetJob, (
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobOptions& options),
-        (operationId, jobId, options))
-    IMPLEMENT_METHOD(TYsonString, StraceJob, (
-        TJobId jobId,
-        const TStraceJobOptions& options),
-        (jobId, options))
-    IMPLEMENT_METHOD(void, SignalJob, (
-        TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options),
-        (jobId, signalName, options))
-    IMPLEMENT_METHOD(void, AbandonJob, (
-        TJobId jobId,
-        const TAbandonJobOptions& options),
-        (jobId, options))
-    IMPLEMENT_METHOD(TYsonString, PollJobShell, (
-        TJobId jobId,
-        const TYsonString& parameters,
-        const TPollJobShellOptions& options),
-        (jobId, parameters, options))
-    IMPLEMENT_METHOD(void, AbortJob, (
-        TJobId jobId,
-        const TAbortJobOptions& options),
-        (jobId, options))
-
-
-    IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
-        const TGetClusterMetaOptions& options),
-        (options))
-
-#undef DROP_BRACES
-#undef IMPLEMENT_METHOD
-
-private:
-    friend class TTransaction;
-
-    const IConnectionPtr Connection_;
-    const TClientOptions Options_;
-    const TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
-    const NLogging::TLogger Logger;
-
-    TEnumIndexedVector<EMasterChannelKind, THashMap<TCellTag, IChannelPtr>> MasterChannels_;
-    IChannelPtr SchedulerChannel_;
-    TEnumIndexedVector<EMasterChannelKind, IChannelPtr> OperationsArchiveChannels_;
-    bool AreOperationsArchiveChannelsInitialized_ = false;
-    INodeChannelFactoryPtr ChannelFactory_;
-    TTransactionManagerPtr TransactionManager_;
-    TFunctionImplCachePtr FunctionImplCache_;
-    IFunctionRegistryPtr FunctionRegistry_;
-    std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
-    std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
-
-    const IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);
-
-    template <class T>
-    TFuture<T> Execute(
-        TStringBuf commandName,
-        const TTimeoutOptions& options,
-        TCallback<T()> callback);
-
-    template <class T>
-    auto CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltype(callback());
-
-
-    static void SetMutationId(
-        const IClientRequestPtr& request,
-        const TMutatingOptions& options);
-    TTransactionId GetTransactionId(
-        const TTransactionalOptions& options,
-        bool allowNullTransaction);
-    void SetTransactionId(
-        const IClientRequestPtr& request,
-        const TTransactionalOptions& options,
-        bool allowNullTransaction);
-    void SetPrerequisites(
-        const IClientRequestPtr& request,
-        const TPrerequisiteOptions& options);
-    static void SetSuppressAccessTracking(
-        const IClientRequestPtr& request,
-        const TSuppressableAccessTrackingOptions& commandOptions);
-    static void SetCachingHeader(
-        const IClientRequestPtr& request,
-        const TMasterReadOptions& options);
-    static void SetBalancingHeader(
-        const IClientRequestPtr& request,
-        const TMasterReadOptions& options);
-
-    template <class TProxy>
-    std::unique_ptr<TProxy> CreateReadProxy(
-        const TMasterReadOptions& options,
-        TCellTag cellTag = PrimaryMasterCellTag);
-    template <class TProxy>
-    std::unique_ptr<TProxy> CreateWriteProxy(
-        TCellTag cellTag = PrimaryMasterCellTag);
-    IChannelPtr GetReadCellChannelOrThrow(TTabletCellId cellId);
-
-
-    class TTabletCellLookupSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<TUnversionedRow>&)>;
-        using TDecoder = std::function<TTypeErasedRow(TWireProtocolReader*)>;
-
-        TTabletCellLookupSession(
-            TConnectionConfigPtr config,
-            const TNetworkPreferenceList& networks,
-            TCellId cellId,
-            const TLookupRowsOptionsBase& options,
-            TTableMountInfoPtr tableInfo,
-            const std::optional<TString>& retentionConfig,
-            TEncoder encoder,
-            TDecoder decoder)
-            : Config_(std::move(config))
-            , Networks_(networks)
-            , CellId_(cellId)
-            , Options_(options)
-            , TableInfo_(std::move(tableInfo))
-            , RetentionConfig_(retentionConfig)
-            , Encoder_(std::move(encoder))
-            , Decoder_(std::move(decoder))
-        { }
-
-        void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
-        {
-            if (Batches_.empty() ||
-                Batches_.back()->TabletInfo->TabletId != tabletInfo->TabletId ||
-                Batches_.back()->Indexes.size() >= Config_->MaxRowsPerLookupRequest)
-            {
-                Batches_.emplace_back(new TBatch(std::move(tabletInfo)));
-            }
-
-            auto& batch = Batches_.back();
-            batch->Indexes.push_back(index);
-            batch->Keys.push_back(key);
-        }
-
-        TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
-        {
-            auto* codec = NCompression::GetCodec(Config_->LookupRowsRequestCodec);
-
-            // Do all the heavy lifting here.
-            for (auto& batch : Batches_) {
-                batch->RequestData = codec->Compress(Encoder_(batch->Keys));
-            }
-
-            const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
-            auto channel = CreateTabletReadChannel(
-                channelFactory,
-                cellDescriptor,
-                Options_,
-                Networks_);
-
-            InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-            InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
-            InvokeProxy_->SetDefaultRequestAck(false);
-
-            InvokeNextBatch();
-            return InvokePromise_;
-        }
-
-        void ParseResponse(
-            const TRowBufferPtr& rowBuffer,
-            std::vector<TTypeErasedRow>* resultRows)
-        {
-            auto* responseCodec = NCompression::GetCodec(Config_->LookupRowsResponseCodec);
-            for (const auto& batch : Batches_) {
-                auto responseData = responseCodec->Decompress(batch->Response->Attachments()[0]);
-                TWireProtocolReader reader(responseData, rowBuffer);
-                auto batchSize = batch->Keys.size();
-                for (int index = 0; index < batchSize; ++index) {
-                    (*resultRows)[batch->Indexes[index]] = Decoder_(&reader);
-                }
-            }
-        }
-
-    private:
-        const TConnectionConfigPtr Config_;
-        const TNetworkPreferenceList Networks_;
-        const TCellId CellId_;
-        const TLookupRowsOptionsBase Options_;
-        const TTableMountInfoPtr TableInfo_;
-        const std::optional<TString> RetentionConfig_;
-        const TEncoder Encoder_;
-        const TDecoder Decoder_;
-
-        struct TBatch
-        {
-            explicit TBatch(TTabletInfoPtr tabletInfo)
-                : TabletInfo(std::move(tabletInfo))
-            { }
-
-            TTabletInfoPtr TabletInfo;
-            std::vector<int> Indexes;
-            std::vector<NTableClient::TKey> Keys;
-            TSharedRef RequestData;
-            TQueryServiceProxy::TRspReadPtr Response;
-        };
-
-        std::vector<std::unique_ptr<TBatch>> Batches_;
-        std::unique_ptr<TQueryServiceProxy> InvokeProxy_;
-        int InvokeBatchIndex_ = 0;
-        TPromise<void> InvokePromise_ = NewPromise<void>();
-
-
-        void InvokeNextBatch()
-        {
-            if (InvokeBatchIndex_ >= Batches_.size()) {
-                InvokePromise_.Set(TError());
-                return;
-            }
-
-            const auto& batch = Batches_[InvokeBatchIndex_];
-
-            auto req = InvokeProxy_->Read();
-            // TODO(babenko): set proper band
-            ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
-            req->set_mount_revision(batch->TabletInfo->MountRevision);
-            req->set_timestamp(Options_.Timestamp);
-            req->set_request_codec(static_cast<int>(Config_->LookupRowsRequestCodec));
-            req->set_response_codec(static_cast<int>(Config_->LookupRowsResponseCodec));
-            req->Attachments().push_back(batch->RequestData);
-            if (batch->TabletInfo->IsInMemory()) {
-                req->Header().set_uncancelable(true);
-            }
-            if (RetentionConfig_) {
-                req->set_retention_config(*RetentionConfig_);
-            }
-
-            req->Invoke().Subscribe(
-                BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
-        }
-
-        void OnResponse(const TQueryServiceProxy::TErrorOrRspReadPtr& rspOrError)
-        {
-            if (rspOrError.IsOK()) {
-                Batches_[InvokeBatchIndex_]->Response = rspOrError.Value();
-                ++InvokeBatchIndex_;
-                InvokeNextBatch();
-            } else {
-                InvokePromise_.Set(rspOrError);
-            }
-        }
-    };
-
-    using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
-    using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
-        const NTableClient::TColumnFilter&,
-        const std::vector<TUnversionedRow>&)>;
-    using TDecoderWithMapping = std::function<TTypeErasedRow(
-        const TSchemaData&,
-        TWireProtocolReader*)>;
-    template <class TResult>
-    using TReplicaFallbackHandler = std::function<TFuture<TResult>(
-        const NApi::IClientPtr&,
-        const TTableReplicaInfoPtr&)>;
-
-    IUnversionedRowsetPtr DoLookupRows(
-        const TYPath& path,
-        const TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options);
-    IVersionedRowsetPtr DoVersionedLookupRows(
-        const TYPath& path,
-        const TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TVersionedLookupRowsOptions& options);
-
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options,
-        const std::vector<std::pair<NTableClient::TKey, int>>& keys);
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options);
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options,
-        const THashMap<TCellId, std::vector<TTabletId>>& cellIdToTabletIds);
-    std::optional<TString> PickInSyncClusterAndPatchQuery(
-        const TTabletReadOptions& options,
-        NAst::TQuery* query);
-
-    NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
-    NApi::IClientPtr CreateReplicaClient(const TString& clusterName);
-
-    static NTableClient::TColumnFilter RemapColumnFilter(
-        const NTableClient::TColumnFilter& columnFilter,
-        const TNameTableToSchemaIdMapping& idMapping,
-        const TNameTablePtr& nameTable);
-    static void RemapValueIds(
-        TVersionedRow /*row*/,
-        std::vector<TTypeErasedRow>& rows,
-        const std::vector<int>& mapping);
-    static void RemapValueIds(
-        TUnversionedRow /*row*/,
-        std::vector<TTypeErasedRow>& rows,
-        const std::vector<int>& mapping);
-    static std::vector<int> BuildResponseIdMapping(
-        const NTableClient::TColumnFilter& remappedColumnFilter);
-
-    template <class TRowset, class TRow>
-    TRowset DoLookupRowsOnce(
-        const TYPath& path,
-        const TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptionsBase& options,
-        const std::optional<TString> retentionConfig,
-        TEncoderWithMapping encoderWithMapping,
-        TDecoderWithMapping decoderWithMapping,
-        TReplicaFallbackHandler<TRowset> replicaFallbackHandler);
-
-    TSelectRowsResult DoSelectRows(
-        const TString& queryString,
-        const TSelectRowsOptions& options);
-    TSelectRowsResult DoSelectRowsOnce(
-        const TString& queryString,
-        const TSelectRowsOptions& options);
-
-    static bool IsReplicaInSync(
-        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-        const NQueryClient::NProto::TTabletInfo& tabletInfo);
-
-    static bool IsReplicaInSync(
-        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-        const NQueryClient::NProto::TTabletInfo& tabletInfo,
-        TTimestamp timestamp);
-
-    std::vector<TTableReplicaId> DoGetInSyncReplicas(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const TSharedRange<TKey>& keys,
-        const TGetInSyncReplicasOptions& options);
-
-    std::vector<TColumnarStatistics> DoGetColumnarStatistics(
-        const std::vector<TRichYPath>& paths,
-        const TGetColumnarStatisticsOptions& options);
-
-    std::vector<TTabletInfo> DoGetTabletInfos(
-        const TYPath& path,
-        const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options);
-
-    std::unique_ptr<IAttributeDictionary> ResolveExternalTable(
-        const TYPath& path,
-        TTableId* tableId,
-        TCellTag* cellTag,
-        const std::vector<TString>& extraAttributes = {});
-
-    template <class TReq>
-    void ExecuteTabletServiceRequest(const TYPath& path, TReq* req);
-
-    void DoMountTable(
-        const TYPath& path,
-        const TMountTableOptions& options);
-    void DoUnmountTable(
-        const TYPath& path,
-        const TUnmountTableOptions& options);
-    void DoRemountTable(
-        const TYPath& path,
-        const TRemountTableOptions& options);
-    void DoFreezeTable(
-        const TYPath& path,
-        const TFreezeTableOptions& options);
-    void DoUnfreezeTable(
-        const TYPath& path,
-        const TUnfreezeTableOptions& options);
-
-    NTabletClient::NProto::TReqReshard MakeReshardRequest(
-        const TReshardTableOptions& options);
-    TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
-        const TYPath& path,
-        const TReshardTableOptions& options);
-
-    void DoReshardTableWithPivotKeys(
-        const TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TReshardTableOptions& options);
-    void DoReshardTableWithTabletCount(
-        const TYPath& path,
-        int tabletCount,
-        const TReshardTableOptions& options);
-    std::vector<TTabletActionId> DoReshardTableAutomatic(
-        const TYPath& path,
-        const TReshardTableAutomaticOptions& options);
-
-    void DoAlterTable(
-        const TYPath& path,
-        const TAlterTableOptions& options);
-
-    void DoTrimTable(
-        const TYPath& path,
-        int tabletIndex,
-        i64 trimmedRowCount,
-        const TTrimTableOptions& options);
-
-    void DoAlterTableReplica(
-        TTableReplicaId replicaId,
-        const TAlterTableReplicaOptions& options);
-
-    std::vector<TTabletActionId> DoBalanceTabletCells(
-        const TString& tabletCellBundle,
-        const std::vector<TYPath>& movableTables,
-        const TBalanceTabletCellsOptions& options);
-
-    TYsonString DoGetNode(
-        const TYPath& path,
-        const TGetNodeOptions& options);
-    void DoSetNode(
-        const TYPath& path,
-        const TYsonString& value,
-        const TSetNodeOptions& options);
-    void DoRemoveNode(
-        const TYPath& path,
-        const TRemoveNodeOptions& options);
-    TYsonString DoListNode(
-        const TYPath& path,
-        const TListNodeOptions& options);
-    TNodeId DoCreateNode(
-        const TYPath& path,
-        EObjectType type,
-        const TCreateNodeOptions& options);
-    TLockNodeResult DoLockNode(
-        const TYPath& path,
-        ELockMode mode,
-        const TLockNodeOptions& options);
-    void DoUnlockNode(
-        const TYPath& path,
-        const TUnlockNodeOptions& options);
-    TNodeId DoCopyNode(
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TCopyNodeOptions& options);
-    TNodeId DoMoveNode(
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TMoveNodeOptions& options);
-    TNodeId DoLinkNode(
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TLinkNodeOptions& options);
-    void DoConcatenateNodes(
-        const std::vector<TRichYPath>& srcPaths,
-        const TRichYPath& dstPath,
-        TConcatenateNodesOptions options);
-    bool DoNodeExists(
-        const TYPath& path,
-        const TNodeExistsOptions& options);
-    TObjectId DoCreateObject(
-        EObjectType type,
-        const TCreateObjectOptions& options);
-
-    void SetTouchedAttribute(
-        const TString& destination,
-        const TPrerequisiteOptions& options = TPrerequisiteOptions(),
-        TTransactionId transactionId = NullTransactionId);
-
-    TGetFileFromCacheResult DoGetFileFromCache(
-        const TString& md5,
-        const TGetFileFromCacheOptions& options);
-    TPutFileToCacheResult DoAttemptPutFileToCache(
-        const NYPath::TYPath& path,
-        const TString& expectedMD5,
-        const TPutFileToCacheOptions& options,
-        NLogging::TLogger logger);
-    TPutFileToCacheResult DoPutFileToCache(
-        const NYPath::TYPath& path,
-        const TString& expectedMD5,
-        const TPutFileToCacheOptions& options);
-
-    void DoAddMember(
-        const TString& group,
-        const TString& member,
-        const TAddMemberOptions& options);
-    void DoRemoveMember(
-        const TString& group,
-        const TString& member,
-        const TRemoveMemberOptions& options);
-    TCheckPermissionResponse DoCheckPermission(
-        const TString& user,
-        const TYPath& path,
-        EPermission permission,
-        const TCheckPermissionOptions& options);
-    TCheckPermissionByAclResult DoCheckPermissionByAcl(
-        const std::optional<TString>& user,
-        EPermission permission,
-        INodePtr acl,
-        const TCheckPermissionByAclOptions& options);
-
-    TOperationId DoStartOperation(
-        EOperationType type,
-        const TYsonString& spec,
-        const TStartOperationOptions& options);
-    void DoAbortOperation(
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TAbortOperationOptions& options);
-    void DoSuspendOperation(
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TSuspendOperationOptions& options);
-    void DoResumeOperation(
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TResumeOperationOptions& options);
-    void DoCompleteOperation(
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TCompleteOperationOptions& options);
-    void DoUpdateOperationParameters(
-        const TOperationIdOrAlias& operationIdOrAlias,
-        const TYsonString& parameters,
-        const TUpdateOperationParametersOptions& options);
-
-    bool DoesOperationsArchiveExist();
-    int DoGetOperationsArchiveVersion();
-
-    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
-    // commands to Cypress node attribute names.
-    static std::vector<TString> MakeCypressOperationAttributes(const THashSet<TString>& attributes);
-    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
-    // commands to operations archive column names.
-    std::vector<TString> MakeArchiveOperationAttributes(const THashSet<TString>& attributes);
-
-    TYsonString DoGetOperationFromCypress(
-        NScheduler::TOperationId operationId,
-        TInstant deadline,
-        const TGetOperationOptions& options);
-    TYsonString DoGetOperationFromArchive(
-        NScheduler::TOperationId operationId,
-        TInstant deadline,
-        const TGetOperationOptions& options);
-
-    NScheduler::TOperationId ResolveOperationAlias(
-        const TString& alias,
-        const TGetOperationOptions& options,
-        TInstant deadline);
-
-    TYsonString DoGetOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TGetOperationOptions& options);
-
-    void ValidateOperationAccess(
-        TJobId jobId,
-        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-        EPermissionSet permissions);
-
-    void DoDumpJobContext(
-        TJobId jobId,
-        const TYPath& path,
-        const TDumpJobContextOptions& options);
-
-    static void ValidateJobSpecVersion(TJobId jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec);
-
-    static bool IsNoSuchJobOrOperationError(const TError& error);
-
-    // Get job node descriptor from scheduler and check that user has |requiredPermissions|
-    // for accessing the corresponding operation.
-    TErrorOr<TNodeDescriptor> GetJobNodeDescriptor(TJobId jobId, EPermissionSet requiredPermissions);
-
-    IChannelPtr TryCreateChannelToJobNode(
-        TOperationId operationId,
-        TJobId jobId,
-        EPermissionSet requiredPermissions);
-
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
-        TJobId jobId,
-        NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy);
-    // Get job spec from node and check that user has |requiredPermissions|
-    // for accessing the corresponding operation.
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
-        TJobId jobId,
-        EPermissionSet requiredPermissions);
-    // Get job spec from job archive and check that user has |requiredPermissions|
-    // for accessing the corresponding operation.
-    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(
-        TJobId jobId,
-        EPermissionSet requiredPermissions);
-
-    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        TJobId jobId,
-        const TGetJobInputOptions& options);
-    TYsonString DoGetJobInputPaths(
-        TJobId jobId,
-        const TGetJobInputPathsOptions& options);
-    TSharedRef DoGetJobStderrFromNode(
-        TOperationId operationId,
-        TJobId jobId);
-    TSharedRef DoGetJobStderrFromCypress(
-        TOperationId operationId,
-        TJobId jobId);
-    TSharedRef DoGetJobStderrFromArchive(
-        TOperationId operationId,
-        TJobId jobId);
-    TSharedRef DoGetJobStderr(
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobStderrOptions& options);
-
-    TSharedRef DoGetJobFailContextFromArchive(
-        TOperationId operationId,
-        TJobId jobId);
-    TSharedRef DoGetJobFailContextFromCypress(
-        TOperationId operationId,
-        TJobId jobId);
-
-    TSharedRef DoGetJobFailContext(
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobFailContextOptions& options);
-
-    static TString ExtractTextFactorForCypressItem(const TOperation& operation);
-    static std::vector<TString> GetPoolsFromRuntimeParameters(const INodePtr& runtimeParameters);
-
-    struct TCountingFilter
-    {
-        THashMap<TString, i64> PoolCounts;
-        THashMap<TString, i64> UserCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationState> StateCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationType> TypeCounts;
-        i64 FailedJobsCount = 0;
-
-        const TListOperationsOptions& Options;
-
-        TCountingFilter(const TListOperationsOptions& options)
-            : Options(options)
-        { }
-
-        bool Filter(
-            std::optional<std::vector<TString>> pools,
-            TStringBuf user,
-            const EOperationState& state,
-            const EOperationType& type,
-            i64 count)
-        {
-            UserCounts[user] += count;
-
-            if (Options.UserFilter && *Options.UserFilter != user) {
-                return false;
-            }
-
-            if (pools) {
-                for (const auto& pool : *pools) {
-                    PoolCounts[pool] += count;
-                }
-            }
-
-            if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
-                return false;
-            }
-
-            StateCounts[state] += count;
-
-            if (Options.StateFilter && *Options.StateFilter != state) {
-                return false;
-            }
-
-            TypeCounts[type] += count;
-
-            if (Options.TypeFilter && *Options.TypeFilter != type) {
-                return false;
-            }
-
-            return true;
-        }
-
-        bool FilterByFailedJobs(const TYsonString& briefProgress)
-        {
-            bool hasFailedJobs = false;
-            if (briefProgress) {
-                auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
-                auto jobsNode = briefProgressMapNode->FindChild("jobs");
-                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-            }
-            FailedJobsCount += hasFailedJobs;
-            return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
-        }
-    };
-
-    TOperation CreateOperationFromNode(
-        const INodePtr& node,
-        const std::optional<THashSet<TString>>& attributes = std::nullopt);
-
-    // XXX(babenko): rename
-    THashSet<TString> MakeFinalAttributeSet(
-        const std::optional<THashSet<TString>>& originalAttributes,
-        const THashSet<TString>& requiredAttributes,
-        const THashSet<TString>& defaultAttributes,
-        const THashSet<TString>& ignoredAttributes);
-
-    // Searches in Cypress for operations satisfying given filters.
-    // Adds found operations to |idToOperation| map.
-    // The operations are returned with requested fields plus necessarily "start_time" and "id".
-    void DoListOperationsFromCypress(
-        TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
-        const TListOperationsOptions& options,
-        THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
-
-    // Searches in archive for operations satisfying given filters.
-    // Returns operations with requested fields plus necessarily "start_time" and "id".
-    THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
-        TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
-        const TListOperationsOptions& options);
-
-    THashSet<TString> GetSubjectClosure(
-        const TString& subject,
-        TObjectServiceProxy& proxy,
-        const TMasterReadOptions& options);
-
-    // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
-    // and an operation is in both Cypress and archive.
-    // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
-    // are in archive and outside of queried range.
-    TListOperationsResult DoListOperations(const TListOperationsOptions& options);
-
-    // XXX(babenko): rename
-    static void ValidateNotNull(
-        const TUnversionedValue& value,
-        TStringBuf name,
-        TOperationId operationId,
-        TJobId jobId = {});
-
-    NQueryClient::TQueryBuilder GetListJobsQueryBuilder(
-        TOperationId operationId,
-        const std::vector<EJobState>& states,
-        const TListJobsOptions& options);
-
-    // Asynchronously perform "select_rows" from job archive and parse result.
-    //
-    // |Offset| and |Limit| fields in |options| are ignored, |limit| is used instead.
-    // Jobs are additionally filtered by |states|.
-    TFuture<std::vector<TJob>> DoListJobsFromArchiveAsyncImpl(
-        TOperationId operationId,
-        const std::vector<EJobState>& states,
-        i64 limit,
-        const TSelectRowsOptions& selectRowsOptions,
-        const TListJobsOptions& options);
-
-    // Get statistics for jobs.
-    // Jobs are additionally filtered by |states|.
-    TFuture<TListJobsStatistics> ListJobsStatisticsFromArchiveAsync(
-        TOperationId operationId,
-        const std::vector<EJobState>& states,
-        const TSelectRowsOptions& selectRowsOptions,
-        const TListJobsOptions& options);
-
-    struct TListJobsFromArchiveResult
-    {
-        std::vector<TJob> FinishedJobs;
-        std::vector<TJob> InProgressJobs;
-        TListJobsStatistics FinishedJobsStatistics;
-    };
-
-    // Retrieves:
-    // 1) Filtered finished jobs (with limit).
-    // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
-    // 3) Statistics for finished jobs.
-    TFuture<TListJobsFromArchiveResult> DoListJobsFromArchiveAsync(
-        TOperationId operationId,
-        TInstant deadline,
-        bool includeInProgressJobs,
-        const TListJobsOptions& options);
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromCypressAsync(
-        TOperationId operationId,
-        TInstant deadline,
-        const TListJobsOptions& options);
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgentAsync(
-        TOperationId operationId,
-        const std::optional<TString>& controllerAgentAddress,
-        TInstant deadline,
-        const TListJobsOptions& options);
-
-    static std::function<bool(const TJob&, const TJob&)> GetJobsComparator(EJobSortField sortField, EJobSortDirection sortOrder);
-
-    static void UpdateJobsList(std::vector<TJob> delta, std::vector<TJob>* origin, bool ignoreNewJobs);
-
-    TListJobsResult DoListJobs(
-        TOperationId operationId,
-        const TListJobsOptions& options);
-
-    template <typename TValue>
-    static void TryAddFluentItem(
-        TFluentMap fluent,
-        TStringBuf key,
-        TUnversionedRow row,
-        const NTableClient::TColumnFilter& columnFilter,
-        int columnIndex);
-
-   static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes);
-
-    TYsonString DoGetJob(
-        TOperationId operationId,
-        TJobId jobId,
-        const TGetJobOptions& options);
-    TYsonString DoStraceJob(
-        TJobId jobId,
-        const TStraceJobOptions& options);
-    void DoSignalJob(
-        TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options);
-    void DoAbandonJob(
-        TJobId jobId,
-        const TAbandonJobOptions& options);
-    TYsonString DoPollJobShell(
-        TJobId jobId,
-        const TYsonString& parameters,
-        const TPollJobShellOptions& options);
-
-    void DoAbortJob(
-        TJobId jobId,
-        const TAbortJobOptions& options);
-
-    TClusterMeta DoGetClusterMeta(
-        const TGetClusterMetaOptions& options);
-
-    static bool TryParseObjectId(const TYPath& path, TObjectId* objectId);
-
-    TCheckPermissionResult InternalCheckPermission(
-        const TYPath& path,
-        EPermission permission,
-        const TCheckPermissionOptions& options = {});
-    void InternalValidatePermission(
-        const TYPath& path,
-        EPermission permission,
-        const TCheckPermissionOptions& options = {});
-    void InternalValidateTableReplicaTablePermission(
-        TTableReplicaId replicaId,
-        EPermission permission,
-        const TCheckPermissionOptions& options = {});
-};
-
-DEFINE_REFCOUNTED_TYPE(TClient)
 
 IClientPtr CreateClient(
     IConnectionPtr connection,
@@ -2377,7 +1414,7 @@ TRowset TClient::DoLookupRowsOnce(
     const TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
     const TLookupRowsOptionsBase& options,
-    const std::optional<TString> retentionConfig,
+    const std::optional<TString>& retentionConfig,
     TEncoderWithMapping encoderWithMapping,
     TDecoderWithMapping decoderWithMapping,
     TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
@@ -3111,7 +2148,7 @@ void TClient::ExecuteTabletServiceRequest(const TYPath& path, TReq* req)
         {"path"});
 
     if (!IsTableType(TypeFromId(tableId))) {
-        THROW_ERROR_EXCEPTION("Object %Qv is not a table", path);
+        THROW_ERROR_EXCEPTION("Object %v is not a table", path);
     }
 
     TTransactionStartOptions txOptions;
@@ -3485,7 +2522,7 @@ void TClient::DoAlterTableReplica(
     TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
-    InternalValidateTableReplicaTablePermission(replicaId, EPermission::Write);
+    InternalValidateTableReplicaPermission(replicaId, EPermission::Write);
 
     auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
     if (options.Enabled) {
@@ -3657,7 +2694,7 @@ void TClient::DoRemoveNode(
         cellTag = CellTagFromId(objectId);
         switch (TypeFromId(objectId)) {
             case EObjectType::TableReplica: {
-                InternalValidateTableReplicaTablePermission(objectId, EPermission::Write);
+                InternalValidateTableReplicaPermission(objectId, EPermission::Write);
                 break;
             }
             default:
@@ -8086,7 +7123,7 @@ void TClient::InternalValidatePermission(
         .ThrowOnError();
 }
 
-void TClient::InternalValidateTableReplicaTablePermission(
+void TClient::InternalValidateTableReplicaPermission(
     TTableReplicaId replicaId,
     EPermission permission,
     const TCheckPermissionOptions& options)
@@ -8095,7 +7132,7 @@ void TClient::InternalValidateTableReplicaTablePermission(
     auto tablePathYson = WaitFor(GetNode(FromObjectId(replicaId) + "/@table_path", {}))
         .ValueOrThrow();
     auto tablePath = ConvertTo<TYPath>(tablePathYson);
-    InternalValidatePermission(tablePath, EPermission::Write, options);
+    InternalValidatePermission(tablePath, permission, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
