@@ -197,6 +197,9 @@ DEFINE_ENUM(EObjectType,
 
     // Scheduler
     ((Operation)                 (1000))
+
+    // Object manager stuff
+    ((EstimatedCreationTimeMap)  (1100))
 );
 
 //! A bit mask marking schema types.

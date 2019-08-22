@@ -504,6 +504,11 @@ private:
                 transactionId,
                 EObjectType::CypressShardMap);
 
+            ScheduleCreateNode(
+                "//sys/estimated_creation_time",
+                transactionId,
+                EObjectType::EstimatedCreationTimeMap);
+
             FlushScheduled();
 
             // Level 3

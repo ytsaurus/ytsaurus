@@ -11,6 +11,7 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/epoch_history_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
@@ -39,6 +40,8 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/election/cell_manager.h>
+
+#include <yt/client/hydra/version.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -425,6 +428,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
         .SetReplicated(true)
         .SetMandatory(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EstimatedCreationTime)
+        .SetOpaque(true));
 }
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
@@ -535,6 +540,18 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             BuildYsonFluently(consumer)
                 .Value(Object_->GetLifeStage());
             return true;
+
+        case EInternedAttributeKey::EstimatedCreationTime: {
+            const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
+            auto version = NHydra::TVersion::FromRevision(CounterFromId(GetId()));
+            auto [minTime, maxTime] = epochHistoryManager->GetEstimatedMutationTime(version);
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("min").Value(minTime)
+                    .Item("max").Value(maxTime)
+                .EndMap();
+            return true;
+        }
 
         default:
             break;

@@ -92,6 +92,7 @@
     XX(Error, error) \
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
+    XX(EstimatedCreationTime, estimated_creation_time) \
     XX(Executable, executable) \
     XX(ExitCellTag, exit_cell_tag) \
     XX(ExitNodeId, exit_node_id) \

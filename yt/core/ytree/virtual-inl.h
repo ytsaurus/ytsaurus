@@ -1,8 +1,8 @@
 #pragma once
 #ifndef VIRTUAL_INL_H_
-#error "Direct inclusion of this file is not allowed, include virtual-inl.h"
+#error "Direct inclusion of this file is not allowed, include virtual.h"
 // For the sake of sane code completion.
-#include "virtual-inl.h"
+#include "virtual.h"
 #endif
 
 namespace NYT::NYTree {
