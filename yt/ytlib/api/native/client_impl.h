@@ -68,6 +68,7 @@ public:
 
     virtual TFuture<void> Terminate() override;
 
+    // Transactions
     virtual TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options) override;
@@ -669,11 +670,11 @@ private:
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options);
 
+    // File Cache
     void SetTouchedAttribute(
         const TString& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
         NTransactionClient::TTransactionId transactionId = {});
-
     TGetFileFromCacheResult DoGetFileFromCache(
         const TString& md5,
         const TGetFileFromCacheOptions& options);
