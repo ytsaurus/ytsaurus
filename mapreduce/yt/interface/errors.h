@@ -6,7 +6,7 @@
 #include <util/generic/yexception.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
-#include <mapreduce/yt/node/node.h>
+#include <library/yson/node/node.h>
 
 namespace NJson {
     class TJsonValue;

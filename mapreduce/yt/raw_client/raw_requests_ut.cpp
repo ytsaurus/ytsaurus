@@ -1,6 +1,6 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <mapreduce/yt/node/node_io.h>
+#include <library/yson/node/node_io.h>
 
 #include <library/unittest/registar.h>
 

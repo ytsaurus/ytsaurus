@@ -14,7 +14,7 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <mapreduce/yt/node/node_io.h>
+#include <library/yson/node/node_io.h>
 
 namespace NYT::NDetail::NRawClient {
 

@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/node/node_io.h>
+#include <library/yson/node/node_io.h>
 
 #include <library/unittest/utmain.h>
 #include <library/unittest/registar.h>

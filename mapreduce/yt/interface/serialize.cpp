@@ -2,7 +2,7 @@
 
 #include "fluent.h"
 
-#include <mapreduce/yt/node/serialize.h>
+#include <library/yson/node/serialize.h>
 
 #include <util/generic/string.h>
 

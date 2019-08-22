@@ -13,7 +13,7 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <mapreduce/yt/node/node.h>
+#include <library/yson/node/node.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 

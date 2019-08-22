@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <mapreduce/yt/node/node_builder.h>
+#include <library/yson/node/node_builder.h>
 
 #include <library/unittest/registar.h>
 

@@ -24,7 +24,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <mapreduce/yt/node/serialize.h>
+#include <library/yson/node/serialize.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>

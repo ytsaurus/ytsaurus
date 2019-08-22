@@ -22,7 +22,7 @@ def initialize(*args):
         free(argv)
 
 
-cdef extern from "mapreduce/yt/node/node.h" namespace "NYT" nogil:
+cdef extern from "library/yson/node/node.h" namespace "NYT" nogil:
     cdef cppclass TNode:
         TNode() except +
         TNode(const char*) except +

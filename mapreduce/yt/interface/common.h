@@ -2,7 +2,7 @@
 
 #include "fwd.h"
 
-#include <mapreduce/yt/node/node.h>
+#include <library/yson/node/node.h>
 
 #include <util/generic/guid.h>
 #include <util/generic/map.h>

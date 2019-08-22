@@ -12,7 +12,7 @@
 #include <util/stream/length.h>
 #include <util/system/mutex.h>
 
-#include <mapreduce/yt/node/node_builder.h>
+#include <library/yson/node/node_builder.h>
 
 #include <mapreduce/yt/interface/serialize.h>
 
