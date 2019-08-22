@@ -1078,7 +1078,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_graceful_preemption_timeout(self):
         create_test_tables(row_count=1)
 
-        command = "BREAKPOINT ; sleep 100" 
+        command = "BREAKPOINT ; sleep 100"
 
         op = map(
             dont_track=True,
@@ -1270,6 +1270,123 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "graceful_preemption_job_interrupt_timeout": 2000,
+            "job_interrupt_timeout": 600000,
+            "allowed_node_resources_overcommit_duration": 1000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 2,
+                    "user_slots": 2
+                }
+            }
+        }
+    }
+
+    def teardown(self):
+        remove("//sys/scheduler/config", force=True)
+
+    @authors("ignat")
+    def test_scheduler_preempt_overdraft_resources(self):
+        set("//sys/scheduler/config", {"job_interrupt_timeout": 1000})
+
+        nodes = ls("//sys/nodes")
+        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 0})
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
+
+        create("table", "//tmp/t_in")
+        for i in xrange(1):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        op1 = map(
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT; sleep 1000; cat"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1")
+        wait_breakpoint()
+
+        op2 = map(
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT; sleep 1000; cat"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2")
+        wait_breakpoint()
+
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op2.get_job_count("running") == 1)
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
+
+        # TODO(ignat): add check that jobs are not preemptable.
+
+        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 2})
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
+
+        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[1]), {"cpu": 0})
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
+
+        wait(lambda: op1.get_job_count("aborted") == 1)
+        wait(lambda: op2.get_job_count("aborted") == 1)
+
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op2.get_job_count("running") == 1)
+
+    @authors("ignat")
+    def test_scheduler_force_abort(self):
+        nodes = ls("//sys/nodes")
+        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0)
+
+        create("table", "//tmp/t_in")
+        for i in xrange(1):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        op1 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1")
+        op2 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2")
+
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op2.get_job_count("running") == 1)
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2)
+
+        # TODO(ignat): add check that jobs are not preemptable.
+
+        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2)
+
+        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
+        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0)
+
+        wait(lambda: op1.get_job_count("aborted") == 1)
+        wait(lambda: op2.get_job_count("aborted") == 1)
+
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op2.get_job_count("running") == 1)
 
 class TestSchedulerUnschedulableOperations(YTEnvSetup):
     NUM_MASTERS = 1

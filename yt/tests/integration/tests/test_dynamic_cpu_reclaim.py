@@ -105,6 +105,12 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "allowed_node_resources_overcommit_duration": 600 * 1000,
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {

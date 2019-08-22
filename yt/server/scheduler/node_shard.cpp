@@ -540,16 +540,29 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_scheduling_skipped(skipScheduleJobs);
 
+    if (node->GetResourceLimits().GetUserSlots() == 0) {
+        // Abort all jobs on node immediately, if it has no user slots.
+        // Make a copy, the collection will be modified.
+        auto jobs = node->Jobs();
+        const auto& address = node->GetDefaultAddress();
+        for (const auto& job : jobs) {
+            YT_LOG_DEBUG("Aborting job on node without user slots (Address: %v, JobId: %v, OperationId: %v)",
+                address,
+                job->GetId(),
+                job->GetOperationId());
+            auto status = JobStatusFromError(
+                TError("Node without user slots")
+                << TErrorAttribute("abort_reason", EAbortReason::NodeWithZeroUserSlots));
+            OnJobAborted(job, &status, /* byScheduler */ true);
+        }
+    }
+
     auto schedulingContext = CreateSchedulingContext(
         Id_,
         Config_,
         node,
         runningJobs);
 
-    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-        SubmitJobsToStrategy();
-    }
-    
     PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
         for (const auto& job : runningJobs) {
             if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetGracefullyPreempted()) {
@@ -559,44 +572,56 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
-    PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-        node->SetHasOngoingJobsScheduling(true);
-        Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
-        node->SetHasOngoingJobsScheduling(false);
+    if (!skipScheduleJobs) {
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitJobsToStrategy();
+        }
+
+        PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
+            node->SetHasOngoingJobsScheduling(true);
+            Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
+            node->SetHasOngoingJobsScheduling(false);
+        }
+
+        const auto& statistics = schedulingContext->GetSchedulingStatistics();
+
+        node->SetResourceUsage(schedulingContext->ResourceUsage());
+        node->SetLastHeartbeatStatistics(statistics);
+
+        ProcessScheduledJobs(
+            schedulingContext,
+            /* requestContext */ context);
+
+        // NB: some jobs maybe considered aborted after processing scheduled jobs.
+        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+            SubmitJobsToStrategy();
+        }
+
+        context->SetResponseInfo(
+            "NodeId: %v, NodeAddress: %v, "
+            "StartedJobs: %v, PreemptedJobs: %v, GracefullyPreemptedJobs: %v, "
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
+            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            schedulingContext->StartedJobs().size(),
+            schedulingContext->PreemptedJobs().size(),
+            schedulingContext->GracefullyPreemptedJobs().size(),
+            statistics.ScheduledDuringPreemption,
+            statistics.PreemptableJobCount,
+            FormatResources(statistics.ResourceUsageDiscount),
+            statistics.ControllerScheduleJobCount,
+            statistics.NonPreemptiveScheduleJobAttempts,
+            statistics.PreemptiveScheduleJobAttempts,
+            statistics.HasAggressivelyStarvingElements);
+    } else {
+        context->SetResponseInfo(
+            "NodeId: %v, NodeAddress: %v, GracefullyPreemptedJobs: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            schedulingContext->GracefullyPreemptedJobs().size());
     }
-
-    const auto& statistics = schedulingContext->GetSchedulingStatistics();
-
-    node->SetResourceUsage(schedulingContext->ResourceUsage());
-    node->SetLastHeartbeatStatistics(statistics);
-
-    ProcessScheduledJobs(
-        schedulingContext,
-        /* requestContext */ context);
-
-    // NB: some jobs maybe considered aborted after processing scheduled jobs.
-    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-        SubmitJobsToStrategy();
-    }
-
-    context->SetResponseInfo(
-        "NodeId: %v, NodeAddress: %v, "
-        "StartedJobs: %v, PreemptedJobs: %v, GracefullyPreemptedJobs: %v, "
-        "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-        "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-        "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
-        nodeId,
-        descriptor.GetDefaultAddress(),
-        schedulingContext->StartedJobs().size(),
-        schedulingContext->PreemptedJobs().size(),
-        schedulingContext->GracefullyPreemptedJobs().size(),
-        statistics.ScheduledDuringPreemption,
-        statistics.PreemptableJobCount,
-        FormatResources(statistics.ResourceUsageDiscount),
-        statistics.ControllerScheduleJobCount,
-        statistics.NonPreemptiveScheduleJobAttempts,
-        statistics.PreemptiveScheduleJobAttempts,
-        statistics.HasAggressivelyStarvingElements);
 
     context->Reply();
 }
@@ -1968,6 +1993,14 @@ void TNodeShard::UpdateNodeResources(
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
             CachedResourceStatisticsByTags_->Clear();
+        }
+
+        if (!Dominates(node->GetResourceLimits(), node->GetResourceUsage())) {
+            if (!node->GetResourcesOvercommitStartTime()) {
+                node->SetResourcesOvercommitStartTime(TInstant::Now());
+            }
+        } else {
+            node->SetResourcesOvercommitStartTime(TInstant());
         }
     }
 }
