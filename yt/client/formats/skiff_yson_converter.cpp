@@ -17,6 +17,33 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
+{
+    switch (GetPhysicalType(logicalType)) {
+        case EValueType::Int64:
+            return EWireType::Int64;
+        case EValueType::Uint64:
+            return EWireType::Uint64;
+        case EValueType::String:
+            return EWireType::String32;
+        case EValueType::Any:
+            return EWireType::Yson32;
+        case EValueType::Boolean:
+            return EWireType::Boolean;
+        case EValueType::Double:
+            return EWireType::Double;
+        case EValueType::Null:
+            return EWireType::Nothing;
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
+    }
+    YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,31 +70,6 @@ struct TConverterCreationContext
 {
     int NestingLevel = 0;
 };
-
-EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
-{
-    switch (GetPhysicalType(logicalType)) {
-        case EValueType::Int64:
-            return EWireType::Int64;
-        case EValueType::Uint64:
-            return EWireType::Uint64;
-        case EValueType::String:
-            return EWireType::String32;
-        case EValueType::Any:
-            return EWireType::Yson32;
-        case EValueType::Boolean:
-            return EWireType::Boolean;
-        case EValueType::Double:
-            return EWireType::Double;
-        case EValueType::Null:
-            return EWireType::Nothing;
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
-    }
-    YT_ABORT();
-}
 
 std::vector<TErrorAttribute> SkiffYsonErrorAttributes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
 {
