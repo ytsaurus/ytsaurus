@@ -38,6 +38,12 @@ message TLogicalType
         optional TLogicalType value = 2;
     }
 
+    message TTaggedLogicalType
+    {
+        optional string tag = 1;
+        optional TLogicalType element = 2;
+    }
+
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
@@ -47,6 +53,7 @@ message TLogicalType
         TVariantTupleLogicalType variant_tuple = 6;
         TVariantStructLogicalType variant_struct = 7;
         TDictLogicalType dict = 8;
+        TTaggedLogicalType tagged = 9;
     }
 }
 

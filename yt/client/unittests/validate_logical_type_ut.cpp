@@ -357,6 +357,48 @@ TEST(TValidateLogicalTypeTest, TestDictType)
     EXPECT_BAD_TYPE(stringToInt, "{foo=0;}"); // <- This is not a dict!
 }
 
+TEST(TValidateLogicalTypeTest, TestTaggedType)
+{
+    const auto taggedDict = TaggedLogicalType(
+        "tag",
+        DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)
+        )
+    );
+
+    EXPECT_GOOD_TYPE(taggedDict, "[[\"foo\"; 0]]");
+    EXPECT_BAD_TYPE(taggedDict, "[[foo; 0; 0]]");
+
+    auto taggedVariant = TaggedLogicalType(
+        "tag",
+        VariantTupleLogicalType({
+             SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+             SimpleLogicalType(ESimpleLogicalValueType::String),
+        })
+    );
+
+    EXPECT_GOOD_TYPE(taggedVariant, "[0; %true]");
+    EXPECT_BAD_TYPE(taggedVariant, "[0; \"false\"]");
+
+    const auto taggedStruct = TaggedLogicalType(
+        "tag",
+        StructLogicalType({
+            {"number",  SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"english", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"russian", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        })
+    );
+
+    EXPECT_GOOD_TYPE(taggedStruct, " [3; three; TRI ] ");
+    EXPECT_GOOD_TYPE(taggedStruct, " [1; one; # ] ");
+    EXPECT_GOOD_TYPE(taggedStruct, " [1; one ] ");
+
+    EXPECT_BAD_TYPE(taggedStruct, " [ # ; three; TRI ] ");
+    EXPECT_BAD_TYPE(taggedStruct, " [ 3 ; # ; TRI ] ");
+    EXPECT_BAD_TYPE(taggedStruct, " [ 1 ] ");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

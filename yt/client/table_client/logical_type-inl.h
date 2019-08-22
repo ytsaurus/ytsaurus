@@ -48,6 +48,11 @@ const TDictLogicalType& TLogicalType::UncheckedAsDictTypeRef() const
     return static_cast<const TDictLogicalType&>(*this);
 }
 
+const TTaggedLogicalType& TLogicalType::UncheckedAsTaggedTypeRef() const
+{
+    return static_cast<const TTaggedLogicalType&>(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
@@ -98,6 +103,18 @@ const TLogicalTypePtr& TDictLogicalType::GetKey() const
 const TLogicalTypePtr& TDictLogicalType::GetValue() const
 {
     return Value_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& TTaggedLogicalType::GetTag() const
+{
+    return Tag_;
+}
+
+const TLogicalTypePtr& TTaggedLogicalType::GetElement() const
+{
+    return Element_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

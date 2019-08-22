@@ -1445,6 +1445,13 @@ def dict_type(key_type, value_type):
         "value": value_type,
     }
 
+def tagged_type(tag, element_type):
+    return {
+        "metatype": "tagged",
+        "tag": tag,
+        "element": element_type,
+    }
+
 ##################################################################
 
 def get_guid_from_parts(lo, hi):

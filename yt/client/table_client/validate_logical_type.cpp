@@ -81,6 +81,9 @@ private:
             case ELogicalMetatype::Dict:
                 ValidateDictType(type->UncheckedAsDictTypeRef(), fieldId);
                 return;
+            case ELogicalMetatype::Tagged:
+                ValidateTaggedType(type->UncheckedAsTaggedTypeRef(), fieldId);
+                return;
         }
         YT_ABORT();
     }
@@ -403,6 +406,11 @@ private:
         Cursor_.Next();
     }
 
+    Y_FORCE_INLINE void ValidateTaggedType(const TTaggedLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateLogicalType(type.GetElement(), fieldId.TaggedElement());
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -455,6 +463,11 @@ private:
             return {this, 1};
         }
 
+        TFieldId TaggedElement() const
+        {
+            return {this, 0};
+        }
+
         TComplexTypeFieldDescriptor GetDescriptor(const TComplexTypeFieldDescriptor& root) const
         {
             std::vector<int> path;
@@ -498,6 +511,9 @@ private:
                                 continue;
                         }
                         break;
+                    case ELogicalMetatype::Tagged:
+                        descriptor = descriptor.TaggedElement();
+                        continue;
                 }
                 YT_ABORT();
             }

@@ -61,6 +61,30 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
             SimpleLogicalType(ESimpleLogicalValueType::Uint64))
         ),
         TPair(std::nullopt, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(
+            TaggedLogicalType("foo", SimpleLogicalType(ESimpleLogicalValueType::String))
+        ),
+        TPair(ESimpleLogicalValueType::String, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(
+            TaggedLogicalType("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
+        ),
+        TPair(ESimpleLogicalValueType::String, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(
+            TaggedLogicalType("foo", OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))))
+        ),
+        TPair(std::nullopt, false));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(
+            TaggedLogicalType("foo", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
+        ),
+        TPair(std::nullopt, true));
 }
 
 TEST(TLogicalTypeTest, DictValidationTest)
@@ -103,6 +127,50 @@ TEST(TLogicalTypeTest, DictValidationTest)
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
         ))),
         "is not allowed in dict key");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            TaggedLogicalType("bar", SimpleLogicalType(ESimpleLogicalValueType::Any)),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))),
+        "is not allowed in dict key");
+    EXPECT_NO_THROW(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("example_column", DictLogicalType(
+            TaggedLogicalType("bar", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+        ))));
+}
+
+TEST(TLogicalTypeTest, TestDetag)
+{
+    EXPECT_EQ(
+        *DetagLogicalType(
+            TaggedLogicalType("tag", SimpleLogicalType(ESimpleLogicalValueType::String))
+        ),
+        *SimpleLogicalType(ESimpleLogicalValueType::String)
+    );
+    EXPECT_EQ(
+        *DetagLogicalType(
+            TaggedLogicalType("tag",
+                StructLogicalType({
+                    {"list", TaggedLogicalType("tag2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int8)))},
+                    {"tuple", TupleLogicalType({
+                            SimpleLogicalType(ESimpleLogicalValueType::Double),
+                            TaggedLogicalType("tag3", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+                        })
+                    },
+                })
+            )
+        ),
+        *StructLogicalType({
+            {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int8))},
+            {"tuple", TupleLogicalType({
+                    SimpleLogicalType(ESimpleLogicalValueType::Double),
+                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
+                })
+            },
+        })
+    );
 }
 
 
@@ -206,6 +274,12 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)),
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
     ),
+
+    // Tagged
+    TaggedLogicalType("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+    TaggedLogicalType("bar", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+    TaggedLogicalType("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+    TaggedLogicalType("foo", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
 };
 
 TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
@@ -310,6 +384,9 @@ std::vector<TCombineTypeFunc> CombineFunctions = {
     [] (const TLogicalTypePtr& type) {
         return DictLogicalType(type, SimpleLogicalType(ESimpleLogicalValueType::String));
     },
+    [] (const TLogicalTypePtr& type) {
+        return TaggedLogicalType("foo", type);
+    }
 };
 
 TEST(TLogicalTypeTest, TestAllTypesInCombineFunctions)

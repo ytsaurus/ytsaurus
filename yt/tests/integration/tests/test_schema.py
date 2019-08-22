@@ -105,6 +105,8 @@ def type_v2_to_type_v1(type_v2):
 
 
 class TestComplexTypes(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+
     @authors("ermolovd")
     def test_set_old_schema(self):
         create("table", "//tmp/table", force=True, attributes={
@@ -434,6 +436,61 @@ class TestComplexTypes(YTEnvSetup):
         check_bad([["one", None]])
 
     @authors("ermolovd")
+    def test_tagged(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": struct_type([
+                    ("a", tagged_type("yt.cluster_name", "utf8")),
+                    ("b", optional_type("int64")),
+                ])
+            }])
+        })
+        assert get("//tmp/table/@schema/0/type") == "any"
+        assert get("//tmp/table/@schema/0/required") == True
+
+        write_table("//tmp/table", [
+            {"column": ["hume", 1]},
+            {"column": ["freud", None]},
+            {"column": ["hahn"]},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+
+        check_bad([])
+        check_bad(None)
+        check_bad(["sakura", 2, 3])
+        check_bad(["betula", "redwood"])
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": tagged_type("even", optional_type("int64")),
+            }])
+        })
+        assert get("//tmp/table/@schema/0/type") == "int64"
+        assert get("//tmp/table/@schema/0/required") == False
+
+        write_table("//tmp/table", [
+            {"column": 0},
+            {"column": 2},
+            {"column": None},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+
+        check_bad("1")
+        check_bad(3.0)
+
+    @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
         with raises_yt_error("Dynamic table cannot have key column of type"):
@@ -474,6 +531,30 @@ class TestComplexTypes(YTEnvSetup):
             make_column("column", list_type("int64")),
             make_column("column2", optional_type(list_type("int64"))),
         ]))
+
+    @authors("ermolovd")
+    def test_infer_tagged_schema(self):
+        table = "//tmp/input1"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": tagged_type("some-tag", "string")}
+        ], unique_keys=False, strict=True)})
+        table = "//tmp/input2"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": "string"},
+        ], unique_keys=False, strict=True)})
+
+        write_table("//tmp/input1", [{"value": "foo"}])
+        write_table("//tmp/input2", [{"value": "bar"}])
+
+        create("table", "//tmp/output")
+
+        with raises_yt_error("tables have incompatible schemas"):
+            merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
+
+        merge(in_=["//tmp/input1", "//tmp/input2"],
+              out="<schema=[{name=value;type_v2=utf8}]>//tmp/output",
+              spec={"schema_inference_mode" : "from_output"},
+              mode="unordered")
 
 
 class TestLogicalType(YTEnvSetup):

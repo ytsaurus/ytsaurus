@@ -983,6 +983,9 @@ TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
             return CreateVariantYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::Dict:
             return CreateDictYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Tagged:
+            // We have detagged our type previously.
+            YT_ABORT();
     }
     YT_ABORT();
 }
@@ -1376,6 +1379,9 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
             return CreateVariantSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::Dict:
             return CreateDictSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Tagged:
+            // We have detagged our type previously.
+            YT_ABORT();
     }
     YT_ABORT();
 }
@@ -1394,7 +1400,7 @@ TYsonToSkiffConverter CreateYsonToSkiffConverter(
     TConverterCreationContext context;
     // CreateYsonToSkiffConverterImpl will increment NestingLevel to 0 for the top level element.
     context.NestingLevel = -1;
-    return CreateYsonToSkiffConverterImpl(std::move(descriptor), skiffSchema, context, config);
+    return CreateYsonToSkiffConverterImpl(descriptor.Detag(), skiffSchema, context, config);
 }
 
 TSkiffToYsonConverter CreateSkiffToYsonConverter(
@@ -1404,7 +1410,7 @@ TSkiffToYsonConverter CreateSkiffToYsonConverter(
 {
     TConverterCreationContext context;
     context.NestingLevel = -1;
-    return CreateSkiffToYsonConverterImpl(std::move(descriptor), skiffSchema, context, config);
+    return CreateSkiffToYsonConverterImpl(descriptor.Detag(), skiffSchema, context, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
