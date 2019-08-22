@@ -2150,7 +2150,7 @@ private:
                 if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
                     YT_LOG_INFO(
                         error,
-                        "Tree is erased for operation since pool limits violations (OperationId: %v)",
+                        "Tree is erased for operation since pool limits are violated (OperationId: %v)",
                         operation->GetId());
                     erasedTrees.push_back(treeId);
                     // No need to throw now.
