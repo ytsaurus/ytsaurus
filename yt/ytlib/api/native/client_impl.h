@@ -621,6 +621,7 @@ private:
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options);
 
+    // Cypress
     NYson::TYsonString DoGetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options);
