@@ -328,6 +328,11 @@ public:
             }));
     }
 
+    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    {
+        DecoratedAutomaton_->ValidateSnapshot(reader);
+    }
+
     virtual TYsonProducer GetMonitoringProducer() override
     {
         VERIFY_THREAD_AFFINITY_ANY();

@@ -666,7 +666,10 @@ public:
                 Bootstrap_);
 
             auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-            connection->GetClusterDirectorySynchronizer()->Start();
+            // NB: Should not start synchronizer while validating snapshot.
+            if (GetCellId()) {
+                connection->GetClusterDirectorySynchronizer()->Start();
+            }
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),

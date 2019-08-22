@@ -727,6 +727,19 @@ void TDecoratedAutomaton::LoadSnapshot(
     AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
 }
 
+void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    YT_VERIFY(State_ == EPeerState::Stopped);
+    State_ = EPeerState::LeaderRecovery;
+
+    LoadSnapshot(0, TVersion{}, reader);
+
+    YT_VERIFY(State_ == EPeerState::LeaderRecovery);
+    State_ = EPeerState::Stopped;
+}
+
 void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);

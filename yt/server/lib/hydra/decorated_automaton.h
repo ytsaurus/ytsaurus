@@ -166,6 +166,8 @@ public:
         TVersion version,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
+    void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
+
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);

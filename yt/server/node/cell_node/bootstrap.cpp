@@ -62,6 +62,9 @@
 
 #include <yt/server/lib/core_dump/core_dumper.h>
 
+#include <yt/server/lib/hydra/snapshot.h>
+#include <yt/server/lib/hydra/file_snapshot_store.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -179,12 +182,20 @@ TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Run()
+void TBootstrap::Initialize()
 {
     srand(time(nullptr));
 
     ControlQueue_ = New<TActionQueue>("Control");
 
+    BIND(&TBootstrap::DoInitialize, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+void TBootstrap::Run()
+{
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker())
         .Run()
@@ -194,7 +205,16 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::ValidateSnapshot(const TString& fileName)
+{
+    BIND(&TBootstrap::DoValidateSnapshot, this, fileName)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+void TBootstrap::DoInitialize()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
@@ -202,7 +222,7 @@ void TBootstrap::DoRun()
         Config_->ClusterConnection->Networks = GetLocalNetworks();
     }
 
-    YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+    YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localRpcAddresses),
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
@@ -228,16 +248,6 @@ void TBootstrap::DoRun()
     FootprintUpdateExecutor_->Start();
 
     MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-    // Force start node directory synchronizer.
-    MasterConnection_->GetNodeDirectorySynchronizer()->Start();
-
-    if (Config_->TabletNode->ResourceLimits->Slots > 0) {
-        // Requesting latest timestamp enables periodic background time synchronization.
-        // For tablet nodes, it is crucial because of non-atomic transactions that require
-        // in-sync time for clients.
-        GetLatestTimestamp();
-    }
-
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
@@ -260,20 +270,6 @@ void TBootstrap::DoRun()
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
-
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    HttpServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
-
-    auto skynetHttpConfig = New<NHttp::TServerConfig>();
-    skynetHttpConfig->Port = Config_->SkynetHttpPort;
-    skynetHttpConfig->BindRetryCount = Config_->BusServer->BindRetryCount;
-    skynetHttpConfig->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    SkynetHttpServer_ = NHttp::CreateServer(skynetHttpConfig);
-
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
 
     auto createBatchingChunkService = [&] (const auto& config) {
         RpcServer_->RegisterService(CreateBatchingChunkService(
@@ -582,6 +578,50 @@ void TBootstrap::DoRun()
         MasterCacheServices_.push_back(initMasterCacheSerivce(masterConfig));
     }
 
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+
+    RpcServer_->Configure(Config_->RpcServer);
+
+    TabletSlotManager_->Initialize();
+    ChunkStore_->Initialize();
+    ChunkCache_->Initialize();
+    ExecSlotManager_->Initialize();
+    JobController_->Initialize();
+}
+
+void TBootstrap::DoRun()
+{
+    auto localRpcAddresses = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+
+    YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+        GetValues(localRpcAddresses),
+        Config_->ClusterConnection->PrimaryMaster->Addresses,
+        Config_->Tags);
+
+    // Force start node directory synchronizer.
+    MasterConnection_->GetNodeDirectorySynchronizer()->Start();
+
+    if (Config_->TabletNode->ResourceLimits->Slots > 0) {
+        // Requesting latest timestamp enables periodic background time synchronization.
+        // For tablet nodes, it is crucial because of non-atomic transactions that require
+        // in-sync time for clients.
+        GetLatestTimestamp();
+    }
+
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    HttpServer_ = NHttp::CreateServer(
+        Config_->MonitoringServer);
+
+    auto skynetHttpConfig = New<NHttp::TServerConfig>();
+    skynetHttpConfig->Port = Config_->SkynetHttpPort;
+    skynetHttpConfig->BindRetryCount = Config_->BusServer->BindRetryCount;
+    skynetHttpConfig->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    SkynetHttpServer_ = NHttp::CreateServer(skynetHttpConfig);
+
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
+
     SetNodeByYPath(
         OrchidRoot_,
         "/config",
@@ -615,19 +655,11 @@ void TBootstrap::DoRun()
         OrchidRoot_,
         GetControlInvoker()));
 
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
-
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-    RpcServer_->Configure(Config_->RpcServer);
 
     // Do not start subsystems until everything is initialized.
-    TabletSlotManager_->Initialize();
-    ChunkStore_->Initialize();
-    ChunkCache_->Initialize();
-    ExecSlotManager_->Initialize();
-    JobController_->Initialize();
     PeerBlockUpdater_->Start();
     PeerBlockDistributor_->Start();
     MasterConnector_->Start();
@@ -640,6 +672,21 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
     HttpServer_->Start();
     SkynetHttpServer_->Start();
+}
+
+void TBootstrap::DoValidateSnapshot(const TString& fileName)
+{
+    auto reader = CreateFileSnapshotReader(
+        fileName,
+        InvalidSegmentId,
+        false /*isRaw*/,
+        std::nullopt /*offset*/,
+        true /*skipHeader*/);
+
+    WaitFor(reader->Open())
+        .ThrowOnError();
+
+    GetTabletSlotManager()->ValidateCellSnapshot(reader);
 }
 
 const TCellNodeConfigPtr& TBootstrap::GetConfig() const
