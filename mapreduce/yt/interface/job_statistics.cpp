@@ -2,8 +2,8 @@
 
 #include "operation.h"
 
-#include <mapreduce/yt/node/node.h>
-#include <mapreduce/yt/node/serialize.h>
+#include <library/yson/node/node.h>
+#include <library/yson/node/serialize.h>
 
 #include <library/yson/writer.h>
 

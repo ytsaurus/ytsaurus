@@ -3,8 +3,8 @@
 #include "common.h"
 #include "serialize.h"
 
-#include <mapreduce/yt/node/serialize.h>
-#include <mapreduce/yt/node/node_builder.h>
+#include <library/yson/node/serialize.h>
+#include <library/yson/node/node_builder.h>
 
 #include <library/yson/consumer.h>
 #include <library/yson/writer.h>

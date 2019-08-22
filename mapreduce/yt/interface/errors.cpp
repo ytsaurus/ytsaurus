@@ -1,7 +1,7 @@
 #include "errors.h"
 
-#include <mapreduce/yt/node/node_io.h>
-#include <mapreduce/yt/node/node_visitor.h>
+#include <library/yson/node/node_io.h>
+#include <library/yson/node/node_visitor.h>
 
 #include <mapreduce/yt/interface/error_codes.h>
 

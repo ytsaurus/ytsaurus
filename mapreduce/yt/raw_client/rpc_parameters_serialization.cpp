@@ -6,9 +6,9 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <mapreduce/yt/node/node.h>
-#include <mapreduce/yt/node/node_io.h>
-#include <mapreduce/yt/node/node_builder.h>
+#include <library/yson/node/node.h>
+#include <library/yson/node/node_io.h>
+#include <library/yson/node/node_builder.h>
 
 #include <util/generic/guid.h>
 #include <util/string/cast.h>

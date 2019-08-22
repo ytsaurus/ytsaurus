@@ -15,7 +15,7 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
-#include <mapreduce/yt/node/node_io.h>
+#include <library/yson/node/node_io.h>
 
 #include <library/unittest/registar.h>
 
