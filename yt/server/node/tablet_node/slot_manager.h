@@ -93,6 +93,9 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    //! Creates and configures a fake tablet slot and validates the tablet cell snapshot.
+    void ValidateCellSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
+
     DECLARE_SIGNAL(void(), BeginSlotScan);
     DECLARE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
     DECLARE_SIGNAL(void(), EndSlotScan);

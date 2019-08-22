@@ -42,7 +42,8 @@ ISnapshotReaderPtr CreateFileSnapshotReader(
     const TString& fileName,
     int snapshotId,
     bool raw,
-    i64 offset = -1);
+    std::optional<i64> offset = std::nullopt,
+    bool skipHeader = false);
 
 ISnapshotWriterPtr CreateFileSnapshotWriter(
     const TString& fileName,

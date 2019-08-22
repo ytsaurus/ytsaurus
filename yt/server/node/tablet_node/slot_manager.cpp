@@ -1,3 +1,4 @@
+#include "automaton.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "tablet.h"
@@ -15,6 +16,7 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/tablet_client/config.h>
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -34,8 +36,10 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NTabletClient::NProto;
+using namespace NTabletClient;
 using namespace NDataNode;
 using namespace NHydra;
 
@@ -338,6 +342,58 @@ public:
         return OrchidService_;
     }
 
+    void ValidateCellSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+    {
+        if (Slots().empty()) {
+            THROW_ERROR_EXCEPTION("No tablet slots in node config");
+        }
+
+        // We create fake tablet slot here populating descriptors with the least amount
+        // of data such that configuration succeeds.
+        {
+            TTabletCellOptions options;
+            options.SnapshotAccount = "a";
+            options.ChangelogAccount = "a";
+
+            NTabletClient::NProto::TCreateTabletSlotInfo protoInfo;
+            ToProto(protoInfo.mutable_cell_id(), TGuid{});
+            protoInfo.set_peer_id(0);
+            protoInfo.set_options(ConvertToYsonString(options).GetData());
+            protoInfo.set_tablet_cell_bundle("b");
+
+            CreateSlot(protoInfo);
+        }
+
+        {
+            TCellDescriptor cellDescriptor;
+            cellDescriptor.CellId = TGuid{};
+            cellDescriptor.ConfigVersion = 0;
+            TCellPeerDescriptor peerDescriptor;
+            peerDescriptor.SetVoting(true);
+            cellDescriptor.Peers = {peerDescriptor};
+            // Object type should match EObjectType::Transaction, which is 1.
+            TGuid prerequisiteTransactionId(1, 1, 1, 1);
+
+            NTabletClient::NProto::TConfigureTabletSlotInfo protoInfo;
+            ToProto(protoInfo.mutable_cell_descriptor(), cellDescriptor);
+            ToProto(protoInfo.mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
+
+            const auto& slot = Slots()[0];
+            YT_VERIFY(slot);
+            ConfigureSlot(slot, protoInfo);
+        }
+
+        const auto& slot = Slots()[0];
+        BIND([&] {
+            const auto& hydraManager = slot->GetHydraManager();
+            hydraManager->ValidateSnapshot(reader);
+        })
+            .AsyncVia(slot->GetAutomatonInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
 
     DEFINE_SIGNAL(void(), BeginSlotScan);
     DEFINE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
@@ -573,6 +629,11 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 IYPathServicePtr TSlotManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+void TSlotManager::ValidateCellSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader)
+{
+    Impl_->ValidateCellSnapshot(reader);
 }
 
 DELEGATE_SIGNAL(TSlotManager, void(), BeginSlotScan, *Impl_);

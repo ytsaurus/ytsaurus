@@ -30,12 +30,19 @@ public:
         : TProgramPdeathsigMixin(Opts_)
         , TProgramToolMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
-    { }
+    {
+        Opts_
+            .AddLongOption("validate-snapshot")
+            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
+            .RequiredArgument("SNAPSHOT");
+    }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
         TThread::CurrentThreadSetName("NodeMain");
+
+        bool validateSnapshot = parseResult.Has("validate-snapshot");
 
         ConfigureUids();
         ConfigureSignals();
@@ -70,8 +77,17 @@ protected:
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellNode::TBootstrap(std::move(config), std::move(configNode));
-        bootstrap->Run();
+        bootstrap->Initialize();
+
+        if (validateSnapshot) {
+            bootstrap->ValidateSnapshot(ValidateSnapshot_);
+        } else {
+            bootstrap->Run();
+        }
     }
+
+private:
+    TString ValidateSnapshot_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

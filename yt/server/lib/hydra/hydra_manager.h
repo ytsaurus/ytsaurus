@@ -133,6 +133,12 @@ struct IHydraManager
      */
     virtual TFuture<int> BuildSnapshot(bool setReadOnly) = 0;
 
+    //! Loads a snapshot in a dry-run mode.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
+
     //! Returns the callback for producing the monitoring info.
     /*!
      *  \note Thread affinity: any

@@ -120,7 +120,9 @@ public:
 
     NTransactionClient::TTimestamp GetLatestTimestamp() const;
 
+    void Initialize();
     void Run();
+    void ValidateSnapshot(const TString& fileName);
 
 private:
     const TCellNodeConfigPtr Config_;
@@ -205,7 +207,9 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor_;
 
+    void DoInitialize();
     void DoRun();
+    void DoValidateSnapshot(const TString& fileName);
     void PopulateAlerts(std::vector<TError>* alerts);
 
     void OnMasterConnected();
