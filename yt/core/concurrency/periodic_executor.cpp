@@ -241,7 +241,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
 void TPeriodicExecutor::OnCallbackFailure()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    
+
     if (!Started_) {
         return;
     }

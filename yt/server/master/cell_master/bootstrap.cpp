@@ -3,6 +3,7 @@
 #include "annotation_setter.h"
 #include "config.h"
 #include "config_manager.h"
+#include "epoch_history_manager.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
 #include "multicell_manager.h"
@@ -38,6 +39,7 @@
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/server/master/node_tracker_server/node_tracker_service.h>
 
+#include <yt/server/master/object_server/cypress_integration.h>
 #include <yt/server/master/object_server/object_manager.h>
 #include <yt/server/master/object_server/object_service.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
@@ -294,6 +296,11 @@ const THydraFacadePtr& TBootstrap::GetHydraFacade() const
     return HydraFacade_;
 }
 
+const TEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
+{
+    return EpochHistoryManager_;
+}
+
 const TWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
@@ -542,6 +549,8 @@ void TBootstrap::DoInitialize()
 
     ConfigManager_ = New<TConfigManager>(this);
 
+    EpochHistoryManager_ = New<TEpochHistoryManager>(this);
+
     MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
@@ -675,6 +684,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
+
+    CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 

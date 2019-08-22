@@ -86,6 +86,7 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
     ((MorePortalAttributes)                                          (905))  // babenko
+    ((YT_10855_EpochHistoryManager)                                  (906))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -159,10 +159,28 @@ public:
 
     TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
+
     TCellMasterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicCellMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration MutationTimeCommitPeriod;
+
+    TDynamicCellMasterConfig()
+    {
+        RegisterParameter("mutation_time_commit_period", MutationTimeCommitPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,6 +197,7 @@ public:
     NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
     TDynamicMulticellManagerConfigPtr MulticellManager;
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
+    TDynamicCellMasterConfigPtr CellMaster;
 
 
     TDynamicClusterConfig();
