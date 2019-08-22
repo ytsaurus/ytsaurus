@@ -53,6 +53,7 @@ public:
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,
@@ -83,6 +84,14 @@ public:
     virtual TError CheckOverflow() const override;
 
 private:
+    struct TBoundaryDescriptor
+    {
+        TOwningKey Key;
+        int Type;
+        int DescriptorIndex;
+        i64 DataSize;
+    };
+
     const int KeyColumnCount_;
 
     TSortedDynamicStorePtr ActiveStore_;
@@ -128,6 +137,14 @@ private:
         IStorePtr store,
         TSortedDynamicRow row,
         int lockIndex);
+
+    // COMPAT(akozhikhov)
+    void BuildPivotKeysBeforeGiantTabletProblem(
+        std::vector<TOwningKey>* pivotKeys,
+        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
+    void BuildPivotKeys(
+        std::vector<TOwningKey>* pivotKeys,
+        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)
