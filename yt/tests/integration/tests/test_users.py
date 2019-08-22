@@ -331,7 +331,7 @@ class TestUsers(YTEnvSetup):
         wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
 
 
-class TestNewBuiltinUsers(YTEnvSetup):
+class TestBuiltinTabletSystemUsers(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
