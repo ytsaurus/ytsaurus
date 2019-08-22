@@ -2445,21 +2445,23 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         return other_nodes
 
-    def _create_spec(self):
-        return {
+    def _create_spec(self, use_max_share_ratios=True):
+        spec = {
             "pool_trees": ["default", "other"],
             "scheduling_options_per_pool_tree": {
                 "default": {
-                    "max_share_ratio": 0.5,
                     "min_share_ratio": 0.37
                 },
                 "other": {
-                    "max_share_ratio": 2.0 / 3,
                     "pool": "superpool"
                 }
             },
             "data_size_per_job": 1
         }
+        if use_max_share_ratios:
+            spec["scheduling_options_per_pool_tree"]["default"]["max_share_ratio"] = 0.5
+            spec["scheduling_options_per_pool_tree"]["other"]["max_share_ratio"] = 2.0 / 3
+        return spec
 
     def _patch_spec_for_tentativeness(self, spec):
         spec["pool_trees"].remove("other")
@@ -2512,7 +2514,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
     @authors("shakurov")
     def test_tentative_pool_tree_sampling(self):
         other_nodes = self._prepare_pool_trees()
-        spec = self._create_spec()
+        spec = self._create_spec(use_max_share_ratios=False)
         self._patch_spec_for_tentativeness(spec)
 
         create("table", "//tmp/t_in")
