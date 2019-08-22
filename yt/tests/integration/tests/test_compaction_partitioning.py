@@ -70,13 +70,14 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         # Creating two chunks with @eden=%false:
         # - [1]
         # - [1;1]
-        # Three partitions should be created upon mount.
+        # Two partitions should be created upon mount.
         sync_create_cells(1)
         schema = [
             {"name": "k1", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "int64"},
         ]
         self._create_simple_table("//tmp/t", schema=schema)
+        set("//tmp/t/@min_partition_data_size", 1)
 
         # Create [1] chunk.
         sync_mount_table("//tmp/t")
@@ -107,7 +108,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[]])
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
-        assert get("//tmp/t/@tablet_statistics/partition_count") == 3
+        assert get("//tmp/t/@tablet_statistics/partition_count") == 2
 
         expected = [
             {"k1": 1L, "k2": yson.YsonEntity(), "value": yson.YsonEntity()},
@@ -168,6 +169,35 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                    len(tablet_data["partitions"]) == 1 and \
                    len(tablet_data["partitions"][0]["stores"]) == 1
         wait(lambda: check())
+
+    @authors("akozhikhov")
+    def test_small_chunks_partition_scenario(self):
+        # Create three chunks and check number of partitions
+        sync_create_cells(1)
+        schema = make_schema(
+            [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ],
+            unique_keys=True)
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        for key in range(3):
+            write_table("<append=%true>//tmp/t", [{"k1": key}])
+
+        alter_table("//tmp/t", dynamic=True)
+
+        def _check(expected_partitions):
+            sync_mount_table("//tmp/t")
+            wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
+            assert get("//tmp/t/@tablet_statistics/partition_count") == expected_partitions
+            sync_unmount_table("//tmp/t")
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        _check(expected_partitions=1)
+        set("//tmp/t/@min_partition_data_size", 1)
+        _check(expected_partitions=3)
+
 
 ################################################################################
 

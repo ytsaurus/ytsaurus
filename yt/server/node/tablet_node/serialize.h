@@ -19,6 +19,7 @@ DEFINE_ENUM(ETabletReign,
     ((SerializeChunkReadRange)       (100011)) // ifsmirnov
     ((SafeReplicatedLogSchema)       (100012)) // savrus
     ((BulkInsert)                    (100013)) // savrus
+    ((GiantTabletProblem)            (100014)) // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
