@@ -59,6 +59,7 @@ template <class TObject>
 template <class T>
 TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NYTree::TInternedAttributeKey key)
 {
+    // XXX(babenko): check IsPrimaryMaster
     YT_ASSERT(Bootstrap_->IsPrimaryMaster());
 
     const auto* object = GetThisImpl();
