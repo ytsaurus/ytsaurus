@@ -916,7 +916,7 @@ private:
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
-            TOperationRuntimeParametersPtr runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            auto runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             if (spec->AddAuthenticatedUserToAcl) {
                 TSerializableAccessControlEntry ace(
                     ESecurityAction::Allow,
