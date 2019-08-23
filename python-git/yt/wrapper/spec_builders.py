@@ -455,9 +455,6 @@ class UserJobSpecBuilder(object):
         binary = prepare_result.cmd
         title = prepare_result.title
 
-        environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
-            str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
-
         if local_files_to_remove is not None:
             local_files_to_remove += prepare_result.local_files_to_remove
         if uploaded_files is not None:
@@ -888,6 +885,16 @@ class SpecBuilder(object):
     def _apply_spec_defaults(self, spec, client=None):
         return update(get_config(client)["spec_defaults"], spec)
 
+    def _apply_environment_patch(self, task_spec, client=None):
+        config = get_config(client)
+        patch = dict(
+            YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB=str(int(config["allow_http_requests_to_yt_from_job"]))
+        )
+        if "environment" in task_spec:
+            task_spec["environment"].update(patch)
+        else:
+            task_spec["environment"] = patch
+
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
 
@@ -912,11 +919,17 @@ class SpecBuilder(object):
     def prepare(self, client=None):
         pass
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
 
         spec = self._apply_spec_defaults(self._prepared_spec, client=client)
+        return spec
+
+    def build(self, client=None):
+        spec = self._do_build(client)
+        for task_spec in spec.get("tasks", {}).values():
+            self._apply_environment_patch(task_spec, client)
         return spec
 
     def supports_user_job_spec(self):
@@ -1009,7 +1022,7 @@ class ReduceSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1087,7 +1100,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         spec["join_by"] = _prepare_join_by(spec.get("join_by"))
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1157,7 +1170,7 @@ class MapSpecBuilder(SpecBuilder):
         self._prepare_tables(spec, client=client)
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1313,7 +1326,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1663,7 +1676,7 @@ class VanillaSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec

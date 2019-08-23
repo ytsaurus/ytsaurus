@@ -404,3 +404,29 @@ class TestSpecBuilders(object):
         }
 
         assert update(result_spec, correct_spec) == result_spec
+
+    def test_vanilla_raw_spec_builder(self):
+        with set_config_option("allow_http_requests_to_yt_from_job", True):
+            spec_builder = VanillaSpecBuilder().spec({
+                "tasks": {
+                    "script": {
+                        "command": "cat",
+                        "job_count": 1,
+                    }
+                }
+            })
+            result_spec = spec_builder.build()
+
+        correct_spec = {
+            "tasks": {
+                "script": {
+                    "command": "cat",
+                    "job_count": 1,
+                    "environment": {
+                        "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1",
+                    }
+                }
+            }
+        }
+
+        assert update(result_spec, correct_spec) == result_spec
