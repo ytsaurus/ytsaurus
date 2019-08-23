@@ -1441,12 +1441,6 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
         .Default(false);
     RegisterParameter("tentative", Tentative)
         .Default(false);
-
-    RegisterPostprocessor([&] {
-        if (Tentative) {
-            THROW_ERROR_EXCEPTION("Parameter \"tentative\" cannot be manually specified in runtime paramters");
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
