@@ -75,9 +75,10 @@ def main():
         set_suid(ya_build)
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = "{python}:{yp_python}:{install_dir}:{env_pythonpath}".format(
+    env["PYTHONPATH"] = "{python}:{yp_python}:{contrib_libs_protobuf_python}:{install_dir}:{env_pythonpath}".format(
         python=os.path.join(repo_root, "python"),
         yp_python=os.path.join(repo_root, "yp", "python"),
+        contrib_libs_protobuf_python=os.path.join(repo_root, "contrib", "libs", "protobuf", "python"),
         install_dir=ya_build,
         env_pythonpath=os.environ.get("PYTHONPATH", ""))
 
