@@ -245,6 +245,7 @@ class TDefaultSecretVaultServiceConfig
 public:
     TString Host;
     int Port;
+    bool Secure;
     NHttps::TClientConfigPtr HttpClient;
     TDuration RequestTimeout;
     TString VaultServiceId;
@@ -255,6 +256,8 @@ public:
             .Default("vault-api.passport.yandex.net");
         RegisterParameter("port", Port)
             .Default(443);
+        RegisterParameter("secure", Secure)
+            .Default(true);
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
         RegisterParameter("request_timeout", RequestTimeout)

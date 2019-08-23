@@ -67,6 +67,7 @@ DEFINE_ENUM(ESecretVaultErrorCode,
     ((NonexistentEntityError) (18002))
     ((DelegationAccessError)  (18003))
     ((DelegationTokenRevoked) (18004))
+    ((UnexpectedStatus)       (18005))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
