@@ -63,15 +63,28 @@ protected:
     TFieldCopier<R, W> FieldCopier;
 };
 
+// fields before first empty-named
+TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields);
+
+// (all) emtpy-named field(s) removed
+TKeyColumns GetSortByFields(const TKeyColumns& reduceFields);
+
 template<class R, class W>
 TMapReduceOperationSpec PrepareMRSpec(
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
     const TKeyColumns& reduceFields)
 {
+    // empty-name element separates ReduceBy fields from the rest of SortBy fields
+    bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), "") != reduceFields.Parts_.end();
+
     auto spec = TMapReduceOperationSpec()
         .template AddOutput<W>(MaybeWithSchema<W>(to))
-        .ReduceBy(reduceFields);
+        .ReduceBy(hasDelim ? GetReduceByFields(reduceFields) : reduceFields);
+
+    if (hasDelim) {
+        spec.SortBy(GetSortByFields(reduceFields));
+    }
 
     for (auto& input : from.Parts_) {
         spec.template AddInput<R>(input);
@@ -285,10 +298,10 @@ bool TLambdaReducer<R, W>::Registrator = NDetail::RegisterReducerStatic<TLambdaR
 
 template <class R, class TBuf, class W>
 class TLambdaBufReducer : public NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W,
-        std::pair<void (*)(const R&, TBuf&), void (*)(const TBuf&, W&)>> {
+        std::pair<void (*)(const R&, TBuf&), bool (*)(const TBuf&, W&)>> {
 public:
     using TReduce = void (*)(const R&, TBuf&);
-    using TFinalize = void (*)(const TBuf&, W&);
+    using TFinalize = bool (*)(const TBuf&, W&);
     using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
 
     TLambdaBufReducer() { }
@@ -309,8 +322,9 @@ public:
             TBase::Func.first(curRow, interim);
         }
 
-        TBase::Func.second(interim, writeBuf);
-        writer->AddRow(writeBuf);
+        if (TBase::Func.second(interim, writeBuf)) {
+            writer->AddRow(writeBuf);
+        }
     }
 
     static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns& reduceColumns) {
@@ -341,10 +355,10 @@ bool TLambdaBufReducer<R, TBuf, W>::Registrator = NDetail::RegisterReducerStatic
 
 template <class R, class W>
 class TAdditiveLambdaBufReducer : public NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W,
-        std::pair<void (*)(const R&, R&), void (*)(const R&, W&)>> {
+        std::pair<void (*)(const R&, R&), bool (*)(const R&, W&)>> {
 public:
     using TReduce = void (*)(const R&, R&);
-    using TFinalize = void (*)(const R&, W&);
+    using TFinalize = bool (*)(const R&, W&);
     using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
 
     TAdditiveLambdaBufReducer() { }
@@ -366,8 +380,9 @@ public:
 
         W writeBuf;
         TBase::FieldCopier(interim, writeBuf);
-        TBase::Func.second(interim, writeBuf);
-        writer->AddRow(writeBuf);
+        if (TBase::Func.second(interim, writeBuf)) {
+            writer->AddRow(writeBuf);
+        }
     }
 
     static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns&) {
