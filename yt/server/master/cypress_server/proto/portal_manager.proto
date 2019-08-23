@@ -16,6 +16,7 @@ message TReqCreatePortalExit
     required bytes acl = 6;
     required NYT.NProto.TGuid parent_id = 7;
     optional string key = 8;
+    required string annotation = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

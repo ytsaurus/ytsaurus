@@ -138,6 +138,8 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
+    void ValidateAnnotation(const TString& annotation);
+
     bool IsRecovery() const;
     bool IsLeader() const;
     bool IsFollower() const;

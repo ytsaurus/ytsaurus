@@ -961,6 +961,14 @@ public:
         return acd;
     }
 
+    std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
+    {
+        while (node && !node->GetAnnotation()) {
+            node = node->GetParent();
+        }
+        return node? node->GetAnnotation() : std::nullopt;
+    }
+
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
     {
         TAccessControlList result;
@@ -3199,6 +3207,11 @@ TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
 TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
 {
     return Impl_->GetEffectiveAcl(object);
+}
+
+std::optional<TString> TSecurityManager::GetEffectiveAnnotation(TCypressNode* node)
+{
+    return Impl_->GetEffectiveAnnotation(node);
 }
 
 void TSecurityManager::SetAuthenticatedUser(TUser* user)

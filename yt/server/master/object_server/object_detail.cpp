@@ -62,6 +62,8 @@
 #include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
+#include <util/string/ascii.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NRpc;
@@ -756,6 +758,23 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
     securityManager->ValidatePermission(object, user, permission);
+}
+
+void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+{
+    if (annotation.size() > MaxAnnotationLength) {
+        THROW_ERROR_EXCEPTION("Annotation is too long")
+            << TErrorAttribute("annotation_length", annotation.size())
+            << TErrorAttribute("maximum_annotation_length", MaxAnnotationLength);
+    }
+
+    auto isAsciiText = [] (char c) {
+        return IsAsciiAlnum(c) || IsAsciiSpace(c) || IsAsciiPunct(c);
+    };
+
+    if (!AllOf(annotation.begin(), annotation.end(), isAsciiText)) {
+        THROW_ERROR_EXCEPTION("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations");
+    }
 }
 
 bool TObjectProxyBase::IsRecovery() const

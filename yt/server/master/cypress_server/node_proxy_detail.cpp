@@ -456,6 +456,16 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return attributeUpdated;
         }
 
+        case EInternedAttributeKey::Annotation: {
+            auto annotation = ConvertTo<std::optional<TString>>(value);
+            if (annotation) {
+                ValidateAnnotation(*annotation);
+            }
+            auto* lockedNode = LockThisImpl();
+            lockedNode->SetAnnotation(annotation);
+            return true;
+        }
+
         default:
             break;
     }
@@ -549,13 +559,19 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardId)
         .SetPresent(node->GetTrunkNode()->GetShard() != nullptr));
     descriptors->push_back(EInternedAttributeKey::ResolveCached);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotation)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AnnotationPath)
+        .SetOpaque(true));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     TInternedAttributeKey key,
     IYsonConsumer* consumer)
 {
-    const auto* node = GetThisImpl();
+    auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
     bool isExternal = node->IsExternal();
 
@@ -710,6 +726,31 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetTrunkNode()->GetResolveCacheNode().operator bool());
             return true;
+
+        case EInternedAttributeKey::Annotation: {
+            const auto* annotationNode = FindClosestAncestorWithAnnotation(node);
+            if (annotationNode) {
+                BuildYsonFluently(consumer)
+                    .Value(*annotationNode->GetAnnotation());
+            } else {
+                BuildYsonFluently(consumer)
+                    .Entity();
+            }
+            return true;
+        }
+
+        case EInternedAttributeKey::AnnotationPath: {
+            auto* annotationNode = FindClosestAncestorWithAnnotation(node);
+            if (annotationNode) {
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+                BuildYsonFluently(consumer)
+                    .Value(cypressManager->GetNodePath(annotationNode, GetTransaction()));
+            } else {
+                BuildYsonFluently(consumer)
+                    .Entity();
+            }
+            return true;
+        }
 
         default:
             break;
@@ -1988,6 +2029,19 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 
     switch (key) {
 
+        case EInternedAttributeKey::Annotation: {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+
+            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
+                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
+            }
+
+            auto* lockedNode = LockThisImpl();
+            lockedNode->SetAnnotation(std::nullopt);
+            return true;
+        }
+
 #define XX(camelCaseName, snakeCaseName) \
         case EInternedAttributeKey::camelCaseName: \
             ValidateNoTransaction(); \
@@ -2021,6 +2075,16 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
     }
 
     return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
+}
+
+// May return nullptr if there are no annotations available.
+TCypressNode* TNontemplateCypressNodeProxyBase::FindClosestAncestorWithAnnotation(TCypressNode* node)
+{
+    auto* result = node;
+    while (result && !result->GetAnnotation()) {
+        result = result->GetParent();
+    }
+    return result;
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const

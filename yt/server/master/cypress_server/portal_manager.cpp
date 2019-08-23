@@ -79,10 +79,13 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(node);
+        const auto& effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
 
         // Turn off ACL inheritance, replace ACL with effective ACL.
         node->Acd().SetEntries(effectiveAcl);
         node->Acd().SetInherit(false);
+
+        node->SetAnnotation(effectiveAnnotation);
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), node->GetId());
@@ -99,6 +102,8 @@ public:
         if (optionalKey) {
             request.set_key(*optionalKey);
         }
+
+        request.set_annotation(effectiveAnnotation.value_or(""));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, node->GetExitCellTag());
@@ -197,6 +202,7 @@ private:
 
         auto entranceNodeId = FromProto<TObjectId>(request->entrance_node_id());
         auto accountId = FromProto<TAccountId>(request->account_id());
+        const auto& annotation = FromProto<TString>(request->annotation());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccount(accountId);
@@ -241,6 +247,7 @@ private:
         node->Acd().SetInherit(false);
         node->Acd().SetEntries(acl);
 
+        node->SetAnnotation(annotation);
         node->SetPath(path);
 
         shard->SetName(SuggestCypressShardName(shard));
