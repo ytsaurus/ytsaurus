@@ -2,7 +2,7 @@
 
 #include <yt/core/crypto/crypto.h>
 
-#include <util/string/quote.h>
+#include <library/string_utils/quote/quote.h>
 #include <util/string/url.h>
 
 namespace NYT::NAuth {
