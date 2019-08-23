@@ -19,6 +19,8 @@
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
+#include <yt/core/ypath/tokenizer.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -33,6 +35,28 @@ using namespace NSecurityClient;
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+{
+    NYPath::TTokenizer tokenizer(path);
+    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+        return false;
+    }
+
+    auto token = tokenizer.GetToken();
+    if (!token.StartsWith(ObjectIdPathPrefix)) {
+        return false;
+    }
+
+    *objectId = TObjectId::FromString(token.SubString(
+        ObjectIdPathPrefix.length(),
+        token.length() - ObjectIdPathPrefix.length()));
+    return true;
+}
+
+} // namespace
 
 TYsonString TClient::DoGetNode(
     const TYPath& path,
