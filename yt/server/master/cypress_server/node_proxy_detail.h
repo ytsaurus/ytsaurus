@@ -92,6 +92,8 @@ protected:
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
+    virtual TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
+
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;

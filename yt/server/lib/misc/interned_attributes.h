@@ -15,6 +15,8 @@
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
+    XX(Annotation, annotation) \
+    XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \

@@ -131,6 +131,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, node->GetTotalResourceUsage());
     Save(*context, node->Acd());
     Save(*context, node->GetOpaque());
+    Save(*context, node->GetAnnotation());
     Save(*context, node->GetCreationTime());
     Save(*context, node->GetModificationTime());
     Save(*context, node->TryGetExpirationTime());
@@ -229,6 +230,10 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     auto opaque = Load<bool>(*context);
     trunkNode->SetOpaque(opaque);
 
+    // Copy annotation.
+    auto annotation = Load<std::optional<TString>>(*context);
+    trunkNode->SetAnnotation(annotation);
+
     // Copy creation time.
     auto creationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveCreationTime()) {
@@ -283,6 +288,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
+    branchedNode->SetAnnotation(originatingNode->GetAnnotation());
     if (originatingNode->IsForeign()) {
         branchedNode->SetForeign();
     }
@@ -306,6 +312,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingNode, branchedNode);
+    originatingNode->SetAnnotation(branchedNode->GetAnnotation());
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
@@ -368,6 +375,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy builtin attributes.
     clonedTrunkNode->SetOpaque(sourceNode->GetOpaque());
+    clonedTrunkNode->SetAnnotation(sourceNode->GetAnnotation());
     if (mode == ENodeCloneMode::Move) {
         clonedTrunkNode->SetCreationTime(sourceNode->GetCreationTime());
     }
