@@ -374,6 +374,15 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         with pytest.raises(YtError):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
+    @authors("dakovalkov")
+    def test_restart_completed_jobs(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), task_patch={"restart_completed_jobs": True})
+        jobs = wait_breakpoint()
+        release_breakpoint()
+        wait(lambda: op.get_job_count("completed") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
+        op.abort()
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

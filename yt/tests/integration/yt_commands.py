@@ -5,7 +5,7 @@ from yt.environment import arcadia_interop
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-from yt.common import YtError, YtResponseError, flatten, update_inplace
+from yt.common import YtError, YtResponseError, flatten, update_inplace, update
 
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
@@ -1122,13 +1122,10 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, **kwargs):
+def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, task_patch=None, **kwargs):
     spec = spec or {}
     spec["tasks"] = {
-        "task": {
-            "job_count": job_count,
-            "command": command
-        },
+        "task": update({"job_count": job_count, "command": command}, task_patch)
     }
     return vanilla(spec=spec, dont_track=dont_track, **kwargs)
 

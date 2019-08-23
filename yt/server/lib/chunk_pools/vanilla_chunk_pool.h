@@ -6,8 +6,16 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TVanillaChunkPoolOptions
+{
+    int JobCount;
+    bool RestartCompletedJobs;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NB: Vanilla chunk pool implements only IChunkPoolOutput.
-std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(int jobCount);
+std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

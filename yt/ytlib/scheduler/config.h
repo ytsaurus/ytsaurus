@@ -694,6 +694,8 @@ public:
 
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
+    bool RestartCompletedJobs;
+
     TVanillaTaskSpec();
 };
 
