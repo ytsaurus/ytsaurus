@@ -293,7 +293,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("intermediate_data_replication_factor", IntermediateDataReplicationFactor)
-        .Default(1);
+        .Default(2);
     RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
 
