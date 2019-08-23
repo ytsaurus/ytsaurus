@@ -235,8 +235,8 @@ struct TClient::TCountingFilter
 {
     THashMap<TString, i64> PoolCounts;
     THashMap<TString, i64> UserCounts;
-    TEnumIndexedVector<i64, NScheduler::EOperationState> StateCounts;
-    TEnumIndexedVector<i64, NScheduler::EOperationType> TypeCounts;
+    TEnumIndexedVector<NScheduler::EOperationState, i64> StateCounts;
+    TEnumIndexedVector<NScheduler::EOperationType, i64> TypeCounts;
     i64 FailedJobsCount = 0;
 
     const TListOperationsOptions& Options;
