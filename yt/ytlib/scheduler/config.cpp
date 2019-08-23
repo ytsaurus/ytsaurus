@@ -674,6 +674,8 @@ TVanillaTaskSpec::TVanillaTaskSpec()
         .DefaultNew();
     RegisterParameter("output_table_paths", OutputTablePaths)
         .Default();
+    RegisterParameter("restart_completed_jobs", RestartCompletedJobs)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
