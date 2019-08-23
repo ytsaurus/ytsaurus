@@ -724,6 +724,7 @@ private:
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         NYTree::EPermissionSet permissions);
 
+    // Operations
     NScheduler::TOperationId DoStartOperation(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
@@ -985,8 +986,6 @@ private:
 
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options);
-
-    static bool TryParseObjectId(const NYPath::TYPath& path, NObjectClient::TObjectId* objectId);
 
 };
 
