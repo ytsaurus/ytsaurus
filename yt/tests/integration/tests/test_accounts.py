@@ -266,7 +266,7 @@ class TestAccounts(YTEnvSetup):
     def test_table2(self):
         create("table", "//tmp/t")
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         for i in xrange(0, 5):
             write_table("//tmp/t", {"a" : "b"}, tx=tx)
 
@@ -297,7 +297,7 @@ class TestAccounts(YTEnvSetup):
         space1 = get_account_disk_space("tmp")
         assert space1 > 0
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         write_table("//tmp/t", {"xxxx" : "yyyy"}, tx=tx)
 
         self._replicator_sleep()
@@ -315,7 +315,7 @@ class TestAccounts(YTEnvSetup):
 
     @authors("babenko")
     def test_table4(self):
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         create("table", "//tmp/t", tx=tx)
         write_table("//tmp/t", {"a" : "b"}, tx=tx)
 
@@ -367,7 +367,7 @@ class TestAccounts(YTEnvSetup):
     def test_table6(self):
         create("table", "//tmp/t")
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         write_table("//tmp/t", {"a" : "b"}, tx=tx)
 
         self._replicator_sleep()
@@ -375,7 +375,7 @@ class TestAccounts(YTEnvSetup):
         assert space > 0
         assert get_account_disk_space("tmp") == space
 
-        tx2 = start_transaction(tx=tx)
+        tx2 = start_transaction(tx=tx, timeout=60000)
 
         self._replicator_sleep()
         assert get_chunk_owner_disk_space("//tmp/t", tx=tx2) == space
@@ -658,7 +658,7 @@ class TestAccounts(YTEnvSetup):
         assert space > 0
         assert get_account_committed_disk_space("tmp") == space
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
 
         self._replicator_sleep()
@@ -678,8 +678,8 @@ class TestAccounts(YTEnvSetup):
         self._replicator_sleep()
         assert self._get_account_chunk_count("tmp") == 2
 
-        tx1 = start_transaction()
-        tx2 = start_transaction(tx=tx1)
+        tx1 = start_transaction(timeout=60000)
+        tx2 = start_transaction(tx=tx1, timeout=60000)
 
         write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx2)
 
@@ -816,7 +816,7 @@ class TestAccounts(YTEnvSetup):
 
         # 4) Basic transaction accounting - committing.
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         create("table", "//tmp/a/t3")
         committed_resource_usage = deepcopy(resource_usage)
         committed_resource_usage["node_count"] += 1
@@ -854,7 +854,7 @@ class TestAccounts(YTEnvSetup):
 
         # 6) Transaction accounting - aborting.
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         create("table", "//tmp/a/t4")
         committed_resource_usage = deepcopy(resource_usage)
         committed_resource_usage["node_count"] += 1
