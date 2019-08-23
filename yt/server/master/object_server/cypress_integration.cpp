@@ -118,6 +118,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing object id %v", key);
         }
 
+        // XXX(babenko): check IsPrimaryMaster
         if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
             return New<TRemoteService>(Bootstrap_, objectId);
         } else {

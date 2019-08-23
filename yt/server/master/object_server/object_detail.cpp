@@ -370,6 +370,7 @@ void TObjectProxyBase::RemoveAttribute(
 
 void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 {
+    // XXX(babenko): check IsPrimaryMaster
     if (!IsPrimaryMaster())
         return;
 
