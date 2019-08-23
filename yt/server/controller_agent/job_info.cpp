@@ -59,6 +59,14 @@ TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& tre
 
 TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
 {
+    // Statistics is always presented in job summary.
+    // Therefore looking at StatisticsYson is the only way to check that
+    // job has actual non-zero statistics received from node.
+    if (!jobSummary.StatisticsYson) {
+        // Return empty delta if job has no statistics.
+        return TJobMetrics();
+    }
+
     const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
         *jobSummary.Statistics,
         jobSummary.State,
