@@ -407,9 +407,9 @@ private:
     const NConcurrency::TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
     const NLogging::TLogger Logger;
 
-    TEnumIndexedVector<THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    TEnumIndexedVector<NRpc::IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
+    TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr> OperationsArchiveChannels_;
     bool AreOperationsArchiveChannelsInitialized_ = false;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
