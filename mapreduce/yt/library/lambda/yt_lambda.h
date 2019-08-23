@@ -97,7 +97,7 @@ void AdditiveReduce(
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const R&, R&),
-    void (*finalizer)(const R&, W&))
+    bool (*finalizer)(const R&, W&))
 {
     auto spec = NDetail::PrepareReduceSpec<R, W>(from, to, reduceFields);
 
@@ -126,7 +126,7 @@ void Reduce(
     const TRichYPath& to,
     const TKeyColumns& reduceFields,
     void (*reducer)(const R&, TReducerData&),
-    void (*finalizer)(const TReducerData&, W&))
+    bool (*finalizer)(const TReducerData&, W&))
 {
     auto spec = NDetail::PrepareReduceSpec<R, W>(from, to, reduceFields);
 
@@ -155,7 +155,7 @@ void AdditiveMapReduce(
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
-    void (*finalizer)(const TCombined&, W&))
+    bool (*finalizer)(const TCombined&, W&))
 {
     auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
@@ -164,7 +164,7 @@ void AdditiveMapReduce(
         mapper ? new TTransformMapper<R, TCombined>(mapper) : nullptr,
         reducer ? new TAdditiveReducer<TCombined>(reducer) : nullptr,
         NDetail::ChooseReducer<TAdditiveLambdaBufReducer<TCombined, W>>(
-            reducer, finalizer, reduceFields));
+            reducer, finalizer, spec.ReduceBy_));
 }
 
 template <class R, class W>
@@ -187,7 +187,7 @@ void AdditiveMapReduceSorted(
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
-    void (*finalizer)(const TCombined&, W&))
+    bool (*finalizer)(const TCombined&, W&))
 {
     auto tx = client->StartTransaction();
     AdditiveMapReduce(tx, from, to, reduceFields, mapper, reducer, finalizer);
@@ -196,7 +196,7 @@ void AdditiveMapReduceSorted(
         TSortOperationSpec()
             .AddInput(to)
             .Output(to)
-            .SortBy(reduceFields));
+            .SortBy(NDetail::GetReduceByFields(reduceFields)));
     tx->Commit();
 }
 
@@ -220,7 +220,7 @@ void MapReduce(
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, TReducerData&),
-    void (*finalizer)(const TReducerData&, W&))
+    bool (*finalizer)(const TReducerData&, W&))
 {
     auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
@@ -228,7 +228,7 @@ void MapReduce(
         spec,
         mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
         NDetail::ChooseReducer<TLambdaBufReducer<TMapped, TReducerData, W>>(
-            reducer, finalizer, reduceFields));
+            reducer, finalizer, spec.ReduceBy_));
 }
 
 template <class R, class TMapped, class W>
@@ -251,7 +251,7 @@ void MapReduceSorted(
     const TKeyColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, TReducerData&),
-    void (*finalizer)(const TReducerData&, W&))
+    bool (*finalizer)(const TReducerData&, W&))
 {
     auto tx = client->StartTransaction();
     MapReduce(tx, from, to, reduceFields, mapper, reducer, finalizer);
@@ -260,7 +260,7 @@ void MapReduceSorted(
         TSortOperationSpec()
             .AddInput(to)
             .Output(to)
-            .SortBy(reduceFields));
+            .SortBy(NDetail::GetReduceByFields(reduceFields)));
     tx->Commit();
 }
 
@@ -286,16 +286,16 @@ void MapReduceCombined(
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
-    void (*finalizer)(const TCombined&, W&))
+    bool (*finalizer)(const TCombined&, W&))
 {
     auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
     client->MapReduce(
         spec,
         mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
-        combiner ? new TLambdaReducer<TMapped, TCombined>(combiner, reduceFields) : nullptr,
+        combiner ? new TLambdaReducer<TMapped, TCombined>(combiner, spec.ReduceBy_) : nullptr,
         NDetail::ChooseReducer<TAdditiveLambdaBufReducer<TCombined, W>>(
-            reducer, finalizer, reduceFields),
+            reducer, finalizer, spec.ReduceBy_),
         TOperationOptions().Spec(TNode()("force_reduce_combiners", true)));
 }
 
@@ -321,7 +321,7 @@ void MapReduceCombinedSorted(
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
-    void (*finalizer)(const TCombined&, W&))
+    bool (*finalizer)(const TCombined&, W&))
 {
     auto tx = client->StartTransaction();
     MapReduceCombined(tx, from, to, reduceFields, mapper, combiner, reducer, finalizer);
@@ -330,7 +330,7 @@ void MapReduceCombinedSorted(
         TSortOperationSpec()
             .AddInput(to)
             .Output(to)
-            .SortBy(reduceFields));
+            .SortBy(NDetail::GetReduceByFields(reduceFields)));
     tx->Commit();
 }
 

@@ -130,6 +130,7 @@ Y_UNIT_TEST_SUITE(Lambda) {
             },
             [](auto& src, auto& dst) { // finalizer
                 dst["inval"] = -(i64)src["val"].AsUint64();
+                return true;
             });
 
         TVector<TNode> expectedOutput = {
@@ -189,6 +190,7 @@ Y_UNIT_TEST_SUITE(Lambda) {
                 double dispersion = (double)src.SumSquared / src.Count - mean * mean;
                 dst["mean"] = mean;
                 dst["sigma"] = std::sqrt(dispersion);
+                return true;
             });
 
         CompareTable(client, "//testing/output", ExpectedOutputStatistics);
@@ -233,6 +235,7 @@ Y_UNIT_TEST_SUITE(Lambda) {
             },
             [](auto& src, auto& dst) { // finalizer
                 dst["Val"] = -(i64)src["Val"].AsUint64();
+                return true;
             });
 
         TVector<TNode> expectedOutput = {
@@ -293,6 +296,7 @@ Y_UNIT_TEST_SUITE(Lambda) {
                 double dispersion = (double)src.SumSquared / src.Count - mean * mean;
                 dst.SetMean(mean);
                 dst.SetSigma(std::sqrt(dispersion));
+                return true;
             });
 
         CompareTable(client, "//testing/output", ExpectedOutputStatistics);
@@ -327,6 +331,7 @@ Y_UNIT_TEST_SUITE(Lambda) {
                 double dispersion = src.GetSumSquared() / src.GetCount() - mean * mean;
                 dst.SetMean(mean);
                 dst.SetSigma(std::sqrt(dispersion));
+                return true;
             });
 
         CompareTable(client, "//testing/output", ExpectedOutputStatistics);
