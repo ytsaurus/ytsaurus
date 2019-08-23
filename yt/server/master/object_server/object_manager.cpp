@@ -771,10 +771,11 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
         GarbageCollector_->RegisterZombie(object);
 
         auto flags = handler->GetFlags();
-        if (Any(flags & ETypeFlags::ReplicateDestroy) &&
+        if (!object->IsForeign() &&
+            Any(flags & ETypeFlags::ReplicateDestroy) &&
             None(flags & ETypeFlags::TwoPhaseRemoval))
         {
-            NProto::    TReqRemoveForeignObject request;
+            NProto::TReqRemoveForeignObject request;
             ToProto(request.mutable_object_id(), object->GetId());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -990,7 +991,9 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
         THROW_ERROR_EXCEPTION("Object is foreign");
     }
 
-    if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval) && Bootstrap_->IsPrimaryMaster()) {
+    if (Bootstrap_->IsPrimaryMaster() &&
+        Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
+    {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             object->GetObjectRefCounter());
