@@ -466,12 +466,24 @@ private:
         CreatedNodes_.push_back(trunkNode);
     }
 
+
+    static TObject* GetTrunkObject(TObject* object)
+    {
+        return object;
+    }
+
+    static TCypressNode* GetTrunkObject(TCypressNode* node)
+    {
+        return node->GetTrunkNode();
+    }
+
     template <class T>
     T* StageObject(T* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(object);
-        StagedObjects_.push_back(object);
+        auto* trunkObject = GetTrunkObject(object);
+        objectManager->RefObject(trunkObject);
+        StagedObjects_.push_back(trunkObject);
         return object;
     }
 
