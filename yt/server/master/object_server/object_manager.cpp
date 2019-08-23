@@ -1670,7 +1670,7 @@ void TObjectManager::TImpl::DoRemoveObject(TObject* object)
         object->GetId());
     if (UnrefObject(object) != 0) {
         YT_LOG_ERROR_UNLESS(IsRecovery(),
-            "Unexpected error: non-zero reference counter for after object removal (ObjectId: %v, RefCounter: %v)",
+            "Unexpected error: non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             object->GetObjectRefCounter());
     }
