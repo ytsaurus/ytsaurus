@@ -16,7 +16,7 @@ message TPrerequisiteRevision
 {
     required string path = 1;
     required NYT.NProto.TGuid transaction_id = 2;
-    required int64 revision = 3;
+    required uint64 revision = 3;
 }
 
 message TPrerequisitesExt

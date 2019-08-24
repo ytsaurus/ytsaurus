@@ -123,7 +123,7 @@ private:
             if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                 WaitFor(RequestTableAttributes(PrimaryRevision_))
                     .ThrowOnError();
-                mountInfoOrError = WaitFor(RequestMountInfo(std::nullopt));
+                mountInfoOrError = WaitFor(RequestMountInfo(NHydra::NullRevision));
             }
 
             if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
@@ -148,18 +148,18 @@ private:
 
         TTableId TableId_;
         TCellTag CellTag_;
-        ui64 PrimaryRevision_ = 0;
-        ui64 SecondaryRevision_ = 0;
+        NHydra::TRevision PrimaryRevision_ = NHydra::NullRevision;
+        NHydra::TRevision SecondaryRevision_ = NHydra::NullRevision;
 
         NLogging::TLogger Logger;
 
-        TFuture<void> RequestTableAttributes(std::optional<i64> refreshPrimaryRevision)
+        TFuture<void> RequestTableAttributes(NHydra::TRevision refreshPrimaryRevision)
         {
             YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
             // COMPAT(akozhikhov)
-            IChannelPtr channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
             if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
                 channel = CreateAuthenticatedChannel(
                     std::move(channel),
@@ -185,8 +185,8 @@ private:
                 auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
                 cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
                 cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshPrimaryRevision) {
-                    cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
+                if (refreshPrimaryRevision != NHydra::NullRevision) {
+                    cachingHeaderExt->set_refresh_revision(refreshPrimaryRevision);
                 }
 
                 size_t hash = 0;
@@ -218,7 +218,7 @@ private:
             }
         }
 
-        TFuture<TTableMountInfoPtr> RequestMountInfo(std::optional<i64> refreshSecondaryRevision)
+        TFuture<TTableMountInfoPtr> RequestMountInfo(NHydra::TRevision refreshSecondaryRevision)
         {
             YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
@@ -246,8 +246,8 @@ private:
                 auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
                 cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
                 cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshSecondaryRevision) {
-                    cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
+                if (refreshSecondaryRevision != NHydra::NullRevision) {
+                    cachingHeaderExt->set_refresh_revision(refreshSecondaryRevision);
                 }
 
                 size_t hash = 0;

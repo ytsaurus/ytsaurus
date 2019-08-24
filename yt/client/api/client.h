@@ -118,7 +118,7 @@ struct TPrerequisiteRevisionConfig
 {
     NYTree::TYPath Path;
     NTransactionClient::TTransactionId TransactionId;
-    ui64 Revision;
+    NHydra::TRevision Revision;
 
     TPrerequisiteRevisionConfig()
     {
@@ -536,7 +536,7 @@ struct TLockNodeResult
 {
     NCypressClient::TLockId LockId;
     NCypressClient::TNodeId NodeId;
-    std::optional<i64> Revision;
+    NHydra::TRevision Revision;
 };
 
 struct TUnlockNodeOptions
@@ -544,8 +544,7 @@ struct TUnlockNodeOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
-{
-};
+{ };
 
 struct TCopyNodeOptions
     : public TTimeoutOptions

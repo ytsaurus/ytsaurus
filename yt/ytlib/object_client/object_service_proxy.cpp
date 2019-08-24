@@ -639,7 +639,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
 
         auto revisions = body.revisions_size() == 0
             ? std::vector<ui64>(body.part_counts_size())
-            : FromProto<std::vector<ui64>>(body.revisions());
+            : FromProto<std::vector<NHydra::TRevision>>(body.revisions());
 
         auto partIndex = 0;
         for (auto i = 0; i < body.part_counts_size(); ++i) {
@@ -652,7 +652,10 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
     }
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(int index, ui64 revision, TAttachmentRange attachments)
+void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
+    int index,
+    NHydra::TRevision revision,
+    TAttachmentRange attachments)
 {
     YT_VERIFY(0 <= index && index <= InnerResponseDescriptors_.size());
 
@@ -782,10 +785,10 @@ TObjectServiceProxy::TRspExecuteBatch::TAttachmentRange TObjectServiceProxy::TRs
     };
 }
 
-ui64 TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
+NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
 {
     if (InnerResponseDescriptors_.empty()) {
-        return 0;
+        return NHydra::NullRevision;
     }
 
     YT_VERIFY(index >= 0 && index <= InnerRequestDescriptors_.size());

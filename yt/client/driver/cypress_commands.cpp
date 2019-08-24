@@ -248,9 +248,7 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
                     .BeginMap()
                         .Item("lock_id").Value(lockResult.LockId)
                         .Item("node_id").Value(lockResult.NodeId)
-                        .DoIf(static_cast<bool>(lockResult.Revision), [&] (TFluentMap fluent) {
-                            fluent.Item("revision").Value(*lockResult.Revision);
-                        })
+                        .Item("revision").Value(lockResult.Revision)
                     .EndMap();
             });
             break;

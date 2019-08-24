@@ -169,7 +169,7 @@ std::vector<TRowRangeLocation> TClusterConnection::FetchSkynetPartsLocations(
         path);
 }
 
-TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath& path)
+TErrorOr<NHydra::TRevision> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath& path)
 {
     TGetNodeOptions options;
     options.Attributes = {
@@ -209,7 +209,7 @@ TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath&
         // TODO(prime): keep per-account usage statistics
         auto account = attributes.Get<TString>("account");
 
-        return attributes.Get<ui64>("revision");
+        return attributes.Get<NHydra::TRevision>("revision");
     } catch (const TErrorException& ex) {
         if (ex.Error().GetCode() == NYTree::EErrorCode::ResolveError) {
             return ex.Error();
@@ -363,13 +363,16 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
         return;
     }
 
-    YT_LOG_INFO("Start creating share (Cluster: %v, Path: %v)", params.Cluster, params.Path);
+    YT_LOG_INFO("Start creating share (Cluster: %v, Path: %v)",
+        params.Cluster,
+        params.Path);
+
     auto cluster = GetCluster(params.Cluster);
     auto tableRevision = cluster->CheckTableAttributes(params.Path).ValueOrThrow();
 
     TRequestKey request{
         ToString(params.Path),
-        static_cast<ui64>(tableRevision),
+        tableRevision,
         params.KeyColumns
     };
 

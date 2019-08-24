@@ -20,6 +20,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/core/erasure/public.h>
@@ -145,8 +147,8 @@ struct TUserObject
     // Output
     NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
-    ui64 Revision = 0;
-    ui64 ContentRevision = 0;
+    NHydra::TRevision Revision = NHydra::NullRevision;
+    NHydra::TRevision ContentRevision = NHydra::NullRevision;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
 

@@ -40,7 +40,7 @@ message TRspLookupChangelog
 {
     optional int32 record_count = 2;
 }
-                                                                              
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqPingFollower
@@ -55,7 +55,7 @@ message TRspPingFollower
 {
     required int32 state = 1;
 }
-                                                                              
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAcceptMutations
@@ -70,13 +70,13 @@ message TRspAcceptMutations
 {
     required bool logged = 1;
 }
-                                                                              
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqBuildSnapshot
 {
     required NYT.NProto.TGuid epoch_id = 1;
-    required int64 revision = 2;
+    required uint64 revision = 2;
     optional bool set_read_only = 3 [default = false];
 }
 
@@ -84,18 +84,18 @@ message TRspBuildSnapshot
 {
     required uint64 checksum = 1;
 }
-                                                                              
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRotateChangelog
 {
     required NYT.NProto.TGuid epoch_id = 1;
-    required int64 revision = 2;
+    required uint64 revision = 2;
 }
 
 message TRspRotateChangelog
 { }
-                                                                              
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqSyncWithLeader

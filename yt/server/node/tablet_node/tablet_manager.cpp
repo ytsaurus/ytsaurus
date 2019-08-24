@@ -1304,7 +1304,7 @@ private:
 
     void HydraLeaderExecuteWrite(
         TTransactionId transactionId,
-        i64 mountRevision,
+        NHydra::TRevision mountRevision,
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,

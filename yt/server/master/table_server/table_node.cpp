@@ -374,7 +374,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
                 SetInMemoryMode(ConvertTo<EInMemoryMode>(val));
             });
             processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::ForcedCompactionRevision), [&] (const TYsonString& val) {
-                SetForcedCompactionRevision(ConvertTo<i64>(val));
+                SetForcedCompactionRevision(ConvertTo<NHydra::TRevision>(val));
             });
 
             if (attributes.empty()) {

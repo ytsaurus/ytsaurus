@@ -2737,9 +2737,10 @@ private:
             .ValueOrThrow();
 
         auto outputStream = context->GetResponseAttachmentsStream();
-        ui64 revision = fileReader->GetRevision();
+
         NApi::NRpcProxy::NProto::TReadFileMeta meta;
-        meta.set_revision(revision);
+        meta.set_revision(fileReader->GetRevision());
+
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();

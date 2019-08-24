@@ -368,7 +368,7 @@ private:
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
-        ui64 Revision = 0;
+        NHydra::TRevision Revision = NHydra::NullRevision;
         bool Uncertain = false;
         std::atomic<bool> Completed = {false};
     };

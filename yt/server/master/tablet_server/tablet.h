@@ -236,7 +236,7 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
-    DEFINE_BYVAL_RW_PROPERTY(i64, MountRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
@@ -273,7 +273,7 @@ public:
 
     void CopyFrom(const TTablet& other);
 
-    void ValidateMountRevision(i64 mountRevision);
+    void ValidateMountRevision(NHydra::TRevision mountRevision);
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplica* replica);
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
