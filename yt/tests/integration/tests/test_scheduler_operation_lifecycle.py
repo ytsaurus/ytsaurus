@@ -866,10 +866,22 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "job_metrics_report_period": 100,
             "operation_time_limit_check_period": 100,
             "operation_controller_fail_timeout": 3000,
             "operations_job_metrics_push_period": 1000000000,
+            "job_metrics_report_period": 100,
+            "custom_job_metrics": [
+                {
+                    "statistics_path": "/custom/value_completed",
+                    "profiling_name": "metric_completed",
+                    "aggregate_type": "sum",
+                },
+                {
+                    "statistics_path": "/custom/value_failed",
+                    "profiling_name": "metric_failed",
+                    "aggregate_type": "sum",
+                },
+            ]
         }
     }
 
@@ -881,7 +893,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
                     "memory_watchdog_period": 100,
                     "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
-
             },
             "scheduler_connector": {
                 "heartbeat_period": 100,  # 100 msec
@@ -901,15 +912,12 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/unique_pool")
         time.sleep(1)
 
-        metric_name = "user_job_bytes_written"
-        statistics_name = "user_job.block_io.bytes_written"
+        map_cmd = """python -c "import os; os.write(5, '{value_completed=117};')"; sleep 0.5 ; cat ; sleep 5; echo done > /dev/stderr"""
 
-        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/metric_completed").with_tag("pool", "unique_pool") as metric_completed:
+            map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
-        with ProfileMetric.at_scheduler("scheduler/pools/metrics/" + metric_name).with_tag("pool", "unique_pool") as metric:
-            op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
-
-        wait(lambda: metric.update().delta(verbose=True) == self._get_cypress_metrics(op.id, statistics_name) > 0)
+        wait(lambda: metric_completed.update().delta(verbose=True) == 117)
 
     @authors("eshcherbin")
     @unix_only
@@ -919,20 +927,14 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/unique_pool")
         time.sleep(1)
 
-        metric_name = "user_job_bytes_written"
-        statistics_name = "user_job.block_io.bytes_written"
+        map_cmd = """python -c "import os; os.write(5, '{value_failed=225};')"; sleep 0.5 ; cat ; sleep 5; exit 1"""
 
-        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; exit 1"""
-
-        with ProfileMetric.at_scheduler("scheduler/pools/metrics/" + metric_name).with_tag("pool", "unique_pool") as metric:
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/metric_failed").with_tag("pool", "unique_pool") as metric_failed:
             op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
                      spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
+            op.track(raise_on_failed=False)
 
-            with pytest.raises(YtError):
-                op.track()
-
-        wait(lambda: metric.update().delta(verbose=True) ==
-             self._get_cypress_metrics(op.id, statistics_name, job_state="failed") > 0)
+        wait(lambda: metric_failed.update().delta(verbose=True) == 225)
 
 
 ##################################################################
