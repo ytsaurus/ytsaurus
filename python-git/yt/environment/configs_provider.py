@@ -718,6 +718,7 @@ class ConfigsProvider_19(ConfigsProvider):
                     tag = secondary_cell_tags[cell_index - 1]
                     cell_connection_config = {
                         "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
+                        "master_cell_directory_synchronizer": {"sync_period": None},
                         "timestamp_provider": {
                             "addresses": master_connection_configs[primary_cell_tag]["addresses"]
                         },
