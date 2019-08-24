@@ -1308,7 +1308,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
     for (const auto& prerequisite : prerequisites.revisions()) {
         auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
         const auto& path = prerequisite.path();
-        ui64 revision = prerequisite.revision();
+        auto revision = prerequisite.revision();
 
         auto* transaction = transactionId
             ? getPrerequisiteTransaction(transactionId)
@@ -1328,7 +1328,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
         if (trunkNode->GetRevision() != revision) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
+                "Prerequisite check failed: node %v revision mismatch: expected %llx, found %llx",
                 path,
                 revision,
                 trunkNode->GetRevision());

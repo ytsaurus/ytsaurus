@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/ypath_client.h>
@@ -341,7 +343,7 @@ public:
         TSharedRefArray GetResponseMessage(int index) const;
 
         //! Returns the revision of the specified response.
-        ui64 GetRevision(int index) const;
+        NHydra::TRevision GetRevision(int index) const;
 
     private:
         friend class TReqExecuteSubbatch;
@@ -357,7 +359,7 @@ public:
         struct TResponseMeta
         {
             std::pair<int, int> PartRange;
-            ui64 Revision;
+            NHydra::TRevision Revision;
         };
 
         struct TInnerResponseDescriptor
@@ -392,7 +394,7 @@ public:
 
         // A response may be either received or unreceived.
         // An unreceived response may also be uncertain or not.
-        void SetResponseReceived(int index, ui64 revision, TAttachmentRange attachments);
+        void SetResponseReceived(int index, NHydra::TRevision revision, TAttachmentRange attachments);
         void SetResponseUncertain(int index);
 
         bool IsResponseReceived(int index) const;

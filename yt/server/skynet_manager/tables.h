@@ -10,6 +10,8 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/row_buffer.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -42,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLink)
 struct TRequestKey
 {
     NYPath::TYPath TablePath;
-    ui64 TableRevision;
+    NHydra::TRevision TableRevision;
     std::vector<TString> KeyColumns;
 
     NTableClient::TKey ToRow(

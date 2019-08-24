@@ -239,7 +239,7 @@ private:
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
         TTabletId tabletId,
-        i64 mountRevision)
+        NHydra::TRevision mountRevision)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);

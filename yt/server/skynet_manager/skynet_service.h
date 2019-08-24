@@ -62,7 +62,7 @@ public:
     std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
         const NYPath::TYPath& path);
 
-    TErrorOr<i64> CheckTableAttributes(
+    TErrorOr<NHydra::TRevision> CheckTableAttributes(
         const NYPath::TRichYPath& path);
 
 private:

@@ -104,7 +104,7 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
-    virtual ui64 GetRevision() const override
+    virtual NHydra::TRevision GetRevision() const override
     {
         return Revision_;
     }
@@ -119,7 +119,7 @@ private:
     const NLogging::TLogger Logger;
 
     NApi::ITransactionPtr Transaction_;
-    ui64 Revision_ = 0;
+    NHydra::TRevision Revision_ = NHydra::NullRevision;
     NFileClient::IFileReaderPtr Reader_;
 
 
@@ -165,7 +165,7 @@ private:
             const auto& rsp = rspOrError.Value();
 
             auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
-            Revision_ = attributes->Get<ui64>("revision", 0);
+            Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
         }
 
         auto nodeDirectory = New<TNodeDirectory>();

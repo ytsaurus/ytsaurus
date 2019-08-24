@@ -35,6 +35,9 @@ DEFINE_ENUM(EPeerKind,
     (LeaderOrFollower)
 );
 
+using TRevision = ui64;
+constexpr TRevision NullRevision = 0;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TCellId;

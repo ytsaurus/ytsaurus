@@ -177,7 +177,7 @@ void TTabletSnapshot::ValidateCellId(TCellId cellId)
     }
 }
 
-void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
+void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
@@ -340,7 +340,7 @@ TTablet::TTablet(
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
     TTabletId tabletId,
-    i64 mountRevision,
+    NHydra::TRevision mountRevision,
     TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
@@ -1307,7 +1307,7 @@ const TSortedDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
     return RowKeyComparer_;
 }
 
-void TTablet::ValidateMountRevision(i64 mountRevision)
+void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(

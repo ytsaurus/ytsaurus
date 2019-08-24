@@ -248,16 +248,10 @@ TLockNodeResult TClient::DoLockNode(
     auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
         .ValueOrThrow();
 
-    // COMPAT(ignat): remove check after master update.
-    std::optional<i64> revision;
-    if (rsp->revision() != 0) {
-        revision = rsp->revision();
-    }
-
     return TLockNodeResult{
         FromProto<TLockId>(rsp->lock_id()),
         FromProto<TNodeId>(rsp->node_id()),
-        revision
+        rsp->revision()
     };
 }
 

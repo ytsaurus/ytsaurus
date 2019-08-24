@@ -125,7 +125,7 @@ TClusterResources TCypressNode::GetTotalResourceUsage() const
     return result;
 }
 
-ui64 TCypressNode::GetRevision() const
+NHydra::TRevision TCypressNode::GetRevision() const
 {
     return Max(AttributesRevision_, ContentRevision_);
 }
@@ -206,7 +206,7 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
     if (context.GetVersion() < EMasterReign::AddAttributesRevisionContentRevision) {
-        ui64 revision = Load<ui64>(context);
+        auto revision = Load<NHydra::TRevision>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;
     } else {

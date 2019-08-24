@@ -5003,7 +5003,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             table->Schema = attributes->Get<TTableSchema>("schema");
             table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
             table->ChunkCount = attributes->Get<int>("chunk_count");
-            table->ContentRevision = attributes->Get<ui64>("content_revision");
+            table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
 
             // Validate that timestamp is correct.
             ValidateDynamicTableTimestamp(table->Path, table->Dynamic, table->Schema, *attributes);
@@ -5189,7 +5189,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 const auto& table = UpdatingTables_[index];
                 const auto& rsp = batchRsp[index].Value();
                 auto objectId = FromProto<TObjectId>(rsp->node_id());
-                ui64 revision = rsp->revision();
+                auto revision = rsp->revision();
 
                 auto it = PathToInputTables_.find(table->GetPath());
                 if (it != PathToInputTables_.end()) {
@@ -5798,7 +5798,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
-                    file.ContentRevision = attributes.Get<ui64>("content_revision");
+                    file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
                     YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %v)",
                         path,

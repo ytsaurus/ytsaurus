@@ -61,7 +61,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    using TSubrequestResponse = std::pair<TSharedRefArray, std::optional<i64>>;
+    using TSubrequestResponse = std::pair<TSharedRefArray, NHydra::TRevision>;
 
     struct TKey
     {
@@ -125,7 +125,7 @@ private:
         TEntry(
             const TKey& key,
             bool success,
-            std::optional<i64> revision,
+            NHydra::TRevision revision,
             TInstant timestamp,
             TSharedRefArray responseMessage)
             : TAsyncCacheValueBase(key)
@@ -140,7 +140,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalSpace);
         DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
-        DEFINE_BYVAL_RO_PROPERTY(std::optional<i64>, Revision);
+        DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, Revision);
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -163,7 +163,7 @@ private:
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
             TDuration failureExpirationTime,
-            std::optional<i64> refreshRevision)
+            NHydra::TRevision refreshRevision)
         {
             return New<TLookupSession>(
                 this,
@@ -172,7 +172,7 @@ private:
                 successExpirationTime,
                 failureExpirationTime,
                 refreshRevision)
-                ->Run(key, requestMessage);
+                ->Run(key, std::move(requestMessage));
         }
 
     private:
@@ -189,7 +189,7 @@ private:
                 const TKey& key,
                 TDuration successExpirationTime,
                 TDuration failureExpirationTime,
-                std::optional<i64> refreshRevision)
+                NHydra::TRevision refreshRevision)
                 : Owner_(owner)
                 , SuccessExpirationTime_(successExpirationTime)
                 , FailureExpirationTime_(failureExpirationTime)
@@ -210,7 +210,7 @@ private:
             {
                 auto entry = Owner_->Find(key);
                 if (entry) {
-                    if (RefreshRevision_ && entry->GetRevision() && *entry->GetRevision() <= *RefreshRevision_) {
+                    if (RefreshRevision_ && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= RefreshRevision_) {
                         YT_LOG_DEBUG("Cache entry refresh requested (Revision: %v, Success: %v)",
                             entry->GetRevision(),
                             entry->GetSuccess());
@@ -264,7 +264,7 @@ private:
             TIntrusivePtr<TCache> Owner_;
             const TDuration SuccessExpirationTime_;
             const TDuration FailureExpirationTime_;
-            const std::optional<i64> RefreshRevision_;
+            const NHydra::TRevision RefreshRevision_;
 
             NLogging::TLogger Logger;
 
@@ -287,9 +287,9 @@ private:
                 TResponseHeader responseHeader;
                 YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
                 auto responseError = FromProto<TError>(responseHeader.error());
-                auto revision = rsp->revisions_size() > 0 ? std::make_optional(rsp->revisions(0)) : std::nullopt;
+                auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
 
-                YT_LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
+                YT_LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %llx, Error: %v)",
                     key,
                     revision,
                     responseError);
@@ -326,7 +326,7 @@ private:
             TAsyncSlruCacheBase::OnRemoved(entry);
 
             const auto& key = entry->GetKey();
-            YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
+            YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",
                 key,
                 entry->GetRevision(),
                 entry->GetSuccess(),
@@ -342,7 +342,7 @@ private:
 
 
         static bool IsExpired(
-            TEntryPtr entry,
+            const TEntryPtr& entry,
             TDuration successExpirationTime,
             TDuration failureExpirationTime)
         {
@@ -424,7 +424,8 @@ private:
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
                 Promises_[subresponseIndex].Set(std::make_pair(
-                    TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}), std::nullopt));
+                    TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}),
+                    NHydra::NullRevision));
                 attachmentIndex += partCount;
             }
         }
@@ -479,9 +480,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
-            auto refreshRevision = cachingRequestHeaderExt.has_refresh_revision()
-                ? std::make_optional(cachingRequestHeaderExt.refresh_revision())
-                : std::nullopt;
+            auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
@@ -534,18 +533,13 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
             masterResponseMessage.End());
     }
 
-    [&] {
-        for (const auto& pair : masterResponseMessages) {
-            const auto& revision = pair.second;
-            if (!revision) {
-                return;
-            }
+    for (const auto& [message, revision] : masterResponseMessages) {
+        if (revision == NHydra::NullRevision) {
+            response->clear_revisions();
+            break;
         }
-        for (const auto& pair : masterResponseMessages) {
-            const auto& revision = pair.second;
-            response->add_revisions(*revision);
-        }
-    } ();
+        response->add_revisions(revision);
+    }
 
     context->Reply();
 }

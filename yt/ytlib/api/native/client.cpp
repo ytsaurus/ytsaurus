@@ -1455,7 +1455,7 @@ TRowset TClient::DoLookupRowsOnce(
         struct TBatch
         {
             NObjectClient::TObjectId TabletId;
-            i64 MountRevision = 0;
+            NHydra::TRevision MountRevision = NHydra::NullRevision;
             std::vector<TKey> Keys;
             size_t OffsetInResult;
 

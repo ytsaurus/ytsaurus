@@ -48,12 +48,12 @@ bool TVersion::operator >= (TVersion other) const
     return !(*this < other);
 }
 
-ui64 TVersion::ToRevision() const
+TRevision TVersion::ToRevision() const
 {
-    return (static_cast<ui64>(SegmentId) << 32) | static_cast<ui64>(RecordId);
+    return (static_cast<TRevision>(SegmentId) << 32) | static_cast<TRevision>(RecordId);
 }
 
-TVersion TVersion::FromRevision(ui64 revision)
+TVersion TVersion::FromRevision(TRevision revision)
 {
     return TVersion(revision >> 32, revision & 0xffffffff);
 }

@@ -91,7 +91,7 @@ public:
 
     int MaxStoresPerTablet;
 
-    std::optional<ui64> ForcedCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedCompactionRevision;
 
     std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;

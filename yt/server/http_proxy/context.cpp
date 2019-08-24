@@ -847,8 +847,8 @@ void TContext::ReplyFakeError(const TString& message)
 void TContext::OnOutputParameters()
 {
     if (auto revision = OutputParameters_->FindChild("revision")) {
-        Response_->GetHeaders()->Add("ETag", ToString(revision->AsUint64()->GetValue()));
-        if (IfNoneMatch_ && *IfNoneMatch_ == revision->AsUint64()->GetValue()) {
+        Response_->GetHeaders()->Add("ETag", ToString(revision->GetValue<NHydra::TRevision>()));
+        if (IfNoneMatch_ && *IfNoneMatch_ == revision->GetValue<NHydra::TRevision>()) {
             Response_->SetStatus(EStatusCode::NotModified);
         }
     }

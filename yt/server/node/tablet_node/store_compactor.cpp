@@ -1482,7 +1482,7 @@ private:
             return false;
         }
 
-        ui64 revision = CounterFromId(store->GetId());
+        auto revision = CounterFromId(store->GetId());
         if (revision > *config->ForcedCompactionRevision) {
             return false;
         }

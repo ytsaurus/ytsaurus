@@ -57,7 +57,7 @@ private:
         TTabletStateIndexedVector TabletCountByExpectedState;
         TTabletList Tablets;
         int TabletErrorCount = 0;
-        std::optional<i64> ForcedCompactionRevision;
+        std::optional<NHydra::TRevision> ForcedCompactionRevision;
         bool Dynamic = false;
         TString MountPath;
         NSecurityServer::TClusterResources ExternalTabletResourceUsage;

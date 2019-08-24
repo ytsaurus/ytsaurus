@@ -2,6 +2,8 @@
 
 #include <yt/client/api/file_reader.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -16,7 +18,7 @@ class TFileReader
 public:
     TFileReader(
         IAsyncZeroCopyInputStreamPtr underlying,
-        ui64 revision)
+        NHydra::TRevision revision)
         : Underlying_(std::move(underlying))
         , Revision_(revision)
     {
@@ -28,14 +30,14 @@ public:
         return Underlying_->Read();
     }
 
-    virtual ui64 GetRevision() const override
+    virtual NHydra::TRevision GetRevision() const override
     {
         return Revision_;
     }
 
 private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
-    const ui64 Revision_;
+    const NHydra::TRevision Revision_;
 };
 
 TFuture<IFileReaderPtr> CreateFileReader(
