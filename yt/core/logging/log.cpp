@@ -117,6 +117,11 @@ bool TLogger::IsLevelEnabled(ELogLevel level) const
     return level >= Category_->MinLevel;
 }
 
+bool TLogger::GetAbortOnAlert() const
+{
+    return LogManager_->GetAbortOnAlert();
+}
+
 bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
 {
     return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);

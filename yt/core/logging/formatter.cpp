@@ -126,6 +126,10 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
     buffer->AppendString(event.Category->Name);
     buffer->AppendChar('\t');
 
+    // COMPAT(babenko)
+    if (event.Level == ELogLevel::Alert) {
+        buffer->AppendString(AsStringBuf("Unexpected error: "));
+    }
     FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
     buffer->AppendChar('\t');
 

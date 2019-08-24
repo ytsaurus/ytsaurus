@@ -270,7 +270,7 @@ Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py:
 
     auto configNode = ConvertToNode(ExtractArgument(args, kwargs, "config"));
     ValidateArgumentsEmpty(args, kwargs);
-    auto config = ConvertTo<NLogging::TLogConfigPtr>(configNode);
+    auto config = ConvertTo<NLogging::TLogManagerConfigPtr>(configNode);
 
     NLogging::TLogManager::Get()->Configure(config);
 

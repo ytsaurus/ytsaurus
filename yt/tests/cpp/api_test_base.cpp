@@ -32,7 +32,7 @@ void TApiTestBase::SetUpTestCase()
     auto config = ConvertToNode(&configStream)->AsMap();
 
     if (auto logging = config->FindChild("logging")) {
-        NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogConfigPtr>(logging));
+        NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(logging));
     }
 
     Connection_ = NApi::CreateConnection(config->GetChild("driver"));

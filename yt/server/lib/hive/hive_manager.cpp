@@ -1272,7 +1272,7 @@ private:
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
         if (messageId != mailbox->GetNextIncomingMessageId()) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,

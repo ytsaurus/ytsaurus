@@ -952,8 +952,8 @@ private:
                 transactionId,
                 nestedTransactionId);
         } else {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
-                "Unexpected error: external nested transaction re-registered (TransactionId: %v, NestedTransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(),
+                "External nested transaction re-registered (TransactionId: %v, NestedTransactionId: %v)",
                 transaction,
                 nestedTransactionId);
         }

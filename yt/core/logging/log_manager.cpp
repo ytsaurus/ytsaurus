@@ -319,7 +319,7 @@ private:
 struct TConfigEvent
 {
     NProfiling::TCpuInstant Instant = 0;
-    TLogConfigPtr Config;
+    TLogManagerConfigPtr Config;
     TPromise<void> Promise = NewPromise<void>();
 };
 
@@ -361,7 +361,7 @@ public:
         , LoggingThread_(New<TThread>(this))
         , SystemWriters_({New<TStderrLogWriter>()})
     {
-        DoUpdateConfig(TLogConfig::CreateDefault());
+        DoUpdateConfig(TLogManagerConfig::CreateDefault());
         SystemCategory_ = GetCategory(SystemLoggingCategoryName);
     }
 
@@ -378,10 +378,10 @@ public:
 
     void Configure(INodePtr node)
     {
-        Configure(TLogConfig::CreateFromNode(node));
+        Configure(TLogManagerConfig::CreateFromNode(node));
     }
 
-    void Configure(TLogConfigPtr config)
+    void Configure(TLogManagerConfigPtr config)
     {
         if (LoggingThread_->IsShutdown()) {
             return;
@@ -446,7 +446,7 @@ public:
             }
         }
 
-        auto config = New<TLogConfig>();
+        auto config = New<TLogManagerConfig>();
         config->Rules.push_back(std::move(rule));
 
         config->MinDiskSpace = 0;
@@ -492,6 +492,11 @@ public:
     int GetVersion() const
     {
         return Version_.load();
+    }
+
+    bool GetAbortOnAlert() const
+    {
+        return AbortOnAlert_.load();
     }
 
     const TLoggingCategory* GetCategory(const char* categoryName)
@@ -768,6 +773,8 @@ private:
             return;
         }
 
+        AbortOnAlert_.store(event.Config->AbortOnAlert);
+
         EnsureStarted();
 
         FlushWriters();
@@ -814,7 +821,7 @@ private:
         event.Promise.Set();
     }
 
-    void DoUpdateConfig(const TLogConfigPtr& logConfig)
+    void DoUpdateConfig(const TLogManagerConfigPtr& logConfig)
     {
         {
             decltype(Writers_) writers;
@@ -1210,7 +1217,8 @@ private:
     // Version forces this very module's Logger object to update to our own
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {0};
-    TLogConfigPtr Config_;
+    std::atomic<bool> AbortOnAlert_ = {0};
+    TLogManagerConfigPtr Config_;
     THashMap<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
 
@@ -1293,7 +1301,7 @@ void TLogManager::StaticShutdown()
     Get()->Shutdown();
 }
 
-void TLogManager::Configure(TLogConfigPtr config)
+void TLogManager::Configure(TLogManagerConfigPtr config)
 {
     Impl_->Configure(std::move(config));
 }
@@ -1311,6 +1319,11 @@ void TLogManager::Shutdown()
 int TLogManager::GetVersion() const
 {
     return Impl_->GetVersion();
+}
+
+bool TLogManager::GetAbortOnAlert() const
+{
+    return Impl_->GetAbortOnAlert();
 }
 
 const TLoggingCategory* TLogManager::GetCategory(const char* categoryName)

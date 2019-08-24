@@ -1029,7 +1029,7 @@ public:
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
         if (!chunk->IsExportedToCell(cellIndex)) {
-            YT_LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
+            YT_LOG_ALERT("Chunk is not exported and cannot be unexported "
                 "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
                 chunk->GetId(),
                 destinationCellTag,
@@ -1945,14 +1945,14 @@ private:
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }

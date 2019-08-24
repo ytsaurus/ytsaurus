@@ -3061,7 +3061,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ERROR("Unexpected error: lock transaction is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Lock transaction is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3069,7 +3069,7 @@ private:
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ERROR("Unexpected error: lock node is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Lock node is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3091,7 +3091,7 @@ private:
             lockRequest,
             false);
         if (!error.IsOK()) {
-            YT_LOG_ERROR(error, "Unexpected error: cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
                 nodeId,
                 transactionId,
                 lockRequest.Mode,
@@ -3115,7 +3115,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ERROR("Unexpected error: unlock transaction is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unlock transaction is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3123,7 +3123,7 @@ private:
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ERROR("Unexpected error: unlock node is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unlock node is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3131,7 +3131,7 @@ private:
 
         auto error = CheckUnlock(trunkNode, transaction, false, explicitOnly);
         if (!error.IsOK()) {
-            YT_LOG_ERROR(error, "Unexpected error: cannot unlock foreign node (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), error, "Cannot unlock foreign node (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
