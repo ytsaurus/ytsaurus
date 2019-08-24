@@ -546,7 +546,7 @@ void RunJobSatellite(
         return;
     } else {
 
-        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateLogFile("../job_satellite.log"));
+        NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateLogFile("../job_satellite.log"));
         try {
             SafeCreateStderrFile("../satellite_stderr");
         } catch (const std::exception& ex) {

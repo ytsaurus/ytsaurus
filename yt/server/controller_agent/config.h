@@ -463,7 +463,7 @@ public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
-    NEventLog::TEventLogConfigPtr EventLog;
+    NEventLog::TEvenTLogManagerConfigPtr EventLog;
 
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration SchedulerHandshakeRpcTimeout;

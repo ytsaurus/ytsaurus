@@ -63,7 +63,7 @@ void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
 
 void FormatLevel(TMessageBuffer* out, ELogLevel level)
 {
-    static char chars[] = "?TDIWEF?";
+    static char chars[] = "?TDIWEAF?";
     out->AppendChar(chars[static_cast<int>(level)]);
 }
 

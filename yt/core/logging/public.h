@@ -6,7 +6,7 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Any changes to this enum must be also propagated to FormatLevel.
+// Any change to this enum must be also propagated to FormatLevel.
 DEFINE_ENUM(ELogLevel,
     (Minimum)
     (Trace)
@@ -14,6 +14,7 @@ DEFINE_ENUM(ELogLevel,
     (Info)
     (Warning)
     (Error)
+    (Alert)
     (Fatal)
     (Maximum)
 );
@@ -31,7 +32,7 @@ DEFINE_ENUM(EWriterType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TLogConfig)
+DECLARE_REFCOUNTED_CLASS(TLogManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 

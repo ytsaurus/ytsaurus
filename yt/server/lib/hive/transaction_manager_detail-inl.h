@@ -73,7 +73,7 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
             }
             it->second.Run(transaction, action.Value);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Unexpected error: abort action failed (TransactionId: %v, ActionType: %v)",
+            YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
         }

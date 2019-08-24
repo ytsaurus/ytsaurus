@@ -294,7 +294,7 @@ public:
     NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
-    NLogging::TLogConfigPtr JobProxyLogging;
+    NLogging::TLogManagerConfigPtr JobProxyLogging;
     NTracing::TTraceManagerConfigPtr JobProxyTracing;
 
     TDuration SupervisorRpcTimeout;

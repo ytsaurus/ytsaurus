@@ -3044,7 +3044,7 @@ public:
             }
         } catch (const std::exception& ex) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            YT_LOG_ERROR(ex, "Unexpected error: exception while cloning table (TableId: %v, User: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Error cloning table (TableId: %v, User: %v)",
                 sourceTable->GetId(),
                 securityManager->GetAuthenticatedUserName());
         }
@@ -5267,7 +5267,7 @@ private:
             auto* replica = pair.first;
             auto& replicaInfo = pair.second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
-                YT_LOG_WARNING_UNLESS(IsRecovery(), "Unexpected error: table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
@@ -5326,8 +5326,7 @@ private:
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
             if (newRootChunkList->Statistics() != statistics) {
-                YT_LOG_ERROR_UNLESS(
-                    IsRecovery(),
+                YT_LOG_ALERT_UNLESS(IsRecovery(),
                     "Unexpected error: invalid new root chunk list statistics "
                     "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
@@ -5346,8 +5345,8 @@ private:
             }
 
             if (oldRootChunkList->Statistics() != statistics) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(),
-                    "Unexpected error: invalid old root chunk list statistics "
+                YT_LOG_ALERT_UNLESS(IsRecovery(),
+                    "Invalid old root chunk list statistics "
                     "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     oldRootChunkList->Statistics(),
@@ -6128,7 +6127,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_WARNING("Unexpected error: prerequisite transaction not found at secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Prerequisite transaction not found at secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
             return;

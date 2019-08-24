@@ -1424,7 +1424,7 @@ private:
                 commit->GetPersistentState(),
                 commit->GetUserName());
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 commit->GetUserName());

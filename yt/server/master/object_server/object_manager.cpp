@@ -742,7 +742,7 @@ int TObjectManager::TImpl::RefObject(TObject* object)
         if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
             object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
         {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: references to object reappeared after removal "
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "References to object reappeared after removal "
                 "has been pre-committed (ObjectId: %v, LifeStage: %v)",
                 object->GetId(),
                 object->GetLifeStage());
@@ -1566,8 +1566,8 @@ void TObjectManager::TImpl::HydraRemoveForeignObject(NProto::TReqRemoveForeignOb
     }
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
-        YT_LOG_ERROR_UNLESS(IsRecovery(),
-            "Unexpected error: requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
+        YT_LOG_ALERT_UNLESS(IsRecovery(),
+            "Requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
             objectId,
             object->GetLifeStage());
         return;
@@ -1671,8 +1671,8 @@ void TObjectManager::TImpl::DoRemoveObject(TObject* object)
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object removed (ObjectId: %v)",
         object->GetId());
     if (UnrefObject(object) != 0) {
-        YT_LOG_ERROR_UNLESS(IsRecovery(),
-            "Unexpected error: non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
+        YT_LOG_ALERT_UNLESS(IsRecovery(),
+            "Non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             object->GetObjectRefCounter());
     }
