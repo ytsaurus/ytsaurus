@@ -6,7 +6,7 @@ except ImportError:
 
 """This module provides default ytserver configs"""
 
-    def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
+def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
     config = {
         "trap_on_alert": True,
         "rules": [
