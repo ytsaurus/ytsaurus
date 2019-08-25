@@ -150,11 +150,14 @@ std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
 }
 
 template <class TReq>
-void TClient::ExecuteTabletServiceRequest(const TYPath& path, TReq* req)
+void TClient::ExecuteTabletServiceRequest(
+    const TYPath& path,
+    TStringBuf action,
+    TReq* req)
 {
     TTableId tableId;
     TCellTag cellTag;
-    auto attributes = ResolveExternalTable(
+    auto tableAttributes = ResolveExternalTable(
         path,
         &tableId,
         &cellTag,
@@ -164,18 +167,23 @@ void TClient::ExecuteTabletServiceRequest(const TYPath& path, TReq* req)
         THROW_ERROR_EXCEPTION("Object %v is not a table", path);
     }
 
-    TTransactionStartOptions txOptions;
-    txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-    txOptions.CellTag = cellTag;
+    auto tranasctionAttributes = CreateEphemeralAttributes();
+    tranasctionAttributes->Set(
+        "title",
+        Format("%v table %v", action, path));
     auto asyncTransaction = StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
-        txOptions);
+        TTransactionStartOptions{
+            .Multicell = cellTag != PrimaryMasterCellTag,
+            .CellTag = cellTag,
+            .Attributes = std::move(tranasctionAttributes)
+        });
     auto transaction = WaitFor(asyncTransaction)
         .ValueOrThrow();
 
     ToProto(req->mutable_table_id(), tableId);
 
-    auto fullPath = attributes->Get<TString>("path");
+    auto fullPath = tableAttributes->Get<TString>("path");
     SetDynamicTableCypressRequestFullPath(req, fullPath);
 
     auto actionData = MakeTransactionActionData(*req);
@@ -218,7 +226,7 @@ void TClient::DoMountTable(
             .ValueOrThrow();
         req.set_mount_timestamp(mountTimestamp);
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Mounting", &req);
     } else {
         auto req = TTableYPathProxy::Mount(path);
         SetMutationId(req, options);
@@ -261,7 +269,7 @@ void TClient::DoUnmountTable(
         }
         req.set_force(options.Force);
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Unmounting", &req);
     } else {
         auto req = TTableYPathProxy::Unmount(path);
         SetMutationId(req, options);
@@ -292,7 +300,7 @@ void TClient::DoRemountTable(
             req.set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Remounting", &req);
     } else {
         auto req = TTableYPathProxy::Remount(path);
         SetMutationId(req, options);
@@ -322,7 +330,7 @@ void TClient::DoFreezeTable(
             req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Freezing", &req);
     } else {
         auto req = TTableYPathProxy::Freeze(path);
         SetMutationId(req, options);
@@ -353,7 +361,7 @@ void TClient::DoUnfreezeTable(
             req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Unfreezing", &req);
     } else {
         auto req = TTableYPathProxy::Unfreeze(path);
         SetMutationId(req, options);
@@ -409,7 +417,7 @@ void TClient::DoReshardTableWithPivotKeys(
         ToProto(req.mutable_pivot_keys(), pivotKeys);
         req.set_tablet_count(pivotKeys.size());
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Resharding", &req);
     } else {
         auto req = MakeYPathReshardRequest(path, options);
         ToProto(req->mutable_pivot_keys(), pivotKeys);
@@ -430,7 +438,7 @@ void TClient::DoReshardTableWithTabletCount(
         auto req = MakeReshardRequest(options);
         req.set_tablet_count(tabletCount);
 
-        ExecuteTabletServiceRequest(path, &req);
+        ExecuteTabletServiceRequest(path, "Resharding", &req);
     } else {
         auto req = MakeYPathReshardRequest(path, options);
         req->set_tablet_count(tabletCount);
