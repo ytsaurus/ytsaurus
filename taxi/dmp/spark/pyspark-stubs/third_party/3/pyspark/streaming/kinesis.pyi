@@ -11,5 +11,5 @@ class KinesisUtils:
     def createStream(ssc, kinesisAppName, streamName, endpointUrl, regionName, initialPositionInStream, checkpointInterval, storageLevel: Any = ..., awsAccessKeyId: Optional[Any] = ..., awsSecretKey: Optional[Any] = ..., decoder: Any = ..., stsAssumeRoleArn: Optional[Any] = ..., stsSessionName: Optional[Any] = ..., stsExternalId: Optional[Any] = ...): ...
 
 class InitialPositionInStream:
-    LATEST = ...  # type: Any
-    TRIM_HORIZON = ...  # type: Any
+    LATEST: Any
+    TRIM_HORIZON: Any

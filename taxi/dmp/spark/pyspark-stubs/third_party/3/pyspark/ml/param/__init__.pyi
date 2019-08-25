@@ -11,10 +11,10 @@ U = TypeVar('U')
 ParamMap = Dict[Param, Any]
 
 class Param:
-    parent = ...  # type: str
-    name = ...  # type: str
-    doc = ...  # type: str
-    typeConverter = ...  # type: Any
+    parent: str
+    name: str
+    doc: str
+    typeConverter: Any
     def __init__(self, parent: Param, name: str, doc: str, typeConverter: Optional[Callable[[Any], Any]] = ...) -> None: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: Any) -> bool: ...
@@ -44,7 +44,7 @@ class TypeConverters:
     def toBoolean(value: Any) -> bool: ...
 
 class Params(pyspark.ml.util.Identifiable):
-    __metaclass__ = ...  # type: Any
+    __metaclass__: Any
     def __init__(self) -> None: ...
     @property
     def params(self) -> List[Param]: ...

@@ -9,9 +9,9 @@ from pyspark.accumulators import AccumulatorParam
 from pyspark.context import SparkContext
 
 class ProfilerCollector:
-    profiler_cls = ...  # type: Type[Profiler]
-    profile_dump_path = ...  # type: Optional[str]
-    profilers = ...  # type: List[Tuple[int, Profiler, bool]]
+    profiler_cls: Type[Profiler]
+    profile_dump_path: Optional[str]
+    profilers: List[Tuple[int, Profiler, bool]]
     def __init__(self, profiler_cls: Type[Profiler], dump_path: Optional[str] = ...) -> None: ...
     def new_profiler(self, ctx: SparkContext) -> Profiler: ...
     def add_profiler(self, id: int, profiler: Profiler) -> None: ...

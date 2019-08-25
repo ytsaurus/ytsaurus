@@ -5,28 +5,28 @@
 from typing import Any, Optional
 
 class TransformFunction:
-    ctx = ...  # type: Any
-    func = ...  # type: Any
-    deserializers = ...  # type: Any
-    rdd_wrap_func = ...  # type: Any
-    failure = ...  # type: Any
+    ctx: Any
+    func: Any
+    deserializers: Any
+    rdd_wrap_func: Any
+    failure: Any
     def __init__(self, ctx, func, *deserializers) -> None: ...
     def rdd_wrapper(self, func): ...
     def call(self, milliseconds, jrdds): ...
     def getLastFailure(self): ...
     class Java:
-        implements = ...  # type: Any
+        implements: Any
 
 class TransformFunctionSerializer:
-    ctx = ...  # type: Any
-    serializer = ...  # type: Any
-    gateway = ...  # type: Any
-    failure = ...  # type: Any
+    ctx: Any
+    serializer: Any
+    gateway: Any
+    failure: Any
     def __init__(self, ctx, serializer, gateway: Optional[Any] = ...) -> None: ...
     def dumps(self, id): ...
     def loads(self, data): ...
     def getLastFailure(self): ...
     class Java:
-        implements = ...  # type: Any
+        implements: Any
 
 def rddToFileName(prefix, suffix, timestamp): ...

@@ -5,7 +5,7 @@ from typing import Any, Iterable
 from pyspark.rdd import RDD
 from numpy import ndarray  # type: ignore
 
-xrange = ...  # type: range
+xrange: range
 
 class KernelDensity:
     def __init__(self) -> None: ...

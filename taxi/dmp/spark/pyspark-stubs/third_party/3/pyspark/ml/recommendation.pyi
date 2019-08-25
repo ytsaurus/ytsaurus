@@ -8,18 +8,18 @@ from pyspark.ml.param.shared import *
 from pyspark.sql.dataframe import DataFrame
 
 class ALS(JavaEstimator[ALSModel], HasCheckpointInterval, HasMaxIter, HasPredictionCol, HasRegParam, HasSeed, JavaMLWritable, JavaMLReadable):
-    rank = ...  # type: Param
-    numUserBlocks = ...  # type: Param
-    numItemBlocks = ...  # type: Param
-    implicitPrefs = ...  # type: Param
-    alpha = ...  # type: Param
-    userCol = ...  # type: Param
-    itemCol = ...  # type: Param
-    ratingCol = ...  # type: Param
-    nonnegative = ...  # type: Param
-    intermediateStorageLevel = ...  # type: Param
-    finalStorageLevel = ...  # type: Param
-    coldStrategy = ...  # type: Param
+    rank: Param
+    numUserBlocks: Param
+    numItemBlocks: Param
+    implicitPrefs: Param
+    alpha: Param
+    userCol: Param
+    itemCol: Param
+    ratingCol: Param
+    nonnegative: Param
+    intermediateStorageLevel: Param
+    finalStorageLevel: Param
+    coldStrategy: Param
     def __init__(self, rank: int = ..., maxIter: int = ..., regParam: float = ..., numUserBlocks: int = ..., numItemBlocks: int = ..., implicitPrefs: bool = ..., alpha: float = ..., userCol: str = ..., itemCol: str = ..., seed: Optional[int] = ..., ratingCol: str = ..., nonnegative: bool = ..., checkpointInterval: int = ..., intermediateStorageLevel: str = ..., finalStorageLevel: str = ...,  coldStartStrategy: str = ...) -> None: ...
     def setParams(self, rank: int = ..., maxIter: int = ..., regParam: float = ..., numUserBlocks: int = ..., numItemBlocks: int = ..., implicitPrefs: bool = ..., alpha: float = ..., userCol: str = ..., itemCol: str = ..., seed: Optional[int] = ..., ratingCol: str = ..., nonnegative: bool = ..., checkpointInterval: int = ..., intermediateStorageLevel: str = ..., finalStorageLevel: str = ...,  coldStartStrategy: str = ...) -> ALS: ...
     def setRank(self, value: int) -> ALS: ...

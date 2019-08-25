@@ -17,17 +17,17 @@ M = TypeVar("M", bound=Transformer)
 ParamMap = Dict[Param, Any]
 
 class _FitMultipleIterator:
-    fitSingleModel = ...  # type: Callable[[int], Transformer]
-    numModel = ...  # type: int
+    fitSingleModel: Callable[[int], Transformer]
+    numModel: int
     counter: int = ...
-    lock = ...  # type: _thread.LockType
+    lock: _thread.LockType
     def __init__(self, fitSingleModel: Callable[[int], Transformer], numModels: int) -> None: ...
     def __iter__(self) -> _FitMultipleIterator: ...
     def __next__(self) -> Tuple[int, Transformer]: ...
     def next(self) -> Tuple[int, Transformer]: ...
 
 class Estimator(Params, Generic[M]):
-    __metaclass__ = ...  # type: Type[abc.ABCMeta]
+    __metaclass__: Type[abc.ABCMeta]
     @overload
     def fit(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> M: ...
     @overload
@@ -35,11 +35,11 @@ class Estimator(Params, Generic[M]):
     def fitMultiple(self, dataset: DataFrame, params: List[ParamMap]) -> Iterable[Tuple[int, M]]: ...
 
 class Transformer(Params):
-    __metaclass__ = ...  # type: Type[abc.ABCMeta]
+    __metaclass__: Type[abc.ABCMeta]
     def transform(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> DataFrame: ...
 
 class Model(Transformer):
-    __metaclass__ = ...  # type: Type[abc.ABCMeta]
+    __metaclass__: Type[abc.ABCMeta]
 
 class UnaryTransformer(HasInputCol, HasOutputCol, Transformer):
     def createTransformFunc(self) -> Callable: ...

@@ -42,17 +42,17 @@ class BoundedFloat(float):
     def __new__(cls, mean: float, confidence: float, low: float, high: float): ...
 
 class Partitioner:
-    numPartitions = ...  # type: int
-    partitionFunc = ...  # type: Callable[[Any], int]
+    numPartitions: int
+    partitionFunc: Callable[[Any], int]
     def __init__(self, numPartitions, partitionFunc) -> None: ...
     def __eq__(self, other: Any) -> bool: ...
     def __call__(self, k: Any) -> int: ...
 
 class RDD(Generic[T]):
-    is_cached = ...  # type: bool
-    is_checkpointed = ...  # type: bool
-    ctx = ...  # type: pyspark.context.SparkContext
-    partitioner = ...  # type: Optional[Partitioner]
+    is_cached: bool
+    is_checkpointed: bool
+    ctx: pyspark.context.SparkContext
+    partitioner: Optional[Partitioner]
     def __init__(self, jrdd: JavaObject, ctx: pyspark.context.SparkContext, jrdd_deserializer: Serializer = ...) -> None: ...
     def id(self) -> int: ...
     def __getnewargs__(self) -> Any: ...
@@ -188,19 +188,19 @@ class RDD(Generic[T]):
     def toDF(self: RDD[Union[Tuple, List]]) -> DataFrame: ...
 
 class RDDBarrier(Generic[T]):
-    rdd = ...  # type: RDD[T]
+    rdd: RDD[T]
     def __init__(self, rdd: RDD[T]) -> None: ...
     def mapPartitions(self, f: Callable[[Iterable[T]], Iterable[U]], preservesPartitioning: bool = ...) -> RDD[U]: ...
 
 class PipelinedRDD(RDD[U], Generic[T, U]):
-    func = ...  # type: Callable[[T], U]
-    preservesPartitioning = ...  # type: bool
-    is_cached = ...  # type: bool
-    is_checkpointed = ...  # type: bool
-    ctx = ...  # type: pyspark.context.SparkContext
-    prev = ...  # type: RDD[T]
-    partitioner = ...  # type: Optional[Partitioner]
-    is_barrier = ...  # type: bool
+    func: Callable[[T], U]
+    preservesPartitioning: bool
+    is_cached: bool
+    is_checkpointed: bool
+    ctx: pyspark.context.SparkContext
+    prev: RDD[T]
+    partitioner: Optional[Partitioner]
+    is_barrier: bool
     def __init__(self, prev: RDD[T], func: Callable[[Iterable[T]], Iterable[U]], preservesPartitioning: bool = ..., isFromBarrier: bool = ...) -> None: ...
     def getNumPartitions(self) -> int: ...
     def id(self) -> int: ...

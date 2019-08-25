@@ -15,8 +15,8 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 class DStream(Generic[T]):
-    is_cached = ...  # type: bool
-    is_checkpointed = ...  # type: bool
+    is_cached: bool
+    is_checkpointed: bool
     def __init__(self, jdstream, ssc, jrdd_deserializer) -> None: ...
     def context(self) -> pyspark.streaming.context.StreamingContext: ...
     def count(self) -> DStream[int]: ...
@@ -68,10 +68,10 @@ class DStream(Generic[T]):
     def updateStateByKey(self: DStream[Tuple[K, V]], updateFunc: Callable[[Iterable[V], Optional[S]], S], numPartitions: Optional[int] = ..., initialRDD: Optional[RDD[Tuple[K, S]]] = ...) -> DStream[Tuple[K, S]]: ...
 
 class TransformedDStream(DStream[U]):
-    is_cached = ...  # type: bool
-    is_checkpointed = ...  # type: bool
-    func = ...  # type: Callable
-    prev = ...  # type: DStream
+    is_cached: bool
+    is_checkpointed: bool
+    func: Callable
+    prev: DStream
     @overload
     def __init__(self: DStream[U], prev: DStream[T], func: Callable[[RDD[T]], RDD[U]]) -> None: ...
     @overload

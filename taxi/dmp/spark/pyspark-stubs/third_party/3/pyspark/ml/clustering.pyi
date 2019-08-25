@@ -34,7 +34,7 @@ class GaussianMixtureModel(JavaModel, JavaMLWritable, JavaMLReadable, HasTrainin
     def summary(self) -> GaussianMixtureSummary: ...
 
 class GaussianMixture(JavaEstimator[GaussianMixtureModel], HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasProbabilityCol, JavaMLWritable, JavaMLReadable):
-    k = ...  # type: Param
+    k: Param
     def __init__(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., probabilityCol: str = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., probabilityCol: str = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ...) -> GaussianMixture: ...
     def setK(self, value: int) -> GaussianMixture: ...
@@ -57,9 +57,9 @@ class KMeansModel(JavaModel, GeneralJavaMLWritable, JavaMLReadable, HasTrainingS
     def summary(self) -> KMeansSummary: ...
 
 class KMeans(JavaEstimator[KMeansModel], HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, JavaMLWritable, JavaMLReadable):
-    k = ...  # type: Param
-    initMode = ...  # type: Param
-    initSteps = ...  # type: Param
+    k: Param
+    initMode: Param
+    initSteps: Param
     def __init__(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., initMode: str = ..., initSteps: int = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ..., distanceMeasure: str = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., initMode: str = ..., initSteps: int = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ..., distanceMeasure: str = ...) -> KMeans: ...
     def setK(self, value: int) -> KMeans: ...
@@ -78,8 +78,8 @@ class BisectingKMeansModel(JavaModel, JavaMLWritable, JavaMLReadable, HasTrainin
     def summary(self) -> BisectingKMeansSummary: ...
 
 class BisectingKMeans(JavaEstimator[BisectingKMeansModel], HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasSeed, JavaMLWritable, JavaMLReadable):
-    k = ...  # type: Param
-    minDivisibleClusterSize = ...  # type: Param
+    k: Param
+    minDivisibleClusterSize: Param
     def __init__(self, featuresCol: str = ..., predictionCol: str = ..., maxIter: int = ..., seed: Optional[int] = ..., k: int = ..., minDivisibleClusterSize: float = ..., distanceMeasure: str = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., predictionCol: str = ..., maxIter: int = ..., seed: Optional[int] = ..., k: int = ..., minDivisibleClusterSize: float = ..., distanceMeasure: str = ...) -> BisectingKMeans: ...
     def setK(self, value: int) -> BisectingKMeans: ...
@@ -111,16 +111,16 @@ class DistributedLDAModel(LDAModel, JavaMLReadable, JavaMLWritable):
 class LocalLDAModel(LDAModel, JavaMLReadable, JavaMLWritable): ...
 
 class LDA(JavaEstimator[LDAModel], HasFeaturesCol, HasMaxIter, HasSeed, HasCheckpointInterval, JavaMLReadable, JavaMLWritable):
-    k = ...  # type: Param
-    optimizer = ...  # type: Param
-    learningOffset = ...  # type: Param
-    learningDecay = ...  # type: Param
-    subsamplingRate = ...  # type: Param
-    optimizeDocConcentration = ...  # type: Param
-    docConcentration = ...  # type: Param
-    topicConcentration = ...  # type: Param
-    topicDistributionCol = ...  # type: Param
-    keepLastCheckpoint = ...  # type: Param
+    k: Param
+    optimizer: Param
+    learningOffset: Param
+    learningDecay: Param
+    subsamplingRate: Param
+    optimizeDocConcentration: Param
+    docConcentration: Param
+    topicConcentration: Param
+    topicDistributionCol: Param
+    keepLastCheckpoint: Param
     def __init__(self, featuresCol: str = ..., maxIter: int = ..., seed: Optional[int] = ..., checkpointInterval: int = ..., k: int = ..., optimizer: str = ..., learningOffset: float = ..., learningDecay: float = ..., subsamplingRate: float = ..., optimizeDocConcentration: bool = ..., docConcentration: Optional[List[float]] = ..., topicConcentration: Optional[float] = ..., topicDistributionCol: str = ..., keepLastCheckpoint: bool = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., maxIter: int = ..., seed: Optional[int] = ..., checkpointInterval: int = ..., k: int = ..., optimizer: str = ..., learningOffset: float = ..., learningDecay: float = ..., subsamplingRate: float = ..., optimizeDocConcentration: bool = ..., docConcentration: Optional[List[float]] = ..., topicConcentration: Optional[float] = ..., topicDistributionCol: str = ..., keepLastCheckpoint: bool = ...) -> LDA: ...
     def setK(self, value: int) -> LDA: ...
@@ -145,10 +145,10 @@ class LDA(JavaEstimator[LDAModel], HasFeaturesCol, HasMaxIter, HasSeed, HasCheck
     def getKeepLastCheckpoint(self) -> bool: ...
 
 class PowerIterationClustering(HasMaxIter, HasWeightCol, JavaParams, JavaMLReadable, JavaMLWritable):
-    k = ...  # type: Param
-    initMode = ...  # type: Param
-    srcCol = ...  # type: Param
-    dstCol = ...  # type: Param
+    k: Param
+    initMode: Param
+    srcCol: Param
+    dstCol: Param
     def __init__(self, k: int = ..., maxIter: int = ..., initMode: str = ..., srcCol: str = ..., dstCol: str = ..., weightCol: Optional[str] = ...) -> None: ...
     def setParams(self, k: int = ..., maxIter: int = ..., initMode: str = ..., srcCol: str = ..., dstCol: str = ..., weightCol: Optional[str] = ...) -> PowerIterationClustering: ...
     def setK(self, value: int) -> PowerIterationClustering: ...

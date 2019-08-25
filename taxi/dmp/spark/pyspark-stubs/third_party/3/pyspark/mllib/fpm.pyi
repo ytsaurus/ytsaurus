@@ -12,7 +12,7 @@ T = TypeVar('T')
 class FPGrowthModel(JavaModelWrapper, JavaSaveable, JavaLoader, Generic[T]):
     def freqItemsets(self) -> RDD[FPGrowth.FreqItemset[T]]: ...
     @classmethod
-    def load(cls, sc: SparkContext, path: str) -> 'FPGrowthModel': ...
+    def load(cls, sc: SparkContext, path: str) -> FPGrowthModel: ...
 
 class FPGrowth:
     @classmethod
@@ -28,5 +28,5 @@ class PrefixSpan:
     @classmethod
     def train(cls, data: RDD[List[List[T]]], minSupport: float = ..., maxPatternLength: int = ..., maxLocalProjDBSize: int = ...) -> PrefixSpanModel[T]: ...
     class FreqSequence(tuple, Generic[T]):
-        sequence = ...  # type: List[T]
-        freq = ...  # type: int
+        sequence: List[T]
+        freq: int

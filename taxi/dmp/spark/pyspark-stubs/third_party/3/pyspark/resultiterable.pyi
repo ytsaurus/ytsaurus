@@ -7,9 +7,9 @@ import collections
 T = TypeVar('T')
 
 class ResultIterable(collections.Iterable, Generic[T]):
-    data = ...  # type: Iterable[T]
-    index = ...  # type: int
-    maxindex = ...  # type: int
+    data: Iterable[T]
+    index: int
+    maxindex: int
     def __init__(self, data: Iterable[T]) -> None: ...
     def __iter__(self) -> Iterator[T]: ...
     def __len__(self) -> int: ...
