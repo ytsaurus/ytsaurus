@@ -2,6 +2,7 @@ from __future__ import with_statement
 
 from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait
 
+from yt.wrapper.http_helpers import get_api_version
 from yt.wrapper.driver import get_command_list
 
 from yt.packages.six.moves import xrange
@@ -307,3 +308,13 @@ class TestDynamicTableCommands(object):
         tablets = yt.get("{}/@tablets".format(table))
         assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
+    def test_get_tablet_infos(self):
+        if get_api_version() != "v4":
+            pytest.skip()
+
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/table_reshard_auto"
+        self._create_dynamic_table(table)
+        yt.mount_table(table, sync=True)
+
+        assert yt.get_tablet_infos(table, [0])["tablets"][0]["total_row_count"] == 0
