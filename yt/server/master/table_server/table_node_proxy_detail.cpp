@@ -1311,7 +1311,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     // XXX(babenko): check IsPrimaryMaster
-    if (Bootstrap_->IsPrimaryMaster()) {
+    if (!table->IsForeign()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         if (table->IsReplicated()) {
