@@ -370,7 +370,8 @@ void TObjectProxyBase::RemoveAttribute(
 
 void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 {
-    if (Object_->IsForeign()) {
+    // XXX(babenko): make more objects foreign
+    if (CellTagFromId(Object_->GetId()) != Bootstrap_->GetCellTag()) {
         return;
     }
 
