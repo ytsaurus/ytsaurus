@@ -555,6 +555,7 @@ private:
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
 
+    // Dynamic tables
     std::vector<TTabletInfo> DoGetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
