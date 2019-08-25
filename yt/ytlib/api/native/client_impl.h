@@ -568,7 +568,10 @@ private:
         const std::vector<TString>& extraAttributes = {});
 
     template <class TReq>
-    void ExecuteTabletServiceRequest(const NYPath::TYPath& path, TReq* req);
+    void ExecuteTabletServiceRequest(
+        const NYPath::TYPath& path,
+        TStringBuf action,
+        TReq* req);
 
     void DoMountTable(
         const NYPath::TYPath& path,
