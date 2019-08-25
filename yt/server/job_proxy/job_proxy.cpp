@@ -754,14 +754,20 @@ void TJobProxy::CheckMemoryUsage()
 
     YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatAllocationCounters());
 
-    if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
+    constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
+
+    auto usage = JobProxyMaxMemoryUsage_.load();
+    if (usage > JobProxyMemoryReserve_ &&
+        usage > LastLoggedJobProxyMaxMemoryUsage_ * JobProxyMaxMemoryUsageLoggingExponentialFactor)
+    {
         if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
             YT_LOG_WARNING("Job proxy used more memory than estimated "
                 "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
-                JobProxyMaxMemoryUsage_.load(),
+                usage,
                 JobProxyMemoryReserve_,
                 TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
             LastRefCountedTrackerLogTime_ = TInstant::Now();
+            LastLoggedJobProxyMaxMemoryUsage_ = usage;
         }
     }
 
