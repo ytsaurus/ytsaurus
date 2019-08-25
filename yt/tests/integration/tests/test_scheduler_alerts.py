@@ -383,8 +383,8 @@ class TestControllerAgentAlerts(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def teardown(self):
-        remove("//sys/controller_agents/config")
-        set("//sys/controller_agents/config", {})
+        remove("//sys/controller_agents/config", force=True)
+        create("document", "//sys/controller_agents/config", attributes={"value": {}})
         agent = ls("//sys/controller_agents/instances")[0]
         agent_path = "//sys/controller_agents/instances/" + agent
         wait(lambda: len(get(agent_path + "/@alerts")) == 0)
@@ -395,7 +395,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        get(agent_path + "/@")
+        wait(lambda: exists(agent_path + "/@alerts"))
         assert len(get(agent_path + "/@alerts")) == 0
 
         set("//sys/controller_agents/config", {"unknown_option": 10})
@@ -407,7 +407,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        get(agent_path + "/@")
+        wait(lambda: exists(agent_path + "/@alerts"))
         assert len(get(agent_path + "/@alerts")) == 0
 
         remove("//sys/controller_agents/config")
