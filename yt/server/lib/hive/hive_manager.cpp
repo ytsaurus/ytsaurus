@@ -250,6 +250,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (cellId == SelfCellId_) {
+            return VoidFuture;
+        }
+
         if (enableBatching) {
             return GetOrCreateSyncBatcher(cellId)->Run();
         } else {
