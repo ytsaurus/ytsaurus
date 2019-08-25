@@ -24,8 +24,6 @@
 #include <util/generic/maybe.h>
 #include <util/system/rwlock.h>
 
-#include <common/logger_useful.h>
-
 #include <map>
 
 namespace NYT::NClickHouseServer {

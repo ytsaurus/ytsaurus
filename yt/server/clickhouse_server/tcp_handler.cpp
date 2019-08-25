@@ -4,8 +4,6 @@
 
 #include <server/TCPHandler.h>
 
-#include <common/logger_useful.h>
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -18,13 +16,11 @@ class TTcpHandlerFactory
 private:
     TBootstrap* Bootstrap_;
     IServer& Server;
-    Logger* Log;
 
 public:
     TTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
         : Bootstrap_(bootstrap)
         , Server(server)
-        , Log(&Logger::get("TCPHandlerFactory"))
     {}
 
     Poco::Net::TCPServerConnection* createConnection(
@@ -36,9 +32,6 @@ public:
 Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
     const Poco::Net::StreamSocket& socket)
 {
-    LOG_TRACE(Log, "TCP Request. "
-        << "Address: " << socket.peerAddress().toString());
-
     class TTcpHandler
         : public DB::TCPHandler
     {
