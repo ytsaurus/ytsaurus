@@ -90,7 +90,8 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     IYPathServicePtr proxy;
-    // XXX(babenko): check IsPrimaryMaster
+
+    // Cf. TObjectResolver::ResolveRoot.
     if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
         proxy = objectManager->CreateRemoteProxy(objectId);
     } else {
@@ -311,7 +312,6 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
         FetchSizeFromLocal()
     };
 
-    // XXX(babenko): check IsPrimaryMaster
     if (Bootstrap_->IsPrimaryMaster()) {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
@@ -377,7 +377,6 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
         FetchItemsFromLocal(session)
     };
 
-    // XXX(babenko): check IsPrimaryMaster
     if (Bootstrap_->IsPrimaryMaster()) {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {

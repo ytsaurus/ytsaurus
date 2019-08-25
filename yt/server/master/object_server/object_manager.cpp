@@ -993,7 +993,6 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
         THROW_ERROR_EXCEPTION("Object is foreign");
     }
 
-    // XXX(babenko): check IsPrimaryMaster
     if (Bootstrap_->IsPrimaryMaster() &&
         Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
     {
@@ -1157,7 +1156,6 @@ TObject* TObjectManager::TImpl::CreateObject(
     }
 
     bool replicate =
-        // XXX(babenko): check IsPrimaryMaster
         Bootstrap_->IsPrimaryMaster() &&
         Any(flags & ETypeFlags::ReplicateCreate);
 

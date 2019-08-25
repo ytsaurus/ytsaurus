@@ -370,16 +370,17 @@ void TObjectProxyBase::RemoveAttribute(
 
 void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 {
-    // XXX(babenko): check IsPrimaryMaster
-    if (!IsPrimaryMaster())
+    if (Object_->IsForeign()) {
         return;
+    }
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& handler = objectManager->GetHandler(Object_->GetType());
     auto flags = handler->GetFlags();
 
-    if (None(flags & ETypeFlags::ReplicateAttributes))
+    if (None(flags & ETypeFlags::ReplicateAttributes)) {
         return;
+    }
 
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
     PostToMasters(std::move(context), replicationCellTags);

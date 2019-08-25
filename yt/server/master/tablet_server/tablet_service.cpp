@@ -94,6 +94,14 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    static void ValidateNoParentTransaction(TTransaction* transaction)
+    {
+        if (transaction->GetParent()) {
+            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
+        }
+    }
+
     static TTableNode* AsTableNodeSafe(TCypressNode* node)
     {
         if (!node) {
@@ -105,6 +113,7 @@ private:
         return node->As<TTableNode>();
     }
 
+
     void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
@@ -113,7 +122,7 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
+        const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -133,8 +142,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
                 THROW_ERROR_EXCEPTION("Table path mismatch")
@@ -180,7 +188,7 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
+        const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -202,8 +210,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -230,7 +237,6 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -252,8 +258,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -279,8 +284,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->ValidateNoCurrentMountTransaction("Cannot unmount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -318,8 +322,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -356,8 +359,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -381,8 +383,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->ValidateNoCurrentMountTransaction("Cannot freeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -417,8 +418,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -452,8 +452,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -477,8 +476,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -513,8 +511,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -549,8 +546,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -574,8 +570,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->ValidateNoCurrentMountTransaction("Cannot remount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -610,8 +605,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -643,8 +637,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -672,8 +665,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->ValidateNoCurrentMountTransaction("Cannot reshard table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -718,8 +710,7 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -759,16 +750,8 @@ private:
             return;
         }
 
-        // XXX(babenko): check IsPrimaryMaster
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (!table->IsForeign()) {
             table->SetCurrentMountTransactionId(TTransactionId());
-        }
-    }
-
-    void ValidateNoParentTransaction(TTransaction* transaction)
-    {
-        if (transaction->GetParent()) {
-            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
         }
     }
 };
