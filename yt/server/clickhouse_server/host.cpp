@@ -58,11 +58,9 @@
 #include <Dictionaries/Embedded/GeoDictionariesLoader.h>
 
 #include <common/DateLUT.h>
-#include <common/logger_useful.h>
 
 #include <Poco/DirectoryIterator.h>
 #include <Poco/File.h>
-#include <Poco/Logger.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Net/TCPServer.h>

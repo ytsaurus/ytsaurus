@@ -7,8 +7,6 @@
 #include <server/PingRequestHandler.h>
 #include <server/RootRequestHandler.h>
 
-#include <common/logger_useful.h>
-
 #include <Poco/Net/HTTPServerRequest.h>
 #include <Poco/URI.h>
 
@@ -45,13 +43,11 @@ class THttpHandlerFactory
 private:
     TBootstrap* Bootstrap_;
     IServer& Server;
-    Poco::Logger* Log;
 
 public:
     THttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
         : Bootstrap_(bootstrap)
         , Server(server)
-        , Log(&Logger::get("HTTPHandlerFactory"))
     {}
 
     Poco::Net::HTTPRequestHandler* createRequestHandler(
@@ -83,13 +79,14 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         const TQueryId QueryId_;
     };
 
-    const Poco::URI uri(request.getURI());
+    Poco::URI uri(request.getURI());
 
-    LOG_INFO(Log, "HTTP Request. "
-        << "Method: " << request.getMethod()
-        << ", URI: " << uri.toString()
-        << ", Address: " << request.clientAddress().toString()
-        << ", User-Agent: " << (request.has("User-Agent") ? request.get("User-Agent") : "none"));
+    const auto& Logger = ServerLogger;
+    YT_LOG_DEBUG("HTTP request received (Method: %v, URI: %v, Address: %v, User-Agent: %v)",
+        request.getMethod(),
+        uri.toString(),
+        request.clientAddress().toString(),
+        (request.has("User-Agent") ? request.get("User-Agent") : "none"));
 
     // Light health-checking requests
     if (IsHead(request) || IsGet(request)) {
