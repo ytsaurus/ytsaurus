@@ -1536,6 +1536,10 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
+
+    OutputUploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(
+        Host->GetClient()->GetNativeConnection(),
+        OutputCompletionTransaction->GetId());
 }
 
 void TOperationControllerBase::CommitOutputCompletionTransaction()
@@ -1588,6 +1592,10 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
+
+    DebugUploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(
+        Host->GetClient()->GetNativeConnection(),
+        DebugCompletionTransaction->GetId());
 }
 
 void TOperationControllerBase::CommitDebugCompletionTransaction()
@@ -2067,6 +2075,13 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables)
 {
+    if (DebugUploadSynchronizer_) {
+        DebugUploadSynchronizer_->BeforeEndUpload();
+    }
+    if (OutputUploadSynchronizer_) {
+        OutputUploadSynchronizer_->BeforeEndUpload();
+    }
+
     THashMap<TCellTag, std::vector<TOutputTablePtr>> nativeCellTagToTables;
     for (const auto& table : tables) {
         nativeCellTagToTables[CellTagFromId(table->ObjectId)].push_back(table);
@@ -2120,6 +2135,13 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         for (const auto& batchRsp : result.Value()) {
             checkError(GetCumulativeError(batchRsp));
         }
+    }
+
+    if (DebugUploadSynchronizer_) {
+        DebugUploadSynchronizer_->AfterEndUpload();
+    }
+    if (OutputUploadSynchronizer_) {
+        OutputUploadSynchronizer_->AfterEndUpload();
     }
 }
 
@@ -5345,8 +5367,12 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             checkError(GetCumulativeError(batchRsp));
             for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>()) {
                 const auto& rsp = rspOrError.Value();
+
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+                auto* uploadSynchronizer = GetUploadSynchronizerForOutputTable(table);
+                uploadSynchronizer->AfterBeginUpload(table->ObjectId, table->ExternalCellTag);
             }
         }
     }
@@ -6522,6 +6548,16 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
         } else {
             return DebugTransaction;
         }
+    }
+}
+
+TChunkUploadSynchronizer* TOperationControllerBase::GetUploadSynchronizerForOutputTable(const TOutputTablePtr& table) const
+{
+    if (table->OutputType == EOutputTableType::Output) {
+        return OutputUploadSynchronizer_.get();
+    } else {
+        YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
+        return DebugUploadSynchronizer_.get();
     }
 }
 
