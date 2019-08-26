@@ -2144,6 +2144,11 @@ class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
 
 ##################################################################
 
+class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
+    ENABLE_TMP_PORTAL = True
+
+##################################################################
+
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

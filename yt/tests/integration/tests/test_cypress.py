@@ -750,13 +750,13 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_get_with_attributes(self):
-        set("//tmp/a", {})
-        assert get("//tmp", attributes=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
+        set("//tmp/a/b", {}, recursive=True, force=True)
+        assert get("//tmp/a", attributes=["type"]) == to_yson_type({"b": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
 
     @authors("babenko")
     def test_list_with_attributes(self):
-        set("//tmp/a", {})
-        assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
+        set("//tmp/a/b", {}, recursive=True, force=True)
+        assert ls("//tmp/a", attributes=["type"]) == [to_yson_type("b", attributes={"type": "map_node"})]
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
@@ -1554,15 +1554,15 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})
-        set("//tmp&/map&/a", "b")
-        assert get("//tmp&/map&/a") == "b"
+        set("//tmp/map&/a", "b")
+        assert get("//tmp/map&/a") == "b"
         assert get("//tmp/map&/@type") == "map_node"
 
     @authors("babenko")
     def test_ignore_ampersand2(self):
         set("//tmp/list", [])
-        set("//tmp&/list&/end", "x")
-        assert get("//tmp&/list&/0") == "x"
+        set("//tmp/list&/end", "x")
+        assert get("//tmp/list&/0") == "x"
         assert get("//tmp/list&/@type") == "list_node"
 
     @authors("babenko", "ignat")
@@ -1944,19 +1944,15 @@ class TestCypress(YTEnvSetup):
             set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
 
         create_tablet_cell_bundle("b1")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
 
         set("//tmp/dir1/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir1/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         set("//tmp/dir2/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir2/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 3
 
         set("//tmp/dir3/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir3/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
 
         create_tablet_cell_bundle("b2")
 
@@ -1965,38 +1961,34 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
 
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 6 # +1 for cloned trunk, +1 for it branch
         with pytest.raises(YtError):
             set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
         with pytest.raises(YtError):
             remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
 
         set("//tmp/dir1/@tablet_cell_bundle", "b2")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
 
         remove("//tmp/dir2/@tablet_cell_bundle")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
 
         abort_transaction(tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         move("//tmp/dir3", "//tmp/dir3_move")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         tx = start_transaction()
         move("//tmp/dir3_move", "//tmp/dir3", tx=tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
 
         abort_transaction(tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         remove("//tmp/dir3_move")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
+
+        remove("//sys/tablet_cell_bundles/b1")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
+
+        remove("//sys/tablet_cell_bundles/b2")
+        wait(lambda: get("//sys/tablet_cell_bundles/b2/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        remove("//tmp/dir1")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
     @authors("shakurov")
     def test_inheritable_attributes_no_extraneous_inheritance(self):
@@ -2251,6 +2243,11 @@ class TestCypressMulticell(TestCypress):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
         assert not exists("//tmp/t/@external_cell_bias")
+
+##################################################################
+
+class TestCypressPortal(TestCypressMulticell):
+    ENABLE_TMP_PORTAL = True
 
 ##################################################################
 
