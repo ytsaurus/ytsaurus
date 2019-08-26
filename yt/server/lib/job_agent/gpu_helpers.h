@@ -32,6 +32,8 @@ TString GetGpuDeviceName(int deviceNumber);
 
 void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, const NProfiling::TTagIdList& tagIds);
 
+TString GetGpuDriverVersion();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NY::NJobAgent

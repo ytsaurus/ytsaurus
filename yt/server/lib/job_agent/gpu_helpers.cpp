@@ -260,6 +260,12 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
     profiler.Enqueue("/memory_used", gpuInfo.MemoryUsed, NProfiling::EMetricType::Gauge, tagIds);
 }
 
+TString GetGpuDriverVersion()
+{
+    TFileInput moduleVersion("/sys/module/version/nvidia");
+    return moduleVersion.ReadLine();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobAgent

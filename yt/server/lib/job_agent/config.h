@@ -81,7 +81,12 @@ class TGpuManagerConfig
 public:
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
+
+    std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
+    std::optional<TString> DriverVersion;
+    TDuration DriverLayerFetchPeriod;
 
     TGpuManagerConfig()
     {
@@ -89,8 +94,16 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
             .Default(TDuration::Seconds(10));
+
         RegisterParameter("job_setup_command", JobSetupCommand)
             .Default();
+
+        RegisterParameter("driver_layer_directory_path", DriverLayerDirectoryPath)
+            .Default();
+        RegisterParameter("driver_version", DriverVersion)
+            .Default();
+        RegisterParameter("driver_layer_fetch_period", DriverLayerFetchPeriod)
+            .Default(TDuration::Minutes(5));
     }
 };
 

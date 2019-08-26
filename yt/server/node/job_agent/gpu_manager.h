@@ -6,6 +6,7 @@
 #include <yt/server/lib/job_agent/gpu_helpers.h>
 
 #include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/data_node/artifact.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -56,6 +57,8 @@ public:
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
 
+    std::vector<NDataNode::TArtifactKey> GetToppingLayers();
+
 private:
     NCellNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
@@ -68,7 +71,14 @@ private:
     std::vector<TGpuSlot> FreeSlots_;
     bool Disabled_ = false;
 
+    NYPath::TYPath DriverLayerPath_;
+    ui64 DriverLayerRevision_ = 0;
+    std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
+    NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+
     void OnHealthCheck();
+    void FetchDriverLayerInfo();
+    void DoFetchDriverLayerInfo();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)
