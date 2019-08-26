@@ -331,10 +331,14 @@ struct TTransactionStartOptions
     //! Only applicable to tablet transactions.
     NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
 
-    //! Only for master transactions at secondary cell.
-    NObjectClient::TCellTag CellTag = NObjectClient::PrimaryMasterCellTag;
+    //! Only for master transactions.
+    //! Indicates the master cell the transaction will be initially started at and controlled by
+    //! (primary cell by default).
+    std::optional<NObjectClient::TCellTag> CoordinatorMasterCellTag;
 
-    bool Multicell = false;
+    //! Only for master transactions.
+    //! Indicates the cells the transaction will be replicated to (all by default).
+    std::optional<NObjectClient::TCellTagList> ReplicateToMasterCellTags;
 };
 
 struct TTransactionAttachOptions

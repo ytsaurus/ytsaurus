@@ -49,7 +49,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, Timeout_);
     Save(context, Title_);
-    Save(context, SecondaryCellTags_);
+    Save(context, ReplicatedToCellTags_);
     Save(context, NestedNativeTransactions_);
     Save(context, NestedExternalTransactionIds_);
     Save(context, UnregisterFromParentOnCommit_);
@@ -81,7 +81,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, Timeout_);
     Load(context, Title_);
-    Load(context, SecondaryCellTags_);
+    Load(context, ReplicatedToCellTags_);
     Load(context, NestedNativeTransactions_);
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::ShardedUploads) {

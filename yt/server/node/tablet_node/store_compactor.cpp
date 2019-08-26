@@ -826,18 +826,19 @@ private:
             {
                 YT_LOG_INFO("Creating Eden partitioning transaction");
 
-                TTransactionStartOptions options;
-                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
+
+                auto transactionAttributes = CreateEphemeralAttributes();
+                transactionAttributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
                     tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
-                options.Attributes = std::move(attributes);
-
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options);
+                    TTransactionStartOptions{
+                        .AutoAbort = false,
+                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
+                        .ReplicateToMasterCellTags = TCellTagList(),
+                        .Attributes =  std::move(transactionAttributes)
+                    });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
@@ -1263,18 +1264,18 @@ private:
             {
                 YT_LOG_INFO("Creating partition compaction transaction");
 
-                TTransactionStartOptions options;
-                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Partition compaction: table %v, tablet %v",
+                auto transactionAttributes = CreateEphemeralAttributes();
+                transactionAttributes->Set("title", Format("Partition compaction: table %v, tablet %v",
                     tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
-                options.Attributes = std::move(attributes);
-
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options);
+                    TTransactionStartOptions{
+                        .AutoAbort = false,
+                        .Attributes = std::move(transactionAttributes),
+                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
+                        .ReplicateToMasterCellTags = TCellTagList()
+                    });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
