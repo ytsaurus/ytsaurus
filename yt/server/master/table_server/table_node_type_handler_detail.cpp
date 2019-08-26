@@ -150,13 +150,13 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (dynamic) {
-            if (!node->IsForeign()) {
+            if (node->IsNative()) {
                 tabletManager->ValidateMakeTableDynamic(node);
             }
 
             tabletManager->MakeTableDynamic(node);
 
-            if (!node->IsForeign()) {
+            if (node->IsNative()) {
                 if (optionalTabletCount) {
                     tabletManager->PrepareReshardTable(node, 0, 0, *optionalTabletCount, {}, true);
                 } else if (optionalPivotKeys) {

@@ -1310,7 +1310,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         schema = schema.ToUniqueKeys();
     }
 
-    if (!table->IsForeign()) {
+    if (table->IsNative()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         if (table->IsReplicated()) {

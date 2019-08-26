@@ -1568,7 +1568,7 @@ public:
 
     void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     {
-        if (!chunkOwner->IsForeign()) {
+        if (chunkOwner->IsNative()) {
             return;
         }
 
@@ -1646,7 +1646,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount a static table");
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
@@ -2051,7 +2051,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot unmount a static table");
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
@@ -2126,7 +2126,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot remount a static table");
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
@@ -2228,7 +2228,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot freeze a static table");
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
@@ -2318,7 +2318,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot unfreeze a static table");
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
@@ -4943,7 +4943,7 @@ private:
             table->SetExpectedTabletState(*expectedState);
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             YT_VERIFY(!table->GetPrimaryLastMountTransactionId());
             table->SetLastMountTransactionId(TTransactionId());
         } else {

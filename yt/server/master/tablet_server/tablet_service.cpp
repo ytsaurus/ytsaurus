@@ -142,7 +142,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
                 THROW_ERROR_EXCEPTION("Table path mismatch")
@@ -210,7 +210,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -258,7 +258,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -284,7 +284,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot unmount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -322,7 +322,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -359,7 +359,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -383,7 +383,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot freeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -418,7 +418,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -452,7 +452,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -476,7 +476,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -511,7 +511,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -546,7 +546,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -570,7 +570,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot remount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -605,7 +605,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -637,7 +637,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -665,7 +665,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot reshard table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -710,7 +710,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -750,7 +750,7 @@ private:
             return;
         }
 
-        if (!table->IsForeign()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }

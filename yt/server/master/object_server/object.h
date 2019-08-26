@@ -164,6 +164,9 @@ public:
     //! Returns |true| if the object was replicated here from another cell.
     bool IsForeign() const;
 
+    //! Returns |true| if the objects is not foreign.
+    bool IsNative() const;
+
 
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;

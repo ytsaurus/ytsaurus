@@ -397,7 +397,7 @@ public:
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
-        YT_VERIFY(!chunk->IsForeign());
+        YT_VERIFY(chunk->IsNative());
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
