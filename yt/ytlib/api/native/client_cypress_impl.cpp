@@ -585,7 +585,7 @@ void TClient::DoConcatenateNodes(
                     int srcIndex = srcIndexes[localIndex];
                     auto srcId = srcIds[srcIndex];
                     auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
-                    AddCellTagToSyncWith(req, CellTagFromId(srcId));
+                    AddCellTagToSyncWith(req, srcId);
                     SetTransactionId(req, options, true);
                     ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
                     batchReq->AddRequest(req, "fetch");
