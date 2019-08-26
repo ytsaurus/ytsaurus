@@ -33,6 +33,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobPreparationTimeout)         (1115))
     ((JobProxyFailed)                (1120))
     ((SetupCommandFailed)            (1121))
+    ((GpuLayerNotFetched)            (1122))
 );
 
 DEFINE_ENUM(ESandboxKind,

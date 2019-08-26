@@ -1334,8 +1334,14 @@ private:
                     nullptr});
             }
 
+            if (GetResourceUsage().gpu() > 0 && !userJobSpec.layers().empty()) {
+                for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
+                    LayerArtifactKeys_.emplace_back(layerKey);
+                }
+            }
+
             for (const auto& descriptor : userJobSpec.layers()) {
-                LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
+                LayerArtifactKeys_.emplace_back(descriptor);
             }
         }
 
@@ -1576,7 +1582,8 @@ private:
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
             resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout))
+            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::GpuLayerNotFetched))
         {
             return EAbortReason::Other;
         }
