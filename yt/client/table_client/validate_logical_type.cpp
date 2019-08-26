@@ -185,6 +185,10 @@ private:
             CASE(ESimpleLogicalValueType::Int32)
             CASE(ESimpleLogicalValueType::Uint32)
             CASE(ESimpleLogicalValueType::Utf8)
+            CASE(ESimpleLogicalValueType::Date)
+            CASE(ESimpleLogicalValueType::Datetime)
+            CASE(ESimpleLogicalValueType::Timestamp)
+            CASE(ESimpleLogicalValueType::Interval)
 #undef CASE
         }
         YT_ABORT();

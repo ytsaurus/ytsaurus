@@ -103,7 +103,6 @@ def type_v2_to_type_v1(type_v2):
     remove(table)
     return TypeV1(column_schema["type"], column_schema["required"])
 
-
 class TestComplexTypes(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
@@ -581,6 +580,11 @@ class TestLogicalType(YTEnvSetup):
             "utf8",
             "string",
             "null",
+
+            "date",
+            "datetime",
+            "timestamp",
+            "interval",
         ], dynamic=dynamic)
 
         type_tester.check_good_value("int8", 2 ** 7 - 1)
@@ -640,6 +644,34 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("null", 0)
         type_tester.check_bad_value("null", False)
         type_tester.check_bad_value("null", "")
+
+        date_upper_bound = 49673
+        type_tester.check_good_value("date", 0)
+        type_tester.check_good_value("date", 5)
+        type_tester.check_good_value("date", date_upper_bound - 1)
+        type_tester.check_conversion_error("date", -1)
+        type_tester.check_bad_value("date", date_upper_bound)
+
+        datetime_upper_bound = date_upper_bound * 86400
+        type_tester.check_good_value("datetime", 0)
+        type_tester.check_good_value("datetime", 5)
+        type_tester.check_good_value("datetime", datetime_upper_bound - 1)
+        type_tester.check_conversion_error("datetime", -1)
+        type_tester.check_bad_value("datetime", datetime_upper_bound)
+
+        timestamp_upper_bound = datetime_upper_bound * 10 ** 6
+        type_tester.check_good_value("timestamp", 0)
+        type_tester.check_good_value("timestamp", 5)
+        type_tester.check_good_value("timestamp", timestamp_upper_bound - 1)
+        type_tester.check_conversion_error("timestamp", -1)
+        type_tester.check_bad_value("timestamp", timestamp_upper_bound)
+
+        type_tester.check_good_value("interval", 0)
+        type_tester.check_good_value("interval", 5)
+        type_tester.check_good_value("interval", timestamp_upper_bound - 1)
+        type_tester.check_good_value("interval", -timestamp_upper_bound + 1)
+        type_tester.check_bad_value("interval", timestamp_upper_bound)
+        type_tester.check_bad_value("interval", -timestamp_upper_bound)
 
     @authors("ermolovd")
     def test_bad_alter_table(self):
