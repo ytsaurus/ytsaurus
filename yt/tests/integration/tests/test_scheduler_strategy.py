@@ -2392,7 +2392,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node
 
-class TestSchedulingOptionsPerTree(YTEnvSetup):
+class TestTentativePoolTrees(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
@@ -2429,7 +2429,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         if exists("//sys/controller_agents/config"):
             set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
         remove("//sys/pool_trees/other")
-        super(TestSchedulingOptionsPerTree, self).teardown_method(method)
+        super(TestTentativePoolTrees, self).teardown_method(method)
 
     # Creates and additional pool tree called "other", configures tag filters,
     # tags some nodes as "other" and returns a list of those nodes.
@@ -2445,9 +2445,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         return other_nodes
 
-    def _create_spec(self, use_max_share_ratios=True):
+    def _create_spec(self):
         spec = {
-            "pool_trees": ["default", "other"],
+            "pool_trees": ["default"],
+            "tentative_pool_trees": ["other"],
             "scheduling_options_per_pool_tree": {
                 "default": {
                     "min_share_ratio": 0.37
@@ -2456,66 +2457,21 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     "pool": "superpool"
                 }
             },
-            "data_size_per_job": 1
+            "tentative_tree_eligibility": {
+                "sample_job_count": TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT,
+                "max_tentative_job_duration_ratio": TestTentativePoolTrees.MAX_TENTATIVE_TREE_JOB_DURATION_RATIO,
+                "min_job_duration": TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_MIN_JOB_DURATION,
+            },
+            "data_size_per_job": 1,
         }
-        if use_max_share_ratios:
-            spec["scheduling_options_per_pool_tree"]["default"]["max_share_ratio"] = 0.5
-            spec["scheduling_options_per_pool_tree"]["other"]["max_share_ratio"] = 2.0 / 3
         return spec
-
-    def _patch_spec_for_tentativeness(self, spec):
-        spec["pool_trees"].remove("other")
-        spec["tentative_pool_trees"] = ["other"]
-        spec["tentative_tree_eligibility"] = {
-            "sample_job_count": TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT,
-            "max_tentative_job_duration_ratio": TestSchedulingOptionsPerTree.MAX_TENTATIVE_TREE_JOB_DURATION_RATIO,
-            "min_job_duration": TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_MIN_JOB_DURATION,
-        }
-
-    @authors("asaitgalin")
-    @pytest.mark.xfail(run = True, reason = "asaitgalin should fix ratios")
-    def test_scheduling_options_per_tree(self):
-        self._prepare_pool_trees()
-        spec = self._create_spec()
-
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
-        create("table", "//tmp/t_out")
-
-        op = map(
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec=spec,
-            dont_track=True)
-
-        wait_breakpoint()
-
-        def get_value(tree, op_id, value):
-            return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/{2}"
-                       .format(tree, op_id, value))
-
-        assert are_almost_equal(get_value("default", op.id, "min_share_ratio"), 0.37)
-        assert are_almost_equal(get_value("default", op.id, "max_share_ratio"), 0.4)
-        assert are_almost_equal(get_value("default", op.id, "fair_share_ratio"), 1./3)
-        assert are_almost_equal(get_value("default", op.id, "usage_ratio"), 1./3)
-        assert get_value("default", op.id, "pool") == "root"
-
-        assert are_almost_equal(get_value("other", op.id, "max_share_ratio"), 2./3)
-        assert are_almost_equal(get_value("other", op.id, "fair_share_ratio"), 2./3)
-        assert are_almost_equal(get_value("other", op.id, "usage_ratio"), 2./3)
-        assert are_almost_equal(get_value("other", op.id, "usage_ratio"), 2./3)
-        assert get_value("other", op.id, "pool") == "superpool"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
-            .format(op.id)) == "superpool"
 
     # It's just flapping sheet YT-11156
     @flaky(max_runs=5)
-    @authors("shakurov")
+    @authors("ignat")
     def test_tentative_pool_tree_sampling(self):
         other_nodes = self._prepare_pool_trees()
-        spec = self._create_spec(use_max_share_ratios=False)
-        self._patch_spec_for_tentativeness(spec)
+        spec = self._create_spec()
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(20)])
@@ -2551,17 +2507,16 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             if job_node in other_nodes:
                 tentative_job_count += 1
 
-        assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
+        assert tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
         # Check that tentative tree saturated and we have proper deactivation reasons about that.
         orchid_other_operations_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations"
         assert get("{}/{}/deactivation_reasons/saturated_in_tentative_tree".format(orchid_other_operations_path, op.id)) > 0
 
-    @authors("shakurov")
+    @authors("ignat")
     def test_tentative_pool_tree_not_supported(self):
         self._prepare_pool_trees()
         spec = self._create_spec()
-        self._patch_spec_for_tentativeness(spec)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
@@ -2594,12 +2549,12 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         wait(lambda: exists(op2_pool_trees_path + "default"))
         wait(lambda: not exists(op2_pool_trees_path + "other"))
 
-    @authors("shakurov")
+    @authors("ignat")
     def test_tentative_pool_tree_banning(self):
         other_node_list = self._prepare_pool_trees()
-        spec = self._create_spec()
-        self._patch_spec_for_tentativeness(spec)
         other_nodes = frozenset(other_node_list)
+
+        spec = self._create_spec()
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
@@ -2648,7 +2603,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
             assert not operations_failed_or_aborted()
 
-            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+            if non_tentative_job_count >= TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
                 completion_time = time_passed
                 break
 
@@ -2677,7 +2632,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 if tentative:
                     tentative_job_count += 1
 
-                    if tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+                    if tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
                         time.sleep(0.3)
                         # Tentative tree should've been banned by now.
                         wait(lambda: not exists(op_pool_trees_path + "other"))
@@ -2696,14 +2651,14 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     tentative_job_count += 1
 
 
-        assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
+        assert tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
     @authors("ignat")
     def test_tentative_pool_tree_banning_with_hanging_jobs(self):
         other_node_list = self._prepare_pool_trees()
-        spec = self._create_spec()
-        self._patch_spec_for_tentativeness(spec)
         other_nodes = frozenset(other_node_list)
+
+        spec = self._create_spec()
 
         set("//sys/controller_agents/config", {"check_tentative_tree_eligibility_period": 500})
 
@@ -2754,7 +2709,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
             assert not operations_failed_or_aborted()
 
-            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+            if non_tentative_job_count >= TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
                 completion_time = time_passed
                 break
 
@@ -2786,7 +2741,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
     def test_missing_tentative_pool_trees(self):
         self._prepare_pool_trees()
         spec = self._create_spec()
-        self._patch_spec_for_tentativeness(spec)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
@@ -2802,9 +2756,9 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
     @authors("ignat")
     def test_tentative_pool_tree_aborted_jobs(self):
         other_node_list = self._prepare_pool_trees()
-        spec = self._create_spec()
-        self._patch_spec_for_tentativeness(spec)
         other_nodes = frozenset(other_node_list)
+
+        spec = self._create_spec()
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
@@ -2859,7 +2813,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert job_aborted
 
         tentative_job_count = 0
-        while tentative_job_count + 1 < TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+        while tentative_job_count + 1 < TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
             time.sleep(0.5)
             for job_id, tentative in iter_running_jobs():
                 if tentative:
@@ -2875,7 +2829,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         try:
             spec = self._create_spec()
-            spec["pool_trees"].remove("other")
             spec["use_default_tentative_pool_trees"] = True
 
             create("table", "//tmp/t_in")
