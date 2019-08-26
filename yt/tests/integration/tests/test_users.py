@@ -361,37 +361,34 @@ class TestBuiltinTabletSystemUsers(YTEnvSetup):
         cell_id = sync_create_cells(1)[0]
         self._create_sorted_table("//tmp/t")
 
-        def _check(before=False):
+        def _check_snapshot_and_changelog():
             changelogs_num = len(ls("//sys/tablet_cells/{0}/changelogs".format(cell_id)))
             snapshots_num = len(ls("//sys/tablet_cells/{0}/snapshots".format(cell_id)))
-
-            return (changelogs_num > 0 and snapshots_num > 0) ^ before
+            return changelogs_num > 0 and snapshots_num > 0
 
         def _check_rows(last):
-            for i in range(last):
-                keys = [{"key": i}]
-                rows = [{"key": i, "value": i}]
-                wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+            keys = [{"key": i} for i in xrange(last)]
+            rows = [{"key": i, "value": i} for i in xrange(last)]
+            assert lookup_rows("//tmp/t", keys) == rows
 
         def _check_health_after_decommission(cell_id, old_peer_addr):
             def _check():
+                peers = get("#{0}/@peers".format(cell_id))
+                if len(peers) == 0 or peers[0].get("address", old_peer_addr) == old_peer_addr:
+                    return False
+
                 if get("#{0}/@health".format(cell_id)) != "good":
                     return False
-                peer = get("#{0}/@peers".format(cell_id))[0]
 
-                if "address" not in peer or peer["address"] == old_peer_addr:
-                    return False
                 return True
-            wait(_check, iter=200)
-
-        _check(before=True)
+            wait(_check)
 
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value": 0}])
         build_snapshot(cell_id=cell_id)
         insert_rows("//tmp/t", [{"key": 1, "value": 1}])
 
-        wait(_check)
+        wait(_check_snapshot_and_changelog)
         _check_rows(2)
 
         old_peer_addr = get("#{0}/@peers".format(cell_id))[0]["address"]
