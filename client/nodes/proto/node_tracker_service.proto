@@ -4,6 +4,7 @@ import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/secrets.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/host_infra.proto";
+import "yp/client/api/proto/conditions.proto";
 
 import "yt/core/misc/proto/error.proto";
 
@@ -117,8 +118,11 @@ message TReqHeartbeat
         // If this is missing or corresponds to an outdated spec, the master will send an update.
         optional uint64 spec_timestamp = 2;
 
-        // Timestamp of last fully applied spec.
-        optional uint64 applied_spec_timestamp = 6;
+        // Timestamp of a spec currently considered as target.
+        optional uint64 current_spec_timestamp = 6;
+
+        // Whether current spec is applied completely.
+        optional NYP.NClient.NApi.NProto.TCondition applied_completely = 7;
 
         // If present, requests the master to update pod status.
         // The agent is encouraged to leave this null if no status change happens since last successful heartbeat.
