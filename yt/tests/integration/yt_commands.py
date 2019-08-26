@@ -56,15 +56,37 @@ def authors(*the_authors):
 
 @contextlib.contextmanager
 def raises_yt_error(code):
+    """
+    Context manager that helps to check that code raises YTError.
+    When description is int we check that raised error contains this error code.
+    When description is string we check that raised error contains description as substring.
+
+    Examples:
+        with raises_yt_error(SortOrderViolation):
+            ...
+
+        with raises_yt_error("Name of struct field #0 is empty"):
+            ...
+    """
+    if not isinstance(code, (str, int)):
+        raise TypeError("code must be str or int, actual type: {}".format(code.__class__))
     try:
         yield
         raise AssertionError("Expected exception to be raised.")
     except YtError as e:
-        if not e.contains_code(code):
-            raise AssertionError("Raised error {} doesn't contain error code {}".format(
-                e,
-                code,
-            ))
+        if isinstance(code, int):
+            if not e.contains_code(code):
+                raise AssertionError("Raised error doesn't contain error code {}:\n{}".format(
+                    code,
+                    e,
+                ))
+        else:
+            assert isinstance(code, str)
+            if code not in str(e):
+                raise AssertionError("Raised error doesn't contain {}:\n{}".format(
+                    code,
+                    e,
+                ))
 
 def print_debug(*args):
     if arcadia_interop.yatest_common is None:
@@ -1320,6 +1342,18 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
     return ace
 
 #########################################
+
+def make_column(name, type_v2, **attributes):
+    result = {
+        "name": name,
+        "type_v2": type_v2,
+    }
+    for k in attributes:
+        result[k] = attributes[k]
+    return result
+
+def make_sorted_column(name, type_v2, **attributes):
+    return make_column(name, type_v2, sort_order="ascending", **attributes)
 
 def make_schema(columns, **attributes):
     schema = yson.YsonList()
