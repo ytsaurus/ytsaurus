@@ -386,7 +386,7 @@ public:
             ToProto(request.mutable_transaction_id(), parent->GetId());
             ToProto(request.mutable_nested_transaction_id(), transactionId);
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+            multicellManager->PostToMaster(request, parent->GetNativeCellTag());
         }
 
         FinishTransaction(transaction);
@@ -461,7 +461,7 @@ public:
             NProto::TReqUnregisterExternalNestedTransaction request;
             ToProto(request.mutable_transaction_id(), parent->GetId());
             ToProto(request.mutable_nested_transaction_id(), transactionId);
-            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+            multicellManager->PostToMaster(request, parent->GetNativeCellTag());
         }
 
         if (IsLeader()) {
@@ -508,7 +508,7 @@ public:
         ToProto(request.mutable_transaction_id(), parent->GetId());
         ToProto(request.mutable_nested_transaction_id(), transaction->GetId());
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+        multicellManager->PostToMaster(request, parent->GetNativeCellTag());
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)

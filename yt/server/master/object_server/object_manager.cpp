@@ -1203,7 +1203,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     YT_VERIFY(object->GetObjectRefCounter() == 1);
 
-    if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
+    if (object->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
         object->SetForeign();
     }
 

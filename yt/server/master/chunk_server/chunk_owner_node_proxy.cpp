@@ -634,7 +634,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return CellTagFromId(chunk->GetId()); });
+                [] (const TChunk* chunk) { return chunk->GetNativeCellTag(); });
 
         default:
             break;
@@ -941,7 +941,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto replicatedToCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto nativeCellTag = CellTagFromId(node->GetId());
+    auto nativeCellTag = node->GetNativeCellTag();
     auto externalCellTag = node->GetExternalCellTag();
 
     // Make sure |replicatedToCellTags| contains the external cell tag,
@@ -1102,7 +1102,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
     }
 
-    if (Transaction && CellTagFromId(TrunkNode->GetId()) != CellTagFromId(Transaction->GetId())) {
+    if (Transaction && TrunkNode->GetNativeCellTag() != Transaction->GetNativeCellTag()) {
         uploadTransaction->SetUnregisterFromParentOnCommit(true);
     }
 

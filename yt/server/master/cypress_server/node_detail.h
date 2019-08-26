@@ -101,7 +101,7 @@ public:
         std::unique_ptr<TCypressNode> nodeHolder(new TImpl(id));
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
-        if (NObjectClient::CellTagFromId(nodeHolder->GetId()) != Bootstrap_->GetCellTag()) {
+        if (nodeHolder->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
             nodeHolder->SetForeign();
         }
         return nodeHolder;
@@ -245,7 +245,7 @@ protected:
         auto nodeHolder = std::make_unique<TImpl>(id);
         nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
-        if (NObjectClient::CellTagFromId(nodeHolder->GetId()) != Bootstrap_->GetCellTag()) {
+        if (nodeHolder->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
             nodeHolder->SetForeign();
         }
 

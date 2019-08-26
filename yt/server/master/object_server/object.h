@@ -59,6 +59,9 @@ public:
     //! Returns the object id.
     TObjectId GetId() const;
 
+    //! Returns the cell tag extracted from id.
+    TCellTag GetNativeCellTag() const;
+
     //! Returns the object type.
     EObjectType GetType() const;
 
