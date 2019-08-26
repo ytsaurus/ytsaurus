@@ -635,13 +635,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_table_with_custom_cell_bundle(self):
         create_tablet_cell_bundle("b")
-        assert get("//sys/tablet_cell_bundles/@ref_counter") == 1
         create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
         assert get("//tmp/t/@tablet_cell_bundle") == "b"
-        assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 2
+        remove("//sys/tablet_cell_bundles/b")
+        assert get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"]
         remove("//tmp/t")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 1
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
 
     @authors("babenko")
     def test_table_with_custom_cell_bundle_name_validation(self):
@@ -1816,31 +1815,26 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", external_cell_tag=1)
-        assert get("//tmp/t/@external") == True
+        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
+        assert get("//tmp/t/@external")
         cell_tag = get("//tmp/t/@external_cell_tag")
         table_id = get("//tmp/t/@id")
 
-        driver = get_driver(1)
+        driver = get_driver(2)
         assert get("#{0}/@dynamic".format(table_id), driver=driver)
         assert get("#{0}/@dynamic".format(table_id))
 
         sync_mount_table("//tmp/t")
 
-        assert get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver) == 1
-        assert get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1
+        wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver) == 1)
+        wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1)
 
         tablet = get("//tmp/t/@tablets/0")
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]]
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]]
 
-        multicell_sleep()
-
-        multicell_statistics = get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))
-        statistics = get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))
-
-        assert multicell_statistics[str(cell_tag)]["tablet_count"] == 1
-        assert statistics["tablet_count"] == 1
+        wait(lambda:  get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))[str(cell_tag)]["tablet_count"] ==  1)
+        wait(lambda: get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))["tablet_count"] == 1)
 
         rows = [{"key": 0, "value": "0"}]
         keys = [{"key": r["key"]} for r in rows]
@@ -1849,20 +1843,12 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
         sync_freeze_table("//tmp/t")
 
-        multicell_sleep()
-
-        primary_data_size = get("//tmp/t/@uncompressed_data_size")
-        secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
-        assert primary_data_size == secondary_data_size
+        wait(lambda: get("//tmp/t/@uncompressed_data_size") == get("#{}/@uncompressed_data_size".format(table_id), driver=driver))
 
         sync_compact_table("//tmp/t")
         sync_unmount_table("//tmp/t")
 
-        multicell_sleep()
-
-        primary_data_size = get("//tmp/t/@uncompressed_data_size")
-        secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
-        assert primary_data_size == secondary_data_size
+        wait(lambda: get("//tmp/t/@uncompressed_data_size") == get("#{}/@uncompressed_data_size".format(table_id), driver=driver))
 
     @authors("savrus")
     def test_peer_change_on_prerequisite_transaction_abort(self):
@@ -1913,11 +1899,20 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         wait_for_tablet_state("//tmp/t", expected_state)
         assert get("//tmp/t/@tablets/0/state") == expected_state
 
+class TestDynamicTablesPortal(TestDynamicTablesMulticell):
+    ENABLE_TMP_PORTAL = True
+
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
+    ENABLE_TMP_PORTAL = True
+
 class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestDynamicTableStateTransitionsPoral(TestDynamicTableStateTransitionsMulticell):
+    ENABLE_TMP_PORTAL = True
 
 ##################################################################
 

@@ -504,6 +504,7 @@ class YTEnvSetup(object):
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     ENABLE_BULK_INSERT = False
+    ENABLE_TMP_PORTAL = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -812,6 +813,25 @@ class YTEnvSetup(object):
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
+            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
+                yt_commands.create("portal_entrance", "//tmp",
+                    attributes={
+                        "account": "tmp",
+                        "exit_cell_tag": 1,
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                    },
+                    force=True,
+                    driver=driver)
+            else:
+                yt_commands.create("map_node", "//tmp",
+                    attributes={
+                        "account": "tmp",
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                        "opaque": True
+                    },
+                    force=True,
+                    driver=driver)
+
     @classmethod
     def _teardown_method(cls):
         yt_commands._zombie_responses[:] = []
@@ -832,14 +852,11 @@ class YTEnvSetup(object):
 
             _abort_transactions(driver=driver)
 
-            yt_commands.create("map_node", "//tmp",
-                attributes={
-                    "account": "tmp",
-                    "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
-                    "opaque": True
-                },
-                force=True,
-                driver=driver)
+  			if cluster_index == 0:
+                yt_commands.remove("//tmp", driver=driver)
+                if cls.ENABLE_TMP_PORTAL:
+                    # XXX(babenko)
+                    wait(lambda: not yt_commands.exists("//tmp", driver=driver))
 
             yt_commands.gc_collect(driver=driver)
 
