@@ -17,7 +17,7 @@ def get_core_infos(parser, job_id, operation_id=None, **kwargs):
                        "Hint: consider running 'file <core>' to find more information about core dumps.")
         return None
     
-    jobs = yt.list_jobs(operation_id, data_source='auto')["jobs"]
+    jobs = yt.list_jobs(operation_id, data_source="auto")["jobs"]
     for failed_job in jobs:
         failed_job_id = failed_job["id"]
         core_infos = failed_job.get("core_infos", [])
