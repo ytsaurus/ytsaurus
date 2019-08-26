@@ -760,27 +760,38 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
 
 const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
 {
-    std::call_once(OperationsArchiveChannelsInitializationFlag_, [&] {
-        // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
-        TString operationsClientUserName;
-        {
-            auto path = GetUserPath(OperationsClientUserName);
-            if (DoNodeExists(path, TNodeExistsOptions())) {
-                operationsClientUserName = OperationsClientUserName;
-            } else {
-                operationsClientUserName = "application_operations";
-            }
+    {
+        auto guard = Guard(OperationsArchiveChannelsLock_);
+        if (OperationsArchiveChannels_) {
+            return (*OperationsArchiveChannels_)[kind];
         }
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
-            // requests for operations archive should be performed under the same user.
-            OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
-                Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-                operationsClientUserName);
-        }
-    });
+    }
 
-    return OperationsArchiveChannels_[kind];
+    // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
+    TString operationsClientUserName;
+    {
+        auto path = GetUserPath(OperationsClientUserName);
+        if (DoNodeExists(path, TNodeExistsOptions())) {
+            operationsClientUserName = OperationsClientUserName;
+        } else {
+            operationsClientUserName = "application_operations";
+        }
+    }
+
+    TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr> channels;
+    for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+        // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
+        // requests for operations archive should be performed under the same user.
+        channels[kind] = CreateAuthenticatedChannel(
+            Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+            operationsClientUserName);
+    }
+
+    auto guard = Guard(OperationsArchiveChannelsLock_);
+    if (!OperationsArchiveChannels_) {
+        OperationsArchiveChannels_ = std::move(channels);
+    }
+    return (*OperationsArchiveChannels_)[kind];
 }
 
 template <class T>
