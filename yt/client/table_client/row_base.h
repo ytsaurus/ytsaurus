@@ -52,6 +52,11 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Uint32)      (0x1006))
 
     ((Utf8)        (0x1007))
+
+    ((Date)        (0x1008))
+    ((Datetime)    (0x1009))
+    ((Timestamp)   (0x100a))
+    ((Interval)    (0x100b))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,10 +85,15 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
 
         case ESimpleLogicalValueType::Utf8:
             return EValueType::String;
+        case ESimpleLogicalValueType::Date:
+        case ESimpleLogicalValueType::Datetime:
+        case ESimpleLogicalValueType::Timestamp:
+            return EValueType::Uint64;
+        case ESimpleLogicalValueType::Interval:
+            return EValueType::Int64;
 
-        default:
-            YT_ABORT();
     }
+    YT_ABORT();
 }
 
 inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)

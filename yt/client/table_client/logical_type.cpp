@@ -586,6 +586,10 @@ void TDictLogicalType::ValidateNode() const
                         case ESimpleLogicalValueType::Double:
                         case ESimpleLogicalValueType::String:
                         case ESimpleLogicalValueType::Utf8:
+                        case ESimpleLogicalValueType::Date:
+                        case ESimpleLogicalValueType::Datetime:
+                        case ESimpleLogicalValueType::Timestamp:
+                        case ESimpleLogicalValueType::Interval:
                             return;
                     }
                     YT_ABORT();
