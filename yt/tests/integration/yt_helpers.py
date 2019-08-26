@@ -65,8 +65,11 @@ class ProfileMetric(object):
     def sum(self):
         return self.apply(sum)
 
-    def max(self):
-        return self.apply(max)
+    def max(self, verbose=True):
+        max_ = self.apply(max)
+        if verbose:
+            print_debug("Profile metric \"{}\": last = {}".format(self.path, max_))
+        return max_
 
     def min(self):
         return self.apply(min)

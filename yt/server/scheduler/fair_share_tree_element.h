@@ -8,6 +8,7 @@
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "packing.h"
+#include "historic_usage_aggregator.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -42,7 +43,8 @@ struct TSchedulableAttributes
 //! Attributes that persistent between fair share updates.
 struct TPersistentAttributes
 {
-    std::optional<TInstant> BelowFairShareSince_;
+    std::optional<TInstant> BelowFairShareSince;
+    THistoricUsageAggregator HistoricUsageAggregator;
 };
 
 struct TDynamicAttributes
@@ -71,6 +73,7 @@ struct TUpdateFairShareContext
 {
     std::vector<TError> Errors;
     THashMap<TString, int> ElementIndexes;
+    TInstant Now;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +248,7 @@ public:
 
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList);
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
     //! Updates attributes that are propagated from root down to leafs.
     //! For example: |child->FairShareRatio = fraction(parent->FairShareRatio)|.
@@ -367,6 +370,7 @@ private:
     void UpdateAttributes();
     double ComputeResourceUsageRatio(const TJobResources& jobResources) const;
 
+    friend class TCompositeSchedulerElement;
     friend class TOperationElement;
     friend class TPool;
 };
@@ -416,7 +420,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
@@ -464,6 +468,9 @@ public:
     void IncreaseRunningOperationCount(int delta);
 
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
 protected:
     const NProfiling::TTagId ProfilingTag_;
@@ -569,7 +576,7 @@ public:
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
@@ -584,6 +591,9 @@ public:
     void DetachParent();
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
 private:
@@ -770,7 +780,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual bool IsOperation() const override;
@@ -964,6 +974,9 @@ public:
     virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();

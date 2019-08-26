@@ -1,0 +1,55 @@
+#pragma once
+
+#include <util/datetime/base.h>
+
+#include <yt/ytlib/scheduler/config.h>
+
+namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THistoricUsageAggregationParameters
+{
+    THistoricUsageAggregationParameters() = default;
+    explicit THistoricUsageAggregationParameters(EHistoricUsageAggregationMode mode, double emaAlpha = 0.0);
+    explicit THistoricUsageAggregationParameters(const THistoricUsageConfigPtr& config);
+
+    bool operator==(const THistoricUsageAggregationParameters& other);
+
+    EHistoricUsageAggregationMode Mode = EHistoricUsageAggregationMode::None;
+
+    //! Parameter of exponential moving average (EMA) of the aggregated usage.
+    //! Roughly speaking, it means that current usage ratio is twice as relevant for the
+    //! historic usage as the usage ratio alpha seconds ago.
+    //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
+    double EmaAlpha = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THistoricUsageAggregator
+{
+public:
+    THistoricUsageAggregator();
+    THistoricUsageAggregator(const THistoricUsageAggregator& other) = default;
+
+    //! Update the parameters. If the parameters have changed, resets the state.
+    void UpdateParameters(const THistoricUsageAggregationParameters& newParameters);
+
+    void Reset();
+
+    void UpdateAt(TInstant now, double value);
+
+    double GetHistoricUsage() const;
+
+private:
+    THistoricUsageAggregationParameters Parameters_;
+
+    double ExponentialMovingAverage_;
+
+    TInstant LastExponentialMovingAverageUpdateTime_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NScheduler

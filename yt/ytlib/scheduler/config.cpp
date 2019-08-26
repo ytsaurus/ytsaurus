@@ -1320,6 +1320,19 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THistoricUsageConfig::THistoricUsageConfig()
+{
+    RegisterParameter("aggregation_mode", AggregationMode)
+        .Default(EHistoricUsageAggregationMode::None);
+
+    RegisterParameter("ema_alpha", EmaAlpha)
+    // TODO(eshcherbin): Adjust.
+        .Default(1.0 / (24.0 * 60.0 * 60.0))
+        .GreaterThanOrEqual(0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1348,6 +1361,11 @@ TPoolConfig::TPoolConfig()
         .Default(false);
 
     RegisterParameter("ephemeral_subpool_config", EphemeralSubpoolConfig)
+        .DefaultNew();
+
+    RegisterParameter("infer_children_weights_from_historic_usage", InferChildrenWeightsFromHistoricUsage)
+        .Default(false);
+    RegisterParameter("historic_usage_config", HistoricUsageConfig)
         .DefaultNew();
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
