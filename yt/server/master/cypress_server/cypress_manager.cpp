@@ -1096,7 +1096,7 @@ public:
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
         auto strongestLockModeAfter = getStrongestLockMode();
 
-        if (trunkNode->IsExternal() && !trunkNode->IsForeign()) {
+        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
@@ -1823,7 +1823,7 @@ private:
         // COMPAT(babenko)
         if (NeedBindNodesToRootShard_) {
             for (auto [nodeId, node] : NodeMap_) {
-                if (node->IsTrunk() && !node->IsForeign() && !node->GetShard()) {
+                if (node->IsTrunk() && node->IsNative() && !node->GetShard()) {
                     SetShard(node, RootShard_);
                 }
             }
@@ -2439,7 +2439,7 @@ private:
                 transaction->GetId());
         }
 
-        if (trunkNode->IsExternal() && !trunkNode->IsForeign() && !dontLockForeign) {
+        if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 

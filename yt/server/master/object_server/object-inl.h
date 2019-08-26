@@ -151,6 +151,11 @@ inline bool TObject::IsForeign() const
     return Flags_.Foreign;
 }
 
+inline bool TObject::IsNative() const
+{
+    return !IsForeign();
+}
+
 template <class TDerived>
 TDerived* TObject::As()
 {

@@ -773,7 +773,7 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
         GarbageCollector_->RegisterZombie(object);
 
         auto flags = handler->GetFlags();
-        if (!object->IsForeign() &&
+        if (object->IsNative() &&
             Any(flags & ETypeFlags::ReplicateDestroy) &&
             None(flags & ETypeFlags::TwoPhaseRemoval))
         {
@@ -1640,7 +1640,7 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
         return;
     }
 
-    if (!object->IsForeign()) {
+    if (object->IsNative()) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Life stage advancement for a non-foreign object requested by primary cell (ObjectId: %v)",
             objectId);

@@ -1567,7 +1567,7 @@ private:
             ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
-        if (!chunk->IsForeign() && chunk->IsDiskSizeFinal()) {
+        if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
             UpdateAccountResourceUsage(chunk, -1);
         }
 
