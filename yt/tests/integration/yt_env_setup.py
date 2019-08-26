@@ -852,7 +852,7 @@ class YTEnvSetup(object):
 
             _abort_transactions(driver=driver)
 
-  			if cluster_index == 0:
+            if cluster_index == 0:
                 yt_commands.remove("//tmp", driver=driver)
                 if cls.ENABLE_TMP_PORTAL:
                     # XXX(babenko)
