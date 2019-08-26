@@ -225,10 +225,29 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         auto result = resolver.Resolve();
         if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
             THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::CrossCellRequest,
-                "Request is cross-cell since it involves paths %v and %v",
+                NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                "Request is cross-cell since it involves target path %v and additional path %v",
                 ypathExt.original_target_path(),
                 additionalPath);
+        }
+    }
+
+    const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+    for (const auto& prerequisite : prerequisitesExt.revisions()) {
+        const auto& prerequisitePath = prerequisite.path();
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            prerequisitePath,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
+        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
+                ypathExt.original_target_path(),
+                prerequisitePath);
         }
     }
 

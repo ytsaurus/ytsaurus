@@ -361,10 +361,12 @@ private:
         TFuture<TMutationResponse> AsyncCommitResult;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
+        const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt  = nullptr;
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
         std::optional<TYPathRewrite> TargetPathRewrite;
         std::optional<SmallVector<TYPathRewrite, TypicalAdditionalPathCount>> AdditionalPathRewrites;
+        std::optional<SmallVector<TYPathRewrite, 4>> PrerequisiteRevisionPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
@@ -489,6 +491,9 @@ private:
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
 
+            const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            subrequest.PrerequisitesExt = &prerequisitesExt;
+
             // Store original path.
             ypathExt->set_original_target_path(ypathExt->target_path());
             *ypathExt->mutable_original_additional_paths() = ypathExt->original_additional_paths();
@@ -518,6 +523,11 @@ private:
 
         const auto& request = RpcContext_->Request();
         auto cellTags = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
+        auto registerTransaction = [&] (TTransactionId transactionId) {
+            if (transactionId) {
+                cellTags.push_back(CellTagFromId(transactionId));
+            }
+        };
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             const auto& subrequest = Subrequests_[subrequestIndex];
@@ -529,11 +539,14 @@ private:
                 // Phase two.
                 continue;
             }
-            auto transactionId = GetTransactionId(subrequest.RequestHeader);
-            if (!transactionId) {
-                continue;
+
+            registerTransaction(GetTransactionId(subrequest.RequestHeader));
+            for (const auto& prerequisite : subrequest.PrerequisitesExt->transactions()) {
+                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
             }
-            cellTags.push_back(CellTagFromId(transactionId));
+            for (const auto& prerequisite : subrequest.PrerequisitesExt->revisions()) {
+                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
         }
 
         SortUnique(cellTags);
@@ -696,6 +709,7 @@ private:
         // XXX(babenko): profiling
         auto remoteRequestHeader = subrequest->RequestHeader;
         auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        auto* remotePrerequisitesExt = remoteRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
         if (subrequest->TargetPathRewrite) {
             remoteYPathExt->set_target_path(subrequest->TargetPathRewrite->Rewritten);
@@ -705,6 +719,13 @@ private:
             remoteYPathExt->clear_additional_paths();
             for (const auto& rewrite : *subrequest->AdditionalPathRewrites) {
                 remoteYPathExt->add_additional_paths(rewrite.Rewritten);
+            }
+        }
+
+        if (subrequest->PrerequisiteRevisionPathRewrites) {
+            YT_VERIFY(static_cast<int>(subrequest->PrerequisiteRevisionPathRewrites->size()) == remotePrerequisitesExt->revisions_size());
+            for (int index = 0; index < remotePrerequisitesExt->revisions_size(); ++index) {
+                remotePrerequisitesExt->mutable_revisions(index)->set_path((*subrequest->PrerequisiteRevisionPathRewrites)[index].Rewritten);
             }
         }
 
@@ -747,6 +768,26 @@ private:
                 additionalPath,
                 additionalResolveResult->PortalExitId,
                 additionalResolveResult->UnresolvedPathSuffix));
+        }
+
+        subrequest->PrerequisiteRevisionPathRewrites.emplace();
+        for (const auto& prerequisite : subrequest->PrerequisitesExt->revisions()) {
+            const auto& prerequisitePath = prerequisite.path();
+            auto prerequisiteResolveResult = resolveCache->TryResolve(prerequisitePath);
+            if (!prerequisiteResolveResult) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+
+            if (CellTagFromId(prerequisiteResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+
+            subrequest->PrerequisiteRevisionPathRewrites->push_back(MakeYPathRewrite(
+                prerequisitePath,
+                prerequisiteResolveResult->PortalExitId,
+                prerequisiteResolveResult->UnresolvedPathSuffix));
         }
 
         MarkSubrequestRemoteOtherCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
@@ -852,7 +893,7 @@ private:
             AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
-                "%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+                "%v%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
@@ -865,6 +906,11 @@ private:
                 MakeFormatterWrapper([&] (auto* builder) {
                    if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
                        builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
+                   }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
+                       builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
                    }
                 }),
                 UserName_,
