@@ -122,7 +122,7 @@ message TReqHeartbeat
         optional uint64 current_spec_timestamp = 6;
 
         // Whether current spec is applied completely.
-        optional NYP.NClient.NApi.NProto.TCondition applied_completely = 7;
+        optional NYP.NClient.NApi.NProto.TCondition current_spec_applied = 7;
 
         // If present, requests the master to update pod status.
         // The agent is encouraged to leave this null if no status change happens since last successful heartbeat.
