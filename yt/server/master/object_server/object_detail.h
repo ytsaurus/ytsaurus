@@ -93,7 +93,7 @@ protected:
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
-    void ReplicateAttributeUpdate(NRpc::IServiceContextPtr context);
+    void ReplicateAttributeUpdate(const NRpc::IServiceContextPtr& context);
 
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;

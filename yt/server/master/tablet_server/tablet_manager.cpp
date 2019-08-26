@@ -4091,7 +4091,7 @@ private:
         entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(req, CellTagFromId(table->GetId()));
+        multicellManager->PostToMaster(req, table->GetNativeCellTag());
 
         TableStatisticsUpdates_.Pop(table->GetId());
     }
@@ -4967,7 +4967,7 @@ private:
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(request, CellTagFromId(table->GetId()));
+            multicellManager->PostToMaster(request, table->GetNativeCellTag());
 
             if (clearLastMountTransactionId) {
                 table->SetLastMountTransactionId(TTransactionId());

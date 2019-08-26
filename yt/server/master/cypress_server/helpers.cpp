@@ -438,7 +438,7 @@ TString SuggestCypressShardName(TCypressShard* shard)
     const auto* root = shard->GetRoot();
     switch (root->GetType()) {
         case EObjectType::MapNode:
-            return Format("root:%v", CellTagFromId(root->GetId()));
+            return Format("root:%v", root->GetNativeCellTag());
 
         case EObjectType::PortalExit:
             return Format("portal:%v", root->As<TPortalExitNode>()->GetPath());

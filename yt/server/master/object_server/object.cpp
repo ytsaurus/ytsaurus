@@ -43,6 +43,11 @@ bool IsStableLifeStage(EObjectLifeStage lifeStage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCellTag TObject::GetNativeCellTag() const
+{
+    return CellTagFromId(Id_);
+}
+
 EObjectType TObject::GetType() const
 {
     return TypeFromId(Id_);

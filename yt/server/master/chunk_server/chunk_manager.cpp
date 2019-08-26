@@ -1967,7 +1967,7 @@ private:
         // NB: Ordered map is a must to make the behavior deterministic.
         std::map<TCellTag, NProto::TReqUpdateChunkRequisition> crossCellRequestMap;
         auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkRequisition& {
-            auto cellTag = CellTagFromId(chunk->GetId());
+            auto cellTag = chunk->GetNativeCellTag();
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
                 it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
