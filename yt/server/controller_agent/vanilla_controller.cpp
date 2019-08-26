@@ -132,6 +132,13 @@ public:
         return result;
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        // We do not allow to interrupt job without interruption_signal
+        // because there are no more ways to notify vanilla job about it.
+        return Spec_->InterruptionSignal.has_value();
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
 
@@ -318,7 +325,8 @@ public:
 
     virtual bool IsJobInterruptible() const override
     {
-        return false;
+        // Every task has its own IsJobInterruptible. We will never be here.
+        Y_UNREACHABLE();
     }
 
     virtual void ValidateRevivalAllowed() const override
