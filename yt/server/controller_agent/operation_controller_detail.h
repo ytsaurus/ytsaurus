@@ -432,6 +432,9 @@ protected:
     NApi::ITransactionPtr UserTransaction;
     std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 
+    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> DebugUploadSynchronizer_;
+    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> OutputUploadSynchronizer_;
+
     bool CommitFinished = false;
 
     TOperationSnapshot Snapshot;
@@ -803,7 +806,9 @@ protected:
         NTransactionClient::TTransactionId transactionId,
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
+
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
+    NChunkClient::TChunkUploadSynchronizer* GetUploadSynchronizerForOutputTable(const TOutputTablePtr& table) const;
 
     virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
