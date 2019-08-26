@@ -67,7 +67,7 @@ TRequestKey TRequestKey::FromRow(
     TYsonString optionsYson(row[1].Data.String, row[1].Length);
     auto optionsNode = ConvertToNode(optionsYson)->AsMap();
     key.TableRevision = optionsNode->GetChild("revision")->GetValue<ui64>();
-    key.KeyColumns = optionsNode->GetChild("key_columns")->GetValue<std::vector<TString>>();
+    key.KeyColumns = ConvertTo<std::vector<TString>>(optionsNode->GetChild("key_columns"));
 
     return key;
 }
