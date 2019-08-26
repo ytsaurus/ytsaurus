@@ -556,7 +556,7 @@ class TestUserFiles(YTEnvSetup):
             map(in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat my_file; cat",
-                file=[to_yson_type("#" + file)],
+                file=[to_yson_type("#" + file_id)],
                 spec={"max_failed_job_count": 1},
                 verbose=True)
 
