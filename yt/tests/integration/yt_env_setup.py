@@ -597,36 +597,47 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
-        prepare_yatest_environment()
+        # Initialize `cls` fields before actual setup to make teardown correct.
+
+        # TODO(ignat): Rename Env to env
+        cls.Env = None
+        cls.remote_envs = []
 
         if test_name is None:
             test_name = cls.__name__
         cls.test_name = test_name
-        path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
-        # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []
 
-        cls.path_to_test = path_to_test
+        prepare_yatest_environment() # It initializes SANDBOX_ROOTDIR
+        cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
+
         # For running in parallel
         if arcadia_interop.yatest_common is None:
             cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
-            cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+            cls.path_to_run = os.path.join(cls.path_to_test, cls.run_id)
         else:
             cls.run_id = None
-            cls.path_to_run = path_to_test
+            cls.path_to_run = cls.path_to_test
 
-        primary_cluster_path = cls.path_to_run
+        cls.primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
-            primary_cluster_path = os.path.join(cls.path_to_run, "primary")
+            cls.primary_cluster_path = os.path.join(cls.path_to_run, "primary")
 
-        cls.Env = cls.create_yt_cluster_instance(0, primary_cluster_path)
-        cls.remote_envs = []  # TODO: Rename env
+        try:
+            cls.start_envs()
+        except:
+            cls.teardown_class()
+            raise
+
+    @classmethod
+    def start_envs(cls):
+        cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
         for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
             cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
             cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
-        latest_run_path = os.path.join(path_to_test, "run_latest")
+        latest_run_path = os.path.join(cls.path_to_test, "run_latest")
         if os.path.exists(latest_run_path):
             os.remove(latest_run_path)
         os.symlink(cls.path_to_run, latest_run_path)
@@ -728,6 +739,8 @@ class YTEnvSetup(object):
             map(lambda c: c.stop(), cls.liveness_checkers)
 
         for env in [cls.Env] + cls.remote_envs:
+            if env is None:
+                continue
             env.stop()
             env.kill_cgroups()
 
