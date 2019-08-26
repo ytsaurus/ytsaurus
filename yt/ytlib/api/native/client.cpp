@@ -787,11 +787,13 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
             operationsClientUserName);
     }
 
-    auto guard = Guard(OperationsArchiveChannelsLock_);
-    if (!OperationsArchiveChannels_) {
-        OperationsArchiveChannels_ = std::move(channels);
+    {
+        auto guard = Guard(OperationsArchiveChannelsLock_);
+        if (!OperationsArchiveChannels_) {
+            OperationsArchiveChannels_ = std::move(channels);
+        }
+        return (*OperationsArchiveChannels_)[kind];
     }
-    return (*OperationsArchiveChannels_)[kind];
 }
 
 template <class T>
