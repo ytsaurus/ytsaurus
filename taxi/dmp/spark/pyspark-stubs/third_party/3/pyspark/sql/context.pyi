@@ -7,7 +7,7 @@ from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union
 import pandas.core.frame # type: ignore
 from py4j.java_gateway import JavaObject  # type: ignore
 
-from pyspark.sql._typing import DateTimeLiteral, LiteralType, DecimalLiteral
+from pyspark.sql._typing import DateTimeLiteral, LiteralType, DecimalLiteral, DataTypeOrString
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.sql.dataframe import DataFrame
@@ -62,3 +62,5 @@ class UDFRegistration:
     sqlContext = ...  # SQLContext
     def __init__(self, sqlContext: SQLContext) -> None: ...
     def register(self, name: str, f: Callable[..., Any], returnType: DataType = ...) -> None: ...
+    def registerJavaFunction(self, name: str, javaClassName: str, returnType: Optional[DataTypeOrString] = ...) -> None: ...
+    def registerJavaUDAF(self, name: str, javaClassName: str) -> None: ...
