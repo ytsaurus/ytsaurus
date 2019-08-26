@@ -56,8 +56,8 @@ void TCypressShard::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, AccountStatistics_);
     Load(context, Root_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::CypressShardName) {
+    // COMPAT(babenko): the reign is silly but it is correct
+    if (context.GetVersion() >= EMasterReign::YT_10855_EpochHistoryManager) {
         Load(context, Name_);
     }
 }
