@@ -36,7 +36,7 @@ still work in progress (`PEP 561 - Distributing and Packaging Type
 Information <https://www.python.org/dev/peps/pep-0561/>`__). Currently
 installation script overlays existing Spark installations (``pyi`` stub
 files are copied next to their ``py`` counterparts in the PySpark
-installation directory). If this approach is not acceptable you can stub
+installation directory). If this approach is not acceptable you can add stub
 files to the search path manually.
 
 According to `PEP
