@@ -177,7 +177,10 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
-        bool allow = disableOriginCheck || url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
+        bool allow = disableOriginCheck ||
+            url.Host == "localhost" ||
+            url.Host.EndsWith(".yandex-team.ru") ||
+            url.Host.EndsWith(".yt.infrastructure.farm.yandex-team.ru");
         if (allow) {
             rsp->GetHeaders()->Add(AccessControlAllowCredentialsHeaderName, "true");
             rsp->GetHeaders()->Add(AccessControlAllowOriginHeaderName, *origin);
