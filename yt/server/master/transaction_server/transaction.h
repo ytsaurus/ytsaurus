@@ -35,7 +35,7 @@ class TTransaction
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedNativeTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionId>, NestedExternalTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterFromParentOnCommit);

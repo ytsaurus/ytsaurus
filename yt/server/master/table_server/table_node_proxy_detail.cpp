@@ -1310,7 +1310,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         schema = schema.ToUniqueKeys();
     }
 
-    // XXX(babenko): check IsPrimaryMaster
     if (!table->IsForeign()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 

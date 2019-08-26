@@ -113,40 +113,35 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
-    TCellTag* cellTag,
-    const std::vector<TString>& extraAttributes)
+    TCellTag* externalCellTag,
+    const std::vector<TString>& extraAttributeKeys)
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
-    auto batchReq = proxy->ExecuteBatch();
 
     {
-        auto req = TTableYPathProxy::Get(path + "/@");
-        std::vector<TString> attributeKeys{
-            "id",
-            "type",
-            "external_cell_tag"
-        };
-        for (const auto& attribute : extraAttributes) {
-            attributeKeys.push_back(attribute);
-        }
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-        batchReq->AddRequest(req, "get_attributes");
+        auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
+        const auto& rsp = rspOrError.Value();
+        *tableId = FromProto<TTableId>(rsp->object_id());
+        *externalCellTag = rsp->external_cell_tag();
     }
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v", path);
-
-    const auto& batchRsp = batchRspOrError.Value();
-    auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-
-    auto& rsp = getAttributesRspOrError.Value();
-    auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-    if (!IsTableType(attributes->Get<EObjectType>("type"))) {
-        THROW_ERROR_EXCEPTION("%v is not a table");
+    if (!IsTableType(TypeFromId(*tableId))) {
+        THROW_ERROR_EXCEPTION("%v is not a table", path);
     }
-    *tableId = attributes->Get<TTableId>("id");
-    *cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
-    return attributes;
+
+    std::unique_ptr<IAttributeDictionary> extraAttributes;
+    {
+        auto req = TTableYPathProxy::Get(FromObjectId(*tableId) + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), extraAttributeKeys);
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting extended attributes of table %v", path);
+        const auto& rsp = rspOrError.Value();
+        extraAttributes = ConvertToAttributes(TYsonString(rsp->value()));
+    }
+
+    return extraAttributes;
 }
 
 template <class TReq>
@@ -156,27 +151,29 @@ void TClient::ExecuteTabletServiceRequest(
     TReq* req)
 {
     TTableId tableId;
-    TCellTag cellTag;
+    TCellTag externalCellTag;
     auto tableAttributes = ResolveExternalTable(
         path,
         &tableId,
-        &cellTag,
+        &externalCellTag,
         {"path"});
 
     if (!IsTableType(TypeFromId(tableId))) {
         THROW_ERROR_EXCEPTION("Object %v is not a table", path);
     }
 
-    auto tranasctionAttributes = CreateEphemeralAttributes();
-    tranasctionAttributes->Set(
+    auto nativeCellTag = CellTagFromId(tableId);
+
+    auto transactionAttributes = CreateEphemeralAttributes();
+    transactionAttributes->Set(
         "title",
         Format("%v table %v", action, path));
     auto asyncTransaction = StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
         TTransactionStartOptions{
-            .Multicell = cellTag != PrimaryMasterCellTag,
-            .CellTag = cellTag,
-            .Attributes = std::move(tranasctionAttributes)
+            .Attributes = std::move(transactionAttributes),
+            .CoordinatorMasterCellTag = nativeCellTag,
+            .ReplicateToMasterCellTags = TCellTagList{externalCellTag}
         });
     auto transaction = WaitFor(asyncTransaction)
         .ValueOrThrow();
@@ -187,18 +184,18 @@ void TClient::ExecuteTabletServiceRequest(
     SetDynamicTableCypressRequestFullPath(req, fullPath);
 
     auto actionData = MakeTransactionActionData(*req);
-    auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-    transaction->AddAction(primaryCellId, actionData);
 
-    if (cellTag != PrimaryMasterCellTag) {
-        transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+    auto nativeCellId = GetNativeConnection()->GetMasterCellId(nativeCellTag);
+    auto externalCellId = GetNativeConnection()->GetMasterCellId(externalCellTag);
+    transaction->AddAction(nativeCellId, actionData);
+    if (nativeCellId != externalCellId) {
+        transaction->AddAction(externalCellId, actionData);
     }
 
-    TTransactionCommitOptions commitOptions;
-    commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-    commitOptions.Force2PC = true;
-
-    WaitFor(transaction->Commit(commitOptions))
+    WaitFor(transaction->Commit(TTransactionCommitOptions{
+        .Force2PC = true,
+        .CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy
+    }))
         .ThrowOnError();
 }
 
@@ -458,15 +455,16 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     }
 
     TTableId tableId;
-    TCellTag cellTag;
+    TCellTag externalCellTag;
     auto attributes = ResolveExternalTable(
         path,
         &tableId,
-        &cellTag,
+        &externalCellTag,
         {"tablet_cell_bundle", "dynamic"});
 
     if (TypeFromId(tableId) != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Invalid object type: expected %v, got %v", EObjectType::Table, TypeFromId(tableId))
+        THROW_ERROR_EXCEPTION("Invalid object type: expected %v, got %v",
+            EObjectType::Table, TypeFromId(tableId))
             << TErrorAttribute("path", path);
     }
 
@@ -481,7 +479,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
     SetMutationId(req, options);
     req->set_keep_actions(options.KeepActions);
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>(externalCellTag);
     auto protoRsp = WaitFor(proxy->Execute(req))
         .ValueOrThrow();
     return FromProto<std::vector<TTabletActionId>>(protoRsp->tablet_actions());
@@ -589,23 +587,23 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
 
         for (const auto& path : movableTables) {
             TTableId tableId;
-            TCellTag cellTag;
+            TCellTag externalCellTag;
             auto attributes = ResolveExternalTable(
                 path,
                 &tableId,
-                &cellTag,
+                &externalCellTag,
                 {"dynamic", "tablet_cell_bundle"});
 
             if (TypeFromId(tableId) != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION(
                     "Invalid object type: expected %v, got %v",
-                    EObjectType::Table, TypeFromId(tableId))
+                    EObjectType::Table,
+                    TypeFromId(tableId))
                     << TErrorAttribute("path", path);
             }
 
             if (!attributes->Get<bool>("dynamic")) {
-                THROW_ERROR_EXCEPTION("Table must be dynamic")
-                    << TErrorAttribute("path", path);
+                THROW_ERROR_EXCEPTION("Table %v must be dynamic", path);
             }
 
             auto actualBundle = attributes->Find<TString>("tablet_cell_bundle");
@@ -613,7 +611,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
                 THROW_ERROR_EXCEPTION("All tables must be from the tablet cell bundle %Qv", tabletCellBundle);
             }
 
-            tablesByCells[cellTag].push_back(tableId);
+            tablesByCells[externalCellTag].push_back(tableId);
         }
 
         for (const auto& [cellTag, tableIds] : tablesByCells) {

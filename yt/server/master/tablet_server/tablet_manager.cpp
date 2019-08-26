@@ -2976,7 +2976,7 @@ public:
         ENodeCloneMode mode,
         TAccount* account)
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        if (sourceTable->IsForeign()) {
             return;
         }
 
@@ -4091,7 +4091,7 @@ private:
         entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(req, PrimaryMasterCellTag);
+        multicellManager->PostToMaster(req, CellTagFromId(table->GetId()));
 
         TableStatisticsUpdates_.Pop(table->GetId());
     }
@@ -4103,11 +4103,15 @@ private:
         auto remainingTableCount = request->table_count();
 
         std::vector<TTableId> tableIds;
-        NProto::TReqUpdateTableStatistics req;
+        // NB: Ordered map is needed to make things deterministic.
+        std::map<TCellTag, NProto::TReqUpdateTableStatistics> cellTagToRequest;
         while (remainingTableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
             const auto& [tableId, statistics] = TableStatisticsUpdates_.Pop();
             tableIds.push_back(tableId);
-            auto* entry = req.add_entries();
+
+            auto cellTag = CellTagFromId(tableId);
+            auto& request = cellTagToRequest[cellTag];
+            auto* entry = request.add_entries();
             ToProto(entry->mutable_table_id(), tableId);
             if (statistics.DataStatistics) {
                 ToProto(entry->mutable_data_statistics(), *statistics.DataStatistics);
@@ -4128,13 +4132,13 @@ private:
             tableIds);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(req, PrimaryMasterCellTag);
+        for  (const auto& [cellTag, request] : cellTagToRequest) {
+            multicellManager->PostToMaster(request, cellTag);
+        }
     }
 
     void HydraUpdateTableStatistics(NProto::TReqUpdateTableStatistics* request)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
-
         std::vector<TTableId> tableIds;
         tableIds.reserve(request->entries_size());
         for (const auto& entry : request->entries()) {
@@ -4963,7 +4967,7 @@ private:
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(request, PrimaryMasterCellTag);
+            multicellManager->PostToMaster(request, CellTagFromId(table->GetId()));
 
             if (clearLastMountTransactionId) {
                 table->SetLastMountTransactionId(TTransactionId());

@@ -89,7 +89,7 @@ private:
 
     virtual TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
     {
-        return transaction->SecondaryCellTags();
+        return transaction->ReplicatedToCellTags();
     }
 
     virtual TString DoGetName(const TTransaction* transaction) override
@@ -181,8 +181,8 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
-        const TCellTagList& secondaryCellTags,
-        const TCellTagList& replicateToCellTags,
+        const TCellTagList& replicatedToCellTags,
+        const TCellTagList& replicateStartToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -227,7 +227,7 @@ public:
         }
 
         transaction->SetState(ETransactionState::Active);
-        transaction->SecondaryCellTags() = secondaryCellTags;
+        transaction->ReplicatedToCellTags() = replicatedToCellTags;
 
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -264,8 +264,9 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        if (!replicateToCellTags.empty()) {
+        if (!replicateStartToCellTags.empty()) {
             NTransactionServer::NProto::TReqStartTransaction startRequest;
+            startRequest.set_dont_replicate(true);
             ToProto(startRequest.mutable_attributes(), attributes);
             ToProto(startRequest.mutable_hint_id(), transactionId);
             if (parent) {
@@ -280,17 +281,18 @@ public:
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(startRequest, replicateToCellTags);
+            multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
+            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
-            transaction->SecondaryCellTags(),
+            replicateStartToCellTags,
+            replicatedToCellTags,
             transaction->GetTimeout(),
             transaction->GetDeadline(),
             title);
@@ -321,13 +323,13 @@ public:
 
         SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
 
-        if (!transaction->SecondaryCellTags().empty()) {
+        if (!transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
         SmallVector<TTransaction*, 16> nestedNativeTransactions(
@@ -420,11 +422,11 @@ public:
         auto transactionId = transaction->GetId();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-        if (!transaction->SecondaryCellTags().empty()) {
+        if (!transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
         SmallVector<TTransaction*, 16> nestedNativeTransactions(
@@ -670,14 +672,14 @@ public:
                 prepareTimestamp);
         }
 
-        if (persistent && !transaction->SecondaryCellTags().empty()) {
+        if (persistent && !transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
             request.set_user_name(*securityManager->GetAuthenticatedUserName());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
     }
 
@@ -830,33 +832,33 @@ private:
         auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
+
         std::optional<TInstant> deadline;
         if (request->has_deadline()) {
             deadline = FromProto<TInstant>(request->deadline());
         }
 
-        TCellTagList secondaryCellTags;
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-
-        if (replicateToCellTags.empty()) {
-            if (Bootstrap_->IsPrimaryMaster()) {
+        TCellTagList replicateToCellTags;
+        if (!request->dont_replicate())  {
+            replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+            if (replicateToCellTags.empty() && Bootstrap_->IsPrimaryMaster()) {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-                replicateToCellTags = secondaryCellTags;
+                replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
             }
         }
 
         auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
-            secondaryCellTags,
+            replicateToCellTags,
             replicateToCellTags,
             timeout,
             deadline,
             title,
             *attributes,
             hintId);
-        const auto& id = transaction->GetId();
+
+        auto id = transaction->GetId();
 
         if (response) {
             ToProto(response->mutable_id(), id);
@@ -1215,8 +1217,8 @@ void TTransactionManager::Initialize()
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     std::vector<TTransaction*> prerequisiteTransactions,
-    const TCellTagList& secondaryCellTags,
-    const TCellTagList& replicateToCellTags,
+    const TCellTagList& replicatedToCellTags,
+    const TCellTagList& replicateStartToCellTags,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
@@ -1226,8 +1228,8 @@ TTransaction* TTransactionManager::StartTransaction(
     return Impl_->StartTransaction(
         parent,
         std::move(prerequisiteTransactions),
-        secondaryCellTags,
-        replicateToCellTags,
+        replicatedToCellTags,
+        replicateStartToCellTags,
         timeout,
         deadline,
         title,

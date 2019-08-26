@@ -938,31 +938,32 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
-    auto uploadTransactionSecondaryCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
+    auto replicatedToCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto nativeCellTag = CellTagFromId(node->GetId());
     auto externalCellTag = node->GetExternalCellTag();
 
-    // Make sure |uploadTransactionSecondaryCellTags| contains the external cell tag,
-    // does not contain the primary cell tag, is sorted, and contains no duplicates.
-    InsertCellTag(&uploadTransactionSecondaryCellTags, externalCellTag);
-    CanonizeCellTags(&uploadTransactionSecondaryCellTags);
-    RemoveCellTag(&uploadTransactionSecondaryCellTags, Bootstrap_->GetPrimaryCellTag());
+    // Make sure |replicatedToCellTags| contains the external cell tag,
+    // does not contain the native cell tag, is sorted, and contains no duplicates.
+    InsertCellTag(&replicatedToCellTags, externalCellTag);
+    CanonizeCellTags(&replicatedToCellTags);
+    RemoveCellTag(&replicatedToCellTags, nativeCellTag);
 
-    // Construct |uploadTransactionReplicationCellTags| containing the tags of cells
-    // the upload transaction must be replicated to. This list never contains
+    // Construct |replicateStartToCellTags| containing the tags of cells
+    // the upload transaction will be ultimately replicated to. This list never contains
     // the external cell tag.
-    auto uploadTransactionReplicationCellTags = uploadTransactionSecondaryCellTags;
-    RemoveCellTag(&uploadTransactionReplicationCellTags, externalCellTag);
+    auto replicateStartToCellTags = replicatedToCellTags;
+    RemoveCellTag(&replicateStartToCellTags, externalCellTag);
 
     context->SetRequestInfo(
         "UpdateMode: %v, LockMode: %v, "
-        "Title: %v, Timeout: %v, SecondaryCellTags: %v",
+        "Title: %v, Timeout: %v, ReplicatedToCellTags: %v",
         uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
-        uploadTransactionSecondaryCellTags);
+        replicatedToCellTags);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -977,8 +978,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto* uploadTransaction = transactionManager->StartTransaction(
         /* parent */ Transaction,
         /* prerequisiteTransactions */ {},
-        uploadTransactionSecondaryCellTags,
-        uploadTransactionReplicationCellTags,
+        replicatedToCellTags,
+        replicateStartToCellTags,
         uploadTransactionTimeout,
         /* deadline */ std::nullopt,
         uploadTransactionTitle,

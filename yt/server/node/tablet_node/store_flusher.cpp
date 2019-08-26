@@ -316,19 +316,19 @@ private:
 
             YT_LOG_INFO("Store flush started");
 
-            TTransactionStartOptions options;
-            options.CellTag = CellTagFromId(tablet->GetId());
-            options.AutoAbort = false;
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
+            auto transactionAttributes = CreateEphemeralAttributes();
+            transactionAttributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
                 tabletSnapshot->TablePath,
                 store->GetId(),
                 tabletId));
-            options.Attributes = std::move(attributes);
-
             auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                 NTransactionClient::ETransactionType::Master,
-                options);
+                TTransactionStartOptions{
+                    .AutoAbort = false,
+                    .Attributes = std::move(transactionAttributes),
+                    .CoordinatorMasterCellTag = CellTagFromId(tablet->GetId()),
+                    .ReplicateToMasterCellTags = TCellTagList()
+                });
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 

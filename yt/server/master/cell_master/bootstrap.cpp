@@ -396,13 +396,10 @@ TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAdd
 
 TCellTagList TBootstrap::GetKnownParticipantCellTags() const
 {
-    TCellTagList participnatCellTags{PrimaryCellTag_};
-    if (IsPrimaryMaster()) {
-        participnatCellTags.insert(participnatCellTags.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
-    } else {
-        participnatCellTags.push_back(CellTag_);
-    }
-    return participnatCellTags;
+    TCellTagList participantCellTags;
+    participantCellTags.push_back(PrimaryCellTag_);
+    participantCellTags.insert(participantCellTags.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
+    return participantCellTags;
 }
 
 NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const

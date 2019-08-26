@@ -17,7 +17,9 @@ message TReqStartTransaction
     required int64 timeout = 4;
     required string user_name = 5;
 
+    // See NYT.NTransactionClient.NProto.TReqStartTransaction.
     repeated int32 replicate_to_cell_tags = 9;
+    optional bool dont_replicate = 11;
 
     optional uint64 deadline = 10;
 }

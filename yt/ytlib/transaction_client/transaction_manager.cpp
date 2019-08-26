@@ -147,12 +147,11 @@ public:
         }
 
         Type_ = type;
-        CellTag_ = options.CellTag == PrimaryMasterCellTag
-            ? CellTagFromId(Owner_->PrimaryCellId_)
-            : options.CellTag;
-        CellId_ = options.CellTag == PrimaryMasterCellTag
-            ? Owner_->PrimaryCellId_
-            : ReplaceCellTagInId(Owner_->PrimaryCellId_, CellTag_);
+        if (Type_ == ETransactionType::Master) {
+            CoordinatorMasterCellTag_ = options.CoordinatorMasterCellTag.value_or(CellTagFromId(Owner_->PrimaryCellId_));
+            CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
+            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags;
+        }
         AutoAbort_ = options.AutoAbort;
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
@@ -160,7 +159,6 @@ public:
         Timeout_ = options.Timeout;
         Atomicity_ = options.Atomicity;
         Durability_ = options.Durability;
-        Multicell_ = options.Multicell;
 
         switch (Atomicity_) {
             case EAtomicity::Full:
@@ -187,8 +185,8 @@ public:
         ValidateAttachOptions(id, options);
 
         Type_ = ETransactionType::Master;
-        CellTag_ = CellTagFromId(id);
-        CellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CellTag_);
+        CoordinatorMasterCellTag_ = CellTagFromId(id);
+        CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
         YT_VERIFY(!options.Sticky);
@@ -196,8 +194,8 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
-        YT_VERIFY(RegisteredParticipantIds_.insert(CellId_).second);
-        YT_VERIFY(ConfirmedParticipantIds_.insert(CellId_).second);
+        YT_VERIFY(RegisteredParticipantIds_.insert(CoordinatorMasterCellId_).second);
+        YT_VERIFY(ConfirmedParticipantIds_.insert(CoordinatorMasterCellId_).second);
 
         Register();
 
@@ -348,7 +346,6 @@ public:
         YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell ||
                TypeFromId(cellId) == EObjectType::ClusterCell);
 
-
         if (Atomicity_ != EAtomicity::Full) {
             return;
         }
@@ -447,9 +444,14 @@ private:
     friend class TTransactionManager::TImpl;
 
     const TIntrusivePtr<TTransactionManager::TImpl> Owner_;
+
     ETransactionType Type_;
-    TCellTag CellTag_;
-    TCellId CellId_;
+
+    // Only initialized for master transactions.
+    TCellTag CoordinatorMasterCellTag_ = InvalidCellTag;
+    TCellId CoordinatorMasterCellId_;
+    std::optional<TCellTagList> ReplicatedToMasterCellTags_;
+
     bool AutoAbort_ = false;
     std::optional<TDuration> PingPeriod_;
     bool Ping_ = false;
@@ -457,7 +459,6 @@ private:
     std::optional<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
-    bool Multicell_ = false;
 
     TSpinLock SpinLock_;
 
@@ -512,6 +513,12 @@ private:
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
     {
+        if (options.CoordinatorMasterCellTag) {
+            THROW_ERROR_EXCEPTION("Cannot specify a master coordinator for tablet transaction");
+        }
+        if (options.ReplicateToMasterCellTags) {
+            THROW_ERROR_EXCEPTION("Cannot request replication to master cells for tablet transaction");
+        }
         if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
         }
@@ -596,11 +603,7 @@ private:
             THROW_ERROR_EXCEPTION("Unable to start master transaction: connection terminated");
         }
 
-        auto cellTag = Multicell_
-            ? CellTagFromId(Owner_->PrimaryCellId_)
-            : CellTag_;
-
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
@@ -621,36 +624,42 @@ private:
         if (options.Deadline) {
             req->set_deadline(ToProto<ui64>(*options.Deadline));
         }
+        if (options.ReplicateToMasterCellTags) {
+            if (options.ReplicateToMasterCellTags->empty()) {
+                req->set_dont_replicate(true);
+            } else {
+                for (auto tag : *options.ReplicateToMasterCellTags) {
+                    if (tag != CoordinatorMasterCellTag_) {
+                        req->add_replicate_to_cell_tags(tag);
+                    }
+                }
+            }
+        }
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
-        if (Multicell_) {
-            auto replicateToCellTags = TCellTagList{CellTag_};
-            ToProto(req->mutable_replicate_to_cell_tags(), replicateToCellTags);
-        }
-
         return req->Invoke().Apply(
-            BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this), cellTag));
+            BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    TError OnMasterTransactionStarted(TCellTag cellTag, const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
+    TError OnMasterTransactionStarted(const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
             return rspOrError;
         }
 
-        auto cellId = ReplaceCellTagInId(CellId_, cellTag);
-
         State_ = ETransactionState::Active;
-        YT_VERIFY(RegisteredParticipantIds_.insert(cellId).second);
-        YT_VERIFY(ConfirmedParticipantIds_.insert(cellId).second);
+        YT_VERIFY(RegisteredParticipantIds_.insert(CoordinatorMasterCellId_).second);
+        YT_VERIFY(ConfirmedParticipantIds_.insert(CoordinatorMasterCellId_).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
 
-        YT_LOG_DEBUG("Master transaction started (TransactionId: %v, CellTag: %v, StartTimestamp: %llx, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        YT_LOG_DEBUG("Master transaction started (TransactionId: %v, CellTag: %v, ReplicatedToCellTags: %v, "
+            "StartTimestamp: %llx, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
-            cellTag,
+            CoordinatorMasterCellTag_,
+            ReplicatedToMasterCellTags_,
             StartTimestamp_,
             AutoAbort_,
             Ping_,
@@ -699,7 +708,7 @@ private:
 
         Id_ = MakeTabletTransactionId(
             Atomicity_,
-            CellTag_,
+            CellTagFromId(Owner_->PrimaryCellId_),
             StartTimestamp_,
             TabletTransactionHashCounter++);
 
@@ -792,7 +801,7 @@ private:
     TCellId PickCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
-            return Multicell_ ? Owner_->PrimaryCellId_ : CellId_;
+            return CoordinatorMasterCellId_;
         }
 
         if (options.CoordinatorCellId) {
@@ -912,7 +921,7 @@ private:
             auto req = proxy.PingTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
-            if (cellId == CellId_) {
+            if (cellId == CoordinatorMasterCellId_) {
                 req->set_ping_ancestors(PingAncestors_);
             }
 

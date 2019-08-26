@@ -564,8 +564,8 @@ private:
     std::unique_ptr<NYTree::IAttributeDictionary> ResolveExternalTable(
         const NYPath::TYPath& path,
         NTableClient::TTableId* tableId,
-        NObjectClient::TCellTag* cellTag,
-        const std::vector<TString>& extraAttributes = {});
+        NObjectClient::TCellTag* externalCellTag,
+        const std::vector<TString>& extraAttributeKeys = {});
 
     template <class TReq>
     void ExecuteTabletServiceRequest(

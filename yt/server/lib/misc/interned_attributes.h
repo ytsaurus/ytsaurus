@@ -231,7 +231,7 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
-    XX(SecondaryCellTags, secondary_cell_tags) \
+    XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(SkipFreezing, skip_freezing) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \

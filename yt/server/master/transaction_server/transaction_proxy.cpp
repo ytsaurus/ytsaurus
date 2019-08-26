@@ -53,7 +53,7 @@ private:
         const auto* transaction = GetThisImpl();
 
         descriptors->push_back(EInternedAttributeKey::State);
-        descriptors->push_back(EInternedAttributeKey::SecondaryCellTags);
+        descriptors->push_back(EInternedAttributeKey::ReplicatedToCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
             .SetPresent(transaction->GetTimeout().operator bool())
             .SetWritable(true));
@@ -101,9 +101,9 @@ private:
                     .Value(transaction->GetState());
                 return true;
 
-            case EInternedAttributeKey::SecondaryCellTags:
+            case EInternedAttributeKey::ReplicatedToCellTags:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->SecondaryCellTags());
+                    .Value(transaction->ReplicatedToCellTags());
                 return true;
 
             case EInternedAttributeKey::Timeout:
