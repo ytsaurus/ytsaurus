@@ -760,7 +760,7 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
 
 const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
 {
-    if (!AreOperationsArchiveChannelsInitialized_) {
+    std::call_once(OperationsArchiveChannelsInitializationFlag_, [&] {
         // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
         TString operationsClientUserName;
         {
@@ -778,8 +778,8 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
                 Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
                 operationsClientUserName);
         }
-        AreOperationsArchiveChannelsInitialized_ = true;
-    }
+    });
+
     return OperationsArchiveChannels_[kind];
 }
 
