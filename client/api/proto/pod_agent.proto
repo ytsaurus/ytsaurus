@@ -840,6 +840,8 @@ message TWorkloadStatus {
 
     string id = 1;
 
+    string box_ref = 17;
+
     EWorkloadState state = 2;
 
     repeated TContainerStatus init = 3;
