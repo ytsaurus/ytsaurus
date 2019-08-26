@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait, Restarter, SCHEDULERS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
+from yt_helpers import ProfileMetric
 
 from yt.common import date_string_to_timestamp
 
@@ -2900,3 +2901,225 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     def teardown_method(self, method):
         remove("//sys/pool_trees/custom_pool_tree")
         super(TestSchedulingTagFilterOnPerPoolTreeConfiguration, self).teardown_method(method)
+
+##################################################################
+
+class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
+    NUM_CPUS_PER_NODE = 10
+    NUM_SLOTS_PER_NODE = 10
+    
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": NUM_CPUS_PER_NODE,
+                    "user_slots": NUM_SLOTS_PER_NODE
+                }
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestSchedulerInferChildrenWeightsFromHistoricUsage, self).setup_method(method)
+        create("map_node", "//sys/pools/parent")
+        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+        set("//sys/pools/parent/@infer_children_weights_from_historic_usage", True)
+        set("//sys/pools/parent/@historic_usage_config", {
+            "aggregation_mode": "exponential_moving_average",
+            "ema_alpha": 1
+        })
+        wait(lambda: get("//sys/pools/parent/@infer_children_weights_from_historic_usage"))
+        wait(lambda: "historic_usage_config" in get("//sys/pools/parent/@"))
+
+    def _init_children(self, num_children=2):
+        for i in xrange(num_children):
+            create("map_node", "//sys/pools/parent/child" + str(i + 1))
+            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+
+    def _get_pool_fair_share_ratio(self, pool):
+        try:
+            return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/fair_share_ratio".format(pool))
+        except YtError:
+            return defaultdict(lambda: 0.0)
+
+    def _get_pool_usage_ratio(self, pool):
+        try:
+            return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/usage_ratio".format(pool))
+        except YtError:
+            return defaultdict(lambda: 0.0)
+
+    def _get_pool_profiling(self, sensor_name, start_time, reduce="none"):
+        assert reduce in ("none", "last", "max")
+        result = {}
+        for entry in get("//sys/scheduler/orchid/profiling/scheduler/pools/" + sensor_name,
+                         from_time=int(start_time * 1000000), verbose=False):
+            pool = entry["tags"]["pool"]
+            if pool in result:
+                result[pool].append(entry["value"])
+            else:
+                result[pool] = [entry["value"]]
+        for pool in result:
+            if reduce == "last":
+                result[pool] = result[pool][-1]
+            elif reduce == "max":
+                result[pool] = max(result[pool])
+        print_debug("Pool profiling (reduce='{}'):".format(reduce), result)
+        return result
+
+    def _test_more_fair_share_for_new_operation_base(self, num_jobs_op1, num_jobs_op2):
+        self._init_children()
+
+        op1_tasks_spec = {
+            "task": {
+                "job_count": num_jobs_op1,
+                "command": "sleep 100;"
+            }
+        }
+        op1 = vanilla(
+            spec={
+                "pool": "child1",
+                "tasks": op1_tasks_spec
+            },
+            dont_track=True)
+
+        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"), 
+                                      min(num_jobs_op1 / self.NUM_SLOTS_PER_NODE, 1.0)))
+
+        # give some time for historic usage to accumulate
+        time.sleep(2)
+
+        op2_tasks_spec = {
+            "task": {
+                "job_count": num_jobs_op2,
+                "command": "sleep 100;"
+            }
+        }
+
+        with ProfileMetric.at_scheduler("scheduler/pools/fair_share_ratio_x100000").with_tag("pool", "child2") as fair_share_ratio:
+            op2 = vanilla(
+                spec={
+                    "pool": "child2",
+                    "tasks": op2_tasks_spec
+                },
+                dont_track=True)
+
+        # it's hard to estimate historic usage for all children, because run time can vary and jobs
+        # can spuriously abort and restart; so we don't set the threshold any greater than 0.5
+        wait(lambda: fair_share_ratio.update() and fair_share_ratio.update().max(verbose=True) > 0.5 * 100000)
+
+        op1.complete()
+        op2.complete()
+
+    @authors("eshcherbin")
+    def test_more_fair_share_for_new_operation_equal_demand(self):
+        self._test_more_fair_share_for_new_operation_base(10, 10)
+
+    @authors("eshcherbin")
+    def test_more_fair_share_for_new_operation_bigger_demand(self):
+        self._test_more_fair_share_for_new_operation_base(5, 10)
+
+    @authors("eshcherbin")
+    def test_more_fair_share_for_new_operation_smaller_demand(self):
+        self._test_more_fair_share_for_new_operation_base(10, 6)
+
+    # NB(eshcherbin): this test works only if new config effectively disables historic usage aggregation
+    def _test_equal_fair_share_after_disabling_config_change_base(self, new_config):
+        self._init_children()
+
+        op1_tasks_spec = {
+            "task": {
+                "job_count": self.NUM_SLOTS_PER_NODE,
+                "command": "sleep 100;"
+            }
+        }
+        op1 = vanilla(
+            spec={
+                "pool": "child1",
+                "tasks": op1_tasks_spec
+            },
+            dont_track=True)
+
+        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"), 1.0))
+
+        # give some time for historic usage to accumulate
+        time.sleep(2)
+
+        # change config and wait for it to be applied
+        set("//sys/pools/parent/@infer_children_weights_from_historic_usage",
+            new_config["infer_children_weights_from_historic_usage"])
+        wait(lambda: get("//sys/pools/parent/@infer_children_weights_from_historic_usage")
+             == new_config["infer_children_weights_from_historic_usage"])
+        set("//sys/pools/parent/@historic_usage_config", new_config["historic_usage_config"])
+        wait(lambda: get("//sys/pools/parent/@historic_usage_config") == new_config["historic_usage_config"])
+        time.sleep(0.5)
+
+        op2_tasks_spec = {
+            "task": {
+                "job_count": self.NUM_SLOTS_PER_NODE,
+                "command": "sleep 100;"
+            }
+        }
+
+        with ProfileMetric.at_scheduler("scheduler/pools/fair_share_ratio_x100000").with_tag("pool", "child2") as fair_share_ratio:
+            op2 = vanilla(
+                spec={
+                    "pool": "child2",
+                    "tasks": op2_tasks_spec
+                },
+                dont_track=True)
+
+        wait(lambda: fair_share_ratio.update() and fair_share_ratio.update().max(verbose=True) in (49999, 50000, 50001))
+
+        op1.complete()
+        op2.complete()
+
+    @authors("eshcherbin")
+    def test_equal_fair_share_after_disabling_historic_usage(self):
+        self._test_equal_fair_share_after_disabling_config_change_base({
+            "infer_children_weights_from_historic_usage": False,
+            "historic_usage_config": {
+                "aggregation_mode": "none",
+                "ema_alpha": 0
+            }
+        })
+
+    @authors("eshcherbin")
+    def test_equal_fair_share_after_disabling_historic_usage_but_keeping_parameters(self):
+        self._test_equal_fair_share_after_disabling_config_change_base({
+            "infer_children_weights_from_historic_usage": False,
+            "historic_usage_config": {
+                "aggregation_mode": "exponential_moving_average",
+                "ema_alpha": 1
+            }
+        })
+
+    @authors("eshcherbin")
+    def test_equal_fair_share_after_setting_none_mode(self):
+        self._test_equal_fair_share_after_disabling_config_change_base({
+            "infer_children_weights_from_historic_usage": True,
+            "historic_usage_config": {
+                "aggregation_mode": "none",
+                "ema_alpha": 1
+            }
+        })
+
+    @authors("eshcherbin")
+    def test_equal_fair_share_after_setting_zero_alpha(self):
+        self._test_equal_fair_share_after_disabling_config_change_base({
+            "infer_children_weights_from_historic_usage": True,
+            "historic_usage_config": {
+                "aggregation_mode": "exponential_moving_average",
+                "ema_alpha": 0
+            }
+        })

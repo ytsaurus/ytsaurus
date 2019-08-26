@@ -953,6 +953,8 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     TUpdateFairShareContext updateContext;
     TDynamicAttributesList dynamicAttributes;
 
+    updateContext.Now = now;
+
     auto rootElement = RootElement_->Clone();
     auto asyncUpdate = BIND([&]
         {
@@ -993,7 +995,7 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
         }
     }
 
-    // Copy persistant attributes back to the original tree.
+    // Copy persistent attributes back to the original tree.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
         if (auto originalElement = FindOperationElement(operationId)) {
             originalElement->PersistentAttributes() = element->PersistentAttributes();
@@ -1931,6 +1933,8 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         minShareResources.GetUserSlots(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag_});
+
+    // TODO(eshcherbin): Add historic usage profiling.
 }
 
 void TFairShareTree::ProfileSchedulerElement(
