@@ -361,15 +361,15 @@ public:
 
         SmallVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
-            const auto& additionalPath =forwardedYPathExt->additional_paths(index);
+            const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
                 THROW_ERROR_EXCEPTION(
-                    NObjectClient::EErrorCode::CrossCellRequest,
-                    "Request is cross-cell since it involves paths %v and %v",
+                    NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                    "Request is cross-cell since it involves target path %v and additional path %v",
                     forwardedYPathExt->original_target_path(),
-                    forwardedYPathExt->additional_paths(index));
+                    additionalPath);
             }
             auto additionalPathRewrite = MakeYPathRewrite(
                 additionalPath,
@@ -378,6 +378,31 @@ public:
             forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
         }
+
+        SmallVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
+        if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+            auto* prerequisitesExt = forwardedRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {
+                auto* prerequisite = prerequisitesExt->mutable_revisions(index);
+                const auto& prerequisitePath = prerequisite->path();
+                auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
+                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
+                if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != forwardedCellTag) {
+                    THROW_ERROR_EXCEPTION(
+                        NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                        "Request is cross-cell since it involves target path %v and prerequisite reivision path %v",
+                        forwardedYPathExt->original_target_path(),
+                        prerequisitePath);
+                }
+                auto prerequisitePathRewrite = MakeYPathRewrite(
+                    prerequisitePath,
+                    prerequisitePayload->ObjectId,
+                    prerequisiteResolveResult.UnresolvedPathSuffix);
+                prerequisite->set_path(prerequisitePathRewrite.Rewritten);
+                prerequisiteRevisionPathRewrites.push_back(std::move(prerequisitePathRewrite));
+            }
+        }
+
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
@@ -394,7 +419,7 @@ public:
         auto forwardedRequestId = batchReq->GetRequestId();
 
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
-            "TargetPath: %v, %vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
@@ -403,6 +428,11 @@ public:
             MakeFormatterWrapper([&] (auto* builder) {
                if (!additionalPathRewrites.empty()) {
                    builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
+               }
+            }),
+            MakeFormatterWrapper([&] (auto* builder) {
+               if (!additionalPathRewrites.empty()) {
+                   builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
                }
             }),
             context->GetUser(),
