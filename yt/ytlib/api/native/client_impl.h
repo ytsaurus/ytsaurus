@@ -34,6 +34,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <mutex>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +412,7 @@ private:
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
     TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr> OperationsArchiveChannels_;
-    bool AreOperationsArchiveChannelsInitialized_ = false;
+    std::once_flag OperationsArchiveChannelsInitializationFlag_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
     NQueryClient::TFunctionImplCachePtr FunctionImplCache_;
