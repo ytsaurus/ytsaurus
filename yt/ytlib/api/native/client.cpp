@@ -4201,6 +4201,14 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
     auto hasSpecIndex = builder.AddSelectExpression("has_spec");
     auto failContextSizeIndex = builder.AddSelectExpression("fail_context_size");
 
+    int coreInfosIndex = -1;
+    {
+        constexpr int requiredVersion = 31;
+        if (DoGetOperationsArchiveVersion() >= requiredVersion) {
+            coreInfosIndex = builder.AddSelectExpression("core_infos");
+        }
+    }
+
     if (options.WithStderr) {
         if (*options.WithStderr) {
             builder.AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
@@ -4326,6 +4334,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[errorIndex].Type != EValueType::Null) {
                 job.Error = TYsonString(TString(row[errorIndex].Data.String, row[errorIndex].Length));
+            }
+
+            if (coreInfosIndex != -1 && row[coreInfosIndex].Type != EValueType::Null) {
+                job.CoreInfos = TYsonString(TString(row[coreInfosIndex].Data.String, row[coreInfosIndex].Length));
             }
 
             if (row[statisticsIndex].Type != EValueType::Null) {

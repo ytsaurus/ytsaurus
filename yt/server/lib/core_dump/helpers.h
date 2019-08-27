@@ -13,6 +13,8 @@ namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TCoreInfos = std::vector<NCoreDump::NProto::TCoreInfo>;
+
 namespace NProto {
 
 void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);

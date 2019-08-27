@@ -68,6 +68,7 @@ struct IJob
     virtual void SetStderr(const TString& value) = 0;
     virtual void SetFailContext(const TString& value) = 0;
     virtual void SetProfile(const TJobProfile& value) = 0;
+    virtual void SetCoreInfos(NCoreDump::TCoreInfos value) = 0;
 
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;

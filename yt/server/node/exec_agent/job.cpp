@@ -76,6 +76,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NCoreDump;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -454,6 +455,12 @@ public:
         Profile_ = value;
     }
 
+    virtual void SetCoreInfos(TCoreInfos value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        CoreInfos_ = std::move(value);
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -536,6 +543,13 @@ public:
         return Profile_;
     }
 
+    const TCoreInfos& GetCoreInfos()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CoreInfos_;
+    }
+
     virtual TYsonString StraceJob() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -591,7 +605,8 @@ public:
             .State(GetState())
             .StartTime(GetStartTime())
             .SpecVersion(0) // TODO: fill correct spec version.
-            .Events(JobEvents_);
+            .Events(JobEvents_)
+            .CoreInfos(CoreInfos_);
         if (FinishTime_) {
             statistics.SetFinishTime(*FinishTime_);
         }
@@ -706,6 +721,7 @@ private:
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
     std::optional<TJobProfile> Profile_;
+    TCoreInfos CoreInfos_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();

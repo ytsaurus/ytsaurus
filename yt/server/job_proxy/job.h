@@ -98,6 +98,8 @@ struct IJob
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 
+    virtual const NCoreDump::TCoreInfos& GetCoreInfos() const = 0;
+
     virtual TCpuStatistics GetCpuStatistics() const = 0;
 };
 

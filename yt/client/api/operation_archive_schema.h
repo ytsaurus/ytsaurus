@@ -97,6 +97,7 @@ struct TJobTableDescriptor
         const int HasSpec;
         const int HasFailContext;
         const int FailContextSize;
+        const int CoreInfos;
     };
 
     const NTableClient::TNameTablePtr NameTable;

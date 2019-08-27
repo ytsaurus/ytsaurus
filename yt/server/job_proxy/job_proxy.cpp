@@ -580,21 +580,31 @@ void TJobProxy::ReportResult(
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     if (Job_ && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+        ToProto(req->mutable_core_infos(), Job_->GetCoreInfos());
+
         try {
-            req->set_job_stderr(GetStderr());
             auto failContext = Job_->GetFailContext();
             if (failContext) {
                 req->set_fail_context(*failContext);
             }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get job fail context on teardown");
+        }
 
+        try {
+            req->set_job_stderr(GetStderr());
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get job stderr on teardown");
+        }
+
+        try{
             auto profile = Job_->GetProfile();
             if (profile) {
                 req->set_profile_type(profile->Type);
                 req->set_profile_blob(profile->Blob);
             }
         } catch (const std::exception& ex) {
-            // NB(psushin): this could happen if job was not fully prepared.
-            YT_LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");
+            YT_LOG_WARNING(ex, "Failed to get job profile on teardown");
         }
     }
 
