@@ -1334,7 +1334,8 @@ private:
                     nullptr});
             }
 
-            if (GetResourceUsage().gpu() > 0 && !userJobSpec.layers().empty()) {
+            bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpu;
+            if (needGpu && !userJobSpec.layers().empty()) {
                 for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
                     LayerArtifactKeys_.emplace_back(layerKey);
                 }

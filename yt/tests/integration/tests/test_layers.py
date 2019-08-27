@@ -223,7 +223,6 @@ class TestJobSetup(YTEnvSetup):
 @require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
-@pytest.mark.xfail(run=False, reason="Investigating")
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -260,6 +259,10 @@ class TestGpuLayer(YTEnvSetup):
         file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
         write_file("//tmp/drivers/test_version", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
+        create("file", "//tmp/layer2", attributes={"replication_factor": 1})
+        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+
     def test_setup_cat_gpu_layer(self):
         self.setup_files()
 
@@ -272,9 +275,10 @@ class TestGpuLayer(YTEnvSetup):
             out="//tmp/t_out",
             command='$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2',
             spec={
-                "max_failed_job_count" : 1,
-                "mapper" : {
+                "max_failed_job_count": 1,
+                "mapper": {
                     "job_count": 1,
+                    "layer_paths": ["//tmp/layer2"],
                 }
             })
 
