@@ -5306,6 +5306,11 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
+        auto checkStatisticsMatch = [] (const TChunkTreeStatistics& lhs, TChunkTreeStatistics rhs) {
+            rhs.ChunkListCount = lhs.ChunkListCount;
+            return lhs == rhs;
+        };
+
         if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
@@ -5330,9 +5335,9 @@ private:
             objectManager->RefObject(newRootChunkList);
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
-            if (newRootChunkList->Statistics() != statistics) {
+            if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
                 YT_LOG_ALERT_UNLESS(IsRecovery(),
-                    "Unexpected error: invalid new root chunk list statistics "
+                    "Invalid new root chunk list statistics "
                     "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     newRootChunkList->Statistics(),
@@ -5346,10 +5351,19 @@ private:
                 if (force || objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
                     chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
+
+                    // ReplaceChunkListChild assumes that statistics are updated by caller.
+                    // Here everything remains the same except for missing subtablet chunk lists.
+                    int subtabletChunkListCount = oldTabletChunkList->Statistics().ChunkListCount - 1;
+                    if (subtabletChunkListCount > 0) {
+                        TChunkTreeStatistics delta{};
+                        delta.ChunkListCount = -subtabletChunkListCount;
+                        NChunkServer::AccumulateUniqueAncestorsStatistics(newTabletChunkList, delta);
+                    }
                 }
             }
 
-            if (oldRootChunkList->Statistics() != statistics) {
+            if (!checkStatisticsMatch(oldRootChunkList->Statistics(), statistics)) {
                 YT_LOG_ALERT_UNLESS(IsRecovery(),
                     "Invalid old root chunk list statistics "
                     "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
