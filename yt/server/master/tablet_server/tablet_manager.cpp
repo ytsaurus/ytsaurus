@@ -1522,6 +1522,7 @@ public:
         YT_VERIFY(originatingChunkOwner->IsTrunk());
 
         auto* originatingNode = static_cast<TTableNode*>(originatingChunkOwner);
+        CopyChunkListIfShared(originatingNode, 0, originatingNode->GetChunkList()->Children().size() - 1);
         auto* branchedNode = static_cast<TTableNode*>(branchedChunkOwner);
         auto* originatingChunkList = originatingNode->GetChunkList();
         auto* branchedChunkList = branchedNode->GetChunkList();
