@@ -71,7 +71,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , UploadSynchronizer_()
+        , UploadSynchronizer_(Client_->GetNativeConnection())
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("Path: %v, TransactionId: %v",
                 Path_.GetPath(),
@@ -117,7 +117,7 @@ private:
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
-    std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
+    TChunkUploadSynchronizer UploadSynchronizer_;
 
     NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
@@ -164,10 +164,6 @@ private:
         ObjectId_ = userObject.ObjectId;
         NativeCellTag_ = CellTagFromId(ObjectId_);
         ExternalCellTag_ = userObject.ExternalCellTag;
-
-        UploadSynchronizer_.emplace(
-            Client_->GetNativeConnection(),
-            Options_.TransactionId);
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -263,7 +259,7 @@ private:
                 });
                 StartListenTransaction(UploadTransaction_);
 
-                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
+                UploadSynchronizer_.AfterBeginUpload(Options_.TransactionId, ObjectId_, ExternalCellTag_);
 
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
@@ -347,7 +343,7 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_->BeforeEndUpload();
+        UploadSynchronizer_.BeforeEndUpload();
 
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
@@ -379,7 +375,7 @@ private:
 
         UploadTransaction_->Detach();
 
-        UploadSynchronizer_->AfterEndUpload();
+        UploadSynchronizer_.AfterEndUpload();
 
         YT_LOG_INFO("File closed");
     }

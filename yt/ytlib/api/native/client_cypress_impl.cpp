@@ -383,9 +383,7 @@ void TClient::DoConcatenateNodes(
 
     const auto& simpleDstPath = dstPath.GetPath();
 
-    TChunkUploadSynchronizer uploadSynchronizer(
-        Connection_,
-        options.TransactionId);
+    TChunkUploadSynchronizer uploadSynchronizer(Connection_);
 
     bool append = dstPath.GetAppend();
 
@@ -638,7 +636,7 @@ void TClient::DoConcatenateNodes(
             uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             dstExternalCellTag = rsp->cell_tag();
 
-            uploadSynchronizer.AfterBeginUpload(dstId, dstExternalCellTag);
+            uploadSynchronizer.AfterBeginUpload(options.TransactionId, dstId, dstExternalCellTag);
         }
 
         auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{

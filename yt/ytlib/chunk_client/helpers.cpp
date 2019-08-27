@@ -638,22 +638,20 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkUploadSynchronizer::TChunkUploadSynchronizer(
-    NApi::NNative::IConnectionPtr connection,
-    TTransactionId transactionId)
+TChunkUploadSynchronizer::TChunkUploadSynchronizer(NApi::NNative::IConnectionPtr connection)
     : Connection_(std::move(connection))
-    , TransactionId_(transactionId)
 { }
 
 void TChunkUploadSynchronizer::AfterBeginUpload(
+    TTransactionId transactionId,
     TObjectId objectId,
     TCellTag externalCellTag)
 {
-    if (!TransactionId_) {
+    if (!transactionId) {
         return;
     }
 
-    if (CellTagFromId(objectId) == CellTagFromId(TransactionId_)) {
+    if (CellTagFromId(objectId) == CellTagFromId(transactionId)) {
         return;
     }
 
@@ -666,14 +664,14 @@ void TChunkUploadSynchronizer::AfterBeginUpload(
         Connection_->GetMasterCellId(CellTagFromId(objectId)));
 
     // Wait for transaction cell to receive UnregisterExternalNestedTransaction.
-    DstCellIdToSrcCellIdsPhaseTwo_[Connection_->GetMasterCellId(CellTagFromId(TransactionId_))].push_back(
+    DstCellIdToSrcCellIdsPhaseTwo_[Connection_->GetMasterCellId(CellTagFromId(transactionId))].push_back(
         Connection_->GetMasterCellId(externalCellTag));
 
     // Wait for transaction cell to receive RegisterExternalNestedTransaction.
     BeginUploadSyncs_.push_back(SyncHiveCellWithOthers(
         Connection_->GetCellDirectory(),
         {Connection_->GetMasterCellId(CellTagFromId(objectId))},
-        Connection_->GetMasterCellId(CellTagFromId(TransactionId_)),
+        Connection_->GetMasterCellId(CellTagFromId(transactionId)),
         Connection_->GetConfig()->HiveSyncRpcTimeout));
 }
 

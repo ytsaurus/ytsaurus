@@ -646,6 +646,8 @@ void TOperationControllerBase::InitializeStructures()
             InputTables_.size());
     }
 
+    UploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(Host->GetClient()->GetNativeConnection());
+
     DoInitialize();
 }
 
@@ -1536,10 +1538,6 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
-
-    OutputUploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(
-        Host->GetClient()->GetNativeConnection(),
-        OutputCompletionTransaction->GetId());
 }
 
 void TOperationControllerBase::CommitOutputCompletionTransaction()
@@ -1592,10 +1590,6 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
-
-    DebugUploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(
-        Host->GetClient()->GetNativeConnection(),
-        DebugCompletionTransaction->GetId());
 }
 
 void TOperationControllerBase::CommitDebugCompletionTransaction()
@@ -2075,12 +2069,7 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables)
 {
-    if (DebugUploadSynchronizer_) {
-        DebugUploadSynchronizer_->BeforeEndUpload();
-    }
-    if (OutputUploadSynchronizer_) {
-        OutputUploadSynchronizer_->BeforeEndUpload();
-    }
+    UploadSynchronizer_->BeforeEndUpload();
 
     THashMap<TCellTag, std::vector<TOutputTablePtr>> nativeCellTagToTables;
     for (const auto& table : tables) {
@@ -2137,12 +2126,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         }
     }
 
-    if (DebugUploadSynchronizer_) {
-        DebugUploadSynchronizer_->AfterEndUpload();
-    }
-    if (OutputUploadSynchronizer_) {
-        OutputUploadSynchronizer_->AfterEndUpload();
-    }
+    UploadSynchronizer_->AfterEndUpload();
 }
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
@@ -5371,8 +5355,10 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
-                auto* uploadSynchronizer = GetUploadSynchronizerForOutputTable(table);
-                uploadSynchronizer->AfterBeginUpload(table->ObjectId, table->ExternalCellTag);
+                UploadSynchronizer_->AfterBeginUpload(
+                    GetTransactionForOutputTable(table)->GetId(),
+                    table->ObjectId,
+                    table->ExternalCellTag);
             }
         }
     }
@@ -6548,16 +6534,6 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
         } else {
             return DebugTransaction;
         }
-    }
-}
-
-TChunkUploadSynchronizer* TOperationControllerBase::GetUploadSynchronizerForOutputTable(const TOutputTablePtr& table) const
-{
-    if (table->OutputType == EOutputTableType::Output) {
-        return OutputUploadSynchronizer_.get();
-    } else {
-        YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
-        return DebugUploadSynchronizer_.get();
     }
 }
 

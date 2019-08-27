@@ -197,11 +197,10 @@ std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vect
 class TChunkUploadSynchronizer
 {
 public:
-    TChunkUploadSynchronizer(
-        NApi::NNative::IConnectionPtr connection,
-        NTransactionClient::TTransactionId transactionId);
+    explicit TChunkUploadSynchronizer(NApi::NNative::IConnectionPtr connection);
 
     void AfterBeginUpload(
+        NTransactionClient::TTransactionId transactionId,
         NObjectClient::TObjectId objectId,
         NObjectClient::TCellTag externalCellTag);
     void BeforeEndUpload();
@@ -209,7 +208,6 @@ public:
 
 private:
     const NApi::NNative::IConnectionPtr Connection_;
-    const NTransactionClient::TTransactionId TransactionId_;
 
     std::vector<TFuture<void>> BeginUploadSyncs_;
     THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseOne_;

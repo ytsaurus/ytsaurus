@@ -369,9 +369,7 @@ void SaveJobFiles(
 
     auto transactionId = transaction->GetId();
 
-    TChunkUploadSynchronizer uploadSynchronizer(
-        client->GetNativeConnection(),
-        transactionId);
+    TChunkUploadSynchronizer uploadSynchronizer(client->GetNativeConnection());
 
     {
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
@@ -453,7 +451,7 @@ void SaveJobFiles(
             const auto* file = files[index];
             auto& info = fileToInfo[file];
             info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-            uploadSynchronizer.AfterBeginUpload(info.NodeId, info.ExternalCellTag);
+            uploadSynchronizer.AfterBeginUpload(transactionId, info.NodeId, info.ExternalCellTag);
         }
     }
 

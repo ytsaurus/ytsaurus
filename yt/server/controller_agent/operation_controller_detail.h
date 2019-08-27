@@ -432,8 +432,7 @@ protected:
     NApi::ITransactionPtr UserTransaction;
     std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 
-    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> DebugUploadSynchronizer_;
-    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> OutputUploadSynchronizer_;
+    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> UploadSynchronizer_;
 
     bool CommitFinished = false;
 
