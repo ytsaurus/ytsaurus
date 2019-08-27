@@ -86,8 +86,8 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
     ((MorePortalAttributes)                                          (905))  // babenko
-    ((YT_10855_EpochHistoryManager)                                  (906))  // ifsmirnov
-    ((CypressShardName)                                              (907))  // babenko
+    ((CypressShardName)                                              (906))  // babenko
+    ((YT_10855_EpochHistoryManager)                                  (907))  // ifsmirnov
     ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
 );
 
