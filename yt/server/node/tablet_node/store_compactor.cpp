@@ -835,9 +835,9 @@ private:
                     NTransactionClient::ETransactionType::Master,
                     TTransactionStartOptions{
                         .AutoAbort = false,
+                        .Attributes =  std::move(transactionAttributes),
                         .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
-                        .ReplicateToMasterCellTags = TCellTagList(),
-                        .Attributes =  std::move(transactionAttributes)
+                        .ReplicateToMasterCellTags = TCellTagList()
                     });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
