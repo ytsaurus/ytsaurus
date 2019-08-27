@@ -501,7 +501,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(0.2)
             assert clique.get_active_instance_count() == 0
             assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
-            time.sleep(0.1)
+            time.sleep(0.2)
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
 

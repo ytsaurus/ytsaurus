@@ -312,6 +312,11 @@ void TJobProbeTools::SignalJob(const TString& signalName)
     auto arg = New<TSignalerArg>();
     arg->Pids = PidsHolder_->GetPids();
 
+    YT_LOG_DEBUG("Processing \"SignalJob\" (Signal: %v, Pids: %v, RootPid: %v)",
+        signalName,
+        arg->Pids,
+        RootPid_);
+
     auto it = std::find(arg->Pids.begin(), arg->Pids.end(), RootPid_);
     if (it != arg->Pids.end()) {
         arg->Pids.erase(it);
