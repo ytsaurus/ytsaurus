@@ -1,5 +1,7 @@
 #include "job_statistics.h"
 
+#include <yt/server/lib/core_dump/helpers.h>
+
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -8,6 +10,7 @@ namespace NYT::NJobAgent {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,7 +273,9 @@ TJobStatistics TJobStatistics::ExtractProfile() const
 
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
+             Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
+             CoreInfos_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -352,6 +357,11 @@ void TJobStatistics::SetFailContext(const TString& failContext)
 void TJobStatistics::SetProfile(const TJobProfile& profile)
 {
     Profile_ = profile;
+}
+
+void TJobStatistics::SetCoreInfos(TCoreInfos coreInfos)
+{
+    CoreInfos_ = std::move(coreInfos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
