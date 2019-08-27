@@ -326,7 +326,7 @@ public:
     virtual bool IsJobInterruptible() const override
     {
         // Every task has its own IsJobInterruptible. We will never be here.
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void ValidateRevivalAllowed() const override
