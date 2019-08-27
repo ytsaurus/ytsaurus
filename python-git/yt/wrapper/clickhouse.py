@@ -176,6 +176,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
             "instances": {
                 "user_job_memory_digest_lower_bound": 1.0,
                 "restart_completed_jobs": True,
+                "interruption_signal": "SIGINT",
             }
         },
     }
@@ -186,9 +187,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     patch_config_command = "sed -s \"s/\$YT_JOB_INDEX/$YT_JOB_INDEX/g\" config.yson -i ;"
 
-    run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID " \
+    run_clickhouse_command = "({} --config config.yson --instance-id $YT_JOB_ID " \
                              "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
-                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ; ".format(executable_path, monitoring_port)
+                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;) ".format(executable_path, monitoring_port)
 
     if core_dump_destination is not None:
         copy_core_dumps_command = "exit_code=$? ;" \
