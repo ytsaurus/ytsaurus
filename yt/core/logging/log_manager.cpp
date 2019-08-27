@@ -1047,6 +1047,7 @@ private:
             }
         };
 
+        // TODO(lukyan): Reuse heap.
         std::vector<THeapItem> heap;
         for (auto localQueue : LocalQueues_) {
             if (localQueue->Front()) {
@@ -1056,6 +1057,7 @@ private:
 
         NYT::MakeHeap(heap.begin(), heap.end());
 
+        // TODO(lukyan): Get next minimum instant and pop from top queue in loop.
         // NB: Messages are not totally ordered beacause of race around high/low watermark check
         while (!heap.empty()) {
             auto& queue = heap.front();
@@ -1079,6 +1081,9 @@ private:
             }
         });
 
+        // TODO(lukyan): To achive total order of messages copy them from GlobalQueue to
+        // separate TThreadLocalQueue sort it and merge it with LocalQueues
+        // TODO(lukyan): Reuse nextEvents
         // NB: Messages from global queue are not sorted
         std::vector<TLoggerQueueItem> nextEvents;
         while (GlobalQueue_.DequeueAll(true, [&] (TLoggerQueueItem& event) {
@@ -1111,9 +1116,8 @@ private:
     int ProcessTimeOrderedBuffer()
     {
         int eventsWritten = 0;
-        if (TraceSuppressionEnabled_) {
-            SuppressedTraceIdSet_.Update(SuppressedTraceIdQueue_.DequeueAll());
-        } else {
+        if (!TraceSuppressionEnabled_) {
+            // Fast path.
             while (!TimeOrderedBuffer_.empty()) {
                 auto& event = TimeOrderedBuffer_.front();
 
@@ -1133,13 +1137,15 @@ private:
             return eventsWritten;
         }
 
+        SuppressedTraceIdSet_.Update(SuppressedTraceIdQueue_.DequeueAll());
+
         auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->TraceSuppressionTimeout);
 
         int suppressed = 0;
         while (!TimeOrderedBuffer_.empty()) {
             auto& event = TimeOrderedBuffer_.front();
 
-            if (TraceSuppressionEnabled_ && GetEventInstant(event) > deadline) {
+            if (GetEventInstant(event) > deadline) {
                 break;
             }
 
