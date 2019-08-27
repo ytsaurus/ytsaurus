@@ -552,11 +552,12 @@ class TestUserFiles(YTEnvSetup):
             verbose=True)
 
         with pytest.raises(YtError):
-            # Cannot infer file name error.
+            # TODO(levysotsky): Error is wrong.
+            # Instead of '#' + file it must be '#' + file_id.
             map(in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat my_file; cat",
-                file=[to_yson_type("#" + file_id)],
+                file=[to_yson_type("#" + file)],
                 spec={"max_failed_job_count": 1},
                 verbose=True)
 
