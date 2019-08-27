@@ -1008,7 +1008,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
     if (interruptTimeout.value_or(TDuration::Zero()) != TDuration::Zero()) {
         if (!job->GetInterruptible()) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
-                "because such job type does not support interruption or interruption_signal is not set",
+                "because such job type does not support interruption or \"interruption_signal\" is not set",
                 jobId,
                 job->GetType());
         }
