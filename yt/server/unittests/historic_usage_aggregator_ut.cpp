@@ -7,6 +7,8 @@
 namespace NYT::NScheduler {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class THistoricUsageAggregatorTest
     : public testing::Test
 {
@@ -96,6 +98,8 @@ TEST_F(THistoricUsageAggregatorTest, TestExponentialMovingAverageModeUpdateParam
     currentHistoricUsage = 0.0;
     ASSERT_DOUBLE_EQ(HistoricUsageAggregator_.GetHistoricUsage(), currentHistoricUsage);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NScheduler
