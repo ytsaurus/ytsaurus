@@ -433,6 +433,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportRefCounter)
         .SetPresent(isForeign));
     descriptors->push_back(EInternedAttributeKey::Foreign);
+    descriptors->push_back(EInternedAttributeKey::NativeCellTag);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InheritAcl)
         .SetPresent(hasAcd)
         .SetWritable(true)
@@ -513,6 +514,11 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         case EInternedAttributeKey::Foreign:
             BuildYsonFluently(consumer)
                 .Value(isForeign);
+            return true;
+
+        case EInternedAttributeKey::NativeCellTag:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetNativeCellTag());
             return true;
 
         case EInternedAttributeKey::InheritAcl:

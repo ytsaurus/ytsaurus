@@ -111,6 +111,7 @@
     XX(FlushedRowCount, flushed_row_count) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \
     XX(Foreign, foreign) \
+    XX(NativeCellTag, native_cell_tag) \
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
