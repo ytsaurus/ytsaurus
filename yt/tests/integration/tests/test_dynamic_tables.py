@@ -1256,7 +1256,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("ifsmirnov")
     def test_chunk_view_attributes(self):
-        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)

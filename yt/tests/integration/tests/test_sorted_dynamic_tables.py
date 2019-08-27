@@ -1121,8 +1121,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_stress_chunk_view(self, optimize_for, in_memory_mode):
         random.seed(98765)
 
-        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
-
         sync_create_cells(1)
 
         key_range=100
