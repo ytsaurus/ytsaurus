@@ -259,17 +259,25 @@ def invoke_build(build_cmd, args, rest_args):
     ssh_yall_args = [
         "ssh", remote_host,
         "-o", "ServerAliveInterval=10",
-        "cd {directory} && stdbuf -oL -eL {build_args}".format(
+        "cd {directory} && realpath . && stdbuf -oL -eL {build_args}".format(
             directory=remote_directory,
             build_args=" ".join(map(shlex.quote, build_args))
         )
     ]
     log_command(ssh_yall_args)
     p = subprocess.Popen(ssh_yall_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    bytes_remote_directory = remote_directory.encode("utf-8")
+
+    stdout_iter = iter(p.stdout)
+
+    # First line in stdout is realpath of directory read it separately
+    first_line = next(stdout_iter, None)
+    sys.stdout.buffer.write(first_line)
+    sys.stdout.flush()
+    bytes_realpath_remote_directory = first_line.strip()
+
     bytes_repo_root = str(REPO_ROOT).encode("utf-8")
-    for line in p.stdout:
-        line = line.replace(bytes_remote_directory, bytes_repo_root)
+    for line in stdout_iter:
+        line = line.replace(bytes_realpath_remote_directory, bytes_repo_root)
         sys.stdout.buffer.write(line)
         sys.stdout.flush()
     p.wait()
