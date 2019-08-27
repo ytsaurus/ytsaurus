@@ -505,6 +505,7 @@ class YTEnvSetup(object):
     USE_MASTER_CACHE = False
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
+    ENABLE_TABLET_BALANCER = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -806,6 +807,11 @@ class YTEnvSetup(object):
             if cls.USE_DYNAMIC_TABLES:
                 yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
                 yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
+                yt_commands.set(
+                    "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
+                    cls.ENABLE_TABLET_BALANCER,
+                    driver=driver)
+
 
             if cls.ENABLE_BULK_INSERT:
                 yt_commands.set("//sys/@config/tablet_manager/enable_bulk_insert", True, driver=driver)
