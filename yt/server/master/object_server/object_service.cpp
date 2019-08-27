@@ -44,6 +44,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <atomic>
 #include <queue>
 
@@ -67,10 +69,68 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-static TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
-static TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
-static TMonotonicCounter ReadRequestCounter("/read_request_count");
-static TMonotonicCounter WriteRequestCounter("/write_request_count");
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRequestProfilngCounters
+    : public TIntrinsicRefCounted
+{
+    explicit TRequestProfilngCounters(const NProfiling::TTagIdList& tagIds)
+        : TotalReadRequestCounter("/total_read_request_count", tagIds)
+        , TotalWriteRequestCounter("/total_write_request_count", tagIds)
+        , LocalReadRequestCounter("/local_read_request_count", tagIds)
+        , LocalWriteRequestCounter("/local_write_request_count", tagIds)
+        , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
+        , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
+        , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
+        , LocalMutationScheduleTimeCounter("/local_mutation_schedule_time", tagIds)
+    { }
+
+    TMonotonicCounter TotalReadRequestCounter;
+    TMonotonicCounter TotalWriteRequestCounter;
+    TMonotonicCounter LocalReadRequestCounter;
+    TMonotonicCounter LocalWriteRequestCounter;
+    TMonotonicCounter LeaderFallbackRequestCounter;
+    TMonotonicCounter IntraCellForwardingRequestCounter;
+    TMonotonicCounter CrossCellForwardingRequestCounter;
+    TMonotonicCounter LocalMutationScheduleTimeCounter;
+};
+
+using TRequestProfilngCountersPtr = TIntrusivePtr<TRequestProfilngCounters>;
+
+class TRequestProfilingManager
+{
+public:
+    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method)
+    {
+        auto key = std::make_tuple(user, method);
+
+        {
+            NConcurrency::TReaderGuard guard(Lock_);
+            if (auto it = KeyToCounters_.find(key)) {
+                return it->second;
+            }
+        }
+
+        TTagIdList tagIds{
+            TProfileManager::Get()->RegisterTag("user", user),
+            TProfileManager::Get()->RegisterTag("method", method)
+        };
+        auto counters = New<TRequestProfilngCounters>(tagIds);
+
+        {
+            NConcurrency::TReaderGuard guard(Lock_);
+            auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
+            return it->second;
+        }
+    }
+
+private:
+    // (user, method)
+    using TKey = std::tuple<TString, TString>;
+    NConcurrency::TReaderWriterSpinLock Lock_;
+    THashMap<TKey, TRequestProfilngCountersPtr> KeyToCounters_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,6 +260,7 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
+    TRequestProfilingManager ProfilingStatisticsManager_;
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -373,6 +434,7 @@ private:
         NHydra::TRevision Revision = NHydra::NullRevision;
         bool Uncertain = false;
         std::atomic<bool> Completed = {false};
+        TRequestProfilngCountersPtr ProfilingCounters;
     };
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
@@ -471,6 +533,10 @@ private:
                     "Error parsing subrequest header");
             }
 
+            subrequest.ProfilingCounters = Owner_->ProfilingStatisticsManager_.GetCounters(
+                UserName_,
+                requestHeader.method());
+
             // Propagate various parameters to the subrequest.
             if (!requestHeader.has_request_id()) {
                 ToProto(requestHeader.mutable_request_id(), RequestId_);
@@ -514,6 +580,10 @@ private:
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 requestHeader.service(),
                 requestHeader.method());
+
+            Profiler.Increment(subrequest.YPathExt->mutating()
+                ? subrequest.ProfilingCounters->TotalWriteRequestCounter
+                : subrequest.ProfilingCounters->TotalReadRequestCounter);
         }
     }
 
@@ -678,7 +748,7 @@ private:
     void MarkSubrequestLocal(TSubrequest* subrequest)
     {
         if (subrequest->YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
-            MarkSubrequestRemoteSameCell(subrequest);
+            MarkSubrequestRemoteIntraCell(subrequest);
             return;
         }
 
@@ -692,21 +762,23 @@ private:
             subrequest->Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest->RpcContext);
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
+            Profiler.Increment(subrequest->ProfilingCounters->LocalWriteRequestCounter);
         } else {
             subrequest->Type = EExecutionSessionSubrequestType::LocalRead;
+            Profiler.Increment(subrequest->ProfilingCounters->LocalReadRequestCounter);
         }
     }
 
-    void MarkSubrequestRemoteSameCell(TSubrequest* subrequest)
+    void MarkSubrequestRemoteIntraCell(TSubrequest* subrequest)
     {
         subrequest->ForwardedCellTag = Bootstrap_->GetCellTag();
         subrequest->RemoteRequestMessage = subrequest->RequestMessage;
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
+        Profiler.Increment(subrequest->ProfilingCounters->IntraCellForwardingRequestCounter);
     }
 
-    void MarkSubrequestRemoteOtherCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
+    void MarkSubrequestRemoteCrossCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
     {
-        // XXX(babenko): profiling
         auto remoteRequestHeader = subrequest->RequestHeader;
         auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         auto* remotePrerequisitesExt = remoteRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -732,6 +804,7 @@ private:
         subrequest->ForwardedCellTag = forwardedCellTag;
         subrequest->RemoteRequestMessage = SetRequestHeader(subrequest->RequestMessage, remoteRequestHeader);
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
+        Profiler.Increment(subrequest->ProfilingCounters->CrossCellForwardingRequestCounter);
     }
 
     void DecideSubrequestType(TSubrequest* subrequest)
@@ -790,7 +863,7 @@ private:
                 prerequisiteResolveResult->UnresolvedPathSuffix));
         }
 
-        MarkSubrequestRemoteOtherCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
+        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
     }
 
     void DecideSubrequestTypes()
@@ -1159,8 +1232,7 @@ private:
 
         AcquireReplyLock();
 
-        Profiler.Increment(WriteRequestCounter);
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &subrequest->ProfilingCounters->LocalMutationScheduleTimeCounter);
 
         subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
         subrequest->AsyncCommitResult.Subscribe(
@@ -1171,6 +1243,8 @@ private:
     {
         YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
             RequestId_);
+
+        Profiler.Increment(subrequest->ProfilingCounters->LeaderFallbackRequestCounter);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
@@ -1188,15 +1262,12 @@ private:
 
         AcquireReplyLock();
 
-        Profiler.Increment(ReadRequestCounter);
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+        TWallTimer timer;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
-
-        TWallTimer timer;
 
         const auto& context = subrequest->RpcContext;
         try {
