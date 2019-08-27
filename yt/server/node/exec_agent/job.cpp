@@ -1337,12 +1337,12 @@ private:
             bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpu;
             if (needGpu && !userJobSpec.layers().empty()) {
                 for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
-                    LayerArtifactKeys_.emplace_back(layerKey);
+                    LayerArtifactKeys_.push_back(std::move(layerKey));
                 }
             }
 
             for (const auto& descriptor : userJobSpec.layers()) {
-                LayerArtifactKeys_.emplace_back(descriptor);
+                LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
             }
         }
 

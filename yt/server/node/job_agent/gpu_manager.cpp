@@ -51,7 +51,7 @@ using namespace NDataNode;
 
 static const auto& Logger = JobAgentServerLogger;
 
-static constexpr int MAX_CHUNKS_PER_LOCATE_REQUEST = 10000;
+static constexpr int MaxChunksPerLocateRequest = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,9 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         auto driverVersion = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersion();
         DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + driverVersion;
 
-        YT_LOG_INFO("GPU layer specified (Path: %v, Version: %v)", DriverLayerPath_, driverVersion);
+        YT_LOG_INFO("GPU layer specified (Path: %v, Version: %v)",
+            DriverLayerPath_,
+            driverVersion);
 
         FetchDriverLayerExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -209,7 +211,10 @@ void TGpuManager::DoFetchDriverLayerInfo()
         );
 
         if (userObject.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of GPU layer object in Cypress")
+            THROW_ERROR_EXCEPTION("Invalid type of GPU layer object %v: expected %Qlv, actual %Qlv",
+                DriverLayerPath_,
+                EObjectType::File,
+                userObject.Type)
                 << TErrorAttribute("path", DriverLayerPath_)
                 << TErrorAttribute("expected", EObjectType::File)
                 << TErrorAttribute("actual", userObject.Type);
@@ -235,6 +240,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
         const auto& rsp = rspOrError.Value();
 
         auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
+        // TODO(mrkastep): use TRevision
         auto revision = attributes->Get<ui64>("revision", 0);
         if (revision == DriverLayerRevision_) {
             YT_LOG_INFO("GPU layer revision not changed, using cached");
@@ -257,7 +263,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     auto rspOrError = WaitFor(proxy.Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for GPU layer");
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for GPU layer %v", DriverLayerPath_);
     const auto& rsp = rspOrError.Value();
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
@@ -266,7 +272,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
         rsp,
         userObject.ExternalCellTag,
         Bootstrap_->GetNodeDirectory(),
-        MAX_CHUNKS_PER_LOCATE_REQUEST,
+        MaxChunksPerLocateRequest,
         std::nullopt,
         Logger,
         &chunkSpecs);
@@ -276,8 +282,10 @@ void TGpuManager::DoFetchDriverLayerInfo()
     layerKey.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
     layerKey.mutable_data_source()->set_path(DriverLayerPath_);
 
-    auto guard = Guard(SpinLock_);
-    DriverLayerKey_ = std::move(layerKey);
+    {
+        auto guard = Guard(SpinLock_);
+        DriverLayerKey_ = std::move(layerKey);
+    }
 }
 
 int TGpuManager::GetTotalGpuCount() const
