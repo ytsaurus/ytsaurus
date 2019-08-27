@@ -223,6 +223,7 @@ class TestJobSetup(YTEnvSetup):
 @require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
+@pytest.mark.xfail(run=False, reason="Investigating")
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
