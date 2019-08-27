@@ -13,6 +13,7 @@ import pytest
 def stable_json(obj):
     return json.dumps(obj, sort_keys=True)
 
+
 class TypeTester(object):
     class DynamicHelper(object):
         def make_schema(self, type_v2):
@@ -63,6 +64,10 @@ class TypeTester(object):
 
     def check_bad_value(self, logical_type, value):
         with raises_yt_error(SchemaViolation):
+            self.check_good_value(logical_type, value)
+
+    def check_conversion_error(self, logical_type, value):
+        with raises_yt_error("Unable to convert"):
             self.check_good_value(logical_type, value)
 
 
@@ -481,31 +486,21 @@ class TestLogicalType(YTEnvSetup):
         if dynamic:
             sync_create_cells(1)
 
-        string_list = list_type(optional_type("string"))
         type_tester = TypeTester([
-            "int32",
-            "int16",
             "int8",
-            "uint32",
-            "uint16",
+            "int16",
+            "int32",
+            "int64",
+
             "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+
             "utf8",
+            "string",
             "null",
-
-            string_list,
         ], dynamic=dynamic)
-
-        type_tester.check_good_value("int32", 2 ** 31 - 1)
-        type_tester.check_good_value("int32", 0)
-        type_tester.check_good_value("int32", - 2 ** 31)
-        type_tester.check_bad_value("int32", 2 ** 31)
-        type_tester.check_bad_value("int32", - 2 ** 31 - 1)
-
-        type_tester.check_good_value("int16", 2 ** 15 - 1)
-        type_tester.check_good_value("int16", 0)
-        type_tester.check_good_value("int16", - 2 ** 15)
-        type_tester.check_bad_value("int16", 2 ** 15)
-        type_tester.check_bad_value("int16", - 2 ** 15 - 1)
 
         type_tester.check_good_value("int8", 2 ** 7 - 1)
         type_tester.check_good_value("int8", 0)
@@ -513,20 +508,52 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("int8", 2 ** 7)
         type_tester.check_bad_value("int8", - 2 ** 7 - 1)
 
-        type_tester.check_good_value("uint32", 0)
-        type_tester.check_good_value("uint32", 2 ** 32 - 1)
-        type_tester.check_bad_value("uint32", 2 ** 32)
+        type_tester.check_good_value("int16", 2 ** 15 - 1)
+        type_tester.check_good_value("int16", 0)
+        type_tester.check_good_value("int16", - 2 ** 15)
+        type_tester.check_bad_value("int16", 2 ** 15)
+        type_tester.check_bad_value("int16", - 2 ** 15 - 1)
+
+        type_tester.check_good_value("int32", 2 ** 31 - 1)
+        type_tester.check_good_value("int32", 0)
+        type_tester.check_good_value("int32", - 2 ** 31)
+        type_tester.check_bad_value("int32", 2 ** 31)
+        type_tester.check_bad_value("int32", - 2 ** 31 - 1)
+
+        type_tester.check_good_value("int64", 2 ** 63 - 1)
+        type_tester.check_good_value("int64", 0)
+        type_tester.check_good_value("int64", - 2 ** 63)
+        type_tester.check_conversion_error("int64", 2 ** 63)
+
+        type_tester.check_good_value("uint8", 0)
+        type_tester.check_good_value("uint8", 1)
+        type_tester.check_good_value("uint8", 2 ** 8 - 1)
+        type_tester.check_bad_value("uint8", 2 ** 8)
+        type_tester.check_conversion_error("uint8", -1)
 
         type_tester.check_good_value("uint16", 0)
         type_tester.check_good_value("uint16", 2 ** 16 - 1)
+        type_tester.check_bad_value("uint16", 2 ** 16)
+        type_tester.check_conversion_error("uint16", -1)
 
-        type_tester.check_good_value("uint8", 0)
-        type_tester.check_good_value("uint8", 2 ** 8 - 1)
-        type_tester.check_bad_value("uint8", 2 ** 8)
+        type_tester.check_good_value("uint32", 0)
+        type_tester.check_good_value("uint32", 2 ** 32 - 1)
+        type_tester.check_bad_value("uint32", 2 ** 32)
+        type_tester.check_conversion_error("uint32", -1)
+
+        type_tester.check_good_value("uint64", 0)
+        type_tester.check_good_value("uint64", 2 ** 64 - 1)
+        type_tester.check_conversion_error("uint64", -1)
 
         type_tester.check_good_value("utf8", "ff")
         type_tester.check_good_value("utf8", "ЫТЬ")
         type_tester.check_bad_value("utf8", "\xFF")
+        type_tester.check_bad_value("utf8", 1)
+
+        type_tester.check_good_value("string", "ff")
+        type_tester.check_good_value("string", "ЫТЬ")
+        type_tester.check_good_value("string", "\xFF")
+        type_tester.check_bad_value("string", 1)
 
         type_tester.check_good_value("null", None)
         type_tester.check_bad_value("null", 0)
@@ -535,9 +562,6 @@ class TestLogicalType(YTEnvSetup):
 
     @authors("ermolovd")
     def test_bad_alter_table(self):
-        def single_column_schema(typename):
-            return [{"name": "column_name", "type": typename}]
-
         def expect_error_alter_table(schema_before, schema_after):
             remove("//test-alter-table", force=True)
             create("table", "//test-alter-table", attributes={"schema": schema_before})

@@ -43,7 +43,7 @@ static inline void ValidateIntegerRange(TInt value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(i64 value)
+Y_FORCE_INLINE void ValidateSimpleLogicalType(i64 value)
 {
     if constexpr (type == ESimpleLogicalValueType::Int8) {
         NDetail::ValidateIntegerRange<i8>(value);
@@ -59,7 +59,7 @@ void ValidateSimpleLogicalType(i64 value)
 }
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(ui64 value)
+Y_FORCE_INLINE void ValidateSimpleLogicalType(ui64 value)
 {
     if constexpr (type == ESimpleLogicalValueType::Uint8) {
         NDetail::ValidateIntegerRange<ui8>(value);
@@ -75,7 +75,7 @@ void ValidateSimpleLogicalType(ui64 value)
 }
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(double /*value*/)
+Y_FORCE_INLINE void ValidateSimpleLogicalType(double /*value*/)
 {
     if constexpr (type == ESimpleLogicalValueType::Double)  {
         // do nothing
@@ -85,7 +85,7 @@ void ValidateSimpleLogicalType(double /*value*/)
 }
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(bool /*value*/)
+Y_FORCE_INLINE void ValidateSimpleLogicalType(bool /*value*/)
 {
     if constexpr (type == ESimpleLogicalValueType::Boolean)  {
         // do nothing
