@@ -16,10 +16,11 @@ def get_core_infos(parser, job_id, operation_id=None, **kwargs):
         logger.warning("Core dump names will not contain executable names because --operation-id is not specified. " +
                        "Hint: consider running 'file <core>' to find more information about core dumps.")
         return None
-
-    jobs = yt.get("//sys/operations/{0}/jobs".format(operation_id), attributes=["core_infos"])
-    for failed_job_id, failed_job in jobs.items():
-        core_infos = failed_job.attributes.get("core_infos", [])
+    
+    jobs = yt.list_jobs(operation_id, data_source="auto")["jobs"]
+    for failed_job in jobs:
+        failed_job_id = failed_job["id"]
+        core_infos = failed_job.get("core_infos", [])
         if failed_job_id == job_id:
             if len(core_infos) == 0:
                 raise LogicError("Information in operation node in Cypress is inconsistent with core table content: " +
@@ -34,7 +35,7 @@ def get_core_table_path(parser, operation_id=None, core_table_path=None, **kwarg
         return core_table_path
     if operation_id is None:
         parser.error("at least one of --operation-id and --core-table-path should be specified")
-    spec = yt.get("//sys/operations/{0}/@spec".format(operation_id))
+    spec = yt.get_operation(operation_id, attributes=["spec"])["spec"]
     if not "core_table_path" in spec:
         raise LogicError("Operation {0} doesn't have a specified core_table_path".format(operation_id))
     return spec["core_table_path"]
