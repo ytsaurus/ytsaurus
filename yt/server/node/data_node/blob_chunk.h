@@ -56,17 +56,23 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
-    struct TReadMetaSession
+    struct TSesssionBase
         : public TIntrinsicRefCounted
     {
         NProfiling::TWallTimer SessionTimer;
+        std::optional<TChunkReadGuard> ReadGuard;
+    };
+
+    struct TReadMetaSession
+        : public TSesssionBase
+    {
         TBlockReadOptions Options;
     };
 
     using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
 
     struct TReadBlockSetSession
-        : public TIntrinsicRefCounted
+        : public TSesssionBase
     {
         struct TBlockEntry
         {
@@ -77,7 +83,6 @@ private:
         };
 
         IInvokerPtr Invoker;
-        NProfiling::TWallTimer SessionTimer;
         std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
         int EntryCount = 0;
@@ -106,9 +111,8 @@ private:
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);
 
     void DoReadMeta(
-        TChunkReadGuard readGuard,
-        TCachedChunkMetaCookie cookie,
-        const TBlockReadOptions& options);
+        const TReadMetaSessionPtr& session,
+        TCachedChunkMetaCookie cookie);
     void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);

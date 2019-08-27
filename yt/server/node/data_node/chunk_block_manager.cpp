@@ -113,15 +113,10 @@ public:
             const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             // NB: At the moment, range read requests are only possible for the whole chunks.
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
-
-            // Hold the read guard.
-            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
-            auto asyncBlocks = chunk->ReadBlockRange(
+            return chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
                 options);
-            // Release the read guard upon future completion.
-            return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
@@ -156,14 +151,7 @@ public:
                 return MakeFuture(blocks);
             }
 
-            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
-            auto asyncBlocks = chunk->ReadBlockSet(blockIndexes, options);
-
-            // Hold the read guard.
-            auto asyncResult = asyncBlocks
-                .Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
-
-            return asyncResult;
+            return chunk->ReadBlockSet(blockIndexes, options);
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
@@ -202,13 +190,6 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return block->GetData().Size();
-    }
-
-    static std::vector<TBlock> OnBlocksRead(
-        TChunkReadGuard /*guard*/,
-        const std::vector<TBlock>& blocks)
-    {
-        return blocks;
     }
 };
 
