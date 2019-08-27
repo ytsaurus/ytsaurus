@@ -313,9 +313,6 @@ public:
     //! Hydra restarts.
     TDuration MutationLoggingSuspensionTimeout;
 
-    //! Time to sleep before building a snapshot. Needed for testing.
-    TDuration BuildSnapshotDelay;
-
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -385,9 +382,6 @@ public:
 
         RegisterParameter("mutation_logging_suspension_timeout", MutationLoggingSuspensionTimeout)
             .Default(TDuration::Seconds(60));
-
-        RegisterParameter("build_snapshot_delay", BuildSnapshotDelay)
-            .Default(TDuration::Zero());
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

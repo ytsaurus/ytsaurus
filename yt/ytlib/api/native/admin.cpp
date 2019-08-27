@@ -122,7 +122,6 @@ private:
         auto req = proxy.ForceBuildSnapshot();
         req->SetTimeout(TDuration::Hours(1)); // effective infinity
         req->set_set_read_only(options.SetReadOnly);
-        req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

@@ -276,8 +276,6 @@ public:
 
         REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
 
-        REGISTER_ALL(TBuildSnapshotCommand,               "build_snapshot",                Null,       Structured, true,  false);
-
 #undef REGISTER
 #undef REGISTER_ALL
     }

@@ -25,8 +25,7 @@ public:
     TSession(
         TCheckpointer* owner,
         bool buildSnapshot,
-        bool setReadOnly,
-        TDuration buildSnapshotDelay = TDuration::Zero())
+        bool setReadOnly)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
         , SetReadOnly_(setReadOnly)
@@ -54,12 +53,6 @@ public:
                 .Via(Owner_->EpochContext_->EpochUserAutomatonInvoker));
     }
 
-    int GetSnapshotId() const
-    {
-        // See decorated_automaton.cpp, TDecoratedAutomaton::TSnapshotBuilderBase::TSnapshotBuilderBase.
-        return Version_.SegmentId + 1;
-    }
-
     TFuture<TRemoteSnapshotParams> GetSnapshotResult()
     {
         return SnapshotPromise_;
@@ -84,6 +77,7 @@ private:
     TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
     std::vector<std::optional<TChecksum>> SnapshotChecksums_;
+
 
     void OnQuorumFlushed(const TError& error)
     {
@@ -205,7 +199,7 @@ private:
                 auto checksum = SnapshotChecksums_[id];
                 if (checksum) {
                     YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
-                        GetSnapshotId(),
+                        Version_.SegmentId + 1,
                         id,
                         *checksum);
                 }
@@ -368,10 +362,9 @@ TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool setReadOnl
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(CanBuildSnapshot());
 
-    auto session = New<TSession>(this, true, setReadOnly, Config_->BuildSnapshotDelay);
+    auto session = New<TSession>(this, true, setReadOnly);
     session->Run();
-
-    return TBuildSnapshotResult{session->GetChangelogResult(), session->GetSnapshotResult(), session->GetSnapshotId()};
+    return std::make_tuple(session->GetChangelogResult(), session->GetSnapshotResult());
 }
 
 bool TCheckpointer::CanBuildSnapshot() const

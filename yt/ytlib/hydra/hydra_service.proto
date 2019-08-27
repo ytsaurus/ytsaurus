@@ -137,7 +137,6 @@ message TRspPoke
 message TReqForceBuildSnapshot
 {
     optional bool set_read_only = 1 [default = false];
-    optional bool wait_for_snapshot_completion = 2 [default = true];
 }
 
 message TRspForceBuildSnapshot
