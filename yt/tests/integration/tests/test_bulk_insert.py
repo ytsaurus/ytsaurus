@@ -341,11 +341,43 @@ class TestBulkInsert(DynamicTablesBase):
         tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
         subtablet_chunk_list = get("#{}/@child_ids/0".format(tablet_chunk_list))
         assert get("#{}/@type".format(subtablet_chunk_list)) == "chunk_list"
+        assert get("#{}/@statistics/chunk_list_count".format(tablet_chunk_list)) == 2
+        assert get("#{}/@statistics/chunk_list_count".format(root_chunk_list)) == 3
 
         set("//tmp/t_output/@enable_compaction_and_partitioning", True)
         sync_compact_table("//tmp/t_output")
 
         wait(lambda: not exists("#{}".format(subtablet_chunk_list)))
+        assert get("#{}/@statistics/chunk_list_count".format(tablet_chunk_list)) == 1
+        assert get("#{}/@statistics/chunk_list_count".format(root_chunk_list)) == 2
+
+    @pytest.mark.parametrize("ref_type", ["lock", "copy"])
+    def test_chunk_list_statistics_after_cow(self, ref_type):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output", freeze=True)
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=true>//tmp/t_output",
+            command="cat")
+
+        if ref_type == "lock":
+            tx = start_transaction(timeout=60000)
+            lock("//tmp/t_output", mode="snapshot", tx=tx)
+        else:
+            copy("//tmp/t_output", "//tmp/t_copy")
+
+        sync_compact_table("//tmp/t_output")
+
+        root_chunk_list = get("//tmp/t_output/@chunk_list_id")
+        tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
+        assert get("#{}/@statistics/chunk_list_count".format(tablet_chunk_list)) == 1
+        assert get("#{}/@statistics/chunk_list_count".format(root_chunk_list)) == 2
 
     def test_read_with_timestamp(self):
         sync_create_cells(1)
