@@ -125,6 +125,7 @@ private:
                 .AddTag("Path: %v, TransactionId: %v",
                     Path_,
                     Options_.TransactionId))
+            , UploadSynchronizer_(Client_->GetNativeConnection())
         {
             if (Options_.TransactionId) {
                 TTransactionAttachOptions attachOptions{
@@ -237,7 +238,7 @@ private:
         TCellTag NativeCellTag_ = InvalidCellTag;
         TCellTag ExternalCellTag_ = InvalidCellTag;
 
-        std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
+        TChunkUploadSynchronizer UploadSynchronizer_;
 
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
@@ -387,10 +388,6 @@ private:
             NativeCellTag_ = CellTagFromId(ObjectId_);
             ExternalCellTag_ = userObject.ExternalCellTag;
 
-            UploadSynchronizer_.emplace(
-                Client_->GetNativeConnection(),
-                Options_.TransactionId);
-
             auto objectIdPath = FromObjectId(ObjectId_);
 
             if (userObject.Type != EObjectType::Journal) {
@@ -480,7 +477,7 @@ private:
                     Path_);
                 const auto& batchRsp = batchRspOrError.Value();
 
-                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
+                UploadSynchronizer_.AfterBeginUpload(Options_.TransactionId, ObjectId_, ExternalCellTag_);
 
                 {
                     auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
@@ -549,7 +546,7 @@ private:
 
             StopListenTransaction(UploadTransaction_);
 
-            UploadSynchronizer_->BeforeEndUpload();
+            UploadSynchronizer_.BeforeEndUpload();
 
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
@@ -564,7 +561,7 @@ private:
                 "Error finishing upload to journal %v",
                 Path_);
 
-            UploadSynchronizer_->AfterEndUpload();
+            UploadSynchronizer_.AfterEndUpload();
 
             UploadTransaction_->Detach();
 

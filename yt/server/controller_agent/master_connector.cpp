@@ -905,9 +905,7 @@ private:
             return;
         }
 
-        TChunkUploadSynchronizer uploadSynchronizer(
-            Bootstrap_->GetMasterClient()->GetNativeConnection(),
-            transactionId);
+        TChunkUploadSynchronizer uploadSynchronizer(Bootstrap_->GetMasterClient()->GetNativeConnection());
 
         struct TTableInfo
         {
@@ -961,7 +959,10 @@ private:
                 const auto& rsp = rsps[rspIndex++].Value();
                 tableInfo->ExternalCellTag = rsp->cell_tag();
                 tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                uploadSynchronizer.AfterBeginUpload(tableInfo->TableId, tableInfo->ExternalCellTag);
+                uploadSynchronizer.AfterBeginUpload(
+                    transactionId,
+                    tableInfo->TableId,
+                    tableInfo->ExternalCellTag);
             }
         }
 

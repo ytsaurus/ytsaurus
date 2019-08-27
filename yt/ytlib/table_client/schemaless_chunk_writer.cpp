@@ -1795,9 +1795,7 @@ public:
             .AddTag("Path: %v, TransactionId: %v",
                 richPath.GetPath(),
                 TransactionId_))
-        , UploadSynchronizer_(
-            Client_->GetNativeConnection(),
-            TransactionId_)
+        , UploadSynchronizer_(Client_->GetNativeConnection())
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -2000,7 +1998,7 @@ private:
 
         StartListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.AfterBeginUpload(userObject.ObjectId, userObject.ExternalCellTag);
+        UploadSynchronizer_.AfterBeginUpload(TransactionId_, userObject.ObjectId, userObject.ExternalCellTag);
 
         TOwningKey writerLastKey;
         TChunkListId chunkListId;
