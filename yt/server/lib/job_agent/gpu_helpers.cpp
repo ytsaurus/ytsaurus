@@ -262,8 +262,13 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
 
 TString GetGpuDriverVersion()
 {
-    TFileInput moduleVersion("/sys/module/version/nvidia");
-    return moduleVersion.ReadLine();
+    TString moduleVersionPath = "/sys/module/version/nvidia";
+    try {
+        TFileInput moduleVersion(moduleVersionPath);
+        return moduleVersion.ReadLine();
+    } catch (std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", moduleVersionPath) << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
