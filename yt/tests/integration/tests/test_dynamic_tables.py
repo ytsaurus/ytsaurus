@@ -1450,7 +1450,9 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
-        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count") == 1)
+        driver = get_driver(get("//tmp/t/@native_cell_tag"))
+
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=driver) == 1)
 
         with pytest.raises(YtError):
             copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
