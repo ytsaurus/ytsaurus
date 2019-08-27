@@ -6,7 +6,7 @@ import json
 
 ##################################################################
 
-class HttpProxyTestBase(YTEnvSetup):
+class TestHttpProxy(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -25,30 +25,6 @@ class HttpProxyTestBase(YTEnvSetup):
     def proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def build_snapshot_url(self):
-        return self.proxy_address() + "/api/v4/build_snapshot"
-
-    def discover_master(self):
-        return ls("//sys/primary_masters")[0]
-
-    def hydra_monitor(self, master=None):
-        if master is None:
-            master = self.discover_master()
-        return get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(master))
-
-    def wait_for_snapshot_state(self, building_snapshot=None, last_snapshot_id=None):
-        master = self.discover_master()
-
-        def predicate():
-            monitor = self.hydra_monitor(master)
-            flag_building = building_snapshot is None or monitor["building_snapshot"] == building_snapshot
-            flag_last = last_snapshot_id is None or monitor["last_snapshot_id"] == last_snapshot_id
-            return flag_building and flag_last
-
-        wait(predicate, "Expected state is not reached")
-
-
-class TestHttpProxy(HttpProxyTestBase):
     @authors("prime")
     def test_ping(self):
         rsp = requests.get(self.proxy_address() + "/ping")
@@ -171,65 +147,3 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("greatkorn")
     def test_fail_logging(self):
         requests.get(self.proxy_address() + "/api/v2/get")
-
-
-class TestHttpProxyBuildSnapshotWithDelay(HttpProxyTestBase):
-    DELTA_MASTER_CONFIG = {
-        "hydra_manager": {
-            "build_snapshot_delay": 10000,
-        },
-    }
-
-    @authors("ogorod")
-    def test_immediate_return(self):
-        cell_id = self.Env.configs["master"][0]["primary_master"]["cell_id"]
-
-        self.wait_for_snapshot_state(False, -1)
-
-        params = {"cell_id": cell_id}
-        headers = {
-            'X-YT-Parameters': yson.dumps(params),
-            'X-YT-Header-Format': "<format=text>yson",
-            'X-YT-Output-Format': "<format=text>yson"
-        }
-
-        rsp = requests.post(self.build_snapshot_url(), headers=headers)
-        rsp.raise_for_status()
-
-        snapshot_id = yson.loads(rsp.text)["snapshot_id"]
-
-        self.wait_for_snapshot_state(True, -1)
-        self.wait_for_snapshot_state(False, snapshot_id)
-
-
-class TestHttpProxyBuildSnapshotSetReadOnly(HttpProxyTestBase):
-    NUM_SCHEDULERS = 0
-    DISABLE_MUTATIONS_IN_TEARDOWN = True
-
-    DELTA_MASTER_CONFIG = {
-        "hydra_manager": {
-            "build_snapshot_delay": 10000,
-        },
-    }
-
-    @authors("ogorod")
-    def test_read_only(self):
-        cell_id = self.Env.configs["master"][0]["primary_master"]["cell_id"]
-
-        self.wait_for_snapshot_state(False, -1)
-
-        params = {"cell_id": cell_id, 'set_read_only': True}
-        headers = {
-            'X-YT-Parameters': yson.dumps(params),
-            'X-YT-Header-Format': "<format=text>yson"
-        }
-
-        rsp = requests.post(self.build_snapshot_url(), headers=headers)
-        rsp.raise_for_status()
-
-        self.wait_for_snapshot_state(True, -1)
-        self.wait_for_snapshot_state(False)
-
-        assert self.hydra_monitor()["read_only"]
-
-

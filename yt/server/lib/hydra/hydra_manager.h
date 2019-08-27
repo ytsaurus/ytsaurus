@@ -139,7 +139,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) = 0;
+    virtual TFuture<int> BuildSnapshot(bool setReadOnly) = 0;
 
     //! Loads a snapshot in a dry-run mode.
     /*!

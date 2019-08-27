@@ -174,19 +174,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBuildSnapshotCommand
-    : public TCommandBase
-{
-public:
-    TBuildSnapshotCommand();
-
-private:
-    NElection::TCellId CellId_;
-    bool SetReadOnly_;
-
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NDriver

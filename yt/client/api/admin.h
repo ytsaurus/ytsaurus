@@ -10,8 +10,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/ytree/yson_serializable.h>
-
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +20,6 @@ struct TBuildSnapshotOptions
     //! If null then the primary one is assumed.
     NElection::TCellId CellId;
     bool SetReadOnly = false;
-    bool WaitForSnapshotCompletion = false;
 };
 
 struct TGCCollectOptions
