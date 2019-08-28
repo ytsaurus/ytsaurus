@@ -58,28 +58,28 @@ private:
     {
         switch (type->GetMetatype()) {
             case ELogicalMetatype::Simple:
-                ValidateSimpleType(type->AsSimpleTypeRef().GetElement(), fieldId);
+                ValidateSimpleType(type->UncheckedAsSimpleTypeRef().GetElement(), fieldId);
                 return;
             case ELogicalMetatype::Optional:
-                ValidateOptionalType(type->AsOptionalTypeRef(), fieldId);
+                ValidateOptionalType(type->UncheckedAsOptionalTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::List:
-                ValidateListType(type->AsListTypeRef(), fieldId);
+                ValidateListType(type->UncheckedAsListTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::Struct:
-                ValidateStructType(type->AsStructTypeRef(), fieldId);
+                ValidateStructType(type->UncheckedAsStructTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::Tuple:
-                ValidateTupleType(type->AsTupleTypeRef(), fieldId);
+                ValidateTupleType(type->UncheckedAsTupleTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::VariantStruct:
-                ValidateVariantStructType(type->AsVariantStructTypeRef(), fieldId);
+                ValidateVariantStructType(type->UncheckedAsVariantStructTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::VariantTuple:
-                ValidateVariantTupleType(type->AsVariantTupleTypeRef(), fieldId);
+                ValidateVariantTupleType(type->UncheckedAsVariantTupleTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::Dict:
-                ValidateDictType(type->AsDictTypeRef(), fieldId);
+                ValidateDictType(type->UncheckedAsDictTypeRef(), fieldId);
                 return;
         }
         YT_ABORT();

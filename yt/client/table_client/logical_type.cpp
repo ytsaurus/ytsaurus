@@ -18,13 +18,7 @@ TLogicalType::TLogicalType(ELogicalMetatype type)
     : Metatype_(type)
 {}
 
-ELogicalMetatype TLogicalType::GetMetatype() const
-{
-    return Metatype_;
-}
-
-const TSimpleLogicalType& TLogicalType::AsSimpleTypeRef() const
-{
+const TSimpleLogicalType& TLogicalType::AsSimpleTypeRef() const {
     return dynamic_cast<const TSimpleLogicalType&>(*this);
 }
 
@@ -159,11 +153,6 @@ TOptionalLogicalType::TOptionalLogicalType(TLogicalTypePtr element)
     , ElementIsNullable_(Element_->IsNullable())
 { }
 
-const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
-{
-    return Element_;
-}
-
 std::optional<ESimpleLogicalValueType> TOptionalLogicalType::Simplify() const
 {
     if (!IsElementNullable() && GetElement()->GetMetatype() == ELogicalMetatype::Simple) {
@@ -171,11 +160,6 @@ std::optional<ESimpleLogicalValueType> TOptionalLogicalType::Simplify() const
     } else {
         return std::nullopt;
     }
-}
-
-bool TOptionalLogicalType::IsElementNullable() const
-{
-    return ElementIsNullable_;
 }
 
 size_t TOptionalLogicalType::GetMemoryUsage() const
@@ -212,11 +196,6 @@ TSimpleLogicalType::TSimpleLogicalType(ESimpleLogicalValueType element)
     , Element_(element)
 { }
 
-ESimpleLogicalValueType TSimpleLogicalType::GetElement() const
-{
-    return Element_;
-}
-
 size_t TSimpleLogicalType::GetMemoryUsage() const
 {
     // All simple logical types are signletons and therefore we assume they use no space.
@@ -242,11 +221,6 @@ TListLogicalType::TListLogicalType(TLogicalTypePtr element)
     : TLogicalType(ELogicalMetatype::List)
     , Element_(element)
 { }
-
-const TLogicalTypePtr& TListLogicalType::GetElement() const
-{
-    return Element_;
-}
 
 size_t TListLogicalType::GetMemoryUsage() const
 {
@@ -386,11 +360,6 @@ TStructLogicalTypeBase::TStructLogicalTypeBase(ELogicalMetatype metatype, std::v
     , Fields_(std::move(fields))
 { }
 
-const std::vector<TStructField>& TStructLogicalTypeBase::GetFields() const
-{
-    return Fields_;
-}
-
 size_t TStructLogicalTypeBase::GetMemoryUsage() const
 {
     size_t result = sizeof(*this);
@@ -448,11 +417,6 @@ TTupleLogicalTypeBase::TTupleLogicalTypeBase(ELogicalMetatype metatype, std::vec
     : TLogicalType(metatype)
     , Elements_(std::move(elements))
 { }
-
-const std::vector<TLogicalTypePtr>& TTupleLogicalTypeBase::GetElements() const
-{
-    return Elements_;
-}
 
 size_t TTupleLogicalTypeBase::GetMemoryUsage() const
 {
@@ -512,16 +476,6 @@ TDictLogicalType::TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value)
     , Key_(key)
     , Value_(value)
 { }
-
-const TLogicalTypePtr& TDictLogicalType::GetKey() const
-{
-    return Key_;
-}
-
-const TLogicalTypePtr& TDictLogicalType::GetValue() const
-{
-    return Value_;
-}
 
 size_t TDictLogicalType::GetMemoryUsage() const
 {
