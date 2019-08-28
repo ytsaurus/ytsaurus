@@ -230,8 +230,6 @@ private:
         cypressManager->SetShard(node, shard);
         shard->SetRoot(node);
 
-        shard->SetName(SuggestCypressShardName(shard));
-
         node->SetEntranceCellTag(CellTagFromId(entranceNodeId));
 
         // Turn off ACL inheritance, replace ACL with effective ACL.
@@ -239,6 +237,8 @@ private:
         node->Acd().SetEntries(acl);
 
         node->SetPath(path);
+
+        shard->SetName(SuggestCypressShardName(shard));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(node);
