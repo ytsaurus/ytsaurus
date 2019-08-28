@@ -92,12 +92,18 @@ class TestPortals(YTEnvSetup):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
         table_id = create("table", "//tmp/p/t")
+        shard_id = get("//tmp/p/t/@shard_id")
+
+        for i in xrange(10):
+            create("map_node", "//tmp/p/m" + str(i))
 
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p")
+
         wait(lambda: not exists("#{}".format(exit_id)) and \
                      not exists("#{}".format(entrance_id), driver=get_driver(1)) and \
-                     not exists("#{}".format(table_id), driver=get_driver(1)))
+                     not exists("#{}".format(table_id), driver=get_driver(1)) and \
+                     not exists("#{}".format(shard_id)))
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
@@ -391,3 +397,13 @@ class TestResolveCache(YTEnvSetup):
         assert not get("//tmp/dir1/dir2a/p&/@resolve_cached")
         assert get("//tmp/dir1/dir2b/@resolve_cached")
         assert get("//tmp/dir1/dir2b/p&/@resolve_cached")
+
+    @authors("babenko")
+    def test_(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        for i in xrange(10):
+            ls("//sys/cypress_shards")
+        create("map_node", "//tmp/p/a")
+        remove("//tmp/p")
+        for i in xrange(10):
+            ls("//sys/cypress_shards")
