@@ -1145,6 +1145,11 @@ private:
                     }
                 }
 
+                auto rspTags = response->mutable_tags();
+                for (auto tag : node->Tags()) {
+                    rspTags->Add(std::move(tag));
+                }
+
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
                 response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
                 response->set_disable_write_sessions(node->GetDisableWriteSessions());
