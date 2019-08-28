@@ -206,10 +206,11 @@ class TestJobSetup(YTEnvSetup):
             out="//tmp/t_out",
             command='$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2',
             spec={
-                "max_failed_job_count" : 1,
-                "mapper" : {
-                    "layer_paths" : ["//tmp/layer1"],
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
                     "job_count": 1,
+                    "enable_setup_commands": True,
                 }
             })
 
@@ -279,6 +280,8 @@ class TestGpuLayer(YTEnvSetup):
                 "mapper": {
                     "job_count": 1,
                     "layer_paths": ["//tmp/layer2"],
+                    "enable_setup_commands": True,
+                    "enable_gpu_layers": True,
                 }
             })
 

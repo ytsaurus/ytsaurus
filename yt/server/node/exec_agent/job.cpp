@@ -952,17 +952,28 @@ private:
 
             RootVolume_ = volumeOrError.Value();
 
-            SetJobPhase(EJobPhase::RunningSetupCommands);
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            if (schedulerJobSpecExt.has_user_job_spec()) {
+                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (userJobSpec.enable_setup_commands()) {
+                    SetJobPhase(EJobPhase::RunningSetupCommands);
+                    YT_LOG_INFO("Setup commands enabled, running");
 
-            // Even though #RunSetupCommands returns future, we still need to pass it through invoker
-            // since Porto API is used and can cause context switch.
-            BIND(&TJob::RunSetupCommands, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run()
-                .Subscribe(BIND(
-                    &TJob::OnSetupCommandsFinished,
-                    MakeWeak(this))
-                .Via(Invoker_));
+                    // Even though #RunSetupCommands returns future, we still need to pass it through invoker
+                    // since Porto API is used and can cause context switch.
+                    BIND(&TJob::RunSetupCommands, MakeStrong(this))
+                        .AsyncVia(Invoker_)
+                        .Run()
+                        .Subscribe(BIND(
+                            &TJob::OnSetupCommandsFinished,
+                            MakeWeak(this))
+                            .Via(Invoker_));
+                    return;
+                }
+            }
+
+            YT_LOG_INFO("Setup commands disabled, running job proxy");
+            RunJobProxy();
         });
     }
 
@@ -1335,7 +1346,7 @@ private:
             }
 
             bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpu;
-            if (needGpu && !userJobSpec.layers().empty()) {
+            if (needGpu && !userJobSpec.layers().empty() && userJobSpec.enable_gpu_layers()) {
                 for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
                     LayerArtifactKeys_.push_back(std::move(layerKey));
                 }
