@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
@@ -11,6 +12,7 @@ public class SelectRowsRequest {
     private Long inputRowsLimit;
     private Long outputRowsLimit;
     private Boolean failOnIncompleteResult;
+    private Integer maxSubqueries;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -58,6 +60,14 @@ public class SelectRowsRequest {
 
     public OptionalLong getOutputRowsLimit() {
         return outputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(outputRowsLimit);
+    }
+
+    public void setMaxSubqueries(Integer maxSubqueries) {
+        this.maxSubqueries = maxSubqueries;
+    }
+
+    public OptionalInt getMaxSubqueries() {
+        return maxSubqueries == null ? OptionalInt.empty() : OptionalInt.of(maxSubqueries);
     }
 
 }
