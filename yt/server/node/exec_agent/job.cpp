@@ -973,7 +973,7 @@ private:
                 const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
                 if (userJobSpec.enable_setup_commands()) {
                     SetJobPhase(EJobPhase::RunningSetupCommands);
-                    YT_LOG_INFO("Setup commands enabled, running");
+                    YT_LOG_INFO("Running setup commands");
 
                     // Even though #RunSetupCommands returns future, we still need to pass it through invoker
                     // since Porto API is used and can cause context switch.
@@ -985,10 +985,10 @@ private:
                             MakeWeak(this))
                             .Via(Invoker_));
                     return;
+                } else {
+                    YT_LOG_INFO("Setup commands disabled, running job proxy");
                 }
             }
-
-            YT_LOG_INFO("Setup commands disabled, running job proxy");
             RunJobProxy();
         });
     }
