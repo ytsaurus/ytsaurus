@@ -187,20 +187,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    def _wait_for_cells_good_after_peer_decommission(self, cell_id):
+    def _wait_for_cells_good_after_peer_decommission(self, cell_id, decommissioned_addresses):
         def check():
-            if get("#{0}/@health".format(cell_id)) != "good":
-                return False
-
             peers = get("#{0}/@peers".format(cell_id))
             expected_config_version = get("#{0}/@config_version".format(cell_id))
 
             for peer in peers:
-                if "address" not in peer:
-                    return False
-
-                address = peer["address"]
-                if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
+                address = peer.get("address", decommissioned_addresses[0])
+                if address in decommissioned_addresses:
                     return False
 
                 try:
@@ -212,6 +206,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                         return False
                 except:
                     return False
+
+            if get("#{0}/@health".format(cell_id)) != "good":
+                return False
 
             return True
 
@@ -229,7 +226,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, [follower_address])
 
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
@@ -254,7 +251,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, [leader_address])
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -277,8 +274,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         cell_id = ls("//sys/tablet_cells")[0]
 
-        self._decommission_all_peers(cell_id)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        addresses = self._decommission_all_peers(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, addresses)
 
         assert lookup_rows("//tmp/t", keys) == rows
 
