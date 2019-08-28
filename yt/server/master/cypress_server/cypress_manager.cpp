@@ -750,6 +750,10 @@ public:
             UpdateShardNodeCount(shard, account, -1);
         }
 
+        if (shard->GetRoot() == node) {
+            shard->SetRoot(nullptr);
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(shard);
     }
