@@ -358,6 +358,8 @@ def _remove_objects():
                 continue
             if type == "users" and str(object) == "application_operations":
                 continue
+            if type == "accounts" and str(object) == "operations_archive":
+                continue
 
             id = object.attributes["id"]
             if type == "tablet_cells":
