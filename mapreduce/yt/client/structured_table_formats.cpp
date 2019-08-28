@@ -9,7 +9,7 @@
 
 #include <mapreduce/yt/interface/common.h>
 
-#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+#include <statbox/ti/ti.h>
 
 #include <library/yson/writer.h>
 
@@ -159,7 +159,7 @@ TVector<TRichYPath> GetPathList(
             return jobSchemaInferenceResult->at(tableIndex);
         }
         if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
-            return CreateYdlTableSchema(Get<TYdlTableStructure>(table.Description).Type);
+            return CreateTableSchema(Get<TYdlTableStructure>(table.Description).Type);
         }
         if (inferSchemaFromDescriptions) {
             return GetTableSchema(table.Description);
@@ -544,7 +544,7 @@ struct TGetTableSchemaImpl
             }
             return CreateTableSchema(*description.Descriptor);
         } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
-            return CreateYdlTableSchema(description.Type);
+            return CreateTableSchema(description.Type);
         } else {
             static_assert(TDependentFalse<T>::value, "unknown type");
         }
