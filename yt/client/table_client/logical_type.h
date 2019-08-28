@@ -39,16 +39,24 @@ class TLogicalType
 {
 public:
     explicit TLogicalType(ELogicalMetatype type);
-    ELogicalMetatype GetMetatype() const;
+    Y_FORCE_INLINE ELogicalMetatype GetMetatype() const;
 
     const TSimpleLogicalType& AsSimpleTypeRef() const;
+    Y_FORCE_INLINE const TSimpleLogicalType& UncheckedAsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
+    Y_FORCE_INLINE const TOptionalLogicalType& UncheckedAsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
+    Y_FORCE_INLINE const TListLogicalType& UncheckedAsListTypeRef() const;
     const TStructLogicalType& AsStructTypeRef() const;
+    Y_FORCE_INLINE const TStructLogicalType& UncheckedAsStructTypeRef() const;
     const TTupleLogicalType& AsTupleTypeRef() const;
+    Y_FORCE_INLINE const TTupleLogicalType& UncheckedAsTupleTypeRef() const;
     const TVariantTupleLogicalType& AsVariantTupleTypeRef() const;
+    Y_FORCE_INLINE const TVariantTupleLogicalType& UncheckedAsVariantTupleTypeRef() const;
     const TVariantStructLogicalType& AsVariantStructTypeRef() const;
+    Y_FORCE_INLINE const TVariantStructLogicalType& UncheckedAsVariantStructTypeRef() const;
     const TDictLogicalType& AsDictTypeRef() const;
+    Y_FORCE_INLINE const TDictLogicalType& UncheckedAsDictTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -101,12 +109,12 @@ class TOptionalLogicalType
 public:
     explicit TOptionalLogicalType(TLogicalTypePtr element);
 
-    const TLogicalTypePtr& GetElement() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
     std::optional<ESimpleLogicalValueType> Simplify() const;
 
     // Cached value of GetElement()->IsNullable(), useful for performance reasons.
-    bool IsElementNullable() const;
+    Y_FORCE_INLINE bool IsElementNullable() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -126,7 +134,7 @@ class TSimpleLogicalType
 public:
     explicit TSimpleLogicalType(ESimpleLogicalValueType element);
 
-    ESimpleLogicalValueType GetElement() const;
+    Y_FORCE_INLINE ESimpleLogicalValueType GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -145,7 +153,7 @@ class TListLogicalType
 public:
     explicit TListLogicalType(TLogicalTypePtr element);
 
-    const TLogicalTypePtr& GetElement() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -203,7 +211,7 @@ public:
 
 public:
     TStructLogicalTypeBase(ELogicalMetatype metatype, std::vector<TStructField> fields);
-    const std::vector<TStructField>& GetFields() const;
+    Y_FORCE_INLINE const std::vector<TStructField>& GetFields() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -222,7 +230,7 @@ class TTupleLogicalTypeBase
 public:
     explicit TTupleLogicalTypeBase(ELogicalMetatype metatype, std::vector<TLogicalTypePtr> elements);
 
-    const std::vector<TLogicalTypePtr>& GetElements() const;
+    Y_FORCE_INLINE const std::vector<TLogicalTypePtr>& GetElements() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -277,8 +285,8 @@ class TDictLogicalType
 public:
     TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
 
-    const TLogicalTypePtr& GetKey() const;
-    const TLogicalTypePtr& GetValue() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetKey() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetValue() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
@@ -321,3 +329,7 @@ struct THash<NYT::NTableClient::TLogicalType>
 {
     size_t operator() (const NYT::NTableClient::TLogicalType& logicalType) const;
 };
+
+#define LOGICAL_TYPE_INL_H_
+#include "logical_type-inl.h"
+#undef LOGICAL_TYPE_INL_H_

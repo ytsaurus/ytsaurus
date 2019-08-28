@@ -1,0 +1,105 @@
+#pragma once
+
+namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ELogicalMetatype TLogicalType::GetMetatype() const
+{
+    return Metatype_;
+}
+
+const TSimpleLogicalType& TLogicalType::UncheckedAsSimpleTypeRef() const {
+    return static_cast<const TSimpleLogicalType&>(*this);
+}
+
+const TOptionalLogicalType& TLogicalType::UncheckedAsOptionalTypeRef() const
+{
+    return static_cast<const TOptionalLogicalType&>(*this);
+}
+
+const TListLogicalType& TLogicalType::UncheckedAsListTypeRef() const
+{
+    return static_cast<const TListLogicalType&>(*this);
+}
+
+const TStructLogicalType& TLogicalType::UncheckedAsStructTypeRef() const
+{
+    return static_cast<const TStructLogicalType&>(*this);
+}
+
+const TTupleLogicalType& TLogicalType::UncheckedAsTupleTypeRef() const
+{
+    return static_cast<const TTupleLogicalType&>(*this);
+}
+
+const TVariantTupleLogicalType& TLogicalType::UncheckedAsVariantTupleTypeRef() const
+{
+    return static_cast<const TVariantTupleLogicalType&>(*this);
+}
+
+const TVariantStructLogicalType& TLogicalType::UncheckedAsVariantStructTypeRef() const
+{
+    return static_cast<const TVariantStructLogicalType&>(*this);
+}
+
+const TDictLogicalType& TLogicalType::UncheckedAsDictTypeRef() const
+{
+    return static_cast<const TDictLogicalType&>(*this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
+{
+    return Element_;
+}
+
+bool TOptionalLogicalType::IsElementNullable() const
+{
+    return ElementIsNullable_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ESimpleLogicalValueType TSimpleLogicalType::GetElement() const
+{
+    return Element_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TLogicalTypePtr& TListLogicalType::GetElement() const
+{
+    return Element_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<TStructField>& TStructLogicalTypeBase::GetFields() const
+{
+    return Fields_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<TLogicalTypePtr>& TTupleLogicalTypeBase::GetElements() const
+{
+    return Elements_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TLogicalTypePtr& TDictLogicalType::GetKey() const
+{
+    return Key_;
+}
+
+const TLogicalTypePtr& TDictLogicalType::GetValue() const
+{
+    return Value_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTableClient
