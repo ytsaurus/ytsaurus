@@ -936,7 +936,31 @@ public:
   SmallVector(const std::vector<T>& vec) : SmallVectorImpl<T>(N) {
     this->append(vec.begin(), vec.end());
   }
+
+  // Move the contents back into the inline storage if possible.
+  void shrink_to_small();
 };
+
+template <typename T, unsigned N>
+void SmallVector<T, N>::shrink_to_small() {
+  if (this->isSmall()) {
+    return;
+  }
+
+  if (this->size() > N) {
+    return;
+  }
+
+  auto* firstEl = Storage.InlineElts - 1;
+
+  this->uninitialized_move(this->begin(), this->end(), firstEl);
+  this->destroy_range(this->begin(), this->end());
+  free(this->begin());
+
+  this->BeginX = firstEl;
+  this->EndX = firstEl + this->size();
+  this->CapacityX = firstEl + N;
+}
 
 template <typename T, unsigned N>
 static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {

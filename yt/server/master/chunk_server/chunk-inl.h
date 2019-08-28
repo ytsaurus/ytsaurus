@@ -81,25 +81,31 @@ inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
 
 inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const
 {
-    switch (queue) {
-        case EChunkRepairQueue::Missing:
-            return GetDynamicData()->MissingPartRepairQueueIterators[mediumIndex];
-        case EChunkRepairQueue::Decommissioned:
-            return GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex];
-        default:
-            YT_ABORT();
-    }
+    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
+    auto it = iteratorMap->find(mediumIndex);
+    return it == iteratorMap->end()
+        ? TChunkRepairQueueIterator()
+        : it->second;
 }
 
 inline void TChunk::SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value)
 {
+    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
+    if (value == TChunkRepairQueueIterator()) {
+        iteratorMap->erase(mediumIndex);
+    } else {
+        (*iteratorMap)[mediumIndex] = value;
+    }
+}
+
+inline TChunkDynamicData::TMediumToRepairQueueIterator* TChunk::SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const
+{
     switch (queue) {
         case EChunkRepairQueue::Missing:
-            GetDynamicData()->MissingPartRepairQueueIterators[mediumIndex] = value;
-            break;
+            return &GetDynamicData()->MissingPartRepairQueueIterators;
+
         case EChunkRepairQueue::Decommissioned:
-            GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex] = value;
-            break;
+            return &GetDynamicData()->DecommissionedPartRepairQueueIterators;
         default:
             YT_ABORT();
     }
