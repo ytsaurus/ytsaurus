@@ -1099,7 +1099,7 @@ public:
         return it->second.Address;
     }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
     {
         return Bootstrap_->GetControlInvoker(queue);
     }
