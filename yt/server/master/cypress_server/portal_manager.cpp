@@ -247,8 +247,9 @@ private:
 
         YT_VERIFY(ExitNodes_.emplace(node->GetId(), node).second);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal exit registered (ExitNodeId: %v, Account: %v, Path: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal exit registered (ExitNodeId: %v, ShardId: %v, Account: %v, Path: %v)",
             exitNodeId,
+            shard->GetId(),
             account->GetName(),
             path);
     }
