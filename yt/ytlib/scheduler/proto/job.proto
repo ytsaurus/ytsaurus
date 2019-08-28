@@ -134,6 +134,10 @@ message TUserJobSpec
     optional int64 prepare_time_limit = 42;
 
     optional string interruption_signal = 43;
+
+    // TODO(mrkastep): eventually remove and enable by default
+    optional bool enable_setup_commands = 44 [default = false];
+    optional bool enable_gpu_layers = 45 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

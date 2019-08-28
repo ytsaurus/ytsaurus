@@ -558,6 +558,10 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
+    RegisterParameter("enable_setup_commands", EnableSetupCommands)
+        .Default(false);
+    RegisterParameter("enable_gpu_layers", EnableGpuLayers)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

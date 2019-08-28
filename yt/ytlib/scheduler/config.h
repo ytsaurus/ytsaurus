@@ -677,6 +677,9 @@ public:
 
     std::optional<TString> InterruptionSignal;
 
+    bool EnableSetupCommands;
+    bool EnableGpuLayers;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

@@ -7573,6 +7573,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
+    jobSpec->set_enable_setup_commands(config->EnableSetupCommands);
+    jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
