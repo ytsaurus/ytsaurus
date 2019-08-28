@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, Restarter, MASTER_CELL_SERVICE
 from yt_commands import *
 
 import yt.packages.requests as requests
@@ -204,7 +204,6 @@ class TestHttpProxyBuildSnapshotWithDelay(HttpProxyTestBase):
 
 class TestHttpProxyBuildSnapshotSetReadOnly(HttpProxyTestBase):
     NUM_SCHEDULERS = 0
-    DISABLE_MUTATIONS_IN_TEARDOWN = True
 
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
@@ -232,4 +231,5 @@ class TestHttpProxyBuildSnapshotSetReadOnly(HttpProxyTestBase):
 
         assert self.hydra_monitor()["read_only"]
 
-
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            pass
