@@ -6,7 +6,7 @@ from typing import Any, Optional, Union, Dict, Callable
 import pandas.core.frame   # type: ignore
 import pandas.core.series     # type: ignore
 
-from pyspark.sql._typing import ColumnOrName, DataTypeOrString, AtomicDataTypeOrString, PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasGroupedAggUDFType, PandasScalarFunction, PandasGroupedMapFunction, PandasGroupedAggFunction, PandasMapIterUDFType, UserDefinedFunctionLike
+from pyspark.sql._typing import ColumnOrName, DataTypeOrString, AtomicDataTypeOrString, PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasGroupedAggUDFType, PandasScalarFunction, PandasScalarIterFunction, PandasGroupedMapFunction, PandasGroupedAggFunction, PandasMapIterFunction, PandasMapIterUDFType, UserDefinedFunctionLike, MapIterPandasUserDefinedFunction
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import ArrayType, DataType, StructType
@@ -257,6 +257,10 @@ class PandasUDFType:
 @overload
 def pandas_udf(f: PandasScalarFunction, returnType: Union[AtomicDataTypeOrString, ArrayType], functionType: PandasScalarUDFType) -> UserDefinedFunctionLike: ...
 @overload
+def pandas_udf(f: PandasScalarIterFunction, returnType: Union[AtomicDataTypeOrString, ArrayType], functionType: PandasScalarIterUDFType) -> UserDefinedFunctionLike: ...
+@overload
 def pandas_udf(f: PandasGroupedMapFunction, returnType: Union[StructType, str], functionType: PandasGroupedMapUDFType) -> Callable[[], Column]: ...
 @overload
 def pandas_udf(f: PandasGroupedAggFunction, returnType: Union[AtomicDataTypeOrString, ArrayType], functionType: PandasGroupedAggUDFType) -> UserDefinedFunctionLike: ...
+@overload
+def pandas_udf(f: PandasMapIterFunction, returnType: Union[StructType, str], functionType: PandasMapIterUDFType) -> MapIterPandasUserDefinedFunction: ...

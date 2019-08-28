@@ -1,5 +1,7 @@
-from typing import Any, List, Optional, TypeVar, Union
+from typing import Any, Iterable, List, NewType, Optional, Tuple, TypeVar, Union
 from typing_extensions import Protocol, Literal
+from types import FunctionType
+
 import datetime
 import decimal
 
@@ -39,6 +41,10 @@ class PandasScalarFunction(Protocol):
     def __call__(self, *_: pandas.core.series.Series) -> pandas.core.series.Series:
         ...
 
+class PandasScalarIterFunction(Protocol):
+    def __call__(self, _: Iterable[Union[pandas.core.series.Series, Tuple[pandas.core.series.Series, ...], pandas.core.frame.DataFrame]]) -> Iterable[pandas.core.series.Series]:
+        ...
+
 class PandasGroupedMapFunction(Protocol):
     def __call__(self, _: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
         ...
@@ -47,6 +53,12 @@ class PandasGroupedAggFunction(Protocol):
     def __call__(self, *_: pandas.core.series.Series) -> LiteralType:
         ...
 
+class PandasMapIterFunction(Protocol):
+    def __call__(self, _: Iterable[pandas.core.frame.DataFrame]) -> Iterable[pandas.core.frame.DataFrame]:
+        ...
+
 class UserDefinedFunctionLike(Protocol):
     def __call__(self, *_: ColumnOrName) -> Column:
         ...
+
+MapIterPandasUserDefinedFunction = NewType("MapIterPandasUserDefinedFunction", FunctionType)
