@@ -566,7 +566,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 {
     auto pathWithSchema = path;
     if (!path.Schema_) {
-        pathWithSchema.Schema(CreateYdlTableSchema(type));
+        pathWithSchema.Schema(CreateTableSchema(type));
     }
 
     auto format = TFormat::YsonBinary();

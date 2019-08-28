@@ -195,7 +195,7 @@ TTableSchema CreateTableSchema(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema CreateYdlTableSchema(NTi::TType::TPtr type)
+TTableSchema CreateTableSchema(NTi::TType::TPtr type)
 {
     Y_VERIFY(type);
     TTableSchema schema;
