@@ -62,3 +62,4 @@ class UserDefinedFunctionLike(Protocol):
         ...
 
 MapIterPandasUserDefinedFunction = NewType("MapIterPandasUserDefinedFunction", FunctionType)
+GroupedMapPandasUserDefinedFunction = NewType("GroupedMapPandasUserDefinedFunction", FunctionType)
