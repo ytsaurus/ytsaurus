@@ -646,8 +646,6 @@ void TOperationControllerBase::InitializeStructures()
             InputTables_.size());
     }
 
-    UploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(Host->GetClient()->GetNativeConnection());
-
     DoInitialize();
 }
 
@@ -691,6 +689,8 @@ void TOperationControllerBase::InitUpdatingTables()
     if (CoreTable_) {
         UpdatingTables_.emplace_back(CoreTable_);
     }
+
+    UploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(Host->GetClient()->GetNativeConnection());
 }
 
 void TOperationControllerBase::InitializeOrchid()
