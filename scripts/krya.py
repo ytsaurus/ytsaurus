@@ -221,6 +221,9 @@ def invoke_build(build_cmd, args, rest_args):
     cfg = load_config()
 
     if cfg.local_build:
+        if not build_cmd:
+            print("Nothing to push in local mode", file=sys.stderr)
+            exit(0)
         local_build(build_cmd, args, rest_args)
         # Actualy local_build function never returns
         assert False
@@ -254,6 +257,9 @@ def invoke_build(build_cmd, args, rest_args):
             ".",
             rsync_dest],
             stdin=tmpf)
+
+    if not build_cmd:
+        return
 
     build_args = create_build_command(build_cmd, args, rest_args, remote=True)
     ssh_yall_args = [
@@ -314,6 +320,8 @@ def invoke_ya_make(args, rest_args):
 def invoke_yall(args, rest_args):
     return invoke_build(["./yall"], args, rest_args)
 
+def invoke_push(args, rest_args):
+    return invoke_build([], args, None)
 
 def create_clion_project(args, rest_args):
     os.chdir(REPO_ROOT)
@@ -338,12 +346,16 @@ def create_clion_project(args, rest_args):
         f.write(text.replace("COMMAND ${PROJECT_SOURCE_DIR}/ya make", "COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py ya-make"))
         f.write("""add_custom_target(yall COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py yall --build=${CMAKE_BUILD_TYPE} --output=${PROJECT_OUTPUT_DIR} --add-result=.h --add-result=.cpp --add-result=.cc --add-result=.c --add-result=.cxx --add-result=.C --no-src-links -T --no-emit-status)\n""")
         f.write("""add_custom_target(yall-yt-server COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py yall --yall-build-only=yt-server --build=${CMAKE_BUILD_TYPE} --output=${PROJECT_OUTPUT_DIR} --add-result=.h --add-result=.cpp --add-result=.cc --add-result=.c --add-result=.cxx --add-result=.C --no-src-links -T --no-emit-status)\n""")
+        f.write("""add_custom_target(push COMMAND ${PROJECT_SOURCE_DIR}/scripts/krya.py push)\n""")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.set_defaults(func=None)
     subparsers = parser.add_subparsers()
+
+    push_subparser = subparsers.add_parser("push", help="Push source files to remote machine and exit")
+    push_subparser.set_defaults(func=invoke_push)
 
     ya_make_subparser = subparsers.add_parser("ya-make", help="Invoke ya make on the remote machine")
     ya_make_subparser.set_defaults(func=invoke_ya_make)
