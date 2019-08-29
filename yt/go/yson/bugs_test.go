@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"github.com/stretchr/testify/require"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type (
@@ -79,4 +80,73 @@ func TestMapKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, yson.Unmarshal(ys, &out))
 	require.Equal(t, in, out)
+}
+
+type (
+	InnerA struct {
+		A int
+	}
+
+	InnerB struct {
+		B int
+	}
+
+	EmbeddingTest struct {
+		InnerA
+		*InnerB
+	}
+)
+
+func TestFieldEmbedding(t *testing.T) {
+	{
+		var in, out EmbeddingTest
+		in.A = 10
+		in.InnerB = &InnerB{B: 20}
+
+		js, err := json.Marshal(in)
+		require.NoError(t, err)
+		require.Equal(t, `{"A":10,"B":20}`, string(js))
+
+		require.NoError(t, json.Unmarshal(js, &out))
+		require.Equal(t, in, out)
+	}
+
+	{
+		var in, out EmbeddingTest
+		in.A = 10
+		in.InnerB = &InnerB{B: 20}
+
+		js, err := yson.MarshalFormat(in, yson.FormatText)
+		require.NoError(t, err)
+		require.Equal(t, `{A=10;B=20;}`, string(js))
+
+		require.NoError(t, yson.Unmarshal(js, &out))
+		require.Equal(t, in, out)
+
+		in.InnerB = nil
+		js, err = yson.MarshalFormat(in, yson.FormatText)
+		require.NoError(t, err)
+		require.Equal(t, `{A=10;}`, string(js))
+	}
+}
+
+type (
+	Unexported struct {
+		A int
+		b string
+		c bool
+	}
+)
+
+func TestUnexportedFields(t *testing.T) {
+	in := Unexported{A: 10, b: "foo", c: true}
+
+	js, err := yson.MarshalFormat(in, yson.FormatText)
+	require.NoError(t, err)
+	require.Equal(t, `{A=10;}`, string(js))
+
+	var out Unexported
+	require.NoError(t, yson.Unmarshal([]byte("{A=10;b=foo}"), &out))
+
+	require.Equal(t, Unexported{A: 10}, out)
 }

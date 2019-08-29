@@ -399,9 +399,13 @@ func isEmptyValue(v reflect.Value) bool {
 func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 	t := getStructType(value)
 
-	encodeMapFragment := func(fields []field) (err error) {
+	encodeMapFragment := func(fields []*field) (err error) {
 		for _, field := range fields {
-			fieldValue := value.Field(field.index)
+			fieldValue, ok := fieldByIndex(value, field.index, false)
+			if !ok {
+				continue
+			}
+
 			if field.omitempty && isEmptyValue(fieldValue) {
 				continue
 			}
@@ -426,7 +430,7 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 	}
 
 	if t.value != nil {
-		return encodeAny(w, value.Field(t.value.index).Interface())
+		return encodeAny(w, value.FieldByIndex(t.value.index).Interface())
 	}
 
 	w.BeginMap()
