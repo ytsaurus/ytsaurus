@@ -28,7 +28,7 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const = 0;
-    virtual IInvokerPtr GetProfilingInvoker() const = 0;
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const = 0;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
 
     virtual void Disconnect(const TError& error) = 0;

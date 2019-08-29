@@ -30,7 +30,7 @@ public:
         IOutputStream* eventLogOutputStream);
 
     virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
-    virtual IInvokerPtr GetProfilingInvoker() const override;
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;

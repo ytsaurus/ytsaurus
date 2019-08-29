@@ -254,7 +254,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::CollectProfiling),
+            Bootstrap_->GetControlInvoker(EControlQueue::Profiling),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
@@ -1104,9 +1104,9 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
-    virtual IInvokerPtr GetProfilingInvoker() const override
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
-        return ProfilingActionQueue_->GetInvoker();
+        return FairShareProfilingActionQueue_->GetInvoker();
     }
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
@@ -1250,7 +1250,7 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
+    const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FairShareProfiling");
     const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FairShareUpdate");
 
     ISchedulerStrategyPtr Strategy_;
