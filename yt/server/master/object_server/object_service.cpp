@@ -119,7 +119,7 @@ public:
         auto counters = New<TRequestProfilngCounters>(tagIds);
 
         {
-            NConcurrency::TReaderGuard guard(Lock_);
+            NConcurrency::TWriterGuard guard(Lock_);
             auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
             return it->second;
         }
