@@ -819,7 +819,7 @@ class YTEnvSetup(object):
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
-            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
+            if cls.ENABLE_TMP_PORTAL:
                 yt_commands.create("portal_entrance", "//tmp",
                     attributes={
                         "account": "tmp",
@@ -858,11 +858,10 @@ class YTEnvSetup(object):
 
             _abort_transactions(driver=driver)
 
-            if cluster_index == 0:
-                yt_commands.remove("//tmp", driver=driver)
-                if cls.ENABLE_TMP_PORTAL:
-                    # XXX(babenko)
-                    wait(lambda: not yt_commands.exists("//tmp", driver=driver))
+            yt_commands.remove("//tmp", driver=driver)
+            if cls.ENABLE_TMP_PORTAL:
+                # XXX(babenko)
+                wait(lambda: not yt_commands.exists("//tmp", driver=driver))
 
             yt_commands.gc_collect(driver=driver)
 
