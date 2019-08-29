@@ -2467,6 +2467,25 @@ class TestTentativePoolTrees(YTEnvSetup):
         }
         return spec
 
+    def _iter_running_jobs(self, op, tentative_nodes):
+        jobs_path = op.get_path() + "/controller_orchid/running_jobs"
+
+        try:
+            jobs = ls(jobs_path)
+        except YtError:
+            return []
+
+        result = []
+        for job_id in jobs:
+            try:
+                job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+            except YtError:
+                continue # The job has already completed, Orchid is lagging.
+
+            job_is_tentative = job_node in tentative_nodes
+            result.append((job_id, job_is_tentative))
+        return result
+
     # It's just flapping sheet YT-11156
     @flaky(max_runs=5)
     @authors("ignat")
@@ -2557,110 +2576,6 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         spec = self._create_spec()
 
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
-        create("table", "//tmp/t_out")
-
-        events = events_on_fs()
-
-        op = map(
-            command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec=spec,
-            dont_track=True)
-
-        jobs_path = op.get_path() + "/controller_orchid/running_jobs"
-
-        def iter_running_jobs():
-            try:
-                jobs = ls(jobs_path)
-            except:
-                return # Operation completed.
-
-            for job_id in jobs:
-                try:
-                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
-                except YtError:
-                    continue # The job has already completed, Orchid is lagging.
-
-                job_is_tentative = job_node in other_nodes
-                yield job_id, job_is_tentative
-
-        def operation_completed():
-            return op.get_state() == "completed"
-
-        def operations_failed_or_aborted():
-            return op.get_state() in ["failed", "aborted"]
-
-        time.sleep(5)
-
-        non_tentative_job_count = 0
-        time_passed = 0
-        completion_time = None
-        while not operation_completed():
-            time.sleep(0.5)
-            time_passed += 0.5
-
-            assert not operations_failed_or_aborted()
-
-            if non_tentative_job_count >= TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
-                completion_time = time_passed
-                break
-
-            for job_id, tentative in iter_running_jobs():
-                if not tentative:
-                    non_tentative_job_count += 1
-                    events.notify_event("continue_job_{0}".format(job_id))
-
-        wait(lambda: op.get_job_count("completed") >= 5)
-
-        # Tentative jobs should now be "slow" enough, it's time to start completing them.
-        while not operation_completed() and time_passed < 5.0 * completion_time:
-            time.sleep(0.5)
-            time_passed += 0.5
-
-        op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
-        tentative_job_count = 0
-        while not operation_completed():
-            time.sleep(0.5)
-
-            assert not operations_failed_or_aborted()
-
-            for job_id, tentative in iter_running_jobs():
-                events.notify_event("continue_job_{0}".format(job_id))
-
-                if tentative:
-                    tentative_job_count += 1
-
-                    if tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
-                        time.sleep(0.3)
-                        # Tentative tree should've been banned by now.
-                        wait(lambda: not exists(op_pool_trees_path + "other"))
-                        wait(lambda: exists(op_pool_trees_path + "default") or operation_completed())
-                        break
-
-        while not operation_completed():
-            time.sleep(0.5)
-
-            assert not operations_failed_or_aborted()
-
-            for job_id, tentative in iter_running_jobs():
-                events.notify_event("continue_job_{0}".format(job_id))
-
-                if tentative:
-                    tentative_job_count += 1
-
-
-        assert tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
-
-    @authors("ignat")
-    def test_tentative_pool_tree_banning_with_hanging_jobs(self):
-        other_node_list = self._prepare_pool_trees()
-        other_nodes = frozenset(other_node_list)
-
-        spec = self._create_spec()
-
         set("//sys/controller_agents/config", {"check_tentative_tree_eligibility_period": 500})
 
         create("table", "//tmp/t_in")
@@ -2676,67 +2591,43 @@ class TestTentativePoolTrees(YTEnvSetup):
             spec=spec,
             dont_track=True)
 
-        jobs_path = op.get_path() + "/controller_orchid/running_jobs"
-
-        def iter_running_jobs():
-            try:
-                jobs = ls(jobs_path)
-            except:
-                return # Operation completed.
-
-            for job_id in jobs:
-                try:
-                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
-                except YtError:
-                    continue # The job has already completed, Orchid is lagging.
-
-                job_is_tentative = job_node in other_nodes
-                yield job_id, job_is_tentative
-
-        def operation_completed():
-            return op.get_state() == "completed"
+        op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
 
         def operations_failed_or_aborted():
             return op.get_state() in ["failed", "aborted"]
 
+        def has_all_tentative_jobs():
+            assert not operations_failed_or_aborted()
+            tentative_job_count = 0
+            for job_id, tentative in self._iter_running_jobs(op, other_nodes):
+                if tentative:
+                    tentative_job_count += 1
+            return tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
+
+        wait(has_all_tentative_jobs)
+
+        # Sleep to make job durations long enonugh.
         time.sleep(5)
 
-        non_tentative_job_count = 0
-        time_passed = 0
-        completion_time = None
-        while not operation_completed():
-            time.sleep(0.5)
-            time_passed += 0.5
+        wait(lambda: exists(op_pool_trees_path + "other"))
 
+        def complete_non_tentative_jobs(context):
             assert not operations_failed_or_aborted()
-
-            if non_tentative_job_count >= TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
-                completion_time = time_passed
-                break
-
-            for job_id, tentative in iter_running_jobs():
-                if not tentative:
-                    non_tentative_job_count += 1
+            for job_id, tentative in self._iter_running_jobs(op, other_nodes):
+                if not tentative and job_id not in context["completed_jobs"] and len(context["completed_jobs"]) < 20:
+                    context["completed_jobs"].add(job_id)
                     events.notify_event("continue_job_{0}".format(job_id))
+            return len(context["completed_jobs"]) == 20
 
-        wait(lambda: op.get_job_count("completed") >= 5)
+        # We have 30 jobs overall, 5 should be tentative, 20 regular jobs we complete fast. It must be enough to ban tentative tree.
+        context = {"completed_jobs": __builtin__.set()}
+        wait(lambda: complete_non_tentative_jobs(context))
 
-        # Tentative jobs should now be "slow" enough, it's time to start completing them.
-        while not operation_completed() and time_passed < 5.0 * completion_time:
-            time.sleep(0.5)
-            time_passed += 0.5
+        wait(lambda: op.get_job_count("completed") == 20)
 
         op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
         wait(lambda: not exists(op_pool_trees_path + "other"))
-        wait(lambda: exists(op_pool_trees_path + "default") or operation_completed())
-
-        while not operation_completed():
-            time.sleep(0.5)
-
-            assert not operations_failed_or_aborted()
-
-            for job_id, tentative in iter_running_jobs():
-                events.notify_event("continue_job_{0}".format(job_id))
+        assert exists(op_pool_trees_path + "default")
 
     @authors("ignat")
     def test_missing_tentative_pool_trees(self):
@@ -2774,31 +2665,11 @@ class TestTentativePoolTrees(YTEnvSetup):
             spec=spec,
             dont_track=True)
 
-        jobs_path = op.get_path() + "/controller_orchid/running_jobs"
-
-        def iter_running_jobs():
-            try:
-                jobs = ls(jobs_path)
-            except:
-                return # Operation completed.
-
-            for job_id in jobs:
-                try:
-                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
-                except YtError:
-                    continue # The job has already completed, Orchid is lagging.
-
-                job_is_tentative = job_node in other_nodes
-                yield job_id, job_is_tentative
-
-        def operation_completed():
-            return op.get_state()  == "completed"
-
         job_aborted = False
         for iter in xrange(20):
             time.sleep(0.5)
 
-            for job_id, tentative in iter_running_jobs():
+            for job_id, tentative in self._iter_running_jobs(op, other_nodes):
                 if tentative:
                     try:
                         abort_job(job_id)
@@ -2816,7 +2687,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         tentative_job_count = 0
         while tentative_job_count + 1 < TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
             time.sleep(0.5)
-            for job_id, tentative in iter_running_jobs():
+            for job_id, tentative in self._iter_running_jobs(op, other_nodes):
                 if tentative:
                     events.notify_event("continue_job_{0}".format(job_id))
                     tentative_job_count += 1
@@ -2907,7 +2778,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     NUM_CPUS_PER_NODE = 10
     NUM_SLOTS_PER_NODE = 10
-    
+
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2993,7 +2864,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             },
             dont_track=True)
 
-        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"), 
+        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"),
                                       min(num_jobs_op1 / self.NUM_SLOTS_PER_NODE, 1.0)))
 
         # give some time for historic usage to accumulate
