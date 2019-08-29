@@ -900,6 +900,7 @@ struct TGetClusterMetaOptions
     bool PopulateNodeDirectory = false;
     bool PopulateClusterDirectory = false;
     bool PopulateMediumDirectory = false;
+    bool PopulateCellDirectory = false;
 };
 
 struct TClusterMeta

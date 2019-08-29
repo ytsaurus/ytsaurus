@@ -14,6 +14,8 @@ DECLARE_REFCOUNTED_CLASS(TClientCache)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 
+struct TConnectionOptions;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

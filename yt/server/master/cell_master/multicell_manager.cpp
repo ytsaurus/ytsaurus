@@ -154,6 +154,12 @@ public:
         return FindMasterEntry(cellTag) != nullptr;
     }
 
+    ECellRoles GetMasterCellRoles(TCellTag cellTag)
+    {
+        auto* entry = FindMasterEntry(cellTag);
+        return entry ? entry->Roles : ECellRoles::None;
+    }
+
     const TCellTagList& GetRegisteredMasterCellTags()
     {
         return RegisteredMasterCellTags_;
@@ -300,12 +306,14 @@ private:
         int Index = -1;
         NProto::TCellStatistics Statistics;
         TMailbox* Mailbox = nullptr;
+        ECellRoles Roles = ECellRoles::None;
 
         void Save(NCellMaster::TSaveContext& context) const
         {
             using NYT::Save;
             Save(context, Index);
             Save(context, Statistics);
+            Save(context, Roles);
         }
 
         void Load(NCellMaster::TLoadContext& context)
@@ -313,6 +321,10 @@ private:
             using NYT::Load;
             Load(context, Index);
             Load(context, Statistics);
+            // COMPAT(shakurov)
+            if (context.GetVersion() >= EMasterReign::CellRoles) {
+                Load(context, Roles);
+            }
         }
     };
 
@@ -576,11 +588,12 @@ private:
         int index = static_cast<int>(RegisteredMasterMap_.size());
         RegisteredMasterCellTags_.push_back(cellTag);
 
-        auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
-        YT_VERIFY(pair.second);
+        auto [it, inserted] = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
+        YT_VERIFY(inserted);
 
-        auto& entry = pair.first->second;
+        auto& entry = it->second;
         entry.Index = index;
+        entry.Roles = GetCellRoles(cellTag);
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -593,6 +606,14 @@ private:
         YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
+    }
+
+    ECellRoles GetCellRoles(TCellTag cellTag)
+    {
+        auto defaultRoles = cellTag == Bootstrap_->GetPrimaryCellTag()
+            ? (ECellRoles::CypressNodeHost | ECellRoles::TransactionCoordinator)
+            : (ECellRoles::CypressNodeHost | ECellRoles::ChunkHost);
+        return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)
@@ -754,6 +775,10 @@ private:
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
         }
+
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            entry.Roles = GetCellRoles(cellTag);
+        }
     }
 };
 
@@ -803,6 +828,11 @@ bool TMulticellManager::IsLocalMasterCellRegistered()
 bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
 {
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
+}
+
+ECellRoles TMulticellManager::GetMasterCellRoles(NObjectClient::TCellTag cellTag)
+{
+    return Impl_->GetMasterCellRoles(cellTag);
 }
 
 const TCellTagList& TMulticellManager::GetRegisteredMasterCellTags()

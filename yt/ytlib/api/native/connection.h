@@ -4,6 +4,8 @@
 
 #include <yt/client/api/connection.h>
 
+#include <yt/ytlib/cell_master_client/public.h>
+
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -31,6 +33,9 @@ struct IConnection
     virtual const NQueryClient::TEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
+
+    virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() = 0;
+    virtual const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() = 0;
 
     virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() = 0;
     virtual const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() = 0;
