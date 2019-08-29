@@ -8,8 +8,7 @@ import (
 
 type field struct {
 	name  string
-	index int
-	field reflect.StructField
+	index []int
 
 	omitempty bool
 	attribute bool
@@ -48,12 +47,12 @@ func (f *field) parseTag(tag string) (skip bool) {
 
 type structType struct {
 	// fields decoded from attributes
-	attributes       []field
-	attributesByName map[string]field
+	attributes       []*field
+	attributesByName map[string]*field
 
 	// fields decoded from map keys
-	fields       []field
-	fieldsByName map[string]field
+	fields       []*field
+	fieldsByName map[string]*field
 
 	value *field // field decoded directly from the whole value
 }
@@ -62,41 +61,108 @@ var typeCache sync.Map
 
 func newStructType(t reflect.Type) *structType {
 	structType := &structType{
-		attributesByName: make(map[string]field),
-		fieldsByName:     make(map[string]field),
+		attributesByName: make(map[string]*field),
+		fieldsByName:     make(map[string]*field),
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		structField := field{
-			name:  f.Name,
-			index: i,
-			field: f,
-		}
+	var nameConflict field
 
-		tag, ok := f.Tag.Lookup("yson")
-		if ok {
-			skip := structField.parseTag(tag)
-			if skip {
+	var attributeOrder, fieldOrder []string
+
+	var visitFields func(fieldStack []int, t reflect.Type)
+	visitFields = func(fieldStack []int, t reflect.Type) {
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+
+			var index []int
+			index = append(index, fieldStack...)
+			index = append(index, i)
+
+			isUnexported := f.PkgPath != ""
+			if f.Anonymous {
+				ft := f.Type
+				if ft.Kind() == reflect.Ptr {
+					ft = ft.Elem()
+				}
+
+				if ft.Kind() != reflect.Struct {
+					continue
+				}
+
+				visitFields(index, ft)
+				continue
+			} else if isUnexported {
 				continue
 			}
-		}
 
-		switch {
-		case structField.value:
-			if structType.value == nil {
-				structType.value = &structField
+			structField := field{
+				name:  f.Name,
+				index: index,
 			}
 
-		case structField.attribute:
-			structType.attributes = append(structType.attributes, structField)
-			structType.attributesByName[structField.name] = structField
+			tag, ok := f.Tag.Lookup("yson")
+			if ok {
+				skip := structField.parseTag(tag)
+				if skip {
+					continue
+				}
+			}
 
-		default:
-			structType.fields = append(structType.fields, structField)
-			structType.fieldsByName[structField.name] = structField
+			// Add field, resolving name conflict according to go embedding rules.
+			addField := func(order *[]string, fieldMap map[string]*field, f *field) {
+				*order = append(*order, f.name)
+
+				otherField := fieldMap[f.name]
+				if otherField == nil {
+					fieldMap[f.name] = f
+				} else if len(otherField.index) > len(f.index) {
+					fieldMap[f.name] = f
+				} else if len(otherField.index) == len(f.index) {
+					otherField.name = ""
+				}
+			}
+
+			switch {
+			case structField.value:
+				if structType.value == nil {
+					structType.value = &structField
+				} else {
+					structType.value = &nameConflict
+				}
+
+			case structField.attribute:
+				addField(&attributeOrder, structType.attributesByName, &structField)
+
+			default:
+				addField(&fieldOrder, structType.fieldsByName, &structField)
+			}
 		}
 	}
+
+	visitFields(nil, t)
+
+	if structType.value == &nameConflict {
+		structType.value = nil
+	}
+
+	filterConflicts := func(order []string, fieldMap map[string]*field) (fields []*field) {
+		for _, name := range order {
+			field, ok := fieldMap[name]
+			if !ok {
+				continue
+			}
+
+			if field.name == "" {
+				delete(fieldMap, name)
+			} else {
+				fields = append(fields, field)
+			}
+		}
+		return
+	}
+
+	structType.fields = filterConflicts(fieldOrder, structType.fieldsByName)
+	structType.attributes = filterConflicts(attributeOrder, structType.attributesByName)
 
 	return structType
 }
@@ -263,7 +329,29 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 	return nil
 }
 
-func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]field) error {
+func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bool) {
+	for i, fieldIndex := range index {
+		if i != 0 {
+			if v.Kind() == reflect.Ptr {
+				if v.IsNil() {
+					if initPtr {
+						v.Set(reflect.New(v.Type().Elem()))
+					} else {
+						return reflect.Value{}, false
+					}
+				}
+
+				v = v.Elem()
+			}
+		}
+
+		v = v.Field(fieldIndex)
+	}
+
+	return v, true
+}
+
+func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) error {
 	for {
 		ok, err := r.NextKey()
 		if err != nil {
@@ -284,7 +372,7 @@ func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]field) erro
 			continue
 		}
 
-		field := v.Field(structField.index)
+		field, _ := fieldByIndex(v, structField.index, true)
 		if err = decodeAny(r, field.Addr().Interface()); err != nil {
 			if typeError, ok := err.(*TypeError); ok {
 				return &TypeError{
@@ -337,7 +425,7 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 	}
 
 	if structType.value != nil {
-		return decodeAny(r, v.Field(structType.value.index).Addr().Interface())
+		return decodeAny(r, v.FieldByIndex(structType.value.index).Addr().Interface())
 	}
 
 	e, err = r.Next(false)
