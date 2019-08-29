@@ -74,7 +74,9 @@ class TestFileCommands(object):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
 
-    def test_parallel_read_file(self):
+    def test_parallel_read_file(self, yt_env_with_rpc):
+        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
+            pytest.skip()
         override_options = {
             "read_parallel/enable": True,
             "read_parallel/data_size_per_thread": 6
