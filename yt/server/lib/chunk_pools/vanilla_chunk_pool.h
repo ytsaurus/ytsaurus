@@ -9,7 +9,7 @@ namespace NYT::NChunkPools {
 struct TVanillaChunkPoolOptions
 {
     int JobCount;
-    bool RestartCompletedJobs;
+    bool RestartCompletedJobs = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
