@@ -22,12 +22,12 @@ import toml
 
 ARGV0 = sys.argv[0]
 
+Configuration = collections.namedtuple("Configuration", ["working_directory", "default_profile", "profiles"])
+
 ProfileConfiguration = collections.namedtuple("ProfileConfiguration", [
-    "working_directory",
     "yt_source_directory",
     "port",
 ])
-
 
 class MyLittleYtError(RuntimeError):
     pass
@@ -44,28 +44,48 @@ def find_repo_root():
             return None
         path = parent
 
+
+def run(func, cmd):
+    cmd_str = " ".join(shlex.quote(s) for s in cmd)
+    logging.info("Running: $ {}".format(cmd_str))
+    try:
+        return func(cmd)
+    except subprocess.CalledProcessError as e:
+        raise MyLittleYtError(
+            "Command:\n"
+            "\n"
+            "  $ {cmd}\n"
+            "\n"
+            "has exit with nonzero exit code: {code}"
+            .format(
+                cmd=cmd_str,
+                code=e.returncode
+            )
+        )
+
 def generate_configuration():
     yt_repo = find_repo_root()
     if yt_repo is None:
         yt_repo = "~/yt-src"
     return """\
-[default]
-
-# Http port of the controller
-port = {port}
-
 # Working directory of the local YT
 working_directory = "~/my-little-yt"
+
+# Profile that will be used if no profile is specified
+default_profile = "default"
+
+# Default profile
+[profile.default]
+# Http port of the controller
+port = {port}
 
 # Directory with YT sources.
 # When not specified it will be determined automatically assuming my-little-yt.py
 # is inside YT repo.
 # yt_source_directory = "{yt_repo}"
 
-# You can define other profiles
-# e.g
-# [my_other_profile]
-# work_directory = "~/workdir2"
+# # You can define other profiles, e.g
+# [profile.my_other_profile]
 # yt_source_directory = "~/source_dir2"
 # port = 8042
     """.format(
@@ -78,10 +98,8 @@ def indented_lines(string_list, indent=2):
     indent_str = " " * indent
     return "\n".join(indent_str + s for s in string_list)
 
-
 def get_configuration_path():
     return pathlib.Path.home() / ".my-little-yt.toml"
-
 
 def get_or_generate_profile_configuration(profile):
     cfg_path = get_configuration_path()
@@ -104,14 +122,14 @@ def get_or_generate_profile_configuration(profile):
             if answer:
                 with open(cfg_path, 'w') as outf:
                     print(generate_configuration(), file=outf)
-    result = get_profile_configuration(profile)
+    result = get_configuration()
     if result:
         if not result.working_directory.exists():
             os.mkdir(result.working_directory)
     return result
 
 
-def get_profile_configuration(profile):
+def get_configuration():
     cfg_path = get_configuration_path()
     if not cfg_path.exists():
         raise MyLittleYtError(
@@ -127,23 +145,14 @@ def get_profile_configuration(profile):
     with open(get_configuration_path()) as inf:
         cfg = toml.load(inf)
 
-    if profile not in cfg:
-        raise MyLittleYtError("Profile {} is not found in my-little-yt configuration.".format(profile))
-
-    profile_cfg = cfg[profile]
-
-    def get_type_checked(key, t, required=True):
-        if not key in profile_cfg:
-            if not required:
-                return None
-            raise MyLittleYtError(
-                "Configuration error: {profile}.{key} is not found"
-                .format(
-                    profile=profile,
-                    key=key
-                )
-            )
-        r = profile_cfg[key]
+    def get_type_checked(path, t, required=True):
+        r = cfg
+        for i,p in enumerate(path):
+            if p not in r:
+                if not required:
+                    return None
+                raise MyLittleYtError("Configuration error: {key} is not found".format(key=".".join(path[:i+1])))
+            r = r[p]
         if not isinstance(r, t):
             raise MyLittleYtError(
                 "Configuration error: {profile}.{key} is not a {type}"
@@ -155,31 +164,46 @@ def get_profile_configuration(profile):
             )
         return r
 
-    port = get_type_checked("port", int)
-    working_directory = get_type_checked("working_directory", str)
-    yt_source_directory = get_type_checked("yt_source_directory", str, required=False)
-    if yt_source_directory is None:
-        yt_source_directory = find_repo_root()
-    return ProfileConfiguration(
-        port=port,
-        yt_source_directory=pathlib.Path(yt_source_directory).expanduser(),
+    working_directory = get_type_checked(["working_directory"], str)
+    default_profile = get_type_checked(["default_profile"], str, required=False)
+    if default_profile is None:
+        default_profile = "default"
+    try:
+        profiles_node = get_type_checked(["profile"], dict)
+    except MyLittleYtError:
+        raise MyLittleYtError("No profiles are found in configuration")
+
+    profiles = {}
+    for profile_name, profile_node in profiles_node.items():
+        port = get_type_checked(["profile", profile_name, "port"], int)
+        yt_source_directory = get_type_checked(["profile", profile_name, "yt_source_directory"], str, required=False)
+        if yt_source_directory is None:
+            yt_source_directory = find_repo_root()
+        profiles[profile_name] = ProfileConfiguration(
+            port=port,
+            yt_source_directory=pathlib.Path(yt_source_directory).expanduser(),
+        )
+
+    return Configuration(
         working_directory=pathlib.Path(working_directory).expanduser(),
+        default_profile=default_profile,
+        profiles=profiles,
     )
 
 
 class LocalYt:
-    def __init__(self, cfg):
+    def __init__(self, cfg, profile=None):
         self.cfg = cfg
-        self.bin = self.cfg.yt_source_directory / "python" / "yt" / "local" / "bin" / "yt_local"
-        self.env = {
-            "PATH": "{}:{}".format(
-                self.cfg.yt_source_directory / "ya-build",
-                os.environ["PATH"]
-            ),
-            "PYTHONPATH": str(self.cfg.yt_source_directory / "python"),
-            "HOME": pathlib.Path.home(),
-            "USER": getpass.getuser(),
-        }
+        if profile:
+            self.profile = profile
+        else:
+            self.profile = self.cfg.default_profile
+        try:
+            self.profile_cfg = self.cfg.profiles[self.profile]
+        except KeyError:
+            raise MyLittleYtError("Profile {profile} is not found".format(self.profile))
+        self.source_directory = self.profile_cfg.yt_source_directory
+        self.bin = self.source_directory / "python" / "yt" / "local" / "bin" / "yt_local"
 
     def list_instances(self):
         Instance = collections.namedtuple("Instance", ["id", "status", "status_line"])
@@ -195,103 +219,93 @@ class LocalYt:
 
         return result
 
-    def get_instance(self, required=False):
+    def get_instance(self):
         lst = self.list_instances()
-        if len(lst) == 0:
-            if required:
-                raise MyLittleYtError("No instances of local YT are found")
-            return None
-        if len(lst) > 1:
-            raise MyLittleYtError(
-                "Too many instance of local YT are found at {directory}:\n"
-                "{instance_list}"
-                .format(
-                    directory=self.cfg.working_directory,
-                    instance_list=indented_lines(l.status_line for l in lst)
-                )
-            )
-        return lst[0]
+        for instance in lst:
+            if instance.id == self.profile:
+                return instance
+        return None
 
-    def start(self, instance_id):
+    def start(self):
         args = [
             "start",
             "--enable-debug-logging",
-            "--proxy-port", self.cfg.port,
-            "--fqdn", socket.getfqdn()
+            "--proxy-port", self.profile_cfg.port,
+            "--fqdn", socket.getfqdn(),
+            "--id", self.profile,
         ]
-        if instance_id:
-            args += ["--id", instance_id]
         self._run_impl(subprocess.check_call, args)
 
-    def stop(self, instance_id):
+    def stop(self, instance_id=None):
+        if instance_id is None:
+            instance_id = self.profile
         args = [
             "stop",
             instance_id
         ]
         self._run_impl(subprocess.check_call, args)
 
-    def delete(self, instance_id):
+    def delete(self):
         args = [
             "delete",
-            instance_id
+            self.profile
         ]
         self._run_impl(subprocess.check_call, args)
 
     def _run_impl(self, func, args):
         cmd = [
-            "env"
-        ]
-        for k,v in self.env.items():
-            cmd += ["{}={}".format(k,v)]
+            "env",
+            "PATH={}".format(
+                ":".join([
+                    str(self.profile_cfg.yt_source_directory / "ya-build"),
+                    os.environ["PATH"]
+                ])
+            ),
+            "PYTHONPATH={}".format(self.profile_cfg.yt_source_directory / "python"),
+            "HOME={}".format(pathlib.Path.home()),
+            "USER={}".format(getpass.getuser()),
 
-        cmd += [
             "python",
             self.bin,
             "--path", self.cfg.working_directory,
         ] + args
         cmd = list(map(str, cmd))
-        logging.info("Running: $ {}".format(" ".join(shlex.quote(s) for s in cmd)))
-        try:
-            return func(cmd)
-        except subprocess.CalledProcessError as e:
-            raise MyLittleYtError("Local yt script has exit with error code {}".format(e.returncode))
-
+        return run(func, cmd)
 
 def invoke_start(args):
     cfg = get_or_generate_profile_configuration(args.profile)
-    local_yt = LocalYt(cfg)
-    instance = local_yt.get_instance()
-    if instance is None:
-        logging.info("Found not instance of local yt going to create a new one")
-        id = None
-    else:
-        logging.info("Going to use local yt {}".format(instance.id))
-        id = instance.id
-    local_yt.start(id)
+    local_yt = LocalYt(cfg, args.profile)
+    local_yt.start()
 
 def invoke_stop(args):
-    cfg = get_profile_configuration(args.profile)
-    local_yt = LocalYt(cfg)
-    instance = local_yt.get_instance(required=True)
-    local_yt.stop(instance.id)
+    cfg = get_configuration()
+    profile = args.profile
+    if profile not in cfg.profiles:
+        # If we trying to stop instance that is not in our profile list it's ok
+        # Use default configuration to find local_yt
+        profile = cfg.default_profile
+    local_yt = LocalYt(cfg, profile)
+    local_yt.stop(args.profile)
 
 def invoke_restart(args):
     cfg = get_or_generate_profile_configuration(args.profile)
-    local_yt = LocalYt(cfg)
+    local_yt = LocalYt(cfg, args.profile)
     instance = local_yt.get_instance()
-    if instance and instance.status == "running":
-        local_yt.stop(instance.id)
-    if args.reset and instance:
-        local_yt.delete(instance.id)
-    local_yt.start(instance.id)
-
+    if instance:
+        if instance.status == "running":
+            local_yt.stop()
+        if args.reset:
+            local_yt.delete()
+    local_yt.start()
 
 def invoke_status(args):
-    cfg = get_profile_configuration(args.profile)
+    cfg = get_configuration()
     local_yt = LocalYt(cfg)
-    instance = local_yt.get_instance(required=True)
-    print(instance.status_line)
-
+    instances = local_yt.list_instances()
+    if not instances:
+        print("<no instances are found>")
+    for instance in instances:
+        print(instance.status_line)
 
 def invoke_generate_configuration(args):
     if args.stdout:
@@ -313,18 +327,27 @@ def invoke_generate_configuration(args):
     with open(config_path) as outf:
         print(generate_configuration(), file=outf)
 
+def invoke_killall(args):
+    output = run(subprocess.check_output, ["ps", "x", "-U", getpass.getuser()]).decode("utf-8")
+    pid_list = []
+    for line in output.strip().split("\n"):
+        if "ytserver-" not in line:
+            continue
+        pid = int(line.split()[0])
+        logging.warn("Killing {}".format(pid))
+        os.kill(pid, 9)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.set_defaults(func=invoke_status, profile="default")
+    parser.set_defaults(func=invoke_status, profile=None)
 
     parser.add_argument("-v", "--verbose", help="Be verbose", action="store_true")
 
     subparsers = parser.add_subparsers()
 
     def add_profile_argument(p):
-        p.add_argument("profile", nargs='?', default="default", help="Profile to use")
+        p.add_argument("profile", nargs='?', default=None, help="Profile to use")
 
     start_subparser = subparsers.add_parser("start", help="Start local yt")
     start_subparser.set_defaults(func=invoke_start)
@@ -342,6 +365,13 @@ def main():
     generate_configuration_subparser = subparsers.add_parser("generate-configuration", help="Generate default configuration")
     generate_configuration_subparser.add_argument("--stdout", action="store_true", help="Print configuration to stdout instead of writing it to configuration file")
     generate_configuration_subparser.set_defaults(func=invoke_generate_configuration)
+
+    killall_subparser = subparsers.add_parser("killall", help="Kills all YT processes of current user")
+    killall_subparser.set_defaults(func=invoke_killall)
+
+    for kw in ["status", "list"]:
+        status_subparser = subparsers.add_parser(kw, help="Print statuses of local yt instances")
+        status_subparser.set_defaults(func=invoke_status)
 
     args = parser.parse_args()
 
