@@ -2344,8 +2344,8 @@ void TOperation::TOperationImpl::AnalyzeUnrecognizedSpec(TNode unrecognizedSpec)
 
     if (!unrecognizedSpec.Empty()) {
         LOG_INFO(
-            "WARNING! Unrecognized spec for operation %s is not empty."
-            "It is (fields added by the YT API library are excluded): %s",
+            "WARNING! Unrecognized spec for operation %s is not empty "
+            "(fields added by the YT API library are excluded): %s",
             GetGuidAsString(Id_).Data(),
             NodeToYsonString(unrecognizedSpec).Data());
     }
