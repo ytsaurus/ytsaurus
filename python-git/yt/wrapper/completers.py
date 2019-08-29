@@ -11,7 +11,8 @@ def complete_map_node(path):
     suggestions = [path + "/@"]
     for item in content:
         full_path = path + "/" + str(item)
-        if item.attributes["type"] == "map_node":
+        type = item.attributes.get("type", "")
+        if type == "map_node" or type.endswith("_map"):
             suggestions += [full_path + "/"]
         else:
             suggestions += [full_path]
