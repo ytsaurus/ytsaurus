@@ -819,7 +819,7 @@ class YTEnvSetup(object):
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
-            if cls.ENABLE_TMP_PORTAL:
+            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create("portal_entrance", "//tmp",
                     attributes={
                         "account": "tmp",
