@@ -55,7 +55,7 @@ public:
         , Logger(SchedulerLogger)
     {
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::Profiling),
+            Host->GetControlInvoker(EControlQueue::SchedulerProfiling),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
             Config->FairShareProfilingPeriod);
 
