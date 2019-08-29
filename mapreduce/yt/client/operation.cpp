@@ -994,6 +994,9 @@ void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
     if (baseSpec.CoreTablePath_.Defined()) {
         (*spec)["core_table_path"] = *baseSpec.CoreTablePath_;
     }
+    if (baseSpec.WaitingJobTimeout_.Defined()) {
+        (*spec)["waiting_job_timeout"] = baseSpec.WaitingJobTimeout_->MilliSeconds();
+    }
 }
 
 template <typename TSpec>

@@ -328,6 +328,14 @@ struct TUserOperationSpecBase
     // Table to save coredumps of operation
     // https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
+
+    // How long should the scheduler wait for the job to be started on a node.
+    // When you run huge jobs that require preemption of all the other jobs on
+    // a node, the default timeout might be insufficient and your job may be
+    // aborted with 'waiting_timeout' reason. This is especially problematic
+    // when you are setting 'FailOnJobRestart' option.
+    // The value must be between 10 seconds and 10 minutes.
+    FLUENT_FIELD_OPTION(TDuration, WaitingJobTimeout);
 };
 
 template <class TDerived>
