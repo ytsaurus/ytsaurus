@@ -89,6 +89,7 @@ DEFINE_ENUM(EMasterReign,
     ((CypressShardName)                                              (906))  // babenko
     ((YT_10855_EpochHistoryManager)                                  (907))  // ifsmirnov
     ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
+    ((CellRoles)                                                     (909))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

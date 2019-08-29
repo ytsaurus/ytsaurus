@@ -93,6 +93,9 @@ public:
     //! Returns |true| if there is a registered master cell with a given cell tag.
     bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
 
+    //! Returns the set of roles the cell is configured for.
+    ECellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag);
+
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
     /*!`

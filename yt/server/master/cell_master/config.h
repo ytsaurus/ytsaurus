@@ -102,10 +102,23 @@ class TDynamicMulticellManagerConfig
 public:
     TDuration CellStatisticsGossipPeriod;
 
+    THashMap<NObjectServer::TCellTag, ECellRoles> CellRoles;
+
     TDynamicMulticellManagerConfig()
     {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("cell_roles", CellRoles)
+            .Default();
+
+        RegisterPostprocessor([&] () {
+            for (const auto& [cellTag, cellRoles] : CellRoles) {
+                if (None(cellRoles)) {
+                    THROW_ERROR_EXCEPTION("Cell %v has no roles",
+                        cellTag);
+                }
+            }
+        });
     }
 };
 

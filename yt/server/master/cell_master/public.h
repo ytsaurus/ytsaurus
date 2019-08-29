@@ -3,6 +3,8 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
+#include <yt/client/cell_master_client/public.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +78,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (JobTrackerService)
     (ReplicatedTableTracker)
 );
+
+using NCellMasterClient::ECellRoles;
 
 ////////////////////////////////////////////////////////////////////////////////
 

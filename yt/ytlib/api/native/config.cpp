@@ -32,18 +32,13 @@ TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("networks", Networks)
         .Default();
-    RegisterParameter("primary_master", PrimaryMaster);
-    RegisterParameter("secondary_masters", SecondaryMasters)
-        .Default();
-    RegisterParameter("master_cache", MasterCache)
-        .Default();
-    RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
-        .Default(true);
     RegisterParameter("timestamp_provider", TimestampProvider)
         .Default();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
     RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+        .DefaultNew();
+    RegisterParameter("master_cell_directory_synchronizer", MasterCellDirectorySynchronizer)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)
         .DefaultNew();
@@ -162,23 +157,6 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
-    });
-
-    RegisterPostprocessor([&] () {
-        auto cellId = PrimaryMaster->CellId;
-        auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
-        THashSet<TCellTag> cellTags = {primaryCellTag};
-        for (const auto& cellConfig : SecondaryMasters) {
-            if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
-                THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",
-                    cellConfig->CellId);
-            }
-            auto cellTag = CellTagFromId(cellConfig->CellId);
-            if (!cellTags.insert(cellTag).second) {
-                THROW_ERROR_EXCEPTION("Duplicate cell tag %v in connection configuration",
-                    cellTag);
-            }
-        }
     });
 }
 

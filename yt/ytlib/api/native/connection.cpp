@@ -7,6 +7,9 @@
 #include "transaction.h"
 #include "private.h"
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -14,8 +17,6 @@
 #include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/evaluator.h>
@@ -44,7 +45,6 @@
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/retrying_channel.h>
 
 namespace NYT::NApi::NNative {
 
@@ -69,7 +69,7 @@ public:
     TConnection(
         TConnectionConfigPtr config,
         const TConnectionOptions& options)
-        : Config_(config)
+        : Config_(std::move(config))
         , Options_(options)
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("PrimaryCellTag: %v, ConnectionId: %",
@@ -92,41 +92,15 @@ public:
                 Config_->IdleChannelTtl),
             Config_->IdleChannelTtl);
 
-        PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
-        PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
-        for (const auto& masterConfig : Config_->SecondaryMasters) {
-            SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
-        }
-
-        auto initMasterChannel = [&] (
-            EMasterChannelKind channelKind,
-            const TMasterConnectionConfigPtr& config,
-            EPeerKind peerKind)
-        {
-            auto cellTag = CellTagFromId(config->CellId);
-            MasterChannels_[channelKind][cellTag] = CreatePeerChannel(config, peerKind);
-        };
-
-        auto leaderPeerKind = EPeerKind::Leader;
-        auto followerPeerKind = Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader;
-
-        auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
-            initMasterChannel(EMasterChannelKind::Leader, config, leaderPeerKind);
-            initMasterChannel(EMasterChannelKind::Follower, config, followerPeerKind);
-
-            auto masterCacheConfig = config;
-            if (Config_->MasterCache) {
-                masterCacheConfig = CloneYsonSerializable(Config_->MasterCache);
-                masterCacheConfig->CellId = config->CellId;
-            }
-
-            initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, followerPeerKind);
-        };
-
-        initMasterChannels(Config_->PrimaryMaster);
-        for (const auto& masterConfig : Config_->SecondaryMasters) {
-            initMasterChannels(masterConfig);
-        }
+        MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
+            Config_,
+            Options_,
+            ChannelFactory_,
+            Logger);
+        MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
+            Config_->MasterCellDirectorySynchronizer,
+            MasterCellDirectory_);
+        MasterCellDirectorySynchronizer_->Start();
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -155,7 +129,7 @@ public:
             this,
             ClusterDirectory_);
 
-        CellDirectory_ = New<TCellDirectory>(
+        CellDirectory_ = New<NHiveClient::TCellDirectory>(
             Config_->CellDirectory,
             ChannelFactory_,
             GetNetworks(),
@@ -164,10 +138,11 @@ public:
         for (const auto& cellConfig : Config_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);
         }
-        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+
+        CellDirectorySynchronizer_ = New<NHiveClient::TCellDirectorySynchronizer>(
             Config_->CellDirectorySynchronizer,
             CellDirectory_,
-            PrimaryMasterCellId_,
+            GetPrimaryMasterCellId(),
             Logger);
         DownedCellTracker_ = New<TCellTracker>();
 
@@ -195,7 +170,7 @@ public:
 
     virtual TCellTag GetCellTag() override
     {
-        return CellTagFromId(Config_->PrimaryMaster->CellId);
+        return GetPrimaryMasterCellTag();
     }
 
     virtual const ITableMountCachePtr& GetTableMountCache() override
@@ -242,46 +217,36 @@ public:
 
     virtual TCellId GetPrimaryMasterCellId() const override
     {
-        return PrimaryMasterCellId_;
+        return MasterCellDirectory_->GetPrimaryMasterCellId();
     }
 
     virtual TCellTag GetPrimaryMasterCellTag() const override
     {
-        return PrimaryMasterCellTag_;
+        return MasterCellDirectory_->GetPrimaryMasterCellTag();
     }
 
     virtual const TCellTagList& GetSecondaryMasterCellTags() const override
     {
-        return SecondaryMasterCellTags_;
+        return MasterCellDirectory_->GetSecondaryMasterCellTags();
     }
 
     virtual TCellId GetMasterCellId(TCellTag cellTag) const override
     {
-        return ReplaceCellTagInId(PrimaryMasterCellId_, cellTag);
+        return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
     virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override
     {
-        const auto& channels = MasterChannels_[kind];
-        auto it = channels.find(cellTag == PrimaryMasterCellTag ? PrimaryMasterCellTag_ : cellTag);
-        if (it == channels.end()) {
-            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-                cellTag);
-        }
-        return it->second;
+        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellTag);
     }
 
     virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellId cellId) override
     {
-        if (ReplaceCellTagInId(cellId, 0) != ReplaceCellTagInId(PrimaryMasterCellId_, 0)) {
-            THROW_ERROR_EXCEPTION("Unknown master cell id %v",
-                cellId);
-        }
-        return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
+        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellId);
     }
 
     virtual const IChannelPtr& GetSchedulerChannel() override
@@ -309,13 +274,22 @@ public:
         return ColumnEvaluatorCache_;
     }
 
+    virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
+    {
+        return MasterCellDirectory_;
+    }
 
-    virtual const TCellDirectoryPtr& GetCellDirectory() override
+    virtual const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
+    {
+        return MasterCellDirectorySynchronizer_;
+    }
+
+    virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() override
     {
         return CellDirectory_;
     }
 
-    virtual const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
+    virtual const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
     {
         return CellDirectorySynchronizer_;
     }
@@ -337,12 +311,12 @@ public:
         return DownedCellTracker_;
     }
 
-    virtual const TClusterDirectoryPtr& GetClusterDirectory() override
+    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
     {
         return ClusterDirectory_;
     }
 
-    virtual const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
+    virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
         return ClusterDirectorySynchronizer_;
     }
@@ -399,11 +373,10 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     TPeriodicExecutorPtr TerminateIdleChannels_;
 
-    TCellId PrimaryMasterCellId_;
-    TCellTag PrimaryMasterCellTag_;
-    TCellTagList SecondaryMasterCellTags_;
+    // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
+    NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
+    NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
-    TEnumIndexedVector<EMasterChannelKind, THashMap<TCellTag, IChannelPtr>> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
@@ -411,8 +384,8 @@ private:
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    TCellDirectoryPtr CellDirectory_;
-    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveClient::TCellDirectoryPtr CellDirectory_;
+    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     TCellTrackerPtr DownedCellTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
@@ -424,33 +397,6 @@ private:
     TThreadPoolPtr ThreadPool_;
 
     std::atomic<bool> Terminated_ = {false};
-
-    IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind)
-    {
-        auto channel = NHydra::CreatePeerChannel(
-            config,
-            ChannelFactory_,
-            kind);
-
-        auto isRetryableError = BIND([options = Options_] (const TError& error) {
-            if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
-                return true;
-            }
-
-            if (options.RetryRequestQueueSizeLimitExceeded &&
-                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
-            {
-                return true;
-            }
-
-            return IsRetriableError(error);
-        });
-        channel = CreateRetryingChannel(config, channel, isRetryableError);
-
-        channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
-
-        return channel;
-    }
 };
 
 IConnectionPtr CreateConnection(
