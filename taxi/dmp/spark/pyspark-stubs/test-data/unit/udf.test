@@ -1,0 +1,78 @@
+[case scalarUDF]
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+
+@pandas_udf("str", PandasUDFType.SCALAR)
+def f(x):
+    return x
+
+@pandas_udf("str", PandasUDFType.SCALAR)
+def g(x, y):
+    return x
+
+@pandas_udf("str", PandasUDFType.SCALAR)
+def h(*xs):
+    return xs[0]
+
+pandas_udf(lambda x: x, "str", PandasUDFType.SCALAR)
+pandas_udf(lambda x, y: x, "str", PandasUDFType.SCALAR)
+pandas_udf(lambda *xs: xs[0], "str", PandasUDFType.SCALAR)
+[out]
+
+[case scalarIterUDF]
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.types import IntegerType
+
+@pandas_udf(IntegerType(), PandasUDFType.SCALAR_ITER)
+def f(xs):
+    for x in xs:
+        yield x + 1
+[out]
+
+[case groupedMapUdf]
+from pyspark.sql.session import SparkSession
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+
+@pandas_udf("id long", PandasUDFType.GROUPED_MAP)
+def f(pdf):
+   return pdf
+
+spark = SparkSession.builder.getOrCreate()
+
+spark.range(1).groupBy("id").apply(f)
+[out]
+
+[case groupedAggUDF]
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.types import IntegerType
+
+@pandas_udf(IntegerType(), PandasUDFType.GROUPED_AGG)
+def f(x):
+    return 42
+
+@pandas_udf("int", PandasUDFType.GROUPED_AGG)
+def g(x, y):
+    return 42
+
+@pandas_udf("int", PandasUDFType.GROUPED_AGG)
+def h(*xs):
+    return 42
+
+pandas_udf(lambda x: 42, "str", PandasUDFType.GROUPED_AGG)
+pandas_udf(lambda x, y: 42, "str", PandasUDFType.GROUPED_AGG)
+pandas_udf(lambda *xs: 42, "str", PandasUDFType.GROUPED_AGG)
+[out]
+
+
+[case mapIterUdf]
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.session import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+@pandas_udf("id long", PandasUDFType.MAP_ITER)
+def f(batch_iter):
+    for pdf in batch_iter:
+        yield pdf[pdf.id == 1]
+
+spark.range(1).mapInPandas(f).show()
+[out]
