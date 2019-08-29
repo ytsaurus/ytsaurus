@@ -409,7 +409,7 @@ private:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
                 owner->EventCount_,
-                "Profiling",
+                "ProfileManager",
                 EmptyTagIds,
                 true,
                 false)

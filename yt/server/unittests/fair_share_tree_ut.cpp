@@ -39,7 +39,7 @@ struct TSchedulerStrategyHostMock
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetProfilingInvoker() const override
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         YT_UNIMPLEMENTED();
     }

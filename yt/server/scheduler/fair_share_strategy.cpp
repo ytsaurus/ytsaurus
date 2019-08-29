@@ -55,7 +55,7 @@ public:
         , Logger(SchedulerLogger)
     {
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::CollectProfiling),
+            Host->GetControlInvoker(EControlQueue::Profiling),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
             Config->FairShareProfilingPeriod);
 
@@ -662,7 +662,7 @@ public:
         ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
                 accumulator.BuildAndPublish(&profiler);
             })
-            .AsyncVia(Host->GetProfilingInvoker())
+            .AsyncVia(Host->GetFairShareProfilingInvoker())
             .Run();
     }
 
