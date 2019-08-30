@@ -917,8 +917,6 @@ public:
         if (chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, +1);
         }
-
-        ScheduleChunkExpiration(chunk);
     }
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
@@ -974,16 +972,17 @@ public:
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(chunk->IsStaged());
+        YT_VERIFY(!chunk->IsConfirmed());
 
         auto now = GetCurrentMutationContext()->GetTimestamp();
         chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
-        ExpirationTracker_->OnChunkStaged(chunk);
+        ExpirationTracker_->ScheduleExpiration(chunk);
     }
 
     void CancelChunkExpiration(TChunk* chunk)
     {
         if (chunk->IsStaged()) {
-            ExpirationTracker_->OnChunkUnstaged(chunk);
+            ExpirationTracker_->CancelExpiration(chunk);
             chunk->SetExpirationTime(TInstant::Zero());
         }
     }
@@ -2607,9 +2606,8 @@ private:
             }
 
             // COMPAT(shakurov)
-            // The second check is only needed for old (pre-migration) staged chunks.
-            if (chunk->IsStaged() && chunk->GetExpirationTime()) {
-                ExpirationTracker_->OnChunkStaged(chunk);
+            if (chunk->GetExpirationTime()) {
+                ExpirationTracker_->ScheduleExpiration(chunk);
             }
         }
 
@@ -3064,6 +3062,8 @@ private:
 
     void UnregisterChunk(TChunk* chunk)
     {
+        CancelChunkExpiration(chunk);
+
         AllChunks_.Remove(chunk);
         if (chunk->IsJournal()) {
             JournalChunks_.Remove(chunk);
@@ -3111,6 +3111,10 @@ private:
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
             ++ChunkReplicasAdded_;
+        }
+
+        if (chunk->IsStaged() && !chunk->IsConfirmed()) {
+            ScheduleChunkExpiration(chunk);
         }
     }
 
