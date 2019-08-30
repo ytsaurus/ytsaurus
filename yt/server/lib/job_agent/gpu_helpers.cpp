@@ -31,6 +31,7 @@ static const auto GpuUuidMessage = "GPU UUID";
 static const TString DevNvidiaPath("/dev/nvidia");
 static const TString DevPath("/dev");
 static const TString NvidiaDevicePrefix("nvidia");
+static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
 static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
     "/dev/nvidia-uvm"
@@ -262,12 +263,11 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
 
 TString GetGpuDriverVersion()
 {
-    TString moduleVersionPath = "/sys/module/version/nvidia";
     try {
-        TFileInput moduleVersion(moduleVersionPath);
+        TFileInput moduleVersion(NvidiaModuleVersionPath);
         return moduleVersion.ReadLine();
     } catch (std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", moduleVersionPath) << ex;
+        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", NvidiaModuleVersionPath) << ex;
     }
 }
 
