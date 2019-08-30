@@ -36,9 +36,7 @@ public:
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
-    {
-        YT_LOG_DEBUG("MARK100 %v", Config_->SyncPeriod);
-    }
+    { }
 
     void Start()
     {
