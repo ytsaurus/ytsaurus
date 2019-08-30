@@ -371,12 +371,11 @@ public:
                 YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
-                auto simplified = denseField.Simplify();
                 TUnversionedValueToSkiffConverter converter;
                 if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
                     converter = *complexConverter;
                 } else {
-                    converter = CreateSimpleValueConverter(*simplified, denseField.IsRequired());
+                    converter = CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired());
                 }
                 denseFieldWriterInfos.emplace_back(converter, id);
             }

@@ -342,7 +342,7 @@ EWireType TFieldDescription::ValidatedSimplify() const
 {
     auto result = Simplify();
     if (!result) {
-        THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qlv",
+        THROW_ERROR_EXCEPTION("Column %Qv cannot be represented with skiff schema %Qlv",
             Name_,
             GetShortDebugString(Schema_));
     }
