@@ -29,6 +29,7 @@ TDiscovery::TDiscovery(
         BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
         config->UpdatePeriod))
     , Logger(logger)
+    , Epoch_(0)
 {
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
         extraAttributes.push_back("locks");
@@ -39,6 +40,7 @@ TDiscovery::TDiscovery(
     ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;
     ListOptions_.ExpireAfterFailedUpdateTime = Config_->MasterCacheExpireTime;
     Logger.AddTag("Group: %v", Config_->Directory);
+    Logger.AddTag("DiscoveryId: %v", TGuid::Create());
 }
 
 TFuture<void> TDiscovery::Enter(TString name, TAttributeDictionary attributes)
@@ -136,46 +138,42 @@ void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
     YT_LOG_DEBUG("Instance node created (Name: %v)",
         name);
 
-    TTransactionStartOptions transactionOptions {
-        .Timeout = Config_->TransactionTimeout,
-    };
-    Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, transactionOptions))
-        .ValueOrThrow();
-
-    YT_LOG_DEBUG("Transaction for lock started (TransactionId: %v)",
-        name);
-
     {
         TWriterGuard guard(Lock_);
         SelfAttributes_ = {name, attributes};
     }
 
-    TLockNodeOptions lockOptions;
-    lockOptions.ChildKey = "lock";
-
-    auto lock = WaitFor(Transaction_->LockNode(Config_->Directory + "/" + name, NCypressClient::ELockMode::Shared, lockOptions))
-        .ValueOrThrow();
+    TransactionRestorer_ = BIND(&TDiscovery::OnTransactionAborted, MakeWeak(this), Epoch_)
+        .Via(Invoker_);
     
-    YT_LOG_INFO("Enter to the group (TransactionId: %v, LockId: %v)",
-        Transaction_->GetId(),
-        lock.LockId);
+    DoLockNode(Epoch_);
+
+    YT_LOG_INFO("Entered the group");
 }
 
 void TDiscovery::DoLeave()
 {
     YT_VERIFY(Transaction_);
 
-    WaitFor(Transaction_->Abort())
-        .ThrowOnError();
+    ++Epoch_;
 
-    YT_LOG_INFO("Left the group (TransactionId: %v)", Transaction_->GetId());
+    Transaction_->UnsubscribeAborted(TransactionRestorer_);
 
-    Transaction_.Reset();
+    auto transactionId = Transaction_->GetId();
+    auto error = WaitFor(Transaction_->Abort());
+    if (!error.IsOK()) {
+        // Transaction may already expire and lock will be dead.
+        YT_LOG_INFO("Error during aborting transaction (Error: %v)", error);
+    }
+
+    YT_LOG_INFO("Left the group (TransactionId: %v)", transactionId);
 
     {
         TWriterGuard guard(Lock_);
         SelfAttributes_.reset();
     }
+    
+    Transaction_.Reset();
 }
     
 void TDiscovery::DoUpdateList()
@@ -218,6 +216,60 @@ void TDiscovery::DoUpdateList()
         LastUpdate_ = TInstant::Now();
     }
     YT_LOG_INFO("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
+}
+
+void TDiscovery::DoLockNode(int epoch)
+{
+    if (Epoch_ != epoch) {
+        return;
+    }
+
+    TTransactionStartOptions transactionOptions {
+        .Timeout = Config_->TransactionTimeout,
+        .PingPeriod = Config_->TransactionPingPeriod,
+    };
+    auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master, transactionOptions))
+        .ValueOrThrow();
+
+    YT_LOG_DEBUG("Transaction for lock started (TransactionId: %v)",
+        transaction->GetId());
+
+    if (Epoch_ != epoch) {
+        transaction->Abort();
+        return;
+    }
+
+    TLockNodeOptions lockOptions;
+    lockOptions.ChildKey = "lock";
+
+    auto lock = WaitFor(transaction->LockNode(Config_->Directory + "/" + SelfAttributes_->first, NCypressClient::ELockMode::Shared, lockOptions))
+        .ValueOrThrow();
+
+    if (Epoch_ != epoch) {
+        transaction->Abort();
+        return;
+    }
+    Transaction_ = std::move(transaction);
+    // Set it here to avoid restoring transaction without lock.
+    Transaction_->SubscribeAborted(TransactionRestorer_);
+    
+    YT_LOG_DEBUG("Lock completed (TransactionId: %v, LockId: %v)",
+        Transaction_->GetId(),
+        lock.LockId);
+}
+
+void TDiscovery::OnTransactionAborted(int epoch)
+{
+    YT_LOG_WARNING("Lock transaction aborted (Epoch: %v)", epoch);
+    while (Epoch_ == epoch) {
+        try {
+            DoLockNode(epoch);
+            break;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error occured while restoring lock of the node");
+            TDelayedExecutor::WaitForDuration(Config_->TransactionPingPeriod);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

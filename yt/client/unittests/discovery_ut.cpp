@@ -123,6 +123,9 @@ TEST(TDiscoveryTest, Enter)
                 return MakeFuture(TLockNodeResult());
             }));
 
+    EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
+        .Times(1);
+
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
@@ -195,6 +198,12 @@ TEST(TDiscoveryTest, Leave) {
                 locked = false;
                 return VoidFuture;
             }));
+
+    EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
+        .Times(1);
+
+    EXPECT_CALL(*MockTransaction, UnsubscribeAborted(_))
+        .Times(1);
 
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
@@ -356,6 +365,9 @@ TEST(TDiscoveryTest, CreationRace)
                 return MakeFuture(TLockNodeResult());
             }));
 
+    EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
+        .Times(1);
+
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
@@ -368,7 +380,7 @@ TEST(TDiscoveryTest, CreationRace)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    discovery->Enter("test_node", TDiscovery::TAttributeDictionary());
+    auto enterFuture = discovery->Enter("test_node", TDiscovery::TAttributeDictionary());
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
 
@@ -378,6 +390,9 @@ TEST(TDiscoveryTest, CreationRace)
     allowLockResponse.Set();
 
     WaitFor(discovery->StopPolling())
+        .ThrowOnError();
+
+    WaitFor(enterFuture)
         .ThrowOnError();
 }
 
