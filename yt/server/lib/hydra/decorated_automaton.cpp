@@ -235,9 +235,10 @@ public:
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
-            if (BuildSnapshotDelay_) {
+            if (BuildSnapshotDelay_ != TDuration::Zero()) {
                 YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
-                TDelayedExecutor::WaitForDuration(BuildSnapshotDelay_);
+                // NB: Sleep, not TDelayedExecutor::WaitForDuration since context switch could be forbidden.
+                Sleep(BuildSnapshotDelay_);
             }
 
             return DoRun().Apply(
@@ -1276,10 +1277,9 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 {
-    auto Logger = HydraLogger;
-
-    if (GetAutomatonVersion() != SnapshotVersion_)
+    if (GetAutomatonVersion() != SnapshotVersion_) {
         return;
+    }
 
     auto builder = Options_.UseFork
        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
