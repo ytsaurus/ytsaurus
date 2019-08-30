@@ -95,7 +95,7 @@ func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	var params bytes.Buffer
 
-	w := yson.NewWriter(&params)
+	w := yson.NewWriterFormat(&params, yson.FormatText)
 	w.BeginMap()
 	call.Params.MarshalHTTP(w)
 	w.EndMap()
@@ -150,6 +150,7 @@ func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, 
 	if body != nil {
 		req.Header.Add("X-YT-Input-Format", "yson")
 	}
+	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")
 
 	if c.credentials != nil {
