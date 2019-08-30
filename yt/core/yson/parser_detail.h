@@ -192,31 +192,36 @@ private:
 
             case '"': {
                 TBase::Advance(1);
-                TStringBuf value = TBase::ReadQuotedString();
+                TStringBuf value;
+                TBase::ReadQuotedString(&value);
                 Consumer->OnStringScalar(value);
                 break;
             }
             case StringMarker: {
                 TBase::Advance(1);
-                TStringBuf value = TBase::ReadBinaryString();
+                TStringBuf value;
+                TBase::ReadBinaryString(&value);
                 Consumer->OnStringScalar(value);
                 break;
             }
             case Int64Marker:{
                 TBase::Advance(1);
-                i64 value = TBase::ReadBinaryInt64();
+                i64 value;
+                TBase::ReadBinaryInt64(&value);
                 Consumer->OnInt64Scalar(value);
                 break;
             }
             case Uint64Marker:{
                 TBase::Advance(1);
-                ui64 value = TBase::ReadBinaryUint64();
+                ui64 value;
+                TBase::ReadBinaryUint64(&value);
                 Consumer->OnUint64Scalar(value);
                 break;
             }
             case DoubleMarker: {
                 TBase::Advance(1);
-                double value = TBase::ReadBinaryDouble();
+                double value;
+                TBase::ReadBinaryDouble(&value);
                 Consumer->OnDoubleScalar(value);
                 break;
             }
@@ -239,7 +244,8 @@ private:
                 if (isdigit(ch) || ch == '-' || ch == '+') { // case of '+' is handled in AfterPlus state
                     ReadNumeric<AllowFinish>();
                 } else if (isalpha(ch) || ch == '_') {
-                    TStringBuf value = TBase::template ReadUnquotedString<AllowFinish>();
+                    TStringBuf value;
+                    TBase::template ReadUnquotedString<AllowFinish>(&value);
                     Consumer->OnStringScalar(value);
                 } else if (ch == '%') {
                     TBase::Advance(1);
@@ -272,19 +278,22 @@ private:
         switch (ch) {
             case '"': {
                 TBase::Advance(1);
-                TStringBuf value = TBase::ReadQuotedString();
+                TStringBuf value;
+                TBase::ReadQuotedString(&value);
                 Consumer->OnKeyedItem(value);
                 break;
             }
             case StringMarker: {
                 TBase::Advance(1);
-                TStringBuf value = TBase::ReadBinaryString();
+                TStringBuf value;
+                TBase::ReadBinaryString(&value);
                 Consumer->OnKeyedItem(value);
                 break;
             }
             default: {
                 if (isalpha(ch) || ch == '_') {
-                    TStringBuf value = TBase::ReadUnquotedString();
+                    TStringBuf value;
+                    TBase::ReadUnquotedString(&value);
                     Consumer->OnKeyedItem(value);
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing key",

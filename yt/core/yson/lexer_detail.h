@@ -171,8 +171,9 @@ public:
         if (stateBits & 1) { // Other = x1b
             if (stateBits & 1 << 1) { // Other = xxx11b
                 if (state == EReadStartCase::Quote) {
+                    TStringBuf value;
                     TBase::Advance(1);
-                    TStringBuf value = TBase::ReadQuotedString();
+                    TBase::ReadQuotedString(&value);
                     *token = TToken(value);
                 } else if (state == EReadStartCase::DigitOrMinus) {
                     ReadNumeric<true>(token);
@@ -187,7 +188,8 @@ public:
                         ReadNumeric<true>(token);
                     }
                 } else if (state == EReadStartCase::String) {
-                    TStringBuf value = TBase::template ReadUnquotedString<true>();
+                    TStringBuf value;
+                    TBase::template ReadUnquotedString<true>(&value);
                     *token = TToken(value);
                 } else if (state == EReadStartCase::Percent) {
                     TBase::Advance(1);
@@ -205,13 +207,16 @@ public:
             } else { // BinaryScalar = x01b
                 TBase::Advance(1);
                 if (state == EReadStartCase::BinaryDouble) {
-                    double value = TBase::ReadBinaryDouble();
+                    double value;
+                    TBase::ReadBinaryDouble(&value);
                     *token = TToken(value);
                 } else if (state == EReadStartCase::BinaryInt64) {
-                    i64 value = TBase::ReadBinaryInt64();
+                    i64 value;
+                    TBase::ReadBinaryInt64(&value);
                     *token = TToken(value);
                 } else if (state == EReadStartCase::BinaryUint64) {
-                    ui64 value = TBase::ReadBinaryUint64();
+                    ui64 value;
+                    TBase::ReadBinaryUint64(&value);
                     *token = TToken(value);
                 } else if (state == EReadStartCase::BinaryFalse) {
                     *token = TToken(false);
@@ -228,7 +233,8 @@ public:
                 *token = TToken(ETokenType(stateBits >> 2));
             } else { // BinaryString = 00b
                 YT_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::BinaryString));
-                TStringBuf value = TBase::ReadBinaryString();
+                TStringBuf value;
+                TBase::ReadBinaryString(&value);
                 *token = TToken(value);
             }
         }
