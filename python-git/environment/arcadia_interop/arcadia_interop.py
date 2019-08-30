@@ -1,5 +1,6 @@
 import os
 import sys
+import stat
 import fcntl
 import time
 import shutil
@@ -8,6 +9,20 @@ try:
     import yatest.common as yatest_common
 except ImportError:
     yatest_common = None
+
+
+def workaround_executable_bit_loss(destination, binary):
+    st = os.stat(binary)
+    if st.st_mode & stat.S_IXUSR == 0:
+        try:
+            os.chmod(binary, 0o755)
+            return binary
+        except:
+            local_file = os.path.join(destination, os.path.basename(binary))
+            shutil.copyfile(binary, local_file)
+            os.chmod(local_file, 0o755)
+            return local_file
+    return binary
 
 
 def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False):
@@ -26,6 +41,11 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         python_root = "python/"
         global_root = ""
 
+    if use_ytserver_all:
+        ytserver_all = workaround_executable_bit_loss(
+            destination,
+            yatest_common.binary_path("yt/packages/19_4/result/ytserver-all"))
+
     programs = [("master", "master/bin"),
                 ("clock", "clock_server/bin"),
                 ("node", "node/bin"),
@@ -40,12 +60,7 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         if not use_ytserver_all:
             binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
         else:
-            binary_path = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
-            # Work around FROM_SANDBOX macro loosing executable bit
-            try:
-                os.chmod(binary_path, 0o755)
-            except:
-                pass
+            binary_path = ytserver_all
 
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
