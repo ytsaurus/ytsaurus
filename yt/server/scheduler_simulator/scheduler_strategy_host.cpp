@@ -26,7 +26,7 @@ IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQ
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetProfilingInvoker() const
+IInvokerPtr TSchedulerStrategyHost::GetFairShareProfilingInvoker() const
 {
     return GetCurrentInvoker();
 }
