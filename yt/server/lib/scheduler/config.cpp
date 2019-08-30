@@ -267,6 +267,9 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
     RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("incarnation_transaction_timeout", IncarnationTransactionTimeout)
+        .Default(TDuration::Seconds(30));
+
     RegisterParameter("agent_pick_strategy", AgentPickStrategy)
         .Default(EControllerAgentPickStrategy::Random);
 
@@ -316,7 +319,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
     RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(30));
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
         .Default(TDuration::Seconds(300));
 
@@ -432,7 +435,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
-    
+
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 

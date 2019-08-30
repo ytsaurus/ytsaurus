@@ -880,6 +880,7 @@ public:
             agentId);
 
         NApi::TTransactionStartOptions options;
+        options.Timeout = Config_->IncarnationTransactionTimeout;
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Controller agent incarnation for %v", agentId));
         options.Attributes = std::move(attributes);

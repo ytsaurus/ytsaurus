@@ -308,6 +308,9 @@ public:
     // it is automatically unregistered.
     TDuration HeartbeatTimeout;
 
+    // Timeout of incarnation transaction.
+    TDuration IncarnationTransactionTimeout;
+
     // Strategy to pick controller agent for operation.
     EControllerAgentPickStrategy AgentPickStrategy;
 
