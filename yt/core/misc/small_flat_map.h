@@ -31,7 +31,7 @@ public:
 private:
     using TStorage = SmallVector<value_type, N>;
 
-    struct TKeyCompare
+    struct TKeyComparer
     {
         bool operator()(const K& lhs, const value_type& rhs)
         {
@@ -49,6 +49,11 @@ public:
     using const_iterator = typename TStorage::const_iterator;
     using size_type = size_t;
 
+    TSmallFlatMap() = default;
+
+    template <class TInputIterator>
+    TSmallFlatMap(TInputIterator begin, TInputIterator end);
+
     iterator begin();
     const_iterator begin() const;
 
@@ -57,15 +62,24 @@ public:
 
     void reserve(size_type n);
 
+    size_type size() const;
+    int ssize() const;
+
+    bool empty() const;
+    void clear();
+
     iterator find(const K& k);
     const_iterator find(const K& k) const;
 
     std::pair<iterator, bool> insert(const value_type& value);
 
+    template <class TInputIterator>
+    void insert(TInputIterator begin, TInputIterator end);
+
     V& operator[](const K& k);
 
-    iterator erase(const K& k);
-    iterator erase(iterator b, iterator e);
+    void erase(const K& k);
+    void erase(iterator b, iterator e);
 
 private:
     std::pair<iterator, iterator> EqualRange(const K& k);
