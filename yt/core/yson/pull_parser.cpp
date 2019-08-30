@@ -6,9 +6,66 @@ namespace NYT::NYson {
 
 namespace NDetail {
 
-static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer);
+////////////////////////////////////////////////////////////////////////////////
 
-void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer);
+static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer);
+
+static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
+{
+    while (true) {
+        switch (cursor->GetCurrent().GetType()) {
+            case EYsonItemType::BeginAttributes:
+                consumer->OnBeginAttributes();
+                TransferMapOrAttributesImpl(cursor, consumer);
+                consumer->OnEndAttributes();
+                continue;
+            case EYsonItemType::BeginList:
+                consumer->OnBeginList();
+                TransferListImpl(cursor, consumer);
+                consumer->OnEndList();
+                return;
+            case EYsonItemType::BeginMap:
+                consumer->OnBeginMap();
+                TransferMapOrAttributesImpl(cursor, consumer);
+                consumer->OnEndMap();
+                return;
+            case EYsonItemType::EntityValue:
+                consumer->OnEntity();
+                cursor->Next();
+                return;
+            case EYsonItemType::BooleanValue:
+                consumer->OnBooleanScalar(cursor->GetCurrent().UncheckedAsBoolean());
+                cursor->Next();
+                return;
+            case EYsonItemType::Int64Value:
+                consumer->OnInt64Scalar(cursor->GetCurrent().UncheckedAsInt64());
+                cursor->Next();
+                return;
+            case EYsonItemType::Uint64Value:
+                consumer->OnUint64Scalar(cursor->GetCurrent().UncheckedAsUint64());
+                cursor->Next();
+                return;
+            case EYsonItemType::DoubleValue:
+                consumer->OnDoubleScalar(cursor->GetCurrent().UncheckedAsDouble());
+                cursor->Next();
+                return;
+            case EYsonItemType::StringValue:
+                consumer->OnStringScalar(cursor->GetCurrent().UncheckedAsString());
+                cursor->Next();
+                return;
+
+            case EYsonItemType::EndOfStream:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::EndMap:
+            case EYsonItemType::EndList:
+                break;
+        }
+        YT_ABORT();
+    }
+}
+
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
 {
     YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
         cursor->GetCurrent().GetType() == EYsonItemType::BeginMap);
@@ -23,7 +80,7 @@ void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* c
     cursor->Next();
 }
 
-void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
+static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
 {
     YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
     cursor->Next();
@@ -32,59 +89,6 @@ void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
         TransferComplexValueImpl(cursor, consumer);
     }
     cursor->Next();
-}
-
-static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
-{
-    switch (cursor->GetCurrent().GetType()) {
-        case EYsonItemType::BeginAttributes:
-            consumer->OnBeginAttributes();
-            TransferMapOrAttributesImpl(cursor, consumer);
-            consumer->OnEndAttributes();
-            TransferComplexValueImpl(cursor, consumer);
-            return;
-        case EYsonItemType::BeginList:
-            consumer->OnBeginList();
-            TransferListImpl(cursor, consumer);
-            consumer->OnEndList();
-            return;
-        case EYsonItemType::BeginMap:
-            consumer->OnBeginMap();
-            TransferMapOrAttributesImpl(cursor, consumer);
-            consumer->OnEndMap();
-            return;
-        case EYsonItemType::EntityValue:
-            consumer->OnEntity();
-            cursor->Next();
-            return;
-        case EYsonItemType::BooleanValue:
-            consumer->OnBooleanScalar(cursor->GetCurrent().UncheckedAsBoolean());
-            cursor->Next();
-            return;
-        case EYsonItemType::Int64Value:
-            consumer->OnInt64Scalar(cursor->GetCurrent().UncheckedAsInt64());
-            cursor->Next();
-            return;
-        case EYsonItemType::Uint64Value:
-            consumer->OnUint64Scalar(cursor->GetCurrent().UncheckedAsUint64());
-            cursor->Next();
-            return;
-        case EYsonItemType::DoubleValue:
-            consumer->OnDoubleScalar(cursor->GetCurrent().UncheckedAsDouble());
-            cursor->Next();
-            return;
-        case EYsonItemType::StringValue:
-            consumer->OnStringScalar(cursor->GetCurrent().UncheckedAsString());
-            cursor->Next();
-            return;
-
-        case EYsonItemType::EndOfStream:
-        case EYsonItemType::EndAttributes:
-        case EYsonItemType::EndMap:
-        case EYsonItemType::EndList:
-            break;
-    }
-    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

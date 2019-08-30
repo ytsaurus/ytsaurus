@@ -519,36 +519,31 @@ TYsonItem TYsonPullParser::NextImpl()
                 return TYsonItem::Simple(EYsonItemType::EndList);
             case '"': {
                 Lexer_.Advance(1);
-                TStringBuf value;
-                Lexer_.ReadQuotedString(&value);
+                TStringBuf value = Lexer_.ReadQuotedString();
                 SyntaxChecker_.OnString();
                 return TYsonItem::String(value);
             }
             case StringMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnString();
-                TStringBuf value;
-                Lexer_.ReadBinaryString(&value);
+                TStringBuf value = Lexer_.ReadBinaryString();
                 return TYsonItem::String(value);
             }
             case Int64Marker: {
                 Lexer_.Advance(1);
-                i64 value;
-                Lexer_.ReadBinaryInt64(&value);
+                i64 value = Lexer_.ReadBinaryInt64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
                 return TYsonItem::Int64(value);
             }
             case Uint64Marker: {
                 Lexer_.Advance(1);
-                ui64 value;
-                Lexer_.ReadBinaryUint64(&value);
+                ui64 value = Lexer_.ReadBinaryUint64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
                 return TYsonItem::Uint64(value);
             }
             case DoubleMarker: {
                 Lexer_.Advance(1);
-                double value;
-                Lexer_.ReadBinaryDouble(&value);
+                double value = Lexer_.ReadBinaryDouble();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
                 return TYsonItem::Double(value);
             }
@@ -631,8 +626,7 @@ TYsonItem TYsonPullParser::NextImpl()
                         return TYsonItem::Uint64(value);
                     }
                 } else if (isalpha(ch) || ch == '_') {
-                    TStringBuf value;
-                    Lexer_.template ReadUnquotedString<false>(&value);
+                    TStringBuf value = Lexer_.template ReadUnquotedString<false>();
                     SyntaxChecker_.OnString();
                     return TYsonItem::String(value);
                 } else {
