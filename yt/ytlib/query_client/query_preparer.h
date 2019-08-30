@@ -2,6 +2,7 @@
 
 #include "query.h"
 #include "ast.h"
+#include "callbacks.h"
 
 namespace NYT::NQueryClient {
 

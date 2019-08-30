@@ -988,66 +988,6 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, considerLimit);
 }
 
-struct TExtraColumnsChecker
-    : TVisitor<TExtraColumnsChecker>
-{
-    using TBase = TVisitor<TExtraColumnsChecker>;
-
-    const THashSet<TString>& Names;
-    bool HasExtraColumns = false;
-
-    explicit TExtraColumnsChecker(const THashSet<TString>& names)
-        : Names(names)
-    { }
-
-
-    void OnReference(const TReferenceExpression* referenceExpr)
-    {
-        HasExtraColumns |= Names.count(referenceExpr->ColumnName) == 0;
-    }
-};
-
-std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema)
-{
-    THashSet<TString> names;
-    for (const auto& column : schema.Columns()) {
-        names.insert(column.Name());
-    }
-
-    std::vector<size_t> joinGroups;
-
-    size_t counter = 0;
-    for (const auto& joinClause : joinClauses) {
-        TExtraColumnsChecker extraColumnsChecker(names);
-
-        for (const auto& equation : joinClause->SelfEquations) {
-            if (!equation.second) {
-                extraColumnsChecker.Visit(equation.first);
-            }
-        }
-
-        if (extraColumnsChecker.HasExtraColumns) {
-            YT_VERIFY(counter > 0);
-            joinGroups.push_back(counter);
-            counter = 0;
-            names.clear();
-            for (const auto& column : schema.Columns()) {
-                names.insert(column.Name());
-            }
-        }
-
-        ++counter;
-        schema = joinClause->GetTableSchema(schema);
-    }
-
-    if (counter > 0) {
-        joinGroups.push_back(counter);
-        counter = 0;
-    }
-
-    return joinGroups;
-}
-
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstQueryPtr& query,
@@ -1514,6 +1454,17 @@ TCGQueryCallbackGenerator Profile(
         ] () {
             return CodegenEvaluate(&codegenSource, slotCount);
         };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExtraColumnsChecker::TExtraColumnsChecker(const THashSet<TString>& names)
+    : Names(names)
+{ }
+
+void TExtraColumnsChecker::OnReference(const TReferenceExpression* referenceExpr)
+{
+    HasExtraColumns |= Names.count(referenceExpr->ColumnName) == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

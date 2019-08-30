@@ -434,6 +434,29 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqExplain
+{
+    required string query = 1;
+
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+
+    optional uint64 input_row_limit = 4;
+    optional uint64 output_row_limit = 5;
+    optional uint64 range_expansion_limit = 6;
+    optional int32 max_subqueries = 7;
+    optional bool allow_full_scan = 8;
+    optional bool allow_join_without_index = 9;
+    optional string udf_registry_path = 10;
+    optional string execution_pool = 11;
+}
+
+message TRspExplain
+{
+    required bytes value = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
 message TReqGetInSyncReplicas
 {
     required string path = 1;

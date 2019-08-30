@@ -49,6 +49,10 @@ public:
         const TString& query,
         const TSelectRowsOptions& options));
 
+    MOCK_METHOD2(Explain, TFuture<NYson::TYsonString>(
+        const TString& query,
+        const TExplainOptions& options));
+
     MOCK_METHOD2(CreateTableReader, TFuture<ITableReaderPtr>(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options));

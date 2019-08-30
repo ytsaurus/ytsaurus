@@ -84,6 +84,10 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
+    virtual TFuture<NYson::TYsonString> Explain(
+        const TString& query,
+        const NApi::TExplainOptions& options) override;
+
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override;

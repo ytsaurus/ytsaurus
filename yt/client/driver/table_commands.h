@@ -227,6 +227,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExplainOptions
+    : public NApi::TExplainOptions
+    , public TTabletReadOptions
+{ };
+
+
+class TExplainCommand
+    : public TTypedCommand<TExplainOptions>
+{
+public:
+    TExplainCommand();
+
+private:
+    TString Query;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInsertRowsCommand
     : public TTypedCommand<TInsertRowsOptions>
 {

@@ -10,6 +10,8 @@
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/convert.h>
 

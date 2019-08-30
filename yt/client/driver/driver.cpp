@@ -1,5 +1,4 @@
 #include "driver.h"
-#include "driver.h"
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
@@ -179,6 +178,7 @@ public:
         REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Structured, true,  true , ApiVersion4);
 
+        REGISTER_ALL(TExplainCommand,                     "explain",                       Null,       Structured, false, true);
         REGISTER_ALL(TSelectRowsCommand,                  "select_rows",                   Null,       Tabular,    false, true );
         REGISTER_ALL(TLookupRowsCommand,                  "lookup_rows",                   Tabular,    Tabular,    false, true );
 

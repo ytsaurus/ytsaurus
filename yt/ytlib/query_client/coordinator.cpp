@@ -24,8 +24,6 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TRefiner>& refiners)
@@ -102,10 +100,6 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     return std::make_pair(topQuery, subqueries);
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
