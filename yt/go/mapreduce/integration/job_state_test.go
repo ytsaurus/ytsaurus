@@ -3,13 +3,13 @@ package integration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {

@@ -20,6 +20,8 @@ const (
 
 	NodeUser  NodeType = "user"
 	NodeGroup NodeType = "group"
+
+	NodeAccount NodeType = "account"
 )
 
 func (n NodeType) String() string {

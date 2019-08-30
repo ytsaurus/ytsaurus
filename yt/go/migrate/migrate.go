@@ -108,6 +108,13 @@ func OnConflictDrop(ctx context.Context, yc yt.Client) ConflictFn {
 	}
 }
 
+var ErrConflict = xerrors.New("detected schema conflict during migration")
+
+// OnConflictFail is ConflictFn that will just return ErrConflict.
+func OnConflictFail(path ypath.Path, actual, expected schema.Schema) (err error) {
+	return ErrConflict
+}
+
 // OnConflictTryAlter returns ConflictFn that will try to alter previous version of the table.
 func OnConflictTryAlter(ctx context.Context, yc yt.Client) ConflictFn {
 	return func(path ypath.Path, actual, expected schema.Schema) (err error) {

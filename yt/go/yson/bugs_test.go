@@ -24,8 +24,8 @@ type (
 
 func TestNullHandling(t *testing.T) {
 	var jsonTest NullTest
-	msgJson := `{"int": null, "map": null, "array": null}`
-	require.NoError(t, json.Unmarshal([]byte(msgJson), &jsonTest))
+	msgJSON := `{"int": null, "map": null, "array": null}`
+	require.NoError(t, json.Unmarshal([]byte(msgJSON), &jsonTest))
 
 	var ysonTest NullTest
 	msgYson := `{int=#;map=#;array=#}`

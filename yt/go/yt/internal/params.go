@@ -39,12 +39,6 @@ func writeMutatingOptions(w *yson.Writer, o *yt.MutatingOptions) {
 	w.Any(o.Retry)
 }
 
-func writeReadRetryOptions(w *yson.Writer, o *yt.ReadRetryOptions) {
-	if o == nil {
-		return
-	}
-}
-
 func writeMasterReadOptions(w *yson.Writer, o *yt.MasterReadOptions) {
 	if o == nil {
 		return
@@ -106,16 +100,6 @@ func writeCreateObjectOptions(w *yson.Writer, o *yt.CreateObjectOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
-func writeNodeExistsOptions(w *yson.Writer, o *yt.NodeExistsOptions) {
-	if o == nil {
-		return
-	}
-	writeMasterReadOptions(w, o.MasterReadOptions)
-	writeTransactionOptions(w, o.TransactionOptions)
-	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
-}
-
 func writeRemoveNodeOptions(w *yson.Writer, o *yt.RemoveNodeOptions) {
 	if o == nil {
 		return
@@ -158,7 +142,6 @@ func writeGetNodeOptions(w *yson.Writer, o *yt.GetNodeOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMasterReadOptions(w, o.MasterReadOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeSetNodeOptions(w *yson.Writer, o *yt.SetNodeOptions) {
@@ -191,7 +174,6 @@ func writeListNodeOptions(w *yson.Writer, o *yt.ListNodeOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
@@ -310,13 +292,6 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
-func writePingTxOptions(w *yson.Writer, o *yt.PingTxOptions) {
-	if o == nil {
-		return
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-}
-
 func writeAbortTxOptions(w *yson.Writer, o *yt.AbortTxOptions) {
 	if o == nil {
 		return
@@ -387,7 +362,6 @@ func writeGetFileFromCacheOptions(w *yson.Writer, o *yt.GetFileFromCacheOptions)
 	w.MapKeyString("cache_path")
 	w.Any(o.CachePath)
 	writeMasterReadOptions(w, o.MasterReadOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
@@ -420,14 +394,6 @@ func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 }
 
-func writeStartOperationOptions(w *yson.Writer, o *yt.StartOperationOptions) {
-	if o == nil {
-		return
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-	writeMutatingOptions(w, o.MutatingOptions)
-}
-
 func writeAbortOperationOptions(w *yson.Writer, o *yt.AbortOperationOptions) {
 	if o == nil {
 		return
@@ -446,32 +412,6 @@ func writeSuspendOperationOptions(w *yson.Writer, o *yt.SuspendOperationOptions)
 	w.Any(o.AbortRunningJobs)
 }
 
-func writeResumeOperationOptions(w *yson.Writer, o *yt.ResumeOperationOptions) {
-	if o == nil {
-		return
-	}
-}
-
-func writeCompleteOperationOptions(w *yson.Writer, o *yt.CompleteOperationOptions) {
-	if o == nil {
-		return
-	}
-}
-
-func writeUpdateOperationParametersOptions(w *yson.Writer, o *yt.UpdateOperationParametersOptions) {
-	if o == nil {
-		return
-	}
-}
-
-func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
-	if o == nil {
-		return
-	}
-	writeMasterReadOptions(w, o.MasterReadOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
-}
-
 func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 	if o == nil {
 		return
@@ -485,23 +425,6 @@ func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 		w.Any(o.IncludeRuntime)
 	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
-	writeReadRetryOptions(w, o.ReadRetryOptions)
-}
-
-func writeAddMemberOptions(w *yson.Writer, o *yt.AddMemberOptions) {
-	if o == nil {
-		return
-	}
-	writeMutatingOptions(w, o.MutatingOptions)
-	writePrerequisiteOptions(w, o.PrerequisiteOptions)
-}
-
-func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
-	if o == nil {
-		return
-	}
-	writeMutatingOptions(w, o.MutatingOptions)
-	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
@@ -517,14 +440,6 @@ func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
 	if o.AttributeKey != nil {
 		w.MapKeyString("attribute_key")
 		w.Any(o.AttributeKey)
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-	writeMutatingOptions(w, o.MutatingOptions)
-}
-
-func writeUnlockNodeOptions(w *yson.Writer, o *yt.UnlockNodeOptions) {
-	if o == nil {
-		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
@@ -568,14 +483,6 @@ func writeUnmountTableOptions(w *yson.Writer, o *yt.UnmountTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
-func writeRemountTableOptions(w *yson.Writer, o *yt.RemountTableOptions) {
-	if o == nil {
-		return
-	}
-	writeTabletRangeOptions(w, o.TabletRangeOptions)
-	writeMutatingOptions(w, o.MutatingOptions)
-}
-
 func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 	if o == nil {
 		return
@@ -611,27 +518,6 @@ func writeAlterTableOptions(w *yson.Writer, o *yt.AlterTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
-func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
-	if o == nil {
-		return
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-}
-
-func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
-	if o == nil {
-		return
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-}
-
-func writeDeleteRowsOptions(w *yson.Writer, o *yt.DeleteRowsOptions) {
-	if o == nil {
-		return
-	}
-	writeTransactionOptions(w, o.TransactionOptions)
-}
-
 func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 	if o == nil {
 		return
@@ -647,16 +533,6 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 	if o.OutputRowLimit != nil {
 		w.MapKeyString("output_row_limit")
 		w.Any(o.OutputRowLimit)
-	}
-}
-
-func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
-	if o == nil {
-		return
-	}
-	if o.Atomicity != nil {
-		w.MapKeyString("atomicity")
-		w.Any(o.Atomicity)
 	}
 }
 
@@ -796,7 +672,6 @@ func (p *NodeExistsParams) Log() []log.Field {
 func (p *NodeExistsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeNodeExistsOptions(w, p.options)
 }
 
 func (p *NodeExistsParams) MasterReadOptions() **yt.MasterReadOptions {
@@ -1250,7 +1125,6 @@ func (p *PingTxParams) Log() []log.Field {
 func (p *PingTxParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("transaction_id")
 	w.Any(p.id)
-	writePingTxOptions(w, p.options)
 }
 
 func (p *PingTxParams) TransactionOptions() **yt.TransactionOptions {
@@ -1656,7 +1530,6 @@ func (p *StartOperationParams) MarshalHTTP(w *yson.Writer) {
 	w.Any(p.opType)
 	w.MapKeyString("spec")
 	w.Any(p.spec)
-	writeStartOperationOptions(w, p.options)
 }
 
 func (p *StartOperationParams) TransactionOptions() **yt.TransactionOptions {
@@ -1769,7 +1642,6 @@ func (p *ResumeOperationParams) Log() []log.Field {
 func (p *ResumeOperationParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("operation_id")
 	w.Any(p.opID)
-	writeResumeOperationOptions(w, p.options)
 }
 
 type CompleteOperationParams struct {
@@ -1804,7 +1676,6 @@ func (p *CompleteOperationParams) Log() []log.Field {
 func (p *CompleteOperationParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("operation_id")
 	w.Any(p.opID)
-	writeCompleteOperationOptions(w, p.options)
 }
 
 type UpdateOperationParametersParams struct {
@@ -1845,7 +1716,6 @@ func (p *UpdateOperationParametersParams) MarshalHTTP(w *yson.Writer) {
 	w.Any(p.opID)
 	w.MapKeyString("parameters")
 	w.Any(p.params)
-	writeUpdateOperationParametersOptions(w, p.options)
 }
 
 type GetOperationParams struct {
@@ -1916,7 +1786,6 @@ func (p *ListOperationsParams) Log() []log.Field {
 }
 
 func (p *ListOperationsParams) MarshalHTTP(w *yson.Writer) {
-	writeListOperationsOptions(w, p.options)
 }
 
 func (p *ListOperationsParams) MasterReadOptions() **yt.MasterReadOptions {
@@ -1965,7 +1834,6 @@ func (p *AddMemberParams) MarshalHTTP(w *yson.Writer) {
 	w.Any(p.group)
 	w.MapKeyString("member")
 	w.Any(p.member)
-	writeAddMemberOptions(w, p.options)
 }
 
 func (p *AddMemberParams) MutatingOptions() **yt.MutatingOptions {
@@ -2014,7 +1882,6 @@ func (p *RemoveMemberParams) MarshalHTTP(w *yson.Writer) {
 	w.Any(p.group)
 	w.MapKeyString("member")
 	w.Any(p.member)
-	writeRemoveMemberOptions(w, p.options)
 }
 
 func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
@@ -2106,7 +1973,6 @@ func (p *UnlockNodeParams) Log() []log.Field {
 func (p *UnlockNodeParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeUnlockNodeOptions(w, p.options)
 }
 
 func (p *UnlockNodeParams) TransactionOptions() **yt.TransactionOptions {
@@ -2184,7 +2050,6 @@ func (p *LookupRowsParams) Log() []log.Field {
 func (p *LookupRowsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeLookupRowsOptions(w, p.options)
 }
 
 func (p *LookupRowsParams) TransactionOptions() **yt.TransactionOptions {
@@ -2223,7 +2088,6 @@ func (p *InsertRowsParams) Log() []log.Field {
 func (p *InsertRowsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeInsertRowsOptions(w, p.options)
 }
 
 func (p *InsertRowsParams) TransactionOptions() **yt.TransactionOptions {
@@ -2262,7 +2126,6 @@ func (p *DeleteRowsParams) Log() []log.Field {
 func (p *DeleteRowsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeDeleteRowsOptions(w, p.options)
 }
 
 func (p *DeleteRowsParams) TransactionOptions() **yt.TransactionOptions {
@@ -2387,7 +2250,6 @@ func (p *RemountTableParams) Log() []log.Field {
 func (p *RemountTableParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
-	writeRemountTableOptions(w, p.options)
 }
 
 func (p *RemountTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
