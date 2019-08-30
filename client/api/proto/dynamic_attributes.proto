@@ -4,6 +4,8 @@ import "yt/core/ytree/proto/attributes.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DynamicAttributes";
 

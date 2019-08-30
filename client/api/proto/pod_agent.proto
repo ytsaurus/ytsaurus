@@ -2,6 +2,8 @@ syntax = "proto3";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
+option go_package = "a.yandex-team.ru/yp/go/proto/podagent";
+
 option java_package = "ru.yandex.yp.client.pods";
 option java_outer_classname = "Pod";
 option java_multiple_files = true;

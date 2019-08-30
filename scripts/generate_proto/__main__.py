@@ -137,6 +137,8 @@ option python_package = "yp_proto.yp.client.api.proto";
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Autogen";
 
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
 """
     print_imports()
     print ""

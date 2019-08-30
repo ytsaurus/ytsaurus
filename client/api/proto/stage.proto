@@ -14,6 +14,8 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Stage";
 option java_multiple_files = true;
