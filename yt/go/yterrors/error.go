@@ -6,8 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type ErrorCode int

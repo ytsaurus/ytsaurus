@@ -3,9 +3,10 @@ package integration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/yttest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOutputTableCreation(t *testing.T) {

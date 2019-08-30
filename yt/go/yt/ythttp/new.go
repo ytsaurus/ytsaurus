@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"a.yandex-team.ru/yt/go/mapreduce"
+	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal/httpclient"
-	"golang.org/x/xerrors"
 )
 
 func checkNotInsideJob() error {

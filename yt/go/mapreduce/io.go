@@ -24,7 +24,12 @@ func (c *jobContext) LookupVault(name string) (value string, ok bool) {
 func (c *jobContext) initEnv() error {
 	c.vault = map[string]string{}
 
-	_ = yson.Unmarshal([]byte(os.Getenv("YT_SECURE_VAULT")), &c.vault)
+	vaultValue := os.Getenv("YT_SECURE_VAULT")
+	if vaultValue != "" {
+		if err := yson.Unmarshal([]byte(vaultValue), &c.vault); err != nil {
+			return xerrors.Errorf("corrupted secure vault: %w", err)
+		}
+	}
 
 	return nil
 }

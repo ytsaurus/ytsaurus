@@ -43,22 +43,8 @@ func (w *loggingWriter) Close() error {
 	return w.w.Close()
 }
 
-type loggingTableReader struct {
-	r        yt.TableReader
-	call     *Call
-	log      log.Structured
-	rowCount int64
-}
-
 type LoggingInterceptor struct {
 	log.Structured
-}
-
-type loggingTableWriter struct {
-	r        yt.TableReader
-	call     *Call
-	log      log.Structured
-	rowCount int64
 }
 
 func logFields(call *Call) (fields []log.Field) {
@@ -74,7 +60,7 @@ func (l *LoggingInterceptor) logStart(call *Call) {
 	l.Debug("request started", logFields(call)...)
 }
 
-func (l *LoggingInterceptor) logFinish(call *Call, res *CallResult, err error) {
+func (l *LoggingInterceptor) logFinish(call *Call, err error) {
 	fields := logFields(call)
 	if err != nil {
 		fields = append(fields, log.Error(err))
@@ -87,7 +73,7 @@ func (l *LoggingInterceptor) logFinish(call *Call, res *CallResult, err error) {
 func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	l.logStart(call)
 	res, err = invoke(ctx, call)
-	l.logFinish(call, res, err)
+	l.logFinish(call, err)
 	return
 }
 

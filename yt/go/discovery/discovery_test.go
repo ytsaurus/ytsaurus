@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/yt/go/yttest"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 type MemberMeta struct {
@@ -20,7 +21,7 @@ func TestSingleJoin(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	g := NewGroup(env.YT, &zap.Logger{zaptest.NewLogger(t)}, Options{Root: env.TmpPath()})
+	g := NewGroup(env.YT, &zap.Logger{L: zaptest.NewLogger(t)}, Options{Root: env.TmpPath()})
 
 	ctx, cancel := context.WithTimeout(env.Ctx, time.Second*30)
 	defer cancel()

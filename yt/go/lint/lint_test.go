@@ -7,10 +7,28 @@ import (
 )
 
 func TestLint(t *testing.T) {
-	lint.RunLinter(
+	lint.RunLinterPaths(
 		t,
-		"yt/go",
+		[]string{
+			"yt/go/yterrors/...",
+			"yt/go/yson/...",
+			"yt/go/ypath/...",
+			"yt/go/discovery/...",
+			"yt/go/bench/...",
+			"yt/go/guid/...",
+			"yt/go/wire/...",
+			"yt/go/ytlock/...",
+			"yt/go/yttest/...",
+			"yt/go/schema/...",
+			"yt/go/mapreduce/...",
+			"yt/go/yt",
+			"yt/go/yt/ythttp/...",
+			"yt/go/yt/integration/...",
+			"yt/go/yt/internal",
+			"yt/go/yt/internal/httpclient",
+		},
 		[]string{
 			"library/go",
+			"yt/go",
 		})
 }

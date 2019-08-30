@@ -20,7 +20,18 @@ func emit(f file, out io.Writer) error {
 	write("%q", "a.yandex-team.ru/library/go/core/log")
 	write(")")
 
+	empty := map[string]bool{}
 	for _, opt := range f.options {
+		if len(opt.fields) == 0 {
+			empty[opt.name] = true
+		}
+	}
+
+	for _, opt := range f.options {
+		if len(opt.fields) == 0 || opt.name == "StartTabletTxOptions" {
+			continue
+		}
+
 		write("func write%s(w *yson.Writer, o *yt.%s) {", opt.name, opt.name)
 
 		write("if o == nil {")
@@ -41,6 +52,10 @@ func emit(f file, out io.Writer) error {
 		}
 
 		for _, name := range opt.embedded {
+			if empty[name] {
+				continue
+			}
+
 			write("write%s(w, o.%s)", name, name)
 		}
 
@@ -103,7 +118,11 @@ func emit(f file, out io.Writer) error {
 				write("w.MapKeyString(%q)", m.httpParams[i])
 				write("w.Any(p.%s)", m.params[i].name)
 			}
-			write("write%sOptions(w, p.options)", m.name)
+
+			if !empty[m.name+"Options"] {
+				write("write%sOptions(w, p.options)", m.name)
+			}
+
 			write("}")
 			write("")
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -381,6 +382,22 @@ func Split(path string) (tokens []string, err error) {
 	}
 
 	return
+}
+
+// PathsUpToRoot returns list of paths referring to the nodes on the path to the root.
+//
+// Starting node and root are included.
+func PathsUpToRoot(path Path) ([]Path, error) {
+	tokens, err := Split(string(path))
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []Path
+	for i := len(tokens); i != 0; i-- {
+		paths = append(paths, Path(strings.Join(tokens[:i], "")))
+	}
+	return paths, nil
 }
 
 // Parse parses prefix and suffix of the path in simple form.
