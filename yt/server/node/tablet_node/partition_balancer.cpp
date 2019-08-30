@@ -115,12 +115,24 @@ private:
         int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
+        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+            "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
+            tablet->GetLoggingId(),
+            currentMaxOverlappingStoreCount);
+
         for (const auto& partition : tablet->PartitionList()) {
             ScanPartitionToSplit(slot, partition.get(), &estimatedMaxOverlappingStoreCount);
         }
 
         int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
+
+        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+            "Partition balancer started tablet scan for merges (%v, "
+            "EstimatedMosc: %v, MaxAllowedOsc: %v)",
+            tablet->GetLoggingId(),
+            estimatedMaxOverlappingStoreCount,
+            maxAllowedOverlappingStoreCount);
 
         for (const auto& partition : tablet->PartitionList()) {
             ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
@@ -134,6 +146,18 @@ private:
         int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
+
+        if (tablet->GetConfig()->EnableLsmVerboseLogging) {
+            auto Logger = BuildLogger(slot, partition);
+            YT_LOG_DEBUG(
+                "Scanning partition to split (PartitionIndex: %v of %v, "
+                "EstimatedMosc: %v, DataSize: %v, StoreCount: %v)",
+                partition->GetIndex(),
+                partitionCount,
+                *estimatedMaxOverlappingStoreCount,
+                actualDataSize,
+                partition->Stores().size());
+        }
 
         if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
             actualDataSize > config->MaxPartitionDataSize)
@@ -163,6 +187,16 @@ private:
             }
         }
 
+        auto Logger = BuildLogger(slot, partition);
+
+        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+            "Scanning partition to merge (PartitionIndex: %v of %v, "
+            "DataSize: %v, MaxPotentialDataSize: %v)",
+            partition->GetIndex(),
+            partitionCount,
+            actualDataSize,
+            maxPotentialDataSize);
+
         if (maxPotentialDataSize < config->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
@@ -173,6 +207,14 @@ private:
             int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
                 tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
                 tablet->PartitionList()[lastPartitionIndex]->Stores().size();
+
+            YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                "Found candidate partitions to merge (FirstPartitionIndex: %v, "
+                "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
+                firstPartitionIndex,
+                lastPartitionIndex,
+                estimatedOverlappingStoreCount,
+                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount);
 
             if (estimatedOverlappingStoreCount <= maxAllowedOverlappingStoreCount) {
                 RunMerge(slot, partition, firstPartitionIndex, lastPartitionIndex);
@@ -190,7 +232,12 @@ private:
 
     bool RunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
     {
+        const auto* tablet = partition->GetTablet();
+
         if (partition->GetState() != EPartitionState::Normal) {
+            YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                "Aborting partition split due to improper partition state (PartitionState: %v)",
+                partition->GetState());
             return false;
         }
 
@@ -200,16 +247,21 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        if (!partition->GetTablet()->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
-            partition->GetTablet()->GetEden()->GetState() == EPartitionState::Partitioning)
+        if (!tablet->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+            tablet->GetEden()->GetState() == EPartitionState::Partitioning)
         {
             YT_LOG_DEBUG("Eden is partitioning, aborting partition split (EdenPartitionId: %v)",
-                partition->GetTablet()->GetEden()->GetId());
+                tablet->GetEden()->GetId());
             return false;
         }
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
+                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                    "Aborting partition split due to improper store state "
+                    "(StoreId: %v, StoreState: %v)",
+                    store->GetId(),
+                    store->GetStoreState());
                 return false;
             }
         }
@@ -219,14 +271,14 @@ private:
         YT_LOG_DEBUG("Partition is scheduled for split");
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
-            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
+            .AsyncVia(tablet->GetEpochAutomatonInvoker())
             .Run(
                 slot,
                 partition,
                 splitFactor,
                 partition->GetTablet(),
                 partition->GetId(),
-                partition->GetTablet()->GetId(),
+                tablet->GetId(),
                 Logger);
         return true;
     }
@@ -301,6 +353,14 @@ private:
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
+                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                    "Aborting partition split due to improper partition state "
+                    "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
+                    tablet->GetLoggingId(),
+                    partition->GetId(),
+                    tablet->PartitionList()[index]->GetId(),
+                    index,
+                    tablet->PartitionList()[index]->GetState());
                 return false;
             }
         }

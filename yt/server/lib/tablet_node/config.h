@@ -112,6 +112,7 @@ public:
 
     bool EnableCompactionAndPartitioning;
     bool EnableStoreRotation;
+    bool EnableLsmVerboseLogging;
 
     bool MergeRowsOnFlush;
 
@@ -268,6 +269,9 @@ public:
             .Default(true);
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+            .Default(false);
+
+        RegisterParameter("enable_lsm_verbose_logging", EnableLsmVerboseLogging)
             .Default(false);
 
         RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
