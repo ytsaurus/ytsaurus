@@ -2454,8 +2454,7 @@ TYsonString TClient::DoGetOperation(
 
     auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
         .AsyncVia(Connection_->GetInvoker())
-        .Run()
-        .WithTimeout(options.CypressTimeout);
+        .Run();
     getOperationFutures.push_back(cypressFuture);
 
     TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
@@ -2470,7 +2469,7 @@ TYsonString TClient::DoGetOperation(
     auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
         .ValueOrThrow();
 
-    auto cypressResult = GetValueIgnoringTimeout(cypressFuture.Get());
+    auto cypressResult = cypressFuture.Get().ValueOrThrow();
     auto archiveResult = GetValueIgnoringTimeout(archiveFuture.Get());
 
     if (archiveResult && cypressResult) {
