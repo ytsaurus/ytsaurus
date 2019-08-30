@@ -440,7 +440,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, build_context):
+def share_yt_deb_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-src",
@@ -514,7 +514,7 @@ def share_packages(options, build_context):
         yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
     except Exception as err:
-        raise StepFailedWithNonCriticalError("Failed to share packages via locke and sandbox - {0}".format(err))
+        raise StepFailedWithNonCriticalError("Failed to share yt deb packages via locke and sandbox - {0}".format(err))
 
 
 @build_step
@@ -802,11 +802,10 @@ def run_sandbox_upload(options, build_context):
         return
 
     # Share individual deb packages first (it is used in chef deployment).
-    if "yt" in options.build_project:
-        share_packages(options, build_context)
+    if options.target_build_project == "yt":
+        share_yt_deb_packages(options, build_context)
 
     build_context["sandbox_upload_root"] = os.path.join(options.working_directory, "sandbox_upload")
-    sandbox_ctx = {"upload_urls": {}}
     binary_distribution_folder = os.path.join(build_context["sandbox_upload_root"], "bin")
     mkdirp(binary_distribution_folder)
 
@@ -829,12 +828,8 @@ def run_sandbox_upload(options, build_context):
         os.symlink(source_path, destination_path)
         processed_files.add(filename)
 
-    yt_binary_upload_list = set((
-        "ypserver-master",
-    ))
-
-    if "yt" in options.build_project:
-        yt_binary_upload_list.update(set((
+    if options.target_build_project == "yt":
+        yt_binary_upload_list = set((
             "ytserver-job-proxy",
             "ytserver-scheduler",
             "ytserver-controller-agent",
@@ -849,13 +844,18 @@ def run_sandbox_upload(options, build_context):
             "ytserver-skynet-manager",
             "ytserver-http-proxy",
             "yt_local",
-        )))
+        ))
+    else:
+        yt_binary_upload_list = set((
+            "ypserver-master",
+        ))
 
+    # Check that all binaries presented.
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
         raise StepFailedWithNonCriticalError("Missing files in sandbox upload: {0}".format(missing_file_string))
 
-    if "yt" in options.build_project:
+    if options.target_build_project == "yt":
         # Also, inject python libraries and bindings as debs
         artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
         inject_packages = [
@@ -869,58 +869,60 @@ def run_sandbox_upload(options, build_context):
             destination_path = os.path.join(binary_distribution_folder, os.path.basename(paths[0]))
             os.symlink(paths[0], destination_path)
 
-    rbtorrent = sky_share(
-        os.path.basename(binary_distribution_folder),
-        os.path.dirname(binary_distribution_folder))
-    sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
+    try:
+        rbtorrent = sky_share(
+            os.path.basename(binary_distribution_folder),
+            os.path.dirname(binary_distribution_folder))
 
-    sandbox_ctx["git_commit"] = options.build_vcs_number
-    sandbox_ctx["git_branch"] = options.git_branch
-    sandbox_ctx["build_number"] = options.build_number
-    sandbox_ctx["full_build_type"] = options.btid
-    if "yp" in options.build_project:
-        sandbox_ctx["build_project"] = "yp"
-    else:
-        sandbox_ctx["build_project"] = "yt"
+        sandbox_ctx = {}
+        sandbox_ctx["upload_urls"] = {"yt_binaries": rbtorrent}
+        sandbox_ctx["git_commit"] = options.build_vcs_number
+        sandbox_ctx["git_branch"] = options.git_branch
+        sandbox_ctx["build_number"] = options.build_number
+        sandbox_ctx["full_build_type"] = options.btid
+        sandbox_ctx["build_project"] = options.target_build_project
 
-    #
-    # Start sandbox task
-    #
+        #
+        # Start sandbox task
+        #
 
-    cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
-    task_description = """{0}
-    YT version: {1}
-    Teamcity build id: {2}
-    Teamcity build type: {3}
-    Teamcity host: {4}
-    Teamcity build type id: {5}
-    Git branch: {6}
-    Git commit: {7}
-    """.format(
-        "\n[yp] " if "yp" in options.build_project else "",
-        build_context["yt_version"],
-        options.build_number,
-        options.type,
-        socket.getfqdn(),
-        options.btid,
-        options.git_branch,
-        options.build_vcs_number,
-    )
+        cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+        task_description = """
+        [{0}]
+        YT version: {1}
+        Teamcity build id: {2}
+        Teamcity build type: {3}
+        Teamcity host: {4}
+        Teamcity build type id: {5}
+        Git branch: {6}
+        Git commit: {7}
+        """.format(
+            options.target_build_project,
+            build_context["yt_version"],
+            options.build_number,
+            options.type,
+            socket.getfqdn(),
+            options.btid,
+            options.git_branch,
+            options.build_vcs_number,
+        )
 
-    task_id = cli.create_task(
-        "YT_UPLOAD_RESOURCES",
-        "YT_ROBOT",
-        task_description,
-        sandbox_ctx)
-    teamcity_message("Created sandbox upload task: {0}".format(task_id))
-    teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
-    build_context["sandbox_upload_task"] = task_id
+        task_id = cli.create_task(
+            "YT_UPLOAD_RESOURCES",
+            "YT_ROBOT",
+            task_description,
+            sandbox_ctx)
+        teamcity_message("Created sandbox upload task: {0}".format(task_id))
+        teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
+        build_context["sandbox_upload_task"] = task_id
 
-    teamcity_interact("setParameter", name="yt.sandbox_task_id", value=task_id)
-    teamcity_interact("setParameter", name="yt.sandbox_task_url",
-                      value="https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
-    status = "Package: {0}; SB: {1}; {{build.status.text}}".format(build_context["yt_version"], task_id)
-    teamcity_interact("buildStatus", text=status)
+        teamcity_interact("setParameter", name="yt.sandbox_task_id", value=task_id)
+        teamcity_interact("setParameter", name="yt.sandbox_task_url",
+                          value="https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
+        status = "Package: {0}; SB: {1}; {{build.status.text}}".format(build_context["yt_version"], task_id)
+        teamcity_interact("buildStatus", text=status)
+    except Exception as err:
+        raise StepFailedWithNonCriticalError("Failed to create YT_UPLOAD_RESOURCES task in sandbox - {0}".format(err))
 
 @build_step
 def run_unit_tests(options, build_context):
@@ -1349,6 +1351,8 @@ def main():
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
+    # Determine main project of current build.
+    options.target_build_project = "yt" if "yt" in options.build_project else "yp"
 
     teamcity_main(options)
 
