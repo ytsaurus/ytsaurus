@@ -783,7 +783,7 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
-        OnJobAborted(job.second, &status, true /* byScheduler */, terminated);
+        OnJobAborted(job.second, &status, /* byScheduler */ true, terminated);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1447,7 +1447,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
         auto status = JobStatusFromError(
             TError("Node offline")
             << TErrorAttribute("abort_reason", EAbortReason::NodeOffline));
-        OnJobAborted(job, &status, true /* byScheduler */);
+        OnJobAborted(job, &status, /* byScheduler */ true);
     }
 }
 
@@ -1489,7 +1489,7 @@ void TNodeShard::AbortUnconfirmedJobs(
         YT_LOG_DEBUG("Aborting revived job that was not confirmed (OperationId: %v, JobId: %v)",
             operationId,
             job->GetId());
-        OnJobAborted(job, &status, true /* byScheduler */);
+        OnJobAborted(job, &status, /* byScheduler */ true);
         if (auto node = job->GetNode()) {
             ResetJobWaitingForConfirmation(job);
         }
@@ -1627,7 +1627,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
         for (const auto& job : missingJobs) {
             auto status = JobStatusFromError(TError("Job vanished"));
-            OnJobAborted(job, &status, true /* byScheduler */);
+            OnJobAborted(job, &status, /* byScheduler */ true);
         }
     }
 
@@ -1640,7 +1640,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
 
         auto status = JobStatusFromError(TError("Job not confirmed by node"));
-        OnJobAborted(job, &status, true /* byScheduler */);
+        OnJobAborted(job, &status, /* byScheduler */ true);
 
         ResetJobWaitingForConfirmation(job);
     }
@@ -1792,9 +1792,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     << TErrorAttribute("abort_reason", EAbortReason::Preemption)
                     << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
                 auto status = JobStatusFromError(error);
-                OnJobAborted(job, &status, false /* byScheduler */);
+                OnJobAborted(job, &status, /* byScheduler */ false);
             } else {
-                OnJobAborted(job, jobStatus, false /* byScheduler */);
+                OnJobAborted(job, jobStatus, /* byScheduler */ false);
             }
             ToProto(response->add_jobs_to_store(), jobId);
             break;
