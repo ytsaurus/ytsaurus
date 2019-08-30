@@ -161,6 +161,16 @@ TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedu
         .Run();
 }
 
+TFuture<void> TFairShareTree::TFairShareTreeSnapshot::PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext)
+{
+    return BIND(&TFairShareTree::DoPreemptJobsGracefully,
+        Tree_,
+        schedulingContext,
+        RootElementSnapshot_)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
 void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
     TOperationId operationId,
     TJobId jobId,
@@ -1245,7 +1255,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }
-        PreemptJob(job, operationElement, context);
+        PreemptJob(job, operationElement, context->SchedulingContext);
     }
 
     for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
@@ -1259,7 +1269,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         if (!Dominates(operationElement->ResourceLimits(), operationElement->GetLocalResourceUsage())) {
             job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
-            PreemptJob(job, operationElement, context);
+            PreemptJob(job, operationElement, context->SchedulingContext);
             continue;
         }
 
@@ -1267,7 +1277,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         if (violatedPool) {
             job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
                 violatedPool->GetId()));
-            PreemptJob(job, operationElement, context);
+            PreemptJob(job, operationElement, context->SchedulingContext);
         }
     }
 
@@ -1341,16 +1351,41 @@ void TFairShareTree::DoScheduleJobs(
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
 }
 
+void TFairShareTree::DoPreemptJobsGracefully(
+    const ISchedulingContextPtr& schedulingContext,
+    const TRootElementSnapshotPtr& rootElementSnapshot)
+{
+    YT_LOG_TRACE("Looking for gracefully preemptable jobs");
+    for (const auto& job : schedulingContext->RunningJobs()) {
+        if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetGracefullyPreempted()) {
+            continue;
+        }
+
+        auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+
+        if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
+            YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+            continue;
+        }
+
+        if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
+            schedulingContext->PreemptJobGracefully(job);
+        }
+    }
+}
+
 void TFairShareTree::PreemptJob(
     const TJobPtr& job,
     const TOperationElementPtr& operationElement,
-    TFairShareContext* context) const
+    const ISchedulingContextPtr& schedulingContext) const
 {
-    context->SchedulingContext->ResourceUsage() -= job->ResourceUsage();
+    schedulingContext->ResourceUsage() -= job->ResourceUsage();
     operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
     job->ResourceUsage() = {};
 
-    context->SchedulingContext->PreemptJob(job);
+    schedulingContext->PreemptJob(job);
 }
 
 const TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool)

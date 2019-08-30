@@ -22,6 +22,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, GracefullyPreemptedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
 
     DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
@@ -43,9 +44,11 @@ public:
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
-        const TJobStartDescriptor& startDescriptor) override;
+        const TJobStartDescriptor& startDescriptor,
+        EPreemptionMode preemptionMode) override;
 
     virtual void PreemptJob(const TJobPtr& job) override;
+    virtual void PreemptJobGracefully(const TJobPtr& job) override;
 
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() override;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() override;

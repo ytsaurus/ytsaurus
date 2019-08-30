@@ -96,11 +96,12 @@ DEFINE_ENUM(EAbortReason,
 );
 
 DEFINE_ENUM(EInterruptReason,
-    ((None)        (0))
-    ((Preemption)  (1))
-    ((UserRequest) (2))
-    ((JobSplit)    (3))
-    ((Unknown)     (4))
+    ((None)               (0))
+    ((Preemption)         (1))
+    ((UserRequest)        (2))
+    ((JobSplit)           (3))
+    ((GracefulPreemption) (5))
+    ((Unknown)            (4))
 );
 
 DEFINE_ENUM(ESchedulingMode,

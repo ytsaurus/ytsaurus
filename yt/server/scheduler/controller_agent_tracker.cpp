@@ -95,6 +95,7 @@ public:
         , Config_(std::move(config))
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
+        , PreemptionMode_(operation->Spec()->PreemptionMode)
     { }
 
 
@@ -229,7 +230,8 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
             BIND([
                 operationId = OperationId_,
-                incarnationId = agent->GetIncarnationId()
+                incarnationId = agent->GetIncarnationId(),
+                preemptionMode = PreemptionMode_
             ] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp)
             {
                 TOperationControllerReviveResult result;
@@ -245,6 +247,7 @@ public:
                         FromProto<TInstant>(protoJob.start_time()),
                         FromProto<TJobResources>(protoJob.resource_limits()),
                         protoJob.interruptible(),
+                        preemptionMode,
                         protoJob.tree_id(),
                         protoJob.node_id(),
                         protoJob.node_address());
@@ -518,11 +521,17 @@ public:
         return RuntimeData_->GetPendingJobCount();
     }
 
+    virtual EPreemptionMode GetPreemptionMode() const override
+    {
+        return PreemptionMode_;
+    }
+
 private:
     TBootstrap* const Bootstrap_;
     TSchedulerConfigPtr Config_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
+    const EPreemptionMode PreemptionMode_;
 
     TSpinLock SpinLock_;
 

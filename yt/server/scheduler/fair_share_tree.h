@@ -14,6 +14,7 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
@@ -261,6 +262,8 @@ private:
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
 
+        virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override;
+
         virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override;
 
         virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override;
@@ -323,10 +326,14 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);
 
+    void DoPreemptJobsGracefully(
+        const ISchedulingContextPtr& schedulingContext,
+        const TRootElementSnapshotPtr& rootElementSnapshot);
+
     void PreemptJob(
         const TJobPtr& job,
         const TOperationElementPtr& operationElement,
-        TFairShareContext* context) const;
+        const ISchedulingContextPtr& schedulingContext) const;
 
     const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);

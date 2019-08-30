@@ -416,8 +416,11 @@ public:
     // Enables job reporter to send job fail contexts.
     bool EnableJobFailContextReporter;
 
-    // Timeout to try interrupt job before abort it.
+    // Timeout for job interruption before we abort it.
     TDuration JobInterruptTimeout;
+
+    // Timeout for job graceful interruption before we abort it.
+    TDuration GracefulPreemptionJobInterruptTimeout;
 
     bool EnableUnrecognizedAlert;
 

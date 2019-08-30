@@ -42,6 +42,10 @@ DEFINE_ENUM(ESchedulingDelayType,
     (Sync)
     (Async)
 );
+DEFINE_ENUM(EPreemptionMode,
+    (Normal)
+    (Graceful)
+);
 
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)

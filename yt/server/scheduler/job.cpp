@@ -19,6 +19,7 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     bool interruptible,
+    EPreemptionMode preemptionMode,
     TString treeId,
     NNodeTrackerClient::TNodeId revivalNodeId,
     TString revivalNodeAddress)
@@ -34,6 +35,7 @@ TJob::TJob(
     , TreeId_(std::move(treeId))
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
+    , PreemptionMode_(preemptionMode)
 { }
 
 TDuration TJob::GetDuration() const

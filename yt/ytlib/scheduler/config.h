@@ -330,6 +330,8 @@ public:
 
     int MaxSpeculativeJobCountPerTask;
 
+    EPreemptionMode PreemptionMode;
+
     TStrategyOperationSpec();
 
 private:

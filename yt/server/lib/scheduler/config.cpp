@@ -374,6 +374,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("graceful_preemption_job_interrupt_timeout", GracefulPreemptionJobInterruptTimeout)
+        .Default(TDuration::Seconds(60));
+
     RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
         .Default(true);
 

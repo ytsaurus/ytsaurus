@@ -183,6 +183,13 @@ public:
         return JobResourcesList.size();
     }
 
+    EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
+
+    virtual EPreemptionMode GetPreemptionMode() const override
+    {
+        return PreemptionMode;
+    }
+
 private:
     TJobResourcesWithQuotaList JobResourcesList;
 };
