@@ -1351,6 +1351,24 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     checkedSkiffParser.ValidateFinished();
 }
 
+TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Yson32),
+            })
+        })->SetName("opt_yson32"),
+    });
+    auto nameTable = New<TNameTable>();
+    TStringStream resultStream;
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateSkiffWriter(skiffSchema, nameTable, &resultStream),
+        "cannot be represented with skiff schema"
+    );
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)
@@ -1812,6 +1830,25 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
     ASSERT_EQ(collectedRows.Size(), 2);
     ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
     ASSERT_FALSE(collectedRows.FindRowValue(1, "column"));
+}
+
+
+TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Yson32),
+            })
+        })->SetName("opt_yson32"),
+    });
+
+    TCollectingValueConsumer collectedRows;
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateParserForSkiff(skiffSchema, &collectedRows),
+        "cannot be represented with skiff schema"
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
