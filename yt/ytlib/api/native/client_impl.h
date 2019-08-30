@@ -116,6 +116,10 @@ public:
         const TString& query,
         const TSelectRowsOptions& options),
         (query, options))
+    IMPLEMENT_METHOD(NYson::TYsonString, Explain, (
+        const TString& query,
+        const TExplainOptions& options),
+        (query, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
@@ -529,6 +533,9 @@ private:
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,
         const TSelectRowsOptions& options);
+    NYson::TYsonString DoExplain(
+        const TString& queryString,
+        const TExplainOptions& options);
 
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,

@@ -739,6 +739,28 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }));
 }
 
+template<class TRequest>
+void FillRequestBySelectRowsOptionsBase(const TSelectRowsOptionsBase& options, TRequest request)
+{
+    request->set_timestamp(options.Timestamp);
+    if (options.InputRowLimit) {
+        request->set_input_row_limit(*options.InputRowLimit);
+    }
+    if (options.OutputRowLimit) {
+        request->set_output_row_limit(*options.OutputRowLimit);
+    }
+    request->set_range_expansion_limit(options.RangeExpansionLimit);
+    request->set_max_subqueries(options.MaxSubqueries);
+    request->set_allow_full_scan(options.AllowFullScan);
+    request->set_allow_join_without_index(options.AllowJoinWithoutIndex);
+    if (options.UdfRegistryPath) {
+        request->set_udf_registry_path(*options.UdfRegistryPath);
+    }
+    if (options.ExecutionPool) {
+        request->set_execution_pool(*options.ExecutionPool);
+    }
+}
+
 TFuture<TSelectRowsResult> TClientBase::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)
@@ -746,31 +768,13 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SelectRows();
+    FillRequestBySelectRowsOptionsBase(options, req);
     req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));
-
     req->set_query(query);
-
-    req->set_timestamp(options.Timestamp);
-    if (options.InputRowLimit) {
-        req->set_input_row_limit(*options.InputRowLimit);
-    }
-    if (options.OutputRowLimit) {
-        req->set_output_row_limit(*options.OutputRowLimit);
-    }
-    req->set_range_expansion_limit(options.RangeExpansionLimit);
     req->set_fail_on_incomplete_result(options.FailOnIncompleteResult);
     req->set_verbose_logging(options.VerboseLogging);
     req->set_enable_code_cache(options.EnableCodeCache);
-    req->set_max_subqueries(options.MaxSubqueries);
-    req->set_allow_full_scan(options.AllowFullScan);
-    req->set_allow_join_without_index(options.AllowJoinWithoutIndex);
-    if (options.UdfRegistryPath) {
-        req->set_udf_registry_path(*options.UdfRegistryPath);
-    }
     req->set_memory_limit_per_node(options.MemoryLimitPerNode);
-    if (options.ExecutionPool) {
-        req->set_execution_pool(*options.ExecutionPool);
-    }
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
@@ -781,6 +785,21 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
         FromProto(&result.Statistics, rsp->statistics());
         return result;
+    }));
+}
+
+TFuture<TYsonString> TClientBase::Explain(
+    const TString& query,
+    const TExplainOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.Explain();
+    FillRequestBySelectRowsOptionsBase(options, req);
+    req->set_query(query);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExplainPtr& rsp) {
+        return static_cast<TYsonString>(rsp->value());
     }));
 }
 

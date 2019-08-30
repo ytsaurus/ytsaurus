@@ -30,6 +30,8 @@
 
 #include <yt/client/transaction_client/public.h>
 
+#include <yt/client/driver/private.h>
+
 #include <yt/client/ypath/public.h>
 
 #include <yt/client/hive/timestamp_map.h>
@@ -431,7 +433,7 @@ struct TVersionedLookupRowsOptions
     NTableClient::TRetentionConfigPtr RetentionConfig;
 };
 
-struct TSelectRowsOptions
+struct TSelectRowsOptionsBase
     : public TTabletReadOptions
     , public TSuppressableAccessTrackingOptions
 {
@@ -441,16 +443,8 @@ struct TSelectRowsOptions
     std::optional<i64> OutputRowLimit;
     //! Limits range expanding.
     ui64 RangeExpansionLimit = 200000;
-    //! If |true| then incomplete result would lead to a failure.
-    bool FailOnIncompleteResult = true;
-    //! If |true| then logging is more verbose.
-    bool VerboseLogging = false;
     //! Limits maximum parallel subqueries.
     int MaxSubqueries = std::numeric_limits<int>::max();
-    //! Enables generated code caching.
-    bool EnableCodeCache = true;
-    //! Used to prioritize requests.
-    TUserWorkloadDescriptor WorkloadDescriptor;
     //! Combine independent joins in one.
     bool UseMultijoin = true;
     //! Allow queries without any condition on key columns.
@@ -459,11 +453,30 @@ struct TSelectRowsOptions
     bool AllowJoinWithoutIndex = false;
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
-    //! Memory limit per execution node
-    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     //! Execution pool
     std::optional<TString> ExecutionPool;
 };
+
+struct TSelectRowsOptions
+    : public TSelectRowsOptionsBase
+{
+    //! If |true| then incomplete result would lead to a failure.
+    bool FailOnIncompleteResult = true;
+    //! If |true| then logging is more verbose.
+    bool VerboseLogging = false;
+    //! Enables generated code caching.
+    bool EnableCodeCache = true;
+    //! Used to prioritize requests.
+    TUserWorkloadDescriptor WorkloadDescriptor;
+    //! Allow queries with join condition which implies foreign query with IN operator.
+    bool AllowJoinWithoutIndex = false;
+    //! Memory limit per execution node
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+};
+
+struct TExplainOptions
+    : public TSelectRowsOptionsBase
+{};
 
 struct TGetNodeOptions
     : public TTimeoutOptions
@@ -1057,6 +1070,10 @@ struct IClientBase
     virtual TFuture<TSelectRowsResult> SelectRows(
         const TString& query,
         const TSelectRowsOptions& options = {}) = 0;
+
+    virtual TFuture<NYson::TYsonString> Explain(
+        const TString& query,
+        const TExplainOptions& options = TExplainOptions()) = 0;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,

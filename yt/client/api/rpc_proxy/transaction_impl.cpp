@@ -433,6 +433,16 @@ TFuture<TSelectRowsResult> TTransaction::SelectRows(
         PatchTransactionTimestamp(options));
 }
 
+TFuture<NYson::TYsonString> TTransaction::Explain(
+    const TString& query,
+    const TExplainOptions& options)
+{
+    ValidateActive();
+    return Client_->Explain(
+        query,
+        PatchTransactionTimestamp(options));
+}
+
 TFuture<ITableReaderPtr> TTransaction::CreateTableReader(
     const TRichYPath& path,
     const NApi::TTableReaderOptions& options)

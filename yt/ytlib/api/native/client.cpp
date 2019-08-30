@@ -71,6 +71,7 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/coordinator.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>

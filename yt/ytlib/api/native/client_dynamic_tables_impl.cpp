@@ -21,6 +21,7 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/explain.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -1005,6 +1006,47 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     return TSelectRowsResult{rowset, statistics};
+}
+
+NYson::TYsonString TClient::DoExplain(
+    const TString& queryString,
+    const TExplainOptions& options)
+{
+    auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+
+    const auto& udfRegistryPath = options.UdfRegistryPath
+        ? *options.UdfRegistryPath
+        : GetNativeConnection()->GetConfig()->UdfRegistryPath;
+
+    auto externalCGInfo = New<TExternalCGInfo>();
+    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
+        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+
+        std::vector<TString> externalNames;
+        for (const auto& name : names) {
+            auto found = typeInferrers->find(name);
+            if (found == typeInferrers->end()) {
+                externalNames.push_back(name);
+            }
+        }
+
+        auto descriptors = WaitFor(GetFunctionRegistry()->FetchFunctions(udfRegistryPath, externalNames))
+            .ValueOrThrow();
+
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+    };
+
+    auto queryPreparer = New<TQueryPreparer>(
+        GetNativeConnection()->GetTableMountCache(),
+        GetNativeConnection()->GetInvoker());
+
+    auto fragment = PreparePlanFragment(
+        queryPreparer.Get(),
+        *parsedQuery,
+        fetchFunctions,
+        options.Timestamp);
+
+    return BuildExplainYson(queryString, options, fragment, this);
 }
 
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(

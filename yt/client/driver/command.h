@@ -284,6 +284,21 @@ protected:
     bool ShouldCommitTransaction();
 };
 
+template <class TOptions, class = void>
+class TSelectRowsCommandBase
+{ };
+
+template <class TOptions>
+class TSelectRowsCommandBase<
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSelectRowsOptionsBase&>>::TType
+>
+    : public virtual TTypedCommandBase<TOptions>
+{
+protected:
+    TSelectRowsCommandBase();
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions>
@@ -298,6 +313,7 @@ class TTypedCommand
     , public TSuppressableAccessTrackingCommandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
+    , public TSelectRowsCommandBase<TOptions>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

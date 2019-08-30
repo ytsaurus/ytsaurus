@@ -313,6 +313,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Explain));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
@@ -2384,6 +2385,38 @@ private:
             });
     }
 
+    template <class TRequest>
+    static void FillSelectRowsOptionsBaseFromRequest(const TRequest request, TSelectRowsOptionsBase* options)
+    {
+        if (request->has_timestamp()) {
+            options->Timestamp = request->timestamp();
+        }
+        if (request->has_input_row_limit()) {
+            options->InputRowLimit = request->input_row_limit();
+        }
+        if (request->has_output_row_limit()) {
+            options->OutputRowLimit = request->output_row_limit();
+        }
+        if (request->has_range_expansion_limit()) {
+            options->RangeExpansionLimit = request->range_expansion_limit();
+        }
+        if (request->has_max_subqueries()) {
+            options->MaxSubqueries = request->max_subqueries();
+        }
+        if (request->has_allow_full_scan()) {
+            options->AllowFullScan = request->allow_full_scan();
+        }
+        if (request->has_allow_join_without_index()) {
+            options->AllowJoinWithoutIndex = request->allow_join_without_index();
+        }
+        if (request->has_udf_registry_path()) {
+            options->UdfRegistryPath = request->udf_registry_path();
+        }
+        if (request->has_execution_pool()) {
+            options->ExecutionPool = request->execution_pool();
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SelectRows)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -2392,18 +2425,7 @@ private:
 
         TSelectRowsOptions options; // TODO: Fill all options.
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_timestamp()) {
-            options.Timestamp = request->timestamp();
-        }
-        if (request->has_input_row_limit()) {
-            options.InputRowLimit = request->input_row_limit();
-        }
-        if (request->has_output_row_limit()) {
-            options.OutputRowLimit = request->output_row_limit();
-        }
-        if (request->has_range_expansion_limit()) {
-            options.RangeExpansionLimit = request->range_expansion_limit();
-        }
+        FillSelectRowsOptionsBaseFromRequest(request, &options);
         if (request->has_fail_on_incomplete_result()) {
             options.FailOnIncompleteResult = request->fail_on_incomplete_result();
         }
@@ -2413,25 +2435,9 @@ private:
         if (request->has_enable_code_cache()) {
             options.EnableCodeCache = request->enable_code_cache();
         }
-        if (request->has_max_subqueries()) {
-            options.MaxSubqueries = request->max_subqueries();
-        }
-        if (request->has_allow_full_scan()) {
-            options.AllowFullScan = request->allow_full_scan();
-        }
-        if (request->has_allow_join_without_index()) {
-            options.AllowJoinWithoutIndex = request->allow_join_without_index();
-        }
-        if (request->has_udf_registry_path()) {
-            options.UdfRegistryPath = request->udf_registry_path();
-        }
         if (request->has_memory_limit_per_node()) {
             options.MemoryLimitPerNode = request->memory_limit_per_node();
         }
-        if (request->has_execution_pool()) {
-            options.ExecutionPool = request->execution_pool();
-        }
-
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
@@ -2439,6 +2445,7 @@ private:
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
             options.Timestamp);
+        FillSelectRowsOptionsBaseFromRequest(request, &options);
 
         CompleteCallWith(
             client,
@@ -2451,6 +2458,29 @@ private:
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, Explain)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& query = request->query();
+
+        TExplainOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("Query: %v, Timestamp: %llx",
+            query,
+            options.Timestamp);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->Explain(query, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_value(result.GetData());
             });
     }
 

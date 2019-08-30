@@ -6,6 +6,8 @@
 
 #include <yt/client/api/client.h>
 
+#include <yt/client/driver/private.h>
+
 #include <yt/core/rpc/public.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -58,6 +60,10 @@ public:
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
+
+    virtual TFuture<NYson::TYsonString> Explain(
+        const TString& query,
+        const NApi::TExplainOptions& options) override;
 
     // TODO(babenko): batch read and batch write
 

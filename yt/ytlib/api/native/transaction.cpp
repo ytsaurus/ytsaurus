@@ -7,9 +7,10 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
-#include <yt/client/table_client/wire_protocol.h>
+
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 
@@ -370,6 +371,10 @@ public:
         const TSelectRowsOptions& options),
         (query, options))
 
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<NYson::TYsonString>, Explain, (
+        const TString& query,
+        const TExplainOptions& options),
+        (query, options))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, GetNode, (
         const TYPath& path,
