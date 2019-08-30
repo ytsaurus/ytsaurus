@@ -1,5 +1,5 @@
 from yt.common import update
-from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores
+from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores, workaround_executable_bit_loss
 
 import yt.yson as yson
 
@@ -277,12 +277,9 @@ class YtStuff(object):
 
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True)
 
-        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "result/yt_local")]
-        # Work around FROM_SANDBOX macro loosing executable bit
-        try:
-            os.chmod(self.yt_local_exec[0], 0o755)
-        except:
-            pass
+        self.yt_local_exec = [workaround_executable_bit_loss(
+            self.yt_bins_path,
+            yatest.common.binary_path(source_prefix + "result/yt_local"))]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
