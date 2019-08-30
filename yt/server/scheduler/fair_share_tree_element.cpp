@@ -2601,7 +2601,8 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         GetTreeId(),
         OperationId_,
         scheduleJobResult->IncarnationId,
-        startDescriptor);
+        startDescriptor,
+        Spec_->PreemptionMode);
 
     UpdateDynamicAttributes(&context->DynamicAttributesList);
     UpdateAncestorsAttributes(context);
@@ -2708,6 +2709,9 @@ void TOperationElement::CheckForStarvation(TInstant now)
 
 bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const
 {
+    if (Spec_->PreemptionMode == EPreemptionMode::Graceful) {
+        return false;
+    }
     int jobCount = GetRunningJobCount();
     int maxUnpreemptableJobCount = config->MaxUnpreemptableRunningJobCount;
     if (Spec_->MaxUnpreemptableRunningJobCount) {

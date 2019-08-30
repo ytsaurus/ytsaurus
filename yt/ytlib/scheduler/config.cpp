@@ -1447,6 +1447,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("max_speculative_job_count_per_task", MaxSpeculativeJobCountPerTask)
         .Default(10);
+    RegisterParameter("preemption_mode", PreemptionMode)
+        .Default(EPreemptionMode::Normal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

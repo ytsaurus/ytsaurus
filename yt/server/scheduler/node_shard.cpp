@@ -65,6 +65,7 @@ static const auto& Profiler = SchedulerProfiler;
 static NProfiling::TAggregateGauge AnalysisTimeCounter;
 static NProfiling::TAggregateGauge StrategyJobProcessingTimeCounter;
 static NProfiling::TAggregateGauge ScheduleTimeCounter;
+static NProfiling::TAggregateGauge GracefulPreemptionTimeCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -536,6 +537,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
         SubmitJobsToStrategy();
     }
+    
+    PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
+        for (const auto& job : runningJobs) {
+            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetGracefullyPreempted()) {
+                Y_UNUSED(WaitFor(Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext)));
+                break;
+            }
+        }
+    }
 
     PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
         node->SetHasOngoingJobsScheduling(true);
@@ -559,7 +569,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     context->SetResponseInfo(
         "NodeId: %v, NodeAddress: %v, "
-        "StartedJobs: %v, PreemptedJobs: %v, "
+        "StartedJobs: %v, PreemptedJobs: %v, GracefullyPreemptedJobs: %v, "
         "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
         "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
         "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
@@ -567,6 +577,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         descriptor.GetDefaultAddress(),
         schedulingContext->StartedJobs().size(),
         schedulingContext->PreemptedJobs().size(),
+        schedulingContext->GracefullyPreemptedJobs().size(),
         statistics.ScheduledDuringPreemption,
         statistics.PreemptableJobCount,
         FormatResources(statistics.ResourceUsageDiscount),
@@ -2006,6 +2017,14 @@ void TNodeShard::ProcessScheduledJobs(
         } else {
             PreemptJob(job, std::nullopt);
             ToProto(response->add_jobs_to_abort(), job->GetId());
+        }
+    }
+
+    for (const auto& job : schedulingContext->GracefullyPreemptedJobs()) {
+        if (!job->GetGracefullyPreempted()) {
+            DoInterruptJob(job, EInterruptReason::GracefulPreemption, DurationToCpuDuration(Config_->GracefulPreemptionJobInterruptTimeout));
+            job->SetGracefullyPreempted(true);
+            ToProto(response->add_jobs_to_interrupt(), job->GetId());
         }
     }
 }

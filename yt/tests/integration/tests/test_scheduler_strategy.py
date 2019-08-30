@@ -31,6 +31,19 @@ class PrepareTables(object):
 
 ##################################################################
 
+def get_scheduling_options(user_slots):
+    return {
+        "scheduling_options_per_pool_tree": {
+            "default": {
+                "resource_limits": {
+                    "user_slots": user_slots
+                }
+            }
+        }
+    }
+
+##################################################################
+
 class TestResourceUsage(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -933,6 +946,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
+            "graceful_preemption_job_interrupt_timeout": 2000,
         }
     }
 
@@ -1030,6 +1044,67 @@ class TestSchedulerPreemption(YTEnvSetup):
         op2.track()
         op1.track()
         assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
+
+    @authors("dakovalkov")
+    @require_ytserver_root_privileges
+    def test_graceful_preemption(self):
+        create_test_tables(row_count=1)
+
+        command = """BREAKPOINT ; python -c "
+import time
+try:
+    time.sleep(20)
+except KeyboardInterrupt:
+    time.sleep(1)
+    print('{interrupt=42};')"
+"""
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint(command),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "interruption_signal": "SIGINT",
+                },
+                "preemption_mode": "graceful",
+            }
+        )
+
+        wait_breakpoint()
+        release_breakpoint()
+        update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
+        wait(lambda: op.get_job_count("running") == 0)
+        assert op.get_job_count("completed") == 1
+        assert op.get_job_count("total") == 1
+        op.track()
+        assert read_table("//tmp/t_out") == [{"interrupt": 42}]
+
+    @authors("dakovalkov")
+    @require_ytserver_root_privileges
+    def test_graceful_preemption_timeout(self):
+        create_test_tables(row_count=1)
+
+        command = "BREAKPOINT ; sleep 100" 
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint(command),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "preemption_mode": "graceful",
+            }
+        )
+
+        jobs = wait_breakpoint()
+        release_breakpoint()
+        update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
+        wait(lambda: op.get_job_count("aborted") == 1, iter=20)
+        assert op.get_job_count("total") == 1
+        assert op.get_job_count("aborted") == 1
+        op.abort()
 
     @authors("ignat")
     def test_min_share_ratio(self):

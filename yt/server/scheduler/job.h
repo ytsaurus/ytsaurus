@@ -95,6 +95,12 @@ class TJob
     //! True for revived job that was not confirmed by a heartbeat from the corresponding node yet.
     DEFINE_BYVAL_RW_PROPERTY(bool, WaitingForConfirmation, false);
 
+    //! Preemption mode which says how to preempt job.
+    DEFINE_BYVAL_RO_PROPERTY(EPreemptionMode, PreemptionMode);
+
+    // Flag that marks the job as gracefully preempted by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, GracefullyPreempted, false);
+
 public:
     TJob(
         TJobId id,
@@ -105,6 +111,7 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool interruptible,
+        EPreemptionMode preemptionMode,
         TString treeId,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         TString revivalNodeAddress = TString());
