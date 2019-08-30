@@ -957,8 +957,10 @@ void SmallVector<T, N>::shrink_to_small() {
   this->destroy_range(this->begin(), this->end());
   free(this->begin());
 
+  auto s = this->size();
+
   this->BeginX = firstEl;
-  this->EndX = firstEl + this->size();
+  this->EndX = firstEl + s;
   this->CapacityX = firstEl + N;
 }
 
