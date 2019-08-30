@@ -876,7 +876,6 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     std::optional<THashSet<TString>> Attributes;
-    TDuration CypressTimeout = TDuration::Seconds(3);
     TDuration ArchiveTimeout = TDuration::Seconds(3);
     bool IncludeRuntime = false;
 };
