@@ -1,11 +1,14 @@
 #include "local_resource_allocator.h"
+
 #include "helpers.h"
+
+#include <yp/server/objects/resource_helpers.h>
 
 #include <yt/core/ytree/convert.h>
 
 namespace NYP::NServer::NScheduler {
 
-using namespace NServer::NObjects;
+using namespace NCluster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +21,8 @@ bool TLocalResourceAllocator::TryAllocate(
 {
     ResourceStatistics_.clear();
 
-    THashMap<TObjectId, std::pair<const TResource*, const TAllocation*>> requestIdToAllocation;
+    // Indexed by allocation id.
+    THashMap<TObjectId, std::pair<const TResource*, const TAllocation*>> existingAllocations;
 
     // Cf. ComputeTotalAllocationStatistics.
     struct TPodStatistics
@@ -36,20 +40,20 @@ bool TLocalResourceAllocator::TryAllocate(
 
         for (const auto& allocation : resource.ScheduledAllocations) {
             if (allocation.PodId == podId) {
-                if (allocation.RequestId) {
-                    if (!requestIdToAllocation.emplace(allocation.RequestId, std::make_pair(&resource, &allocation)).second) {
-                        THROW_ERROR_EXCEPTION("Duplicate resource request id %Qv found while examining scheduled allocations",
-                            allocation.RequestId);
+                if (allocation.Id) {
+                    if (!existingAllocations.emplace(allocation.Id, std::make_pair(&resource, &allocation)).second) {
+                        THROW_ERROR_EXCEPTION("Duplicate allocation id %Qv found while examining scheduled allocations",
+                            allocation.Id);
                     }
                 }
             } else {
-                podIdToStats[allocation.PodId].Scheduled.Accumulate(allocation);
+                Accumulate(podIdToStats[allocation.PodId].Scheduled, allocation);
             }
         }
 
         for (const auto& allocation : resource.ActualAllocations) {
             if (allocation.PodId != podId) {
-                podIdToStats[allocation.PodId].Actual.Accumulate(allocation);
+                Accumulate(podIdToStats[allocation.PodId].Actual, allocation);
             }
         }
 
@@ -60,15 +64,19 @@ bool TLocalResourceAllocator::TryAllocate(
     }
 
     responses->clear();
+
+    // Initialize responses and reuse existing allocations.
     for (const auto& request : requests) {
         responses->emplace_back();
 
         if (!request.AllocationId) {
+            // Anonymous resource allocation cannot be reused.
             continue;
         }
 
-        auto it = requestIdToAllocation.find(request.AllocationId);
-        if (it == requestIdToAllocation.end()) {
+        auto it = existingAllocations.find(request.AllocationId);
+        if (it == existingAllocations.end()) {
+            // There is no allocation to reuse.
             continue;
         }
 
@@ -93,7 +101,7 @@ bool TLocalResourceAllocator::TryAllocate(
 
         if (allocation->PodId != podId) {
             THROW_ERROR_EXCEPTION("Allocation %Qv of resource %Qv belongs to a different pod: expected %Qv, found %Qv",
-                allocation->RequestId,
+                allocation->Id,
                 resource->Id,
                 podId,
                 allocation->PodId);
@@ -104,14 +112,17 @@ bool TLocalResourceAllocator::TryAllocate(
 
         auto resourceIndex = resource - resources.data();
         auto& resourceStatus = ResourceStatistics_[resourceIndex];
-        resourceStatus.Accumulate(request);
+        Accumulate(resourceStatus, request);
     }
 
+    // Building new allocations.
     bool allSatisfied = true;
     for (size_t requestIndex = 0; requestIndex < requests.size(); ++requestIndex) {
         const auto& request = requests[requestIndex];
         auto& response = (*responses)[requestIndex];
+
         if (response.Resource) {
+            // Request is already satisfied by an existing allocation.
             continue;
         }
 
@@ -152,7 +163,7 @@ bool TLocalResourceAllocator::TryAllocate(
             }
 
             response.Resource = resource;
-            statistics.Accumulate(request);
+            Accumulate(statistics, request);
             satisified = true;
             break;
         }

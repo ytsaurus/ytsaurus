@@ -8,6 +8,8 @@
 #include "user.h"
 #include "group.h"
 
+#include <yp/server/lib/objects/object_filter.h>
+
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_common.h>

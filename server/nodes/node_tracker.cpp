@@ -543,6 +543,7 @@ public:
             protoSpec->mutable_ip6_subnet_allocations()->CopyFrom(statusEtc.ip6_subnet_allocations());
             protoSpec->mutable_dns()->CopyFrom(statusEtc.dns());
             protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusEtc.disk_volume_allocations());
+            protoSpec->mutable_gpu_allocations()->CopyFrom(statusEtc.gpu_allocations());
             protoSpec->mutable_host_infra()->CopyFrom(specEtc.host_infra());
         }
 

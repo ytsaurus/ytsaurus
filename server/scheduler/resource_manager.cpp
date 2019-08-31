@@ -1,15 +1,19 @@
 #include "resource_manager.h"
+
 #include "helpers.h"
 
 #include <yp/server/objects/node.h>
-#include <yp/server/objects/resource.h>
 #include <yp/server/objects/pod.h>
+#include <yp/server/objects/resource.h>
+#include <yp/server/objects/resource_helpers.h>
 #include <yp/server/objects/transaction.h>
 
 #include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
 
 #include <yp/server/master/bootstrap.h>
+
+#include <yp/server/lib/cluster/allocation_statistics.h>
 
 #include <yt/core/misc/indexed_vector.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -226,6 +230,7 @@ private:
             resource->Status().ActualAllocations().ScheduleLoad();
         }
 
+        // NB: allocatorResources[i] should correspond to nativeResources[i]. Never reorder it!
         std::vector<TLocalResourceAllocator::TResource> allocatorResources;
         allocatorResources.reserve(nativeResources.size());
         for (auto* resource : nativeResources) {
@@ -265,6 +270,11 @@ private:
 
         UpdatePodDiskVolumeAllocations(
             pod->Status().Etc()->mutable_disk_volume_allocations(),
+            allocatorRequests,
+            allocatorResponses);
+
+        UpdatePodGpuAllocations(
+            pod->Status().Etc()->mutable_gpu_allocations(),
             allocatorRequests,
             allocatorResponses);
 

@@ -1,19 +1,26 @@
 #include "global_resource_allocator.h"
-#include "cluster.h"
-#include "internet_address.h"
-#include "network_module.h"
-#include "pod.h"
-#include "pod_set.h"
-#include "node.h"
-#include "node_segment.h"
-#include "label_filter_cache.h"
-#include "helpers.h"
+
 #include "config.h"
+#include "node_score.h"
 #include "pod_node_score.h"
+
+#include <yp/server/lib/cluster/cluster.h>
+#include <yp/server/lib/cluster/internet_address.h>
+#include <yp/server/lib/cluster/network_module.h>
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/node_segment.h>
+#include <yp/server/lib/cluster/object_filter_cache.h>
+#include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/pod_set.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
+
+#include <yp/server/lib/objects/object_filter.h>
 
 #include <yt/core/misc/random.h>
 
 namespace NYP::NServer::NScheduler {
+
+using namespace NCluster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +28,13 @@ DEFINE_ENUM(EAllocatorResourceType,
     (AntiaffinityVacancy)
     (Cpu)
     (Memory)
+    (Network)
     (Disk)
     (IP6AddressVlan)
     (IP6AddressIP4Tunnel)
     (IP6Subnet)
     (Slot)
+    (Gpu)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,8 +139,10 @@ public:
     TNodeAllocationContext(TNode* node, TPod* pod, const TClusterPtr& cluster)
         : CpuResource_(node->CpuResource())
         , MemoryResource_(node->MemoryResource())
+        , NetworkResource_(node->NetworkResource())
         , SlotResource_(node->SlotResource())
         , DiskResources_(node->DiskResources())
+        , GpuResources_(node->GpuResources())
         , Node_(node)
         , Pod_(pod)
         , InternetAddressAllocationContext_(cluster->FindNetworkModule(node->Spec().network_module_id()))
@@ -180,16 +191,20 @@ public:
 
         Node_->CpuResource() = CpuResource_;
         Node_->MemoryResource() = MemoryResource_;
+        Node_->NetworkResource() = NetworkResource_;
         Node_->SlotResource() = SlotResource_;
         Node_->DiskResources() = DiskResources_;
+        Node_->GpuResources() = GpuResources_;
 
         InternetAddressAllocationContext_.Commit();
     }
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
+    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, NetworkResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, SlotResource);
     DEFINE_BYREF_RW_PROPERTY(TNode::TDiskResources, DiskResources);
+    DEFINE_BYREF_RW_PROPERTY(TNode::TGpuResources, GpuResources);
 
 private:
     TNode* const Node_;
@@ -205,20 +220,121 @@ DEFINE_ENUM(EAllocatorNodeSelectionStrategy,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This class holds allocator state shared between several allocator instances.
+//
+// It helps to prevent duplicate reconciliations in the hierarchy of allocators
+// by enabling reconciliation only for the root allocator.
+class TGlobalResourceAllocatorSharedState
+{
+public:
+    explicit TGlobalResourceAllocatorSharedState(INodeScorePtr nodeScore)
+        : State_(New<TState>())
+    {
+        State_->NodeScore = std::move(nodeScore);
+    }
+
+    TGlobalResourceAllocatorSharedState(TGlobalResourceAllocatorSharedState&& other) noexcept = default;
+    TGlobalResourceAllocatorSharedState& operator = (TGlobalResourceAllocatorSharedState&& other) noexcept = default;
+
+    const TClusterPtr& GetCluster() const
+    {
+        return State_->Cluster;
+    }
+
+    const INodeScorePtr& GetNodeScore() const
+    {
+        return State_->NodeScore;
+    }
+
+    void ReconcileState(const TClusterPtr& cluster)
+    {
+        if (!EnabledReconciliation_) {
+            return;
+        }
+
+        State_->Cluster = cluster;
+        State_->NodeScore->ReconcileState(cluster);
+    }
+
+    TGlobalResourceAllocatorSharedState WithDisabledReconciliation() const
+    {
+        auto result = *this;
+        result.EnabledReconciliation_ = false;
+        return result;
+    }
+
+private:
+    struct TState
+        : public TIntrinsicRefCounted
+    {
+        TClusterPtr Cluster;
+        INodeScorePtr NodeScore;
+    };
+
+    // Hide copy constructors. State can be shared only with disabled reconciliation.
+    // NB! We do not use MoveOnly mixin because we want to use copy constructors privately.
+    TGlobalResourceAllocatorSharedState(const TGlobalResourceAllocatorSharedState& other) = default;
+    TGlobalResourceAllocatorSharedState& operator = (const TGlobalResourceAllocatorSharedState& other) = default;
+
+
+    // Store a pointer to the state such that changes in one instance will affect other instances.
+    TIntrusivePtr<TState> State_;
+
+    bool EnabledReconciliation_ = true;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScoreValue
+{
+    TNodeScoreValue Node = 0;
+    TPodNodeScoreValue PodNode = 0;
+};
+
+bool operator < (TScoreValue lhs, TScoreValue rhs)
+{
+    if (lhs.Node < rhs.Node) {
+        return true;
+    }
+    if (lhs.Node > rhs.Node) {
+        return false;
+    }
+    return lhs.PodNode < rhs.PodNode;
+}
+
+void FormatValue(TStringBuilderBase* builder, TScoreValue score, TStringBuf /*format*/)
+{
+    builder->AppendString("{");
+
+    TDelimitedStringBuilderWrapper delimitedBuilder(builder);
+
+    delimitedBuilder->AppendFormat("Node: %v",
+        score.Node);
+
+    delimitedBuilder->AppendFormat("PodNode: %v",
+        score.PodNode);
+
+    builder->AppendString("}");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBasicGlobalResourceAllocator
     : public IGlobalResourceAllocator
 {
 public:
     TBasicGlobalResourceAllocator(
         EAllocatorNodeSelectionStrategy nodeSelectionStrategy,
-        TPodNodeScoreConfigPtr podNodeScoreConfig)
+        TPodNodeScoreConfigPtr podNodeScoreConfig,
+        TGlobalResourceAllocatorSharedState sharedState)
         : NodeSelectionStrategy_(nodeSelectionStrategy)
         , PodNodeScore_(CreatePodNodeScore(std::move(podNodeScoreConfig)))
+        , SharedState_(std::move(sharedState))
     { }
 
     virtual void ReconcileState(const TClusterPtr& cluster) override
     {
-        Cluster_ = cluster;
+        SharedState_.ReconcileState(cluster);
     }
 
     virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) override
@@ -228,9 +344,9 @@ public:
             NodeSelectionStrategy_);
 
         auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
-        const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
+        auto* cache = nodeSegment->GetSchedulableNodeFilterCache();
 
-        const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());
+        const auto& allSegmentNodesOrError = cache->Get(NObjects::TObjectFilter{});
         YT_VERIFY(allSegmentNodesOrError.IsOK());
         const auto& allSegmentNodes = allSegmentNodesOrError.Value();
         if (allSegmentNodes.empty()) {
@@ -244,7 +360,7 @@ public:
             ? podSet->NodeFilter()
             : pod->NodeFilter();
 
-        const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
+        const auto& nodesOrError = cache->Get(NObjects::TObjectFilter{nodeFilter});
         if (!nodesOrError.IsOK()) {
             return TError("Error applying pod node filter %Qv",
                 nodeFilter)
@@ -301,7 +417,14 @@ private:
     const EAllocatorNodeSelectionStrategy NodeSelectionStrategy_;
     const IPodNodeScorePtr PodNodeScore_;
 
-    TClusterPtr Cluster_;
+    TGlobalResourceAllocatorSharedState SharedState_;
+
+    TScoreValue ComputeScore(TNode* node, TPod* pod)
+    {
+        auto nodeScore = SharedState_.GetNodeScore()->Compute(node);
+        auto podNodeScore = PodNodeScore_->Compute(node, pod);
+        return TScoreValue{nodeScore, podNodeScore};
+    }
 
     TNode* AllocateMinimumScoreNode(
         TPod* pod,
@@ -309,10 +432,10 @@ private:
         TGlobalResourceAllocatorStatistics* statistics)
     {
         TNode* resultNode = nullptr;
-        TPodNodeScoreValue resultScore{};
+        TScoreValue resultScore;
         for (auto* node : nodes) {
             if (TryAllocation(node, pod, statistics)) {
-                auto score = PodNodeScore_->Compute(node, pod);
+                auto score = ComputeScore(node, pod);
                 if (!resultNode || score < resultScore) {
                     resultNode = node;
                     resultScore = score;
@@ -332,7 +455,7 @@ private:
     void Allocate(TNode* node, TPod* pod)
     {
         TGlobalResourceAllocatorStatistics statistics;
-        TNodeAllocationContext allocationContext(node, pod, Cluster_);
+        TNodeAllocationContext allocationContext(node, pod, SharedState_.GetCluster());
         if (!TryAllocation(&allocationContext, pod, &statistics)) {
             THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
                 pod->GetId(),
@@ -346,7 +469,7 @@ private:
         TPod* pod,
         TGlobalResourceAllocatorStatistics* statistics)
     {
-        TNodeAllocationContext allocationContext(node, pod, Cluster_);
+        TNodeAllocationContext allocationContext(node, pod, SharedState_.GetCluster());
         return TryAllocation(&allocationContext, pod, statistics);
     }
 
@@ -387,6 +510,13 @@ private:
             }
         }
 
+        if (resourceRequests.network_bandwidth_guarantee() > 0) {
+            if (!nodeAllocationContext->NetworkResource().TryAllocate(MakeNetworkCapacities(resourceRequests.network_bandwidth_guarantee()))) {
+                result = false;
+                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Network);
+            }
+        }
+
         if (resourceRequests.slot() > 0) {
             if (!nodeAllocationContext->SlotResource().TryAllocate(MakeSlotCapacities(resourceRequests.slot()))) {
                 result = false;
@@ -418,6 +548,41 @@ private:
             statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Disk);
         }
 
+        bool allGpuRequestsSatisfied = true;
+        const auto& gpuRequests = pod->GpuRequests();
+        for (const auto& gpuRequest : gpuRequests) {
+            const auto capacities = GetGpuRequestCapacities(gpuRequest);
+            bool satisfied = false;
+            for (auto& gpuResource : nodeAllocationContext->GpuResources()) {
+                if (gpuResource.GetModel() != gpuRequest.model()) {
+                    continue;
+                }
+                if (gpuRequest.has_min_memory()
+                    && gpuResource.GetTotalMemory() < gpuRequest.min_memory())
+                {
+                    continue;
+                }
+                if (gpuRequest.has_max_memory()
+                    && gpuResource.GetTotalMemory() > gpuRequest.max_memory())
+                {
+                    continue;
+                }
+                if (gpuResource.TryAllocate(capacities)) {
+                    satisfied = true;
+                    break;
+                }
+            }
+            if (!satisfied) {
+                allGpuRequestsSatisfied = false;
+                break;
+            }
+        }
+
+        if (!allGpuRequestsSatisfied) {
+            result = false;
+            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Gpu);
+        }
+
         return result;
     }
 };
@@ -428,16 +593,21 @@ class TCompositeGlobalResourceAllocator
     : public IGlobalResourceAllocator
 {
 public:
-    explicit TCompositeGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config)
+    TCompositeGlobalResourceAllocator(
+        TGlobalResourceAllocatorConfigPtr config,
+        TGlobalResourceAllocatorSharedState sharedState)
         : Config_(std::move(config))
+        , SharedState_(std::move(sharedState))
         , RandomNodeSelectionAllocator_(
             New<TBasicGlobalResourceAllocator>(
                 EAllocatorNodeSelectionStrategy::Random,
-                Config_->PodNodeScore))
+                Config_->PodNodeScore,
+                SharedState_.WithDisabledReconciliation()))
         , EveryNodeSelectionAllocator_(
             New<TBasicGlobalResourceAllocator>(
                 EAllocatorNodeSelectionStrategy::Every,
-                Config_->PodNodeScore))
+                Config_->PodNodeScore,
+                SharedState_.WithDisabledReconciliation()))
     {
         YT_VERIFY(Config_->EveryNodeSelectionStrategy->Enable);
     }
@@ -447,6 +617,8 @@ public:
         VERIFY_THREAD_AFFINITY(SchedulerThread);
 
         YT_LOG_DEBUG("Started reconciling state of the global resource allocator");
+
+        SharedState_.ReconcileState(cluster);
 
         RandomNodeSelectionAllocator_->ReconcileState(cluster);
         EveryNodeSelectionAllocator_->ReconcileState(cluster);
@@ -526,8 +698,10 @@ public:
 private:
     const TGlobalResourceAllocatorConfigPtr Config_;
 
-    IGlobalResourceAllocatorPtr RandomNodeSelectionAllocator_;
-    IGlobalResourceAllocatorPtr EveryNodeSelectionAllocator_;
+    TGlobalResourceAllocatorSharedState SharedState_;
+
+    const IGlobalResourceAllocatorPtr RandomNodeSelectionAllocator_;
+    const IGlobalResourceAllocatorPtr EveryNodeSelectionAllocator_;
 
     DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
 
@@ -576,14 +750,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config)
+IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(
+    TGlobalResourceAllocatorConfigPtr config,
+    IObjectFilterEvaluatorPtr nodeFilterEvaluator)
 {
+    TGlobalResourceAllocatorSharedState sharedState(CreateNodeScore(
+        config->NodeScore, // NB! Do not move NodeScore out of the config.
+        std::move(nodeFilterEvaluator)));
+
     if (config->EveryNodeSelectionStrategy->Enable) {
-        return New<TCompositeGlobalResourceAllocator>(std::move(config));
+        return New<TCompositeGlobalResourceAllocator>(
+            std::move(config),
+            std::move(sharedState));
     }
+
     return New<TBasicGlobalResourceAllocator>(
         EAllocatorNodeSelectionStrategy::Random,
-        std::move(config->PodNodeScore));
+        config->PodNodeScore, // NB! Do not move PodNodeScore out of the config.
+        std::move(sharedState));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

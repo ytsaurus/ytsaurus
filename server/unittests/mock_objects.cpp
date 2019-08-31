@@ -2,9 +2,9 @@
 
 #include <yp/server/objects/helpers.h>
 
-#include <yp/server/scheduler/helpers.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
 
-namespace NYP::NServer::NScheduler::NTests {
+namespace NYP::NServer::NCluster::NTests {
 
 namespace {
 
@@ -39,6 +39,7 @@ std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
         std::move(uuid),
         std::move(resourceRequests),
         NObjects::TPodDiskVolumeRequests(),
+        NObjects::TPodGpuRequests(),
         NObjects::TPodIP6AddressRequests(),
         NObjects::TPodIP6SubnetRequests(),
         /* node filter*/ TString(),
@@ -78,4 +79,4 @@ std::unique_ptr<TNode> CreateMockNode()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NScheduler::NTests
+} // namespace NYP::NServer::NCluster::NTests

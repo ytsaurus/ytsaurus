@@ -94,6 +94,8 @@ message TPodSpec
 
     repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 10;
 
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
+
     // Contains (raw, unencrypted) secrets to be injected into the pod.
     // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
     repeated NYP.NClient.NApi.NProto.TSecret secrets = 11;

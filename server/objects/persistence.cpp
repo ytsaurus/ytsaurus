@@ -1,10 +1,12 @@
 #include "persistence.h"
-#include "object.h"
-#include "type_handler.h"
+
 #include "db_schema.h"
-#include "private.h"
 #include "helpers.h"
-#include "type_info.h"
+#include "object.h"
+#include "private.h"
+#include "type_handler.h"
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

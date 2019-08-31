@@ -1,17 +1,10 @@
 #include "accounting_manager.h"
+
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
 
 #include <yp/server/master/bootstrap.h>
-
-#include <yp/server/scheduler/cluster.h>
-#include <yp/server/scheduler/node.h>
-#include <yp/server/scheduler/node_segment.h>
-#include <yp/server/scheduler/account.h>
-#include <yp/server/scheduler/pod.h>
-#include <yp/server/scheduler/pod_set.h>
-#include <yp/server/scheduler/helpers.h>
 
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
@@ -21,13 +14,21 @@
 #include <yp/server/objects/pod_set.h>
 #include <yp/server/objects/helpers.h>
 
+#include <yp/server/lib/cluster/account.h>
+#include <yp/server/lib/cluster/cluster.h>
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/node_segment.h>
+#include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/pod_set.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/small_set.h>
 
 namespace NYP::NServer::NAccounting {
 
-using namespace NScheduler;
+using namespace NCluster;
 using namespace NYT::NConcurrency;
 
 using NObjects::GetObjectDisplayName;
@@ -118,11 +119,15 @@ public:
                 auto computeTotals = [&] (auto* totals, const auto& nodes) {
                     ui64 totalCpuCapacity = 0;
                     ui64 totalMemoryCapacity = 0;
+                    ui64 totalNetworkBandwidth = 0;
                     totals->mutable_disk_per_storage_class()->clear();
+                    totals->mutable_gpu_per_model()->clear();
                     auto& storageClassToDiskTotals = *totals->mutable_disk_per_storage_class();
+                    auto& gpuModelToTotals = *totals->mutable_gpu_per_model();
                     for (auto* node : nodes) {
                         totalCpuCapacity += GetCpuCapacity(node->CpuResource().GetTotalCapacities());
                         totalMemoryCapacity += GetMemoryCapacity(node->MemoryResource().GetTotalCapacities());
+                        totalNetworkBandwidth += GetNetworkBandwidth(node->NetworkResource().GetTotalCapacities());
                         for (const auto& diskResource : node->DiskResources()) {
                             auto& diskTotals = storageClassToDiskTotals[diskResource.GetStorageClass()];
                             diskTotals.set_capacity(diskTotals.capacity() + GetDiskCapacity(
@@ -130,9 +135,15 @@ public:
                             diskTotals.set_bandwidth(diskTotals.bandwidth() + GetDiskBandwidth(
                                 diskResource.GetTotalCapacities()));
                         }
+                        for (const auto& gpuResource : node->GpuResources()) {
+                            auto& gpuTotals = gpuModelToTotals[gpuResource.GetModel()];
+                            gpuTotals.set_capacity(gpuTotals.capacity()
+                                + GetGpuCapacity(gpuResource.GetTotalCapacities()));
+                        }
                     }
                     totals->mutable_cpu()->set_capacity(totalCpuCapacity);
                     totals->mutable_memory()->set_capacity(totalMemoryCapacity);
+                    totals->mutable_network()->set_bandwidth(totalNetworkBandwidth);
                 };
 
                 auto* status = transactionNodeSegment->Status().Get();
@@ -177,6 +188,7 @@ public:
                     usage += ResourceUsageFromPodSpecRequests(
                         pod->ResourceRequests(),
                         pod->DiskVolumeRequests(),
+                        pod->GpuRequests(),
                         pod->IP6AddressRequests(),
                         nodeSegment->GetId());
                 }
@@ -291,8 +303,20 @@ private:
                         << TErrorAttribute("limit", limitsPerSegment.memory().capacity());
                 }
 
+                if (deltaPerSegment.network().bandwidth() > 0 && usagePerSegment.network().bandwidth() > limitsPerSegment.network().bandwidth()) {
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::AccountLimitExceeded,
+                        "Account %v is over network bandwidth limit in segment %Qv",
+                        GetObjectDisplayName(currentAccount),
+                        segmentId)
+                        << TErrorAttribute("usage", usagePerSegment.network().bandwidth())
+                        << TErrorAttribute("limit", limitsPerSegment.network().bandwidth());
+                }
+
                 // NB! Missing internet address limit corresponds to the infinite limit for the backward compatibility.
-                if (limitsPerSegment.has_internet_address() && deltaPerSegment.internet_address().capacity() > 0 && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
+                if (limitsPerSegment.has_internet_address() && deltaPerSegment.internet_address().capacity() > 0
+                    && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity())
+                {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
                         "Account %v is over internet address limit in segment %Qv",
@@ -305,7 +329,9 @@ private:
                 for (const auto& perStorageClassPair : usagePerSegment.disk_per_storage_class()) {
                     const auto& storageClass = perStorageClassPair.first;
 
-                    auto getPerStorageClassTotals = [&] (const TPerSegmentResourceTotals& totals) -> const NClient::NApi::NProto::TPerSegmentResourceTotals_TDiskTotals& {
+                    auto getPerStorageClassTotals = [&] (const TPerSegmentResourceTotals& totals) 
+                        -> const NClient::NApi::NProto::TPerSegmentResourceTotals_TDiskTotals&
+                    {
                         auto it = totals.disk_per_storage_class().find(storageClass);
                         static const NClient::NApi::NProto::TPerSegmentResourceTotals_TDiskTotals Default;
                         return it == totals.disk_per_storage_class().end() ? Default : it->second;
@@ -335,6 +361,29 @@ private:
                             storageClass)
                             << TErrorAttribute("usage", usagePerStorageClass.bandwidth())
                             << TErrorAttribute("limit", limitsPerStorageClass.bandwidth());
+                    }
+                }
+
+                for (const auto& perModelPair : usagePerSegment.gpu_per_model()) {
+                    const auto& model = perModelPair.first;
+
+                    auto getPerModelCapacityTotals = [&] (const TPerSegmentResourceTotals& totals) {
+                        auto it = totals.gpu_per_model().find(model);
+                        return it == totals.gpu_per_model().end() ? 0 : it->second.capacity();
+                    };
+
+                    auto capacityDeltaPerModel = getPerModelCapacityTotals(deltaPerSegment);
+                    auto capacityUsagePerModel = getPerModelCapacityTotals(usagePerSegment);
+                    auto capacityLimitsPerModel = getPerModelCapacityTotals(limitsPerSegment);
+                    if (capacityDeltaPerModel > 0 && capacityUsagePerModel > capacityLimitsPerModel) {
+                        THROW_ERROR_EXCEPTION(
+                            NClient::NApi::EErrorCode::AccountLimitExceeded,
+                            "Account %v is over GPU capacity limit in segment %Qv for GPU model %Qv",
+                            GetObjectDisplayName(currentAccount),
+                            segmentId,
+                            model)
+                            << TErrorAttribute("usage", capacityUsagePerModel)
+                            << TErrorAttribute("limit", capacityLimitsPerModel);
                     }
                 }
             }

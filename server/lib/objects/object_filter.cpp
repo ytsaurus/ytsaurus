@@ -1,0 +1,16 @@
+#include "object_filter.h"
+
+#include <yt/core/misc/format.h>
+
+namespace NYP::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const TObjectFilter& filter)
+{
+    return Format("{Query: %v}", filter.Query);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYP::NServer::NObjects

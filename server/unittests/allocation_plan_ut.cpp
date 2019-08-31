@@ -7,6 +7,8 @@
 namespace NYP::NServer::NScheduler::NTests {
 namespace {
 
+using namespace NCluster::NTests;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TAllocationPlanTest, GetNodeCount)

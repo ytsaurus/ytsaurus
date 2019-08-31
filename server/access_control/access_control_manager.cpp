@@ -12,7 +12,8 @@
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
 #include <yp/server/objects/type_handler.h>
-#include <yp/server/objects/type_info.h>
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/client/api/rowset.h>
 

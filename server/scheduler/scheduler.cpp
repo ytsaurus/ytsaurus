@@ -1,29 +1,34 @@
 #include "scheduler.h"
-#include "config.h"
-#include "cluster.h"
-#include "pod.h"
-#include "resource.h"
-#include "node.h"
-#include "internet_address.h"
-#include "schedule_queue.h"
+
 #include "allocation_plan.h"
-#include "helpers.h"
-#include "resource_manager.h"
+#include "cluster_reader.h"
+#include "config.h"
 #include "global_resource_allocator.h"
+#include "helpers.h"
+#include "label_filter_evaluator.h"
 #include "pod_disruption_budget_controller.h"
+#include "resource_manager.h"
+#include "schedule_queue.h"
 
 #include <yp/server/master/yt_connector.h>
 #include <yp/server/master/bootstrap.h>
 
-#include <yp/server/objects/transaction_manager.h>
-#include <yp/server/objects/transaction.h>
-#include <yp/server/objects/pod.h>
 #include <yp/server/objects/node.h>
+#include <yp/server/objects/object_manager.h>
+#include <yp/server/objects/pod.h>
+#include <yp/server/objects/transaction.h>
+#include <yp/server/objects/transaction_manager.h>
 
 #include <yp/server/accounting/accounting_manager.h>
 
 #include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
+
+#include <yp/server/lib/cluster/cluster.h>
+#include <yp/server/lib/cluster/internet_address.h>
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/resource.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -45,7 +50,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    void AbortPodEvictionAtUpNodes(const TClusterPtr& cluster)
+    void AbortPodEvictionAtUpNodes(const NCluster::TClusterPtr& cluster)
     {
         auto check = [] (const auto* pod, const auto* node) {
             const auto& podEviction = GetPodEviction(pod);
@@ -76,7 +81,7 @@ public:
             "AbortPodEvictionAtUpNodes");
     }
 
-    void RequestPodEvictionAtNodesWithRequestedMaintenance(const TClusterPtr& cluster)
+    void RequestPodEvictionAtNodesWithRequestedMaintenance(const NCluster::TClusterPtr& cluster)
     {
         auto check = [] (const auto* pod, const auto* node) {
             const auto& podEviction = GetPodEviction(pod);
@@ -109,7 +114,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const TPod* pod)
+    static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const NCluster::TPod* pod)
     {
         return pod->Eviction();
     }
@@ -119,7 +124,7 @@ private:
         return pod->Status().Etc().Load().eviction();
     }
 
-    static EHfsmState GetHfsmState(const TNode* node)
+    static EHfsmState GetHfsmState(const NCluster::TNode* node)
     {
         return node->GetHfsmState();
     }
@@ -134,7 +139,7 @@ private:
         const TTransactionPtr& transaction,
         TCheck&& check,
         TTransition&& transition,
-        const TPod* pod,
+        const NCluster::TPod* pod,
         TStringBuf transitionName)
     {
         const auto* node = pod->GetNode();
@@ -177,7 +182,7 @@ private:
 
     template <class TCheck, class TTransition>
     void ExecuteTransition(
-        const TClusterPtr& cluster,
+        const NCluster::TClusterPtr& cluster,
         TCheck&& check,
         TTransition&& transition,
         TStringBuf transitionName)
@@ -266,14 +271,18 @@ private:
     struct TLoopContext
     {
         explicit TLoopContext(TBootstrap* bootstrap)
-            : Cluster(New<TCluster>(bootstrap))
+            : Cluster(New<NCluster::TCluster>(
+                Logger,
+                Profiler.AppendPath("/cluster_snapshot"),
+                CreateClusterReader(bootstrap),
+                CreateLabelFilterEvaluator(bootstrap)))
             , ScheduleQueue(New<TScheduleQueue>())
         { }
 
         TSchedulerConfigPtr Config;
         IGlobalResourceAllocatorPtr GlobalResourceAllocator;
         TPodDisruptionBudgetControllerPtr PodDisruptionBudgetController;
-        TClusterPtr Cluster;
+        NCluster::TClusterPtr Cluster;
         TScheduleQueuePtr ScheduleQueue;
     };
 
@@ -387,7 +396,7 @@ private:
         }
 
         static void ReconcileInternetAddressManagerState(
-            const TClusterPtr& cluster,
+            const NCluster::TClusterPtr& cluster,
             NNet::TInternetAddressManager* internetAddressManager)
         {
             NNet::TIP4AddressPoolIdToFreeIP4Addresses ip4AddressPoolIdToFreeAddresses;
@@ -417,7 +426,7 @@ private:
 
         void RemoveOrphanedAllocations()
         {
-            std::vector<TNode*> changedNodes;
+            std::vector<NCluster::TNode*> changedNodes;
             for (auto* resource : Context_.Cluster->GetResources()) {
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
@@ -474,7 +483,7 @@ private:
             }
         }
 
-        void RecordAllocationSuccess(TPod* pod, TNode* node)
+        void RecordAllocationSuccess(NCluster::TPod* pod, NCluster::TNode* node)
         {
             YT_LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
                 pod->GetId(),
@@ -482,7 +491,7 @@ private:
             AllocationPlan_.AssignPodToNode(pod, node);
         }
 
-        void RecordAllocationFailure(TPod* pod)
+        void RecordAllocationFailure(NCluster::TPod* pod)
         {
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
@@ -493,7 +502,7 @@ private:
             Context_.ScheduleQueue->Enqueue(podId, deadline);
         }
 
-        void RecordSchedulingFailure(TPod* pod, const TError& error)
+        void RecordSchedulingFailure(NCluster::TPod* pod, const TError& error)
         {
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
@@ -723,7 +732,8 @@ private:
         try {
             try {
                 context.GlobalResourceAllocator = CreateGlobalResourceAllocator(
-                    context.Config->GlobalResourceAllocator);
+                    context.Config->GlobalResourceAllocator,
+                    CreateLabelFilterEvaluator(Bootstrap_));
             } catch (const std::exception& ex) {
                 context.GlobalResourceAllocator = nullptr;
                 THROW_ERROR_EXCEPTION("Error creating global resource allocator")

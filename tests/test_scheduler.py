@@ -4,10 +4,13 @@ from .conftest import (
     ZERO_RESOURCE_REQUESTS,
     create_nodes,
     create_pod_with_boilerplate,
+    create_pod_set_with_quota,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
     is_error_pod_scheduling_status,
     are_pods_assigned,
+    wait_pod_is_assigned_to,
+    is_pod_assigned,
 )
 
 from yp.local import set_account_infinite_resource_limits
@@ -24,6 +27,7 @@ import pytest
 from collections import defaultdict, Counter
 from functools import partial
 import time
+import random
 
 
 @pytest.mark.usefixtures("yp_env")
@@ -244,6 +248,96 @@ class TestScheduler(object):
         with pytest.raises(YtResponseError):
             yp_client.update_object("pod", unassigned_pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
 
+    def test_network_bandwidth(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            bandwidth_quota=2 ** 60)[0]
+
+        create_pod = lambda guarantee, limit: \
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "network_bandwidth_guarantee": guarantee,
+                    "network_bandwidth_limit": limit,
+                },
+                "enable_scheduling": True
+            })
+
+        wrong_node_id = create_nodes(yp_client, 1, network_bandwidth=None)[0]
+        pod_ids = [create_pod(2 ** 29, 2 ** 32)]
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_ids[0])))
+
+        yp_client.remove_object("node", wrong_node_id)
+
+        pod_ids.append(create_pod(2 ** 29, 2 ** 32))
+        pod_ids.append(
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 10,
+                },
+                "enable_scheduling": True
+            })
+        )
+
+        node_id = create_nodes(yp_client, 1, network_bandwidth=2 ** 30)[0]
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+        network_allocations = yp_client.select_objects(
+            "resource",
+            filter="[/meta/node_id] = \"{}\" and [/meta/kind] = \"network\"".format(node_id),
+            selectors=["/status/scheduled_allocations"])[0]
+
+        assert len(network_allocations) == 1
+        for alloc in network_allocations:
+            assert alloc[0]["network"]["bandwidth"] == 2 ** 29
+
+        zero_pod_id = create_pod(0, 2 ** 32)
+        dummy_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True})
+
+        wait(lambda: are_pods_assigned(yp_client, [zero_pod_id, dummy_pod_id]))
+
+        new_pod_id = create_pod(1, 2 ** 32)
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, new_pod_id)))
+
+    def test_network_bandwidth_update_without_rescheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 10, network_bandwidth=2 ** 30)
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            bandwidth_quota=2 ** 60)[0]
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "network_bandwidth_guarantee": 2 ** 20,
+            },
+            "enable_scheduling": True
+        })
+
+        wait(lambda: are_pods_assigned(yp_client, [pod_id]))
+
+        node_id = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0]
+        network_resource = yp_client.select_objects("resource",
+            filter="[/meta/node_id] = \"{}\" and [/meta/kind] = \"network\"".format(node_id),
+            selectors=["/meta/id"])[0][0]
+        yp_client.update_object("resource", network_resource,
+                                set_updates=[dict(path="/spec/network/total_bandwidth", value=0)])
+
+        new_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "network_bandwidth_guarantee": 2 ** 20,
+            },
+            "enable_scheduling": True
+        })
+
+        wait(lambda: are_pods_assigned(yp_client, [new_pod_id]))
+
+        assert yp_client.get_object("pod", new_pod_id, selectors=["/status/scheduling/node_id"])[0] != node_id
+        assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == node_id
+
+
     def test_pod_node_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -259,7 +353,7 @@ class TestScheduler(object):
                 "vcpu_guarantee": 100
             },
             "enable_scheduling": True,
-            "node_filter" : '[/labels/status] = "good"'
+            "node_filter": '[/labels/status] = "good"'
         })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
@@ -308,7 +402,7 @@ class TestScheduler(object):
                 "vcpu_guarantee": 100
             },
             "enable_scheduling": True,
-            "node_filter" : '[/labels/status] = "good"'
+            "node_filter": '[/labels/status] = "good"'
         })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
@@ -330,7 +424,7 @@ class TestScheduler(object):
                 "vcpu_guarantee": 100
             },
             "enable_scheduling": True,
-            "node_filter" : "true"
+            "node_filter": "true"
         })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == node_id)
@@ -342,7 +436,7 @@ class TestScheduler(object):
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
             "enable_scheduling": True,
-            "node_filter" : '[/some/nonexisting] = "value"'
+            "node_filter": '[/some/nonexisting] = "value"'
         })
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
@@ -352,7 +446,7 @@ class TestScheduler(object):
 
         create_nodes(yp_client, 10)
         pod_set_spec = dict(DEFAULT_POD_SET_SPEC, **{
-            "node_filter" : '[/some/nonexisting] = "value"'
+            "node_filter": '[/some/nonexisting] = "value"'
         })
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
@@ -518,6 +612,256 @@ class TestScheduler(object):
         })
 
         wait(lambda: "error" in yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0])
+
+    def test_gpu_resource_scheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 10)
+        for gpu_model in ("v10{}".format(i) for i in range(10)):
+            gpu_spec = dict(model=gpu_model, total_memory=2 ** 16)
+            create_nodes(yp_client, 1, gpu_specs=[gpu_spec])
+        for gpu_memory in (2 ** (15 - i) for i in range(10)):
+            gpu_spec = dict(model="k100", total_memory=gpu_memory)
+            node_id = create_nodes(yp_client, 1, gpu_specs=[gpu_spec])[0]
+            if gpu_memory == 2 ** 15:
+                matching_node_id = node_id
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(k100=1),
+        )[0]
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 100,
+            },
+            "gpu_requests": [
+                {
+                    "id": "gpu1",
+                    "model": "k100",
+                    "min_memory": 2 ** 15,
+                }
+            ],
+            "enable_scheduling": True
+        })
+
+        wait_pod_is_assigned_to(yp_client, pod_id, matching_node_id)
+
+    def test_gpu_no_rescheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=100, v200=100),
+        )[0]
+
+        make_nodes = lambda count: create_nodes(yp_client,
+                                                count,
+                                                cpu_total_capacity=1000,
+                                                gpu_specs=[dict(model="v100", total_memory=2 ** 16)] * 2)
+
+        make_pod = lambda: create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "gpu_requests": [
+                {
+                    "id": "gpu1",
+                    "model": "v100",
+                    "min_memory": 2 ** 16,
+                }
+            ],
+            "enable_scheduling": True
+        })
+
+        get_node_id = lambda pod_id: yp_client.get_object("pod", pod_id,
+                                                          selectors=["/status/scheduling/node_id"])[0]
+
+        node_id = make_nodes(1)[0]
+        pod_ids = [make_pod() for _ in range(2)]
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+        gpu_resources = [response[0] for response in yp_client.select_objects("resource",
+            filter='[/meta/node_id] = "{}" and [/meta/kind] = "gpu"'.format(node_id),
+            selectors=["/meta/id"])]
+
+        make_nodes(10)
+
+        yp_client.update_object("resource", gpu_resources[0],
+                                set_updates=[dict(path="/spec/gpu/total_memory", value=0)])
+        yp_client.update_object("pod", pod_ids[1], set_updates=[
+            dict(path="/spec/gpu_requests/0/min_memory", value=2 ** 40),
+        ])
+        yp_client.update_object("pod", pod_ids[1], set_updates=[
+            dict(path="/spec/gpu_requests/0/model", value="v200"),
+        ])
+
+        new_pod_id = make_pod()
+        wait(lambda: is_pod_assigned(yp_client, new_pod_id))
+        assert all(get_node_id(pod_id) == node_id for pod_id in pod_ids)
+
+        with pytest.raises(YtResponseError):
+            yp_client.remove_object("resource", gpu_resources[1])
+
+
+    def test_multiple_gpu_resource_scheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        gpu_spec = dict(model="v100", total_memory=2 ** 16)
+        create_nodes(yp_client, 21, gpu_specs=[gpu_spec] * 2)
+        nodes = create_nodes(yp_client, 11, gpu_specs=[gpu_spec] * 3)
+        matching_node_id = nodes[5]
+        occupied_node_ids = nodes[:5] + nodes[6:]
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=100),
+        )[0]
+        for node_id in occupied_node_ids:
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "node_id": node_id,
+                "gpu_requests": [
+                    {
+                        "id": "gpu1",
+                        "model": "v100",
+                        "min_memory": 2 ** 10,
+                    }
+                ],
+            })
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "gpu_requests": [
+                {
+                    "id": "gpu{}".format(i),
+                    "model": "v100",
+                    "min_memory": 2 ** 10,
+                }
+                for i in range(3)
+            ],
+            "enable_scheduling": True
+        })
+
+        wait_pod_is_assigned_to(yp_client, pod_id, matching_node_id)
+
+    def test_gpu_resource_exact_memory_bound(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        memory_capacities = [2 ** i for i in range(30)]
+        for i in range(10):
+            node_memory_capacities = memory_capacities[3*i : 3*i + 3]
+            gpu_specs = [dict(model="v100", total_memory=memory) for memory in node_memory_capacities]
+            create_nodes(yp_client, 1, gpu_specs=gpu_specs)
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=len(memory_capacities)),
+        )[0]
+        pod_ids = []
+        random.seed(42)
+        random.shuffle(memory_capacities)
+        for memory in memory_capacities:
+            pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "gpu_requests": [
+                    {
+                        "id": "gpu1",
+                        "model": "v100",
+                        "min_memory": memory,
+                        "max_memory": memory,
+                    }
+                ],
+                "enable_scheduling": True
+            })
+            pod_ids.append(pod_id)
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+        for memory, pod_id in zip(memory_capacities, pod_ids):
+            allocations = yp_client.get_object("pod", pod_id,
+                                               selectors=["/status/scheduled_resource_allocations"])[0]
+            for alloc in allocations:
+                resource_spec = yp_client.get_object("resource", alloc["resource_id"], selectors=["/spec"])[0]
+                if "gpu" in resource_spec:
+                    assert resource_spec["gpu"]["total_memory"] == memory
+
+    def test_gpu_resource_no_overcommit(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        gpu_spec = dict(model="v100", total_memory=2 ** 16)
+        create_nodes(yp_client, 1, gpu_specs=[gpu_spec] * 2)
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=100),
+        )[0]
+
+        make_pod = lambda: create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "gpu_requests": [
+                {
+                    "id": "gpu1",
+                    "model": "v100",
+                    "min_memory": 2 ** 16,
+                }
+            ],
+            "enable_scheduling": True
+        })
+
+        pod_ids = [make_pod() for _ in range(2)]
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+        new_pod_id = make_pod()
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, new_pod_id)))
+
+    def test_gpu_resource_no_scheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 1)
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=100),
+        )[0]
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "gpu_requests": [
+                {
+                    "id": "gpu1",
+                    "model": "v100",
+                    "min_memory": 2 ** 16,
+                }
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+    def test_gpu_resource_filters(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        memory_capacities = [2 ** i for i in range(30)]
+        v100_nodes = [create_nodes(yp_client, 1, gpu_specs=[dict(model="v100", total_memory=capacity)])[0]
+                      for capacity in memory_capacities]
+        k100_node = create_nodes(yp_client, 1, gpu_specs=[dict(model="k100", total_memory=capacity)
+                                                                for capacity in memory_capacities])[0]
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=len(memory_capacities), k100=1),
+        )[0]
+
+        make_pod = lambda **params: create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "gpu_requests": [
+                dict(
+                    id="gpu1",
+                    **params
+                )
+            ],
+            "enable_scheduling": True
+        })
+
+        small_pod = make_pod(model="v100", max_memory=1)
+        big_pod = make_pod(model="v100", min_memory=2 ** 29)
+        k100_pod = make_pod(model="k100")
+
+        wait(lambda: are_pods_assigned(yp_client, [small_pod, big_pod, k100_pod]))
+
+        assert get_pod_scheduling_status(yp_client, small_pod)["node_id"] == v100_nodes[0]
+        assert get_pod_scheduling_status(yp_client, big_pod)["node_id"] == v100_nodes[-1]
+        assert get_pod_scheduling_status(yp_client, k100_pod)["node_id"] == k100_node
 
     def _test_schedule_pod_with_exclusive_disk_usage(self, yp_env, exclusive_first):
         yp_client = yp_env.yp_client
@@ -827,6 +1171,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         return dict(
             cpu_total_capacity=10 ** 3,
             memory_total_capacity=10 ** 10,
+            network_bandwidth=2 ** 30,
             disk_specs=[dict(total_capacity=10 ** 12)],
             vlan_id="backbone",
         )
@@ -838,8 +1183,14 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
 
     def _test_scheduling_error(self, yp_env_configurable, pod_spec, status_check):
         yp_client = yp_env_configurable.yp_client
-        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_node_configuration())
-        pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
+        default_config = self._get_default_node_configuration()
+        create_nodes(yp_client, node_count=self._NODE_COUNT, **default_config)
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            cpu_quota=2 ** 60,
+            memory_quota=2 ** 60,
+            bandwidth_quota=2 ** 60,
+            disk_quota=dict(hdd=dict(capacity=2 ** 60)))[0]
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
         wait(lambda: status_check(get_pod_scheduling_status(yp_client, pod_id)))
 
@@ -946,6 +1297,15 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
             resource_requests=dict(memory_limit=memory_total_capacity + 1),
         )
         status_check = partial(self._error_status_check, "Memory")
+        self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
+
+    def test_network_scheduling_error(self, yp_env_configurable):
+        bandwidth = self._get_default_node_configuration()["network_bandwidth"]
+        pod_spec = dict(
+            enable_scheduling=True,
+            resource_requests=dict(network_bandwidth_guarantee=bandwidth + 1),
+        )
+        status_check = partial(self._error_status_check, "Network")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_slot_scheduling_error(self, yp_env_configurable):

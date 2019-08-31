@@ -98,15 +98,6 @@ TString ToString(const TAttributeSelector& selector);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TObjectFilter
-{
-    TString Query;
-};
-
-TString ToString(const TObjectFilter& filter);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TGetQueryOptions
 {
     bool IgnoreNonexistent = false;

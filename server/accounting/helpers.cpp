@@ -20,6 +20,11 @@ ui64 GetMemoryCapacityFromRequests(const NObjects::TPodResourceRequests& request
     return requests.memory_limit();
 }
 
+ui64 GetNetworkBandwidthFromRequests(const NObjects::TPodResourceRequests& requests)
+{
+    return requests.network_bandwidth_guarantee();
+}
+
 ui64 GetDiskCapacityFromRequest(const NClient::NApi::NProto::TPodSpec::TDiskVolumeRequest& request)
 {
     if (request.has_quota_policy()) {
@@ -55,11 +60,17 @@ ui64 GetInternetAddressCapacityFromRequests(const NObjects::TPodIP6AddressReques
     return result;
 }
 
+ui64 GetGpuCapacityFromRequest(const NClient::NApi::NProto::TPodSpec::TGpuRequest /*request*/)
+{
+    return 1;
+}
+
 } // namespace
 
 TResourceTotals ResourceUsageFromPodSpecRequests(
     const NObjects::TPodResourceRequests& resourceRequests,
     const NObjects::TPodDiskVolumeRequests& diskVolumeRequests,
+    const NObjects::TPodGpuRequests& gpuRequests,
     const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
     const TObjectId& segmentId)
 {
@@ -72,6 +83,9 @@ TResourceTotals ResourceUsageFromPodSpecRequests(
     perSegmentUsage.mutable_memory()->set_capacity(
         perSegmentUsage.memory().capacity() + GetMemoryCapacityFromRequests(resourceRequests));
 
+    perSegmentUsage.mutable_network()->set_bandwidth(
+        perSegmentUsage.network().bandwidth() + GetNetworkBandwidthFromRequests(resourceRequests));
+
     for (const auto& volumeRequest : diskVolumeRequests) {
         const auto& storageClass = volumeRequest.storage_class();
         auto& diskTotals = (*perSegmentUsage.mutable_disk_per_storage_class())[storageClass];
@@ -81,6 +95,13 @@ TResourceTotals ResourceUsageFromPodSpecRequests(
 
     perSegmentUsage.mutable_internet_address()->set_capacity(
         perSegmentUsage.internet_address().capacity() + GetInternetAddressCapacityFromRequests(ip6AddressRequests));
+
+    for (const auto& gpuRequest : gpuRequests) {
+        const auto& model = gpuRequest.model();
+        auto& gpuTotals = (*perSegmentUsage.mutable_gpu_per_model())[model];
+        auto capacity = GetGpuCapacityFromRequest(gpuRequest);
+        gpuTotals.set_capacity(gpuTotals.capacity() + capacity);
+    }
 
     return usage;
 }
@@ -92,6 +113,7 @@ TResourceTotals ResourceUsageFromPodSpec(
     return ResourceUsageFromPodSpecRequests(
         spec.resource_requests(),
         spec.disk_volume_requests(),
+        spec.gpu_requests(),
         spec.ip6_address_requests(),
         segmentId);
 }
@@ -115,11 +137,16 @@ void Aggregate(
 {
     lhs.mutable_cpu()->set_capacity(lhs.cpu().capacity() + rhs.cpu().capacity() * multiplier);
     lhs.mutable_memory()->set_capacity(lhs.memory().capacity() + rhs.memory().capacity() * multiplier);
+    lhs.mutable_network()->set_bandwidth(lhs.network().bandwidth() + rhs.network().bandwidth() * multiplier);
     lhs.mutable_internet_address()->set_capacity(lhs.internet_address().capacity() + rhs.internet_address().capacity() * multiplier);
     for (const auto& pair : rhs.disk_per_storage_class()) {
         auto& diskTotals = (*lhs.mutable_disk_per_storage_class())[pair.first];
         diskTotals.set_capacity(diskTotals.capacity() + pair.second.capacity() * multiplier);
         diskTotals.set_bandwidth(diskTotals.bandwidth() + pair.second.bandwidth() * multiplier);
+    }
+    for (const auto& pair : rhs.gpu_per_model()) {
+        auto& gpuTotals = (*lhs.mutable_gpu_per_model())[pair.first];
+        gpuTotals.set_capacity(gpuTotals.capacity() + pair.second.capacity() * multiplier);
     }
 }
 
@@ -219,6 +246,8 @@ void FormatValue(TStringBuilderBase* builder, const TPerSegmentResourceTotals& t
         totals.cpu().capacity());
     globalDelimitedBuilder->AppendFormat("Memory: %v",
         totals.memory().capacity());
+    globalDelimitedBuilder->AppendFormat("Network: {Bandwidth: %v}",
+        totals.network().bandwidth());
     globalDelimitedBuilder->AppendFormat("InternetAddress: %v",
         totals.internet_address().capacity());
 
@@ -230,6 +259,17 @@ void FormatValue(TStringBuilderBase* builder, const TPerSegmentResourceTotals& t
                 pair.first,
                 pair.second.capacity(),
                 pair.second.bandwidth());
+        }
+        builder->AppendString("}");
+    }
+
+    {
+        globalDelimitedBuilder->AppendString("GpuPerModel = {");
+        TDelimitedStringBuilderWrapper gpuDelimitedBuilder(builder);
+        for (const auto& pair : totals.gpu_per_model()) {
+            gpuDelimitedBuilder->AppendFormat("%v=>{Capacity: %v}",
+                pair.first,
+                pair.second.capacity());
         }
         builder->AppendString("}");
     }

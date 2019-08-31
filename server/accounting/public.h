@@ -1,6 +1,7 @@
 #pragma once
 
-#include <yp/server/misc/public.h>
+// This header is the first intentionally.
+#include <yp/server/lib/misc/public.h>
 
 namespace NYP::NServer::NAccounting {
 

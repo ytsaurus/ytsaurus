@@ -1,7 +1,11 @@
 #include "allocation_plan.h"
-#include "pod.h"
+
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/pod.h>
 
 namespace NYP::NServer::NScheduler {
+
+using namespace NCluster;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yp/server/objects/type_info.h>
+#include <yp/server/lib/objects/type_info.h>
 
 namespace NYP::NServer::NObjects::NTests {
 

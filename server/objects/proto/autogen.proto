@@ -39,6 +39,7 @@ message TPodSpecEtc
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeRequest disk_volume_requests = 13;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TGpuRequest gpu_requests = 23;
     string node_filter = 8;
     repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
@@ -56,6 +57,7 @@ message TPodStatusEtc
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 6;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 14;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
     NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
     NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
     NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;

@@ -16,6 +16,7 @@ SET(YP_TEST_SRCS
     test_auth.py
     test_batch_methods.py
     test_cli.py
+    test_client_config.py
     test_client_discovery.py
     test_config.py
     test_disk_bandwidth_resource.py
@@ -46,6 +47,7 @@ SET(YP_TEST_SRCS
     test_resources.py
     test_retries.py
     test_scheduler.py
+    test_scheduler_node_score.py
     test_schemas.py
     test_scripts.py
     # test_secrets.py # TEMPORARY DISABLE

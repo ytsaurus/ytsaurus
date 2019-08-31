@@ -1,9 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yp/server/scheduler/helpers.h>
-#include <yp/server/scheduler/node.h>
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
 
-namespace NYP::NServer::NScheduler::NTests {
+namespace NYP::NServer::NCluster::NTests {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,4 +56,4 @@ TEST(TDiskResourceTest, Exclusive)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYP::NServer::NScheduler::NTests
+} // namespace NYP::NServer::NCluster::NTests

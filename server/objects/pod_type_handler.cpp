@@ -388,6 +388,8 @@ private:
 
             ValidateDiskVolumeRequests(pod);
 
+            ValidateGpuRequests(pod);
+
             ValidateNetworkRequests(transaction, pod);
 
             ValidateResourceRequests(pod);
@@ -510,15 +512,23 @@ private:
         pod->Spec().UpdateTimestamp().Touch();
     }
 
+    template <class T>
+    static void ValidateNoDuplicateResourceRequestIds(const T& items, TStringBuf resourceName) {
+        THashSet<TString> ids;
+        for (const auto& item : items) {
+            if (!ids.insert(item.id()).second) {
+                THROW_ERROR_EXCEPTION("Duplicate %Qv request %Qv",
+                    resourceName,
+                    item.id());
+            }
+        }
+    }
+
     static void ValidateDiskVolumeRequests(TPod* pod)
     {
-        THashSet<TString> ids;
         const auto& requests = pod->Spec().Etc().Load().disk_volume_requests();
+        ValidateNoDuplicateResourceRequestIds(requests, "disk volume");
         for (const auto& request : requests) {
-            if (!ids.insert(request.id()).second) {
-                THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
-                    request.id());
-            }
             if (!request.has_quota_policy() &&
                 !request.has_exclusive_policy())
             {
@@ -526,6 +536,12 @@ private:
                     request.id());
             }
         }
+    }
+
+    static void ValidateGpuRequests(TPod* pod)
+    {
+        const auto& requests = pod->Spec().Etc().Load().gpu_requests();
+        ValidateNoDuplicateResourceRequestIds(requests, "GPU");
     }
 
     void ValidateNetworkRequests(TTransaction* transaction, TPod* pod)

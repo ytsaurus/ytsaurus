@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yp/server/scheduler/node.h>
-#include <yp/server/scheduler/pod.h>
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/pod.h>
 
-namespace NYP::NServer::NScheduler::NTests {
+namespace NYP::NServer::NCluster::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,4 +17,4 @@ std::unique_ptr<TNode> CreateMockNode();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NScheduler::NTests
+} // namespace NYP::NServer::NCluster::NTests

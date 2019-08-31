@@ -1,16 +1,18 @@
 #include "pod_disruption_budget_controller.h"
 
-#include "pod_disruption_budget.h"
-#include "pod.h"
-#include "pod_set.h"
-#include "cluster.h"
 #include "config.h"
+#include "private.h"
+
+#include <yp/server/master/bootstrap.h>
 
 #include <yp/server/objects/pod_disruption_budget.h>
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
 
-#include <yp/server/master/bootstrap.h>
+#include <yp/server/lib/cluster/cluster.h>
+#include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/pod_disruption_budget.h>
+#include <yp/server/lib/cluster/pod_set.h>
 
 namespace NYP::NServer::NScheduler {
 
@@ -148,7 +150,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(GetCurrentInvoker(), SchedulerLoopThread);
     }
 
-    void Run(const TClusterPtr& cluster)
+    void Run(const NCluster::TClusterPtr& cluster)
     {
         VERIFY_THREAD_AFFINITY(SchedulerLoopThread);
 
@@ -171,14 +173,14 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(SchedulerLoopThread);
 
-    static bool IsPodAvailable(TPod* pod)
+    static bool IsPodAvailable(NCluster::TPod* pod)
     {
         // TODO(bidzilya): Use pod integral liveness status.
         return pod->GetNode() != nullptr
             && pod->Eviction().state() == NClient::NApi::NProto::EEvictionState::ES_NONE;
     }
 
-    void RunImpl(const TClusterPtr& cluster)
+    void RunImpl(const NCluster::TClusterPtr& cluster)
     {
         YT_LOG_DEBUG("Recalculating pod disruption budget statistics");
 
@@ -325,7 +327,7 @@ TPodDisruptionBudgetController::TPodDisruptionBudgetController(
         std::move(config)))
 { }
 
-void TPodDisruptionBudgetController::Run(const TClusterPtr& cluster)
+void TPodDisruptionBudgetController::Run(const NCluster::TClusterPtr& cluster)
 {
     Impl_->Run(cluster);
 }

@@ -3,13 +3,17 @@
 #include "mock_objects.h"
 
 #include <yp/server/scheduler/config.h>
-#include <yp/server/scheduler/helpers.h>
 #include <yp/server/scheduler/pod_node_score.h>
+
+#include <yp/server/lib/cluster/resource_capacities.h>
 
 #include <yt/core/ytree/fluent.h>
 
 namespace NYP::NServer::NScheduler::NTests {
 namespace {
+
+using namespace NCluster;
+using namespace NCluster::NTests;
 
 ////////////////////////////////////////////////////////////////////////////////
 

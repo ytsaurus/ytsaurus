@@ -6,7 +6,7 @@
 
 #include <yp/server/master/public.h>
 
-#include <yp/server/scheduler/public.h>
+#include <yp/server/lib/cluster/public.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -27,8 +27,8 @@ public:
     void PrepareValidateAccounting(NObjects::TPod* pod);
     void ValidateAccounting(const std::vector<NObjects::TPod*>& pods);
 
-    void UpdateNodeSegmentsStatus(const NScheduler::TClusterPtr& cluster);
-    void UpdateAccountsStatus(const NScheduler::TClusterPtr& cluster);
+    void UpdateNodeSegmentsStatus(const NCluster::TClusterPtr& cluster);
+    void UpdateAccountsStatus(const NCluster::TClusterPtr& cluster);
 
 private:
     class TImpl;

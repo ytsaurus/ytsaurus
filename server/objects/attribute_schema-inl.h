@@ -6,7 +6,8 @@
 #endif
 
 #include "helpers.h"
-#include "type_info.h"
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/core/misc/string.h>
 

@@ -1,15 +1,21 @@
 #include "helpers.h"
 
+#include <yp/server/objects/proto/autogen.pb.h>
+
 #include <yp/server/objects/helpers.h>
-#include <yp/server/objects/pod.h>
 #include <yp/server/objects/resource.h>
 
+#include <yp/server/lib/cluster/allocation_statistics.h>
+
+#include <yt/core/misc/error.h>
 
 namespace NYP::NClient::NApi::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs)
+bool operator == (
+    const TResourceStatus_TAllocation& lhs,
+    const TResourceStatus_TAllocation& rhs)
 {
     if (lhs.pod_id() != rhs.pod_id() ||
         lhs.pod_uuid() != rhs.pod_uuid())
@@ -28,6 +34,14 @@ bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TA
         return false;
     }
     if (lhs.has_memory() && lhs.memory().capacity() != rhs.memory().capacity()) {
+        return false;
+    }
+
+    if (lhs.has_network() != rhs.has_network()) {
+        return false;
+    }
+    if (lhs.has_network() && lhs.network().bandwidth() != rhs.network().bandwidth())
+    {
         return false;
     }
 
@@ -50,10 +64,19 @@ bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TA
         return false;
     }
 
+    if (lhs.has_gpu() != rhs.has_gpu()) {
+        return false;
+    }
+    if (lhs.has_gpu() && lhs.gpu().capacity() != rhs.gpu().capacity()) {
+        return false;
+    }
+
     return true;
 }
 
-bool operator!=(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs)
+bool operator != (
+    const TResourceStatus_TAllocation& lhs,
+    const TResourceStatus_TAllocation& rhs)
 {
     return !(lhs == rhs);
 }
@@ -68,147 +91,40 @@ using namespace NServer::NObjects;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceCapacities& operator += (TResourceCapacities& lhs, const TResourceCapacities& rhs)
-{
-    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        lhs[index] += rhs[index];
-    }
-    return lhs;
-}
+namespace {
 
-TResourceCapacities operator + (const TResourceCapacities& lhs, const TResourceCapacities& rhs)
+THashMap<TObjectId, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> GetDiskVolumeRequestIdToAllocationMapping(
+    const ::google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>& allocations)
 {
-    auto result = lhs;
-    result += rhs;
-    return result;
-}
-
-bool Dominates(const TResourceCapacities& lhs, const TResourceCapacities& rhs)
-{
-    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        if (lhs[index] < rhs[index]) {
-            return false;
+    THashMap<TObjectId, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> requestIdToDiskAllocation;
+    for (const auto& allocation : allocations) {
+        // NB! Actually /pod/status/disk_volume_allocations/*/id means corresponding request id.
+        if (!requestIdToDiskAllocation.emplace(allocation.id(), &allocation).second) {
+            THROW_ERROR_EXCEPTION("Disk volume allocation %Qv refers to duplicate disk volume request %Qv",
+                allocation.volume_id(),
+                allocation.id());
         }
     }
-    return true;
+    return requestIdToDiskAllocation;
 }
 
-TResourceCapacities Max(const TResourceCapacities& a, const TResourceCapacities& b)
+THashMap<TObjectId, const NClient::NApi::NProto::TPodStatus_TGpuAllocation*> GetGpuRequestIdToAllocationMapping(
+    const ::google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TGpuAllocation>& allocations)
 {
-    TResourceCapacities result = {};
-    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        result[index] = std::max(a[index], b[index]);
+    THashMap<TObjectId, const NClient::NApi::NProto::TPodStatus_TGpuAllocation*> requestIdToGpuAllocation;
+    for (const auto& allocation : allocations) {
+        if (!requestIdToGpuAllocation.emplace(allocation.request_id(), &allocation).second) {
+            THROW_ERROR_EXCEPTION("GPU allocation %Qv refers to duplicate GPU request %Qv",
+                allocation.id(),
+                allocation.request_id());
+        }
     }
-    return result;
+    return requestIdToGpuAllocation;
 }
 
-TResourceCapacities SubtractWithClamp(const TResourceCapacities& lhs, const TResourceCapacities& rhs)
-{
-    TResourceCapacities result = {};
-    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        result[index] = lhs[index] < rhs[index] ? 0 : lhs[index] - rhs[index];
-    }
-    return result;
-}
+} // namespace
 
-bool IsHomogeneous(EResourceKind kind)
-{
-    return
-        kind == EResourceKind::Cpu ||
-        kind == EResourceKind::Memory ||
-        kind == EResourceKind::Slot;
-}
-
-TResourceCapacities MakeCpuCapacities(ui64 capacity)
-{
-    return {{capacity, 0, 0}};
-}
-
-TResourceCapacities MakeMemoryCapacities(ui64 capacity)
-{
-    return {{capacity, 0, 0}};
-}
-
-TResourceCapacities MakeSlotCapacities(ui64 capacity)
-{
-    return {{capacity, 0, 0}};
-}
-
-TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 bandwidth)
-{
-    return {{capacity, volumeSlots, bandwidth}};
-}
-
-ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities)
-{
-    return capacities[0];
-}
-
-ui64 GetCpuCapacity(const TResourceCapacities& capacities)
-{
-    return GetHomogeneousCapacity(capacities);
-}
-
-ui64 GetMemoryCapacity(const TResourceCapacities& capacities)
-{
-    return GetHomogeneousCapacity(capacities);
-}
-
-ui64 GetSlotCapacity(const TResourceCapacities& capacities)
-{
-    return GetHomogeneousCapacity(capacities);
-}
-
-ui64 GetDiskCapacity(const TResourceCapacities& capacities)
-{
-    return capacities[0];
-}
-
-ui64 GetDiskBandwidth(const TResourceCapacities& capacities)
-{
-    return capacities[2];
-}
-
-TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResourceSpec& spec)
-{
-    if (spec.has_cpu()) {
-        return MakeCpuCapacities(spec.cpu().total_capacity());
-    } else if (spec.has_memory()) {
-        return MakeMemoryCapacities(spec.memory().total_capacity());
-    } else if (spec.has_slot()) {
-        return MakeSlotCapacities(spec.slot().total_capacity());
-    } else if (spec.has_disk()) {
-        return MakeDiskCapacities(
-            spec.disk().total_capacity(),
-            spec.disk().total_volume_slots(),
-            spec.disk().total_bandwidth());
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed resource spec");
-    }
-}
-
-TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation)
-{
-    if (allocation.has_cpu()) {
-        return MakeCpuCapacities(allocation.cpu().capacity());
-    } else if (allocation.has_memory()) {
-        return MakeMemoryCapacities(allocation.memory().capacity());
-    } else if (allocation.has_slot()) {
-        return MakeSlotCapacities(allocation.slot().capacity());
-    } else if (allocation.has_disk()) {
-        return MakeDiskCapacities(
-            allocation.disk().capacity(),
-            /*volumeSlots*/ 1,
-            allocation.disk().bandwidth());
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed resource allocation");
-    }
-}
-
-bool GetAllocationExclusive(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation)
-{
-    return allocation.has_disk() && allocation.disk().exclusive();
-}
+////////////////////////////////////////////////////////////////////////////////
 
 TLocalResourceAllocator::TResource BuildAllocatorResource(
     const TObjectId& resourceId,
@@ -219,17 +135,22 @@ TLocalResourceAllocator::TResource BuildAllocatorResource(
     TLocalResourceAllocator::TResource resource;
 
     resource.Id = resourceId;
-    resource.Capacities = GetResourceCapacities(spec);
+    resource.Capacities = NCluster::GetResourceCapacities(spec);
 
     if (spec.has_cpu()) {
         resource.Kind = EResourceKind::Cpu;
     } else if (spec.has_memory()) {
         resource.Kind = EResourceKind::Memory;
+    } else if (spec.has_network()) {
+        resource.Kind = EResourceKind::Network;
     } else if (spec.has_slot()) {
         resource.Kind = EResourceKind::Slot;
     } else if (spec.has_disk()) {
         resource.Kind = EResourceKind::Disk;
         resource.ProtoDiskSpec = &spec.disk();
+    } else if (spec.has_gpu()) {
+        resource.Kind = EResourceKind::Gpu;
+        resource.ProtoGpuSpec = &spec.gpu();
     } else {
         THROW_ERROR_EXCEPTION("Malformed spec of resource %Qlv",
             resourceId);
@@ -241,10 +162,12 @@ TLocalResourceAllocator::TResource BuildAllocatorResource(
             auto& allocation = allocations->back();
             allocation.ProtoAllocation = &protoAllocation;
             allocation.PodId = protoAllocation.pod_id();
-            allocation.Capacities = GetAllocationCapacities(protoAllocation);
+            allocation.Capacities = NCluster::GetAllocationCapacities(protoAllocation);
             if (protoAllocation.has_disk()) {
+                allocation.Id = protoAllocation.disk().volume_id();
                 allocation.Exclusive = protoAllocation.disk().exclusive();
-                allocation.RequestId = protoAllocation.disk().volume_id();
+            } else if (protoAllocation.has_gpu()) {
+                allocation.Id = protoAllocation.gpu().allocation_id();
             }
         }
     };
@@ -252,156 +175,6 @@ TLocalResourceAllocator::TResource BuildAllocatorResource(
     buildAllocations(&resource.ActualAllocations, actualAllocations);
 
     return resource;
-}
-
-void BuildProtoResourceAllocation(
-    const TObjectId& podId,
-    const TLocalResourceAllocator::TResource& resource,
-    const TLocalResourceAllocator::TAllocation& allocation,
-    NClient::NApi::NProto::TResourceStatus_TAllocation* protoAllocation)
-{
-    protoAllocation->set_pod_id(podId);
-    switch (resource.Kind) {
-        case EResourceKind::Cpu:
-            protoAllocation->mutable_cpu()->set_capacity(GetCpuCapacity(allocation.Capacities));
-            break;
-
-        case EResourceKind::Memory:
-            protoAllocation->mutable_memory()->set_capacity(GetMemoryCapacity(allocation.Capacities));
-            break;
-
-        case EResourceKind::Slot:
-            protoAllocation->mutable_slot()->set_capacity(GetSlotCapacity(allocation.Capacities));
-            break;
-
-        case EResourceKind::Disk: {
-            auto* protoDisk = protoAllocation->mutable_disk();
-            protoDisk->set_capacity(GetDiskCapacity(allocation.Capacities));
-            protoDisk->set_exclusive(allocation.Exclusive);
-            protoDisk->set_volume_id(allocation.RequestId);
-            protoDisk->set_bandwidth(GetDiskBandwidth(allocation.Capacities));
-            break;
-        }
-
-        default:
-            YT_ABORT();
-    }
-}
-
-ui64 GetDiskVolumeRequestBandwidthGuarantee(
-    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
-{
-    if (request.has_quota_policy()) {
-        return request.quota_policy().bandwidth_guarantee();
-    } else if (request.has_exclusive_policy()) {
-        return request.exclusive_policy().min_bandwidth();
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed disk volume request");
-    }
-}
-
-std::optional<ui64> GetDiskVolumeRequestOptionalBandwidthLimit(
-    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
-{
-    if (request.has_quota_policy()) {
-        if (request.quota_policy().has_bandwidth_limit()) {
-            return request.quota_policy().bandwidth_limit();
-        }
-        return std::nullopt;
-    } else if (request.has_exclusive_policy()) {
-        return std::nullopt;
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed disk volume request");
-    }
-}
-
-TResourceCapacities GetDiskVolumeRequestCapacities(
-    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
-{
-    if (request.has_quota_policy()) {
-        return MakeDiskCapacities(
-            request.quota_policy().capacity(),
-            /*volumeSlots*/ 1,
-            request.quota_policy().bandwidth_guarantee());
-    } else if (request.has_exclusive_policy()) {
-        return MakeDiskCapacities(
-            request.exclusive_policy().min_capacity(),
-            /*volumeSlots*/ 1,
-            request.exclusive_policy().min_bandwidth());
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed disk volume request");
-    }
-}
-
-bool GetDiskVolumeRequestExclusive(
-    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
-{
-    return request.has_exclusive_policy();
-}
-
-NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(
-    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
-{
-    if (request.has_quota_policy()) {
-        return NClient::NApi::NProto::DVP_QUOTA;
-    } else if (request.has_exclusive_policy()) {
-        return NClient::NApi::NProto::DVP_EXCLUSIVE;
-    } else {
-        THROW_ERROR_EXCEPTION("Malformed disk volume request");
-    }
-}
-
-NClient::NApi::NProto::TResourceStatus_TAllocationStatistics ResourceCapacitiesToStatistics(
-    const TResourceCapacities& capacities,
-    EResourceKind kind)
-{
-    NClient::NApi::NProto::TResourceStatus_TAllocationStatistics result;
-    switch (kind) {
-        case EResourceKind::Cpu:
-            result.mutable_cpu()->set_capacity(GetCpuCapacity(capacities));
-            break;
-        case EResourceKind::Disk:
-            result.mutable_disk()->set_capacity(GetDiskCapacity(capacities));
-            result.mutable_disk()->set_bandwidth(GetDiskBandwidth(capacities));
-            break;
-        case EResourceKind::Memory:
-            result.mutable_memory()->set_capacity(GetMemoryCapacity(capacities));
-            break;
-        case EResourceKind::Slot:
-            result.mutable_slot()->set_capacity(GetSlotCapacity(capacities));
-            break;
-        default:
-            YT_ABORT();
-    }
-    return result;
-}
-
-TAllocationStatistics ComputeTotalAllocationStatistics(
-    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& scheduledAllocations,
-    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& actualAllocations)
-{
-    struct TPodStatistics
-    {
-        TAllocationStatistics Scheduled;
-        TAllocationStatistics Actual;
-    };
-
-    THashMap<TObjectId, TPodStatistics> podIdToStats;
-
-    for (const auto& allocation : scheduledAllocations) {
-        podIdToStats[allocation.pod_id()].Scheduled.Accumulate(allocation);
-    }
-
-    for (const auto& allocation : actualAllocations) {
-        podIdToStats[allocation.pod_id()].Actual.Accumulate(allocation);
-    }
-
-    TAllocationStatistics statistics;
-    for (const auto& pair : podIdToStats) {
-        const auto& podStatistics = pair.second;
-        statistics += Max(podStatistics.Scheduled, podStatistics.Actual);
-    }
-    return statistics;
 }
 
 std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
@@ -415,6 +188,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
 
         const TLocalResourceAllocator::TResource* cpuResource = nullptr;
         const TLocalResourceAllocator::TResource* memoryResource = nullptr;
+        const TLocalResourceAllocator::TResource* networkResource = nullptr;
         const TLocalResourceAllocator::TResource* slotResource = nullptr;
         for (auto& resource : resources) {
             switch (resource.Kind) {
@@ -424,6 +198,10 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
 
                 case EResourceKind::Memory:
                     memoryResource = &resource;
+                    break;
+
+                case EResourceKind::Network:
+                    networkResource = &resource;
                     break;
 
                 case EResourceKind::Slot:
@@ -440,7 +218,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
         if (resourceRequests.vcpu_guarantee() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Cpu;
-            request.Capacities = MakeCpuCapacities(resourceRequests.vcpu_guarantee());
+            request.Capacities = NCluster::MakeCpuCapacities(resourceRequests.vcpu_guarantee());
             if (cpuResource) {
                 request.MatchingResources.push_back(cpuResource);
             }
@@ -451,9 +229,20 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
         if (resourceRequests.memory_limit() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Memory;
-            request.Capacities = MakeMemoryCapacities(resourceRequests.memory_limit());
+            request.Capacities = NCluster::MakeMemoryCapacities(resourceRequests.memory_limit());
             if (memoryResource) {
                 request.MatchingResources.push_back(memoryResource);
+            }
+            requests.push_back(request);
+        }
+
+        // Network
+        if (resourceRequests.network_bandwidth_guarantee() > 0) {
+            TLocalResourceAllocator::TRequest request;
+            request.Kind = EResourceKind::Network;
+            request.Capacities = NCluster::MakeNetworkCapacities(resourceRequests.network_bandwidth_guarantee());
+            if (networkResource) {
+                request.MatchingResources.push_back(networkResource);
             }
             requests.push_back(request);
         }
@@ -462,7 +251,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
         if (resourceRequests.slot() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Slot;
-            request.Capacities = MakeSlotCapacities(resourceRequests.slot());
+            request.Capacities = NCluster::MakeSlotCapacities(resourceRequests.slot());
             if (slotResource) {
                 request.MatchingResources.push_back(slotResource);
             }
@@ -470,24 +259,18 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
         }
 
         // Disk
-        THashMap<TString, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> idToDiskAllocation;
-        for (const auto& allocation : status.disk_volume_allocations()) {
-            if (!idToDiskAllocation.emplace(allocation.id(), &allocation).second) {
-                THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
-                    allocation.id());
-            }
-        }
+        auto requestIdToDiskAllocation = GetDiskVolumeRequestIdToAllocationMapping(status.disk_volume_allocations());
         for (int index = 0; index < spec.disk_volume_requests_size(); ++index) {
             const auto& volumeRequest = spec.disk_volume_requests(index);
-            auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
+            auto policy = NCluster::GetDiskVolumeRequestPolicy(volumeRequest);
             TLocalResourceAllocator::TRequest request;
             request.ProtoVolumeRequest = &volumeRequest;
             request.Kind = EResourceKind::Disk;
             request.Id = volumeRequest.id();
-            request.Capacities = GetDiskVolumeRequestCapacities(volumeRequest);
-            request.Exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
-            auto it = idToDiskAllocation.find(request.Id);
-            if (it == idToDiskAllocation.end()) {
+            request.Capacities = NCluster::GetDiskVolumeRequestCapacities(volumeRequest);
+            request.Exclusive = NCluster::GetDiskVolumeRequestExclusive(volumeRequest);
+            auto it = requestIdToDiskAllocation.find(request.Id);
+            if (it == requestIdToDiskAllocation.end()) {
                 request.AllocationId = GenerateUuid();
             } else {
                 const auto* allocation = it->second;
@@ -509,6 +292,54 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
+        // Gpu
+        auto requestIdToGpuAllocation = GetGpuRequestIdToAllocationMapping(status.gpu_allocations());
+        for (int index = 0; index < spec.gpu_requests_size(); ++index) {
+            const auto& gpuRequest = spec.gpu_requests(index);
+            TLocalResourceAllocator::TRequest request;
+            request.Id = gpuRequest.id();
+            request.ProtoGpuRequest = &gpuRequest;
+            request.Kind = EResourceKind::Gpu;
+            request.Capacities = NCluster::GetGpuRequestCapacities(gpuRequest);
+            auto it = requestIdToGpuAllocation.find(request.Id);
+            if (it == requestIdToGpuAllocation.end()) {
+                request.AllocationId = GenerateUuid();
+            } else {
+                const auto* allocation = it->second;
+                request.AllocationId = allocation->id();
+            }
+            for (const auto& resource : resources) {
+                if (resource.Kind != EResourceKind::Gpu) {
+                    continue;
+                }
+                if (resource.ProtoGpuSpec->model() != gpuRequest.model()) {
+                    continue;
+                }
+                if (gpuRequest.has_min_memory()
+                    && resource.ProtoGpuSpec->total_memory() < gpuRequest.min_memory())
+                {
+                    continue;
+                }
+                if (gpuRequest.has_max_memory()
+                    && resource.ProtoGpuSpec->total_memory() > gpuRequest.max_memory())
+                {
+                    continue;
+                }
+                request.MatchingResources.push_back(&resource);
+            }
+            // NB: we sort GPUs to ensure that greedy allocation
+            // that is done in TryAllocate() is optimal.
+            std::sort(
+                request.MatchingResources.begin(),
+                request.MatchingResources.end(),
+                [] (const TLocalResourceAllocator::TResource* lhs,
+                    const TLocalResourceAllocator::TResource* rhs)
+                    {
+                        return lhs->ProtoGpuSpec->total_memory() < rhs->ProtoGpuSpec->total_memory();
+                    });
+            requests.push_back(request);
+        }
+
         return requests;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error building allocator resource requests for pod %Qv",
@@ -521,13 +352,7 @@ void UpdatePodDiskVolumeAllocations(
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses)
 {
-    THashMap<TString, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> idToAllocation;
-    for (const auto& allocation : *allocations) {
-        if (!idToAllocation.emplace(allocation.id(), &allocation).second) {
-            THROW_ERROR_EXCEPTION("Duplicate volume allocation %Qv",
-                allocation.id());
-        }
-    }
+    auto requestIdToAllocation = GetDiskVolumeRequestIdToAllocationMapping(*allocations);
 
     auto getReadOperationRateFactor = [] (const auto& diskSpec) {
         return diskSpec.has_read_operation_rate_divisor()
@@ -553,17 +378,17 @@ void UpdatePodDiskVolumeAllocations(
         const auto& volumeRequest = *request.ProtoVolumeRequest;
         auto* volumeAllocation = newAllocations.Add();
         if (response.ExistingAllocation) {
-            auto it = idToAllocation.find(volumeRequest.id());
-            YT_VERIFY(it != idToAllocation.end());
+            auto it = requestIdToAllocation.find(volumeRequest.id());
+            YT_VERIFY(it != requestIdToAllocation.end());
             volumeAllocation->CopyFrom(*it->second);
         } else {
             volumeAllocation->set_id(volumeRequest.id());
-            volumeAllocation->set_capacity(GetDiskCapacity(request.Capacities));
+            volumeAllocation->set_capacity(NCluster::GetDiskCapacity(request.Capacities));
             volumeAllocation->set_resource_id(response.Resource->Id);
             volumeAllocation->set_volume_id(request.AllocationId);
             volumeAllocation->set_device(diskSpec.device());
 
-            auto volumeBandwidthGuarantee = GetDiskVolumeRequestBandwidthGuarantee(volumeRequest);
+            auto volumeBandwidthGuarantee = NCluster::GetDiskVolumeRequestBandwidthGuarantee(volumeRequest);
             volumeAllocation->set_read_bandwidth_guarantee(
                 volumeBandwidthGuarantee * diskSpec.read_bandwidth_factor());
             volumeAllocation->set_write_bandwidth_guarantee(
@@ -575,7 +400,7 @@ void UpdatePodDiskVolumeAllocations(
         }
 
         // For disk resource attributes update without rescheduling is supported only partially.
-        if (auto optionalVolumeBandwidthLimit = GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest)) {
+        if (auto optionalVolumeBandwidthLimit = NCluster::GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest)) {
             auto volumeBandwidthLimit = *optionalVolumeBandwidthLimit;
             volumeAllocation->set_read_bandwidth_limit(
                 volumeBandwidthLimit * diskSpec.read_bandwidth_factor());
@@ -594,6 +419,41 @@ void UpdatePodDiskVolumeAllocations(
 
         volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());
     }
+    allocations->Swap(&newAllocations);
+}
+
+void UpdatePodGpuAllocations(
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TGpuAllocation>* allocations,
+    const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
+    const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses)
+{
+    auto requestIdToAllocation = GetGpuRequestIdToAllocationMapping(*allocations);
+
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TGpuAllocation> newAllocations;
+    for (size_t index = 0; index < allocatorRequests.size(); ++index) {
+        const auto& request = allocatorRequests[index];
+        const auto& response = allocatorResponses[index];
+
+        if (request.Kind != EResourceKind::Gpu) {
+            continue;
+        }
+        const auto& gpuSpec = *response.Resource->ProtoGpuSpec;
+
+        const auto& gpuRequest = *request.ProtoGpuRequest;
+        auto* gpuAllocation = newAllocations.Add();
+
+        if (response.ExistingAllocation) {
+            auto it = requestIdToAllocation.find(gpuRequest.id());
+            YT_VERIFY(it != requestIdToAllocation.end());
+            gpuAllocation->CopyFrom(*it->second);
+        } else {
+            gpuAllocation->set_id(request.AllocationId);
+            gpuAllocation->set_request_id(gpuRequest.id());
+            gpuAllocation->set_resource_id(response.Resource->Id);
+            gpuAllocation->set_device_uuid(gpuSpec.uuid());
+        }
+    }
+
     allocations->Swap(&newAllocations);
 }
 
@@ -636,20 +496,31 @@ void UpdateScheduledResourceAllocations(
             allocation.set_pod_uuid(podUuid);
             switch (request.Kind) {
                 case EResourceKind::Cpu:
-                    allocation.mutable_cpu()->set_capacity(GetCpuCapacity(request.Capacities));
+                    allocation.mutable_cpu()->set_capacity(NCluster::GetCpuCapacity(request.Capacities));
                     break;
                 case EResourceKind::Memory:
-                    allocation.mutable_memory()->set_capacity(GetMemoryCapacity(request.Capacities));
+                    allocation.mutable_memory()->set_capacity(NCluster::GetMemoryCapacity(request.Capacities));
                     break;
+                case EResourceKind::Network: {
+                    auto* protoNetwork = allocation.mutable_network();
+                    protoNetwork->set_bandwidth(NCluster::GetNetworkBandwidth(request.Capacities));
+                    break;
+                }
                 case EResourceKind::Slot:
-                    allocation.mutable_slot()->set_capacity(GetSlotCapacity(request.Capacities));
+                    allocation.mutable_slot()->set_capacity(NCluster::GetSlotCapacity(request.Capacities));
                     break;
                 case EResourceKind::Disk: {
                     auto* protoDisk = allocation.mutable_disk();
-                    protoDisk->set_capacity(GetDiskCapacity(request.Capacities));
+                    protoDisk->set_capacity(NCluster::GetDiskCapacity(request.Capacities));
                     protoDisk->set_exclusive(request.Exclusive);
                     protoDisk->set_volume_id(request.AllocationId);
-                    protoDisk->set_bandwidth(GetDiskBandwidth(request.Capacities));
+                    protoDisk->set_bandwidth(NCluster::GetDiskBandwidth(request.Capacities));
+                    break;
+                }
+                case EResourceKind::Gpu: {
+                    auto* protoGpu = allocation.mutable_gpu();
+                    protoGpu->set_allocation_id(request.AllocationId);
+                    protoGpu->set_capacity(NCluster::GetGpuCapacity(request.Capacities));
                     break;
                 }
                 default:
@@ -666,53 +537,26 @@ void UpdateScheduledResourceAllocations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-void TAllocationStatistics::Accumulate(const TLocalResourceAllocator::TAllocation& allocation)
+void Accumulate(
+    NCluster::TAllocationStatistics& statistics,
+    const TLocalResourceAllocator::TAllocation& allocation)
 {
-    Capacities += allocation.Capacities;
-    Used |= true;
-    UsedExclusively = allocation.Exclusive;
+    using NCluster::operator +=;
+    statistics.Capacities += allocation.Capacities;
+    statistics.Used |= true;
+    statistics.UsedExclusively = allocation.Exclusive;
 }
 
-void TAllocationStatistics::Accumulate(const TLocalResourceAllocator::TRequest& request)
+void Accumulate(
+    NCluster::TAllocationStatistics& statistics,
+    const TLocalResourceAllocator::TRequest& request)
 {
-    Capacities += request.Capacities;
-    Used |= true;
-    UsedExclusively = request.Exclusive;
-}
-
-void TAllocationStatistics::Accumulate(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation)
-{
-    Capacities += GetAllocationCapacities(allocation);
-    Used |= true;
-    UsedExclusively = GetAllocationExclusive(allocation);
-}
-
-TAllocationStatistics Max(const TAllocationStatistics& lhs, const TAllocationStatistics& rhs)
-{
-    TAllocationStatistics result;
-    result.Capacities = Max(lhs.Capacities, rhs.Capacities);
-    result.Used = lhs.Used | rhs.Used;
-    result.UsedExclusively = lhs.UsedExclusively | rhs.UsedExclusively;
-    return result;
-}
-
-TAllocationStatistics& operator+=(TAllocationStatistics& lhs, const TAllocationStatistics& rhs)
-{
-    lhs.Capacities += rhs.Capacities;
-    lhs.Used |= rhs.Used;
-    lhs.UsedExclusively |= rhs.UsedExclusively;
-    return lhs;
-}
-
-TAllocationStatistics operator+(const TAllocationStatistics& lhs, const TAllocationStatistics& rhs)
-{
-    auto result = lhs;
-    result += rhs;
-    return result;
+    using NCluster::operator +=;
+    statistics.Capacities += request.Capacities;
+    statistics.Used |= true;
+    statistics.UsedExclusively = request.Exclusive;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NScheduler
-

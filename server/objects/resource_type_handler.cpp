@@ -1,18 +1,20 @@
 #include "resource_type_handler.h"
-#include "type_handler_detail.h"
-#include "resource.h"
-#include "node.h"
-#include "transaction.h"
-#include "db_schema.h"
 
-#include <yp/server/scheduler/helpers.h>
+#include "db_schema.h"
+#include "node.h"
+#include "resource.h"
+#include "transaction.h"
+#include "type_handler_detail.h"
+
+#include <yp/server/lib/cluster/allocation_statistics.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
 
 #include <yt/core/ytree/fluent.h>
 
 namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
-using namespace NScheduler;
+using namespace NCluster;
 
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
@@ -130,11 +132,17 @@ private:
         if (spec.has_memory()) {
             setKind(EResourceKind::Memory);
         }
+        if (spec.has_network()) {
+            setKind(EResourceKind::Network);
+        }
         if (spec.has_disk()) {
             setKind(EResourceKind::Disk);
         }
         if (spec.has_slot()) {
             setKind(EResourceKind::Slot);
+        }
+        if (spec.has_gpu()) {
+            setKind(EResourceKind::Gpu);
         }
         if (!optionalKind) {
             THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecognized kind",

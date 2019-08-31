@@ -1,10 +1,12 @@
 #include "type_handler_detail.h"
+
 #include "helpers.h"
-#include "type_info.h"
 
 #include <yp/server/master/bootstrap.h>
 
 #include <yp/server/access_control/access_control_manager.h>
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/ytlib/query_client/ast.h>
 

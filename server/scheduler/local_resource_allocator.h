@@ -1,12 +1,13 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
-#include <yp/server/objects/public.h>
-
-#include <yt/core/misc/small_vector.h>
+#include <yp/server/lib/cluster/allocation_statistics.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
+
+#include <yt/core/misc/small_vector.h>
 
 namespace NYP::NServer::NScheduler {
 
@@ -21,10 +22,11 @@ public:
 
     struct TAllocation
     {
-        // Could be null for anonymous allocations (e.g. cpu, memory).
-        NObjects::TObjectId RequestId;
-        NObjects::TObjectId PodId;
-        TResourceCapacities Capacities = {};
+        // Globally unique identifier.
+        // Null for anonymous allocations (e.g. cpu, memory).
+        TObjectId Id;
+        TObjectId PodId;
+        NCluster::TResourceCapacities Capacities = {};
         bool Exclusive = false;
 
         // Opaque
@@ -33,33 +35,36 @@ public:
 
     struct TResource
     {
-        NObjects::TObjectId Id;
+        TObjectId Id;
         EResourceKind Kind;
-        TResourceCapacities Capacities = {};
+        NCluster::TResourceCapacities Capacities = {};
         SmallVector<TAllocation, 8> ScheduledAllocations;
         SmallVector<TAllocation, 8> ActualAllocations;
 
         // Opaque
         const NClient::NApi::NProto::TResourceSpec_TDiskSpec* ProtoDiskSpec = nullptr;
+        const NClient::NApi::NProto::TResourceSpec_TGpuSpec* ProtoGpuSpec = nullptr;
     };
 
     struct TRequest
     {
         // Identifies a request within pod spec.
         // Null for anonymous allocations.
-        NObjects::TObjectId Id;
+        TObjectId Id;
 
-        // Globally unique; identifies a specific allocation.
-        // Null for anonymous allocations.
-        NObjects::TObjectId AllocationId;
+        // Identifier of the existing allocation matching this request
+        // or null if there is no such allocation.
+        // Always null for anonymous allocations (e.g. cpu, memory).
+        TObjectId AllocationId;
 
         EResourceKind Kind;
         bool Exclusive = false;
-        TResourceCapacities Capacities = {};
+        NCluster::TResourceCapacities Capacities = {};
         SmallVector<const TResource*, 9> MatchingResources;
 
         // Opaque
         const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest* ProtoVolumeRequest = nullptr;
+        const NClient::NApi::NProto::TPodSpec_TGpuRequest* ProtoGpuRequest = nullptr;
     };
 
     struct TResponse
@@ -78,14 +83,14 @@ public:
      *  On success, fills \param responses.
      */
     bool TryAllocate(
-        const NObjects::TObjectId& podId,
+        const TObjectId& podId,
         const std::vector<TRequest>& requests,
         const std::vector<TResource>& resources,
         std::vector<TResponse>* responses,
         std::vector<TError>* errors);
 
 private:
-    std::vector<TAllocationStatistics> ResourceStatistics_;
+    std::vector<NCluster::TAllocationStatistics> ResourceStatistics_;
 
     static TString FormatRequest(const TRequest& request);
 };

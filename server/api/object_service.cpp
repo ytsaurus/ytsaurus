@@ -18,6 +18,8 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
+#include <yp/server/lib/objects/object_filter.h>
+
 #include <yp/client/api/object_service_proxy.h>
 
 #include <yt/ytlib/auth/authentication_manager.h>

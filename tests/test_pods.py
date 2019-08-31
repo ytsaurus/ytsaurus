@@ -1,4 +1,9 @@
-from .conftest import ZERO_RESOURCE_REQUESTS, create_pod_with_boilerplate, create_nodes
+from .conftest import (
+    ZERO_RESOURCE_REQUESTS,
+    create_pod_with_boilerplate,
+    create_nodes,
+    create_pod_set_with_quota
+)
 
 from yp.common import YtResponseError, YpNoSuchObjectError
 
@@ -1181,3 +1186,29 @@ class TestPods(object):
 
         with pytest.raises(YtResponseError):
             yp_client.update_object("node_segment", segment_id, set_updates=[{"path": "/spec/enable_unsafe_porto", "value": False}])
+
+    def test_gpu_request_id_uniqueness(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            gpu_quota=dict(v100=100),
+        )[0]
+
+        with pytest.raises(YtResponseError):
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 100,
+                },
+                "gpu_requests": [
+                    {
+                        "id": "gpu1",
+                        "model": "v100",
+                    },
+                    {
+                        "id": "gpu1",
+                        "model": "v100",
+                    },
+                ],
+                "enable_scheduling": True
+            })

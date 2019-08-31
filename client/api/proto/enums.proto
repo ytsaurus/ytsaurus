@@ -27,6 +27,12 @@ enum EResourceKind
     RK_SLOT = 3
     [(NYT.NYson.NProto.enum_value_name) = "slot"];
 
+    RK_GPU = 4
+    [(NYT.NYson.NProto.enum_value_name) = "gpu"];
+
+    RK_NETWORK = 5
+    [(NYT.NYson.NProto.enum_value_name) = "network"];
+
     RK_UNDEFINED = -1
     [(NYT.NYson.NProto.enum_value_name) = "undefined"];
 }

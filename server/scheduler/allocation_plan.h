@@ -1,13 +1,12 @@
 #pragma once
 
-#include "pod.h"
-#include "private.h"
+#include "public.h"
 
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/error.h>
 
 #include <optional>
 #include <variant>
-#include <vector>
 
 namespace NYP::NServer::NScheduler {
 
@@ -26,14 +25,14 @@ class TAllocationPlan
 {
 public:
     void Clear();
-    void AssignPodToNode(TPod* pod, TNode* node);
-    void RevokePodFromNode(TPod* pod);
-    void RemoveOrphanedAllocations(TNode* node);
-    void RecordFailure(TPod* pod, const TError& error);
+    void AssignPodToNode(NCluster::TPod* pod, NCluster::TNode* node);
+    void RevokePodFromNode(NCluster::TPod* pod);
+    void RemoveOrphanedAllocations(NCluster::TNode* node);
+    void RecordFailure(NCluster::TPod* pod, const TError& error);
 
     struct TPodRequest
     {
-        TPod* Pod;
+        NCluster::TPod* Pod;
         EAllocationPlanPodRequestType Type;
     };
 
@@ -46,7 +45,7 @@ public:
 
     struct TPerNodePlan
     {
-        TNode* Node;
+        NCluster::TNode* Node;
         std::vector<TRequest> Requests;
     };
 
@@ -54,7 +53,7 @@ public:
 
     struct TFailure
     {
-        TPod* Pod;
+        NCluster::TPod* Pod;
         TError Error;
     };
 
@@ -64,11 +63,11 @@ public:
     int GetNodeCount() const;
 
 private:
-    THashMultiMap<TNode*, TRequest> NodeToRequests_;
+    THashMultiMap<NCluster::TNode*, TRequest> NodeToRequests_;
     std::vector<TFailure> Failures_;
     int NodeCount_ = 0;
 
-    void EmplaceRequest(TNode* node, const TRequest& request);
+    void EmplaceRequest(NCluster::TNode* node, const TRequest& request);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf format);

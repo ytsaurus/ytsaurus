@@ -149,6 +149,12 @@ message TPerSegmentResourceTotals
         optional int64 capacity = 1;
     }
 
+    message TNetworkTotals
+    {
+        // In bytes per second.
+        optional int64 bandwidth = 1;
+    }
+
     message TDiskTotals
     {
         // In bytes.
@@ -156,6 +162,12 @@ message TPerSegmentResourceTotals
 
         // In bytes per second.
         optional int64 bandwidth = 2;
+    }
+
+    message TGpuTotals
+    {
+        // In GPUs.
+        optional int64 capacity = 1;
     }
 
     message TInternetAddressTotals
@@ -167,6 +179,8 @@ message TPerSegmentResourceTotals
     optional TCpuTotals cpu = 2;
     map<string, TDiskTotals> disk_per_storage_class = 3 [(NYT.NYson.NProto.yson_map) = true];
     optional TInternetAddressTotals internet_address = 4;
+    map<string, TGpuTotals> gpu_per_model = 5 [(NYT.NYson.NProto.yson_map) = true];
+    optional TNetworkTotals network = 6;
 }
 
 message TResourceTotals
@@ -437,6 +451,12 @@ message TResourceSpec
         required uint64 total_capacity = 1;
     }
 
+    message TNetworkSpec
+    {
+        // In bytes per second.
+        required uint64 total_bandwidth = 1;
+    }
+
     message TDiskSpec
     {
         reserved 9, 10;
@@ -472,12 +492,24 @@ message TResourceSpec
         required uint64 total_capacity = 1;
     }
 
+    message TGpuSpec
+    {
+        // Got from driver api.
+        required string uuid = 1;
+        // E.g. v100, k100 etc.
+        required string model = 2;
+        // In bytes.
+        required uint64 total_memory = 3;
+    }
+
     oneof concrete_spec
     {
         TCpuSpec cpu = 3;
         TMemorySpec memory = 4;
         TDiskSpec disk = 5;
         TSlotSpec slot = 6;
+        TGpuSpec gpu = 7;
+        TNetworkSpec network = 8;
     }
 }
 
@@ -493,6 +525,11 @@ message TResourceStatus
         required uint64 capacity = 1;
     }
 
+    message TNetworkAllocation
+    {
+        required uint64 bandwidth = 1;
+    }
+
     message TDiskAllocation
     {
         required uint64 capacity = 1;
@@ -506,6 +543,13 @@ message TResourceStatus
         required uint64 capacity = 1;
     }
 
+    message TGpuAllocation
+    {
+        // Copied from /pod/status/scheduled_allocations/*/id
+        required string allocation_id = 1;
+        required uint64 capacity = 2;
+    }
+
     message TAllocation
     {
         optional string pod_id = 1;
@@ -517,6 +561,8 @@ message TResourceStatus
             TMemoryAllocation memory = 3;
             TDiskAllocation disk = 4;
             TSlotAllocation slot = 6;
+            TGpuAllocation gpu = 7;
+            TNetworkAllocation network = 8;
         }
     }
     repeated TAllocation scheduled_allocations = 1;
@@ -532,6 +578,12 @@ message TResourceStatus
     {
         // In bytes.
         required uint64 capacity = 1;
+    }
+
+    message TNetworkStatistics
+    {
+        // In bytes per second.
+        required uint64 bandwidth = 1;
     }
 
     message TDiskStatistics
@@ -550,6 +602,12 @@ message TResourceStatus
         required uint64 capacity = 1;
     }
 
+    message TGpuStatistics
+    {
+        // In GPUs.
+        required uint64 capacity = 1;
+    }
+
     message TAllocationStatistics
     {
         oneof concrete_statisticss
@@ -558,6 +616,8 @@ message TResourceStatus
             TMemoryStatistics memory = 2;
             TDiskStatistics disk = 3;
             TSlotStatistics slot = 4;
+            TGpuStatistics gpu = 5;
+            TNetworkStatistics network = 6;
         }
     }
 
@@ -765,6 +825,9 @@ message TPodSpec
         optional uint64 dirty_memory_limit = 6;
 
         optional uint64 slot = 7;
+
+        optional uint64 network_bandwidth_guarantee = 8;
+        optional uint64 network_bandwidth_limit = 9;
     };
     // CPU and memory resources to allocate and configure for this pod upon assignment.
     optional TResourceRequests resource_requests = 3 [(NYP.NClient.NApi.NProto.etc) = true];
@@ -858,6 +921,23 @@ message TPodSpec
     }
     // Disk volumes to allocate for this pod upon assignment.
     repeated TDiskVolumeRequest disk_volume_requests = 13 [(NYP.NClient.NApi.NProto.etc) = true];
+
+    message TGpuRequest
+    {
+        // Pod-wise unique id.
+        required string id = 1;
+
+        // GPU model.
+        required string model = 2;
+
+        // In bytes.
+        optional uint64 min_memory = 3;
+
+        // In bytes.
+        optional uint64 max_memory = 4;
+    }
+    // GPUs to allocate for this pod upon assignment.
+    repeated TGpuRequest gpu_requests = 23 [(NYP.NClient.NApi.NProto.etc) = true];
 
     // If false then YP will not be scheduling this pod.
     optional bool enable_scheduling = 7;
@@ -1163,6 +1243,22 @@ message TPodStatus
         optional uint64 write_operation_rate_limit = 15;
     }
     repeated TDiskVolumeAllocation disk_volume_allocations = 14 [(NYP.NClient.NApi.NProto.etc) = true];
+
+    message TGpuAllocation
+    {
+        // Globally unique allocation identifier, generated on master.
+        optional string id = 1;
+
+        // Copied from /pod/spec/gpu_requests/*/id
+        optional string request_id = 2;
+
+        // Corresponding GPU resource id.
+        optional string resource_id = 3;
+
+        // Copied from /resource/spec/gpu/uuid
+        optional string device_uuid = 4;
+    }
+    repeated TGpuAllocation gpu_allocations = 16 [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TDns
     {

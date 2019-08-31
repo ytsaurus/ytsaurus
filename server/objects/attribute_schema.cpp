@@ -1,8 +1,10 @@
 #include "attribute_schema.h"
-#include "type_handler.h"
-#include "object_manager.h"
+
 #include "helpers.h"
-#include "type_info.h"
+#include "object_manager.h"
+#include "type_handler.h"
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/core/ypath/tokenizer.h>
 

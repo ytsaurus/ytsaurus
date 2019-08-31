@@ -1,8 +1,10 @@
 #include "pod_node_score.h"
-#include "pod.h"
-#include "node.h"
+
 #include "config.h"
-#include "helpers.h"
+
+#include <yp/server/lib/cluster/node.h>
+#include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/resource_capacities.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -10,10 +12,12 @@
 
 namespace NYP::NServer::NScheduler {
 
+using namespace NCluster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(bidzilya): Move TNodeResourceCapacities and TNodeResources to the
-//                 scheduler/node.h and generalize allocator code.
+//                 lib/cluster/node.h and generalize allocator code.
 struct TNodeResourceCapacities
 {
     TResourceCapacities Cpu = {};
@@ -22,6 +26,7 @@ struct TNodeResourceCapacities
 
 TNodeResourceCapacities& operator += (TNodeResourceCapacities& lhs, const TNodeResourceCapacities& rhs)
 {
+    using NCluster::operator +=;
     lhs.Cpu += rhs.Cpu;
     lhs.Memory += rhs.Memory;
     return lhs;

@@ -21,7 +21,6 @@
 #include "resource.h"
 #include "schema.h"
 #include "type_handler.h"
-#include "type_info.h"
 #include "user.h"
 #include "virtual_service.h"
 
@@ -38,6 +37,9 @@
 #include <yp/server/access_control/access_control_manager.h>
 
 #include <yp/server/accounting/accounting_manager.h>
+
+#include <yp/server/lib/objects/object_filter.h>
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/client.h>
@@ -122,11 +124,6 @@ void FromProto(
 TString ToString(const TAttributeSelector& selector)
 {
     return Format("{Paths: %v}", selector.Paths);
-}
-
-TString ToString(const TObjectFilter& filter)
-{
-    return Format("{Query: %v}", filter.Query);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,8 +4,6 @@
 
 #include <yp/server/net/public.h>
 
-#include <yp/server/objects/public.h>
-
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

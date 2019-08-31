@@ -14,7 +14,7 @@ public:
         NMaster::TBootstrap* bootstrap,
         TPodDisruptionBudgetControllerConfigPtr config);
 
-    void Run(const TClusterPtr& cluster);
+    void Run(const NCluster::TClusterPtr& cluster);
 
 private:
     class TImpl;

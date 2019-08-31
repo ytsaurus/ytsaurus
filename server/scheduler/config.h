@@ -59,18 +59,57 @@ DEFINE_REFCOUNTED_TYPE(TPodNodeScoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeScoreFeatureConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TString FilterQuery;
+    TNodeScoreValue Weight;
+
+    TNodeScoreFeatureConfig()
+    {
+        RegisterParameter("filter_query", FilterQuery);
+        RegisterParameter("weight", Weight)
+            .Default(1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeScoreFeatureConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeScoreConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    std::vector<TNodeScoreFeatureConfigPtr> Features;
+
+    TNodeScoreConfig()
+    {
+        RegisterParameter("features", Features)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeScoreConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGlobalResourceAllocatorConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
     TEveryNodeSelectionStrategyConfigPtr EveryNodeSelectionStrategy;
     TPodNodeScoreConfigPtr PodNodeScore;
+    TNodeScoreConfigPtr NodeScore;
 
     TGlobalResourceAllocatorConfig()
     {
         RegisterParameter("every_node_selection_strategy", EveryNodeSelectionStrategy)
             .DefaultNew();
         RegisterParameter("pod_node_score", PodNodeScore)
+            .DefaultNew();
+        RegisterParameter("node_score", NodeScore)
             .DefaultNew();
     }
 };

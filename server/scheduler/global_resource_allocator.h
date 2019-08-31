@@ -11,15 +11,17 @@ namespace NYP::NServer::NScheduler {
 struct IGlobalResourceAllocator
     : public virtual TRefCounted
 {
-    virtual void ReconcileState(const TClusterPtr& cluster) = 0;
-    virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) = 0;
+    virtual void ReconcileState(const NCluster::TClusterPtr& cluster) = 0;
+    virtual TErrorOr<NCluster::TNode*> ComputeAllocation(NCluster::TPod* pod) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGlobalResourceAllocator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config);
+IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(
+    TGlobalResourceAllocatorConfigPtr config,
+    NCluster::IObjectFilterEvaluatorPtr nodeFilterEvaluator);
 
 ////////////////////////////////////////////////////////////////////////////////
 
