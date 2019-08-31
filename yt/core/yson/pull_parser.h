@@ -197,7 +197,7 @@ class TYsonPullParser
 public:
     TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType);
 
-    Y_FORCE_INLINE TYsonItem Next();
+    TYsonItem Next();
 
     Y_FORCE_INLINE size_t GetNestingLevel() const;
     Y_FORCE_INLINE bool IsOnValueBoundary(size_t nestingLevel) const;
