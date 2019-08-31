@@ -1074,6 +1074,7 @@ except KeyboardInterrupt:
 
         wait_breakpoint()
         release_breakpoint()
+        time.sleep(0.2)
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
         assert op.get_job_count("completed") == 1
