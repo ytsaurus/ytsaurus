@@ -5,7 +5,7 @@ from yt_helpers import ProfileMetric
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_datetime, date_string_to_timestamp, update
+from yt.common import date_string_to_timestamp, update
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -20,6 +20,7 @@ import sys
 import time
 import subprocess
 import __builtin__
+from datetime import datetime
 
 from distutils.spawn import find_executable
 
@@ -1425,7 +1426,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
 
-        wait(lambda: exists(op.get_path() + "/snapshot"))
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -1860,8 +1861,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait_breakpoint()
 
-        snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
-        wait(lambda: get(snapshot_index_path) > 1)
+        op.wait_fresh_snapshot()
 
         brief_spec = get(op.get_path() + "/@brief_spec")
 
@@ -2228,8 +2228,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
-        # Wait till snapshot is written
-        time.sleep(1)
+        op.wait_fresh_snapshot()
 
         transaction_id = self._get_scheduler_transation()
 
@@ -2505,9 +2504,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) > 0)
 
-        now = datetime.utcnow()
-        snapshot_path = op.get_path() + "/snapshot"
-        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])
@@ -3781,11 +3778,9 @@ fi
         for op in ops:
             wait(lambda: op.get_job_count("failed") == 1)
 
-            # Wait till snapshot index is incremented (snapshot is built)
-            snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
-            snapshot_index = get(snapshot_index_path)
-            # '+1' since snapshot building can be started before job has failed.
-            wait(lambda: get(snapshot_index_path) > snapshot_index + 1)
+        timepoint = datetime.utcnow()
+        for op in ops:
+            op.wait_fresh_snapshot(timepoint)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass

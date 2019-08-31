@@ -5,7 +5,7 @@ from yt.environment import arcadia_interop
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-from yt.common import YtError, YtResponseError, flatten, update_inplace, update
+from yt.common import YtError, YtResponseError, flatten, update_inplace, update, date_string_to_datetime
 
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
@@ -852,6 +852,12 @@ class Operation(object):
 
     def wait_for_state(self, state, **kwargs):
         wait(lambda: self.get_state(**kwargs) == state)
+
+    def wait_fresh_snapshot(self, timepoint=None):
+        if timepoint is None:
+            timepoint = datetime.utcnow()
+        snapshot_path = self.get_path() + "/snapshot"
+        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint)
 
     def get_alerts(self):
         try:
