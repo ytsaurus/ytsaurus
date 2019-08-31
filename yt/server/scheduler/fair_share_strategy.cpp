@@ -55,7 +55,7 @@ public:
         , Logger(SchedulerLogger)
     {
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::SchedulerProfiling),
+            Host->GetFairShareProfilingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
             Config->FairShareProfilingPeriod);
 
@@ -589,6 +589,7 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) override
     {
+        // TODO(eshcherbin): Change verification. This method is called only in control thread.
         VERIFY_THREAD_AFFINITY_ANY();
 
         TForbidContextSwitchGuard contextSwitchGuard;
@@ -660,22 +661,22 @@ public:
 
     virtual void OnFairShareProfilingAt(TInstant now) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKER_AFFINITY(Host->GetFairShareProfilingInvoker());
 
-        if (!ProfilingCompleted_.IsSet()) {
-            return;
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        {
+            TReaderGuard guard(TreeIdToSnapshotLock_);
+            snapshots = TreeIdToSnapshot_;
         }
 
         TMetricsAccumulator accumulator;
-        for (const auto& [treeId, tree] : IdToTree_) {
-            tree->ProfileFairShare(accumulator);
+        for (const auto& [treeId, treeSnapshot] : snapshots) {
+            treeSnapshot->ProfileFairShare(accumulator);
         }
 
-        ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
-                accumulator.BuildAndPublish(&profiler);
-            })
-            .AsyncVia(Host->GetFairShareProfilingInvoker())
-            .Run();
+        accumulator.BuildAndPublish(&Profiler);
     }
 
     // NB: This function is public for testing purposes.

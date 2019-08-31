@@ -204,6 +204,11 @@ void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
     }
 }
 
+void TFairShareTree::TFairShareTreeSnapshot::ProfileFairShare(TMetricsAccumulator& accumulator) const
+{
+    Tree_->DoProfileFairShare(RootElementSnapshot_, accumulator);
+}
+
 bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
 {
     auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
@@ -668,7 +673,7 @@ void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap
     auto* parent = element->GetParent();
     fluent
         .Item("pool").Value(parent->GetId())
-        .Item("slot_index").Value(element->GetSlotIndex())
+        .Item("slot_index").Value(element->GetMaybeSlotIndex())
         .Item("start_time").Value(element->GetStartTime())
         .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
@@ -712,21 +717,6 @@ TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> TFairShareTree::OnFairShar
     return BIND(&TFairShareTree::DoFairShareUpdateAt, MakeStrong(this), now)
         .AsyncVia(GetCurrentInvoker())
         .Run();
-}
-
-void TFairShareTree::ProfileFairShare(TMetricsAccumulator& accumulator) const
-{
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-    for (const auto& [poolName, pool] : Pools_) {
-        ProfileCompositeSchedulerElement(accumulator, FindRecentPoolSnapshot(poolName));
-    }
-    ProfileCompositeSchedulerElement(accumulator, GetRecentRootSnapshot());
-    if (Config_->EnableOperationsProfiling) {
-        for (const auto& [operationId, element] : OperationIdToElement_) {
-            ProfileOperationElement(accumulator, FindRecentOperationElementSnapshot(operationId));
-        }
-    }
 }
 
 void TFairShareTree::LogOperationsInfo()
@@ -1376,6 +1366,22 @@ void TFairShareTree::DoPreemptJobsGracefully(
     }
 }
 
+void TFairShareTree::DoProfileFairShare(
+    const TRootElementSnapshotPtr& rootElementSnapshotPtr,
+    TMetricsAccumulator& accumulator) const
+{
+    for (const auto& [poolName, pool] : rootElementSnapshotPtr->PoolNameToElement) {
+        ProfileCompositeSchedulerElement(accumulator, pool);
+    }
+    ProfileCompositeSchedulerElement(accumulator, rootElementSnapshotPtr->RootElement.Get());
+    if (Config_->EnableOperationsProfiling) {
+        for (const auto& [operationId, element] : rootElementSnapshotPtr->OperationIdToElement) {
+            ProfileOperationElement(accumulator, element);
+        }
+    }
+}
+
+
 void TFairShareTree::PreemptJob(
     const TJobPtr& job,
     const TOperationElementPtr& operationElement,
@@ -1904,9 +1910,9 @@ void TFairShareTree::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyH
 
 void TFairShareTree::ProfileOperationElement(TMetricsAccumulator& accumulator, TOperationElementPtr element) const
 {
-    {
+    if (auto slotIndex = element->GetMaybeSlotIndex()) {
         auto poolTag = element->GetParent()->GetProfilingTag();
-        auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
+        auto slotIndexTag = GetSlotIndexProfilingTag(*slotIndex);
 
         ProfileSchedulerElement(accumulator, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag_});
     }
