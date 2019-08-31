@@ -108,17 +108,23 @@ class TCliqueCacheConfig
 {
 public:
     TSlruCacheConfigPtr CacheBase;
-    TDuration AgeThreshold;
+    TDuration SoftAgeThreshold;
+    TDuration HardAgeThreshold;
     TDuration MasterCacheExpireTime;
+    TDuration UnavailableInstanceBanTimeout;
 
     TCliqueCacheConfig()
     {
         RegisterParameter("cache_base", CacheBase)
             .DefaultNew();
-        RegisterParameter("age_threshold", AgeThreshold)
+        RegisterParameter("soft_age_threshold", SoftAgeThreshold)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("hard_age_threshold", HardAgeThreshold)
+            .Default(TDuration::Minutes(15));
         RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("unavailable_instance_ban_timeout", UnavailableInstanceBanTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 
@@ -135,6 +141,7 @@ public:
     TDuration ProfilingPeriod;
     TCliqueCacheConfigPtr CliqueCache;
     bool IgnoreMissingCredentials;
+    int DeadInstanceRetryCount;
 
     TClickHouseConfig()
     {
@@ -148,6 +155,8 @@ public:
             .DefaultNew();
         RegisterParameter("ignore_missing_credentials", IgnoreMissingCredentials)
             .Default(false);
+        RegisterParameter("dead_instance_retry_count", DeadInstanceRetryCount)
+            .Default(2);
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);

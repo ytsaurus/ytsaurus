@@ -222,6 +222,12 @@ class Clique(object):
         instance = random.choice(instances)
         return self.make_direct_query(instance, query, user, format, verbose, only_rows)
 
+    def resize(self, size, jobs_to_abort=[]):
+        update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
+        for job in jobs_to_abort:
+            abort_job(job)
+        wait(lambda: self.get_active_instance_count() == size)
+
 @require_ytserver_root_privileges
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
@@ -235,7 +241,8 @@ class ClickHouseTestBase(YTEnvSetup):
         "proxy": {
             "clickhouse": {
                 "clique_cache": {
-                    "age_threshold": 500,
+                    "soft_age_threshold": 500,
+                    "hard_age_threshold": 500,
                     "master_cache_expire_time": 500,
                 },
             },
@@ -386,10 +393,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 3
-            abort_job(jobs[0])
-            time.sleep(2)
 
-            wait(lambda: clique.get_active_instance_count() == 3)
+            clique.resize(2, [jobs[0]])
+            clique.resize(3)
 
             time.sleep(1)
 
@@ -422,7 +428,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 2
             abort_job(jobs[0])
-            time.sleep(2)
 
             wait(lambda: clique.get_active_instance_count() == 3)
 
@@ -456,8 +461,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
         
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            wait(lambda: clique.get_active_instance_count() == 1)
+            clique.resize(1)
             
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
@@ -481,8 +485,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
             
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            wait(lambda: clique.get_active_instance_count() == 1)
+            clique.resize(1)
 
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
@@ -505,8 +508,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            wait(lambda: clique.get_active_instance_count() == 1)
+            clique.resize(1)
 
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
@@ -526,17 +528,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     response = sorted(clique.make_query("select * from \"//tmp/table\""))
                     assert response == [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}]
 
-            ping_thread = threading.Thread(target=pinger, )
+            ping_thread = threading.Thread(target=pinger)
             ping_thread.start()
             time.sleep(1)
             
             instances = clique.get_active_instances()
             assert len(instances) == 2
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
             
             signal_job(instances[0], "SIGINT")
-            time.sleep(3)
-            wait(lambda: clique.get_active_instance_count() == 2)
-            
+
+            wait(lambda: clique.get_active_instance_count() == 1, iter=10)
+            clique.resize(2)
+
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 2
             assert new_instances != instances
@@ -1518,18 +1523,47 @@ class TestHttpProxy(ClickHouseTestBase):
         with Clique(1) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
+            print_debug(proxy_response)
+            print_debug(proxy_response.text)
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
             assert proxy_response.json()["data"] == response
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 1
-            abort_job(jobs[0])
-            time.sleep(2)
 
-            wait(lambda: clique.get_active_instance_count() == 1)
+            clique.resize(0, [jobs[0]])
+            clique.resize(1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
             assert proxy_response.json()["data"] == response
+
+    @authors("dakovalkov")
+    def test_ban_dead_instance_in_proxy(self):
+        with Clique(2) as clique:
+            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
+
+            jobs = list(clique.op.get_running_jobs())
+            assert len(jobs) == 2
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            abort_job(jobs[0])
+            wait(lambda: len(clique.op.get_running_jobs()) == 1)
+
+            for instance in clique.get_active_instances():
+                if str(instance) == jobs[0]:
+                    with pytest.raises(Exception):
+                        clique.make_direct_query(instance, "select 1")
+                else:
+                    assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
+
+            proxy_responses = []
+            for i in range(5):
+                proxy_responses += [requests.post(url, data="select 1 format JSON")]
+                assert proxy_responses[i].status_code == 200
+                assert proxy_responses[i].json()["data"] == proxy_responses[i - 1].json()["data"]
+
+            assert proxy_responses[0].json()["data"] == [{"1": 1}]
+            assert clique.get_active_instance_count() == 2
