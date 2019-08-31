@@ -1618,7 +1618,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
 
         def get_slot_index(op_id):
             path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id)
-            wait(lambda: exists(path))
+            wait(lambda: exists(path) and get(path) != YsonEntity())
             return get(path)
 
         for i in xrange(3):

@@ -1746,6 +1746,8 @@ TOperationElementFixedState::TOperationElementFixedState(
     TFairShareStrategyOperationControllerConfigPtr controllerConfig)
     : OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
+    , SlotIndex_(std::nullopt)
+    , UserName_(operation->GetAuthenticatedUser())
     , Operation_(operation)
     , ControllerConfig_(std::move(controllerConfig))
 { }
@@ -2315,6 +2317,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     YT_VERIFY(Mutable_);
 
     Schedulable_ = Operation_->IsSchedulable();
+    SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
     ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
@@ -2803,16 +2806,14 @@ TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
     return OperationElementSharedState_->GetLastScheduleJobSuccessTime();
 }
 
-int TOperationElement::GetSlotIndex() const
+std::optional<int> TOperationElement::GetMaybeSlotIndex() const
 {
-    auto slotIndex = Operation_->FindSlotIndex(GetTreeId());
-    YT_VERIFY(slotIndex);
-    return *slotIndex;
+    return SlotIndex_;
 }
 
 TString TOperationElement::GetUserName() const
 {
-    return Operation_->GetAuthenticatedUser();
+    return UserName_;
 }
 
 bool TOperationElement::OnJobStarted(

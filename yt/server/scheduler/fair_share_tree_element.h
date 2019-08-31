@@ -618,6 +618,8 @@ protected:
 
     const TOperationId OperationId_;
     bool Schedulable_;
+    std::optional<int> SlotIndex_;
+    TString UserName_;
     IOperationStrategyHost* const Operation_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 };
@@ -834,7 +836,7 @@ public:
     TInstant GetLastNonStarvingTime() const;
     TInstant GetLastScheduleJobSuccessTime() const;
 
-    int GetSlotIndex() const;
+    std::optional<int> GetMaybeSlotIndex() const;
 
     TString GetUserName() const;
 

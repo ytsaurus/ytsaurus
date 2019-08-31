@@ -19,6 +19,7 @@ struct IFairShareTreeSnapshot
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 };
 
@@ -148,8 +149,6 @@ public:
 
     void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent);
 
-    void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const;
-
     void LogOperationsInfo();
 
     void LogPoolsInfo();
@@ -270,6 +269,8 @@ private:
 
         virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override;
 
+        virtual void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const override;
+
         virtual bool HasOperation(TOperationId operationId) const override;
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override;
@@ -329,6 +330,10 @@ private:
     void DoPreemptJobsGracefully(
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);
+
+    void DoProfileFairShare(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        NProfiling::TMetricsAccumulator& accumulator) const;
 
     void PreemptJob(
         const TJobPtr& job,
