@@ -3463,6 +3463,7 @@ private:
             replicaInfo->GetCurrentReplicationTimestamp());
 
         replicaInfo->SetState(ETableReplicaState::Disabled);
+        replicaInfo->SetError(TError());
 
         if (IsLeader()) {
             replicaInfo->GetReplicator()->Disable();

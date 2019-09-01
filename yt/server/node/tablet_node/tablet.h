@@ -287,6 +287,9 @@ public:
     i64 GetPreparedReplicationRowIndex() const;
     void SetPreparedReplicationRowIndex(i64 value);
 
+    TError GetError() const;
+    void SetError(TError error);
+
     TTableReplicaSnapshotPtr BuildSnapshot() const;
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;

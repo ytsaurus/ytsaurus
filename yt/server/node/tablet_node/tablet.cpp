@@ -299,6 +299,16 @@ void TTableReplicaInfo::SetPreparedReplicationRowIndex(i64 value)
     RuntimeData_->PreparedReplicationRowIndex = value;
 }
 
+TError TTableReplicaInfo::GetError() const
+{
+    return RuntimeData_->Error.Load();
+}
+
+void TTableReplicaInfo::SetError(TError error)
+{
+    RuntimeData_->Error.Store(error);
+}
+
 TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
 {
     auto snapshot = New<TTableReplicaSnapshot>();
