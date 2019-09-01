@@ -783,7 +783,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
             TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity> errors;
             for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                if (tabletErrorCount[tabletSnapshot->TableId] < Config_->MaxTabletErrorsInHeartbeat) {
+                if (tabletErrorCount[tabletSnapshot->TableId] >= Config_->MaxTabletErrorsInHeartbeat) {
                     break;
                 }
                 auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
