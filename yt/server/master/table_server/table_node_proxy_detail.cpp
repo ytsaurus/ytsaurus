@@ -1429,6 +1429,9 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationErrors)
+        .SetExternal(table->IsExternal())
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
         .SetReplicated(true)
         .SetWritable(true));
@@ -1459,8 +1462,24 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
                             .Item("mode").Value(replica->GetMode())
                             .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
                                 timestampProvider->GetLatestTimestamp()))
+                            // COMPAT(savrus) To be removed when all clusters support replication_errors
                             .Item("errors").Value(replica->GetErrors(ReplicationErrorCountViewLimit))
                         .EndMap();
+                });
+            return true;
+        }
+
+        case EInternedAttributeKey::ReplicationErrors: {
+            if (isExternal) {
+                break;
+            }
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            BuildYsonFluently(consumer)
+                .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
+                    auto replicaProxy = objectManager->GetProxy(replica);
+                    fluent
+                        .Item(ToString(replica->GetId())).Value(replica->GetErrors(ReplicationErrorCountViewLimit));
                 });
             return true;
         }
