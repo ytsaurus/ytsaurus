@@ -2898,13 +2898,13 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         try:
             return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/fair_share_ratio".format(pool))
         except YtError:
-            return defaultdict(lambda: 0.0)
+            return 0.0
 
     def _get_pool_usage_ratio(self, pool):
         try:
             return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/usage_ratio".format(pool))
         except YtError:
-            return defaultdict(lambda: 0.0)
+            return 0.0
 
     def _get_pool_profiling(self, sensor_name, start_time, reduce="none"):
         assert reduce in ("none", "last", "max")
