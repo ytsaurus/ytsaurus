@@ -38,7 +38,14 @@ def f(pdf):
 
 spark = SparkSession.builder.getOrCreate()
 
-spark.range(1).groupBy("id").apply(f)
+dfg = spark.range(1).groupBy("id")
+dfg.apply(f)
+
+@pandas_udf("id long", PandasUDFType.GROUPED_MAP)
+def g(key, pdf):
+   return pdf
+
+dfg.apply(g)
 [out]
 
 [case groupedAggUDF]
