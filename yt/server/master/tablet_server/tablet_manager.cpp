@@ -4064,7 +4064,10 @@ private:
         }
     }
 
-    void ScheduleTableStatisticsUpdate(TTableNode* table, bool updateDataStatistics = true)
+    void ScheduleTableStatisticsUpdate(
+        TTableNode* table,
+        bool updateDataStatistics = true,
+        bool updateTabletStatistics = true)
     {
         if (!Bootstrap_->IsPrimaryMaster()) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v)",
@@ -4072,7 +4075,9 @@ private:
                 updateDataStatistics);
 
             TTableStatistics statistics;
-            statistics.TabletResourceUsage = table->GetTabletResourceUsage();
+            if (updateTabletStatistics) {
+                statistics.TabletResourceUsage = table->GetTabletResourceUsage();
+            }
             if (updateDataStatistics) {
                 statistics.DataStatistics = table->SnapshotStatistics();
             }
@@ -4616,7 +4621,7 @@ private:
                 }
 
                 if (EnableUpdateStatisticsOnHeartbeat_) {
-                    ScheduleTableStatisticsUpdate(table);
+                    ScheduleTableStatisticsUpdate(table, true, false);
                 }
             }
 
