@@ -682,6 +682,12 @@ public:
     //! The number of threads in StorageLight thread pool (used for reading chunk blocks).
     int StorageLightThreadCount;
 
+    //! Number of replication errors sent in heartbeat.
+    int MaxReplicationErrorsInHeartbeat;
+
+    //! Number of tablet errors sent in heartbeat.
+    int MaxTabletErrorsInHeartbeat;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -861,6 +867,13 @@ public:
         RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
             .GreaterThan(0)
             .Default(2);
+
+        RegisterParameter("max_replication_errors_in_heartbeat", MaxReplicationErrorsInHeartbeat)
+            .GreaterThan(0)
+            .Default(3);
+        RegisterParameter("max_tablet_errors_in_heartbeat", MaxTabletErrorsInHeartbeat)
+            .GreaterThan(0)
+            .Default(10);
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
