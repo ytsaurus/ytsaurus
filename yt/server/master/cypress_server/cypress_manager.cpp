@@ -1023,7 +1023,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
-        YT_VERIFY(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        YT_VERIFY(request.Mode != ELockMode::None);
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
 
         auto error = CheckLock(
@@ -2297,14 +2297,14 @@ private:
         return TError();
     }
 
-    bool IsLockRedundant(
+    static bool IsLockRedundant(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
         const TLock* lockToIgnore = nullptr)
     {
         YT_ASSERT(trunkNode->IsTrunk());
-        YT_ASSERT(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        YT_ASSERT(request.Mode != ELockMode::None);
 
         if (!transaction) {
             return true;
@@ -2327,6 +2327,17 @@ private:
 
             case ELockMode::Shared: {
                 auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::make_pair(transaction, request.Key));
+                for (auto it = range.first; it != range.second; ++it) {
+                    const auto* existingLock = it->second;
+                    if (existingLock != lockToIgnore) {
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            case ELockMode::Snapshot: {
+                auto range = lockingState.TransactionToSnapshotLocks.equal_range(transaction);
                 for (auto it = range.first; it != range.second; ++it) {
                     const auto* existingLock = it->second;
                     if (existingLock != lockToIgnore) {
