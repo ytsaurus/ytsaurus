@@ -1264,6 +1264,20 @@ done
         assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
 
+    @authors("ifsmirnov")
+    def test_disallow_partially_sorted_output(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t", [{"key": 1}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t",
+                out="<partially_sorted=%true>//tmp/t",
+                command="cat")
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)

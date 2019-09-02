@@ -473,6 +473,43 @@ class TestBulkInsert(DynamicTablesBase):
         lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}, {"key": 2}], versioned=True)
         assert lookup_result[0].attributes["write_timestamps"] == lookup_result[1].attributes["write_timestamps"]
 
+    def test_partially_sorted(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 1, "value": "1"},
+            {"key": 3, "value": "3"},
+            {"key": 2, "value": "2"},
+            {"key": 4, "value": "4"}
+        ]
+
+        write_table("<append=%true>//tmp/t_input", rows[:2])
+        write_table("<append=%true>//tmp/t_input", rows[2:])
+
+        # Two separate jobs process [1, 3] and [2, 4].
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true;partially_sorted=%true>//tmp/t_output",
+            command="cat",
+            spec={"job_count": 2})
+
+        assert get("//tmp/t_output/@chunk_count") == 2
+        assert read_table("//tmp/t_output") == sorted(rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
+        wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
+
+        # Single job processing [1, 3, 2, 4] should fail.
+        with raises_yt_error(SortOrderViolation):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true;partially_sorted=%true>//tmp/t_output",
+                command="cat",
+                spec={"job_count": 1})
+
     @pytest.mark.parametrize("stage", ["stage5", "stage6"])
     def test_abort_operation(self, stage):
         sync_create_cells(1)

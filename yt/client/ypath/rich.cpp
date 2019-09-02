@@ -616,6 +616,11 @@ EOutputChunkFormat TRichYPath::GetOutputChunkFormat() const
         EOutputChunkFormat::Unversioned);
 }
 
+bool TRichYPath::GetPartiallySorted() const
+{
+    return GetAttribute<bool>(*this, "partially_sorted", false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)

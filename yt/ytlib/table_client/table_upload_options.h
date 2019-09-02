@@ -29,6 +29,7 @@ struct TTableUploadOptions
     NCompression::ECodec CompressionCodec;
     NErasure::ECodec ErasureCodec;
     std::optional<std::vector<NSecurityClient::TSecurityTag>> SecurityTags;
+    bool PartiallySorted;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };
