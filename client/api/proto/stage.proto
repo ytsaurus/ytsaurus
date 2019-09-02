@@ -38,6 +38,16 @@ message TStageSpec
     map<string, TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
     // In form "abc:service:<int id>".
     string account_id = 3;
+    
+    message TRevisionInfo
+    {
+        // Human-readable description.
+        string description = 1;
+    }
+    
+    // Information about current revision of the spec.
+    // NOTE: see https://st.yandex-team.ru/YP-1270 for api support.
+    TRevisionInfo revision_info = 4 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TStageStatus
@@ -52,6 +62,18 @@ message TStageStatus
     NYP.NClient.NApi.NProto.TCondition validated = 3;
     // YP timestamp of spec last treated by controller.
     uint64 spec_timestamp = 4;
+    
+    message THistoryEntry
+    {
+        // YP timestamp of spec.
+        uint64 timestamp = 1;
+        TStageSpec spec = 2;        
+    }
+    
+    // Last valid specs seen by controller, including the current one.
+    // Ordered by timestamp descending.
+    // TODO: temporary history implementation until YP-863 is deployed.
+    repeated THistoryEntry history = 5;
 }
 
 // Deploy unit

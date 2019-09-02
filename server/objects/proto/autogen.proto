@@ -108,6 +108,7 @@ message TStageSpecEtc
 {
     uint64 revision = 1;
     map<string, NYP.NClient.NApi.NProto.TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true];
+    NYP.NClient.NApi.NProto.TStageSpec.TRevisionInfo revision_info = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
