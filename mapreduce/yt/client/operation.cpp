@@ -2203,7 +2203,9 @@ public:
                 OperationImpl_->AnalyzeUnrecognizedSpec(*attributes.UnrecognizedSpec);
                 UnrecognizedSpecAnalyzed_ = true;
             }
-            Y_VERIFY(attributes.BriefState);
+            Y_VERIFY(attributes.BriefState,
+                "get_operation for operation %s has not returned \"state\" field",
+                GetGuidAsString(OperationImpl_->GetId()).Data());
             if (*attributes.BriefState != EOperationBriefState::InProgress) {
                 OperationImpl_->AsyncFinishOperation(attributes);
                 return PollBreak;
