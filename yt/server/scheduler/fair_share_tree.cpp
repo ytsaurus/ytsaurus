@@ -161,14 +161,9 @@ TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedu
         .Run();
 }
 
-TFuture<void> TFairShareTree::TFairShareTreeSnapshot::PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext)
+void TFairShareTree::TFairShareTreeSnapshot::PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext)
 {
-    return BIND(&TFairShareTree::DoPreemptJobsGracefully,
-        Tree_,
-        schedulingContext,
-        RootElementSnapshot_)
-        .AsyncVia(GetCurrentInvoker())
-        .Run();
+    Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
 }
 
 void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(

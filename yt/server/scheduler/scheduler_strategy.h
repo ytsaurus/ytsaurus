@@ -85,7 +85,7 @@ struct ISchedulerStrategy
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
-    virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
 
     //! Starts periodic updates and logging.
     virtual void OnMasterConnected() = 0;

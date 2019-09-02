@@ -1105,7 +1105,6 @@ except KeyboardInterrupt:
         wait(lambda: op.get_job_count("aborted") == 1, iter=20)
         assert op.get_job_count("total") == 1
         assert op.get_job_count("aborted") == 1
-        op.abort()
 
     @authors("ignat")
     def test_min_share_ratio(self):

@@ -14,7 +14,7 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
@@ -261,7 +261,7 @@ private:
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
 
-        virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override;
+        virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override;
 
         virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override;
 
