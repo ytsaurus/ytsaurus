@@ -4973,7 +4973,6 @@ TListJobsResult TClient::DoListJobs(
             // No jobs fetched from Cypress, try to get them from archive.
             // (There might be no jobs in Cypress because we don't store them there in recent versions).
             if (result.CypressJobCount == 0 && options.DataSource == EDataSource::Auto) {
-                YT_LOG_INFO("XXXXX Going to archive");
                 mergeWithArchiveJobs(result, std::move(controllerAgentJobs), tryListJobsFromArchiveAsync());
                 break;
             }
