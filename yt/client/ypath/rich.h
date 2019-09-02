@@ -120,6 +120,9 @@ public:
     // "output_chunk_format"
     NTableClient::EOutputChunkFormat GetOutputChunkFormat() const;
 
+    // "partially_sorted"
+    bool GetPartiallySorted() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

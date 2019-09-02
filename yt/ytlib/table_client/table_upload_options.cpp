@@ -22,6 +22,13 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, UpdateMode);
     Persist(context, LockMode);
     Persist(context, TableSchema);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 300153) {
+        Persist(context, OutputChunkFormat);
+    } else {
+        YT_VERIFY(context.IsLoad());
+        OutputChunkFormat = EOutputChunkFormat::Unversioned;
+    }
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
@@ -29,6 +36,13 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 300100) {
         Persist(context, SecurityTags);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 300153) {
+        Persist(context, PartiallySorted);
+    } else {
+        YT_VERIFY(context.IsLoad());
+        PartiallySorted = false;
     }
 }
 
@@ -196,11 +210,17 @@ TTableUploadOptions GetTableUploadOptions(
     }
 
     if (!dynamic && path.GetOutputChunkFormat() != EOutputChunkFormat::Unversioned) {
-        THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" cah have value %Qlv only for dynamic tables",
+        THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" can have value %Qlv only for dynamic tables",
             path.GetOutputChunkFormat())
             << TErrorAttribute("path", path);
     }
     result.OutputChunkFormat = path.GetOutputChunkFormat();
+
+    if (!dynamic && path.GetPartiallySorted()) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"partially_sorted\" can be set only for dynamic tables")
+            << TErrorAttribute("path", path);
+    }
+    result.PartiallySorted = path.GetPartiallySorted();
 
     result.SecurityTags = path.GetSecurityTags();
 
