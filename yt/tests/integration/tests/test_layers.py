@@ -227,6 +227,7 @@ class TestJobSetup(YTEnvSetup):
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
+    NUM_SECONDARY_MASTER_CELLS = 1
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs" : True,

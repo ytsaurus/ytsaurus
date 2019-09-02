@@ -255,7 +255,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
         userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TFileYPathProxy::Fetch(DriverLayerPath_);
+    auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
     AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
 
     ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
