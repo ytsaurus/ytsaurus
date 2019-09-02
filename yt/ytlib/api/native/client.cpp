@@ -4841,16 +4841,19 @@ TListJobsResult TClient::DoListJobs(
 
     // Issue the requests in parallel.
 
-    if (includeArchive) {
+    auto tryListJobsFromArchiveAsync = [&] {
         if (DoesOperationsArchiveExist()) {
-            archiveResultFuture = DoListJobsFromArchiveAsync(
+            return DoListJobsFromArchiveAsync(
                 operationId,
                 deadline,
                 /* includeInProgressJobs */ controllerAgentAddress.has_value(),
                 options);
-        } else {
-            archiveResultFuture = MakeFuture(TListJobsFromArchiveResult{});
         }
+        return MakeFuture(TListJobsFromArchiveResult{});
+    };
+
+    if (includeArchive) {
+        archiveResultFuture = tryListJobsFromArchiveAsync();
     }
 
     if (includeCypress) {
@@ -4907,42 +4910,50 @@ TListJobsResult TClient::DoListJobs(
         return filteredJobs;
     };
 
+    auto mergeWithArchiveJobs = [&] (
+        TListJobsResult& result,
+        std::vector<TJob>&& controllerAgentJobs,
+        const TFuture<TListJobsFromArchiveResult>& archiveResultFuture)
+    {
+        TListJobsFromArchiveResult archiveResult;
+
+        auto archiveResultOrError = WaitFor(archiveResultFuture);
+        if (archiveResultOrError.IsOK()) {
+            archiveResult = std::move(archiveResultOrError.Value());
+            result.ArchiveJobCount = archiveResult.InProgressJobs.size();
+            for (auto count : archiveResult.FinishedJobsStatistics.TypeCounts) {
+                *result.ArchiveJobCount += count;
+            }
+            result.Statistics = archiveResult.FinishedJobsStatistics;
+        } else {
+            result.Errors.push_back(TError(
+                EErrorCode::JobArchiveUnavailable,
+                "Job archive is unavailable")
+                << archiveResultOrError);
+        }
+
+        if (!controllerAgentAddress) {
+            result.Jobs = std::move(archiveResult.FinishedJobs);
+        } else {
+            auto inProgressJobs = std::move(archiveResult.InProgressJobs);
+            UpdateJobsList(std::move(controllerAgentJobs), &inProgressJobs, /* ignoreNewJobs */ !inProgressJobs.empty());
+            auto filteredInProgressJobs = countAndFilterJobs(std::move(inProgressJobs), &result.Statistics);
+            auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
+            std::sort(filteredInProgressJobs.begin(), filteredInProgressJobs.end(), jobComparator);
+            result.Jobs.reserve(filteredInProgressJobs.size() + archiveResult.FinishedJobs.size());
+            std::merge(
+                std::make_move_iterator(filteredInProgressJobs.begin()),
+                std::make_move_iterator(filteredInProgressJobs.end()),
+                std::make_move_iterator(archiveResult.FinishedJobs.begin()),
+                std::make_move_iterator(archiveResult.FinishedJobs.end()),
+                std::back_inserter(result.Jobs),
+                jobComparator);
+        }
+    };
+
     switch (dataSource) {
         case EDataSource::Archive: {
-            TListJobsFromArchiveResult archiveResult;
-
-            auto archiveResultOrError = WaitFor(archiveResultFuture);
-            if (archiveResultOrError.IsOK()) {
-                archiveResult = std::move(archiveResultOrError.Value());
-                result.ArchiveJobCount = archiveResult.InProgressJobs.size();
-                for (auto count : archiveResult.FinishedJobsStatistics.TypeCounts) {
-                    *result.ArchiveJobCount += count;
-                }
-                result.Statistics = archiveResult.FinishedJobsStatistics;
-            } else {
-                result.Errors.push_back(TError(
-                    EErrorCode::JobArchiveUnavailable,
-                    "Job archive is unavailable")
-                    << archiveResultOrError);
-            }
-
-            if (!controllerAgentAddress) {
-                result.Jobs = std::move(archiveResult.FinishedJobs);
-            } else {
-                auto inProgressJobs = std::move(archiveResult.InProgressJobs);
-                UpdateJobsList(std::move(controllerAgentJobs), &inProgressJobs, /* ignoreNewJobs */ !inProgressJobs.empty());
-                auto filteredInProgressJobs = countAndFilterJobs(std::move(inProgressJobs), &result.Statistics);
-                auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
-                std::sort(filteredInProgressJobs.begin(), filteredInProgressJobs.end(), jobComparator);
-                result.Jobs.reserve(filteredInProgressJobs.size() + archiveResult.FinishedJobs.size());
-                std::merge(
-                    std::make_move_iterator(filteredInProgressJobs.begin()),
-                    std::make_move_iterator(filteredInProgressJobs.end()),
-                    std::make_move_iterator(archiveResult.FinishedJobs.begin()),
-                    std::make_move_iterator(archiveResult.FinishedJobs.end()),
-                    std::back_inserter(result.Jobs),
-                    jobComparator);
-            }
+            mergeWithArchiveJobs(result, std::move(controllerAgentJobs), archiveResultFuture);
             break;
         }
         case EDataSource::Runtime: {
@@ -4959,7 +4970,16 @@ TListJobsResult TClient::DoListJobs(
                 result.Errors.push_back(TError("Failed to get jobs from Cypress") << cypressResultOrError);
             }
 
+            // No jobs fetched from Cypress, try to get them from archive.
+            // (There might be no jobs in Cypress because we don't store them there in recent versions).
+            if (result.CypressJobCount == 0 && options.DataSource == EDataSource::Auto) {
+                YT_LOG_INFO("XXXXX Going to archive");
+                mergeWithArchiveJobs(result, std::move(controllerAgentJobs), tryListJobsFromArchiveAsync());
+                break;
+            }
+
             UpdateJobsList(std::move(controllerAgentJobs), &cypressJobs, /* ignoreNewJobs */ false);
+
             result.Jobs = countAndFilterJobs(std::move(cypressJobs), &result.Statistics);
             auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
             std::sort(result.Jobs.begin(), result.Jobs.end(), jobComparator);
