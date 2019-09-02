@@ -422,7 +422,7 @@ public:
     // Timeout for job interruption before we abort it.
     TDuration JobInterruptTimeout;
 
-    // Timeout for job graceful interruption before we abort it.
+    // Timeout for graceful job interruption before we abort it.
     TDuration GracefulPreemptionJobInterruptTimeout;
 
     bool EnableUnrecognizedAlert;

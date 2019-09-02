@@ -541,7 +541,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
         for (const auto& job : runningJobs) {
             if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetGracefullyPreempted()) {
-                Y_UNUSED(WaitFor(Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext)));
+                Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
                 break;
             }
         }

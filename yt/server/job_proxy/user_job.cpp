@@ -743,7 +743,8 @@ private:
         ValidatePrepared();
 
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
-            YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)", UserJobSpec_.interruption_signal());
+            YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
+                UserJobSpec_.interruption_signal());
             SignalJob(UserJobSpec_.interruption_signal());
         }
 

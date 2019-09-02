@@ -150,16 +150,14 @@ public:
         return snapshot->ScheduleJobs(schedulingContext);
     }
 
-    virtual TFuture<void> PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto snapshot = FindTreeSnapshotByNodeDescriptor(schedulingContext->GetNodeDescriptor());
-        if (!snapshot) {
-            return VoidFuture;
+        if (snapshot) {
+            snapshot->PreemptJobsGracefully(schedulingContext);
         }
-
-        return snapshot->PreemptJobsGracefully(schedulingContext);
     }
 
     virtual void RegisterOperation(IOperationStrategyHost* operation) override
