@@ -2851,8 +2851,12 @@ private:
     //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        // COMPAT(shakurov): replace >= with == once everything is updated to 19.6 or later.
-        YT_VERIFY(transaction->BranchedNodes().size() >= transaction->LockedNodes().size());
+        if (transaction->BranchedNodes().size() != transaction->LockedNodes().size()) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
+                transaction->GetId(),
+                transaction->BranchedNodes().size(),
+                transaction->LockedNodes().size());
+        }
 
         auto& branchedNodes = transaction->BranchedNodes();
         // The reverse order is for efficient removal.
