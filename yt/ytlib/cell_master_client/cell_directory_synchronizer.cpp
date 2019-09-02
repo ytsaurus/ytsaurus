@@ -134,7 +134,10 @@ private:
 
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
             .Value();
-        Directory_->Update(rsp->cell_directory());
+        // COMPAT(shakurov): support old masters' empty responses.
+        if (rsp->cell_directory_size() != 0) {
+            Directory_->Update(rsp->cell_directory());
+        }
     }
 
     void OnSync()
