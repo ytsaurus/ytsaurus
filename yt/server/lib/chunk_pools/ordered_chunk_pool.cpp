@@ -295,13 +295,13 @@ private:
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {
-                        auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-                        dataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
-                        AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
+                        auto smallerDataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+                        AddPrimaryDataSlice(smallerDataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                     }
                 } else {
                     AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                 }
+
             }
         }
         EndJob();
@@ -373,6 +373,7 @@ private:
         }
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->InputStreamIndex = 0;
+        dataSliceCopy->ChunkSlices[0]->GetInputChunk()->SetRangeIndex(0);
         dataSliceCopy->Tag = cookie;
         CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
     }
