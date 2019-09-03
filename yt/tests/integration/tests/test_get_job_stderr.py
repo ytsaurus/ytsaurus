@@ -75,18 +75,15 @@ class TestGetJobStderr(YTEnvSetup):
             })
 
         job_id = wait_breakpoint()[0]
-        res = get_job_stderr(op.id, job_id)
-        assert res == "STDERR-OUTPUT\n"
+        wait(lambda: get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n")
         release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
 
         clean_operations()
-        time.sleep(1)
 
-        res = get_job_stderr(op.id, job_id)
-        assert res == "STDERR-OUTPUT\n"
+        wait(lambda: get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n")
 
     @authors("ignat")
     def test_get_job_stderr(self):
@@ -134,8 +131,8 @@ class TestGetJobStderr(YTEnvSetup):
             job_ids = wait_breakpoint(job_count=3)
             job_id = job_ids[0]
 
-            res = get_job_stderr(op.id, job_id, authenticated_user="u")
-            assert res == "STDERR-OUTPUT\n"
+            # We should use 'wait' since job can be still in prepare phase by the opinion of the node.
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
@@ -158,10 +155,8 @@ class TestGetJobStderr(YTEnvSetup):
             get_job_stderr(op.id, job_id, authenticated_user="other")
 
             clean_operations()
-            time.sleep(1)
 
-            res = get_job_stderr(op.id, job_id, authenticated_user="u")
-            assert res == "STDERR-OUTPUT\n"
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
