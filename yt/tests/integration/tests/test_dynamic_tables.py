@@ -1072,13 +1072,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_mount_with_target_cell_ids(self, external):
         cells = sync_create_cells(4)
 
-        decommissioner_config = {
-            "enable_tablet_cell_decommission": False,
-            "decommission_check_period": 100,
-            "orphans_check_period": 100,
-        }
-
-        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_decommission", False)
         remove("#{0}".format(cells[3]))
         assert get("#{0}/@tablet_cell_life_stage".format(cells[3])) != "running"
 
@@ -1170,13 +1164,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         insert_rows("//tmp/t", rows1)
 
-        decommissioner_config = {
-            "enable_tablet_cell_removal": False,
-            "decommission_check_period": 100,
-            "orphans_check_period": 100,
-        }
-
-        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal", False)
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -1199,7 +1187,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", False)
         wait(lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioned")
 
-        remove("//sys/@config/tablet_manager/tablet_cell_decommissioner")
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal", True)
         wait(lambda: not exists("#{0}".format(cell)))
 
     @authors("savrus")
