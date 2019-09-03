@@ -666,7 +666,7 @@ private:
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/jp_" + ToString(jobId),
                 PortoExecutor_);
 
             //TODO: remove because of deprecation

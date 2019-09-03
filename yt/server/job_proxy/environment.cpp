@@ -594,7 +594,7 @@ public:
 
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
     {
-        auto containerName = Format("%v/user_job_%v", SlotAbsoluteName_, jobId);
+        auto containerName = Format("%v/uj_%v", SlotAbsoluteName_, jobId);
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
         if (RootFS_) {
             instance->SetRoot(*RootFS_);
