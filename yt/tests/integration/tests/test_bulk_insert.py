@@ -497,7 +497,7 @@ class TestBulkInsert(DynamicTablesBase):
             command="cat",
             spec={"job_count": 2})
 
-        assert get("//tmp/t_output/@chunk_count") == 2
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 2)
         assert read_table("//tmp/t_output") == sorted(rows)
         assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
         wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
