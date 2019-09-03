@@ -176,6 +176,10 @@ public:
             builder.AppendString(" ; ");
         }
 
+        if (NFS::Exists("/dev/kvm")) {
+            builder.AppendString("/dev/kvm rw");
+        }
+
         SetProperty("devices", builder.Flush());
     }
 
