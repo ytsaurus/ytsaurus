@@ -1216,6 +1216,8 @@ public:
                 << TErrorAttribute("usage", usage.ChunkCount)
                 << TErrorAttribute("limit", limits.ChunkCount);
         }
+        // XXX(babenko): remove this after resolving issues with TestDynamicTablesResourceLimitsPortal.test_tablet_count_limit_copy
+        YT_LOG_DEBUG("XXX %v %v %v %v", delta.TabletCount, usage.TabletCount, limits.TabletCount);
         if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AccountLimitExceeded,
