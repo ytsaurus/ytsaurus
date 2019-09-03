@@ -7,7 +7,7 @@
 extern "C" {
 
 #define UNW_LOCAL_ONLY
-#include <contrib/libs/libunwind_master/include/libunwind.h>
+#include <contrib/libs/libunwind/include/libunwind.h>
 
 } // extern "C"
 
