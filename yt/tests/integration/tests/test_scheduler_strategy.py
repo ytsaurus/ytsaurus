@@ -334,8 +334,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}})
         wait_breakpoint()
 
-        resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage".format(op.id))
-        wait(lambda: are_almost_equal(resource_usage["cpu"], 3 * 0.87))
+        get_resource_usage = lambda op: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage".format(op.id))
+        wait(lambda: are_almost_equal(get_resource_usage(op)["cpu"], 3 * 0.87))
 
         release_breakpoint()
         op.track()
