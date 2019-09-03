@@ -1050,14 +1050,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_graceful_preemption(self):
         create_test_tables(row_count=1)
 
-        command = """BREAKPOINT ; python -c "
-import time
-try:
-    time.sleep(20)
-except KeyboardInterrupt:
-    time.sleep(1)
-    print('{interrupt=42};')"
-"""
+        command = """(trap "sleep 1; echo '{interrupt=42}'; exit 0" SIGINT; BREAKPOINT)"""
 
         op = map(
             dont_track=True,
@@ -1073,8 +1066,6 @@ except KeyboardInterrupt:
         )
 
         wait_breakpoint()
-        release_breakpoint()
-        time.sleep(0.2)
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
         assert op.get_job_count("completed") == 1
