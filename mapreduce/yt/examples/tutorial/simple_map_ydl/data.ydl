@@ -1,9 +1,9 @@
 struct TLoginRecord {
-    Name: String,
-    Login: String,
+    Name: String;
+    Login: String;
 }
 
 struct TEmailRecord {
-    Name: String,
-    Email: String,
+    Name: String;
+    Email: String;
 }
