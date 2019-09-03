@@ -66,6 +66,7 @@ message TStageStatus
     message THistoryEntry
     {
         // YP timestamp of spec.
+        // To get unix timestamp, right-shift by 30 bits (divide by 1024**3).
         uint64 timestamp = 1;
         TStageSpec spec = 2;        
     }
