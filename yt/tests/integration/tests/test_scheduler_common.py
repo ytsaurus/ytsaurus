@@ -3266,6 +3266,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "running_jobs_update_period": 10,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
@@ -3274,6 +3275,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "snapshot_period": 2000,
             "job_metrics_report_period": 100,
             "custom_job_metrics": [
                 {
@@ -3619,6 +3621,50 @@ class TestPoolMetrics(YTEnvSetup):
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
         time.sleep(0.5)  # Give scheduler some time to reload trees
+
+    @authors("eshcherbin")
+    def test_revive(self):
+        create("map_node", "//sys/pools/unique_pool")
+        wait(lambda: "unique_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("<append=%true>//tmp/t_input", {"foo": "bar"})
+
+        before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
+        after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
+
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/total_time").with_tag("pool", "unique_pool") as total_time, \
+                ProfileMetric.at_scheduler("scheduler/pools/metrics/my_custom_metric_sum").with_tag("pool", "unique_pool") as custom_metric:
+            op = map(
+                command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={"pool": "unique_pool"},
+                dont_track=True)
+
+            jobs = wait_breakpoint()
+            assert len(jobs) == 1
+
+        total_time_before_restart = total_time.update().delta(verbose=True)
+        wait(lambda: custom_metric.update().delta(verbose=True) == 55)
+
+        # We need to have the job in the snapshot, so that it is not restarted after operation revival.
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
+        wait(lambda: op.get_state() == "running")
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: total_time.update().delta(verbose=True) > total_time_before_restart)
+        wait(lambda: custom_metric.update().delta(verbose=True) == 120)
+
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
