@@ -91,9 +91,9 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
             return EValueType::Uint64;
         case ESimpleLogicalValueType::Interval:
             return EValueType::Int64;
-
+        default:
+            YT_ABORT();
     }
-    YT_ABORT();
 }
 
 inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
