@@ -70,6 +70,20 @@ TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields);
 TKeyColumns GetSortByFields(const TKeyColumns& reduceFields);
 
 template<class R, class W>
+TMapOperationSpec PrepareMapSpec(
+    const TOneOrMany<TRichYPath>& from,
+    const TRichYPath& to)
+{
+    auto spec = TMapOperationSpec()
+        .template AddOutput<W>(MaybeWithSchema<W>(to))
+        .Ordered(true);
+
+    for (auto& input : from.Parts_)
+        spec.template AddInput<R>(input);
+    return spec;
+}
+
+template<class R, class W>
 TMapReduceOperationSpec PrepareMRSpec(
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,

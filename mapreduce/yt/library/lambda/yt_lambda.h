@@ -71,22 +71,16 @@ namespace NYT {
 // ==============================================
 
 template <class T>
-void CopyIf(const IClientBasePtr& client, const TRichYPath& from, const TRichYPath& to, bool (*p)(const T&)) {
+void CopyIf(const IClientBasePtr& client, const TOneOrMany<TRichYPath>& from, const TRichYPath& to, bool (*p)(const T&)) {
     client->Map(
-        TMapOperationSpec()
-            .AddInput<T>(from)
-            .template AddOutput<T>(MaybeWithSchema<T>(to))
-            .Ordered(true),
+        NDetail::PrepareMapSpec<T, T>(from, to),
         p ? new TCopyIfMapper<T>(p) : nullptr);
 }
 
 template <class R, class W>
-void TransformCopyIf(const IClientBasePtr& client, const TRichYPath& from, const TRichYPath& to, bool (*mapper)(const R&, W&)) {
+void TransformCopyIf(const IClientBasePtr& client, const TOneOrMany<TRichYPath>& from, const TRichYPath& to, bool (*mapper)(const R&, W&)) {
     client->Map(
-        TMapOperationSpec()
-            .AddInput<R>(from)
-            .template AddOutput<W>(MaybeWithSchema<W>(to))
-            .Ordered(true),
+        NDetail::PrepareMapSpec<R, W>(from, to),
         mapper ? new TTransformMapper<R, W>(mapper) : nullptr);
 }
 
