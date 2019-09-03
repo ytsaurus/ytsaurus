@@ -3,5 +3,9 @@ from mypy.test.testcheck import TypeCheckSuite
 
 
 class PySparkCoreSuite(TypeCheckSuite):
-    TypeCheckSuite.files = ["context.test", "udf.test"]
+    TypeCheckSuite.files = [
+        "context.test",
+        "resultiterable.test",
+        "udf.test",
+    ]
     required_out_section = True
