@@ -781,7 +781,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
             protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
 
-            TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity> errors;
+            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> errors;
             for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
                 if (tabletErrorCount[tabletSnapshot->TableId] >= Config_->MaxTabletErrorsInHeartbeat) {
                     break;
