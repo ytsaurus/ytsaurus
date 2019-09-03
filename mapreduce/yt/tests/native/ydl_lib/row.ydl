@@ -1,23 +1,23 @@
 struct TUrlRow {
-    Host: Optional[String];
-    Path: Optional[String];
-    HttpCode: Optional[Int32];
+    Host: Optional<String>,
+    Path: Optional<String>,
+    HttpCode: Optional<Int32>,
 }
 
 struct TGoodUrl {
-    Url: Optional[String];
+    Url: Optional<String>,
 }
 
 struct THostRow {
-    Host: Optional[String];
-    HttpCodeTotal: Optional[Int32];
+    Host: Optional<String>,
+    HttpCodeTotal: Optional<Int32>,
 }
 
 struct TRow {
-    StringField: String;
+    StringField: String,
 }
 
 struct TMessage {
-    Key: Optional[String];
-    Value: Optional[String];
+    Key: Optional<String>,
+    Value: Optional<String>,
 }
