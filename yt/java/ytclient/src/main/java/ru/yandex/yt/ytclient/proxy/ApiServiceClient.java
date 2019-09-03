@@ -625,6 +625,9 @@ public class ApiServiceClient implements TransactionalClient {
         if (request.getMaxSubqueries().isPresent()) {
             builder.body().setMaxSubqueries(request.getMaxSubqueries().getAsInt());
         }
+        if (request.getAllowJoinWithoutIndex().isPresent()) {
+            builder.body().setAllowJoinWithoutIndex(request.getAllowJoinWithoutIndex().get());
+        }
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
             return responseReader.apply(response);

@@ -13,6 +13,7 @@ public class SelectRowsRequest {
     private Long outputRowsLimit;
     private Boolean failOnIncompleteResult;
     private Integer maxSubqueries;
+    private Boolean allowJoinWithoutIndex;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -68,6 +69,15 @@ public class SelectRowsRequest {
 
     public OptionalInt getMaxSubqueries() {
         return maxSubqueries == null ? OptionalInt.empty() : OptionalInt.of(maxSubqueries);
+    }
+
+    public SelectRowsRequest setAllowJoinWithoutIndex(boolean allowJoinWithoutIndex) {
+        this.allowJoinWithoutIndex = allowJoinWithoutIndex;
+        return this;
+    }
+
+    public Optional<Boolean> getAllowJoinWithoutIndex() {
+        return Optional.ofNullable(allowJoinWithoutIndex);
     }
 
 }
