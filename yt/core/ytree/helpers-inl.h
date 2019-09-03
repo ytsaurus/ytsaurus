@@ -118,14 +118,41 @@ IYPathServicePtr IYPathService::FromMethod(
     R (T::*method) () const,
     const TWeakPtr<T>& weak)
 {
-    auto producer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
+    auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
         auto strong = weak.Lock();
         if (strong) {
             Serialize((strong.Get()->*method)(), consumer);
+        } else {
+            consumer->OnBeginAttributes();
+            consumer->OnKeyedItem("object_destroyed");
+            consumer->OnBooleanScalar(true);
+            consumer->OnEndAttributes();
+            consumer->OnEntity();
         }
     }));
 
-    return FromProducer(producer);
+    return FromProducer(std::move(boundProducer));
+}
+
+template <class T>
+IYPathServicePtr IYPathService::FromMethod(
+    void (T::*producer) (NYson::IYsonConsumer*) const,
+    const TWeakPtr<T>& weak)
+{
+    auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
+        auto strong = weak.Lock();
+        if (strong) {
+            (strong.Get()->*producer)(consumer);
+        } else {
+            consumer->OnBeginAttributes();
+            consumer->OnKeyedItem("object_destroyed");
+            consumer->OnBooleanScalar(true);
+            consumer->OnEndAttributes();
+            consumer->OnEntity();
+        }
+    }));
+
+    return FromProducer(std::move(boundProducer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

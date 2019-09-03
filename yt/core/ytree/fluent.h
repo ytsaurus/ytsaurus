@@ -476,6 +476,16 @@ public:
             return *this;
         }
 
+        template <class T>
+        TThis& OptionalItem(TStringBuf key, const T& optionalValue)
+        {
+            if (optionalValue) {
+                this->Consumer->OnKeyedItem(key);
+                WriteValue(this->Consumer, optionalValue);
+            }
+            return *this;
+        }
+
         TUnwrappedParent EndAttributes()
         {
             this->Consumer->OnEndAttributes();
@@ -506,6 +516,16 @@ public:
             for (auto item : list->GetChildren()) {
                 this->Consumer->OnListItem();
                 VisitTree(std::move(item), this->Consumer, true);
+            }
+            return *this;
+        }
+
+        template <class T>
+        TThis& OptionalItem(const T& optionalValue)
+        {
+            if (optionalValue) {
+                this->Consumer->OnListItem();
+                WriteValue(this->Consumer, optionalValue);
             }
             return *this;
         }
@@ -563,6 +583,16 @@ public:
         {
             YT_VERIFY(attributes.GetType() == NYson::EYsonType::MapFragment);
             this->Consumer->OnRaw(attributes);
+            return *this;
+        }
+
+        template <class T>
+        TThis& OptionalItem(TStringBuf key, const T& optionalValue)
+        {
+            if (optionalValue) {
+                this->Consumer->OnKeyedItem(key);
+                WriteValue(this->Consumer, optionalValue);
+            }
             return *this;
         }
 
