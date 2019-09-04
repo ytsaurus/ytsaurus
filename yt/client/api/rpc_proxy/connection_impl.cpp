@@ -79,10 +79,7 @@ std::vector<TString> GetRpcProxiesFromHttp(
                 .Item("format").Value("text")
             .EndAttributes()
             .Value("yson")
-            .DoIf(
-                role.operator bool(), [&] (auto fluent) {
-                    fluent.Item("role").Value(*role);
-                })
+            .OptionalItem("role", role)
             .EndMap().GetData());
 
     auto path = proxyUrl + "/api/v4/discover_proxies";
