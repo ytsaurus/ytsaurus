@@ -52,7 +52,7 @@ from .ypath import TablePath
 from .http_helpers import get_api_version
 
 import yt.logger as logger
-from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
+from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_messages
 
 import sys
 import time
@@ -425,9 +425,14 @@ class OperationRequestRetrier(Retrier):
             client=self.client)
         return result["operation_id"] if get_api_version(self.client) == "v4" else result
 
+    def except_action(self, exception, attempt):
+        self.exception = exception
+
     def backoff_action(self, iter_number, sleep_backoff):
         for action in self.retry_actions:
             action()
+        if isinstance(self.exception, YtConcurrentOperationsLimitExceeded):
+            logger.warning(_pretty_format_messages(self.exception).replace("\n", "\\n"))
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
                        "Sleep for %.2lf seconds before next (%d) retry.",
                        sleep_backoff, iter_number)
