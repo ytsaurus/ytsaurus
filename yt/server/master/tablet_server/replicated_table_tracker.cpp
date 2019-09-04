@@ -388,8 +388,7 @@ private:
 
                 {
                     auto guard = Guard(Lock_);
-                    maxSyncReplicas = Config_->MaxSyncReplicaCount.value_or(static_cast<int>(Replicas_.size()));
-                    minSyncReplicas = Config_->MinSyncReplicaCount.value_or(maxSyncReplicas);
+                    std::tie(minSyncReplicas, maxSyncReplicas) = Config_->GetEffectiveMinMaxReplicaCount(static_cast<int>(Replicas_.size()));
                     asyncReplicas.reserve(Replicas_.size());
                     syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
@@ -762,6 +761,8 @@ private:
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
+        const auto [maxSyncReplicas,  minSyncReplicas] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
+
         YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicas: %v, DesiredMinSyncReplicas: %v)",
             newTable ? "added" : "updated",
             object->GetId(),
@@ -769,8 +770,8 @@ private:
             syncReplicas,
             asyncReplicas,
             skippedReplicas,
-            config->MaxSyncReplicaCount,
-            config->MinSyncReplicaCount);
+            maxSyncReplicas,
+            minSyncReplicas);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);
