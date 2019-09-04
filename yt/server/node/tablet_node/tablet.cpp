@@ -787,9 +787,10 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 {
     YT_VERIFY(IsPhysicallySorted());
 
-    YT_LOG_DEBUG("Splitting parition (PartitionId: %v, Index: %v)",
+    YT_LOG_DEBUG("Splitting parition (PartitionId: %v, Index: %v, SplitFactor: %v)",
         PartitionList_[index]->GetId(),
-        index);
+        index,
+        pivotKeys.size());
 
     auto existingPartition = std::move(PartitionList_[index]);
     YT_VERIFY(existingPartition->GetPivotKey() == pivotKeys[0]);
