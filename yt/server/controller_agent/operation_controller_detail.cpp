@@ -2005,8 +2005,11 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
                     auto start = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
-                        return CompareRows(minKey, table->PivotKeys[index]) < 0;
+                        return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
+                    if (start > 0) {
+                        --start;
+                    }
 
                     auto end = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], maxKey) <= 0;
