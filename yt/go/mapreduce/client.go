@@ -36,6 +36,9 @@ type Client interface {
 	RemoteCopy(spec *spec.Spec) (Operation, error)
 
 	Vanilla(spec *spec.Spec, jobs map[string]Job) (Operation, error)
+
+	// WithTx returns Client, that starts all operations inside transaction tx.
+	WithTx(tx yt.Tx) Client
 }
 
 func New(yc yt.Client, options ...Option) Client {
@@ -63,6 +66,7 @@ type client struct {
 	m sync.Mutex
 
 	yc     yt.Client
+	tx     yt.Tx
 	ctx    context.Context
 	config *Config
 
@@ -109,6 +113,14 @@ func (mr *client) uploadSelf(ctx context.Context) error {
 	return nil
 }
 
+func (mr *client) operationStartClient() yt.OperationStartClient {
+	if mr.tx != nil {
+		return mr.tx
+	} else {
+		return mr.yc
+	}
+}
+
 func (mr *client) start(spec *spec.Spec, actions []action) (Operation, error) {
 	if err := mr.uploadSelf(mr.ctx); err != nil {
 		return nil, err
@@ -142,7 +154,7 @@ func (mr *client) start(spec *spec.Spec, actions []action) (Operation, error) {
 		}
 	}
 
-	id, err := mr.yc.StartOperation(mr.ctx, spec.Type, spec, nil)
+	id, err := mr.operationStartClient().StartOperation(mr.ctx, spec.Type, spec, nil)
 	if err != nil {
 		return nil, err
 	}

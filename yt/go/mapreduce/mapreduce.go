@@ -156,3 +156,12 @@ func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job) (Operation, error) 
 
 	return mr.start(s, actions)
 }
+
+func (mr *client) WithTx(tx yt.Tx) Client {
+	return &client{
+		ctx:    mr.ctx,
+		yc:     mr.yc,
+		tx:     tx,
+		config: mr.config,
+	}
+}

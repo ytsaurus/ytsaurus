@@ -545,10 +545,7 @@ type OperationStatus struct {
 	Result *OperationResult `yson:"result"`
 }
 
-// LowLevelSchedulerClient is stateless interface to the YT scheduler.
-//
-// Clients should use package mapreduce instead.
-type LowLevelSchedulerClient interface {
+type OperationStartClient interface {
 	// http:verb:"start_operation"
 	// http:params:"operation_type","spec"
 	StartOperation(
@@ -557,6 +554,13 @@ type LowLevelSchedulerClient interface {
 		spec interface{},
 		options *StartOperationOptions,
 	) (opID OperationID, err error)
+}
+
+// LowLevelSchedulerClient is stateless interface to the YT scheduler.
+//
+// Clients should use package mapreduce instead.
+type LowLevelSchedulerClient interface {
+	OperationStartClient
 
 	// http:verb:"abort_operation"
 	// http:params:"operation_id"
@@ -737,6 +741,8 @@ type Tx interface {
 	FileClient
 	TableClient
 	LockClient
+
+	OperationStartClient
 
 	ID() TxID
 	Commit() error
