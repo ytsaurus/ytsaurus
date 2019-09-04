@@ -19,7 +19,7 @@ struct IFairShareTreeSnapshot
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
-    virtual void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const = 0;
+    virtual void ProfileFairShare() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 };
 
@@ -269,7 +269,7 @@ private:
 
         virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override;
 
-        virtual void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const override;
+        virtual void ProfileFairShare() const override;
 
         virtual bool HasOperation(TOperationId operationId) const override;
 
@@ -331,9 +331,7 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);
 
-    void DoProfileFairShare(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
-        NProfiling::TMetricsAccumulator& accumulator) const;
+    void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const;
 
     void PreemptJob(
         const TJobPtr& job,

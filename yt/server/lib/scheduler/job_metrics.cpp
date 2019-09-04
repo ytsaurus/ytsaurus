@@ -154,18 +154,18 @@ bool TJobMetrics::IsEmpty() const
 }
 
 void TJobMetrics::Profile(
-    TMetricsAccumulator& collector,
+    TMetricsAccumulator& accumulator,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {
     // NB(renadeen): you cannot use EMetricType::Gauge here.
     for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
         auto profilingName = prefix + "/" + FormatEnum(metricName);
-        collector.Add(profilingName, Values_[metricName], EMetricType::Counter, tagIds);
+        accumulator.Add(profilingName, Values_[metricName], EMetricType::Counter, tagIds);
     }
     for (const auto& [jobMetriDescription, value] : CustomValues_) {
         auto profilingName = prefix + "/" + jobMetriDescription.ProfilingName;
-        collector.Add(profilingName, value, EMetricType::Counter, tagIds);
+        accumulator.Add(profilingName, value, EMetricType::Counter, tagIds);
     }
 }
 
