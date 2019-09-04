@@ -16,6 +16,10 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWalkContext;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ELogicalMetatype,
     (Simple)
     (Optional)
@@ -67,7 +71,7 @@ public:
 
     // This function doesn't validate children of current node.
     // Users should use ValidateLogicalType function.
-    virtual void ValidateNode() const = 0;
+    virtual void ValidateNode(const TWalkContext& context) const = 0;
 
     // Whether or not element might be null.
     virtual bool IsNullable() const = 0;
@@ -125,7 +129,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -145,7 +149,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -164,7 +168,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -196,8 +200,6 @@ public:
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
 
-    void Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const;
-
 private:
     TString Descriptor_;
     TLogicalTypePtr Type_;
@@ -225,7 +227,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -244,7 +246,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -300,7 +302,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -321,7 +323,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:

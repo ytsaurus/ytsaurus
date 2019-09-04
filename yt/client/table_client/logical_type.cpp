@@ -3,6 +3,7 @@
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -11,6 +12,73 @@
 #include <util/charset/utf8.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWalkContext
+{
+    std::vector<TComplexTypeFieldDescriptor> Stack;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void WalkImpl(
+    TWalkContext* walkContext,
+    const TComplexTypeFieldDescriptor& descriptor,
+    std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)> onElement)
+{
+    onElement(*walkContext, descriptor);
+    walkContext->Stack.push_back(descriptor);
+    auto g = Finally([&]() {
+        walkContext->Stack.pop_back();
+    });
+    const auto metatype = descriptor.GetType()->GetMetatype();
+    switch (metatype) {
+        case ELogicalMetatype::Simple:
+            return;
+        case ELogicalMetatype::Optional:
+            WalkImpl(walkContext, descriptor.OptionalElement(), onElement);
+            return;
+        case ELogicalMetatype::List:
+            WalkImpl(walkContext, descriptor.ListElement(), onElement);
+            return;
+        case ELogicalMetatype::Struct:
+            for (size_t i = 0; i < descriptor.GetType()->AsStructTypeRef().GetFields().size(); ++i) {
+                WalkImpl(walkContext, descriptor.StructField(i), onElement);
+            }
+            return;
+        case ELogicalMetatype::Tuple:
+            for (size_t i = 0; i < descriptor.GetType()->AsTupleTypeRef().GetElements().size(); ++i) {
+                WalkImpl(walkContext, descriptor.TupleElement(i), onElement);
+            }
+            return;
+        case ELogicalMetatype::VariantStruct: {
+            for (size_t i = 0; i < descriptor.GetType()->AsVariantStructTypeRef().GetFields().size(); ++i) {
+                WalkImpl(walkContext, descriptor.VariantStructField(i), onElement);
+            }
+            return;
+        }
+        case ELogicalMetatype::VariantTuple:
+            for (size_t i = 0; i < descriptor.GetType()->AsVariantTupleTypeRef().GetElements().size(); ++i) {
+                WalkImpl(walkContext, descriptor.VariantTupleElement(i), onElement);
+            }
+            return;
+        case ELogicalMetatype::Dict:
+            WalkImpl(walkContext, descriptor.DictKey(), onElement);
+            WalkImpl(walkContext, descriptor.DictValue(), onElement);
+            return;
+        case ELogicalMetatype::Tagged:
+            WalkImpl(walkContext, descriptor.TaggedElement(), onElement);
+            return;
+    }
+    YT_ABORT();
+}
+
+static void Walk(const TComplexTypeFieldDescriptor& descriptor, std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)> onElement)
+{
+    TWalkContext walkContext;
+    WalkImpl(&walkContext, descriptor, onElement);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,7 +260,7 @@ int TOptionalLogicalType::GetTypeComplexity() const
     }
 }
 
-void TOptionalLogicalType::ValidateNode() const
+void TOptionalLogicalType::ValidateNode(const TWalkContext&) const
 { }
 
 bool TOptionalLogicalType::IsNullable() const
@@ -218,8 +286,15 @@ int TSimpleLogicalType::GetTypeComplexity() const
     return 1;
 }
 
-void TSimpleLogicalType::ValidateNode() const
-{ }
+void TSimpleLogicalType::ValidateNode(const TWalkContext& context) const
+{
+    if (Element_ == ESimpleLogicalValueType::Any) {
+        if (context.Stack.empty() || context.Stack.back().GetType()->GetMetatype() != ELogicalMetatype::Optional) {
+            THROW_ERROR_EXCEPTION("Type %Qv is disallowed outside of optional",
+                ESimpleLogicalValueType::Any);
+        }
+    }
+}
 
 bool TSimpleLogicalType::IsNullable() const
 {
@@ -243,7 +318,7 @@ int TListLogicalType::GetTypeComplexity() const
     return 1 + Element_->GetTypeComplexity();
 }
 
-void TListLogicalType::ValidateNode() const
+void TListLogicalType::ValidateNode(const TWalkContext& context) const
 { }
 
 bool TListLogicalType::IsNullable() const
@@ -377,50 +452,6 @@ TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type) {
     YT_ABORT();
 }
 
-void TComplexTypeFieldDescriptor::Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const
-{
-    onElement(*this);
-    const auto metatype = GetType()->GetMetatype();
-    switch (metatype) {
-        case ELogicalMetatype::Simple:
-            return;
-        case ELogicalMetatype::Optional:
-            OptionalElement().Walk(onElement);
-            return;
-        case ELogicalMetatype::List:
-            ListElement().Walk(onElement);
-            return;
-        case ELogicalMetatype::Struct:
-            for (size_t i = 0; i < GetType()->AsStructTypeRef().GetFields().size(); ++i) {
-                StructField(i).Walk(onElement);
-            }
-            return;
-        case ELogicalMetatype::Tuple:
-            for (size_t i = 0; i < GetType()->AsTupleTypeRef().GetElements().size(); ++i) {
-                TupleElement(i).Walk(onElement);
-            }
-            return;
-        case ELogicalMetatype::VariantStruct: {
-            for (size_t i = 0; i < GetType()->AsVariantStructTypeRef().GetFields().size(); ++i) {
-                VariantStructField(i).Walk(onElement);
-            }
-            return;
-        }
-        case ELogicalMetatype::VariantTuple:
-            for (size_t i = 0; i < GetType()->AsVariantTupleTypeRef().GetElements().size(); ++i) {
-                VariantTupleElement(i).Walk(onElement);
-            }
-            return;
-        case ELogicalMetatype::Dict:
-            DictKey().Walk(onElement);
-            DictValue().Walk(onElement);
-            return;
-        case ELogicalMetatype::Tagged:
-            TaggedElement().Walk(onElement);
-            return;
-    }
-    YT_ABORT();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,7 +479,7 @@ int TStructLogicalTypeBase::GetTypeComplexity() const
     return result;
 }
 
-void TStructLogicalTypeBase::ValidateNode() const
+void TStructLogicalTypeBase::ValidateNode(const TWalkContext& context) const
 {
     THashSet<TStringBuf> usedNames;
     for (size_t i = 0; i < Fields_.size(); ++i) {
@@ -506,7 +537,7 @@ int TTupleLogicalTypeBase::GetTypeComplexity() const
     return result;
 }
 
-void TTupleLogicalTypeBase::ValidateNode() const
+void TTupleLogicalTypeBase::ValidateNode(const TWalkContext& context) const
 { }
 
 bool TTupleLogicalTypeBase::IsNullable() const
@@ -556,55 +587,54 @@ int TDictLogicalType::GetTypeComplexity() const
     return 1 + Key_->GetTypeComplexity() + Value_->GetTypeComplexity();
 }
 
-void TDictLogicalType::ValidateNode() const
+void TDictLogicalType::ValidateNode(const TWalkContext&) const
 {
     TComplexTypeFieldDescriptor descriptor("<dict-key>", GetKey());
-    descriptor.Walk(
-        [](const TComplexTypeFieldDescriptor& descriptor) {
-            const auto& logicalType = descriptor.GetType();
+    Walk(descriptor, [](const TWalkContext&, const TComplexTypeFieldDescriptor& descriptor) {
+        const auto& logicalType = descriptor.GetType();
 
-            // NB. We intentionally list all metatypes and simple types here.
-            // We want careful decision if type can be used as dictionary key each time new type is added.
-            // Compiler will warn you (with error) if some enum is not handled.
-            switch (logicalType->GetMetatype()) {
-                case ELogicalMetatype::Simple:
-                    switch (auto simpleType = logicalType->AsSimpleTypeRef().GetElement()) {
-                        case ESimpleLogicalValueType::Any:
-                            THROW_ERROR_EXCEPTION("%Qv is of type %Qv that is not allowed in dict key",
-                                descriptor.GetDescription(),
-                                simpleType);
-                        case ESimpleLogicalValueType::Null:
-                        case ESimpleLogicalValueType::Boolean:
-                        case ESimpleLogicalValueType::Int8:
-                        case ESimpleLogicalValueType::Int16:
-                        case ESimpleLogicalValueType::Int32:
-                        case ESimpleLogicalValueType::Int64:
-                        case ESimpleLogicalValueType::Uint8:
-                        case ESimpleLogicalValueType::Uint16:
-                        case ESimpleLogicalValueType::Uint32:
-                        case ESimpleLogicalValueType::Uint64:
-                        case ESimpleLogicalValueType::Double:
-                        case ESimpleLogicalValueType::String:
-                        case ESimpleLogicalValueType::Utf8:
-                        case ESimpleLogicalValueType::Date:
-                        case ESimpleLogicalValueType::Datetime:
-                        case ESimpleLogicalValueType::Timestamp:
-                        case ESimpleLogicalValueType::Interval:
-                            return;
-                    }
-                    YT_ABORT();
-                case ELogicalMetatype::Optional:
-                case ELogicalMetatype::Struct:
-                case ELogicalMetatype::VariantStruct:
-                case ELogicalMetatype::Tuple:
-                case ELogicalMetatype::VariantTuple:
-                case ELogicalMetatype::List:
-                case ELogicalMetatype::Dict:
-                case ELogicalMetatype::Tagged:
-                    return;
-            }
-            YT_ABORT();
-        });
+        // NB. We intentionally list all metatypes and simple types here.
+        // We want careful decision if type can be used as dictionary key each time new type is added.
+        // Compiler will warn you (with error) if some enum is not handled.
+        switch (logicalType->GetMetatype()) {
+            case ELogicalMetatype::Simple:
+                switch (auto simpleType = logicalType->AsSimpleTypeRef().GetElement()) {
+                    case ESimpleLogicalValueType::Any:
+                        THROW_ERROR_EXCEPTION("%Qv is of type %Qv that is not allowed in dict key",
+                            descriptor.GetDescription(),
+                            simpleType);
+                    case ESimpleLogicalValueType::Null:
+                    case ESimpleLogicalValueType::Boolean:
+                    case ESimpleLogicalValueType::Int8:
+                    case ESimpleLogicalValueType::Int16:
+                    case ESimpleLogicalValueType::Int32:
+                    case ESimpleLogicalValueType::Int64:
+                    case ESimpleLogicalValueType::Uint8:
+                    case ESimpleLogicalValueType::Uint16:
+                    case ESimpleLogicalValueType::Uint32:
+                    case ESimpleLogicalValueType::Uint64:
+                    case ESimpleLogicalValueType::Double:
+                    case ESimpleLogicalValueType::String:
+                    case ESimpleLogicalValueType::Utf8:
+                    case ESimpleLogicalValueType::Date:
+                    case ESimpleLogicalValueType::Datetime:
+                    case ESimpleLogicalValueType::Timestamp:
+                    case ESimpleLogicalValueType::Interval:
+                        return;
+                }
+                YT_ABORT();
+            case ELogicalMetatype::Optional:
+            case ELogicalMetatype::Struct:
+            case ELogicalMetatype::VariantStruct:
+            case ELogicalMetatype::Tuple:
+            case ELogicalMetatype::VariantTuple:
+            case ELogicalMetatype::List:
+            case ELogicalMetatype::Dict:
+            case ELogicalMetatype::Tagged:
+                return;
+        }
+        YT_ABORT();
+    });
 }
 
 bool TDictLogicalType::IsNullable() const
@@ -630,7 +660,7 @@ int TTaggedLogicalType::GetTypeComplexity() const
     return 1 + GetElement()->GetTypeComplexity();
 }
 
-void TTaggedLogicalType::ValidateNode() const
+void TTaggedLogicalType::ValidateNode(const TWalkContext&) const
 {
     if (Tag_.empty()) {
         THROW_ERROR_EXCEPTION("Tag is empty");
@@ -727,9 +757,9 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
 
 void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
 {
-    descriptor.Walk([] (const TComplexTypeFieldDescriptor& descriptor) {
+    Walk(descriptor, [] (const TWalkContext& context, const TComplexTypeFieldDescriptor& descriptor) {
         try {
-            descriptor.GetType()->ValidateNode();
+            descriptor.GetType()->ValidateNode(context);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("%Qv has bad type",
                 descriptor.GetDescription())
