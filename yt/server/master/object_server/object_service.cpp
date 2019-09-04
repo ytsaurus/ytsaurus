@@ -562,7 +562,7 @@ private:
 
             // Store original path.
             ypathExt->set_original_target_path(ypathExt->target_path());
-            *ypathExt->mutable_original_additional_paths() = ypathExt->original_additional_paths();
+            *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
