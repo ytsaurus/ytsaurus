@@ -1176,14 +1176,17 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TStoreId> addedStoreIds;
+        std::vector<IStorePtr> storesToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeType = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
-            storeManager->AddStore(store, false);
+            storesToAdd.push_back(std::move(store));
         }
+
+        storeManager->BulkAddStores(MakeRange(storesToAdd.begin(), storesToAdd.end()), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
 

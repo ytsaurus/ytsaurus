@@ -60,6 +60,7 @@ struct IStoreManager
     virtual void Rotate(bool createNewStore) = 0;
 
     virtual void AddStore(IStorePtr store, bool onMount) = 0;
+    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) = 0;
 
     virtual void RemoveStore(IStorePtr store) = 0;
     virtual void BackoffStoreRemoval(IStorePtr store) = 0;

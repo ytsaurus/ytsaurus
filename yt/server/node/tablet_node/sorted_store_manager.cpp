@@ -357,6 +357,53 @@ void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
     SchedulePartitionSampling(sortedStore->GetPartition());
 }
 
+void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
+{
+    THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
+    for (const auto& store : stores) {
+        AddStore(store, onMount);
+        auto sortedStore = store->AsSorted();
+        addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);
+    }
+
+    auto Logger = this->Logger;
+    Logger.AddTag("%v", Tablet_->GetLoggingId());
+
+    for (auto& [partitionId, addedStores] : addedStoresByPartition) {
+        auto* partition = Tablet_->GetPartition(partitionId);
+        YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+            "Added %v stores to partition (PartitionId: %v)",
+            partition->GetId(),
+            addedStores.size());
+
+        if (partition->GetIndex() == EdenIndex) {
+            continue;
+        }
+
+        if (partition->GetState() != EPartitionState::Normal) {
+            YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+                "Will not split partition due to improper partition state (PartitionId: %v, PartitionState: %v)",
+                partition->GetId(),
+                partition->GetState());
+            continue;
+        }
+
+        for (const auto& store : partition->Stores()) {
+            if (store->GetStoreState() != EStoreState::Persistent) {
+                YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+                    "Will not split partition due to improper store state "
+                    "(PartitionId: %v, StoreId: %v, StoreState: %v)",
+                    partition->GetId(),
+                    store->GetId(),
+                    store->GetStoreState());
+                continue;
+            }
+        }
+
+        TrySplitPartitionByAddedStores(partition, std::move(addedStores));
+    }
+}
+
 void TSortedStoreManager::RemoveStore(IStorePtr store)
 {
     // The range is likely to contain at most one element.
@@ -661,6 +708,81 @@ void TSortedStoreManager::SchedulePartitionsSampling(int beginPartitionIndex, in
     const auto* mutationContext = GetCurrentMutationContext();
     for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
         Tablet_->PartitionList()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
+    }
+}
+
+void TSortedStoreManager::TrySplitPartitionByAddedStores(
+    TPartition* partition,
+    std::vector<ISortedStorePtr> addedStores)
+{
+    auto Logger = this->Logger;
+    Logger.AddTag("%v", Tablet_->GetLoggingId());
+
+    std::sort(
+        addedStores.begin(),
+        addedStores.end(),
+        [] (ISortedStorePtr lhs, ISortedStorePtr rhs) {
+            auto cmp = CompareRows(lhs->GetMinKey(), rhs->GetMinKey());
+            if (cmp != 0) {
+                return cmp < 0;
+            }
+            return lhs->GetId() < rhs->GetId();
+        });
+
+    auto* tablet = partition->GetTablet();
+    const auto& config = partition->GetTablet()->GetConfig();
+
+    std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
+    i64 cumulativeDataSize = 0;
+    int cumulativeStoreCount = 0;
+    TOwningKey lastKey = partition->GetPivotKey();
+
+    for (int storeIndex = 0; storeIndex < addedStores.size(); ++storeIndex) {
+        const auto& store = addedStores[storeIndex];
+
+        if (store->GetMinKey() < lastKey) {
+            return;
+        }
+
+        i64 dataSize = store->GetCompressedDataSize();
+
+        if (cumulativeDataSize >= config->DesiredPartitionDataSize ||
+            (cumulativeDataSize + dataSize > config->MaxPartitionDataSize &&
+                cumulativeDataSize >= config->MinPartitionDataSize) ||
+            cumulativeStoreCount >= config->MaxOverlappingStoreCount)
+        {
+            proposedPivots.push_back(store->GetMinKey());
+            cumulativeDataSize = 0;
+            cumulativeStoreCount = 0;
+        }
+
+        cumulativeDataSize += dataSize;
+        ++cumulativeStoreCount;
+        lastKey = store->GetUpperBoundKey();
+    }
+
+    YT_LOG_DEBUG("Splitting partition while adding stores (PartitionId: %v, SplitFactor: %v)",
+        partition->GetId(),
+        proposedPivots.size());
+
+    partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
+    auto partitionId = partition->GetId();
+    auto partitionIndex = partition->GetIndex();
+
+    if (SplitPartition(partitionIndex, proposedPivots)) {
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split (OriginalPartitionId: %v, "
+            "ResultingPartitionIds: %v, Keys: %v)",
+            partitionId,
+            MakeFormattableView(
+                MakeRange(
+                    tablet->PartitionList().data() + partitionIndex,
+                    tablet->PartitionList().data() + partitionIndex + proposedPivots.size()),
+                TPartitionIdFormatter()),
+            JoinToString(proposedPivots, AsStringBuf(" .. ")));
+    } else {
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (PartitionId: %v, Keys: %v)",
+            partitionId,
+            JoinToString(proposedPivots, AsStringBuf(" .. ")));
     }
 }
 

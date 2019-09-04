@@ -60,6 +60,7 @@ public:
         TTabletWriterOptionsPtr writerOptions) override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
+    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
     virtual void RemoveStore(IStorePtr store) override;
 
     virtual bool IsFlushNeeded() const override;
@@ -106,6 +107,9 @@ private:
     void SchedulePartitionSampling(TPartition* partition);
     void SchedulePartitionsSampling(int beginPartitionIndex, int endPartitionIndex);
 
+    void TrySplitPartitionByAddedStores(
+        TPartition* partition,
+        std::vector<ISortedStorePtr> addedStores);
     void DoSplitPartition(
         int partitionIndex,
         const std::vector<TOwningKey>& pivotKeys);

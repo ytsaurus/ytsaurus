@@ -35,6 +35,7 @@ public:
     virtual void ScheduleRotation() override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
+    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
 
     virtual void RemoveStore(IStorePtr store) override;
     virtual void BackoffStoreRemoval(IStorePtr store) override;
