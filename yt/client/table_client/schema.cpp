@@ -332,15 +332,18 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 TTableSchema::TTableSchema()
     : Strict_(false)
     , UniqueKeys_(false)
+    , SchemaModification_(ETableSchemaModification::None)
 { }
 
 TTableSchema::TTableSchema(
     std::vector<TColumnSchema> columns,
     bool strict,
-    bool uniqueKeys)
+    bool uniqueKeys,
+    ETableSchemaModification schemaModification)
     : Columns_(std::move(columns))
     , Strict_(strict)
     , UniqueKeys_(uniqueKeys)
+    , SchemaModification_(schemaModification)
 {
     for (const auto& column : Columns_) {
         if (column.SortOrder()) {
@@ -499,6 +502,11 @@ int TTableSchema::GetKeyColumnCount() const
 int TTableSchema::GetValueColumnCount() const
 {
     return GetColumnCount() - GetKeyColumnCount();
+}
+
+bool TTableSchema::HasNontrivialSchemaModification() const
+{
+    return GetSchemaModification() != ETableSchemaModification::None;
 }
 
 TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
@@ -663,7 +671,7 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
         it->SetSortOrder(std::nullopt);
     }
 
-    return TTableSchema(columns, Strict_, uniqueKeys);
+    return TTableSchema(columns, Strict_, uniqueKeys, GetSchemaModification());
 }
 
 TTableSchema TTableSchema::ToReplicationLog() const
@@ -726,7 +734,7 @@ TTableSchema TTableSchema::ToBuggyReplicationLog() const
     return TTableSchema(std::move(columns), true, false);
 }
 
-TTableSchema TTableSchema::ToUnversionedUpdate() const
+TTableSchema TTableSchema::ToUnversionedUpdate(bool sorted) const
 {
     YT_VERIFY(IsSorted());
 
@@ -735,14 +743,17 @@ TTableSchema TTableSchema::ToUnversionedUpdate() const
 
     // Keys.
     for (int columnIndex = 0; columnIndex < GetKeyColumnCount(); ++columnIndex) {
-        const auto& column = Columns_[columnIndex];
+        auto column = Columns_[columnIndex];
+        if (!sorted) {
+            column.SetSortOrder(std::nullopt);
+        }
         columns.push_back(column);
     }
 
     // Modification type.
     columns.emplace_back(
         TUnversionedUpdateSchema::ChangeTypeColumnName,
-        ESimpleLogicalValueType::Uint64);
+        MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ true));
 
     // Values.
     for (int columnIndex = GetKeyColumnCount(); columnIndex < GetColumnCount(); ++columnIndex) {
@@ -756,7 +767,37 @@ TTableSchema TTableSchema::ToUnversionedUpdate() const
             MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false));
     }
 
-    return TTableSchema(std::move(columns), /*strict*/ true, /*uniqueKeys*/ true);
+    return TTableSchema(std::move(columns), /*strict*/ true, /*uniqueKeys*/ sorted);
+}
+
+TTableSchema TTableSchema::ToModifiedSchema(ETableSchemaModification schemaModification) const
+{
+    if (HasNontrivialSchemaModification()) {
+        THROW_ERROR_EXCEPTION("Cannot apply schema modification because schema is already modified")
+            << TErrorAttribute("existing_modification", GetSchemaModification())
+            << TErrorAttribute("modification", schemaModification);
+    }
+    YT_VERIFY(GetSchemaModification() == ETableSchemaModification::None);
+
+    switch (schemaModification) {
+        case ETableSchemaModification::None:
+            return *this;
+
+        case ETableSchemaModification::UnversionedUpdate: {
+            auto result = ToUnversionedUpdate(/*sorted*/ true);
+            result.SchemaModification_ = schemaModification;
+            return result;
+        }
+
+        case ETableSchemaModification::UnversionedUpdateUnsorted: {
+            auto result = ToUnversionedUpdate(/*sorted*/ false);
+            result.SchemaModification_ = schemaModification;
+            return result;
+        }
+
+        default:
+            YT_ABORT();
+    }
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
@@ -785,7 +826,11 @@ i64 TTableSchema::GetMemoryUsage() const
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec)
 {
-    builder->AppendFormat("<strict=%v;unique_keys=%v>", schema.GetStrict(), schema.GetUniqueKeys());
+    builder->AppendFormat("<strict=%v;unique_keys=%v", schema.GetStrict(), schema.GetUniqueKeys());
+    if (schema.HasNontrivialSchemaModification()) {
+        builder->AppendFormat(";schema_modification=%v", schema.GetSchemaModification());
+    }
+    builder->AppendChar('>');
     builder->AppendChar('[');
     bool first = true;
     for (const auto& column : schema.Columns()) {
@@ -809,6 +854,9 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
         .BeginAttributes()
             .Item("strict").Value(schema.GetStrict())
             .Item("unique_keys").Value(schema.GetUniqueKeys())
+            .DoIf(schema.HasNontrivialSchemaModification(), [&] (TFluentMap fluent) {
+                fluent.Item("schema_modification").Value(schema.GetSchemaModification());
+            })
         .EndAttributes()
         .Value(schema.Columns());
 }
@@ -818,7 +866,10 @@ void Deserialize(TTableSchema& schema, INodePtr node)
     schema = TTableSchema(
         ConvertTo<std::vector<TColumnSchema>>(node),
         node->Attributes().Get<bool>("strict", true),
-        node->Attributes().Get<bool>("unique_keys", false));
+        node->Attributes().Get<bool>("unique_keys", false),
+        node->Attributes().Get<ETableSchemaModification>(
+            "schema_modification",
+            ETableSchemaModification::None));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
@@ -826,6 +877,7 @@ void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
     ToProto(protoSchema->mutable_columns(), schema.Columns());
     protoSchema->set_strict(schema.GetStrict());
     protoSchema->set_unique_keys(schema.GetUniqueKeys());
+    protoSchema->set_schema_modification(static_cast<int>(schema.GetSchemaModification()));
 }
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
@@ -833,7 +885,8 @@ void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
     *schema = TTableSchema(
         FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
         protoSchema.strict(),
-        protoSchema.unique_keys());
+        protoSchema.unique_keys(),
+        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
 }
 
 void FromProto(
@@ -880,7 +933,8 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 {
     return lhs.Columns() == rhs.Columns() &&
         lhs.GetStrict() == rhs.GetStrict() &&
-        lhs.GetUniqueKeys() == rhs.GetUniqueKeys();
+        lhs.GetUniqueKeys() == rhs.GetUniqueKeys() &&
+        lhs.GetSchemaModification() == rhs.GetSchemaModification();
 }
 
 // Compat code for https://st.yandex-team.ru/YT-10668 workaround.

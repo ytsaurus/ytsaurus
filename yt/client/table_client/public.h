@@ -132,9 +132,10 @@ DEFINE_ENUM(EUnavailableChunkStrategy,
     ((Skip)         (2))
 );
 
-DEFINE_ENUM(EOutputChunkFormat,
-    ((Unversioned)          (0))
-    ((UnversionedUpdate)    (1))
+DEFINE_ENUM(ETableSchemaModification,
+    ((None)                         (0))
+    ((UnversionedUpdate)            (1))
+    ((UnversionedUpdateUnsorted)    (2))
 );
 
 using TTableId = NCypressClient::TNodeId;

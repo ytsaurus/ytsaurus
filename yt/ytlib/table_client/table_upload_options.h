@@ -23,13 +23,15 @@ struct TTableUploadOptions
     NChunkClient::EUpdateMode UpdateMode;
     NCypressClient::ELockMode LockMode;
     TTableSchema TableSchema;
-    EOutputChunkFormat OutputChunkFormat;
+    ETableSchemaModification SchemaModification;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
     NCompression::ECodec CompressionCodec;
     NErasure::ECodec ErasureCodec;
     std::optional<std::vector<NSecurityClient::TSecurityTag>> SecurityTags;
     bool PartiallySorted;
+
+    TTableSchema GetUploadSchema() const;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };

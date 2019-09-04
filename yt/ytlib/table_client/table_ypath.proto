@@ -142,6 +142,7 @@ message TReqAlter
     optional TTableSchemaExt schema = 1;
     optional bool dynamic = 2;
     optional NYT.NProto.TGuid upstream_replica_id = 3;
+    optional int32 schema_modification = 4; // ETableSchemaModification
 }
 
 message TRspAlter

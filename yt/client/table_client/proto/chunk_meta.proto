@@ -88,6 +88,7 @@ message TTableSchemaExt
     repeated TColumnSchema columns = 1;
     optional bool strict = 2 [default = true];
     optional bool unique_keys = 3 [default = false];
+    optional int32 schema_modification = 4 [default = 0]; // ETableSchemaModification
 }
 
 message TSchemaDictionary

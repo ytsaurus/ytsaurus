@@ -582,6 +582,7 @@ protected:
     void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
+    void SuppressLivePreviewIfNeeded();
     void CreateLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
@@ -1080,6 +1081,8 @@ private:
     TOperationAlertMap Alerts_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
+
+    bool IsLivePreviewSuppressed = false;
 
     //! Error that lead to operation failure.
     TError Error_;

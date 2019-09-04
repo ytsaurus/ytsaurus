@@ -15,6 +15,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema TTableUploadOptions::GetUploadSchema() const
+{
+    switch (SchemaModification) {
+        case ETableSchemaModification::None:
+            return TableSchema;
+
+        case ETableSchemaModification::UnversionedUpdate:
+            return TableSchema.ToUnversionedUpdate(/*sorted*/ true);
+
+        default:
+            YT_ABORT();
+    }
+}
+
 void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -24,10 +38,10 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, TableSchema);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 300153) {
-        Persist(context, OutputChunkFormat);
+        Persist(context, SchemaModification);
     } else {
         YT_VERIFY(context.IsLoad());
-        OutputChunkFormat = EOutputChunkFormat::Unversioned;
+        SchemaModification = ETableSchemaModification::None;
     }
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
@@ -209,12 +223,22 @@ TTableUploadOptions GetTableUploadOptions(
         result.ErasureCodec = erasureCodec;
     }
 
+<<<<<<< HEAD
     if (!dynamic && path.GetOutputChunkFormat() != EOutputChunkFormat::Unversioned) {
         THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" can have value %Qlv only for dynamic tables",
             path.GetOutputChunkFormat())
+=======
+    if (path.GetSchemaModification() == ETableSchemaModification::UnversionedUpdateUnsorted) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" cannot have value %Qlv for output tables",
+            path.GetSchemaModification())
+            << TErrorAttribute("path", path);
+    } else if (!dynamic && path.GetSchemaModification() != ETableSchemaModification::None) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" can have value %Qlv only for dynamic tables",
+            path.GetSchemaModification())
+>>>>>>> Bulk delete revisited: introduce ETableSchemaModification
             << TErrorAttribute("path", path);
     }
-    result.OutputChunkFormat = path.GetOutputChunkFormat();
+    result.SchemaModification = path.GetSchemaModification();
 
     if (!dynamic && path.GetPartiallySorted()) {
         THROW_ERROR_EXCEPTION("YPath attribute \"partially_sorted\" can be set only for dynamic tables")
@@ -230,4 +254,3 @@ TTableUploadOptions GetTableUploadOptions(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

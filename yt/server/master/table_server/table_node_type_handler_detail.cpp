@@ -101,6 +101,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
              optionalSchema = optionalSchema->ToUniqueKeys();
         }
 
+        if (optionalSchema->HasNontrivialSchemaModification()) {
+            THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
+        }
+
         ValidateTableSchemaUpdate(TTableSchema(), *optionalSchema, dynamic, true);
     }
 

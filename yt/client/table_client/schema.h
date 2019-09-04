@@ -124,6 +124,7 @@ public:
     //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
+    DEFINE_BYVAL_RW_PROPERTY(ETableSchemaModification, SchemaModification);
 
     //! Constructs an empty non-strict schema.
     TTableSchema();
@@ -133,7 +134,8 @@ public:
     explicit TTableSchema(
         std::vector<TColumnSchema> columns,
         bool strict = true,
-        bool uniqueKeys = false);
+        bool uniqueKeys = false,
+        ETableSchemaModification schemaModification = ETableSchemaModification::None);
 
     const TColumnSchema* FindColumn(TStringBuf name) const;
     const TColumnSchema& GetColumn(TStringBuf name) const;
@@ -161,6 +163,8 @@ public:
     int GetColumnCount() const;
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
+
+    bool HasNontrivialSchemaModification() const;
 
     //! Constructs a non-strict schema from #keyColumns assigning all components EValueType::Any type.
     //! #keyColumns could be empty, in which case an empty non-strict schema is returned.
@@ -224,7 +228,10 @@ public:
     //! Returns the static schema used for unversioned updates from bulk insert.
     //! Key columns remain unchanged. Additional column |($change_type)| is prepended.
     //! Each value column |name| is replaced with two columns |($value:name)| and |($flags:name)|.
-    TTableSchema ToUnversionedUpdate() const;
+    //! If |sorted| is |false|, sort order is removed from key columns.
+    TTableSchema ToUnversionedUpdate(bool sorted = true) const;
+
+    TTableSchema ToModifiedSchema(ETableSchemaModification schemaModification) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -332,6 +339,11 @@ struct THash<NYT::NTableClient::TTableSchema>
     inline size_t operator()(const NYT::NTableClient::TTableSchema& tableSchema) const
     {
         size_t result = CombineHashes(THash<bool>()(tableSchema.GetUniqueKeys()), THash<bool>()(tableSchema.GetStrict()));
+        if (tableSchema.HasNontrivialSchemaModification()) {
+            result = CombineHashes(
+                result,
+                THash<NYT::NTableClient::ETableSchemaModification>()(tableSchema.GetSchemaModification()));
+        }
         for (const auto& columnSchema : tableSchema.Columns()) {
             result = CombineHashes(result, THash<NYT::NTableClient::TColumnSchema>()(columnSchema));
         }

@@ -15,6 +15,8 @@ from flaky import flaky
 
 from time import sleep
 
+from copy import deepcopy
+
 import __builtin__
 
 ##################################################################
@@ -632,8 +634,8 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
     MISSING_FLAG = 0x1
     AGGREGATE_FLAG = 0x2
 
-    WRITE_CHANGE_TYPE = 0
-    DELETE_CHANGE_TYPE = 1
+    WRITE_CHANGE_TYPE = yson.YsonUint64(0)
+    DELETE_CHANGE_TYPE = yson.YsonUint64(1)
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
@@ -646,7 +648,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
     def _make_value(self, column_name, value, aggregate=False, treat_empty_flags_as_null=False):
         if value is None:
             # Treat as missing.
-            result = {"$flags:{}".format(column_name): self.MISSING_FLAG}
+            result = {"$flags:{}".format(column_name): yson.YsonUint64(self.MISSING_FLAG)}
             return result
         if aggregate:
             flags = self.AGGREGATE_FLAG
@@ -656,6 +658,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             flags = 0
         result = {"$value:{}".format(column_name): value}
         if flags is not None:
+            flags = yson.YsonUint64(flags)
             result["$flags:{}".format(column_name)] = flags
         return result
 
@@ -678,10 +681,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         write_table(input_table, rows)
         map(
             in_=input_table,
-            out="<append=%true;output_chunk_format=unversioned_update>{}".format(output_table),
+            out="<append=%true;schema_modification=unversioned_update>{}".format(output_table),
             command="cat",
             spec={"max_failed_job_count": 1})
-
 
     def test_schema_violation(self):
         sync_create_cells(1)
@@ -703,6 +705,13 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             k1=1,
             k2=2))
         assert select_rows("* from [//tmp/t_output]") == [{"k1": 1, "k2": 2, "v1": 3, "v2": "4"}]
+
+        # Missing change_type.
+        with raises_yt_error(SchemaViolation):
+            self._run_operation({
+                "k1": 1,
+                "k2": 1,
+                "$value:v2": "1"})
 
         # Invalid change_type.
         with raises_yt_error(SchemaViolation):
@@ -916,11 +925,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
     def test_not_sorted(self):
         sync_create_cells(1)
-        schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "int64"},
-        ]
-        self._create_simple_dynamic_table("//tmp/t_output", schema=schema)
+        self._create_simple_dynamic_table("//tmp/t_output")
         sync_mount_table("//tmp/t_output")
 
         with raises_yt_error(UniqueKeyViolation):
@@ -933,7 +938,262 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                 self._prepare_delete_row(key=2),
                 self._prepare_write_row(key=1)])
 
+    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
+    @pytest.mark.parametrize("use_schema", [True, False])
+    def test_merge(self, mode, use_schema):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            self._prepare_write_row(self._make_value("value", "1"), key=1),
+            self._prepare_write_row(self._make_value("value", "2"), key=2),
+        ]
+        flat_rows = [
+            {"key": 1, "value": "1"},
+            {"key": 2, "value": "2"},
+        ]
+        create("table", "//tmp/t_input")
+        if use_schema:
+            alter_table(
+                "//tmp/t_input",
+                schema=get("//tmp/t_output/@schema"),
+                schema_modification="unversioned_update")
+        write_table("//tmp/t_input", rows, sorted_by=["key"])
+
+        merge(
+            in_="//tmp/t_input",
+            out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+            mode=mode)
+
+        assert read_table("//tmp/t_output") == flat_rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), flat_rows)
+
+    @pytest.mark.parametrize("use_schema", [True, False])
+    def test_sort(self, use_schema):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            self._prepare_write_row(self._make_value("value", "2"), key=2),
+            self._prepare_write_row(self._make_value("value", "1"), key=1),
+        ]
+        flat_rows = [
+            {"key": 2, "value": "2"},
+            {"key": 1, "value": "1"},
+        ]
+        create("table", "//tmp/t_input")
+        if use_schema:
+            alter_table(
+                "//tmp/t_input",
+                schema=get("//tmp/t_output/@schema"),
+                schema_modification="unversioned_update_unsorted")
+        write_table("//tmp/t_input", rows)
+
+        sort(
+            in_="//tmp/t_input",
+            out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+            sort_by=["key"])
+
+        assert read_table("//tmp/t_output") == sorted(flat_rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(flat_rows))
+
+    def test_sort_with_intermediate_table(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            self._prepare_write_row(self._make_value("value", "2"), key=2),
+            self._prepare_write_row(self._make_value("value", "1"), key=1),
+        ]
+        flat_rows = [
+            {"key": 2, "value": "2"},
+            {"key": 1, "value": "1"},
+        ]
+
+        create("table", "//tmp/t_input")
+        alter_table(
+            "//tmp/t_input",
+            schema=get("//tmp/t_output/@schema"),
+            schema_modification="unversioned_update_unsorted")
+        write_table("//tmp/t_input", rows)
+
+        create("table", "//tmp/t_intermediate")
+        alter_table(
+            "//tmp/t_intermediate",
+            schema=get("//tmp/t_output/@schema"),
+            schema_modification="unversioned_update")
+
+        sort(
+            in_="//tmp/t_input",
+            out="//tmp/t_intermediate",
+            sort_by=["key"])
+        merge(
+            in_="//tmp/t_intermediate",
+            out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+            mode="ordered")
+
+        assert read_table("//tmp/t_output") == sorted(flat_rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(flat_rows))
+
+    def test_merge_from_original_schema_fails(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "uint64"},
+        ]
+
+        self._create_simple_dynamic_table("//tmp/t_output", schema=schema)
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t_output")
+        create("table", "//tmp/t_input", attributes={"schema": get("//tmp/t_output/@schema")})
+
+        rows = [{"key": 1, "value": yson.YsonUint64(1)}]
+        write_table("//tmp/t_input", rows)
+
+        with pytest.raises(YtError):
+            merge(
+                in_="//tmp/t_input",
+                out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+                mode="ordered",
+                spec={"max_failed_job_count": 1})
+
+    def _assert_schema_equal(self, lhs, rhs, reordered=False):
+        lhs = deepcopy(list(lhs))
+        rhs = deepcopy(list(rhs))
+
+        def _normalize_column(column):
+            if "type_v2" in column:
+                column.pop("type_v2")
+            column.setdefault("required", False)
+
+        for column in lhs:
+            _normalize_column(column)
+        for column in rhs:
+            _normalize_column(column)
+
+        if reordered:
+            assert_items_equal(lhs, rhs)
+        else:
+            assert lhs == rhs
+
+
+    @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
+    def test_intermediate_table_schema_alter(self, modification):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "string"},
+            {"name": "v2", "type": "double", "required": True},
+        ]
+        unversioned_update_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "$change_type", "type": "uint64", "required": True},
+            {"name": "$value:v1", "type": "string"},
+            {"name": "$flags:v1", "type": "uint64"},
+            {"name": "$value:v2", "type": "double"},
+            {"name": "$flags:v2", "type": "uint64"},
+        ]
+        if modification == "unversioned_update_unsorted":
+            unversioned_update_schema[0].pop("sort_order")
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        alter_table("//tmp/t", schema_modification=modification)
+        self._assert_schema_equal(get("//tmp/t/@schema"), unversioned_update_schema)
+        assert get("//tmp/t/@schema/@schema_modification") == modification
+
+        # Cannot alter table with modified schema.
+        with pytest.raises(YtError):
+            alter_table("//tmp/t")
+
+        create("table", "//tmp/t", force=True)
+        alter_table("//tmp/t", schema=schema, schema_modification=modification)
+        self._assert_schema_equal(get("//tmp/t/@schema"), unversioned_update_schema)
+        assert get("//tmp/t/@schema/@schema_modification") == modification
+
+        # Cannot apply modification to dynamic table.
+        create("table", "//tmp/t", force=True, attributes={"schema": schema, "dynamic": True})
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema_modification=modification)
+
+        # Cannot create table with modified schema.
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", force=True, attributes={
+                "schema": make_schema(schema, schema_modification=modification)})
+
+        # Cannot modify schema of nonempty table.
+        create("table", "//tmp/t", force=True, schema=schema)
+        write_table("//tmp/t", [{"key": 1, "v1": "abc", "v2": 0.5}])
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema_modification=modification)
+
+        # Cannot modify weak schema.
+        create("table", "//tmp/t", force=True)
+        sort(in_="//tmp/t",
+             out="//tmp/t",
+             sort_by="a")
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema_modification=modification)
+
+        # Cannot modify non-strict schema.
+        create("table", "//tmp/t", force=True, attributes={
+            "schema": make_schema(schema, strict=False)})
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema_modification=modification)
+
+        # Cannot modify schema of unsorted table.
+        create("table", "//tmp/t", force=True, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema_modification=modification)
+
+        # unique_keys is preserved.
+        create("table", "//tmp/t", force=True, attributes={
+            "schema": make_schema(schema, unique_keys=True)})
+        alter_table("//tmp/t", schema_modification=modification)
+        assert get("//tmp/t/@schema/@unique_keys") == (modification == "unversioned_update")
+    @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
+    def test_unversioned_update_schema_inference(self, modification):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        unversioned_update_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "$change_type", "type": "uint64", "required": True},
+            {"name": "$value:value", "type": "string"},
+            {"name": "$flags:value", "type": "uint64"},
+        ]
+        if modification == "unversioned_update_unsorted":
+            unversioned_update_schema[0].pop("sort_order")
+        sorted_schema = deepcopy(unversioned_update_schema)
+        sorted_schema[0]["sort_order"] = "ascending"
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        alter_table("//tmp/t", schema_modification=modification)
+        write_table("//tmp/t", [{"key": 1, "$change_type": 0}])
+
+        create("table", "//tmp/t_sorted")
+        sort(
+            in_="//tmp/t",
+            out="//tmp/t_sorted",
+            sort_by=["key"])
+        self._assert_schema_equal(get("//tmp/t_sorted/@schema"), sorted_schema, reordered=True)
+        assert get("//tmp/t_sorted/@schema/@schema_modification") == modification
+
+        create("table", "//tmp/t_merged")
+        merge(
+            in_="//tmp/t",
+            out="//tmp/t_merged",
+            mode="ordered")
+        self._assert_schema_equal(get("//tmp/t_merged/@schema"), unversioned_update_schema, reordered=True)
+        assert get("//tmp/t_merged/@schema/@schema_modification") == modification
+
 ##################################################################
 
 class TestBulkInsertMulticell(TestBulkInsert):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

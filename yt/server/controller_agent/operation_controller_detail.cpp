@@ -863,6 +863,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         PickIntermediateDataCell();
         InitChunkListPools();
 
+        SuppressLivePreviewIfNeeded();
         CreateLivePreviewTables();
 
         CollectTotals();
@@ -1002,6 +1003,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     InitChunkListPools();
 
+    SuppressLivePreviewIfNeeded();
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
@@ -3005,24 +3007,12 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
-    for (const auto& table : OutputTables_) {
-        if (table->Dynamic) {
-            return false;
-        }
-    }
-
-    return DoCheckOutputLivePreviewSupported();
+    return !IsLivePreviewSuppressed && DoCheckOutputLivePreviewSupported();
 }
 
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 {
-    for (const auto& table : OutputTables_) {
-        if (table->Dynamic) {
-            return false;
-        }
-    }
-
-    return DoCheckIntermediateLivePreviewSupported();
+    return !IsLivePreviewSuppressed && DoCheckIntermediateLivePreviewSupported();
 }
 
 bool TOperationControllerBase::DoCheckOutputLivePreviewSupported() const
@@ -4614,6 +4604,25 @@ bool TOperationControllerBase::IsFinished() const
         State == EControllerState::Aborted;
 }
 
+void TOperationControllerBase::SuppressLivePreviewIfNeeded()
+{
+    IsLivePreviewSuppressed = false;
+
+    for (const auto& table : OutputTables_) {
+        if (table->Dynamic) {
+            IsLivePreviewSuppressed = true;
+            return;
+        }
+    }
+
+    for (const auto& table : InputTables_) {
+        if (table->Schema.HasNontrivialSchemaModification()) {
+            IsLivePreviewSuppressed = true;
+            return;
+        }
+    }
+}
+
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     const auto& client = Host->GetClient();
@@ -5134,7 +5143,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         // NB(psushin): This option must be set before PrepareOutputTables call.
         table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
-        table->TableWriterOptions->OutputChunkFormat = table->TableUploadOptions.OutputChunkFormat;
+        table->TableWriterOptions->SchemaModification = table->TableUploadOptions.SchemaModification;
 
         YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
@@ -7844,6 +7853,11 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
             .ToSorted(keyColumns)
             .ToSortedStrippedColumnAttributes()
             .ToCanonical();
+
+        if (InputTables_[0]->Schema.HasNontrivialSchemaModification()) {
+            OutputTables_[0]->TableUploadOptions.TableSchema.SetSchemaModification(
+                InputTables_[0]->Schema.GetSchemaModification());
+        }
     }
 
     FilterOutputSchemaByInputColumnSelectors();
@@ -7908,7 +7922,7 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
             // check is performed during operation.
             ValidateTableSchemaCompatibility(
                 inputTable->Schema.Filter(inputTable->Path.GetColumns()),
-                OutputTables_[0]->TableUploadOptions.TableSchema,
+                OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
                 ignoreSortOrder,
                 /*allowSimpleTypeDeoptionalize*/ true)
                 .ThrowOnError();
