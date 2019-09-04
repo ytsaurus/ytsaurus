@@ -563,10 +563,7 @@ public:
         }
 
         fluent
-            .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("default_fair_share_tree").Value(*DefaultTreeId_);
-            })
+            .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& treeId = pair.first;
                 const auto& tree = pair.second;

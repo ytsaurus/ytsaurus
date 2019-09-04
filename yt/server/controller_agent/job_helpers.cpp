@@ -63,15 +63,9 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
             .Item("processed_input_data_weight").Value(briefJobStatistics->ProcessedInputDataWeight)
             .Item("processed_output_uncompressed_data_size").Value(briefJobStatistics->ProcessedOutputUncompressedDataSize)
             .Item("processed_output_compressed_data_size").Value(briefJobStatistics->ProcessedOutputCompressedDataSize)
-            .DoIf(static_cast<bool>(briefJobStatistics->InputPipeIdleTime), [&] (TFluentMap fluent) {
-                fluent.Item("input_pipe_idle_time").Value(*(briefJobStatistics->InputPipeIdleTime));
-            })
-            .DoIf(static_cast<bool>(briefJobStatistics->OutputPipeIdleTime), [&] (TFluentMap fluent) {
-                fluent.Item("output_pipe_idle_time").Value(*(briefJobStatistics->OutputPipeIdleTime));
-            })
-            .DoIf(static_cast<bool>(briefJobStatistics->JobProxyCpuUsage), [&] (TFluentMap fluent) {
-                fluent.Item("job_proxy_cpu_usage").Value(*(briefJobStatistics->JobProxyCpuUsage));
-            })
+            .OptionalItem("input_pipe_idle_time", briefJobStatistics->InputPipeIdleTime)
+            .OptionalItem("output_pipe_idle_time", briefJobStatistics->OutputPipeIdleTime)
+            .OptionalItem("job_proxy_cpu_usage", briefJobStatistics->JobProxyCpuUsage)
         .EndMap();
 }
 

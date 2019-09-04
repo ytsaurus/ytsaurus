@@ -7060,14 +7060,8 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     }
 
     fluent
-        .DoIf(Spec_->Title.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("title").Value(*Spec_->Title);
-        })
-        .DoIf(Spec_->Alias.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("alias").Value(*Spec_->Alias);
-        })
+        .OptionalItem("title", Spec_->Title)
+        .OptionalItem("alias", Spec_->Alias)
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }
