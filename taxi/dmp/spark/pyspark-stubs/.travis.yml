@@ -11,5 +11,5 @@ install:
   - pip install .
 
 script:
-  - ./tests/mypy_test.py
+  - ./tests/mypy_test.py -p 3.6 3.7
   - MYPY_TEST_PREFIX=$PWD MYPYPATH=$PWD/third_party/3 pytest
