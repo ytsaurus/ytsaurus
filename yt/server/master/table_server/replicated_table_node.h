@@ -13,27 +13,40 @@ class TReplicatedTableOptions
 {
 public:
     bool EnableReplicatedTableTracker;
-    std::optional<int> MaxSyncReplicaCount;
-    std::optional<int> MinSyncReplicaCount;
+    std::optional<int> MaxSyncReplicaCount_;
+    std::optional<int> MinSyncReplicaCount_;
 
     TReplicatedTableOptions()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
-        RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount)
+        RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount_)
             .Alias("sync_replica_count")
             .Optional();
-        RegisterParameter("min_sync_replica_count", MinSyncReplicaCount)
+        RegisterParameter("min_sync_replica_count", MinSyncReplicaCount_)
             .Optional();
 
         RegisterPostprocessor([&] {
-            if (!MaxSyncReplicaCount && !MinSyncReplicaCount) {
-                MaxSyncReplicaCount = 1;
-            }
-            if (MaxSyncReplicaCount && MinSyncReplicaCount && *MinSyncReplicaCount > *MaxSyncReplicaCount) {
+            if (MaxSyncReplicaCount_ && MinSyncReplicaCount_ && *MinSyncReplicaCount_ > *MaxSyncReplicaCount_) {
                 THROW_ERROR_EXCEPTION("\"min_sync_replica_count\" must be less or equal to \"max_sync_replica_count\"");
             }
         });
+    }
+
+    std::tuple<int, int> GetEffectiveMinMaxReplicaCount(int totalReplicas) const
+    {
+        int maxSyncReplicas = 0;
+        int minSyncReplicas = 0;
+
+        if (!MaxSyncReplicaCount_ && !MinSyncReplicaCount_) {
+            maxSyncReplicas = 1;
+        } else {
+            maxSyncReplicas = MaxSyncReplicaCount_.value_or(totalReplicas);
+        }
+
+        minSyncReplicas = MinSyncReplicaCount_.value_or(maxSyncReplicas);
+
+        return std::make_tuple(minSyncReplicas, maxSyncReplicas);
     }
 };
 
