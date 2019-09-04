@@ -2970,8 +2970,6 @@ public:
 
     void ValidateCloneTable(
         TTableNode* sourceTable,
-        TTableNode* clonedTable,
-        TTransaction* transaction,
         ENodeCloneMode mode,
         TAccount* account)
     {
@@ -2979,34 +2977,38 @@ public:
             return;
         }
 
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
-        try {
-            const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-            securityManager->ValidateResourceUsageIncrease(
-                account,
-                TClusterResources().SetTabletCount(trunkSourceTable->GetTabletResourceUsage().TabletCount));
+        securityManager->ValidateResourceUsageIncrease(
+            account,
+            TClusterResources().SetTabletCount(trunkSourceTable->GetTabletResourceUsage().TabletCount));
 
-            switch (mode) {
-                case ENodeCloneMode::Copy:
-                    sourceTable->ValidateAllTabletsFrozenOrUnmounted("Cannot copy dynamic table");
-                    break;
+        ValidateNodeCloneMode(trunkSourceTable, mode);
 
-                case ENodeCloneMode::Move:
-                    if (sourceTable->IsReplicated()) {
-                        THROW_ERROR_EXCEPTION("Cannot move a replicated table");
-                    }
-                    sourceTable->ValidateAllTabletsUnmounted("Cannot move dynamic table");
-                    break;
-
-                default:
-                    YT_ABORT();
-            }
-        } catch (const std::exception& ex) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            THROW_ERROR_EXCEPTION("Error cloning table %v",
-                cypressManager->GetNodePath(trunkSourceTable, transaction))
-                << ex;
+        if (auto* cellBundle = trunkSourceTable->GetTabletCellBundle()) {
+            cellBundle->ValidateCreationCommitted();
         }
+    }
+
+    void ValidateBeginCopyTable(
+        TTableNode* sourceTable,
+        ENodeCloneMode mode)
+    {
+        YT_VERIFY(sourceTable->IsNative());
+
+        auto* trunkSourceTable = sourceTable->GetTrunkNode();
+        ValidateNodeCloneMode(trunkSourceTable, mode);
+
+        auto* cellBundle = trunkSourceTable->GetTabletCellBundle();
+        if (cellBundle) {
+            cellBundle->ValidateCreationCommitted();
+        }
+    }
+
+    void ValidateEndCopyTable(
+        TAccount* account)
+    {
+
     }
 
     void CloneTable(
@@ -3450,6 +3452,7 @@ public:
         }
     }
 
+    // XXX(babenko): move to private
     void HydraOnTabletCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
     {
         auto cellId = FromProto<TTabletId>(request->cell_id());
@@ -3474,6 +3477,7 @@ public:
         hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
     }
 
+    // XXX(babenko): move to private
     void HydraDecommissionTabletCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
     {
         auto cellId = FromProto<TTabletId>(request->cell_id());
@@ -3485,6 +3489,7 @@ public:
         OnTabletCellDecommissionedOnNode(cell);
     }
 
+    // XXX(babenko): move to private
     void DecommissionTabletCell(TTabletCell* cell)
     {
         if (cell->DecommissionStarted()) {
@@ -3502,6 +3507,7 @@ public:
         }
     }
 
+    // XXX(babenko): move to private
     void HydraOnTabletCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
     {
         auto cellId = FromProto<TTabletId>(response->cell_id());
@@ -3512,6 +3518,7 @@ public:
         OnTabletCellDecommissionedOnNode(cell);
     }
 
+    // XXX(babenko): move to private
     void OnTabletCellDecommissionedOnNode(TTabletCell* cell)
     {
         if (cell->DecommissionCompleted()) {
@@ -3522,6 +3529,19 @@ public:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (TabletCellId: %v)",
             cell->GetId());
+    }
+
+
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+    {
+        auto* cellBundle = FindTabletCellBundle(id);
+        if (!cellBundle) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such tablet cell bundle %v",
+                id);
+        }
+        return cellBundle;
     }
 
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
@@ -6730,6 +6750,33 @@ private:
     }
 
 
+    void ValidateNodeCloneMode(TTableNode* trunkNode, ENodeCloneMode mode)
+    {
+        try {
+            switch (mode) {
+                case ENodeCloneMode::Copy:
+                    trunkNode->ValidateAllTabletsFrozenOrUnmounted("Cannot copy dynamic table");
+                    break;
+
+                case ENodeCloneMode::Move:
+                    if (trunkNode->IsReplicated()) {
+                        THROW_ERROR_EXCEPTION("Cannot move a replicated table");
+                    }
+                    trunkNode->ValidateAllTabletsUnmounted("Cannot move dynamic table");
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+        } catch (const std::exception& ex) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            THROW_ERROR_EXCEPTION("Error cloning table %v",
+                cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
+                << ex;
+        }
+    }
+
+
     static void ValidateTabletCellBundleName(const TString& name)
     {
         if (name.empty()) {
@@ -6979,17 +7026,22 @@ void TTabletManager::ReshardTable(
 
 void TTabletManager::ValidateCloneTable(
     TTableNode* sourceTable,
-    TTableNode* clonedTable,
-    TTransaction* transaction,
     ENodeCloneMode mode,
     TAccount* account)
 {
     return Impl_->ValidateCloneTable(
         sourceTable,
-        clonedTable,
-        transaction,
         mode,
         account);
+}
+
+void TTabletManager::ValidateBeginCopyTable(
+    TTableNode* sourceTable,
+    ENodeCloneMode mode)
+{
+    return Impl_->ValidateBeginCopyTable(
+        sourceTable,
+        mode);
 }
 
 void TTabletManager::CloneTable(
@@ -7047,6 +7099,11 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
 void TTabletManager::RemoveTabletCell(TTabletCell* cell, bool force)
 {
     return Impl_->RemoveTabletCell(cell, force);
+}
+
+TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+{
+    return Impl_->GetTabletCellBundleOrThrow(id);
 }
 
 TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const TString& name)

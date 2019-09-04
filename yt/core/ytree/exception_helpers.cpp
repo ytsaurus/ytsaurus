@@ -17,7 +17,7 @@ using namespace NYPath;
 
 namespace {
 
-TString GetNodePath(IConstNodePtr node)
+TString GetNodePath(const IConstNodePtr& node)
 {
     auto path = node->GetPath();
     return path.empty() ? "Root node" : Format("Node %v", path);
@@ -25,7 +25,7 @@ TString GetNodePath(IConstNodePtr node)
 
 } // namespace
 
-void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
+void ThrowInvalidNodeType(const IConstNodePtr& node, ENodeType expectedType, ENodeType actualType)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -50,7 +50,7 @@ void ValidateNodeType(
     }
 }
 
-void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)
+void ThrowNoSuchChildKey(const IConstNodePtr& node, const TString& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -59,7 +59,7 @@ void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
+void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -104,13 +104,13 @@ void ThrowMethodNotSupported(const TString& method, const std::optional<TString>
     THROW_ERROR(error);
 }
 
-void ThrowCannotHaveChildren(IConstNodePtr node)
+void ThrowCannotHaveChildren(const IConstNodePtr& node)
 {
     THROW_ERROR_EXCEPTION("%v cannot have children",
         GetNodePath(node));
 }
 
-void ThrowAlreadyExists(IConstNodePtr node)
+void ThrowAlreadyExists(const IConstNodePtr& node)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::AlreadyExists,
@@ -118,14 +118,16 @@ void ThrowAlreadyExists(IConstNodePtr node)
         GetNodePath(node));
 }
 
-void ThrowCannotRemoveRoot()
+void ThrowCannotRemoveNode(const IConstNodePtr& node)
 {
-    THROW_ERROR_EXCEPTION("Root node cannot be removed");
+    THROW_ERROR_EXCEPTION("%v cannot be removed",
+        GetNodePath(node));
 }
 
-void ThrowCannotReplaceRoot()
+void ThrowCannotReplaceNode(const IConstNodePtr& node)
 {
-    THROW_ERROR_EXCEPTION("Root node cannot be replaced");
+    THROW_ERROR_EXCEPTION("%v cannot be replaced",
+        GetNodePath(node));
 }
 
 void ThrowCannotRemoveAttribute(const TString& key)
@@ -138,11 +140,6 @@ void ThrowCannotSetBuiltinAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION("Builtin attribute %Qv cannot be set",
         ToYPathLiteral(key));
-}
-
-void ThrowCannotMoveFromAnotherTransaction()
-{
-    THROW_ERROR_EXCEPTION("Moving nodes of other transactions is not allowed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

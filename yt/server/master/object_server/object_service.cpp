@@ -499,7 +499,7 @@ private:
 
         ScheduleBackoffAlarm();
         ParseSubrequests();
-        MarkTentativelyRemoveSubrequests();
+        MarkTentativelyRemoteSubrequests();
         RunSyncPhaseOne();
     }
 
@@ -639,7 +639,7 @@ private:
         return false;
     }
 
-    void MarkTentativelyRemoveSubrequests()
+    void MarkTentativelyRemoteSubrequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

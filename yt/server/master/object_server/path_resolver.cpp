@@ -204,7 +204,10 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             if (!slashSkipped &&
                 (Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream ||
-                 Method_ == "Remove" || Method_ == "Create" || Method_ == "Copy"))
+                 Method_ == "Remove" ||
+                 Method_ == "Create" ||
+                 Method_ == "Copy" ||
+                 Method_ == "EndCopy"))
             {
                 return makeCurrentLocalObjectResult();
             }

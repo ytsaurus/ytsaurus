@@ -30,9 +30,6 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
     TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
-    const THashMap<TString, TCypressNode*>& keyToChildMap);
-
 TCypressNode* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
     TMapNode* trunkNode,
@@ -69,6 +66,9 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
+
+std::vector<std::pair<TString, NYson::TYsonString>> SortKeyToAttribute(
+    const THashMap<TString, NYson::TYsonString>& keyToAttributeMap);
 
 THashSet<TString> ListNodeAttributes(
     const TCypressManagerPtr& cypressManager,

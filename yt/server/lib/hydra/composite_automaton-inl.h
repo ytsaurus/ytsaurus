@@ -15,59 +15,6 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TEntitySerializationKey::TEntitySerializationKey()
-    : Index(-1)
-{ }
-
-inline TEntitySerializationKey::TEntitySerializationKey(int index)
-    : Index(index)
-{ }
-
-inline bool TEntitySerializationKey::operator == (TEntitySerializationKey rhs)
-{
-    return Index == rhs.Index;
-}
-
-inline bool TEntitySerializationKey::operator != (TEntitySerializationKey rhs)
-{
-    return !(*this == rhs);
-}
-
-inline void TEntitySerializationKey::Save(TSaveContext& context) const
-{
-    NYT::Save(context, Index);
-}
-
-inline void TEntitySerializationKey::Load(TLoadContext& context)
-{
-    NYT::Load(context, Index);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TEntitySerializationKey TSaveContext::GenerateSerializationKey()
-{
-    return TEntitySerializationKey(SerializationKeyIndex_++);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TEntitySerializationKey TLoadContext::RegisterEntity(void* entity)
-{
-    auto key = TEntitySerializationKey(static_cast<int>(Entities_.size()));
-    Entities_.push_back(entity);
-    return key;
-}
-
-template <class T>
-T* TLoadContext::GetEntity(TEntitySerializationKey key) const
-{
-    YT_ASSERT(key.Index >= 0 && key.Index < Entities_.size());
-    return static_cast<T*>(Entities_[key.Index]);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TContext>
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,

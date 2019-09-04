@@ -41,6 +41,15 @@ std::array<T, 0> MakeArray();
 template <class T, class... TArgs>
 std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest);
 
+template <class T>
+void SortByFirst(T begin, T end);
+
+template <class T>
+void SortByFirst(T& collection);
+
+template <class T>
+std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMapByKeys(const T& hashMap);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

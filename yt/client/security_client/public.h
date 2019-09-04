@@ -58,6 +58,7 @@ DEFINE_ENUM(EErrorCode,
     ((UserBanned)                   (903))
     ((RequestQueueSizeLimitExceeded)(904))
     ((NoSuchAccount)                (905))
+    ((NoSuchSubject)                (907))
     ((SafeModeEnabled)              (906))
 );
 

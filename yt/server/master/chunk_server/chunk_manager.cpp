@@ -1355,6 +1355,18 @@ public:
         return medium;
     }
 
+    TMedium* GetMediumOrThrow(TMediumId id) const
+    {
+        auto* medium = FindMedium(id);
+        if (!IsObjectAlive(medium)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchMedium,
+                "No such medium %v",
+                id);
+        }
+        return medium;
+    }
+
     TMedium* FindMediumByIndex(int index) const
     {
         return index >= 0 && index < MaxMediumCount
@@ -3946,6 +3958,11 @@ TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
 TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
+}
+
+TMedium* TChunkManager::GetMediumOrThrow(TMediumId id) const
+{
+    return Impl_->GetMediumOrThrow(id);
 }
 
 TMedium* TChunkManager::FindMediumByIndex(int index) const

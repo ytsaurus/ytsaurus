@@ -55,6 +55,10 @@ struct TErrorTraits;
 class TStreamSaveContext;
 class TStreamLoadContext;
 
+struct TEntitySerializationContext;
+class TEntityStreamSaveContext;
+class TEntityStreamLoadContext;
+
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion = int>
 class TCustomPersistenceContext;
 

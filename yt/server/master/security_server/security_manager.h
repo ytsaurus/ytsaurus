@@ -111,10 +111,13 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
+    //! Returns account with a id (throws if none).
+    TAccount* GetAccountOrThrow(TAccountId id);
+
     //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const TString& name);
 
-    //! Returns user with a given name (throws if none).
+    //! Returns account with a given name (throws if none).
     TAccount* GetAccountByNameOrThrow(const TString& name);
 
     //! Returns "root" built-in account.
@@ -158,6 +161,7 @@ public:
     //! Updates the name of the account.
     void RenameAccount(TAccount* account, const TString& newName);
 
+
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const TString& name);
 
@@ -189,6 +193,12 @@ public:
     //! Returns "superusers" built-in group.
     TGroup* GetSuperusersGroup();
 
+
+    //! Returns subject with a given id (|nullptr| if none).
+    TSubject* FindSubject(TSubjectId id);
+
+    //! Finds subject by id, throws if nothing is found.
+    TSubject* GetSubjectOrThrow(TSubjectId id);
 
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
     TSubject* FindSubjectByName(const TString& name);

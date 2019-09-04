@@ -734,6 +734,8 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
+    DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
+    DISPATCH_YPATH_SERVICE_METHOD(EndCopy);
     DISPATCH_YPATH_SERVICE_METHOD(Unlock);
 
     if (TNodeBase::DoInvoke(context)) {
@@ -1316,7 +1318,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     if (replace) {
         parent = GetParent();
         if (!parent) {
-            ThrowCannotReplaceRoot();
+            ThrowCannotReplaceNode(this);
         }
     }
 
@@ -1389,53 +1391,184 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     DeclareMutating();
 
-    // COMPAT(babenko)
-    const auto& targetPath = GetRequestTargetYPath(context->RequestHeader());
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    auto sourcePath = ypathExt.additional_paths_size() == 1
+    // COMPAT(babenko)
+    const auto& sourcePath = ypathExt.additional_paths_size() == 1
         ? ypathExt.additional_paths(0)
         : request->source_path();
+    bool removeSource = request->remove_source();
+
+    context->SetIncrementalRequestInfo("SourcePath: %v",
+        sourcePath);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
+
+    auto* trunkSourceNode = sourceProxy->GetTrunkNode();
+    auto* sourceNode = removeSource
+        ? LockImpl(trunkSourceNode, ELockMode::Exclusive, true)
+        : cypressManager->GetVersionedNode(trunkSourceNode, Transaction);
+
+    if (IsAncestorOf(trunkSourceNode, TrunkNode)) {
+        THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
+    }
+
+    ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+        EPermission::Read);
+
+    auto sourceParentProxy = sourceProxy->GetParent();
+    if (removeSource) {
+        // Cf. TNodeBase::RemoveSelf
+        if (!sourceParentProxy) {
+            ThrowCannotRemoveNode(sourceProxy);
+        }
+        ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+            EPermission::Remove);
+        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
+    }
+
+    CopyCore(
+        context,
+        [&] (ICypressNodeFactory* factory) {
+            return factory->CloneNode(
+                sourceNode,
+                removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
+        });
+
+    if (removeSource) {
+        sourceParentProxy->RemoveChild(sourceProxy);
+    }
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
+{
+    DeclareMutating();
+    ValidateTransaction();
+
+    bool removeSource = request->remove_source();
+
+    context->SetRequestInfo("RemoveSource: %v",
+        removeSource);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& handler = cypressManager->GetHandler(TrunkNode);
+
+    auto* node = GetThisImpl();
+
+    ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
+
+    auto parentProxy = GetParent();
+    if (removeSource) {
+        // Cf. TNodeBase::RemoveSelf
+        if (!parentProxy) {
+            ThrowCannotRemoveNode(this);
+        }
+        ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
+        ValidatePermission(node, EPermissionCheckScope::Parent, EPermission::Write);
+    }
+
+    TBeginCopyContext copyContext(
+        Transaction,
+        removeSource);
+    handler->BeginCopy(node, &copyContext);
+
+    ToProto(response->mutable_opaque_child_ids(), copyContext.OpaqueRootIds());
+    ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
+
+    auto* serializedTree = response->mutable_serialized_tree();
+    serializedTree->set_version(TreeFormatVersion);
+    serializedTree->set_data(copyContext.Finish());
+
+    if (removeSource) {
+        parentProxy->RemoveChild(this);
+    }
+
+    context->SetResponseInfo("DataSize: %v, ExternalCellTags: %v",
+        serializedTree->data().size(),
+        response->external_cell_tags());
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
+{
+    DeclareMutating();
+    ValidateTransaction();
+
+    bool removeSource = request->remove_source();
+    const auto& serializedTree = request->serialized_tree();
+
+    context->SetIncrementalRequestInfo("TreeSize: %v, RemoveSource: %v",
+        serializedTree.data().size(),
+        removeSource);
+
+    if (serializedTree.version() != TreeFormatVersion) {
+        THROW_ERROR_EXCEPTION("Invalid tree format version: expected %v, actual %v",
+            TreeFormatVersion,
+            serializedTree.version());
+    }
+
+    TEndCopyContext copyContext(
+        Bootstrap_,
+        removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy,
+        TRef::FromString(serializedTree.data()));
+
+    CopyCore(
+        context,
+        [&] (ICypressNodeFactory* factory) {
+            return factory->EndCopyNode(&copyContext);
+        });
+
+    context->Reply();
+}
+
+template <class TContextPtr, class TClonedTreeBuilder>
+void TNontemplateCypressNodeProxyBase::CopyCore(
+    const TContextPtr& context,
+    const TClonedTreeBuilder& clonedTreeBuilder)
+{
+    auto* request = &context->Request();
+    auto* response = &context->Response();
+
+    const auto& targetPath = GetRequestTargetYPath(context->RequestHeader());
     bool preserveAccount = request->preserve_account();
     bool preserveExpirationTime = request->preserve_expiration_time();
     bool preserveCreationTime = request->preserve_creation_time();
-    bool removeSource = request->remove_source();
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
-
-    context->SetRequestInfo("SourcePath: %v, TransactionId: %v "
-        "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
-        "RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
-        sourcePath,
-        Transaction ? Transaction->GetId() : TTransactionId(),
-        preserveAccount,
-        preserveExpirationTime,
-        preserveCreationTime,
-        removeSource,
-        recursive,
-        ignoreExisting,
-        force,
-        pessimisticQuotaCheck);
-
-    if (ignoreExisting && force) {
-        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
-    }
+    auto removeSource = request->remove_source();
 
     if (ignoreExisting && removeSource) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"remove_source\" options simultaneously");
     }
+    if (ignoreExisting && force) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    context->SetRequestInfo("TransactionId: %v "
+        "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
+        "Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v, RemoveSource: %v",
+        NObjectServer::GetObjectId(Transaction),
+        preserveAccount,
+        preserveExpirationTime,
+        preserveCreationTime,
+        recursive,
+        ignoreExisting,
+        force,
+        pessimisticQuotaCheck,
+        removeSource);
 
     bool replace = targetPath.empty();
     if (replace && !force) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(this);
         }
-        const auto* impl = GetThisImpl();
-        ToProto(response->mutable_node_id(), impl->GetId());
+        ToProto(response->mutable_node_id(), TrunkNode->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
-            impl->GetId());
-        context->Reply();
+            TrunkNode->GetId());
         return;
     }
 
@@ -1443,24 +1576,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ThrowCannotHaveChildren(this);
     }
 
-    ICompositeNodePtr parent;
+    ICompositeNodePtr parentProxy;
     if (replace) {
-        parent = GetParent();
-        if (!parent) {
-            ThrowCannotReplaceRoot();
+        parentProxy = GetParent();
+        if (!parentProxy) {
+            ThrowCannotReplaceNode(this);
         }
-    }
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
-
-    auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
-    auto* sourceImpl = removeSource
-        ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
-        : cypressManager->GetVersionedNode(trunkSourceImpl, Transaction);
-
-    if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
-        THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
     if (replace) {
@@ -1470,37 +1591,21 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     }
 
-    ValidatePermission(sourceImpl, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
-
-    auto sourceParent = sourceProxy->GetParent();
-    if (removeSource) {
-        // Cf. TNodeBase::RemoveSelf
-        if (!sourceParent) {
-            ThrowCannotRemoveRoot();
-        }
-        ValidatePermission(sourceImpl, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
-    }
-
     auto* account = replace
-        ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode()->GetAccount()
+        ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()
         : GetThisImpl()->GetAccount();
 
-    TNodeFactoryOptions options;
-    options.PreserveAccount = preserveAccount;
-    options.PreserveExpirationTime = preserveExpirationTime;
-    options.PreserveCreationTime = preserveCreationTime;
-    options.PessimisticQuotaCheck = pessimisticQuotaCheck;
-    auto factory = CreateCypressFactory(account, options);
+    auto factory = CreateCypressFactory(account, TNodeFactoryOptions{
+        .PreserveAccount = preserveAccount,
+        .PreserveExpirationTime = preserveExpirationTime,
+        .PreserveCreationTime = preserveCreationTime,
+        .PessimisticQuotaCheck = pessimisticQuotaCheck
+    });
 
-    auto* clonedImpl = factory->CloneNode(
-        sourceImpl,
-        removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
-    auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
-    auto clonedProxy = GetProxy(clonedTrunkImpl);
-
+    auto* clonedNode = clonedTreeBuilder(factory.get());
+    auto clonedProxy = GetProxy(clonedNode->GetTrunkNode());
     if (replace) {
-        parent->ReplaceChild(this, clonedProxy);
+        parentProxy->ReplaceChild(this, clonedProxy);
     } else {
         SetChildNode(
             factory.get(),
@@ -1509,17 +1614,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             recursive);
     }
 
-    if (removeSource) {
-        sourceParent->RemoveChild(sourceProxy);
-    }
-
     factory->Commit();
 
-    ToProto(response->mutable_node_id(), clonedTrunkImpl->GetId());
+    ToProto(response->mutable_node_id(), clonedNode->GetTrunkNode()->GetId());
 
-    context->SetResponseInfo("NodeId: %v", clonedTrunkImpl->GetId());
-
-    context->Reply();
+    context->SetResponseInfo("NodeId: %v", clonedNode->GetTrunkNode()->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2024,7 +2123,7 @@ void TMapNodeProxy::Clear()
         TrunkNode->As<TMapNode>(),
         Transaction,
         &keyToChildMapStorage);
-    auto keyToChildList = SortKeyToChild(keyToChildMap);
+    auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     // Take shared locks for children.
     typedef std::pair<TString, TCypressNode*> TChild;
@@ -2100,12 +2199,12 @@ std::vector<TString> TMapNodeProxy::GetKeys() const
 
 INodePtr TMapNodeProxy::FindChild(const TString& key) const
 {
-    auto* childTrunkNode = FindMapNodeChild(
+    auto* trunkChildNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
         TrunkNode->As<TMapNode>(),
         Transaction,
         key);
-    return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
+    return trunkChildNode ? GetProxy(trunkChildNode) : nullptr;
 }
 
 bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)

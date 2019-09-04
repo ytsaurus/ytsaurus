@@ -108,7 +108,7 @@ private:
 
     virtual void DoClone(
         TPortalEntranceNode* /*sourceNode*/,
-        TPortalEntranceNode* /*clonedNode*/,
+        TPortalEntranceNode* /*clonedTrunkNode*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         TAccount* /*account*/) override
@@ -122,6 +122,29 @@ private:
     {
         // Cannot be branched.
         return false;
+    }
+
+    virtual void DoBeginCopy(
+        TPortalEntranceNode* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        auto exitId = MakePortalExitNodeId(node->GetId(), node->GetExitCellTag());
+        Save(*context, exitId);
+        context->RegisterOpaqueRootId(exitId);
+    }
+
+    virtual void DoEndCopy(
+        TPortalEntranceNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        // TODO(babenko): cross-cell copying of portals
+        THROW_ERROR_EXCEPTION("Cross-cell copying of portals is not supported");
     }
 };
 

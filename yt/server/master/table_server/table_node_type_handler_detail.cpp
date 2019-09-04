@@ -17,6 +17,9 @@
 #include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
 #include <yt/server/master/tablet_server/tablet.h>
+#include <yt/server/master/tablet_server/tablet_manager.h>
+
+#include <yt/server/master/table_server/shared_table_schema.h>
 
 namespace NYT::NTableServer {
 
@@ -35,11 +38,6 @@ using namespace NSecurityServer;
 using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TImpl>
-TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
 
 template <class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
@@ -148,8 +146,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         if (optionalSchema) {
             const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-            auto sharedSchema = registry->GetSchema(std::move(*optionalSchema));
-            node->SharedTableSchema() = sharedSchema;
+            node->SharedTableSchema() = registry->GetSchema(std::move(*optionalSchema));
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
@@ -232,45 +229,121 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
-    TImpl* clonedNode,
+    TImpl* clonedTrunkNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-
     tabletManager->ValidateCloneTable(
         sourceNode,
-        clonedNode,
-        factory->GetTransaction(),
         mode,
         account);
 
-    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     if (sourceNode->IsDynamic()) {
         tabletManager->CloneTable(
             sourceNode,
-            clonedNode,
+            clonedTrunkNode,
             mode);
     }
 
-    clonedNode->SharedTableSchema() = sourceNode->SharedTableSchema();
-    clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
-    clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
+    clonedTrunkNode->SharedTableSchema() = sourceNode->SharedTableSchema();
+    clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
+    clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
-        clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
-        clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
-        clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
-        clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
-        clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
-        clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
-        clonedNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
+        clonedTrunkNode->SetDynamic(trunkSourceNode->IsDynamic());
+        clonedTrunkNode->SetAtomicity(trunkSourceNode->GetAtomicity());
+        clonedTrunkNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
+        clonedTrunkNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
+        clonedTrunkNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
+        clonedTrunkNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
+        clonedTrunkNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
     }
 
-    tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
+    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
+}
+
+template <class TImpl>
+void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
+    TImpl* node,
+    TBeginCopyContext* context)
+{
+    TBase::DoBeginCopy(node, context);
+
+    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    tabletManager->ValidateBeginCopyTable(
+        node,
+        context->GetRemoveSource() ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
+
+    // TODO(babenko): support copying dynamic tables
+    if (node->IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
+    }
+
+    using NYT::Save;
+    auto* trunkNode = node->GetTrunkNode();
+    Save(*context, trunkNode->GetTabletCellBundle());
+
+    const auto& schema = node->SharedTableSchema();
+    Save(*context, schema.operator bool());
+    if (schema) {
+        Save(*context, context->GetTableSchemaRegistry()->Intern(schema->GetTableSchema()));
+    }
+
+    Save(*context, node->GetSchemaMode());
+    Save(*context, node->GetOptimizeFor());
+
+    Save(*context, trunkNode->HasCustomDynamicTableAttributes());
+    if (trunkNode->HasCustomDynamicTableAttributes()) {
+        Save(*context, trunkNode->IsDynamic());
+        Save(*context, trunkNode->GetAtomicity());
+        Save(*context, trunkNode->GetCommitOrdering());
+        Save(*context, trunkNode->GetInMemoryMode());
+        Save(*context, trunkNode->GetUpstreamReplicaId());
+        Save(*context, trunkNode->GetLastCommitTimestamp());
+        Save(*context, ConvertToYsonString(trunkNode->TabletBalancerConfig()));
+    }
+}
+
+template <class TImpl>
+void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
+    TImpl* node,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    TBase::DoEndCopy(node, context, factory);
+
+    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    // TODO(babenko): support copying dynamic tables
+
+    using NYT::Load;
+
+    auto* bundle = Load<TTabletCellBundle*>(*context);
+    bundle->ValidateCreationCommitted();
+    tabletManager->SetTabletCellBundle(node, bundle);
+
+    if (Load<bool>(*context)) {
+        auto schema = Load<TInternedTableSchema>(*context);
+        const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
+        node->SharedTableSchema() = registry->GetSchema(*schema);
+    }
+
+    node->SetSchemaMode(Load<ETableSchemaMode>(*context));
+    node->SetOptimizeFor(Load<EOptimizeFor>(*context));
+
+    if (Load<bool>(*context)) {
+        node->SetDynamic(Load<bool>(*context));
+        node->SetAtomicity(Load<NTransactionClient::EAtomicity>(*context));
+        node->SetCommitOrdering(Load<NTransactionClient::ECommitOrdering>(*context));
+        node->SetInMemoryMode(Load<NTabletClient::EInMemoryMode>(*context));
+        node->SetUpstreamReplicaId(Load<TTableReplicaId>(*context));
+        node->SetLastCommitTimestamp(Load<TTimestamp>(*context));
+        node->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+    }
 }
 
 template <class TImpl>
@@ -282,7 +355,7 @@ ETypeFlags TTableNodeTypeHandlerBase<TImpl>::GetFlags() const
 template<class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
 {
-    static const THashSet<TString> supportedInheritableAttributes = {
+    static const THashSet<TString> SupportedInheritableAttributes{
         "atomicity",
         "commit_ordering",
         "in_memory_mode",
@@ -290,7 +363,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
         "tablet_cell_bundle"
     };
 
-    if (supportedInheritableAttributes.contains(key)) {
+    if (SupportedInheritableAttributes.contains(key)) {
         return true;
     }
 
@@ -298,10 +371,6 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TTableNodeTypeHandler::TTableNodeTypeHandler(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
 
 EObjectType TTableNodeTypeHandler::GetObjectType() const
 {
@@ -320,10 +389,6 @@ ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TReplicatedTableNodeTypeHandler::TReplicatedTableNodeTypeHandler(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
 
 EObjectType TReplicatedTableNodeTypeHandler::GetObjectType() const
 {
@@ -347,6 +412,23 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
         &Metadata_,
         transaction,
         trunkNode);
+}
+
+void TReplicatedTableNodeTypeHandler::DoBeginCopy(
+    TReplicatedTableNode* node,
+    TBeginCopyContext* context)
+{
+    // TODO(babenko): support cross-cell copy for replicated tables
+    THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");
+}
+
+void TReplicatedTableNodeTypeHandler::DoEndCopy(
+    TReplicatedTableNode* node,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    // TODO(babenko): support cross-cell copy for replicated tables
+    THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -551,33 +551,29 @@ struct TUnlockNodeOptions
     , public TPrerequisiteOptions
 { };
 
-struct TCopyNodeOptions
+struct TCopyNodeOptionsBase
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
-    bool IgnoreExisting = false;
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
-    bool PreserveCreationTime = false;
     bool PessimisticQuotaCheck = true;
 };
 
-struct TMoveNodeOptions
-    : public TTimeoutOptions
-    , public TTransactionalOptions
-    , public TMutatingOptions
-    , public TPrerequisiteOptions
+struct TCopyNodeOptions
+    : public TCopyNodeOptionsBase
 {
-    bool Recursive = false;
-    bool Force = false;
-    bool PreserveAccount = false;
-    bool PreserveExpirationTime = false;
-    bool PessimisticQuotaCheck = true;
+    bool IgnoreExisting = false;
+    bool PreserveCreationTime = false;
 };
+
+struct TMoveNodeOptions
+    : public TCopyNodeOptionsBase
+{ };
 
 struct TLinkNodeOptions
     : public TTimeoutOptions

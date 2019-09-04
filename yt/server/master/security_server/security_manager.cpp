@@ -356,6 +356,18 @@ public:
         YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
+    TAccount* GetAccountOrThrow(TAccountId id)
+    {
+        auto* account = FindAccount(id);
+        if (!IsObjectAlive(account)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::NoSuchAccount,
+                "No such account %v",
+                id);
+        }
+        return account;
+    }
+
     TAccount* FindAccountByName(const TString& name)
     {
         auto it = AccountNameMap_.find(name);
@@ -503,7 +515,8 @@ public:
             return;
         }
 
-        auto resources = TClusterResources().SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
+        auto resources = TClusterResources()
+            .SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
 
         account->ClusterStatistics().ResourceUsage += resources;
         account->LocalStatistics().ResourceUsage += resources;
@@ -754,18 +767,41 @@ public:
     }
 
 
+    TSubject* FindSubject(TSubjectId id)
+    {
+        auto* user = FindUser(id);
+        if (IsObjectAlive(user)) {
+            return user;
+        }
+        auto* group = FindGroup(id);
+        if (IsObjectAlive(group)) {
+            return group;
+        }
+        return nullptr;
+    }
+
+    TSubject* GetSubjectOrThrow(TSubjectId id)
+    {
+        auto* subject = FindSubject(id);
+        if (!IsObjectAlive(subject)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::NoSuchSubject,
+                "No such subject %v",
+                id);
+        }
+        return subject;
+    }
+
     TSubject* FindSubjectByName(const TString& name)
     {
         auto* user = FindUserByName(name);
         if (IsObjectAlive(user)) {
             return user;
         }
-
         auto* group = FindGroupByName(name);
         if (IsObjectAlive(group)) {
             return group;
         }
-
         return nullptr;
     }
 
@@ -2955,6 +2991,11 @@ void TSecurityManager::Initialize()
     return Impl_->Initialize();
 }
 
+TAccount* TSecurityManager::GetAccountOrThrow(TAccountId id)
+{
+    return Impl_->GetAccountOrThrow(id);
+}
+
 TAccount* TSecurityManager::FindAccountByName(const TString& name)
 {
     return Impl_->FindAccountByName(name);
@@ -3063,6 +3104,16 @@ TGroup* TSecurityManager::GetUsersGroup()
 TGroup* TSecurityManager::GetSuperusersGroup()
 {
     return Impl_->GetSuperusersGroup();
+}
+
+TSubject* TSecurityManager::FindSubject(TSubjectId id)
+{
+    return Impl_->FindSubject(id);
+}
+
+TSubject* TSecurityManager::GetSubjectOrThrow(TSubjectId id)
+{
+    return Impl_->GetSubjectOrThrow(id);
 }
 
 TSubject* TSecurityManager::FindSubjectByName(const TString& name)

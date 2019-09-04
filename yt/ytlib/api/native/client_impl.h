@@ -42,6 +42,8 @@ using TTableReplicaInfoPtrList = SmallVector<
     NTabletClient::TTableReplicaInfoPtr,
     NChunkClient::TypicalReplicaCount>;
 
+DECLARE_REFCOUNTED_CLASS(TClient)
+
 class TClient
     : public IClient
 {
@@ -644,6 +646,7 @@ private:
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options);
+
     TLockNodeResult DoLockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
@@ -651,6 +654,7 @@ private:
     void DoUnlockNode(
         const NYPath::TYPath& path,
         const TUnlockNodeOptions& options);
+
     NCypressClient::TNodeId DoCopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
@@ -659,6 +663,13 @@ private:
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TMoveNodeOptions& options);
+
+    template <class TOptions>
+    NCypressClient::TNodeId DoCloneNode(
+        const NYPath::TYPath& srcPath,
+        const NYPath::TYPath& dstPath,
+        const TOptions& options);
+
     NCypressClient::TNodeId DoLinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,

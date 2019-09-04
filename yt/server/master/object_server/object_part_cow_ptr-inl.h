@@ -73,14 +73,14 @@ void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) co
     if (ObjectPart_) {
         auto it = context.SavedInternedObjects().find(ObjectPart_);
         if (it == context.SavedInternedObjects().end()) {
-            Save(context, NHydra::TEntitySerializationKey::Inline);
+            Save(context, InlineKey);
             Save(context, *ObjectPart_);
             YT_VERIFY(context.SavedInternedObjects().emplace(ObjectPart_, context.GenerateSerializationKey()).second);
         } else {
             Save(context, it->second);
         }
     } else {
-        Save(context, NHydra::TEntitySerializationKey::Null);
+        Save(context, TEntitySerializationKey());
     }
 }
 
@@ -91,10 +91,10 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
 
     YT_VERIFY(!ObjectPart_);
 
-    auto key = Load<NHydra::TEntitySerializationKey>(context);
-    if (key == NHydra::TEntitySerializationKey::Null) {
+    auto key = Load<TEntitySerializationKey>(context);
+    if (!key) {
         SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-    } else if (key == NHydra::TEntitySerializationKey::Inline) {
+    } else if (key == InlineKey) {
         ResetToDefaultConstructed();
         SERIALIZATION_DUMP_INDENT(context) {
             Load(context, *ObjectPart_);

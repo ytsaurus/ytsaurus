@@ -92,6 +92,12 @@ public:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
 
+    //! Deserializes a node from a tree snapshot and registers its clone.
+    TCypressNode* EndCopyNode(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
+
     //! Returns the root node.
     TMapNode* GetRootNode() const;
 

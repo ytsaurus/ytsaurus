@@ -26,12 +26,10 @@ message TRspLock
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnlock
-{
-}
+{ }
 
 message TRspUnlock
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +66,50 @@ message TReqCopy
 }
 
 message TRspCopy
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBeginCopy
+{
+    // "move" is actually "copy" with "remove_source" set to true.
+    optional bool remove_source = 1;
+}
+
+message TSerializedTree
+{
+    required int32 version = 1;
+    required bytes data = 2;
+}
+
+message TRspBeginCopy
+{
+    required TSerializedTree serialized_tree = 1;
+    repeated NYT.NProto.TGuid opaque_child_ids = 2;
+    repeated int32 external_cell_tags = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Cf. TReqCopy.
+message TReqEndCopy
+{
+    // "move" is actually "copy" with "remove_source" set to true.
+    optional bool remove_source = 1;
+    optional bool preserve_account = 2 [default = false];
+    optional bool recursive = 4 [default = false];
+    optional bool force = 5 [default = false];
+    optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_creation_time = 7 [default = false];
+    optional bool ignore_existing = 8 [default = false];
+    optional bool pessimistic_quota_check = 9 [default = true];
+
+    required TSerializedTree serialized_tree = 10;
+}
+
+message TRspEndCopy
 {
     required NYT.NProto.TGuid node_id = 1;
 }

@@ -56,6 +56,30 @@ ETypeFlags TNontemplateCypressNodeTypeHandlerBase::GetFlags() const
         ETypeFlags::Creatable;
 }
 
+void TNontemplateCypressNodeTypeHandlerBase::FillAttributes(
+    TCypressNode* trunkNode,
+    IAttributeDictionary* inheritedAttributes,
+    IAttributeDictionary* explicitAttributes)
+{
+    for (const auto& key : inheritedAttributes->ListKeys()) {
+        if (!IsSupportedInheritableAttribute(key)) {
+            inheritedAttributes->Remove(key);
+        }
+    }
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+    objectManager->FillAttributes(trunkNode, combinedAttributes);
+}
+
+bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const TString&) const
+{
+    // NB: most node types don't inherit attributes. That would lead to
+    // a lot of pseudo-user attributes.
+    return false;
+}
+
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
@@ -92,6 +116,115 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
 
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
+    TCypressNode* node,
+    TBeginCopyContext* context)
+{
+    using NYT::Save;
+
+    Save(*context, node->GetId());
+    Save(*context, node->GetType());
+    Save(*context, node->GetAccount());
+    Save(*context, node->GetTotalResourceUsage());
+    Save(*context, node->GetExternalCellTag());
+    Save(*context, node->Acd());
+    Save(*context, node->GetOpaque());
+    Save(*context, node->GetCreationTime());
+    Save(*context, node->TryGetExpirationTime());
+
+    // User attributes
+    auto keyToAttribute = GetNodeAttributes(
+        Bootstrap_->GetCypressManager(),
+        node->GetTrunkNode(),
+        node->GetTransaction());
+    Save(*context, SortHashMapByKeys(keyToAttribute));
+
+    // For externalizable nodes, lock the source to ensure it survives until EndCopy.
+    if (node->GetExternalCellTag() != NotReplicatedCellTag) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->LockNode(
+            node,
+            context->GetTransaction(),
+            context->GetRemoveSource() ? ELockMode::Exclusive : ELockMode::Snapshot);
+    }
+}
+
+TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory,
+    TNodeId sourceNodeId)
+{
+    // See BeginCopyCore.
+    // NB: The type is already deserialized.
+    auto* sourceAccount = Load<TAccount*>(*context);
+    auto sourceResourceUsage = Load<TClusterResources>(*context);
+
+    auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
+    factory->ValidateClonedAccount(
+        context->GetMode(),
+        sourceAccount,
+        sourceResourceUsage,
+        clonedAccount);
+
+    auto externalCellTag = Load<TCellTag>(*context);
+    if (externalCellTag == Bootstrap_->GetCellTag()) {
+        THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
+            sourceNodeId,
+            externalCellTag);
+    }
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto clonedId = objectManager->GenerateId(GetObjectType(), NullObjectId);
+    auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->SetAccount(
+        clonedTrunkNode,
+        /* oldAccount */ nullptr,
+        clonedAccount,
+        /* transaction */ nullptr);
+
+    // Set owner.
+    auto* user = securityManager->GetAuthenticatedUser();
+    clonedTrunkNode->Acd().SetOwner(user);
+
+    // Copy ACD, but only in move.
+    auto sourceAcd = Load<TAccessControlDescriptor>(*context);
+    if (context->GetMode() == ENodeCloneMode::Move) {
+        clonedTrunkNode->Acd().SetInherit(sourceAcd.GetInherit());
+        for (const auto& ace : sourceAcd.Acl().Entries) {
+            clonedTrunkNode->Acd().AddEntry(ace);
+        }
+    }
+
+    // Copy opaque.
+    auto opaque = Load<bool>(*context);
+    clonedTrunkNode->SetOpaque(opaque);
+
+    // Copy creation time.
+    auto creationTime = Load<TInstant>(*context);
+    if (factory->ShouldPreserveCreationTime()) {
+        clonedTrunkNode->SetCreationTime(creationTime);
+    }
+
+    // Copy expiration time.
+    auto expirationTime = Load<std::optional<TInstant>>(*context);
+    if (factory->ShouldPreserveExpirationTime() && expirationTime) {
+        clonedTrunkNode->SetExpirationTime(*expirationTime);
+    }
+
+    // Copy attributes directly to suppress validation.
+    auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
+    if (!keyToAttribute.empty()) {
+        auto* clonedAttributes = clonedTrunkNode->GetMutableAttributes();
+        for (const auto& pair : keyToAttribute) {
+            YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
+        }
+    }
+
+    return clonedTrunkNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
@@ -166,18 +299,21 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
         ? hintId
         : objectManager->GenerateId(type, NullObjectId);
 
-    auto* clonedNode = factory->InstantiateNode(clonedId, sourceNode->GetExternalCellTag());
+    auto* clonedTrunkNode = factory->InstantiateNode(clonedId, sourceNode->GetExternalCellTag());
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* transaction = clonedNode->IsTrunk() ? nullptr : factory->GetTransaction();
-    securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
+    securityManager->SetAccount(
+        clonedTrunkNode,
+        /* oldAccount */ nullptr,
+        account,
+        /* transaction */ nullptr);
 
-    return clonedNode;
+    return clonedTrunkNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     TCypressNode* sourceNode,
-    TCypressNode* clonedNode,
+    TCypressNode* clonedTrunkNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
@@ -187,7 +323,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         sourceNode->GetTrunkNode(),
         factory->GetTransaction());
     if (!keyToAttribute.empty()) {
-        auto* clonedAttributes = clonedNode->GetMutableAttributes();
+        auto* clonedAttributes = clonedTrunkNode->GetMutableAttributes();
         for (const auto& pair : keyToAttribute) {
             YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
         }
@@ -195,16 +331,16 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy ACD, but only in move.
     if (mode == ENodeCloneMode::Move) {
-        clonedNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
+        clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
         for (const auto& ace : sourceNode->Acd().Acl().Entries) {
-            clonedNode->Acd().AddEntry(ace);
+            clonedTrunkNode->Acd().AddEntry(ace);
         }
     }
 
     // Copy builtin attributes.
-    clonedNode->SetOpaque(sourceNode->GetOpaque());
+    clonedTrunkNode->SetOpaque(sourceNode->GetOpaque());
     if (mode == ENodeCloneMode::Move) {
-        clonedNode->SetCreationTime(sourceNode->GetCreationTime());
+        clonedTrunkNode->SetCreationTime(sourceNode->GetCreationTime());
     }
 }
 
@@ -238,6 +374,37 @@ void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 
 #undef XX
+}
+
+void TCompositeNodeBase::TAttributes::Persist(NCypressServer::TCopyPersistenceContext& context)
+{
+//#define XX(camelCaseName, snakeCaseName) \
+//    Persist(context, camelCaseName);
+//
+//    using NYT::Persist;
+//    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+//
+//#undef XX
+}
+
+void TCompositeNodeBase::TAttributes::Save(NCellMaster::TSaveContext& context) const
+{
+    SaveViaPersist<NCellMaster::TPersistenceContext>(context, *this);
+}
+
+void TCompositeNodeBase::TAttributes::Load(NCellMaster::TLoadContext& context)
+{
+    LoadViaPersist<NCellMaster::TPersistenceContext>(context, *this);
+}
+
+void TCompositeNodeBase::TAttributes::Save(NCypressServer::TBeginCopyContext& context) const
+{
+    SaveViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
+}
+
+void TCompositeNodeBase::TAttributes::Load(NCypressServer::TEndCopyContext& context)
+{
+    LoadViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
 }
 
 bool TCompositeNodeBase::TAttributes::AreFull() const
@@ -388,7 +555,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [key, childNode] : SortKeyToChild(KeyToChild)) {
+    for (const auto& [key, childNode] : SortHashMapByKeys(KeyToChild)) {
         if (childNode) {
             objectManager->RefObject(childNode);
         }
@@ -398,7 +565,7 @@ void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objec
 void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [key, childNode] : SortKeyToChild(KeyToChild)) {
+    for (const auto& [key, childNode] : SortHashMapByKeys(KeyToChild)) {
         if (childNode) {
             objectManager->UnrefObject(childNode);
         }
@@ -535,7 +702,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
 
             branchedNode->ChildCountDelta() = originatingNodeChildren.size();
             branchedNode->MutableKeyToChild(objectManager) = originatingNodeChildren;
-            for (const auto& [key, childNode] : SortKeyToChild(branchedNode->KeyToChild())) {
+            for (const auto& [key, childNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
                 if (childNode) {
                     objectManager->RefObject(childNode);
                 }
@@ -560,29 +727,29 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
     auto& keyToChild = originatingNode->MutableKeyToChild(objectManager);
     auto& childToKey = originatingNode->MutableChildToKey(objectManager);
 
-    for (const auto& pair : SortKeyToChild(branchedNode->KeyToChild())) {
+    for (const auto& pair : SortHashMapByKeys(branchedNode->KeyToChild())) {
         const auto& key = pair.first;
-        auto* childTrunkNode = pair.second;
+        auto* trunkChildNode = pair.second;
 
         auto it = keyToChild.find(key);
-        if (childTrunkNode) {
+        if (trunkChildNode) {
 
-            objectManager->RefObject(childTrunkNode);
+            objectManager->RefObject(trunkChildNode);
 
             if (it == keyToChild.end()) {
                 // Originating: missing
-                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
-                YT_VERIFY(keyToChild.insert(std::make_pair(key, childTrunkNode)).second);
+                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+                YT_VERIFY(keyToChild.insert(std::make_pair(key, trunkChildNode)).second);
             } else if (it->second) {
                 // Originating: present
                 objectManager->UnrefObject(it->second);
                 YT_VERIFY(childToKey.erase(it->second) == 1);
-                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
-                it->second = childTrunkNode;
+                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+                it->second = trunkChildNode;
             } else {
                 // Originating: tombstone
-                it->second = childTrunkNode;
-                YT_VERIFY(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                it->second = trunkChildNode;
+                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
             }
         } else {
             // Branched: tombstone
@@ -626,12 +793,12 @@ ICypressNodeProxyPtr TMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
 template <class TImpl>
 void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
     TImpl* sourceNode,
-    TImpl* clonedNode,
+    TImpl* clonedTrunkNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     auto* transaction = factory->GetTransaction();
 
@@ -643,19 +810,17 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
         sourceNode->GetTrunkNode()->template As<TMapNode>(),
         transaction,
         &keyToChildMapStorage);
-    auto keyToChildList = SortKeyToChild(keyToChildMap);
-
-    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+    auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
-    auto& clonedNodeKeyToChild = clonedNode->MutableKeyToChild(objectManager);
-    auto& clonedNodeChildToKey = clonedNode->MutableChildToKey(objectManager);
+    auto& clonedNodeKeyToChild = clonedTrunkNode->MutableKeyToChild(objectManager);
+    auto& clonedNodeChildToKey = clonedTrunkNode->MutableChildToKey(objectManager);
 
     for (const auto& pair : keyToChildList) {
         const auto& key = pair.first;
-        auto* childTrunkNode = pair.second;
+        auto* trunkChildNode = pair.second;
 
-        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
+        auto* childNode = cypressManager->GetVersionedNode(trunkChildNode, transaction);
 
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
@@ -665,7 +830,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
 
-        ++clonedNode->ChildCountDelta();
+        ++clonedTrunkNode->ChildCountDelta();
     }
 }
 
@@ -681,6 +846,61 @@ bool TMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(TImpl* originatingNo
     }
 
     return !branchedNode->KeyToChild().empty();
+}
+
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+    TImpl* node,
+    TBeginCopyContext* context)
+{
+    TBase::DoBeginCopy(node, context);
+
+    using NYT::Save;
+
+    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
+        this->Bootstrap_->GetCypressManager(),
+        node->GetTrunkNode()->template As<TImpl>(),
+        node->GetTransaction(),
+        &keyToChildMapStorage);
+
+    TSizeSerializer::Save(*context, keyToChildMap.size());
+    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
+    for (const auto& [key, child] : SortHashMapByKeys(keyToChildMap)) {
+        Save(*context, key);
+        const auto& typeHandler = cypressManager->GetHandler(child);
+        typeHandler->BeginCopy(child, context);
+    }
+}
+
+template <class TImpl>
+void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+    TImpl* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    TBase::DoEndCopy(trunkNode, context, factory);
+
+    using NYT::Load;
+
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
+    auto& keyToChild = trunkNode->MutableKeyToChild(objectManager);
+    auto& childToKey = trunkNode->MutableChildToKey(objectManager);
+
+    size_t size = TSizeSerializer::Load(*context);
+    for (size_t index = 0; index < size; ++index) {
+        auto key = Load<TString>(*context);
+
+        auto* childNode = factory->EndCopyNode(context);
+        auto* trunkChildNode = childNode->GetTrunkNode();
+
+        YT_VERIFY(keyToChild.insert(std::make_pair(key, trunkChildNode)).second);
+        YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+
+        AttachChild(objectManager, trunkNode->GetTrunkNode(), childNode);
+
+        ++trunkNode->ChildCountDelta();
+    }
 }
 
 // Explicit instantiations.
@@ -794,24 +1014,23 @@ void TListNodeTypeHandler::DoMerge(
 
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
-    TListNode* clonedNode,
+    TListNode* clonedTrunkNode,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
-
-    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
-    for (int index = 0; index < indexToChild.size(); ++index) {
+
+    for (int index = 0; index < static_cast<int>(indexToChild.size()); ++index) {
         auto* childNode = indexToChild[index];
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
-        clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
-        YT_VERIFY(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
+        clonedTrunkNode->IndexToChild().push_back(clonedChildTrunkNode);
+        YT_VERIFY(clonedTrunkNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
     }
@@ -824,6 +1043,49 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
     }
 
     return branchedNode->IndexToChild() != originatingNode->IndexToChild();
+}
+
+void TListNodeTypeHandler::DoBeginCopy(
+    TListNode* node,
+    TBeginCopyContext* context)
+{
+    TBase::DoBeginCopy(node, context);
+
+    using NYT::Save;
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+    const auto& children = node->IndexToChild();
+    TSizeSerializer::Save(*context, children.size());
+    for (auto* child : children) {
+        const auto& typeHandler = cypressManager->GetHandler(child);
+        typeHandler->BeginCopy(child, context);
+    }
+}
+
+void TListNodeTypeHandler::DoEndCopy(
+    TListNode* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    TBase::DoEndCopy(trunkNode, context, factory);
+
+    using NYT::Load;
+
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
+    auto& indexToChild = trunkNode->IndexToChild();
+    auto& childToIndex = trunkNode->ChildToIndex();
+
+    size_t size = TSizeSerializer::Load(*context);
+    for (size_t index = 0; index < size; ++index) {
+        auto* childNode = factory->EndCopyNode(context);
+        auto* trunkChildNode = childNode->GetTrunkNode();
+
+        indexToChild.push_back(trunkChildNode);
+        YT_VERIFY(childToIndex.insert(std::make_pair(trunkChildNode, index)).second);
+
+        AttachChild(objectManager, trunkNode, childNode);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

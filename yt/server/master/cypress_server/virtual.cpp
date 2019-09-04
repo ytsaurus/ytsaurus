@@ -50,6 +50,7 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NCypressClient;
 using namespace NConcurrency;
 
