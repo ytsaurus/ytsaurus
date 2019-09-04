@@ -4070,13 +4070,19 @@ private:
         bool updateTabletStatistics = true)
     {
         if (!Bootstrap_->IsPrimaryMaster()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
                 table->GetId(),
-                updateDataStatistics);
+                updateDataStatistics,
+                updateTabletStatistics);
 
             TTableStatistics statistics;
             if (updateTabletStatistics) {
-                statistics.TabletResourceUsage = table->GetTabletResourceUsage();
+                auto resourceUsage = table->GetTabletResourceUsage();
+                statistics.TabletResourceUsage = resourceUsage;
+
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, TabletStaticUsage: %v)",
+                    table->GetId(),
+                    resourceUsage.TabletStaticMemory);
             }
             if (updateDataStatistics) {
                 statistics.DataStatistics = table->SnapshotStatistics();
