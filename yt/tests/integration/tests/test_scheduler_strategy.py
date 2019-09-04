@@ -2333,7 +2333,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "y")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "offline")
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
         wait(lambda: get("//sys/scheduler/@alerts"))
         assert get("//sys/scheduler/@alerts")[0]
 
