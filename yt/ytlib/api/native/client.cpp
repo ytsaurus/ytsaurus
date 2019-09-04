@@ -203,16 +203,6 @@ TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonStr
         : archiveProgress;
 }
 
-TYsonString GetValueIgnoringTimeout(const TErrorOr<TYsonString>& resultOrError)
-{
-    if (resultOrError.GetCode() != NYT::EErrorCode::Timeout) {
-        resultOrError.ThrowOnError();
-    }
-    return resultOrError.IsOK()
-        ? resultOrError.Value()
-        : TYsonString();
-}
-
 constexpr i64 ListJobsFromArchiveInProgressJobLimit = 100000;
 
 } // namespace
@@ -2459,7 +2449,17 @@ TYsonString TClient::DoGetOperation(
 
     TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
     if (DoesOperationsArchiveExist()) {
-         archiveFuture = BIND(&TClient::DoGetOperationFromArchive, MakeStrong(this), operationId, deadline, options)
+        // We request state to distinguish controller agent's archive entries
+        // from operation cleaner's ones (the latter must have "state" field).
+        auto archiveOptions = options;
+        if (archiveOptions.Attributes) {
+            archiveOptions.Attributes->insert("state");
+        }
+        archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
+            MakeStrong(this),
+            operationId,
+            deadline,
+            std::move(archiveOptions))
             .AsyncVia(Connection_->GetInvoker())
             .Run()
             .WithTimeout(options.ArchiveTimeout);
@@ -2470,16 +2470,22 @@ TYsonString TClient::DoGetOperation(
         .ValueOrThrow();
 
     auto cypressResult = cypressFuture.Get().ValueOrThrow();
-    auto archiveResult = GetValueIgnoringTimeout(archiveFuture.Get());
 
-    if (archiveResult && cypressResult) {
-        // Merging goes here.
-        auto cypressNode = ConvertToNode(cypressResult)->AsMap();
+    auto archiveResultOrError = archiveFuture.Get();
+    TYsonString archiveResult;
+    if (archiveResultOrError.IsOK()) {
+        archiveResult = archiveResultOrError.Value();
+    }
+
+    auto mergeResults = [] (const TYsonString& cypressResult, const TYsonString& archiveResult) {
+        auto cypressResultNode = ConvertToNode(cypressResult);
+        YT_VERIFY(cypressResultNode->GetType() == ENodeType::Map);
+        const auto& cypressResultMap = cypressResultNode->AsMap();
 
         std::vector<TString> fieldNames = {"brief_progress", "progress"};
         for (const auto& fieldName : fieldNames) {
-            auto cypressFieldNode = cypressNode->FindChild(fieldName);
-            cypressNode->RemoveChild(fieldName);
+            auto cypressFieldNode = cypressResultMap->FindChild(fieldName);
+            cypressResultMap->RemoveChild(fieldName);
 
             auto archiveFieldString = NYTree::TryGetAny(archiveResult.GetData(), "/" + fieldName);
 
@@ -2494,22 +2500,65 @@ TYsonString TClient::DoGetOperation(
             }
 
             if (auto result = GetLatestProgress(cypressFieldYsonString, archiveFieldYsonString)) {
-                cypressNode->AddChild(fieldName, ConvertToNode(result));
+                cypressResultMap->AddChild(fieldName, ConvertToNode(result));
             }
         }
-        return ConvertToYsonString(cypressNode);
-    } else if (archiveResult) {
-        return archiveResult;
+        return ConvertToYsonString(cypressResultMap);
+    };
+
+    if (archiveResult && cypressResult) {
+        return mergeResults(cypressResult, archiveResult);
     } else if (cypressResult) {
         return cypressResult;
-    } else {
-        THROW_ERROR_EXCEPTION(
-            NApi::EErrorCode::NoSuchOperation,
-            "No such operation %v",
-            operationId)
-            << cypressFuture.Get()
-            << archiveFuture.Get();
     }
+
+    if (archiveResult) {
+        // We have a non-empty response from archive and an empty response from Cypress.
+        // If the archive response is incomplete (i.e. written by controller agent),
+        // we need to retry the archive request as there might be a race
+        // between these two requests and operation archivation.
+        //
+        // ---------------------------------------------------> time
+        //         |               |             |
+        //    archive rsp.   archivation   cypress rsp.
+        //
+        // NB: Here we assume that controller agent
+        // does not write "state" field to the archive.
+        // Also this field must be removed if it was not requested.
+        auto isComplete = TryGetString(archiveResult.GetData(), "/state").has_value();
+        if (isComplete) {
+            if (!options.Attributes || options.Attributes->contains("state")) {
+                return archiveResult;
+            }
+            auto archiveResultNode = ConvertToNode(archiveResult);
+            YT_VERIFY(archiveResultNode->GetType() == ENodeType::Map);
+            archiveResultNode->AsMap()->RemoveChild("state");
+            return ConvertToYsonString(archiveResultNode);
+        }
+
+        archiveResult = DoGetOperationFromArchive(operationId, deadline, options);
+        if (archiveResult) {
+            return archiveResult;
+        }
+    }
+
+    if (!archiveResultOrError.IsOK()) {
+        // The operation is missing from Cypress and the archive request finished with errors.
+        // If it is timeout error, we retry without timeout.
+        // Otherwise we throw the error as there is no hope.
+        if (archiveResultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+            archiveResultOrError.ThrowOnError();
+        }
+        archiveResult = DoGetOperationFromArchive(operationId, deadline, options);
+        if (archiveResult) {
+            return archiveResult;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION(
+        NApi::EErrorCode::NoSuchOperation,
+        "No such operation %v",
+        operationId);
 }
 
 void TClient::DoDumpJobContext(
