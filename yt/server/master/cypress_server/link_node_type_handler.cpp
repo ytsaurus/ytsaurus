@@ -94,14 +94,14 @@ private:
 
     virtual void DoClone(
         TLinkNode* sourceNode,
-        TLinkNode* clonedNode,
+        TLinkNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        clonedNode->SetTargetPath(sourceNode->GetTargetPath());
+        clonedTrunkNode->SetTargetPath(sourceNode->GetTargetPath());
     }
 
     virtual bool HasBranchedChangesImpl(
@@ -113,6 +113,27 @@ private:
         }
 
         return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
+    }
+
+    virtual void DoBeginCopy(
+        TLinkNode* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        Save(*context, node->GetTargetPath());
+    }
+
+    virtual void DoEndCopy(
+        TLinkNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        using NYT::Load;
+        trunkNode->SetTargetPath(Load<TYPath>(*context));
     }
 };
 

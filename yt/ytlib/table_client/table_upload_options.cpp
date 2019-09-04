@@ -223,11 +223,6 @@ TTableUploadOptions GetTableUploadOptions(
         result.ErasureCodec = erasureCodec;
     }
 
-<<<<<<< HEAD
-    if (!dynamic && path.GetOutputChunkFormat() != EOutputChunkFormat::Unversioned) {
-        THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" can have value %Qlv only for dynamic tables",
-            path.GetOutputChunkFormat())
-=======
     if (path.GetSchemaModification() == ETableSchemaModification::UnversionedUpdateUnsorted) {
         THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" cannot have value %Qlv for output tables",
             path.GetSchemaModification())
@@ -235,7 +230,6 @@ TTableUploadOptions GetTableUploadOptions(
     } else if (!dynamic && path.GetSchemaModification() != ETableSchemaModification::None) {
         THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" can have value %Qlv only for dynamic tables",
             path.GetSchemaModification())
->>>>>>> Bulk delete revisited: introduce ETableSchemaModification
             << TErrorAttribute("path", path);
     }
     result.SchemaModification = path.GetSchemaModification();

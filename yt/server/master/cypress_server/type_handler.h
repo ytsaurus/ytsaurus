@@ -8,6 +8,10 @@
 
 #include <yt/server/master/object_server/public.h>
 
+// XXX(babenko)
+#include <yt/server/master/chunk_server/public.h>
+#include <yt/server/master/tablet_server/public.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -25,6 +29,8 @@ struct TCreateNodeContext
     NSecurityServer::TAccount* Account = nullptr;
     TCypressShard* Shard = nullptr;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides node type-specific services.
 struct INodeTypeHandler
@@ -58,6 +64,17 @@ struct INodeTypeHandler
     virtual std::unique_ptr<TCypressNode> Create(
         TNodeId hintId,
         const TCreateNodeContext& context) = 0;
+
+    //! Serializes the subtree rooted at #node as a part of |BeginCopy| verb handling.
+    virtual void BeginCopy(
+        TCypressNode* node,
+        TBeginCopyContext* context) = 0;
+
+    //! Deserializes the subtree rooted at #node as a part of |EndCopy| verb handling.
+    virtual TCypressNode* EndCopy(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId) = 0;
 
     //! Fills attributes of a trunk node. Usually applied to newly created nodes.
     virtual void FillAttributes(

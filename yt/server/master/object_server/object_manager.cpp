@@ -108,7 +108,6 @@ TPathResolver::TResolveResult ResolvePath(
         GetTransactionId(context));
     auto result = resolver.Resolve();
     if (result.CanCacheResolve) {
-        // XXX(babenko): profiling
         auto populateResult = resolver.Resolve(TPathResolverOptions{
             .PopulateResolveCache = true
         });
@@ -366,7 +365,7 @@ public:
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
                 THROW_ERROR_EXCEPTION(
-                    NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                    NObjectClient::EErrorCode::CrossCellAdditionalPath,
                     "Request is cross-cell since it involves target path %v and additional path %v",
                     forwardedYPathExt->original_target_path(),
                     additionalPath);

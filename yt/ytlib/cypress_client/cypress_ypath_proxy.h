@@ -20,6 +20,8 @@ struct TCypressYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Lock);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Unlock);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Copy);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BeginCopy);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, EndCopy);
 
     // Used internally when implementing List and Get for multicell virtual maps.
     DEFINE_YPATH_PROXY_METHOD(NProto, Enumerate);

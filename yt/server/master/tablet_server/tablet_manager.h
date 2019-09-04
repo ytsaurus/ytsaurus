@@ -89,10 +89,11 @@ public:
 
     void ValidateCloneTable(
         NTableServer::TTableNode* sourceTable,
-        NTableServer::TTableNode* clonedTable,
-        NTransactionServer::TTransaction* transaction,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account);
+    void ValidateBeginCopyTable(
+        NTableServer::TTableNode* sourceTable,
+        NCypressServer::ENodeCloneMode mode);
 
     void MountTable(
         NTableServer::TTableNode* table,
@@ -171,6 +172,7 @@ public:
     void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwniner);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name);
     void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName);
@@ -185,7 +187,7 @@ public:
     void RemoveTabletCell(TTabletCell* cell, bool force);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(TTabletId);
+    TTablet* GetTabletOrThrow(TTabletId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);

@@ -69,6 +69,12 @@ using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
 using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;
 using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
 
+struct TCreateNodeContext;
+
+class TBeginCopyContext;
+class TEndCopyContext;
+using TCopyPersistenceContext = TCustomPersistenceContext<TBeginCopyContext, TEndCopyContext>;
+
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)
 

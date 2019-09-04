@@ -62,7 +62,8 @@ public:
                 // NB: Always handle mutating Cypress verbs locally.
                 if (method == "Remove" ||
                     method == "Create" ||
-                    method == "Copy")
+                    method == "Copy" ||
+                    method == "EndCopy")
                 {
                     return TResolveResultHere{path};
                 } else {

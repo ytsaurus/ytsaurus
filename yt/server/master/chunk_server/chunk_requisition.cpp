@@ -39,14 +39,14 @@ TReplicationPolicy& TReplicationPolicy::operator|=(const TReplicationPolicy& rhs
     return *this;
 }
 
-void TReplicationPolicy::Save(NCellMaster::TSaveContext& context) const
+void TReplicationPolicy::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
     Save(context, ReplicationFactor_);
     Save(context, DataPartsOnly_);
 }
 
-void TReplicationPolicy::Load(NCellMaster::TLoadContext& context)
+void TReplicationPolicy::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
     ReplicationFactor_ = Load<decltype(ReplicationFactor_)>(context);
@@ -88,20 +88,12 @@ TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
     , Policy_(policy)
 { }
 
-void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
+void TChunkReplication::TEntry::Persist(TStreamPersistenceContext& context)
 {
-    using NYT::Save;
+    using NYT::Persist;
 
-    Save(context, MediumIndex_);
-    Save(context, Policy_);
-}
-
-void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, MediumIndex_);
-    Load(context, Policy_);
+    Persist(context, MediumIndex_);
+    Persist(context, Policy_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +123,20 @@ void TChunkReplication::Load(NCellMaster::TLoadContext& context)
         Load(context, Entries_);
     }
 
+    Load(context, Vital_);
+}
+
+void TChunkReplication::Save(NCypressServer::TBeginCopyContext& context) const
+{
+    using NYT::Save;
+    Save(context, Entries_);
+    Save(context, Vital_);
+}
+
+void TChunkReplication::Load(NCypressServer::TEndCopyContext& context)
+{
+    using NYT::Load;
+    Load(context, Entries_);
     Load(context, Vital_);
 }
 

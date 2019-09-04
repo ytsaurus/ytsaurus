@@ -122,34 +122,31 @@ public:
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        for (const auto& clone : CreatedClones_) {
-            auto* sourceNode = clone.Source;
-            auto* clonedNode = clone.Clone;
+        for (const auto& clone : ClonedExternalNodes_) {
             NProto::TReqCloneForeignNode protoRequest;
-            ToProto(protoRequest.mutable_source_node_id(), sourceNode->GetId());
-            if (sourceNode->GetTransaction()) {
-                ToProto(protoRequest.mutable_source_transaction_id(), sourceNode->GetTransaction()->GetId());
+            ToProto(protoRequest.mutable_source_node_id(), clone.SourceId.ObjectId);
+            if (clone.SourceId.TransactionId) {
+                ToProto(protoRequest.mutable_source_transaction_id(), clone.SourceId.TransactionId);
             }
-            ToProto(protoRequest.mutable_cloned_node_id(), clonedNode->GetId());
-            if (clonedNode->GetTransaction()) {
-                ToProto(protoRequest.mutable_cloned_transaction_id(), clonedNode->GetTransaction()->GetId());
+            ToProto(protoRequest.mutable_cloned_node_id(), clone.CloneId.ObjectId);
+            if (clone.CloneId.TransactionId) {
+                ToProto(protoRequest.mutable_cloned_transaction_id(), clone.CloneId.TransactionId);
             }
             protoRequest.set_mode(static_cast<int>(clone.Mode));
-            ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
-
-            multicellManager->PostToMaster(protoRequest, sourceNode->GetExternalCellTag());
+            ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
+            multicellManager->PostToMaster(protoRequest, clone.ExternalCellTag);
         }
 
         for (const auto& externalNode : CreatedExternalNodes_) {
             NProto::TReqCreateForeignNode protoRequest;
-            ToProto(protoRequest.mutable_node_id(), externalNode.Node->GetId());
+            ToProto(protoRequest.mutable_node_id(), externalNode.NodeId);
             if (Transaction_) {
                 ToProto(protoRequest.mutable_transaction_id(), Transaction_->GetId());
             }
-            protoRequest.set_type(static_cast<int>(externalNode.Node->GetType()));
+            protoRequest.set_type(static_cast<int>(externalNode.NodeType));
             ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
             ToProto(protoRequest.mutable_inherited_node_attributes(), *externalNode.ReplicationInheritedAttributes);
-            ToProto(protoRequest.mutable_account_id(), externalNode.Account->GetId());
+            ToProto(protoRequest.mutable_account_id(), externalNode.AccountId);
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
@@ -223,9 +220,36 @@ public:
         return Account_;
     }
 
-    virtual TAccount* GetClonedNodeAccount(TCypressNode* sourceNode) const override
+    virtual TAccount* GetClonedNodeAccount(TAccount* sourceAccount) const override
     {
-        return Options_.PreserveAccount ? sourceNode->GetAccount() : Account_;
+        return Options_.PreserveAccount ? sourceAccount : Account_;
+    }
+
+    virtual void ValidateClonedAccount(
+        ENodeCloneMode mode,
+        TAccount* sourceAccount,
+        TClusterResources sourceResourceUsage,
+        TAccount* clonedAccount) override
+    {
+        clonedAccount->ValidateCreationCommitted();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(clonedAccount, EPermission::Use);
+
+        // Resource limit check must be suppressed when moving nodes
+        // without altering the account.
+        if (mode != ENodeCloneMode::Move || clonedAccount != sourceAccount) {
+            TClusterResources resourceUsageIncrease;
+            if (Options_.PessimisticQuotaCheck && clonedAccount != sourceAccount) {
+                resourceUsageIncrease = std::move(sourceResourceUsage)
+                    .SetTabletCount(0)
+                    .SetTabletStaticMemory(0);
+            } else {
+                resourceUsageIncrease = TClusterResources()
+                    .SetNodeCount(1);
+            }
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
+        }
     }
 
     virtual ICypressNodeProxyPtr CreateNode(
@@ -239,8 +263,6 @@ public:
             THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
                 type);
         }
-
-        ValidateCreatedNodeTypePermission(type);
 
         std::unique_ptr<IAttributeDictionary> explicitAttributeHolder;
         if (!explicitAttributes) {
@@ -338,11 +360,12 @@ public:
 
         if (external) {
             CreatedExternalNodes_.push_back(TCreatedExternalNode{
-                .Node = StageObject(trunkNode),
-                .Account = StageObject(account),
-                .ExternalCellTag = externalCellTag,
+                .NodeType = trunkNode->GetType(),
+                .NodeId = trunkNode->GetId(),
+                .AccountId = account->GetId(),
                 .ReplicationExplicitAttributes = std::move(replicationExplicitAttributes),
-                .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes)
+                .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes),
+                .ExternalCellTag = externalCellTag
             });
         }
 
@@ -373,23 +396,6 @@ public:
         TCypressNode* sourceNode,
         ENodeCloneMode mode) override
     {
-        ValidateCreatedNodeTypePermission(sourceNode->GetType());
-
-        auto* clonedAccount = GetClonedNodeAccount(sourceNode);
-        // Resource limit check must be suppressed when moving nodes
-        // without altering the account.
-        if (mode != ENodeCloneMode::Move || clonedAccount != sourceNode->GetAccount()) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            TClusterResources resourceUsageIncrease;
-            if (Options_.PessimisticQuotaCheck && clonedAccount != sourceNode->GetAccount()) {
-                auto totalUsageIncrease = sourceNode->GetTotalResourceUsage();
-                resourceUsageIncrease = std::move(totalUsageIncrease).SetTabletCount(0).SetTabletStaticMemory(0);
-            } else {
-                resourceUsageIncrease = TClusterResources().SetNodeCount(1);
-            }
-            securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
-        }
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
         auto* clonedNode = cypressManager->LockNode(
@@ -402,11 +408,46 @@ public:
         // NB: No need to call RegisterCreatedNode since
         // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
         // which calls RegisterCreatedNode.
-        if (sourceNode->IsExternal()) {
-            CreatedClones_.push_back(TCreatedClone{
+
+        if (clonedNode->IsExternal()) {
+            ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = mode,
-                .Source =  StageObject(sourceNode),
-                .Clone = StageObject(clonedNode)
+                .SourceId = sourceNode->GetVersionedId(),
+                .CloneId = clonedNode->GetVersionedId(),
+                .CloneAccountId = clonedNode->GetAccount()->GetId(),
+                .ExternalCellTag = clonedNode->GetExternalCellTag()
+            });
+        }
+
+        return clonedTrunkNode;
+    }
+
+    virtual TCypressNode* EndCopyNode(TEndCopyContext* context) override
+    {
+        // See BeginCopyCore.
+        using NYT::Load;
+        auto sourceNodeId = Load<TNodeId>(*context);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+        auto* clonedNode = cypressManager->LockNode(
+            clonedTrunkNode,
+            Transaction_,
+            ELockMode::Exclusive,
+            false,
+            true);
+
+        // NB: No need to call RegisterCreatedNode since
+        // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
+        // which calls RegisterCreatedNode.
+
+        if (clonedNode->IsExternal()) {
+            ClonedExternalNodes_.push_back(TClonedExternalNode{
+                .Mode = context->GetMode(),
+                .SourceId = TVersionedObjectId(sourceNodeId, Transaction_->GetId()),
+                .CloneId = TVersionedObjectId(clonedNode->GetId(), Transaction_->GetId()),
+                .CloneAccountId = clonedNode->GetAccount()->GetId(),
+                .ExternalCellTag = clonedNode->GetExternalCellTag()
             });
         }
 
@@ -431,33 +472,28 @@ private:
     };
     std::vector<TCreatedPortalEntrance> CreatedPortalEntrances_;
 
-    struct TCreatedClone
+    struct TClonedExternalNode
     {
         ENodeCloneMode Mode;
-        TCypressNode* Source;
-        TCypressNode* Clone;
+        TVersionedNodeId SourceId;
+        TVersionedNodeId CloneId;
+        // XXX(babenko): check lifetime
+        TAccountId CloneAccountId;
+        TCellTag ExternalCellTag;
     };
-    std::vector<TCreatedClone> CreatedClones_;
+    std::vector<TClonedExternalNode> ClonedExternalNodes_;
 
     struct TCreatedExternalNode
     {
-        TCypressNode* Node;
-        TAccount* Account;
-        TCellTag ExternalCellTag;
+        EObjectType NodeType;
+        TNodeId NodeId;
+        TAccountId AccountId;
         std::unique_ptr<IAttributeDictionary> ReplicationExplicitAttributes;
         std::unique_ptr<IAttributeDictionary> ReplicationInheritedAttributes;
+        TCellTag ExternalCellTag;
     };
     std::vector<TCreatedExternalNode> CreatedExternalNodes_;
 
-
-    void ValidateCreatedNodeTypePermission(EObjectType type)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* schema = objectManager->GetSchema(type);
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(schema, EPermission::Create);
-    }
 
     void RegisterCreatedNode(TCypressNode* trunkNode)
     {
@@ -805,6 +841,8 @@ public:
         YT_VERIFY(context.InheritedAttributes);
         YT_VERIFY(context.ExplicitAttributes);
 
+        ValidateCreatedNodeTypePermission(handler->GetObjectType());
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
@@ -813,8 +851,7 @@ public:
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set owner.
-        auto* acd = securityManager->GetAcd(node);
-        acd->SetOwner(user);
+        node->Acd().SetOwner(user);
 
         NodeCreated_.Fire(node);
 
@@ -844,16 +881,37 @@ public:
         YT_VERIFY(sourceNode);
         YT_VERIFY(factory);
 
-        // Validate account access _before_ creating the actual copy.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode);
-        securityManager->ValidatePermission(clonedAccount, EPermission::Use);
+        ValidateCreatedNodeTypePermission(sourceNode->GetType());
+
+        auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode->GetAccount());
+        factory->ValidateClonedAccount(
+            mode,
+            sourceNode->GetAccount(),
+            sourceNode->GetTotalResourceUsage(),
+            clonedAccount);
 
         return DoCloneNode(
             sourceNode,
             factory,
             NullObjectId,
             mode);
+    }
+
+    TCypressNode* EndCopyNode(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(context);
+        YT_VERIFY(factory);
+
+        // See BeginCopyCore.
+        auto type = Load<EObjectType>(*context);
+        ValidateCreatedNodeTypePermission(type);
+
+        const auto& handler = GetHandler(type);
+        return handler->EndCopy(context, factory, sourceNodeId);
     }
 
 
@@ -1025,6 +1083,7 @@ public:
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(request.Mode != ELockMode::None);
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
+        YT_VERIFY(!transaction || IsObjectAlive(transaction));
 
         auto error = CheckLock(
             trunkNode,
@@ -2890,10 +2949,10 @@ private:
         ENodeCloneMode mode)
     {
         // Prepare account.
-        auto* account = factory->GetClonedNodeAccount(sourceNode);
+        auto* account = factory->GetClonedNodeAccount(sourceNode->GetAccount());
 
         const auto& handler = GetHandler(sourceNode);
-        auto* clonedNode = handler->Clone(
+        auto* clonedTrunkNode = handler->Clone(
             sourceNode,
             factory,
             hintId,
@@ -2903,21 +2962,30 @@ private:
         // Set owner.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        auto* acd = securityManager->GetAcd(clonedNode);
-        acd->SetOwner(user);
+        clonedTrunkNode->Acd().SetOwner(user);
 
         // Copy expiration time.
         auto expirationTime = sourceNode->GetTrunkNode()->TryGetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
-            SetExpirationTime(clonedNode, *expirationTime);
+            SetExpirationTime(clonedTrunkNode, *expirationTime);
         }
 
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {
-            clonedNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
+            clonedTrunkNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
         }
 
-        return clonedNode;
+        return clonedTrunkNode;
+    }
+
+
+    void ValidateCreatedNodeTypePermission(EObjectType type)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* schema = objectManager->GetSchema(type);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(schema, EPermission::Create);
     }
 
 
@@ -2955,7 +3023,7 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId
-            ? transactionManager->GetTransaction(transactionId)
+            ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -3000,10 +3068,10 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
-            ? transactionManager->GetTransaction(sourceTransactionId)
+            ? transactionManager->GetTransactionOrThrow(sourceTransactionId)
             : nullptr;
         auto* clonedTransaction = clonedTransactionId
-            ? transactionManager->GetTransaction(clonedTransactionId)
+            ? transactionManager->GetTransactionOrThrow(clonedTransactionId)
             : nullptr;
 
         auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
@@ -3302,6 +3370,14 @@ TCypressNode* TCypressManager::CloneNode(
     ENodeCloneMode mode)
 {
     return Impl_->CloneNode(sourceNode, factory, mode);
+}
+
+TCypressNode* TCypressManager::EndCopyNode(
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory,
+    TNodeId sourceNodeId)
+{
+    return Impl_->EndCopyNode(context, factory, sourceNodeId);
 }
 
 TMapNode* TCypressManager::GetRootNode() const

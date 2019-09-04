@@ -26,7 +26,7 @@ def _maybe_purge_resolve_cache(flag, path):
 class TestPortals(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
 
     @authors("babenko")
@@ -300,24 +300,158 @@ class TestPortals(YTEnvSetup):
         assert exists("//tmp/p/t2")
 
     @authors("babenko")
-    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
-    def test_cross_shard_copy_forbidden1(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/t")
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        with pytest.raises(YtError):
-            copy("//tmp/t", "//tmp/p/t")
-
-    @authors("babenko")
-    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
-    def test_cross_shard_copy_forbidden2(self, purge_resolve_cache):
+    @pytest.mark.parametrize("in_tx", [False, True])
+    def test_cross_cell_copy(self, in_tx):
+        create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
-        create("table", "//tmp/p1/t")
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1")
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p2")
+
+        create("map_node", "//tmp/p1/m", attributes={"account": "a"})
+        create("document", "//tmp/p1/m/d", attributes={"value": {"hello": "world"}})
+        create("list_node", "//tmp/p1/m/l")
+        create("int64_node", "//tmp/p1/m/l/end")
+        set("//tmp/p1/m/l/-1", 123)
+        create("uint64_node", "//tmp/p1/m/l/end")
+        set("//tmp/p1/m/l/-1", 345)
+        create("double_node", "//tmp/p1/m/l/end")
+        set("//tmp/p1/m/l/-1", 3.14)
+        create("string_node", "//tmp/p1/m/l/end")
+        set("//tmp/p1/m/l/-1", "test")
+
+        create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 3})
+        assert get("//tmp/p1/m/f/@account") == "a"
+        FILE_PAYLOAD = "PAYLOAD"
+        write_file("//tmp/p1/m/f", FILE_PAYLOAD)
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1)
+
+        create("table", "//tmp/p1/m/t", attributes={"external_cell_tag": 3, "optimize_for": "scan", "account": "tmp"})
+        assert get("//tmp/p1/m/t/@account") == "tmp"
+        TABLE_PAYLOAD = [{"key": "value"}]
+        write_table("//tmp/p1/m/t", TABLE_PAYLOAD)
+        
+        if in_tx:
+            tx = start_transaction()
+        else:
+            tx = "0-0-0-0"
+
+        copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True, tx=tx)
+        
+        assert get("//tmp/p2/m/@type", tx=tx) == "map_node"
+        assert get("//tmp/p2/m/@account", tx=tx) == "a"
+        assert get("//tmp/p2/m/d/@type", tx=tx) == "document"
+        assert get("//tmp/p2/m/d", tx=tx) == {"hello": "world"}
+        assert get("//tmp/p2/m/l/@type", tx=tx) == "list_node"
+        assert get("//tmp/p2/m/l", tx=tx) == [123, 345, 3.14, "test"]
+
+        assert get("//tmp/p2/m/f/@type", tx=tx) == "file"
+        assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get("//tmp/p1/m/f/@resource_usage")
+        assert get("//tmp/p2/m/f/@uncompressed_data_size", tx=tx) == len(FILE_PAYLOAD)
+        assert read_file("//tmp/p2/m/f", tx=tx) == FILE_PAYLOAD
+        assert read_table("//tmp/p2/m/t", tx=tx) == TABLE_PAYLOAD
+
+        assert get("//sys/accounts/a/@resource_usage/chunk_count") == 1
+
+        if in_tx:
+            commit_transaction(tx)
+
+        create_account("b")
+        set("//tmp/p2/m/f/@account", "b")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1 and \
+                     get("//sys/accounts/b/@resource_usage/chunk_count") == 1)
+
+        chunk_ids = get("//tmp/p2/m/f/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        assert_items_equal(get("#{}/@owning_nodes".format(chunk_id)), ["//tmp/p1/m/f", "//tmp/p2/m/f"])
+
+        remove("//tmp/p1/m/f")
+        remove("//tmp/p2/m/f")
+
+        wait(lambda: not exists("#" + chunk_id))
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("in_tx", [False, True])
+    def test_cross_cell_move(self, in_tx):
+        create_account("a")
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+
+        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+        FILE_PAYLOAD = "PAYLOAD"
+        write_file("//tmp/p1/f", FILE_PAYLOAD)
+
+        if in_tx:
+            tx = start_transaction()
+        else:
+            tx = "0-0-0-0"
+
+        move("//tmp/p1/f", "//tmp/p2/f", tx=tx, preserve_account=True)
+
+        assert not exists("//tmp/p1/f", tx=tx)
+        assert exists("//tmp/p2/f", tx=tx)
+
+        if in_tx:
+            assert exists("//tmp/p1/f")
+            assert not exists("//tmp/p2/f")
+
+        assert read_file("//tmp/p2/f", tx=tx) == FILE_PAYLOAD
+
+        if in_tx:
+            commit_transaction(tx)
+
+        assert get("//tmp/p2/f/@account") == "a"
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")
+
+    @authors("babenko")
+    def test_cross_cell_copy_removed_account(self):
+        create_account("a")
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+
+        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+
+        remove("//sys/accounts/a")
+        wait(lambda: get("//sys/accounts/a/@life_stage") == "removal_pre_committed")
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
+
+        remove("//tmp/p1/f")
+        wait(lambda: not exists("//sys/accounts/a"))
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")
+
+    @authors("babenko")
+    def test_cross_cell_copy_removed_bundle(self):
+        create_tablet_cell_bundle("b")
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+
+        create("table", "//tmp/p1/t", attributes={"external_cell_tag": 3, "tablet_cell_bundle": "b"})
+
+        remove("//sys/tablet_cell_bundles/b")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
+
         with pytest.raises(YtError):
             copy("//tmp/p1/t", "//tmp/p2/t")
+
+        remove("//tmp/p1/t")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")
 
 ##################################################################
 
@@ -398,12 +532,4 @@ class TestResolveCache(YTEnvSetup):
         assert get("//tmp/dir1/dir2b/@resolve_cached")
         assert get("//tmp/dir1/dir2b/p&/@resolve_cached")
 
-    @authors("babenko")
-    def test_(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        for i in xrange(10):
-            ls("//sys/cypress_shards")
-        create("map_node", "//tmp/p/a")
-        remove("//tmp/p")
-        for i in xrange(10):
-            ls("//sys/cypress_shards")
+

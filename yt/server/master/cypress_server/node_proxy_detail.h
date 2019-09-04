@@ -212,6 +212,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, BeginCopy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, EndCopy);
 
 private:
     TCypressNode* DoGetThisImpl();
@@ -219,7 +221,14 @@ private:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
 
-    void GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes);
+    void GatherInheritableAttributes(
+        TCypressNode* parent,
+        TCompositeNodeBase::TAttributes* attributes);
+
+    template <class TContextPtr, class TClonedTreeBuilder>
+    void CopyCore(
+        const TContextPtr& context,
+        const TClonedTreeBuilder& clonedTreeBuilder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

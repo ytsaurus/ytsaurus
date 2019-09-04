@@ -5,6 +5,7 @@
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -65,14 +66,14 @@ private:
 
     virtual void DoClone(
         TDocumentNode* sourceNode,
-        TDocumentNode* clonedNode,
+        TDocumentNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
+        clonedTrunkNode->SetValue(CloneNode(sourceNode->GetValue()));
     }
 
     virtual bool HasBranchedChangesImpl(
@@ -84,6 +85,27 @@ private:
         }
 
         return !AreNodesEqual(branchedNode->GetValue(), originatingNode->GetValue());
+    }
+
+    virtual void DoBeginCopy(
+        TDocumentNode* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        Save(*context, ConvertToYsonString(node->GetValue()));
+    }
+
+    virtual void DoEndCopy(
+        TDocumentNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        using NYT::Load;
+        trunkNode->SetValue(ConvertToNode(Load<TYsonString>(*context)));
     }
 };
 

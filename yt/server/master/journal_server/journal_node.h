@@ -20,7 +20,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, WriteQuorum);
 
 public:
-    explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
+    using TBase::TBase;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
@@ -43,10 +43,6 @@ private:
     bool Sealed_ = true;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-NCypressServer::INodeTypeHandlerPtr CreateJournalTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

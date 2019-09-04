@@ -170,7 +170,7 @@ void AppendVector(TVector& destination, const TVector& source)
 
 // && version.
 template <class TVector>
-void AppendVector(TVector& destination, TVector&& source) 
+void AppendVector(TVector& destination, TVector&& source)
 {
     destination.insert(
         destination.end(),
@@ -195,6 +195,30 @@ std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest)
     NDetail::TDoInOrder { (NDetail::AppendVector(first, std::forward<TArgs>(rest)), 0)... };
     // Not quite sure why, but in the original article result is explicitly moved.
     return std::move(first);
+}
+
+template <class T>
+void SortByFirst(T begin, T end)
+{
+    std::sort(begin, end, [] (const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+}
+
+template <class T>
+void SortByFirst(T& collection)
+{
+    SortByFirst(collection.begin(), collection.end());
+}
+
+template <class T>
+std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMapByKeys(const T& hashMap)
+{
+    std::vector<std::pair<typename T::key_type, typename T::mapped_type>> vector;
+    vector.reserve(hashMap.size());
+    for (const auto& pair : hashMap) {
+        vector.emplace_back(pair.first, pair.second);
+    }
+    SortByFirst(vector);
+    return vector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

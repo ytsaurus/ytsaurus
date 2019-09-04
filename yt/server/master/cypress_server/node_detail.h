@@ -41,6 +41,13 @@ public:
 
     virtual NObjectServer::ETypeFlags GetFlags() const override;
 
+    virtual void FillAttributes(
+        TCypressNode* trunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes) override;
+
+    virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const;
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -52,6 +59,14 @@ protected:
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
     void DestroyCore(TCypressNode* node);
+
+    void BeginCopyCore(
+        TCypressNode* node,
+        TBeginCopyContext* context);
+    TCypressNode* EndCopyCore(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
 
     void BranchCore(
         TCypressNode* originatingNode,
@@ -71,7 +86,7 @@ protected:
 
     void CloneCoreEpilogue(
         TCypressNode* sourceNode,
-        TCypressNode* clonedNode,
+        TCypressNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
 };
@@ -116,29 +131,6 @@ public:
         return DoCreate(TVersionedNodeId(id), context);
     }
 
-    virtual void FillAttributes(
-        TCypressNode* trunkNode,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        NYTree::IAttributeDictionary* explicitAttributes) override
-    {
-        for (const auto& key : inheritedAttributes->ListKeys()) {
-            if (!IsSupportedInheritableAttribute(key)) {
-                inheritedAttributes->Remove(key);
-            }
-        }
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
-        objectManager->FillAttributes(trunkNode, combinedAttributes);
-    }
-
-    virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const
-    {
-        // NB: most node types don't inherit attributes. That would lead to
-        // a lot of pseudo-user attributes.
-        return false;
-    }
-
     virtual void Destroy(TCypressNode* node) override
     {
         // Run core stuff.
@@ -146,6 +138,24 @@ public:
 
         // Run custom stuff.
         DoDestroy(node->As<TImpl>());
+    }
+
+    virtual void BeginCopy(
+        TCypressNode* node,
+        TBeginCopyContext* context) override
+    {
+        BeginCopyCore(node, context);
+        DoBeginCopy(node->As<TImpl>(), context);
+    }
+
+    virtual TCypressNode* EndCopy(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId) override
+    {
+        auto* trunkNode = EndCopyCore(context, factory, sourceNodeId);
+        DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
+        return trunkNode;
     }
 
     virtual std::unique_ptr<TCypressNode> Branch(
@@ -203,7 +213,7 @@ public:
         NSecurityServer::TAccount* account) override
     {
         // Run core prologue stuff.
-        auto* clonedNode = CloneCorePrologue(
+        auto* clonedTrunkNode = CloneCorePrologue(
             factory,
             hintId,
             sourceNode,
@@ -211,17 +221,17 @@ public:
 
         // Run custom stuff.
         auto* typedSourceNode = sourceNode->template As<TImpl>();
-        auto* typedClonedNode = clonedNode->template As<TImpl>();
-        DoClone(typedSourceNode, typedClonedNode, factory, mode, account);
+        auto* typedClonedTrunkNode = clonedTrunkNode->template As<TImpl>();
+        DoClone(typedSourceNode, typedClonedTrunkNode, factory, mode, account);
 
         // Run core epilogue stuff.
         CloneCoreEpilogue(
             sourceNode,
-            clonedNode,
+            clonedTrunkNode,
             factory,
             mode);
 
-        return clonedNode;
+        return clonedTrunkNode;
     }
 
     virtual bool HasBranchedChanges(
@@ -267,6 +277,17 @@ protected:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ResetAccount(node);
     }
+
+    virtual void DoBeginCopy(
+        TImpl* /*node*/,
+        TBeginCopyContext* /*context*/)
+    { }
+
+    virtual void DoEndCopy(
+        TImpl* /*trunkNode*/,
+        TEndCopyContext* /*context*/,
+        ICypressNodeFactory* /*factory*/)
+    { }
 
     virtual void DoBranch(
         const TImpl* /*originatingNode*/,
@@ -329,7 +350,7 @@ protected:
 
     virtual void DoClone(
         TImpl* /*sourceNode*/,
-        TImpl* /*cloned*/Node,
+        TImpl* /*clonedTrunkNode*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         NSecurityServer::TAccount* /*account*/)
@@ -479,14 +500,35 @@ protected:
 
     virtual void DoClone(
         TScalarNode<TValue>* sourceNode,
-        TScalarNode<TValue>* clonedNode,
+        TScalarNode<TValue>* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        clonedNode->Value() = sourceNode->Value();
+        clonedTrunkNode->Value() = sourceNode->Value();
+    }
+
+    virtual void DoBeginCopy(
+        TScalarNode<TValue>* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        Save(*context, node->Value());
+    }
+
+    virtual void DoEndCopy(
+        TScalarNode<TValue>* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        using NYT::Load;
+        Load(*context, trunkNode->Value());
     }
 };
 
@@ -561,6 +603,13 @@ public:
         bool operator!=(const TAttributes& rhs) const;
 
         void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(NCypressServer::TCopyPersistenceContext& context);
+
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+
+        void Save(NCypressServer::TBeginCopyContext& context) const;
+        void Load(NCypressServer::TEndCopyContext& context);
 
         // Are all attributes not null?
         bool AreFull() const;
@@ -599,6 +648,7 @@ template <class TImpl>
 class TCompositeNodeBaseTypeHandler
     : public TCypressNodeTypeHandlerBase<TImpl>
 {
+private:
     using TBase = TCypressNodeTypeHandlerBase<TImpl>;
 
 public:
@@ -617,18 +667,18 @@ protected:
 
     virtual void DoClone(
         TImpl* sourceNode,
-        TImpl* clonedNode,
+        TImpl* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        clonedNode->SetAttributes(sourceNode->Attributes());
+        clonedTrunkNode->SetAttributes(sourceNode->Attributes());
 
-        if (clonedNode->GetTabletCellBundle()) {
+        if (clonedTrunkNode->GetTabletCellBundle()) {
             const auto& objectManager = this->Bootstrap_->GetObjectManager();
-            objectManager->RefObject(clonedNode->GetTabletCellBundle());
+            objectManager->RefObject(clonedTrunkNode->GetTabletCellBundle());
         }
     }
 
@@ -697,6 +747,34 @@ protected:
         }
 
         return *originatingAttributes != *branchedAttributes;
+    }
+
+    virtual void DoBeginCopy(
+        TImpl* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        const auto* attributes = node->Attributes();
+        Save(*context, attributes != nullptr);
+        if (attributes) {
+            Save(*context, *attributes);
+        }
+    }
+
+    virtual void DoEndCopy(
+        TImpl* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        using NYT::Load;
+        if (Load<bool>(*context)) {
+            auto attributes = Load<TCompositeNodeBase::TAttributes>(*context);
+            trunkNode->SetAttributes(&attributes);
+        }
     }
 };
 
@@ -820,7 +898,7 @@ protected:
 
     virtual void DoClone(
         TImpl* sourceNode,
-        TImpl* clonedNode,
+        TImpl* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -828,6 +906,14 @@ protected:
     virtual bool HasBranchedChangesImpl(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
+
+    virtual void DoBeginCopy(
+        TImpl* node,
+        TBeginCopyContext* context) override;
+    virtual void DoEndCopy(
+        TImpl* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override;
 };
 
 using TMapNodeTypeHandler = TMapNodeTypeHandlerImpl<TMapNode>;
@@ -880,14 +966,13 @@ private:
         const TListNode* originatingNode,
         TListNode* branchedNode,
         const TLockRequest& lockRequest) override;
-
     virtual void DoMerge(
         TListNode* originatingNode,
         TListNode* branchedNode) override;
 
     virtual void DoClone(
         TListNode* sourceNode,
-        TListNode* clonedNode,
+        TListNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -895,6 +980,14 @@ private:
     virtual bool HasBranchedChangesImpl(
         TListNode* originatingNode,
         TListNode* branchedNode) override;
+
+    virtual void DoBeginCopy(
+        TListNode* node,
+        TBeginCopyContext* context) override;
+    virtual void DoEndCopy(
+        TListNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

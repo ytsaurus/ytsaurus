@@ -90,21 +90,6 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
     return listNode->IndexToChild();
 }
 
-std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
-    const THashMap<TString, TCypressNode*>& keyToChildMap)
-{
-    std::vector<std::pair<TString, TCypressNode*>> keyToChildList;
-    keyToChildList.reserve(keyToChildMap.size());
-    for (const auto& pair : keyToChildMap) {
-        keyToChildList.emplace_back(pair.first, pair.second);
-    }
-    std::sort(keyToChildList.begin(), keyToChildList.end(),
-        [] (const std::pair<TString, TCypressNode*>& lhs, const std::pair<TString, TCypressNode*>& rhs) {
-            return lhs.first < rhs.first;
-        });
-    return keyToChildList;
-}
-
 TCypressNode* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
     TMapNode* trunkNode,

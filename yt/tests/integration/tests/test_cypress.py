@@ -475,6 +475,40 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
     @authors("babenko")
+    def test_copy_removed_account(self):
+        create_account("a")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
+
+        create("file", "//tmp/p1/f", attributes={"account": "a"})
+
+        remove("//sys/accounts/a")
+        wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
+
+        remove("//tmp/p1/f")
+        wait(lambda: not exists("//sys/accounts/a"))
+
+    @authors("babenko")
+    def test_copy_removed_bundle(self):
+        create_tablet_cell_bundle("b")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
+
+        create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
+
+        remove("//sys/tablet_cell_bundles/b")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/t", "//tmp/p2/t")
+
+        remove("//tmp/p1/t")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
+
+    @authors("babenko")
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"

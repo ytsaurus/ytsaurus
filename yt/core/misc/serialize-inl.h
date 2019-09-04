@@ -107,5 +107,63 @@ void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline constexpr TEntitySerializationKey::TEntitySerializationKey()
+    : Index(-1)
+{ }
+
+inline constexpr TEntitySerializationKey::TEntitySerializationKey(int index)
+    : Index(index)
+{ }
+
+inline constexpr bool TEntitySerializationKey::operator == (TEntitySerializationKey rhs)
+{
+    return Index == rhs.Index;
+}
+
+inline constexpr bool TEntitySerializationKey::operator != (TEntitySerializationKey rhs)
+{
+    return !(*this == rhs);
+}
+
+inline constexpr TEntitySerializationKey::operator bool() const
+{
+    return Index != -1;
+}
+
+inline void TEntitySerializationKey::Save(TEntityStreamSaveContext& context) const
+{
+    NYT::Save(context, Index);
+}
+
+inline void TEntitySerializationKey::Load(TEntityStreamLoadContext& context)
+{
+    NYT::Load(context, Index);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TEntitySerializationKey TEntityStreamSaveContext::GenerateSerializationKey()
+{
+    return TEntitySerializationKey(SerializationKeyIndex_++);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TEntitySerializationKey TEntityStreamLoadContext::RegisterEntity(void* entity)
+{
+    auto key = TEntitySerializationKey(static_cast<int>(Entities_.size()));
+    Entities_.push_back(entity);
+    return key;
+}
+
+template <class T>
+T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
+{
+    YT_ASSERT(key.Index >= 0 && key.Index < static_cast<int>(Entities_.size()));
+    return static_cast<T*>(Entities_[key.Index]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

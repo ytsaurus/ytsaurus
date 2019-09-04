@@ -5,6 +5,9 @@
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/medium.h>
 
+// XXX(babenko)
+#include <yt/server/master/cypress_server/type_handler.h>
+
 #include <yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -75,7 +78,7 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, static_cast<int>(DiskSpace.size()));
-    for (const auto& [mediumIndex, space] : DiskSpace) {
+    for (auto [mediumIndex, space] : DiskSpace) {
         Save(context, space);
         Save(context, mediumIndex);
     }
@@ -115,6 +118,35 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         Load(context, NodeCount);
         Load(context, ChunkCount);
     }
+    Load(context, TabletCount);
+    Load(context, TabletStaticMemory);
+}
+
+void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const
+{
+    using NYT::Save;
+    Save(context, static_cast<int>(DiskSpace.size()));
+    for (auto [mediumIndex, space] : DiskSpace) {
+        Save(context, space);
+        Save(context, mediumIndex);
+    }
+    Save(context, NodeCount);
+    Save(context, ChunkCount);
+    Save(context, TabletCount);
+    Save(context, TabletStaticMemory);
+}
+
+void TClusterResources::Load(NCypressServer::TEndCopyContext& context)
+{
+    using NYT::Load;
+    auto mediumCount = Load<int>(context);
+    for (auto i = 0; i < mediumCount; ++i) {
+        auto space = Load<i64>(context);
+        auto mediumIndex = Load<int>(context);
+        DiskSpace[mediumIndex] = space;
+    }
+    Load(context, NodeCount);
+    Load(context, ChunkCount);
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
 }

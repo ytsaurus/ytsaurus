@@ -17,12 +17,13 @@
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/portal_manager.h>
 
-#include <yt/server/master/file_server/file_node.h>
+#include <yt/server/master/file_server/file_node_type_handler.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/transaction_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_participant_provider.h>
+
 #include <yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/lib/hydra/changelog.h>
@@ -32,7 +33,7 @@
 #include <yt/server/lib/hydra/local_snapshot_store.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/master/journal_server/journal_node.h>
+#include <yt/server/master/journal_server/journal_node_type_handler.h>
 #include <yt/server/master/journal_server/journal_manager.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
