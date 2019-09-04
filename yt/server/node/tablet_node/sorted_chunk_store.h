@@ -37,10 +37,11 @@ public:
     ~TSortedChunkStore();
 
     // IStore implementation.
+    virtual EStoreType GetType() const override;
+
     virtual TSortedChunkStorePtr AsSortedChunk() override;
 
-    // IChunkStore implementation.
-    virtual EStoreType GetType() const override;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
