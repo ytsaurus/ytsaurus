@@ -59,7 +59,7 @@ class RidgeRegressionWithSGD:
     @classmethod
     def train(cls, data: RDD[LabeledPoint], iterations: int = ..., step: float = ..., regParam: float = ..., miniBatchFraction: float = ..., initialWeights: Optional[VectorLike] = ..., intercept: bool = ..., validateData: bool = ..., convergenceTol: float = ...) -> RidgeRegressionModel: ...
 
-class IsotonicRegressionModel(Saveable, Loader):
+class IsotonicRegressionModel(Saveable, Loader[IsotonicRegressionModel]):
     boundaries: ndarray
     predictions: ndarray
     isotonic: bool

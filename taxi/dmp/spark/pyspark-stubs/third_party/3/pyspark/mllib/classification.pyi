@@ -59,7 +59,7 @@ class SVMWithSGD:
     @classmethod
     def train(cls, data: RDD[LabeledPoint], iterations: int = ..., step: float = ..., regParam: float = ..., miniBatchFraction: float = ..., initialWeights: Optional[VectorLike] = ..., regType: str = ..., intercept: bool = ..., validateData: bool = ..., convergenceTol: float = ...) -> SVMModel: ...
 
-class NaiveBayesModel(Saveable, Loader):
+class NaiveBayesModel(Saveable, Loader[NaiveBayesModel]):
     labels: ndarray
     pi: ndarray
     theta: ndarray
