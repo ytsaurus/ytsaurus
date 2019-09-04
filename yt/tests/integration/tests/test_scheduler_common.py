@@ -4536,7 +4536,7 @@ class TestOperationAliases(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operations_cleaner": {
-                "enable": True,
+                "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
                 # Wait each batch to remove not more than 100ms
@@ -4612,8 +4612,6 @@ class TestOperationAliases(YTEnvSetup):
     def test_get_operation_latest_archive_version(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
-        set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
-
         # When no operation is assigned to an alias, get_operation should return an error.
         with pytest.raises(YtError):
             get_operation("*my_op", include_runtime=True)
@@ -4641,9 +4639,7 @@ class TestOperationAliases(YTEnvSetup):
 
         assert exists(op.get_path())
 
-        # Let us enable operation archiver and wait until operation becomes archived.
-        set("//sys/scheduler/config", {"operations_cleaner": {"enable": True}})
-        wait(lambda: not exists(op.get_path()))
+        clean_operations()
 
         # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
         wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
