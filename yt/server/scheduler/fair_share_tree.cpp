@@ -199,9 +199,9 @@ void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
     }
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::ProfileFairShare(TMetricsAccumulator& accumulator) const
+void TFairShareTree::TFairShareTreeSnapshot::ProfileFairShare() const
 {
-    Tree_->DoProfileFairShare(RootElementSnapshot_, accumulator);
+    Tree_->DoProfileFairShare(RootElementSnapshot_);
 }
 
 bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
@@ -1361,10 +1361,10 @@ void TFairShareTree::DoPreemptJobsGracefully(
     }
 }
 
-void TFairShareTree::DoProfileFairShare(
-    const TRootElementSnapshotPtr& rootElementSnapshotPtr,
-    TMetricsAccumulator& accumulator) const
+void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshotPtr) const
 {
+    TMetricsAccumulator accumulator;
+
     for (const auto& [poolName, pool] : rootElementSnapshotPtr->PoolNameToElement) {
         ProfileCompositeSchedulerElement(accumulator, pool);
     }
@@ -1374,6 +1374,8 @@ void TFairShareTree::DoProfileFairShare(
             ProfileOperationElement(accumulator, element);
         }
     }
+
+    accumulator.Publish(&Profiler);
 }
 
 

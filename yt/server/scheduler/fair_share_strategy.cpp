@@ -37,10 +37,6 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = SchedulerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFairShareStrategy
     : public ISchedulerStrategy
 {
@@ -669,12 +665,9 @@ public:
             snapshots = TreeIdToSnapshot_;
         }
 
-        TMetricsAccumulator accumulator;
         for (const auto& [treeId, treeSnapshot] : snapshots) {
-            treeSnapshot->ProfileFairShare(accumulator);
+            treeSnapshot->ProfileFairShare();
         }
-
-        accumulator.BuildAndPublish(&Profiler);
     }
 
     // NB: This function is public for testing purposes.
