@@ -202,6 +202,7 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
+        assert list(get_operation(op.id, attributes=["progress"])) == ["progress"]
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["PYSCH"])
 
@@ -223,6 +224,8 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         clean_operations()
+
+        assert list(get_operation(op.id, attributes=["progress"])) == ["progress"]
 
         requesting_attributes = ["progress", "runtime_parameters", "slot_index_per_pool_tree", "state"]
         res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
@@ -299,7 +302,9 @@ class TestGetOperation(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        # Unmount table to check that controller agent writes to Cypress during archive unavailability.
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
+
         op = map(
             dont_track=True,
             label="get_job_stderr",
@@ -347,6 +352,11 @@ class TestGetOperation(YTEnvSetup):
 
         assert res_api["brief_progress"] == res_archive["brief_progress"]
         assert res_api["progress"] == res_archive["progress"]
+
+        # Unmount table again and check that error is _not_ "No such operation".
+        sync_unmount_table("//sys/operations_archive/ordered_by_id")
+        with raises_yt_error(TabletNotMounted):
+            get_operation(op.id)
 
 ##################################################################
 

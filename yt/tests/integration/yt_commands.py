@@ -45,6 +45,7 @@ SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
+TabletNotMounted = 1702
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
