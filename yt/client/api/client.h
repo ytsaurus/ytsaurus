@@ -194,6 +194,7 @@ struct TAlterTableOptions
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<bool> Dynamic;
     std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+    std::optional<NTableClient::ETableSchemaModification> SchemaModification;
 };
 
 struct TTrimTableOptions

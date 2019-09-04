@@ -514,6 +514,8 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId)
         .Optional();
+    RegisterParameter("schema_modification", Options.SchemaModification)
+        .Optional();
 }
 
 void TAlterTableCommand::DoExecute(ICommandContextPtr context)

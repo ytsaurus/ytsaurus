@@ -1283,6 +1283,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         std::optional<NTableClient::TTableSchema> Schema;
         std::optional<bool> Dynamic;
         std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+        std::optional<NTableClient::ETableSchemaModification> SchemaModification;
     } options;
 
     if (request->has_schema()) {
@@ -1294,11 +1295,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_upstream_replica_id()) {
         options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
     }
+    if (request->has_schema_modification()) {
+        options.SchemaModification = FromProto<ETableSchemaModification>(request->schema_modification());
+    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v",
+    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v",
         options.Schema,
         options.Dynamic,
-        options.UpstreamReplicaId);
+        options.UpstreamReplicaId,
+        options.SchemaModification);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
@@ -1312,6 +1317,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     if (table->IsNative()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        if (table->GetTableSchema().HasNontrivialSchemaModification()) {
+            THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
+        }
+
+        if (options.Schema && options.Schema->HasNontrivialSchemaModification()) {
+            THROW_ERROR_EXCEPTION("Schema modification cannot be specified as schema attribute");
+        }
 
         if (table->IsReplicated()) {
             THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
@@ -1338,6 +1351,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->ValidateAllTabletsUnmounted("Cannot change upstream replica");
         }
 
+        if (options.SchemaModification) {
+            if (dynamic) {
+                THROW_ERROR_EXCEPTION("Schema modification cannot be applied to a dynamic table");
+            }
+            if (!table->IsEmpty()) {
+                THROW_ERROR_EXCEPTION("Schema modification can only be applied to an empty table");
+            }
+            if (!schema.IsSorted()) {
+                THROW_ERROR_EXCEPTION("Schema modification can only be applied to sorted schema");
+            }
+            if (!schema.GetStrict()) {
+                THROW_ERROR_EXCEPTION("Schema modification can only be applied to strict schema");
+            }
+        }
+
         ValidateTableSchemaUpdate(
             table->GetTableSchema(),
             schema,
@@ -1353,7 +1381,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
     }
 
-    if (options.Schema) {
+    if (options.Schema || options.SchemaModification) {
+        if (options.SchemaModification) {
+            schema = schema.ToModifiedSchema(*options.SchemaModification);
+        }
+
         table->SharedTableSchema() = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry()->GetSchema(
             std::move(schema));
         table->SetSchemaMode(ETableSchemaMode::Strong);

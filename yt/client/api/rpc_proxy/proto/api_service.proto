@@ -189,6 +189,13 @@ enum ESecurityAction
     SA_DENY = 2;
 }
 
+enum ETableSchemaModification
+{
+    TSM_NONE = 0;
+    TSM_UNVERSIONED_UPDATE = 1;
+    TSM_UNVERSIONED_UPDATE_UNSORTED = 2;
+}
+
 // XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
 // Only sandello@ knows why we need this.
 message TAttributeKeys
@@ -1070,6 +1077,7 @@ message TReqAlterTable
     optional bytes schema = 2; // YSON
     optional bool dynamic = 3;
     optional NYT.NProto.TGuid upstream_replica_id = 4;
+    optional ETableSchemaModification schema_modification = 5;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TMutatingOptions mutating_options = 103;

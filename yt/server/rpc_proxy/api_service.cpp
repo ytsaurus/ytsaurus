@@ -1472,6 +1472,9 @@ private:
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
+        if (request->has_schema_modification()) {
+            options.SchemaModification = CheckedEnumCast<ETableSchemaModification>(request->schema_modification());
+        }
 
         context->SetRequestInfo("Path: %v",
             path);

@@ -1472,6 +1472,7 @@ public:
             blockCache)
         , CreateChunkWriter_(createChunkWriter)
         , OriginalSchema_(schema)
+        , ChunkNameTable_(TNameTable::FromSchema(Schema_))
     { }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
@@ -1503,12 +1504,13 @@ private:
     const std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
     TTableSchema OriginalSchema_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TUnversionedUpdateMultiChunkWriterTag());
+    TNameTablePtr ChunkNameTable_;
 
     IVersionedChunkWriterPtr CurrentWriter_;
 
     virtual TNameTablePtr GetChunkNameTable() override
     {
-        return GetNameTable();
+        return ChunkNameTable_;
     }
 
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
@@ -1699,8 +1701,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    switch (options->OutputChunkFormat) {
-        case EOutputChunkFormat::Unversioned: {
+    switch (options->SchemaModification) {
+        case ETableSchemaModification::None: {
             auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
                 return CreateSchemalessChunkWriter(
                     config,
@@ -1731,7 +1733,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             return writer;
         }
 
-        case EOutputChunkFormat::UnversionedUpdate: {
+        case ETableSchemaModification::UnversionedUpdate: {
             auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
                 return CreateVersionedChunkWriter(
                     config,

@@ -260,7 +260,7 @@ public:
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
 
-    EOutputChunkFormat OutputChunkFormat;
+    ETableSchemaModification SchemaModification;
 
     EOptimizeFor OptimizeFor;
 
@@ -288,18 +288,33 @@ public:
             .Default(false);
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
-        RegisterParameter("output_chunk_format", OutputChunkFormat)
-            .Default(EOutputChunkFormat::Unversioned);
+        RegisterParameter("schema_modification", SchemaModification)
+            .Default(ETableSchemaModification::None);
 
         RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
             }
-            if (OutputChunkFormat == EOutputChunkFormat::UnversionedUpdate && (!ValidateSorted || !ValidateUniqueKeys)) {
-                THROW_ERROR_EXCEPTION(
-                    "\"output_chunk_format\" is allowed to be %Qlv only if "
-                    "\"validate_sorted\" and \"validate_unique_keys\" are true",
-                   EOutputChunkFormat::UnversionedUpdate);
+
+            switch (SchemaModification) {
+                case ETableSchemaModification::None:
+                    break;
+
+                case ETableSchemaModification::UnversionedUpdate:
+                    if (!ValidateSorted || !ValidateUniqueKeys) {
+                        THROW_ERROR_EXCEPTION(
+                            "\"schema_modification\" is allowed to be %Qlv only if "
+                            "\"validate_sorted\" and \"validate_unique_keys\" are true",
+                            SchemaModification);
+                    }
+                    break;
+
+                case ETableSchemaModification::UnversionedUpdateUnsorted:
+                    THROW_ERROR_EXCEPTION("\"schema_modification\" is not allowed to be %Qlv",
+                        SchemaModification);
+
+                default:
+                    YT_ABORT();
             }
         });
     }

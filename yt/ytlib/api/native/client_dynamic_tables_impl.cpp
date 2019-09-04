@@ -502,6 +502,9 @@ void TClient::DoAlterTable(
     if (options.UpstreamReplicaId) {
         ToProto(req->mutable_upstream_replica_id(), *options.UpstreamReplicaId);
     }
+    if (options.SchemaModification) {
+        req->set_schema_modification(static_cast<int>(*options.SchemaModification));
+    }
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     WaitFor(proxy->Execute(req))
