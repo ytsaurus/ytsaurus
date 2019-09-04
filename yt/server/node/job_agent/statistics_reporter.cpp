@@ -555,17 +555,16 @@ private:
 
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
             if (statistics.Stderr()) {
+                TUnversionedRowBuilder builder;
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
                 builder.AddValue(MakeUnversionedStringValue(*statistics.Stderr(), Table_.Index.Stderr));
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
             }
-
-            rows.push_back(rowBuffer->Capture(builder.GetRow()));
-            dataWeight += GetDataWeight(rows.back());
         }
 
         transaction.WriteRows(
@@ -610,21 +609,19 @@ private:
 
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
-            builder.AddValue(MakeUnversionedInt64Value(0, Table_.Index.PartIndex));
-
             auto profile = statistics.Profile();
             if (profile) {
+                TUnversionedRowBuilder builder;
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
+                builder.AddValue(MakeUnversionedInt64Value(0, Table_.Index.PartIndex));
                 builder.AddValue(MakeUnversionedStringValue(profile->Type, Table_.Index.ProfileType));
                 builder.AddValue(MakeUnversionedStringValue(profile->Blob, Table_.Index.ProfileBlob));
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
             }
-
-            rows.push_back(rowBuffer->Capture(builder.GetRow()));
-            dataWeight += GetDataWeight(rows.back());
         }
 
         transaction.WriteRows(
@@ -669,17 +666,16 @@ private:
 
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
             if (statistics.FailContext() && statistics.FailContext()->size() <= MaxStringValueLength) {
+                TUnversionedRowBuilder builder;
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+                builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
                 builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Index.FailContext));
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
             }
-
-            rows.push_back(rowBuffer->Capture(builder.GetRow()));
-            dataWeight += GetDataWeight(rows.back());
         }
 
         transaction.WriteRows(
