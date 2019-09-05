@@ -109,6 +109,7 @@ public:
             ProxiedRequestHeaders_->Add("X-Yt-User", User_);
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
             ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
+            ProxiedRequestHeaders_->Add("X-Clique-Id", CliqueId_);
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
@@ -121,49 +122,20 @@ public:
         return true;
     }
 
-    bool TryPickRandomInstance()
+    bool TryPickRandomInstance(bool forceUpdate)
     {
         try {
-            auto cookie = CliqueCache_->BeginInsert(CliqueId_);
-            if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueId_);
-
-                TString path = Config_->DiscoveryPath + "/" + CliqueId_;
-                NApi::TGetNodeOptions options;
-                options.ReadFrom = NApi::EMasterChannelKind::Cache;
-                auto node = ConvertToNode(WaitFor(Client_->GetNode(path + "/@", options))
-                    .ValueOrThrow())->AsMap()->FindChild("discovery_version");
-                i64 version = (node ? node->GetValue<i64>() : 0);
-
-                auto config = New<TDiscoveryConfig>();
-                config->Directory = path;
-                config->BanTimeout = Config_->CliqueCache->UnavailableInstanceBanTimeout;
-                config->ReadFrom = NApi::EMasterChannelKind::Cache;
-                config->MasterCacheExpireTime = Config_->CliqueCache->MasterCacheExpireTime;
-                if (version == 0) {
-                    config->SkipUnlockedParticipants = false;
-                }
-
-                cookie.EndInsert(New<TCachedDiscovery>(
-                    CliqueId_,
-                    config,
-                    Client_,
-                    ControlInvoker_,
-                    std::vector<TString>{"host", "http_port"},
-                    Logger));
+            if (!TryFindDiscovery()) {
+                return false;
             }
 
-            auto discovery = WaitFor(cookie.GetValue())
-                .ValueOrThrow();
-
-            discovery->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
-            WaitFor(discovery->UpdateList(Config_->CliqueCache->HardAgeThreshold))
+            Discovery_->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
+            WaitFor(Discovery_->UpdateList(forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold))
                 .ThrowOnError();
 
-            auto instances = discovery->List();
+            auto instances = Discovery_->List();
             if (instances.empty()) {
-                ReplyWithError(EStatusCode::NotFound, TError("Clique %v has no running instances", CliqueId_)
-                    << RequestErrors_);
+                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueId_);
                 return false;
             }
             auto it = instances.begin();
@@ -173,7 +145,6 @@ public:
             InstanceHost_ = attributes.at("host")->GetValue<TString>();
             auto port = attributes.at("http_port");
             InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
-            Discovery_ = std::move(discovery);
 
             YT_LOG_DEBUG("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
                 InstanceId_,
@@ -188,8 +159,8 @@ public:
 
             return true;
         } catch (const std::exception& ex) {
-            ReplyWithError(EStatusCode::InternalServerError, TError("Failed to pick an instance")
-                << ex << RequestErrors_);
+            RequestErrors_.push_back(TError("Failed to pick an instance")
+                << ex);
             return false;
         }
     }
@@ -198,21 +169,28 @@ public:
     {
         YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
         auto responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+
+        if (responseOrError.IsOK() && responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
+            responseOrError = TError("Instance moved, request rejected");
+        }
+
         if (responseOrError.IsOK()) {
             ProxiedResponse_ = responseOrError.Value();
-            YT_LOG_DEBUG("Got response from instance (StatusCode: %v)", ProxiedResponse_->GetStatusCode());
+            YT_LOG_DEBUG("Got response from instance (StatusCode: %v, RetryIndex: %v)",
+                ProxiedResponse_->GetStatusCode(),
+                retryIndex);
             return true;
         } else {
             RequestErrors_.push_back(responseOrError);
-            if (retryIndex == Config_->DeadInstanceRetryCount) {
-                ReplyWithError(EStatusCode::InternalServerError, TError("Proxied request failed")
-                    << RequestErrors_);
-            } else {
-                YT_LOG_DEBUG(responseOrError, "Proxied request failed, retrying (RetryIndex: %v)", retryIndex);
-            }
+            YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             Discovery_->Ban(InstanceId_);
             return false;
         }
+    }
+
+    void ReplyWithAllOccuredErrors(TError error) {
+        ReplyWithError(EStatusCode::InternalServerError, error
+            << RequestErrors_);
     }
 
     void ForwardProxiedResponse()
@@ -322,7 +300,6 @@ private:
             return;
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
-
     }
 
     bool TryProcessHeaders()
@@ -361,6 +338,54 @@ private:
         }
 
         YT_LOG_DEBUG("User authenticated (User: %v)", User_);
+        return true;
+    }
+
+    bool TryFindDiscovery()
+    {
+        if (Discovery_) {
+            return true;
+        }
+
+        try {
+            auto cookie = CliqueCache_->BeginInsert(CliqueId_);
+            if (cookie.IsActive()) {
+                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueId_);
+
+                TString path = Config_->DiscoveryPath + "/" + CliqueId_;
+                NApi::TGetNodeOptions options;
+                options.ReadFrom = NApi::EMasterChannelKind::Cache;
+                auto node = ConvertToNode(WaitFor(Client_->GetNode(path + "/@", options))
+                    .ValueOrThrow())->AsMap()->FindChild("discovery_version");
+                i64 version = (node ? node->GetValue<i64>() : 0);
+
+                auto config = New<TDiscoveryConfig>();
+                config->Directory = path;
+                config->BanTimeout = Config_->CliqueCache->UnavailableInstanceBanTimeout;
+                config->ReadFrom = NApi::EMasterChannelKind::Cache;
+                config->MasterCacheExpireTime = Config_->CliqueCache->MasterCacheExpireTime;
+                if (version == 0) {
+                    config->SkipUnlockedParticipants = false;
+                }
+
+                cookie.EndInsert(New<TCachedDiscovery>(
+                    CliqueId_,
+                    config,
+                    Client_,
+                    ControlInvoker_,
+                    std::vector<TString>{"host", "http_port"},
+                    Logger));
+            }
+
+            Discovery_ = WaitFor(cookie.GetValue())
+                .ValueOrThrow();
+
+        } catch (const std::exception& ex) {
+            RequestErrors_.push_back(TError("Failed to create discovery")
+                << ex);
+            return false;
+        }
+
         return true;
     }
 };
@@ -408,17 +433,25 @@ void TClickHouseHandler::HandleRequest(
             HttpClient_,
             CliqueCache_,
             ControlInvoker_);
-        
+
         if (!context->TryPrepare()) {
             // TODO(max42): profile something here.
             return;
         }
 
-        bool success = false; 
+        bool success = false;
+        bool forceUpdated = false;
+        bool pickedInstance = false;
         for (int retry = 0; retry <= Config_->DeadInstanceRetryCount; ++retry) {
-            if (!context->TryPickRandomInstance()) {
-                return;
+            bool forceUpdate = !forceUpdated;
+            forceUpdate &= !pickedInstance || retry > Config_->RetryWithoutUpdateLimit;
+
+            pickedInstance = false;
+            if (!context->TryPickRandomInstance(forceUpdate)) {
+                continue;
             }
+            pickedInstance = true;
+
             if (context->TryIssueProxiedRequest(retry)) {
                 success = true;
                 break;
@@ -426,6 +459,7 @@ void TClickHouseHandler::HandleRequest(
         }
 
         if (!success) {
+            context->ReplyWithAllOccuredErrors(TError("Request failed"));
             return;
         }
 

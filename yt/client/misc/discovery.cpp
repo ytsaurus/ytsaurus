@@ -72,7 +72,7 @@ TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
     return ScheduledForceUpdate_;
 }
 
-THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List() const
+THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List(bool includeBanned) const
 {
     THashMap<TString, TAttributeDictionary> result;
     THashMap<TString, TInstant> bannedSince;
@@ -87,12 +87,14 @@ THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List() const
     if (selfAttributes) {
         result.insert(*selfAttributes);
     }
-    for (auto it = result.begin(); it != result.end();) {
-        auto banIt = bannedSince.find(it->first);
-        if (banIt != bannedSince.end() && (banIt->second + Config_->BanTimeout) > now) {
-            result.erase(it++);
-        } else {
-            ++it;
+    if (!includeBanned) {
+        for (auto it = result.begin(); it != result.end();) {
+            auto banIt = bannedSince.find(it->first);
+            if (banIt != bannedSince.end() && (banIt->second + Config_->BanTimeout) > now) {
+                result.erase(it++);
+            } else {
+                ++it;
+            }
         }
     }
     return result;

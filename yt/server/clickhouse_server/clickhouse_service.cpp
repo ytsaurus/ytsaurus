@@ -35,10 +35,20 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ProcessGossip)
     {
-        Y_UNUSED(request);
+        context->SetRequestInfo("InstanceId: %v, State: %v",
+            request->instance_id(),
+            static_cast<EInstanceState>(request->instance_state()));
+
         response->set_instance_id(InstanceId_);
-        response->set_instance_state(static_cast<int>(Bootstrap_->GetState()));
+        auto state = Bootstrap_->GetState();
+        response->set_instance_state(static_cast<int>(state));
+
+        context->SetResponseInfo("InstanceId: %v, State: %v",
+            InstanceId_,
+            state);
+
         context->Reply();
+        Bootstrap_->GetHost()->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
     }
 };
 

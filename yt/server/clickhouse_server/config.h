@@ -330,9 +330,15 @@ public:
 
     TDuration GossipPeriod;
 
-    //! To avoid reciving queries after shut down this value should be at least
-    //! max(GossipPeriod, Proxy.ClickHouse.CliqueCache.AgeThreshold +
-    //! Proxy.ClickHouse.CliqueCache.MasterCacheExpireTime)
+    //! We will ignore ping from unknown instances if discovery is younger than this.
+    TDuration UnknownInstanceAgeThreshold;
+
+    //! How many times we will handle ping from an unknown instance before ignore it.
+    int UnknownInstancePingLimit;
+
+    //! Instanse will not shutdown during this timeout after receiving signal even
+    //! if there are not any running queries.
+    //! To avoid reciving queries after shutdown, this value should be greater than GossipPeriod.
     TDuration InterruptionGracefulTimeout;
 
     TClickHouseServerBootstrapConfig()
@@ -366,9 +372,15 @@ public:
 
         RegisterParameter("gossip_period", GossipPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("unknown_instance_age_threshold", UnknownInstanceAgeThreshold)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("unknown_instance_ping_limit", UnknownInstancePingLimit)
+            .Default(10);
         
         RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(2));
     }
 };
 
