@@ -553,6 +553,11 @@ bool THttpResponse::IsExhausted() const
     return IsExhausted_;
 }
 
+int THttpResponse::GetHttpCode() const
+{
+    return HttpCode_;
+}
+
 TMaybe<TErrorResponse> THttpResponse::ParseError(const THttpHeaders& headers)
 {
     for (const auto& header : headers) {
@@ -729,20 +734,23 @@ void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> bo
 
 THttpResponse* THttpRequest::GetResponseStream()
 {
-    SocketInput.Reset(new TSocketInput(*Connection->Socket.Get()));
-    if (TConfig::Get()->UseAbortableResponse) {
-        Y_VERIFY(!Url_.empty());
-        Input.Reset(new TAbortableHttpResponse(SocketInput.Get(), RequestId, HostName, Url_));
-    } else {
-        Input.Reset(new THttpResponse(SocketInput.Get(), RequestId, HostName));
+    if (!Input) {
+        SocketInput.Reset(new TSocketInput(*Connection->Socket.Get()));
+        if (TConfig::Get()->UseAbortableResponse) {
+            Y_VERIFY(!Url_.empty());
+            Input.Reset(new TAbortableHttpResponse(SocketInput.Get(), RequestId, HostName, Url_));
+        } else {
+            Input.Reset(new THttpResponse(SocketInput.Get(), RequestId, HostName));
+        }
+        Input->CheckErrorResponse();
     }
-    Input->CheckErrorResponse();
     return Input.Get();
 }
 
 TString THttpRequest::GetResponse()
 {
     TString result = GetResponseStream()->ReadAll();
+
     if (LogResponse) {
         const size_t sizeLimit = 2 << 10;
         if (result.size() > sizeLimit) {
@@ -761,6 +769,10 @@ TString THttpRequest::GetResponse()
             result.size());
     }
     return result;
+}
+
+int THttpRequest::GetHttpCode() {
+    return GetResponseStream()->GetHttpCode();
 }
 
 void THttpRequest::InvalidateConnection()

@@ -139,6 +139,7 @@ public:
 
     void CheckErrorResponse() const;
     bool IsExhausted() const;
+    int GetHttpCode() const;
 
 protected:
     size_t DoRead(void* buf, size_t len) override;
@@ -181,6 +182,8 @@ public:
     void InvalidateConnection();
 
     TString GetTracedHttpRequest() const;
+
+    int GetHttpCode();
 
 private:
     THttpOutput* StartRequestImpl(const THttpHeader& header, bool includeParameters);

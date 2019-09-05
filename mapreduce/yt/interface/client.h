@@ -313,6 +313,18 @@ public:
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
+    // Create rbtorrent for given table written in special format
+    // https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
+    virtual TString SkyShareTable(const TYPath& tablePath) = 0;
+
+    // Create a set of rbtorrents, one torrent for each value of keyColumns columns
+    // Return: list of nodes, each node has two fields
+    // * key: list of key columns values
+    // * rbtorrent: rbtorrent string
+    virtual TNode::TListType SkyShareTableByKey(
+        const TYPath& tablePath,
+        const TKeyColumns& keyColumns) = 0;
+
     // Check if 'user' has 'permission' to access a Cypress node at 'path'.
     // For tables access to columns specified in 'options.Columns_' can be checked
     // (see https://wiki.yandex-team.ru/yt/userdoc/columnaracl).

@@ -62,6 +62,7 @@ TResponseInfo RetryRequestWithPolicy(
             TResponseInfo result;
             result.RequestId = request.GetRequestId();
             result.Response = request.GetResponse();
+            result.HttpCode = request.GetHttpCode();
             return result;
         } catch (const TErrorResponse& e) {
             LogRequestError(request, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());

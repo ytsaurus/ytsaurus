@@ -20,6 +20,7 @@ struct TResponseInfo
 {
     TString RequestId;
     TString Response;
+    int HttpCode = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
