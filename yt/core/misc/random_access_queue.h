@@ -30,6 +30,9 @@ public:
     //! Retruns element with specified key in the queue or null if none exists;
     std::optional<TEntry> Pop(const TKey& key);
 
+    //! Accessor to access an element. New element is pushed to the back.
+    TValue& operator[](const TKey& key);
+
     //! Returns number of elements in the queue.
     i64 Size() const;
 

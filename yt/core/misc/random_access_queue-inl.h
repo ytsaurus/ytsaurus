@@ -25,6 +25,21 @@ void TRandomAccessQueue<TKey, TValue>::Push(TRandomAccessQueue<TKey, TValue>::TE
 }
 
 template <class TKey, class TValue>
+TValue& TRandomAccessQueue<TKey, TValue>::operator[](const TKey& key)
+{
+    auto it = KeyToEntryMap_.find(key);
+    if (it == KeyToEntryMap_.end()) {
+        Queue_.emplace_back(key, TValue());
+        auto listIt = --Queue_.end();
+        KeyToEntryMap_.insert(std::make_pair(std::move(key), listIt));
+        return listIt->second;
+    } else {
+        auto listIt = it->second;
+        return listIt->second;
+    }
+}
+
+template <class TKey, class TValue>
 typename TRandomAccessQueue<TKey, TValue>::TEntry TRandomAccessQueue<TKey, TValue>::Pop()
 {
     auto listIt = Queue_.begin();
