@@ -52,8 +52,6 @@ public:
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
-    template <>
-    const NSecurityServer::TSecurityTagsRegistryPtr& GetInternRegistry() const;
 
 
     EMasterReign GetVersion();

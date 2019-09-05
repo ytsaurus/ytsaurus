@@ -66,21 +66,9 @@ public:
 
     template <class T>
     T* GetObject(NObjectServer::TObjectId id);
-    template <>
-    NSecurityServer::TSubject* GetObject(NObjectServer::TObjectId id);
-    template <>
-    NSecurityServer::TAccount* GetObject(NObjectServer::TObjectId id);
-    template <>
-    NChunkServer::TMedium* GetObject(NObjectServer::TObjectId id);
-    template <>
-    NTabletServer::TTabletCellBundle* GetObject(NObjectServer::TObjectId id);
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
-    template <>
-    const NSecurityServer::TSecurityTagsRegistryPtr& GetInternRegistry() const;
-    template <>
-    const NTableServer::TTableSchemaRegistryPtr& GetInternRegistry() const;
 
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
 
