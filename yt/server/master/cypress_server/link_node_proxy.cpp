@@ -61,6 +61,7 @@ public:
             case ETokenType::EndOfStream: {
                 // NB: Always handle mutating Cypress verbs locally.
                 if (method == "Remove" ||
+                    method == "Set" ||
                     method == "Create" ||
                     method == "Copy" ||
                     method == "EndCopy")
