@@ -20,6 +20,7 @@ SET(YT_TEST_SRCS
     test_file_commands.py
     test_formats.py
     test_fuse.py
+    test_ipython.py
     test_job_commands.py
     test_job_tool.py
     test_misc.py
@@ -52,6 +53,7 @@ DEPENDS(
     ${YT_PYTHON_ROOT}/python/yt/local/bin/yt_local_make
     ${YT_PYTHON_ROOT}/python/yt/wrapper/bin/yt-job-tool_make
     ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_python
+    ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_ipython
 )
 
 DATA(
