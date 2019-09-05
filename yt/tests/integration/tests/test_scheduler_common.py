@@ -4175,6 +4175,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
     @authors("ignat")
     @flaky(max_runs=5)
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("<append=%true>//tmp/t_in", [{"a": 0}])
