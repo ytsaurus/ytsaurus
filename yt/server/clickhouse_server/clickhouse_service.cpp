@@ -47,8 +47,8 @@ private:
             InstanceId_,
             state);
 
-        context->Reply();
         Bootstrap_->GetHost()->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
+        context->Reply();
     }
 };
 

@@ -10,7 +10,8 @@ namespace NYT::NClickHouseServer {
 
 DB::StoragePtr CreateStorageSystemClique(
     TDiscoveryPtr discovery,
-    std::string tableName);
+    std::string tableName,
+    TString InstanceId_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

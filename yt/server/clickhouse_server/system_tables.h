@@ -10,7 +10,8 @@ namespace NYT::NClickHouseServer {
 
 void AttachSystemTables(
     DB::IDatabase& system,
-    TDiscoveryPtr clusterNodeTracker);
+    TDiscoveryPtr clusterNodeTracker,
+    const TString& instanceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

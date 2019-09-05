@@ -403,7 +403,7 @@ private:
         {
             auto systemDatabase = std::make_shared<DatabaseMemory>("system");
 
-            AttachSystemTables(*systemDatabase, Discovery_);
+            AttachSystemTables(*systemDatabase, Discovery_, InstanceId_);
 
             if (AsynchronousMetrics) {
                 attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
@@ -582,6 +582,9 @@ private:
     void DoHandleIncomingGossip(const TString& instanceId, EInstanceState state)
     {
         if (state != EInstanceState::Active) {
+            YT_LOG_DEBUG("Banning instance (InstanceId: %v, State: %v)",
+                instanceId,
+                state);
             Discovery_->Ban(instanceId);
             return;
         }
