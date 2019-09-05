@@ -649,6 +649,35 @@ TNode SerializeParamsForPutFileToCache(
         ("cache_path", cachePath);
 }
 
+TNode SerializeParamsForSkyShareTable(
+    const TString& serverName,
+    const TYPath& tablePath)
+{
+    TNode result;
+    SetPathParam(&result, tablePath);
+    result["cluster"] = serverName;
+    return result;
+}
+
+TNode SerializeParamsForSkyShareTableByKey(
+    const TString& serverName,
+    const TYPath& tablePath,
+    const TKeyColumns& keyColumns)
+{
+    auto keyColumnsList = TNode::CreateList();
+    for (const auto& s : keyColumns.Parts_) {
+        if (s.empty()) {
+            continue;
+        }
+        keyColumnsList.Add(s);
+    }
+    TNode result;
+    SetPathParam(&result, tablePath);
+    result["cluster"] = serverName;
+    result["key_columns"] = keyColumnsList;
+    return result;
+}
+
 TNode SerializeParamsForCheckPermission(
     const TString& user,
     EPermission permission,

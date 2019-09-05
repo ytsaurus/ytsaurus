@@ -162,6 +162,15 @@ TNode SerializeParamsForPutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions&);
 
+TNode SerializeParamsForSkyShareTable(
+    const TString& serverName,
+    const TYPath& tablePath);
+
+TNode SerializeParamsForSkyShareTableByKey(
+    const TString& serverName,
+    const TYPath& tablePath,
+    const TKeyColumns& keyColumns);
+
 TNode SerializeParamsForCheckPermission(
     const TString& user,
     EPermission permission,

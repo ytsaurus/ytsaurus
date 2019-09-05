@@ -421,6 +421,10 @@ public:
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) override;
 
+    TString SkyShareTable(const TYPath& tablePath) override;
+
+    TNode::TListType SkyShareTableByKey(const TYPath& tablePath, const TKeyColumns& keyColumns) override;
+
     TCheckPermissionResponse CheckPermission(
         const TString& user,
         EPermission permission,

@@ -243,6 +243,21 @@ TYPath PutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options = TPutFileToCacheOptions());
 
+//
+// SkyShare
+//
+
+TString SkyShareTable(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TYPath& tablePath);
+
+TNode::TListType SkyShareTableByKey(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TYPath& tablePath,
+    const TKeyColumns& keyColumns);
+
 TCheckPermissionResponse CheckPermission(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,

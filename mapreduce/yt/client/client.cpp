@@ -998,6 +998,18 @@ TYPath TClient::PutFileToCache(
     return NRawClient::PutFileToCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, filePath, md5Signature, cachePath, options);
 }
 
+TString TClient::SkyShareTable(const TYPath& tablePath)
+{
+    return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath);
+}
+
+TNode::TListType TClient::SkyShareTableByKey(
+    const TYPath& tablePath,
+    const TKeyColumns& keyColumns)
+{
+    return NRawClient::SkyShareTableByKey(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath, keyColumns);
+}
+
 TCheckPermissionResponse TClient::CheckPermission(
     const TString& user,
     EPermission permission,
