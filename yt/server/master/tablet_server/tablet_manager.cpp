@@ -3529,86 +3529,6 @@ public:
         }
     }
 
-    // XXX(babenko): move to private
-    void HydraOnTabletCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
-    {
-        auto cellId = FromProto<TTabletId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-
-        if (cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster) {
-            return;
-        }
-
-        // Decommission tablet cell on node.
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting tablet cell decommission on node (TabletCellId: %v)",
-            cell->GetId());
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnNode);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-        hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
-    }
-
-    // XXX(babenko): move to private
-    void HydraDecommissionTabletCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
-    {
-        auto cellId = FromProto<TTabletId>(request->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-        DecommissionTabletCell(cell);
-        OnTabletCellDecommissionedOnNode(cell);
-    }
-
-    // XXX(babenko): move to private
-    void DecommissionTabletCell(TTabletCell* cell)
-    {
-        if (cell->DecommissionStarted()) {
-            return;
-        }
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnMaster);
-        cell->LocalStatistics().Decommissioned = true;
-
-        auto actions = cell->Actions();
-        for (auto* action : actions) {
-            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
-            UnbindTabletActionFromCells(action);
-            OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
-        }
-    }
-
-    // XXX(babenko): move to private
-    void HydraOnTabletCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
-    {
-        auto cellId = FromProto<TTabletId>(response->cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell)) {
-            return;
-        }
-        OnTabletCellDecommissionedOnNode(cell);
-    }
-
-    // XXX(babenko): move to private
-    void OnTabletCellDecommissionedOnNode(TTabletCell* cell)
-    {
-        if (cell->DecommissionCompleted()) {
-            return;
-        }
-
-        cell->SetTabletCellLifeStage(ETabletCellLifeStage::Decommissioned);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (TabletCellId: %v)",
-            cell->GetId());
-    }
-
-
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id)
     {
         auto* cellBundle = FindTabletCellBundle(id);
@@ -5935,6 +5855,81 @@ private:
             }
         }
     }
+
+    void HydraOnTabletCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
+    {
+        auto cellId = FromProto<TTabletId>(request->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+
+        if (cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster) {
+            return;
+        }
+
+        // Decommission tablet cell on node.
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting tablet cell decommission on node (TabletCellId: %v)",
+            cell->GetId());
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnNode);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
+    }
+
+    void HydraDecommissionTabletCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
+    {
+        auto cellId = FromProto<TTabletId>(request->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+        DecommissionTabletCell(cell);
+        OnTabletCellDecommissionedOnNode(cell);
+    }
+
+    void DecommissionTabletCell(TTabletCell* cell)
+    {
+        if (cell->DecommissionStarted()) {
+            return;
+        }
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnMaster);
+        cell->LocalStatistics().Decommissioned = true;
+
+        auto actions = cell->Actions();
+        for (auto* action : actions) {
+            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
+            UnbindTabletActionFromCells(action);
+            OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
+        }
+    }
+
+    void HydraOnTabletCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
+    {
+        auto cellId = FromProto<TTabletId>(response->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+        OnTabletCellDecommissionedOnNode(cell);
+    }
+
+    void OnTabletCellDecommissionedOnNode(TTabletCell* cell)
+    {
+        if (cell->DecommissionCompleted()) {
+            return;
+        }
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::Decommissioned);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (TabletCellId: %v)",
+            cell->GetId());
+    }
+
 
     virtual void OnLeaderActive() override
     {
