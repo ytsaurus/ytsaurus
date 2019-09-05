@@ -456,6 +456,9 @@ public:
 
     NProfiling::TTagId GetProfilingTag() const;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+    virtual TJobResources ComputeResourceLimits() const = 0;
+
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
 
@@ -571,6 +574,9 @@ public:
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const override;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    virtual TJobResources ComputeResourceLimits() const override;
+
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
@@ -601,8 +607,6 @@ private:
     TSchedulingTagFilter SchedulingTagFilter_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
-
-    TJobResources ComputeResourceLimits() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPool)
@@ -912,8 +916,9 @@ private:
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
 
-    TJobResources ComputeResourceDemand() const;
+    TJobResources GetSpecifiedResourceLimits() const;
     TJobResources ComputeResourceLimits() const;
+    TJobResources ComputeResourceDemand() const;
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
@@ -964,6 +969,9 @@ public:
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
+
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    virtual TJobResources ComputeResourceLimits() const override;
 
     virtual bool IsAggressiveStarvationEnabled() const override;
 

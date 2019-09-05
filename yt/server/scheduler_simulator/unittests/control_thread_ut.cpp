@@ -117,7 +117,9 @@ public:
 
     explicit TStatisticsOutputMock(TInstant earliestTime)
         : EarliestTime(earliestTime)
-    { }
+    {
+        NLogging::TLogManager::Get()->ConfigureFromEnv();
+    }
 
     virtual void PrintEntry(TOperationId id, TOperationStatistics stats) override
     {

@@ -746,6 +746,8 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
     Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
     ResourceDemand_ = {};
+    ResourceLimits_ = ComputeResourceLimits();
+    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
     TJobResources maxPossibleChildrenResourceUsage;
     for (const auto& child : EnabledChildren_) {
         child->UpdateBottomUp(dynamicAttributesList, context);
@@ -1618,8 +1620,6 @@ void TPool::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdat
 {
     YT_VERIFY(Mutable_);
 
-    ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
     TCompositeSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 }
 
@@ -1726,6 +1726,11 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
     FifoSortParameters_ = Config_->FifoSortParameters;
     Mode_ = Config_->Mode;
     SchedulingTagFilter_ = TSchedulingTagFilter(Config_->SchedulingTagFilter);
+}
+
+TJobResources TPool::GetSpecifiedResourceLimits() const
+{
+    return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
 TJobResources TPool::ComputeResourceLimits() const
@@ -2320,7 +2325,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
+    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
     StartTime_ = Operation_->GetStartTime();
@@ -2946,6 +2951,11 @@ TJobResources TOperationElement::ComputeResourceDemand() const
     return GetLocalResourceUsage() + Controller_->GetNeededResources();
 }
 
+TJobResources TOperationElement::GetSpecifiedResourceLimits() const
+{
+    return ToJobResources(RuntimeParameters_->ResourceLimits, TJobResources::Infinite());
+}
+
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
     return ComputeResourceLimitsBase(RuntimeParameters_->ResourceLimits);
@@ -3208,6 +3218,16 @@ THashSet<TString> TRootElement::GetAllowedProfilingTags() const
 bool TRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
 {
     return false;
+}
+
+TJobResources TRootElement::GetSpecifiedResourceLimits() const
+{
+    return TJobResources::Infinite();
+}
+
+TJobResources TRootElement::ComputeResourceLimits() const
+{
+    return ComputeResourceLimitsBase(New<TResourceLimitsConfig>());
 }
 
 THistoricUsageAggregationParameters TRootElement::GetHistoricUsageAggregationParameters() const
