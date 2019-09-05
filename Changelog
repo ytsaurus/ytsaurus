@@ -8,6 +8,7 @@
 
 * ermolovd: Update type validation. Update via snapshot.
 * ermolovd: Introduced new time-related logical types. Update via snapshot.
+* savrus: Fix dynamic table statistics update in multicell environment. Update masters via snapshot.
 * ignat: Update operations archive to version 31 (core_info added).
 * ifsmirnov: Changed semantics in merging dynamic table nodes. Update masters via snapshot.
 * avmatrosov: Added copy for replicated tables. Update masters via snapshot.

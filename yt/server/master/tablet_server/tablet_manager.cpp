@@ -2928,6 +2928,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
+        ScheduleTableStatisticsUpdate(table);
     }
 
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
@@ -4095,22 +4096,23 @@ private:
                 updateDataStatistics,
                 updateTabletStatistics);
 
-            TTableStatistics statistics;
+            auto& statistics = TableStatisticsUpdates_[table->GetId()];
+
             if (updateTabletStatistics) {
                 auto resourceUsage = table->GetTabletResourceUsage();
-                statistics.TabletResourceUsage = resourceUsage;
+                 statistics.TabletResourceUsage = resourceUsage;
 
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, TabletStaticUsage: %v)",
+                // FIXME(savrus) Remove this.
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
                     table->GetId(),
-                    resourceUsage.TabletStaticMemory);
+                    resourceUsage.TabletStaticMemory,
+                    table->GetExternalTabletResourceUsage().TabletStaticMemory);
             }
             if (updateDataStatistics) {
                 statistics.DataStatistics = table->SnapshotStatistics();
             }
             statistics.ModificationTime = table->GetModificationTime();
             statistics.AccessTime = table->GetAccessTime();
-
-            TableStatisticsUpdates_.Push(std::make_pair(table->GetId(), statistics));
         }
     }
 
@@ -5050,12 +5052,19 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
+        // FIXME(savrus) Remove this.
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
             cell->GetId(),
             frozen);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tabet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
+            table->GetId(),
+            tablet->GetTabletStaticMemorySize(),
+            table->GetTabletResourceUsage().TabletStaticMemory,
+            table->GetExternalTabletResourceUsage().TabletStaticMemory);
 
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
