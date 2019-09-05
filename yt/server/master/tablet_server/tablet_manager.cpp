@@ -3771,7 +3771,9 @@ private:
         // COMPAT(savrus)
         if (config->CompatibilityVersion == 0) {
             if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
-                UpdateDynamicConfigAsync();
+                BIND(&TImpl::UpdateDynamicConfigAsync, MakeWeak(this))
+                    .Via(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+                    .Run();
             }
             return;
         }
