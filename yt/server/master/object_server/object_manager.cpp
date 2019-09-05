@@ -766,16 +766,17 @@ int TObjectManager::TImpl::RefObject(TObject* object)
         GetObjectEphemeralRefCounter(object),
         GetObjectWeakRefCounter(object));
 
+    if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
+        object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
+    {
+        YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to reference an object after removal "
+            "has been pre-committed (ObjectId: %v, LifeStage: %v)",
+            object->GetId(),
+            object->GetLifeStage());
+    }
+
     if (refCounter == 1) {
         GarbageCollector_->UnregisterZombie(object);
-        if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
-            object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
-        {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "References to object reappeared after removal "
-                "has been pre-committed (ObjectId: %v, LifeStage: %v)",
-                object->GetId(),
-                object->GetLifeStage());
-        }
     }
 
     return refCounter;
