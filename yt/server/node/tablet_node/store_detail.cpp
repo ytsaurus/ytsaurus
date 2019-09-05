@@ -699,7 +699,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         YT_LOG_DEBUG("Local chunk reader created and cached");
     };
 
-    auto createRemoveChunkReader = [&] {
+    auto createRemoteChunkReader = [&] {
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
@@ -745,7 +745,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         }
 
         if (!CachedChunkReader_) {
-            createRemoveChunkReader();
+            createRemoteChunkReader();
         }
     };
 
