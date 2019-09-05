@@ -35,6 +35,8 @@
 
 #include <yt/server/master/transaction_server/transaction.h>
 
+#include <yt/server/master/object_server/object_manager.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -1461,16 +1463,15 @@ private:
         return result;
     }
 
-    static TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
+    TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
     {
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
-            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
-            YT_VERIFY(pair.second);
-            return &pair.first->second;
-        } else {
-            return &it->second;
+            it = transaction->AccountResourceUsage().emplace(account, TClusterResources()).first;
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(account);
         }
+        return &it->second;
     }
 
     template <class T>

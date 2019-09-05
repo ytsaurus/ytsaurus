@@ -785,6 +785,9 @@ private:
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
+    // COMPAT(babenko)
+    bool AddRefsFromTransactionToUsageAccounts_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
@@ -1044,6 +1047,11 @@ public:
 
         transaction->SetDeadline(std::nullopt);
 
+        for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+            objectManager->UnrefObject(account);
+        }
+        transaction->AccountResourceUsage().clear();
+
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
@@ -1077,6 +1085,11 @@ private:
         if (context.GetVersion() >= EMasterReign::BulkInsert) {
             Load(context, TimestampHolderMap_);
         }
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < EMasterReign::AddRefsFromTransactionToUsageAccounts) {
+            AddRefsFromTransactionToUsageAccounts_ = true;
+        }
     }
 
 
@@ -1086,10 +1099,23 @@ private:
 
         // Reconstruct TopmostTransactions.
         TopmostTransactions_.clear();
-        for (const auto& pair : TransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [id, transaction] : TransactionMap_) {
             if (IsObjectAlive(transaction) && !transaction->GetParent()) {
                 YT_VERIFY(TopmostTransactions_.insert(transaction).second);
+            }
+        }
+
+        // COMPAT(babenko)
+        if (AddRefsFromTransactionToUsageAccounts_) {
+            for (auto [id, transaction] : TransactionMap_) {
+                if (transaction->GetState() == ETransactionState::Committed ||
+                    transaction->GetState() == ETransactionState::Aborted)
+                {
+                    continue;
+                }
+                for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+                    account->RefObject();
+                }
             }
         }
     }
@@ -1102,6 +1128,7 @@ private:
 
         TransactionMap_.Clear();
         TopmostTransactions_.clear();
+        AddRefsFromTransactionToUsageAccounts_ = false;
     }
 
 
