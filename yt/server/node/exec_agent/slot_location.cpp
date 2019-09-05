@@ -63,6 +63,7 @@ TSlotLocation::TSlotLocation(
 
     try {
         NFS::MakeDirRecursive(Config_->Path, 0755);
+        // TODO(mrkastep): WaitFor?
         HealthChecker_->RunCheck();
 
         ValidateMinimumSpace();
