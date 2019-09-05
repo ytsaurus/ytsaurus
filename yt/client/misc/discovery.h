@@ -32,7 +32,7 @@ public:
     TFuture<void> Leave();
 
     //! Return the list of participants stored in data structure.
-    THashMap<TString, TAttributeDictionary> List() const;
+    THashMap<TString, TAttributeDictionary> List(bool includeBanned = false) const;
     //! Temporary exclude |name| from the list of available participants.
     void Ban(TString name);
 

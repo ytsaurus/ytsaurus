@@ -8,6 +8,7 @@
 #include <server/RootRequestHandler.h>
 
 #include <Poco/Net/HTTPServerRequest.h>
+#include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
 namespace NYT::NClickHouseServer {
@@ -34,6 +35,24 @@ bool IsPost(const Poco::Net::HTTPServerRequest& request)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class MovedPermanentlyRequestHandler : public Poco::Net::HTTPRequestHandler
+{
+public:
+    void handleRequest(
+        Poco::Net::HTTPServerRequest & /* request */,
+        Poco::Net::HTTPServerResponse & response) override
+    {
+        try {
+            response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_MOVED_PERMANENTLY);
+            response.send() << "Instance moved or is moving from this address.\n";
+        } catch (...) {
+            tryLogCurrentException("MovedPermanentlyHandler");
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +115,13 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         if (uri == "/ping") {
             return new PingRequestHandler(Server);
         }
+    }
+
+    auto cliqueId = request.find("X-Clique-Id");
+    if (Bootstrap_->GetState() == EInstanceState::Stopped ||
+        (cliqueId != request.end() && TString(cliqueId->second) != Bootstrap_->GetCliqueId()))
+    {
+        return new MovedPermanentlyRequestHandler();
     }
 
     auto ytRequestId = request.get("X-Yt-Request-Id", "");
