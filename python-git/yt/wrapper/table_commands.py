@@ -4,7 +4,7 @@ from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
-from .driver import make_request, make_formatted_request
+from .driver import make_request, _create_http_client_from_rpc, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError
 from .format import create_format, YsonFormat
@@ -160,6 +160,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     Writing is executed under self-pinged transaction.
     """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "write_table")
+
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 
@@ -283,6 +286,9 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     :rtype: :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`.
 
     """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "read_blob_table")
+
     table = TablePath(table, client=client)
 
     part_index_column_name = get_value(part_index_column_name, "part_index")
@@ -386,6 +392,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     This transaction is alive until your finish reading your table, or call `close` method of ResponseStream.
     """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "read_table")
+
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 

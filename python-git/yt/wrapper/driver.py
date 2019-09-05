@@ -24,6 +24,19 @@ _DEFAULT_COMMAND_PARAMS = {
     "ping_ancestor_transactions": False
 }
 
+# TODO(kiselyovp): remove when YT-7898 is deployed.
+def _create_http_client_from_rpc(client, command_name):
+    from .client import YtClient
+    config = get_config(client)
+    command_params = get_option("COMMAND_PARAMS", client)
+    if config["proxy"]["url"] is None:
+        raise YtError("For rpc proxy url must be specified in command '{}'".format(command_name))
+    new_config = deepcopy(config)
+    new_config["backend"] = "http"
+    new_client = YtClient(config=new_config)
+    new_client.COMMAND_PARAMS = command_params
+    return new_client
+
 def get_command_list(client=None):
     if get_option("_client_type", client) == "batch":
         raise YtError("Command \"get_command_list\" is not supported in batch mode")
