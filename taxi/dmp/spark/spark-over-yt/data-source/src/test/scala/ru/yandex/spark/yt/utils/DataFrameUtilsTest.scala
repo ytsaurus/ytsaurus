@@ -34,4 +34,24 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
     )
   }
 
+  it should "join with hot key" in {
+    import spark.implicits._
+
+    val df = Seq(
+      (None, "1"),
+      (None, "2"),
+      (None, "3"),
+      (None, "4"),
+      (Some("1"), "5"),
+      (Some("2"), "6")
+    ).toDF("key", "valueA")
+
+    val df2 = Seq(
+      (Some("1"), "7"),
+      (Some("2"), "8")
+    ).toDF("key", "valueB")
+
+    df.joinWithHotKey(df2, "key", None, "left_outer").show()
+  }
+
 }

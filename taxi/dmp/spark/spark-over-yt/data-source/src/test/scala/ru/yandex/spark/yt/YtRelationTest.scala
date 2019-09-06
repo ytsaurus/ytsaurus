@@ -15,7 +15,7 @@ class YtRelationTest extends FlatSpec with Matchers with LocalSpark {
   }
 
   private val parameters = DefaultSourceParameters(
-    path = "//tmp/sashbel",
+    path = "//home/sashbel/data/test",
     proxy = "hume",
     user = DefaultRpcCredentials.user,
     token = DefaultRpcCredentials.token,
@@ -42,6 +42,11 @@ class YtRelationTest extends FlatSpec with Matchers with LocalSpark {
       StructField("timestamp", StringType, metadata = metadata("timestamp")),
       StructField("id", StringType, metadata = metadata("id"))
     )
+  }
+
+  it should "get default partitions" in {
+    val relation = new YtRelation(spark.sqlContext, parameters, schemaHint = None)
+    println(relation.ytChunksCount)
   }
 
 }
