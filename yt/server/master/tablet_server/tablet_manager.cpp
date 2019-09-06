@@ -1533,18 +1533,31 @@ public:
 
         transaction->LockedDynamicTables().erase(originatingNode);
 
+        i64 totalMemorySizeDelta = 0;
+
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
             auto* appendChunkList = branchedChunkList->Children()[index];
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
+            auto* tablet = originatingNode->Tablets()[index];
+
+            auto oldMemorySize = tablet->GetTabletStaticMemorySize();
+            auto oldStatistics = GetTabletStatistics(tablet);
 
             if (!appendChunkList->AsChunkList()->Children().empty()) {
                 chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
             }
 
-            auto* tablet = originatingNode->Tablets()[index];
+            auto newMemorySize = tablet->GetTabletStaticMemorySize();
+            auto newStatistics = GetTabletStatistics(tablet);
+            auto deltaStatistics = newStatistics - oldStatistics;
+            totalMemorySizeDelta += newMemorySize - oldMemorySize;
+
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
+
+            auto* cell = tablet->GetCell();
+            cell->LocalStatistics() += deltaStatistics;
 
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
@@ -1561,6 +1574,12 @@ public:
             auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
             hiveManager->PostMessage(mailbox, req);
         }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto resourceUsageDelta = TClusterResources()
+            .SetTabletStaticMemory(totalMemorySizeDelta);
+        securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
+        ScheduleTableStatisticsUpdate(originatingNode);
 
         originatingNode->RemoveDynamicTableLock(transaction->GetId());
 
