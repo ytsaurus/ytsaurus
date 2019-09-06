@@ -1032,6 +1032,11 @@ enum EStaticResourceState {
     EStaticResourceState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
+message TDownloadProgress {
+    // Прогресс скачивания в процентах
+    uint32 percent = 1;
+}
+
 // TODO: нужно придумать как сделать прогресс скачивания
 message TLayerStatus {
     string id = 1;
@@ -1061,6 +1066,9 @@ message TLayerStatus {
 
     // spec_timestamp до которого обновлен layer
     uint64 spec_timestamp = 10;
+
+    // Прогресс скачивания layer
+    TDownloadProgress download_progress = 11;
 }
 
 message TStaticResourceStatus {
@@ -1091,6 +1099,9 @@ message TStaticResourceStatus {
 
     // spec_timestamp до которого обновлен static_resource
     uint64 spec_timestamp = 10;
+
+    // Прогресс скачивания static_resource
+    TDownloadProgress download_progress = 11;
 }
 
 message TResourceGangStatus {
