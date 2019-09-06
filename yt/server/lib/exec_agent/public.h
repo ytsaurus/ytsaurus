@@ -34,6 +34,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobProxyFailed)                (1120))
     ((SetupCommandFailed)            (1121))
     ((GpuLayerNotFetched)            (1122))
+    ((GpuJobWithoutLayers)           (1123))
 );
 
 DEFINE_ENUM(ESandboxKind,

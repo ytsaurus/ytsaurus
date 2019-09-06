@@ -1148,7 +1148,7 @@ private:
         auto error = FromProto<TError>(JobResult_->error());
 
         if (!error.IsOK()) {
-            // NB: it is required to report error that occured in some place different
+            // NB: it is required to report error that occurred in some place different
             // from OnJobFinished method.
             ReportStatistics(TJobStatistics().Error(error));
         }
@@ -1362,7 +1362,13 @@ private:
             }
 
             bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpu;
-            if (needGpu && !userJobSpec.layers().empty() && userJobSpec.enable_gpu_layers()) {
+
+            if (needGpu && userJobSpec.enable_gpu_layers()) {
+                if (userJobSpec.layers().empty()) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::GpuJobWithoutLayers,
+                        "No layers specified for GPU job; at least a base layer is required to use GPU");
+                }
+
                 for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
                     LayerArtifactKeys_.push_back(std::move(layerKey));
                 }
@@ -1660,7 +1666,9 @@ private:
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
-            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming);
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
+            error.FindMatching(EErrorCode::SetupCommandFailed) ||
+            error.FindMatching(EErrorCode::GpuJobWithoutLayers);
     }
 
     TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
