@@ -385,8 +385,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             instances = clique.get_active_instances()
             assert len(instances) == 3
             responses = []
+
+            def get_clique_list(instance):
+                clique_list = clique.make_direct_query(instance, "select * from system.clique")
+                for item in clique_list:
+                    assert item["self"] == (1 if str(instance) == item["job_id"] else 0)
+                    del item["self"]
+                return sorted(clique_list)
+
             for instance in instances:
-                responses.append(sorted(clique.make_direct_query(instance, "select * from system.clique")))
+                responses.append(get_clique_list(instance))
             assert len(responses[0]) == 3
             for node in responses[0]:
                 assert "host" in node and "rpc_port" in node and "monitoring_port" in node
@@ -406,7 +414,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 3
             responses2 = []
             for instance in instances:
-                responses2.append(sorted(clique.make_direct_query(instance, "select * from system.clique")))
+                responses2.append(get_clique_list(instance))
             assert len(responses2[0]) == 3
             assert responses2[0] == responses2[1]
             assert responses2[1] == responses2[2]
