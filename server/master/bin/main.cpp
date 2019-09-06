@@ -41,7 +41,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
-        TThread::CurrentThreadSetName("MasterMain");
+        TThread::SetCurrentThreadName("MasterMain");
 
         ConfigureSignals();
         ConfigureCrashHandler();
