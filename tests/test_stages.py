@@ -2,6 +2,8 @@ from . import templates
 
 import pytest
 
+from yp.common import YtResponseError
+
 @pytest.mark.usefixtures("yp_env")
 class TestStages(object):
     def test_permissions(self, yp_env):
@@ -10,3 +12,16 @@ class TestStages(object):
     def test_update_spec(self, yp_env):
         templates.update_spec_revision_test_template(yp_env.yp_client, "stage")
 
+    def test_stage_validation_success(self, yp_env):
+        yp_client = yp_env.yp_client
+        yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp"}})
+
+    def test_stage_id_validation_failre(self, yp_env):
+        yp_client = yp_env.yp_client
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("stage", attributes={"meta": {"id": "inv*"}, "spec": {"account_id": "tmp"}})
+
+    def test_stage_spec_validation_failre(self, yp_env):
+        yp_client = yp_env.yp_client
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"inv*": {}}}})

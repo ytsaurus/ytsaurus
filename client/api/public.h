@@ -17,6 +17,8 @@ class TPodSpec_TIP6SubnetRequest;
 class TPodSpec_THostDevice;
 class TPodSpec_TSysctlProperty;
 
+class TTvmConfig;
+
 } // namespace NProto
 
 using TObjectId = TString;
@@ -43,8 +45,15 @@ DEFINE_ENUM(EErrorCode,
     ((PodSchedulingFailure)        (100013))
     ((PrerequisiteCheckFailure)    (100014))
     ((InvalidContinuationToken)    (100015))
+    ((InvalidObjectSpec)           (100016))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NClient::NApi
+
+namespace NInfra::NPodAgent::API {
+
+class TWorkload;
+
+} // namespace NInfra::NPodAgent::API
