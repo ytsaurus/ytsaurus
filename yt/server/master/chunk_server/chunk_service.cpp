@@ -293,8 +293,11 @@ private:
         for (const auto* node : owningNodes) {
             auto* protoNode = response->add_nodes();
             ToProto(protoNode->mutable_node_id(), node->GetId());
-            if (node->GetTransaction()) {
-                ToProto(protoNode->mutable_transaction_id(), node->GetTransaction()->GetId());
+            if (auto* transaction = node->GetTransaction()) {
+                auto transactionId = transaction->IsMirrored()
+                    ? transaction->GetUnmirroredTransactionId()
+                    : transaction->GetId();
+                ToProto(protoNode->mutable_transaction_id(), transactionId);
             }
         }
 

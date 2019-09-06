@@ -468,11 +468,16 @@ TYsonString DoGetMulticellOwningNodes(
     std::vector<TVersionedObjectId> nodeIds;
 
     const auto& chunkManager = bootstrap->GetChunkManager();
-    auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId);
-    if (IsObjectAlive(chunkTree)) {
+    if (auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId); IsObjectAlive(chunkTree)) {
         auto nodes = GetOwningNodes(chunkTree);
         for (const auto* node : nodes) {
-            nodeIds.push_back(node->GetVersionedId());
+            TTransactionId transactionId;
+            if (auto* transaction = node->GetTransaction()) {
+                transactionId = transaction->IsMirrored()
+                    ? transaction->GetUnmirroredTransactionId()
+                    : transaction->GetId();
+            }
+            nodeIds.emplace_back(node->GetId(), transactionId);
         }
     }
 
@@ -480,14 +485,17 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
-        if (cellTag == bootstrap->GetCellTag())
+        if (cellTag == bootstrap->GetCellTag()) {
             return;
+        }
 
         auto type = TypeFromId(chunkTreeId);
         if (type != EObjectType::Chunk &&
             type != EObjectType::ErasureChunk &&
             type != EObjectType::JournalChunk)
+        {
             return;
+        }
 
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
@@ -498,8 +506,9 @@ TYsonString DoGetMulticellOwningNodes(
         ToProto(req->mutable_chunk_id(), chunkTreeId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk)
+        if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
             return;
+        }
 
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting owning nodes for chunk %v from cell %v",
             chunkTreeId,

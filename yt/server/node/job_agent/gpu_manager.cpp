@@ -240,8 +240,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
         const auto& rsp = rspOrError.Value();
 
         auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
-        // TODO(mrkastep): use TRevision
-        auto revision = attributes->Get<ui64>("revision", 0);
+        auto revision = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
         if (revision == DriverLayerRevision_) {
             YT_LOG_INFO("GPU layer revision not changed, using cached");
             return;

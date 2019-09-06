@@ -36,10 +36,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedNativeTransactions);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionId>, NestedExternalTransactionIds);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterFromParentOnCommit);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterFromParentOnAbort);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, MirroredToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObject*>, StagedObjects);
@@ -91,6 +89,12 @@ public:
      *  NB: complexity is O(number of intermediate descendants).
      */
     bool IsDescendantOf(TTransaction* transaction) const;
+
+    //! Returns |true| if this a (topmost or nested) mirrored transaction.
+    bool IsMirrored() const;
+
+    //! For mirrored transactions only; returns the original transaction id.
+    TTransactionId GetUnmirroredTransactionId() const;
 
 private:
     void AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged);

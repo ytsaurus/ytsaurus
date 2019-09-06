@@ -26,6 +26,8 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/logging/fluent_log.h>
@@ -342,20 +344,24 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         return std::nullopt;
     }
 
-    auto cellTag = node->GetExternalCellTag();
-    auto versionedId = GetVersionedId();
+    auto externalCellTag = node->GetExternalCellTag();
+
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    auto transactionId = transactionManager->GetNearestMirroredTransactionAncestor(
+        GetTransaction(),
+        externalCellTag);
+
+    auto key = TString(GetUninternedAttributeKey(internedKey));
+    auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
+    SetTransactionId(req, transactionId);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(
-        cellTag,
+        externalCellTag,
         NHydra::EPeerKind::LeaderOrFollower);
 
-    auto key = TString(GetUninternedAttributeKey(internedKey));
-    auto req = TYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@" + key);
-    SetTransactionId(req, versionedId.TransactionId);
-
     TObjectServiceProxy proxy(channel);
-    return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+    return proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
             auto code = rspOrError.GetCode();
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
@@ -363,8 +369,8 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
             }
             THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
                 key,
-                versionedId,
-                cellTag)
+                GetVersionedId(),
+                externalCellTag)
                 << rspOrError;
         }
 
@@ -731,6 +737,8 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& con
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
+    ValidateAccessTransaction();
+
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -1180,7 +1188,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     DeclareMutating();
 
-    auto mode = ELockMode(request->mode());
+    auto mode = CheckedEnumCast<ELockMode>(request->mode());
     bool waitable = request->waitable();
 
     if (mode != ELockMode::Snapshot &&
@@ -1210,7 +1218,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockRequest = TLockRequest(mode);
     }
 
-    lockRequest.Timestamp = static_cast<TTimestamp>(request->timestamp());
+    lockRequest.Timestamp = request->timestamp();
 
     context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
         mode,
@@ -1230,16 +1238,27 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockRequest,
         waitable);
 
-    auto lockId = lock->GetId();
-    ToProto(response->mutable_lock_id(), lockId);
-    ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
-    response->set_cell_tag(TrunkNode->GetExternalCellTag() == NotReplicatedCellTag
-        ? Bootstrap_->GetCellTag()
-        : TrunkNode->GetExternalCellTag());
-    response->set_revision(lock->GetTrunkNode()->GetRevision());
+    auto externalCellTag = TrunkNode->IsExternal()
+        ? TrunkNode->GetExternalCellTag()
+        : Bootstrap_->GetCellTag();
 
-    context->SetResponseInfo("LockId: %v",
-        lockId);
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    auto externalTransactionId = transactionManager->MirrorTransaction(Transaction, externalCellTag);
+
+    auto lockId = lock->GetId();
+    auto revision = TrunkNode->GetRevision();
+
+    ToProto(response->mutable_lock_id(), lockId);
+    ToProto(response->mutable_node_id(), TrunkNode->GetId());
+    ToProto(response->mutable_external_transaction_id(), externalTransactionId);
+    response->set_external_cell_tag(externalCellTag);
+    response->set_revision(revision);
+
+    context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %llx",
+        lockId,
+        externalCellTag,
+        externalTransactionId,
+        revision);
 
     context->Reply();
 }
@@ -1619,6 +1638,31 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     ToProto(response->mutable_node_id(), clonedNode->GetTrunkNode()->GetId());
 
     context->SetResponseInfo("NodeId: %v", clonedNode->GetTrunkNode()->GetId());
+}
+
+void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
+{
+    if (Object_->IsNative()) {
+        return;
+    }
+
+    if (!Transaction) {
+        return;
+    }
+
+    if (Object_->GetNativeCellTag() == Transaction->GetNativeCellTag()) {
+        return;
+    }
+
+    if (Transaction->IsMirrored() &&
+        NTransactionClient::MirrorCellTagFromTransactionId(Transaction->GetId()) == Object_->GetNativeCellTag())
+    {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Accessing a foreign object %v via transaction %v is not allowed",
+        Object_->GetId(),
+        Transaction->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

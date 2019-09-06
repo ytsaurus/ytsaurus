@@ -4,7 +4,8 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/tablet_client/helpers.h>
+#include <yt/client/transaction_client/helpers.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/api/transaction.h>
@@ -285,7 +286,7 @@ void TTransaction::ModifyRows(
     const TModifyRowsOptions& options)
 {
     ValidateActive();
-    ValidateTabletTransaction(GetId());
+    ValidateTabletTransactionId(GetId());
 
     for (const auto& modification : modifications) {
         // TODO(sandello): handle versioned rows

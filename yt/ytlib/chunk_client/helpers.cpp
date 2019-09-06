@@ -113,13 +113,19 @@ void GetUserObjectBasicAttributes(
         if (rsp->has_security_tags()) {
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
+        if (rsp->has_external_transaction_id()) {
+            userObject->ExternalTransactionId = FromProto<TTransactionId>(rsp->external_transaction_id());
+        } else {
+            userObject->ExternalTransactionId = userObject->TransactionId.value_or(defaultTransactionId);
+        }
     }
 
     YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
         MakeFormattableView(objects, [] (auto* builder, const auto* object) {
-            builder->AppendFormat("{Id: %v, ExternalCellTag: %v}",
+            builder->AppendFormat("{Id: %v, ExternalCellTag: %v, ExternalTransactionId: %v}",
                 object->ObjectId,
-                object->ExternalCellTag);
+                object->ExternalCellTag,
+                object->ExternalTransactionId);
         }));
 }
 
@@ -216,8 +222,7 @@ void ProcessFetchResponse(
         skipUnavailableChunks);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
-        chunkSpecs->push_back(NProto::TChunkSpec());
-        chunkSpecs->back().Swap(&chunkSpec);
+        chunkSpecs->push_back(std::move(chunkSpec));
     }
 }
 
@@ -634,79 +639,6 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
         Persist(context, OmittedInaccessibleColumns);
         Persist(context, SecurityTags);
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkUploadSynchronizer::TChunkUploadSynchronizer(NApi::NNative::IConnectionPtr connection)
-    : Connection_(std::move(connection))
-{ }
-
-void TChunkUploadSynchronizer::AfterBeginUpload(
-    TTransactionId transactionId,
-    TObjectId objectId,
-    TCellTag externalCellTag)
-{
-    if (!transactionId) {
-        return;
-    }
-
-    if (CellTagFromId(objectId) == CellTagFromId(transactionId)) {
-        return;
-    }
-
-    if (CellTagFromId(objectId) == externalCellTag) {
-        return;
-    }
-
-    // Wait for external cell to receive BeginUpload.
-    DstCellIdToSrcCellIdsPhaseOne_[Connection_->GetMasterCellId(externalCellTag)].push_back(
-        Connection_->GetMasterCellId(CellTagFromId(objectId)));
-
-    // Wait for transaction cell to receive UnregisterExternalNestedTransaction.
-    DstCellIdToSrcCellIdsPhaseTwo_[Connection_->GetMasterCellId(CellTagFromId(transactionId))].push_back(
-        Connection_->GetMasterCellId(externalCellTag));
-
-    // Wait for transaction cell to receive RegisterExternalNestedTransaction.
-    BeginUploadSyncs_.push_back(SyncHiveCellWithOthers(
-        Connection_->GetCellDirectory(),
-        {Connection_->GetMasterCellId(CellTagFromId(objectId))},
-        Connection_->GetMasterCellId(CellTagFromId(transactionId)),
-        Connection_->GetConfig()->HiveSyncRpcTimeout));
-}
-
-void TChunkUploadSynchronizer::BeforeEndUpload()
-{
-    if (BeginUploadSyncs_.empty()) {
-        return;
-    }
-
-    WaitFor(Combine(BeginUploadSyncs_))
-        .ThrowOnError();
-}
-
-void TChunkUploadSynchronizer::AfterEndUpload()
-{
-    auto doSync = [&] (const auto& dstCellIdToSrcCellIds) {
-        if (dstCellIdToSrcCellIds.empty()) {
-            return;
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& [dstCellId, srcCellIds] : dstCellIdToSrcCellIds) {
-            asyncResults.push_back(SyncHiveCellWithOthers(
-                Connection_->GetCellDirectory(),
-                srcCellIds,
-                dstCellId,
-                Connection_->GetConfig()->HiveSyncRpcTimeout));
-        }
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-    };
-
-    doSync(DstCellIdToSrcCellIdsPhaseOne_);
-    doSync(DstCellIdToSrcCellIdsPhaseTwo_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

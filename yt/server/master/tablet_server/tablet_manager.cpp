@@ -6191,7 +6191,7 @@ private:
         cell->SetPrerequisiteTransaction(transaction);
         YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
-        TReqStartPrerequisiteTransactoin request;
+        TReqStartPrerequisiteTransaction request;
         ToProto(request.mutable_cell_id(), cell->GetId());
         ToProto(request.mutable_transaction_id(), transaction->GetId());
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
@@ -6201,7 +6201,7 @@ private:
             transaction->GetId());
     }
 
-    void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransactoin* request)
+    void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransaction* request)
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 

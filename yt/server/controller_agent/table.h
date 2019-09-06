@@ -77,7 +77,7 @@ struct TOutputTable
     NTableClient::TTableUploadOptions TableUploadOptions;
     EOutputTableType OutputType = EOutputTableType::Output;
 
-    // Server-side upload transaction.
+    // Upload transaction id for the native and external cell.
     NTransactionClient::TTransactionId UploadTransactionId;
 
     // Chunk list for appending the output.

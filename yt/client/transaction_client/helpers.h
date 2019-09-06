@@ -9,6 +9,14 @@ namespace NYT::NTransactionClient {
 //! #EObjectType::Transaction or #EObjectType::NestedTransaction.
 bool IsMasterTransactionId(TTransactionId id);
 
+//! Checks if #id represents a valid tablet transaction (either atomic or non-atomic);
+//! throws if not.
+void ValidateTabletTransactionId(TTransactionId id);
+
+//! Checks if #id represents a valid master transaction (either top-most or nested);
+//! throws if not.
+void ValidateMasterTransactionId(TTransactionId id);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient

@@ -196,9 +196,8 @@ private:
         auto* table = replica->GetTable();
 
         switch (key) {
-            case EInternedAttributeKey::TablePath: {
+            case EInternedAttributeKey::TablePath:
                 return FetchFromShepherd(FromObjectId(table->GetId()) + "/@path");
-            }
 
             default:
                 break;

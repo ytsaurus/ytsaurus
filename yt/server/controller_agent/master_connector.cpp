@@ -905,8 +905,6 @@ private:
             return;
         }
 
-        TChunkUploadSynchronizer uploadSynchronizer(Bootstrap_->GetMasterClient()->GetNativeConnection());
-
         struct TTableInfo
         {
             TNodeId TableId;
@@ -959,10 +957,6 @@ private:
                 const auto& rsp = rsps[rspIndex++].Value();
                 tableInfo->ExternalCellTag = rsp->cell_tag();
                 tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                uploadSynchronizer.AfterBeginUpload(
-                    transactionId,
-                    tableInfo->TableId,
-                    tableInfo->ExternalCellTag);
             }
         }
 
@@ -1030,8 +1024,6 @@ private:
             }
         }
 
-        uploadSynchronizer.BeforeEndUpload();
-
         // EndUpload
         for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
             auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
@@ -1047,8 +1039,6 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
-
-        uploadSynchronizer.AfterEndUpload();
     }
 
     void DoAttachToLivePreview(

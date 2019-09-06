@@ -32,6 +32,17 @@ TTransactionId MakeTabletTransactionId(
     TTimestamp startTimestamp,
     ui32 hash);
 
+//! Constructs the id of the transaction mirrored by cell #mirrorCellTag.
+TTransactionId MakeMirroredTransactionId(
+    TTransactionId originalId,
+    NObjectClient::TCellTag mirrorCellTag);
+
+//! Extracts the mirror cell tag from a given transaction #id.
+NObjectClient::TCellTag MirrorCellTagFromTransactionId(TTransactionId id);
+
+//! Undones the effect of #MakeMirroredTransactionId.
+TTransactionId UnmirrorTransactionId(TTransactionId mirroredId);
+
 //! Extracts the (start) timestamp from transaction id.
 //! #id represent a well-formed tablet transaction id.
 TTimestamp TimestampFromTransactionId(TTransactionId id);

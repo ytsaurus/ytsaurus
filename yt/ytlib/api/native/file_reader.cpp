@@ -156,7 +156,7 @@ private:
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "revision"
             });
-            SetTransactionId(req, Transaction_);
+            SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -196,7 +196,7 @@ private:
 
             ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange(lowerLimit, upperLimit)}));
 
-            SetTransactionId(req, Transaction_);
+            SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 

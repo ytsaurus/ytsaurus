@@ -74,6 +74,7 @@ using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NTransactionServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -103,6 +104,11 @@ TObject* TObjectProxyBase::GetObject() const
     return Object_;
 }
 
+TTransaction* TObjectProxyBase::GetTransaction() const
+{
+    return nullptr;
+}
+
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
     return *const_cast<TObjectProxyBase*>(this)->GetCombinedAttributes();
@@ -129,6 +135,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
     getBasicAttributesContext.ExternalCellTag = CellTagFromId(GetId());
+    getBasicAttributesContext.ExternalTransactionId = GetObjectId(GetTransaction());
 
     GetBasicAttributes(&getBasicAttributesContext);
 
@@ -140,8 +147,11 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     if (getBasicAttributesContext.SecurityTags) {
         ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
     }
+    ToProto(response->mutable_external_transaction_id(), getBasicAttributesContext.ExternalTransactionId);
 
-    context->SetResponseInfo();
+    context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
+        getBasicAttributesContext.ExternalCellTag,
+        getBasicAttributesContext.ExternalTransactionId);
     context->Reply();
 }
 
@@ -402,8 +412,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& contex
         return;
     }
 
-    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
-    PostToMasters(std::move(context), replicationCellTags);
+    MirrorToMasters(std::move(context), handler->GetReplicationCellTags(Object_));
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -781,24 +790,47 @@ void TObjectProxyBase::RequireLeader() const
 
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
-        TCrossCellMessage(Object_->GetId(), std::move(context)));
+        TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::PostToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::MirrorToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMasters(
-        TCrossCellMessage(Object_->GetId(), std::move(context)),
-        cellTags);
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+    if (!transaction || transaction->IsNative()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(
+            TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)),
+            cellTags);
+    } else {
+        for (auto cellTag : cellTags) {
+            MirrorToMaster(context, cellTag);
+        }
+    }
 }
 
-void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
+void TObjectProxyBase::MirrorToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    auto mirroredTransactionId = transactionManager->MirrorTransaction(transaction, cellTag);
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
-        TCrossCellMessage(Object_->GetId(), std::move(context)),
+        TCrossCellMessage(object->GetId(), mirroredTransactionId, std::move(context)),
         cellTag);
 }
 

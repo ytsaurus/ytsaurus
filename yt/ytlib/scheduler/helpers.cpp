@@ -369,8 +369,6 @@ void SaveJobFiles(
 
     auto transactionId = transaction->GetId();
 
-    TChunkUploadSynchronizer uploadSynchronizer(client->GetNativeConnection());
-
     {
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
         auto batchReq = proxy.ExecuteBatch();
@@ -451,7 +449,6 @@ void SaveJobFiles(
             const auto* file = files[index];
             auto& info = fileToInfo[file];
             info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-            uploadSynchronizer.AfterBeginUpload(transactionId, info.NodeId, info.ExternalCellTag);
         }
     }
 
@@ -505,8 +502,6 @@ void SaveJobFiles(
         }
     }
 
-    uploadSynchronizer.AfterEndUpload();
-
     for (const auto& [cellTag, files] : nativeCellTagToFiles) {
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
         auto batchReq = proxy.ExecuteBatch();
@@ -523,8 +518,6 @@ void SaveJobFiles(
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
-
-    uploadSynchronizer.AfterEndUpload();
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
