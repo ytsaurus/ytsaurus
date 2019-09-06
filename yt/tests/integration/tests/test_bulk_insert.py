@@ -636,6 +636,36 @@ class TestBulkInsert(DynamicTablesBase):
         tablet_chunk_list_id = get("#{}/@child_ids/0".format(chunk_list_id))
         assert len(get("#{}/@child_ids".format(tablet_chunk_list_id))) == 2
 
+    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
+    def test_accounting(self, in_memory_mode):
+        sync_create_cells(1)
+
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/tablet_count", 100)
+        set("//sys/accounts/a/@resource_limits/tablet_static_memory", 10000)
+        usage_before = get("//sys/accounts/a/@resource_usage")
+
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output", account="a", in_memory_mode=in_memory_mode)
+        sync_mount_table("//tmp/t_output")
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat")
+
+        wait(lambda: get_account_disk_space("a") > 0)
+        if in_memory_mode != "none":
+            wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") > 0)
+
+        sync_unmount_table("//tmp/t_output")
+        if in_memory_mode != "none":
+            wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") == 0)
+        
+        remove("//tmp/t_output")
+        wait(lambda: get("//sys/accounts/a/@resource_usage") == usage_before)
+
     def test_sorted_merge(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input1")
