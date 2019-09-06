@@ -29,10 +29,15 @@ class YtRelation(@transient val sqlContext: SQLContext,
     }
   }
 
+  lazy val ytChunksCount: Int = {
+    val timeout = sqlContext.getConf("spark.yt.timeout.minutes").toLong
+    val client = YtClientProvider.ytClient(proxy, new RpcCredentials(user, token), 1, Duration.ofMinutes(timeout))
+    client.getNode(s"$path/@chunks_count").join().longValue().toInt
+  }
+
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val defaultPartitions = sqlContext.getConf("spark.sql.shuffle.partitions").toInt
     new YtRDD(sqlContext.sparkContext, path, proxy, user, token,
-      partitions.getOrElse(defaultPartitions), StructType(requiredColumns.map(schema(_))), filters)
+      partitions.getOrElse(ytChunksCount), StructType(requiredColumns.map(schema(_))), filters)
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
