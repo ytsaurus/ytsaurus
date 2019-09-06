@@ -579,6 +579,63 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
 
+    @pytest.mark.parametrize("pivot_keys_before, pivot_keys_after", [
+        [[[], [2], [4]], [[]]],
+        [[[]], [[], [2], [4]]]
+    ])
+    def test_reshard_after_bulk_insert(self, pivot_keys_before, pivot_keys_after):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t_output", pivot_keys_before)
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        keys = [{"key": i} for i in range(10)]
+
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat")
+
+        assert lookup_rows("//tmp/t_output", keys) == rows
+
+        lookup_result = lookup_rows("//tmp/t_output", keys, versioned=True)
+
+        sync_unmount_table("//tmp/t_output")
+        sync_reshard_table("//tmp/t_output", pivot_keys_before)
+        sync_mount_table("//tmp/t_output")
+
+        assert lookup_result == lookup_rows("//tmp/t_output", keys, versioned=True)
+
+    def test_chunk_views_with_distinct_tx_do_not_merge(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        for i in range(2):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat")
+
+        lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
+        sync_unmount_table("//tmp/t_output")
+        sync_reshard_table("//tmp/t_output", [[]])
+        sync_mount_table("//tmp/t_output")
+        assert lookup_result == lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
+
+        chunk_list_id = get("//tmp/t_output/@chunk_list_id")
+        tablet_chunk_list_id = get("#{}/@child_ids/0".format(chunk_list_id))
+        assert len(get("#{}/@child_ids".format(tablet_chunk_list_id))) == 2
+
     def test_sorted_merge(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input1")
@@ -1078,7 +1135,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             assert_items_equal(lhs, rhs)
         else:
             assert lhs == rhs
-
 
     @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
     def test_intermediate_table_schema_alter(self, modification):

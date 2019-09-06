@@ -1537,7 +1537,9 @@ public:
             auto* appendChunkList = branchedChunkList->Children()[index];
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
 
-            chunkManager->AttachToChunkList(tabletChunkList, static_cast<TChunkTree*>(appendChunkList));
+            if (!appendChunkList->AsChunkList()->Children().empty()) {
+                chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+            }
 
             auto* tablet = originatingNode->Tablets()[index];
             if (tablet->GetState() == ETabletState::Unmounted) {
@@ -2753,11 +2755,24 @@ public:
             }
         }
 
+        std::vector<TOwningKey> oldPivotKeys;
+
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
+            if (table->IsPhysicallySorted()) {
+                oldPivotKeys.push_back(tablet->GetPivotKey());
+            }
             tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
+        }
+
+        if (table->IsPhysicallySorted()) {
+            if (lastTabletIndex + 1 < tablets.size()) {
+                oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->GetPivotKey());
+            } else {
+                oldPivotKeys.push_back(MaxKey());
+            }
         }
 
         // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
@@ -2790,7 +2805,48 @@ public:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 std::vector<TChunkTree*> tabletChunksOrViews;
                 EnumerateChunksAndChunkViewsInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletChunksOrViews);
-                chunksOrViews.insert(chunksOrViews.end(), tabletChunksOrViews.begin(), tabletChunksOrViews.end());
+
+                const auto& lowerPivot = oldPivotKeys[index - firstTabletIndex];
+                const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
+
+                for (auto* chunkTree : tabletChunksOrViews) {
+                    if (chunkTree->GetType() == EObjectType::ChunkView) {
+                        auto* chunkView = chunkTree->AsChunkView();
+                        auto readRange = chunkView->GetCompleteReadRange();
+
+                        // Check if chunk view fits into the old tablet completely.
+                        // This might not be the case if the chunk view comes from bulk insert and has no read range.
+                        if (readRange.LowerLimit().GetKey() < lowerPivot ||
+                            upperPivot < readRange.UpperLimit().GetKey())
+                        {
+                            if (!chunkView->GetTransactionId()) {
+                                YT_LOG_ALERT("Chunk view without transaction id is not fully inside its tablet "
+                                    "(ChunkViewId: %v, UnderlyingChunkId: %v, "
+                                    "EffectiveLowerLimit: %v, EffectiveUpperLimit: %v, "
+                                    "PivotKey: %v, NextPivotKey: %v)",
+                                    chunkView->GetId(),
+                                    chunkView->GetUnderlyingChunk()->GetId(),
+                                    readRange.LowerLimit().GetKey(),
+                                    readRange.UpperLimit().GetKey(),
+                                    lowerPivot,
+                                    upperPivot);
+                            }
+
+                            NChunkClient::TReadRange newReadRange;
+                            if (readRange.LowerLimit().GetKey() < lowerPivot) {
+                                newReadRange.LowerLimit().SetKey(lowerPivot);
+                            }
+                            if (upperPivot < readRange.UpperLimit().GetKey()) {
+                                newReadRange.UpperLimit().SetKey(upperPivot);
+                            }
+                            auto* newChunkView = chunkManager->CreateChunkView(chunkView, newReadRange);
+
+                            chunkTree = newChunkView;
+                        }
+                    }
+
+                    chunksOrViews.push_back(chunkTree);
+                }
             }
 
             std::sort(chunksOrViews.begin(), chunksOrViews.end(), TObjectRefComparer::Compare);
@@ -2872,6 +2928,7 @@ public:
                 try {
                     mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[i], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
+                    YT_LOG_ALERT(ex, "Failed to merge chunk view ranges");
                     mergedChunkViews = {};
                 }
                 chunkManager->AttachToChunkList(newTabletChunkTrees[i]->AsChunkList(), mergedChunkViews);

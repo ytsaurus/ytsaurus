@@ -119,12 +119,12 @@ int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
     const auto& lhsTransactionId = lhs->GetTransactionId();
     const auto& rhsTransactionId = rhs->GetTransactionId();
 
-    if (lhsChunkId == rhsChunkId && rhsTransactionId == lhsTransactionId) {
-        return 0;
+    if (lhsChunkId != rhsChunkId) {
+        return lhsChunkId < rhsChunkId ? -1 : 1;
+    } else if  (lhsTransactionId != rhsTransactionId) {
+        return lhsTransactionId < rhsTransactionId ? -1 : 1;
     } else {
-        return lhsChunkId == rhsChunkId
-            ? (rhsTransactionId < rhsTransactionId ? -1 : 1)
-            : (lhsChunkId < rhsChunkId ? -1 : 1);
+        return 0;
     }
 }
 
