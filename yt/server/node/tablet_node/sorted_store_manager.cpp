@@ -370,15 +370,15 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     Logger.AddTag("%v", Tablet_->GetLoggingId());
 
     for (auto& [partitionId, addedStores] : addedStoresByPartition) {
+        if (partitionId == Tablet_->GetEden()->GetId()) {
+            continue;
+        }
+
         auto* partition = Tablet_->GetPartition(partitionId);
         YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
             "Added %v stores to partition (PartitionId: %v)",
             partition->GetId(),
             addedStores.size());
-
-        if (partition->GetIndex() == EdenIndex) {
-            continue;
-        }
 
         if (partition->GetState() != EPartitionState::Normal) {
             YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
@@ -715,9 +715,6 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
     TPartition* partition,
     std::vector<ISortedStorePtr> addedStores)
 {
-    auto Logger = this->Logger;
-    Logger.AddTag("%v", Tablet_->GetLoggingId());
-
     std::sort(
         addedStores.begin(),
         addedStores.end(),
