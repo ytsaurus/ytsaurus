@@ -196,6 +196,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+// This struct can represent either
+//  1) a real column; |ChildIndex| means index in protobuf config; OR
+//  2) protobuf binary representation (inside EValueType::String)
+//     for a structured message field;
+//     in this case |ChildIndex| means the index of a field inside the message; OR
+//  3) unversioned-value or protobuf representation for a repeated field;
+//     meaning of |ChildIndex| is as in (1) or (2).
 struct TField
 {
     TUnversionedValue Value;
@@ -403,43 +411,46 @@ private:
 
         const auto inRoot = (depth == 0);
 
-        int structElementIndex = -1;
-        auto skipElements = [&] (int destinationIndex) {
-            ++structElementIndex;
-            if (!inRoot) {
-                YT_VERIFY(structElementIndex <= destinationIndex);
-                while (structElementIndex < destinationIndex) {
-                    ColumnConsumer_.OnEntity();
-                    ++structElementIndex;
-                }
+        int structElementIndex = 0;
+        auto skipElements = [&] (int targetIndex) {
+            if (inRoot) {
+                return;
+            }
+            YT_VERIFY(structElementIndex <= targetIndex);
+            while (structElementIndex < targetIndex) {
+                ColumnConsumer_.OnEntity();
+                ++structElementIndex;
             }
         };
 
-        const TProtobufParserFieldDescription* childDescription = nullptr;
-        int previousChildIndex = -1;
-        for (const auto& field : fields) {
-            if (previousChildIndex != field.ChildIndex) {
-                if (childDescription && childDescription->Repeated) {
-                    ColumnConsumer_.OnEndList();
-                }
-                previousChildIndex = field.ChildIndex;
-                childDescription = &description.GetChildren()[field.ChildIndex];
-                if (inRoot) {
-                    ColumnConsumer_.SetColumnIndex(field.Value.Id);
-                }
-                skipElements(childDescription->StructElementIndex);
-                if (childDescription->Repeated) {
-                    ColumnConsumer_.OnBeginList();
-                }
+        auto fieldIt = fields.begin();
+        auto childrenCount = static_cast<int>(description.GetChildren().size());
+        for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
+            const auto& childDescription = description.GetChildren()[childIndex];
+            skipElements(childDescription.StructElementIndex);
+            if (inRoot) {
+                ColumnConsumer_.SetColumnIndex(ChildColumnIds_[childIndex]);
             }
-            YT_VERIFY(childDescription);
-            if (childDescription->Repeated) {
-                ColumnConsumer_.OnListItem();
+            if (childDescription.Repeated) {
+                ColumnConsumer_.OnBeginList();
             }
-            OutputValue(field.Value, *childDescription, depth);
-        }
-        if (childDescription && childDescription->Repeated) {
-            ColumnConsumer_.OnEndList();
+
+            bool haveFields = (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex);
+            while (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex) {
+                if (childDescription.Repeated) {
+                    ColumnConsumer_.OnListItem();
+                }
+                OutputValue(fieldIt->Value, childDescription, depth);
+                ++fieldIt;
+            }
+            if (!haveFields && !inRoot && !childDescription.Repeated) {
+                ColumnConsumer_.OnEntity();
+            }
+
+            if (childDescription.Repeated) {
+                ColumnConsumer_.OnEndList();
+            }
+            ++structElementIndex;
         }
         skipElements(description.StructElementCount);
     }

@@ -30,6 +30,7 @@ message TMessageWithStructuredEmbedded
         optional bytes any_int64_field = 6;
         optional bytes any_map_field = 7;
         optional int64 optional_int64_field = 8;
+        repeated int64 another_repeated_int64_field = 9;
     }
 
     message TSecondMessage
@@ -53,6 +54,8 @@ message TMessageWithStructuredEmbedded
     optional EEnum enum_int_field = 10;
     optional EEnum enum_string_string_field = 11;
     optional EEnum enum_string_int64_field = 12;
+
+    repeated int64 another_repeated_int64_field = 13;
 }
 
 message TSeveralTablesMessageFirst
