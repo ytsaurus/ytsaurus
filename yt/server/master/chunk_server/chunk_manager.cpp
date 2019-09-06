@@ -741,15 +741,18 @@ public:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->As<TChunk>();
                 auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, TransactionId: %v)",
                     chunkView->GetId(),
-                    underlyingChunk->GetId());
+                    underlyingChunk->GetId(),
+                    transactionId);
                 return chunkView;
             }
 
             case EObjectType::ChunkView: {
+                YT_VERIFY(!transactionId);
+
                 auto* underlyingChunkView = underlyingTree->As<TChunkView>();
-                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange), transactionId);
+                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
                     underlyingChunkView->GetUnderlyingChunk()->GetId(),
@@ -764,7 +767,7 @@ public:
 
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange)
     {
-        return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange);
+        return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange, chunkView->GetTransactionId());
     }
 
     TChunkList* CreateChunkList(EChunkListKind kind)
@@ -1684,10 +1687,11 @@ private:
         return chunkView;
     }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange, TTransactionId transactionId)
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
     {
         readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
         readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
+        auto transactionId = underlyingChunkView->GetTransactionId();
         return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange, transactionId);
     }
 
