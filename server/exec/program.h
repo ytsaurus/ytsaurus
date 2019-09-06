@@ -96,7 +96,7 @@ protected:
         if (Pty_ == -1) {
             RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
         }
-        TThread::CurrentThreadSetName("ExecMain");
+        TThread::SetCurrentThreadName("ExecMain");
 
         try {
             SafeCreateStderrFile("../executor_stderr");

@@ -303,7 +303,7 @@ void* TDnsResolver::TImpl::ResolverThreadMain(void* opaque)
 
 void TDnsResolver::TImpl::ResolverThreadMain()
 {
-    TThread::CurrentThreadSetName("DnsResolver");
+    TThread::SetCurrentThreadName("DnsResolver");
 
     constexpr size_t MaxRequestsPerDrain = 100;
 
