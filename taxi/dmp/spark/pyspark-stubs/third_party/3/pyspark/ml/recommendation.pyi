@@ -7,7 +7,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.param.shared import *
 from pyspark.sql.dataframe import DataFrame
 
-class ALS(JavaEstimator[ALSModel], HasCheckpointInterval, HasMaxIter, HasPredictionCol, HasRegParam, HasSeed, JavaMLWritable, JavaMLReadable):
+class ALS(JavaEstimator[ALSModel], HasCheckpointInterval, HasMaxIter, HasPredictionCol, HasRegParam, HasSeed, JavaMLWritable, JavaMLReadable[ALS]):
     rank: Param
     numUserBlocks: Param
     numItemBlocks: Param
@@ -48,7 +48,7 @@ class ALS(JavaEstimator[ALSModel], HasCheckpointInterval, HasMaxIter, HasPredict
     def setColdStartStrategy(self, value: str) -> ALS: ...
     def getColdStartStrategy(self) -> str: ...
 
-class ALSModel(JavaModel, JavaMLWritable, JavaMLReadable):
+class ALSModel(JavaModel, JavaMLWritable, JavaMLReadable[ALSModel]):
     @property
     def rank(self) -> int: ...
     @property

@@ -5,6 +5,7 @@ from mypy.test.testcheck import TypeCheckSuite
 class PySparkCoreSuite(TypeCheckSuite):
     TypeCheckSuite.files = [
         "context.test",
+        "ml-readable.test",
         "resultiterable.test",
         "udf.test",
     ]
