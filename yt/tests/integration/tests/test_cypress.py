@@ -1093,6 +1093,23 @@ class TestCypress(YTEnvSetup):
         assert get("#{0}/@type".format(id)) == "map_node"
         assert get("#{0}&/@type".format(id)) == "link"
 
+    @authors("kiselyovp")
+    def test_escaped_symbols(self):
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/special@&*[{symbols")
+        path = r"//tmp/special\\\/\@\&\*\[\{symbols"
+        create("string_node", path)
+        set(path, "abacaba")
+        assert exists(path)
+        assert r"special\/@&*[{symbols" in ls("//tmp")
+        assert get(path) == "abacaba"
+        set(path + "/@attr", 42)
+        assert get(path + "/@attr") == 42
+
+        move(path, "//tmp/string_node")
+        assert not exists(path)
+        assert exists("//tmp/string_node")
+
     @authors("babenko")
     def test_access_stat1(self):
         time.sleep(1)

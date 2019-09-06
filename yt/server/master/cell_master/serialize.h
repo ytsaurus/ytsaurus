@@ -91,6 +91,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_10855_EpochHistoryManager)                                  (907))  // ifsmirnov
     ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
     ((CellRoles)                                                     (909))  // shakurov
+    ((YT_11349_FixCypressMoveWithEscapedSymbols)                     (910))  // kiselyovp
 );
 
 ////////////////////////////////////////////////////////////////////////////////
