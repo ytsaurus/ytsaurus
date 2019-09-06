@@ -50,7 +50,7 @@ inline TObjectId MakeId(
 {
     return TObjectId(
         hash,
-        (cellTag << 16) + static_cast<int>(type),
+        (cellTag << 16) | static_cast<ui32>(type),
         counter & 0xffffffff,
         counter >> 32);
 }
@@ -79,7 +79,7 @@ inline TObjectId MakeRegularId(
 {
     return TObjectId(
         hash,
-        (cellTag << 16) + static_cast<int>(type),
+        (cellTag << 16) | static_cast<ui32>(type),
         version.RecordId,
         version.SegmentId);
 }

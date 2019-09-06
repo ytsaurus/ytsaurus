@@ -147,7 +147,7 @@ private:
             range.UpperLimit() = upperLimit;
             ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
 
-            SetTransactionId(req, Transaction_);
+            SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 

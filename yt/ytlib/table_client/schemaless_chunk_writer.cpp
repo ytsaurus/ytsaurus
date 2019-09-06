@@ -19,6 +19,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -1797,7 +1798,6 @@ public:
             .AddTag("Path: %v, TransactionId: %v",
                 richPath.GetPath(),
                 TransactionId_))
-        , UploadSynchronizer_(Client_->GetNativeConnection())
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -1861,7 +1861,6 @@ private:
     TTableUploadOptions TableUploadOptions_;
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
-    TChunkUploadSynchronizer UploadSynchronizer_;
 
 
     void DoOpen()
@@ -1895,12 +1894,12 @@ private:
         {
             YT_LOG_DEBUG("Requesting extended table attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, nativeCellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
-            SetTransactionId(req, Transaction_);
-            std::vector<TString> attributeKeys{
+            NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
                 "chunk_writer",
                 "compression_codec",
@@ -1914,8 +1913,7 @@ private:
                 "schema_mode",
                 "vital",
                 "enable_skynet_sharing"
-            };
-            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            });
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -2000,8 +1998,6 @@ private:
 
         StartListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.AfterBeginUpload(TransactionId_, userObject.ObjectId, userObject.ExternalCellTag);
-
         TOwningKey writerLastKey;
         TChunkListId chunkListId;
 
@@ -2014,7 +2010,6 @@ private:
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
             req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
                 TableUploadOptions_.TableSchema.IsSorted());
-
             SetTransactionId(req, UploadTransaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -2073,8 +2068,6 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.BeforeEndUpload();
-
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -2102,8 +2095,6 @@ private:
             GetCumulativeError(batchRspOrError),
             "Error finishing upload to table %v",
             path);
-
-        UploadSynchronizer_.AfterEndUpload();
 
         UploadTransaction_->Detach();
 

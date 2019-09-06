@@ -223,7 +223,6 @@ private:
                 "chunk_count",
                 "schema",
             });
-            SetTransactionId(req, NullTransactionId);
             batchReq->AddRequest(req, "get_attributes");
         }
 

@@ -625,8 +625,6 @@ void TClient::DoConcatenateNodes(
 
     const auto& simpleDstPath = dstPath.GetPath();
 
-    TChunkUploadSynchronizer uploadSynchronizer(Connection_);
-
     bool append = dstPath.GetAppend();
 
     try {
@@ -690,16 +688,16 @@ void TClient::DoConcatenateNodes(
                     auto id = FromProto<TObjectId>(rsp->object_id());
                     srcIds.push_back(id);
 
-                    auto cellTag = rsp->external_cell_tag();
-                    srcCellTags.push_back(cellTag);
+                    auto externalCellTag = rsp->external_cell_tag();
+                    srcCellTags.push_back(externalCellTag);
 
                     auto securityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
                     inferredSecurityTags.insert(inferredSecurityTags.end(), securityTags.begin(), securityTags.end());
 
-                    YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, CellTag: %v, SecurityTags: %v)",
+                    YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v)",
                         srcPath.GetPath(),
                         id,
-                        cellTag,
+                        externalCellTag,
                         securityTags);
 
                     checkType(TypeFromId(id), srcPath.GetPath());
@@ -745,7 +743,7 @@ void TClient::DoConcatenateNodes(
                         auto req = createGetSchemaRequest(dstId);
                         getSchemasReq->AddRequest(req, "get_dst_schema");
                     }
-                    for (const auto& id : srcIds) {
+                    for (auto id : srcIds) {
                         auto req = createGetSchemaRequest(id);
                         getSchemasReq->AddRequest(req, "get_src_schema");
                     }
@@ -814,10 +812,7 @@ void TClient::DoConcatenateNodes(
                 cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
             }
 
-            for (const auto& pair : cellTagToIndexes) {
-                auto srcCellTag = pair.first;
-                const auto& srcIndexes = pair.second;
-
+            for (const auto& [srcCellTag, srcIndexes] : cellTagToIndexes) {
                 auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions(), srcCellTag);
                 auto batchReq = proxy->ExecuteBatch();
 
@@ -877,8 +872,6 @@ void TClient::DoConcatenateNodes(
 
             uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             dstExternalCellTag = rsp->cell_tag();
-
-            uploadSynchronizer.AfterBeginUpload(options.TransactionId, dstId, dstExternalCellTag);
         }
 
         auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
@@ -948,8 +941,6 @@ void TClient::DoConcatenateNodes(
             dataStatistics = rsp.statistics();
         }
 
-        uploadSynchronizer.BeforeEndUpload();
-
         // End upload.
         {
             auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
@@ -984,8 +975,6 @@ void TClient::DoConcatenateNodes(
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v",
                 simpleDstPath);
         }
-
-        uploadSynchronizer.AfterEndUpload();
 
         uploadTransaction->Detach();
     } catch (const std::exception& ex) {

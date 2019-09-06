@@ -19,6 +19,8 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/mailbox.h>
 #include <yt/server/lib/hive/helpers.h>
@@ -40,6 +42,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NHiveServer;
 using namespace NHiveClient;
@@ -728,6 +731,7 @@ private:
             auto requestHeader = servicePtr->Context->RequestHeader();
             auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestTargetYPath(requestHeader);
             SetRequestTargetYPath(&requestHeader, updatedYPath);
+            SetTransactionId(&requestHeader, servicePtr->TransactionId);
             parts = SetRequestHeader(requestMessage, requestHeader);
         } else {
             YT_ABORT();

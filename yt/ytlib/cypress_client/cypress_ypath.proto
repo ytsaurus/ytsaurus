@@ -19,7 +19,8 @@ message TRspLock
 {
     required NYT.NProto.TGuid lock_id = 1;
     required NYT.NProto.TGuid node_id = 2;
-    required int32 cell_tag = 3;
+    optional NYT.NProto.TGuid external_transaction_id = 5;
+    required int32 external_cell_tag = 3;
     optional uint64 revision = 4;
 }
 

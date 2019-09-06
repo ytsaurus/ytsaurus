@@ -38,8 +38,10 @@ public:
     virtual bool ShouldHideAttributes() override;
 
     // IObjectProxy members
+    // XXX(babenko): deprecate?
     virtual TObjectId GetId() const override;
     virtual TObject* GetObject() const override;
+    virtual NTransactionServer::TTransaction* GetTransaction() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
@@ -59,6 +61,7 @@ protected:
     {
         std::optional<NYTree::EPermission> Permission;
         TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+        NTransactionClient::TTransactionId ExternalTransactionId;
         std::optional<std::vector<TString>> Columns;
         bool OmitInaccessibleColumns = false;
         std::optional<std::vector<TString>> OmittedInaccessibleColumns;
@@ -147,11 +150,11 @@ protected:
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
-    //! Posts the request to given masters.
-    void PostToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+    //! Posts the request to given masters mirroring the transaction if needed.
+    void MirrorToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
 
-    //! Posts the request to a given master, either primary or secondary.
-    void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
+    //! Posts the request to a given master mirroring the transaction if needed.
+    void MirrorToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 };

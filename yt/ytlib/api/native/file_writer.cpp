@@ -71,7 +71,6 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , UploadSynchronizer_(Client_->GetNativeConnection())
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("Path: %v, TransactionId: %v",
                 Path_.GetPath(),
@@ -116,8 +115,6 @@ private:
     const TRichYPath Path_;
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
-
-    TChunkUploadSynchronizer UploadSynchronizer_;
 
     NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
@@ -259,8 +256,6 @@ private:
                 });
                 StartListenTransaction(UploadTransaction_);
 
-                UploadSynchronizer_.AfterBeginUpload(Options_.TransactionId, ObjectId_, ExternalCellTag_);
-
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
             }
@@ -343,8 +338,6 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.BeforeEndUpload();
-
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = Writer_->GetDataStatistics();
@@ -374,8 +367,6 @@ private:
             Path_.GetPath());
 
         UploadTransaction_->Detach();
-
-        UploadSynchronizer_.AfterEndUpload();
 
         YT_LOG_INFO("File closed");
     }

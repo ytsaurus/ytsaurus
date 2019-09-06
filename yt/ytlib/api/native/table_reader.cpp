@@ -321,7 +321,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         // NB: objectId is null for virtual tables.
         auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
-        SetTransactionId(req, options.TransactionId);
+        SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
         std::vector<TString> attributeKeys{
             "chunk_count",
@@ -365,7 +365,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->set_fetch_parity_replicas(config->EnableAutoRepair);
-                SetTransactionId(req, options.TransactionId);
+                SetTransactionId(req, userObject->ExternalTransactionId);
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
             Logger,

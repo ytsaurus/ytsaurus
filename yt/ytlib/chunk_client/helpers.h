@@ -146,6 +146,7 @@ struct TUserObject
 
     // Output
     NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+    NTransactionClient::TTransactionId ExternalTransactionId;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
     NHydra::TRevision Revision = NHydra::NullRevision;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
@@ -191,28 +192,6 @@ template <class T>
 std::vector<TUserObject*> MakeUserObjectList(std::vector<T>& vector);
 template <class T>
 std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vector);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkUploadSynchronizer
-{
-public:
-    explicit TChunkUploadSynchronizer(NApi::NNative::IConnectionPtr connection);
-
-    void AfterBeginUpload(
-        NTransactionClient::TTransactionId transactionId,
-        NObjectClient::TObjectId objectId,
-        NObjectClient::TCellTag externalCellTag);
-    void BeforeEndUpload();
-    void AfterEndUpload();
-
-private:
-    const NApi::NNative::IConnectionPtr Connection_;
-
-    std::vector<TFuture<void>> BeginUploadSyncs_;
-    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseOne_;
-    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseTwo_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

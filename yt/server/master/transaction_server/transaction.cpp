@@ -10,6 +10,8 @@
 
 #include <yt/server/master/table_server/table_node.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -20,6 +22,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,10 +53,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Timeout_);
     Save(context, Title_);
     Save(context, ReplicatedToCellTags_);
-    Save(context, NestedNativeTransactions_);
-    Save(context, NestedExternalTransactionIds_);
-    Save(context, UnregisterFromParentOnCommit_);
-    Save(context, UnregisterFromParentOnAbort_);
+    Save(context, MirroredToCellTags_);
+    Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
     Save(context, StagedObjects_);
@@ -82,13 +83,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Timeout_);
     Load(context, Title_);
     Load(context, ReplicatedToCellTags_);
-    Load(context, NestedNativeTransactions_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ShardedUploads) {
-        Load(context, NestedExternalTransactionIds_);
-        Load(context, UnregisterFromParentOnCommit_);
-        Load(context, UnregisterFromParentOnAbort_);
+    if (context.GetVersion() >= EMasterReign::TransactionMirroring) {
+        Load(context, MirroredToCellTags_);
     }
+    Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
     Load(context, StagedObjects_);
@@ -151,6 +150,18 @@ bool TTransaction::IsDescendantOf(TTransaction* transaction) const
         }
     }
     return false;
+}
+
+bool TTransaction::IsMirrored() const
+{
+    return GetType() == EObjectType::MirroredTransaction ||
+           GetType() == EObjectType::MirroredNestedTransaction;
+}
+
+TTransactionId TTransaction::GetUnmirroredTransactionId() const
+{
+    YT_VERIFY(IsMirrored());
+    return NTransactionClient::UnmirrorTransactionId(Id_);
 }
 
 namespace {

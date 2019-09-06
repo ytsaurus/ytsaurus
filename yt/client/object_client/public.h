@@ -81,6 +81,8 @@ DEFINE_ENUM(EObjectType,
     ((AtomicTabletTransaction)    (  2))
     ((NonAtomicTabletTransaction) (  3))
     ((NestedTransaction)          (  4))
+    ((MirroredTransaction)        (  5))
+    ((MirroredNestedTransaction)  (  6))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))
     ((LockMap)                    (422))

@@ -57,7 +57,12 @@ public:
     void AbortTransaction(
         TTransaction* transaction,
         bool force);
-    void RegisterTransactionAtParent(TTransaction* transaction);
+    TTransactionId MirrorTransaction(
+        TTransaction* transaction,
+        NObjectClient::TCellTag dstCellTag);
+    TTransactionId GetNearestMirroredTransactionAncestor(
+        TTransaction* transaction,
+        NObjectClient::TCellTag dstCellTag);
 
     // COMPAT(shakurov). Hide this to the impl once YT-10852 is resolved.
     void FinishTransaction(TTransaction* transaction);

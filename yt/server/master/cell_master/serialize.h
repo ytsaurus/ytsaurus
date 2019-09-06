@@ -84,7 +84,6 @@ DEFINE_ENUM(EMasterReign,
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
     ((BulkInsert)                                                    (902))  // savrus
-    ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
     ((MorePortalAttributes)                                          (905))  // babenko
     ((CypressShardName)                                              (906))  // babenko
@@ -93,6 +92,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellRoles)                                                     (909))  // shakurov
     ((YT_11349_FixCypressMoveWithEscapedSymbols)                     (910))  // kiselyovp
     ((AddRefsFromTransactionToUsageAccounts)                         (911))  // babenko
+    ((TransactionMirroring)                                          (912))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

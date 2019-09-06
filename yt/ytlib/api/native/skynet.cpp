@@ -73,10 +73,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetSuppressAccessTracking(req, false);
-        std::vector<TString> attributeKeys{
-            "chunk_count",
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            "chunk_count"
+        });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table chunk count %v",

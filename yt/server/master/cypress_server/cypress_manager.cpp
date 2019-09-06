@@ -124,13 +124,13 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (const auto& clone : ClonedExternalNodes_) {
             NProto::TReqCloneForeignNode protoRequest;
-            ToProto(protoRequest.mutable_source_node_id(), clone.SourceId.ObjectId);
-            if (clone.SourceId.TransactionId) {
-                ToProto(protoRequest.mutable_source_transaction_id(), clone.SourceId.TransactionId);
+            ToProto(protoRequest.mutable_source_node_id(), clone.SourceNodeId.ObjectId);
+            if (clone.SourceNodeId.TransactionId) {
+                ToProto(protoRequest.mutable_source_transaction_id(), clone.SourceNodeId.TransactionId);
             }
-            ToProto(protoRequest.mutable_cloned_node_id(), clone.CloneId.ObjectId);
-            if (clone.CloneId.TransactionId) {
-                ToProto(protoRequest.mutable_cloned_transaction_id(), clone.CloneId.TransactionId);
+            ToProto(protoRequest.mutable_cloned_node_id(), clone.ClonedNodeId.ObjectId);
+            if (clone.ClonedNodeId.TransactionId) {
+                ToProto(protoRequest.mutable_cloned_transaction_id(), clone.ClonedNodeId.TransactionId);
             }
             protoRequest.set_mode(static_cast<int>(clone.Mode));
             ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
@@ -410,12 +410,16 @@ public:
         // which calls RegisterCreatedNode.
 
         if (clonedNode->IsExternal()) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto externalCellTag = clonedNode->GetExternalCellTag();
+            auto mirroredSourceTransactionId = transactionManager->MirrorTransaction(sourceNode->GetTransaction(), externalCellTag);
+            auto mirroredClonedTransactionId = transactionManager->MirrorTransaction(clonedNode->GetTransaction(), externalCellTag);
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = mode,
-                .SourceId = sourceNode->GetVersionedId(),
-                .CloneId = clonedNode->GetVersionedId(),
+                .SourceNodeId = TVersionedObjectId(sourceNode->GetId(), mirroredSourceTransactionId),
+                .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), mirroredClonedTransactionId),
                 .CloneAccountId = clonedNode->GetAccount()->GetId(),
-                .ExternalCellTag = clonedNode->GetExternalCellTag()
+                .ExternalCellTag = externalCellTag
             });
         }
 
@@ -442,12 +446,15 @@ public:
         // which calls RegisterCreatedNode.
 
         if (clonedNode->IsExternal()) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto externalCellTag = clonedNode->GetExternalCellTag();
+            auto mirroredTransactionId = transactionManager->MirrorTransaction(Transaction_, externalCellTag);
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = context->GetMode(),
-                .SourceId = TVersionedObjectId(sourceNodeId, Transaction_->GetId()),
-                .CloneId = TVersionedObjectId(clonedNode->GetId(), Transaction_->GetId()),
+                .SourceNodeId = TVersionedObjectId(sourceNodeId, mirroredTransactionId),
+                .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), mirroredTransactionId),
                 .CloneAccountId = clonedNode->GetAccount()->GetId(),
-                .ExternalCellTag = clonedNode->GetExternalCellTag()
+                .ExternalCellTag = externalCellTag
             });
         }
 
@@ -475,9 +482,8 @@ private:
     struct TClonedExternalNode
     {
         ENodeCloneMode Mode;
-        TVersionedNodeId SourceId;
-        TVersionedNodeId CloneId;
-        // XXX(babenko): check lifetime
+        TVersionedNodeId SourceNodeId;
+        TVersionedNodeId ClonedNodeId;
         TAccountId CloneAccountId;
         TCellTag ExternalCellTag;
     };
@@ -1225,7 +1231,7 @@ public:
         YT_VERIFY(transaction);
 
         auto result = ELockMode::Snapshot;
-        for (auto* nestedTransaction : transaction->NestedNativeTransactions()) {
+        for (auto* nestedTransaction : transaction->NestedTransactions()) {
             auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
             if (!versionedNode) {
                 continue;
@@ -2061,8 +2067,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_VERIFY(transaction->NestedNativeTransactions().empty());
-        YT_VERIFY(transaction->NestedExternalTransactionIds().empty());
+        YT_VERIFY(transaction->NestedTransactions().empty());
 
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
@@ -2754,11 +2759,15 @@ private:
 
     void PostLockForeignNodeRequest(const TLock* lock)
     {
-        const auto* node = lock->GetTrunkNode();
+        const auto* trunkNode = lock->GetTrunkNode();
+        auto externalCellTag = trunkNode->GetExternalCellTag();
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto mirroredTransactionId = transactionManager->MirrorTransaction(lock->GetTransaction(), externalCellTag);
 
         NProto::TReqLockForeignNode request;
-        ToProto(request.mutable_transaction_id(), lock->GetTransaction()->GetId());
-        ToProto(request.mutable_node_id(), node->GetId());
+        ToProto(request.mutable_transaction_id(), mirroredTransactionId);
+        ToProto(request.mutable_node_id(), trunkNode->GetId());
         request.set_mode(static_cast<int>(lock->Request().Mode));
         switch (lock->Request().Key.Kind) {
             case ELockKeyKind::None:
@@ -2769,22 +2778,29 @@ private:
             case ELockKeyKind::Attribute:
                 request.set_attribute_key(lock->Request().Key.Name);
                 break;
+            default:
+                break;
         }
         request.set_timestamp(lock->Request().Timestamp);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, node->GetExternalCellTag());
+        multicellManager->PostToMaster(request, externalCellTag);
     }
 
     void PostUnlockForeignNodeRequest(TCypressNode* trunkNode, TTransaction* transaction, bool explicitOnly)
     {
+        auto externalCellTag = trunkNode->GetExternalCellTag();
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto mirroredTransactionId = transactionManager->MirrorTransaction(transaction, externalCellTag);
+
         NProto::TReqUnlockForeignNode request;
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        ToProto(request.mutable_transaction_id(), mirroredTransactionId);
         ToProto(request.mutable_node_id(), trunkNode->GetId());
         request.set_explicit_only(explicitOnly);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, trunkNode->GetExternalCellTag());
+        multicellManager->PostToMaster(request, externalCellTag);
     }
 
     void ListSubtreeNodes(

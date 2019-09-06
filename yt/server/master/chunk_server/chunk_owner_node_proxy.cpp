@@ -30,9 +30,11 @@
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -877,11 +879,20 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     TObjectProxyBase::GetBasicAttributes(context);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
-    if (node->GetExternalCellTag() != NotReplicatedCellTag) {
+    if (node->IsExternal()) {
         context->ExternalCellTag = node->GetExternalCellTag();
     }
+
     if (context->PopulateSecurityTags) {
         context->SecurityTags = node->GetSecurityTags();
+    }
+
+    auto* transaction = GetTransaction();
+    if (node->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        context->ExternalTransactionId = transactionManager->GetNearestMirroredTransactionAncestor(
+            transaction,
+            node->GetExternalCellTag());
     }
 }
 
@@ -1081,10 +1092,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetCellTag() : externalCellTag);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
     if (node->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto mirroredTransactionId = Transaction && Transaction->IsForeign()
+            ? transactionManager->MirrorTransaction(Transaction, externalCellTag)
+            : GetObjectId(Transaction);
+
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
+        SetTransactionId(replicationRequest, mirroredTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
         replicationRequest->set_lock_mode(static_cast<int>(lockMode));
         ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
@@ -1093,17 +1108,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
         // NB: upload_transaction_timeout must be null
         // NB: upload_transaction_secondary_cell_tags must be empty
-        SetTransactionId(replicationRequest, GetObjectId(GetTransaction()));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
-
-        if (Transaction && Transaction->IsForeign()) {
-            transactionManager->RegisterTransactionAtParent(uploadTransaction);
-            uploadTransaction->SetUnregisterFromParentOnAbort(true);
-        }
-    }
-
-    if (Transaction && TrunkNode->GetNativeCellTag() != Transaction->GetNativeCellTag()) {
-        uploadTransaction->SetUnregisterFromParentOnCommit(true);
     }
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
@@ -1226,7 +1233,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YT_VERIFY(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
-        PostToMaster(context, node->GetExternalCellTag());
+        MirrorToMaster(context, node->GetExternalCellTag());
     }
 
     node->EndUpload(uploadContext);

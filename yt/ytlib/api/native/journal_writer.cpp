@@ -125,7 +125,6 @@ private:
                 .AddTag("Path: %v, TransactionId: %v",
                     Path_,
                     Options_.TransactionId))
-            , UploadSynchronizer_(Client_->GetNativeConnection())
         {
             if (Options_.TransactionId) {
                 TTransactionAttachOptions attachOptions{
@@ -237,8 +236,6 @@ private:
         TObjectId ObjectId_;
         TCellTag NativeCellTag_ = InvalidCellTag;
         TCellTag ExternalCellTag_ = InvalidCellTag;
-
-        TChunkUploadSynchronizer UploadSynchronizer_;
 
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
@@ -477,8 +474,6 @@ private:
                     Path_);
                 const auto& batchRsp = batchRspOrError.Value();
 
-                UploadSynchronizer_.AfterBeginUpload(Options_.TransactionId, ObjectId_, ExternalCellTag_);
-
                 {
                     auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
                     auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
@@ -546,8 +541,6 @@ private:
 
             StopListenTransaction(UploadTransaction_);
 
-            UploadSynchronizer_.BeforeEndUpload();
-
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
@@ -560,8 +553,6 @@ private:
                 GetCumulativeError(batchRspOrError),
                 "Error finishing upload to journal %v",
                 Path_);
-
-            UploadSynchronizer_.AfterEndUpload();
 
             UploadTransaction_->Detach();
 

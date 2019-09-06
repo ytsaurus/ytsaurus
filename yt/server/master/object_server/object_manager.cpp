@@ -736,20 +736,24 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    ++CreatedObjects_;
+
+    if (hintId) {
+        return hintId;
+    }
+
     auto* mutationContext = GetCurrentMutationContext();
     auto version = mutationContext->GetVersion();
     auto hash = mutationContext->RandomGenerator().Generate<ui32>();
-
     auto cellTag = Bootstrap_->GetCellTag();
 
-    auto id = hintId
-        ? hintId
-        : MakeRegularId(type, cellTag, version, hash);
-    YT_ASSERT(TypeFromId(id) == type);
+    // NB: The higest 16 bits of hash as used for mirror cell tag in
+    // mirror transaction ids.
+    if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
+        hash &= 0xffff;
+    }
 
-    ++CreatedObjects_;
-
-    return id;
+    return MakeRegularId(type, cellTag, version, hash);
 }
 
 int TObjectManager::TImpl::RefObject(TObject* object)
@@ -1068,8 +1072,7 @@ IObjectProxyPtr TObjectManager::TImpl::GetProxy(
     }
 
     // Slow path.
-    auto id = object->GetId();
-    const auto& handler = FindHandler(TypeFromId(id));
+    const auto& handler = FindHandler(object->GetType());
     if (!handler) {
         return nullptr;
     }

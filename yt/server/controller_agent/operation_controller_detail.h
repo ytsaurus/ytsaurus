@@ -432,8 +432,6 @@ protected:
     NApi::ITransactionPtr UserTransaction;
     std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 
-    std::unique_ptr<NChunkClient::TChunkUploadSynchronizer> UploadSynchronizer_;
-
     bool CommitFinished = false;
 
     TOperationSnapshot Snapshot;
@@ -808,7 +806,6 @@ protected:
         bool ping = false);
 
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
-    NChunkClient::TChunkUploadSynchronizer* GetUploadSynchronizerForOutputTable(const TOutputTablePtr& table) const;
 
     virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
@@ -929,8 +926,8 @@ private:
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr OutputChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
-    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkLists_;
-    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkLists_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
     std::atomic<int> CachedPendingJobCount = {0};
     int CachedTotalJobCount = 0;

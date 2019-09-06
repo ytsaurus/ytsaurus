@@ -683,7 +683,6 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
-        # XXX(babenko): portals
         if yt_commands.is_multicell:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
@@ -860,7 +859,7 @@ class YTEnvSetup(object):
 
             yt_commands.remove("//tmp", driver=driver)
             if cls.ENABLE_TMP_PORTAL:
-                # XXX(babenko)
+                # XXX(babenko): portals
                 wait(lambda: not yt_commands.exists("//tmp", driver=driver))
 
             yt_commands.gc_collect(driver=driver)

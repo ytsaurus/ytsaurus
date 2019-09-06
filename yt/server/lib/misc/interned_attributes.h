@@ -172,8 +172,6 @@
     XX(MulticellStatistics, multicell_statistics) \
     XX(Name, name) \
     XX(NestedTransactionIds, nested_transaction_ids) \
-    XX(NestedNativeTransactionIds, nested_native_transaction_ids) \
-    XX(NestedExternalTransactionIds, nested_external_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
     XX(Nodes, nodes) \
@@ -234,6 +232,7 @@
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
+    XX(MirroredToCellTags, mirrored_to_cell_tags) \
     XX(SkipFreezing, skip_freezing) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \

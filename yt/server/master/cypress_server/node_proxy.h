@@ -63,9 +63,6 @@ struct ICypressNodeProxy
     : public virtual NYTree::INode
     , public virtual NObjectServer::IObjectProxy
 {
-    //! Returns the transaction for which the proxy is created.
-    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
-
     //! Returns the trunk node for which the proxy is created.
     virtual TCypressNode* GetTrunkNode() const = 0;
 

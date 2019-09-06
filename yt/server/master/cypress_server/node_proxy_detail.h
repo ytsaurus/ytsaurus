@@ -229,6 +229,8 @@ private:
     void CopyCore(
         const TContextPtr& context,
         const TClonedTreeBuilder& clonedTreeBuilder);
+
+    void ValidateAccessTransaction();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

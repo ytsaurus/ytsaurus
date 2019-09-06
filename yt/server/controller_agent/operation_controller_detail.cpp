@@ -689,8 +689,6 @@ void TOperationControllerBase::InitUpdatingTables()
     if (CoreTable_) {
         UpdatingTables_.emplace_back(CoreTable_);
     }
-
-    UploadSynchronizer_ = std::make_unique<TChunkUploadSynchronizer>(Host->GetClient()->GetNativeConnection());
 }
 
 void TOperationControllerBase::InitializeOrchid()
@@ -1257,12 +1255,12 @@ void TOperationControllerBase::InitChunkListPools()
             OperationId,
             OutputTransaction->GetId());
 
-        CellTagToRequiredOutputChunkLists_.clear();
+        CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : UpdatingTables_) {
-            ++CellTagToRequiredOutputChunkLists_[table->ExternalCellTag];
+            ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
         }
 
-        ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
+        ++CellTagToRequiredOutputChunkListCount_[IntermediateOutputCellTag];
     }
 
     DebugChunkListPool_ = New<TChunkListPool>(
@@ -1272,12 +1270,12 @@ void TOperationControllerBase::InitChunkListPools()
         OperationId,
         DebugTransaction->GetId());
 
-    CellTagToRequiredDebugChunkLists_.clear();
+    CellTagToRequiredDebugChunkListCount_.clear();
     if (StderrTable_) {
-        ++CellTagToRequiredDebugChunkLists_[StderrTable_->ExternalCellTag];
+        ++CellTagToRequiredDebugChunkListCount_[StderrTable_->ExternalCellTag];
     }
     if (CoreTable_) {
-        ++CellTagToRequiredDebugChunkLists_[CoreTable_->ExternalCellTag];
+        ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
     }
 }
 
@@ -1657,14 +1655,14 @@ void TOperationControllerBase::SafeCommit()
 
 void TOperationControllerBase::LockDynamicTables()
 {
-    THashMap<TCellTag, std::vector<TOutputTablePtr>> cellTagToTables;
-    for (auto& table : UpdatingTables_) {
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
+    for (const auto& table : UpdatingTables_) {
         if (table->Dynamic) {
-            cellTagToTables[table->ExternalCellTag].push_back(table);
+            externalCellTagToTables[table->ExternalCellTag].push_back(table);
         }
     }
 
-    if (cellTagToTables.empty()) {
+    if (externalCellTagToTables.empty()) {
         return;
     }
 
@@ -1677,10 +1675,10 @@ void TOperationControllerBase::LockDynamicTables()
     auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
         .ValueOrThrow();
 
-    for (const auto& [cellTag, tables] : cellTagToTables) {
+    for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
         auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
-            cellTag);
+            externalCellTag);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -1688,22 +1686,20 @@ void TOperationControllerBase::LockDynamicTables()
             auto objectIdPath = FromObjectId(table->ObjectId);
             auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
             req->set_timestamp(currentTimestamp);
-            SetTransactionId(req, OutputTransaction->GetId());
+            SetTransactionId(req, table->ExternalTransactionId);
             GenerateMutationId(req);
-
-            batchReq->AddRequest(req, "lock_dynamic_table");
+            batchReq->AddRequest(req);
         }
 
         asyncResults.push_back(batchReq->Invoke());
-        cellTags.push_back(cellTag);
+        cellTags.push_back(externalCellTag);
     }
 
     auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
     THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error locking output dynamic tables");
     auto& combinedResult = combinedResultOrError.Value();
 
-    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
-        auto& batchRspOrError = combinedResult[cellIndex];
+    for (const auto& batchRspOrError : combinedResult) {
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
     }
 
@@ -1716,25 +1712,22 @@ void TOperationControllerBase::LockDynamicTables()
         cellTags.clear();
         innerErrors.clear();
 
-        for (const auto& pair : cellTagToTables) {
-            auto cellTag = pair.first;
-            const auto& tables = pair.second;
-
+        for (const auto& [externalCellTag, tables]  : externalCellTagToTables) {
             auto channel = OutputClient->GetMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
-                cellTag);
+                externalCellTag);
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
 
             for (const auto& table : tables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::CheckDynamicTableLock(objectIdPath);
-                SetTransactionId(req, OutputTransaction->GetId());
-                batchReq->AddRequest(req, "check_lock");
+                SetTransactionId(req, table->ExternalTransactionId);
+                batchReq->AddRequest(req);
             }
 
             asyncResults.push_back(batchReq->Invoke());
-            cellTags.push_back(cellTag);
+            cellTags.push_back(externalCellTag);
         }
 
         auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
@@ -1744,7 +1737,7 @@ void TOperationControllerBase::LockDynamicTables()
         }
         auto& combinedResult = combinedResultOrError.Value();
 
-        for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+        for (size_t cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
             auto& batchRspOrError = combinedResult[cellIndex];
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
@@ -1757,13 +1750,14 @@ void TOperationControllerBase::LockDynamicTables()
             }
 
             const auto& batchRsp = batchRspOrError.Value();
-            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>("check_lock");
+            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>();
 
-            auto& tables = cellTagToTables[cellTags[cellIndex]];
+            auto& tables = externalCellTagToTables[cellTags[cellIndex]];
             std::vector<TOutputTablePtr> pendingTables;
 
-            for (int index = 0; index < tables.size(); ++index) {
+            for (size_t index = 0; index < tables.size(); ++index) {
                 const auto& rspOrError = checkLockRspsOrError[index];
+                const auto& table = tables[index];
 
                 if (!rspOrError.IsOK()) {
                     if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
@@ -1774,17 +1768,17 @@ void TOperationControllerBase::LockDynamicTables()
                 }
 
                 if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
-                    pendingTables.push_back(tables[index]);
+                    pendingTables.push_back(table);
                 }
             }
 
             tables = std::move(pendingTables);
             if (tables.empty()) {
-                cellTagToTables.erase(cellTags[cellIndex]);
+                externalCellTagToTables.erase(cellTags[cellIndex]);
             }
         }
 
-        if (cellTagToTables.empty()) {
+        if (externalCellTagToTables.empty()) {
             break;
         }
 
@@ -1795,10 +1789,9 @@ void TOperationControllerBase::LockDynamicTables()
             Config->DynamicTableLockCheckingIntervalDurationMax);
     }
 
-    if (!cellTagToTables.empty()) {
-        auto error = TError("Could not lock output dynamic tables");
-        error.InnerErrors() = std::move(innerErrors);
-        error.ThrowOnError();
+    if (!innerErrors.empty()) {
+        THROW_ERROR_EXCEPTION("Could not lock output dynamic tables")
+            << std::move(innerErrors);
     }
 
     YT_LOG_INFO("Dynamic tables locking completed");
@@ -2078,8 +2071,6 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables)
 {
-    UploadSynchronizer_->BeforeEndUpload();
-
     THashMap<TCellTag, std::vector<TOutputTablePtr>> nativeCellTagToTables;
     for (const auto& table : tables) {
         nativeCellTagToTables[CellTagFromId(table->ObjectId)].push_back(table);
@@ -2091,8 +2082,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
     {
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -2134,8 +2125,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             checkError(GetCumulativeError(batchRsp));
         }
     }
-
-    UploadSynchronizer_->AfterEndUpload();
 }
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
@@ -4848,7 +4837,7 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
-                SetTransactionId(req, *table->TransactionId);
+                SetTransactionId(req, table->ExternalTransactionId);
             },
             Logger);
 
@@ -4932,7 +4921,10 @@ void TOperationControllerBase::LockInputTables()
         auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->Revision = rsp->revision();
-        table->ExternalCellTag = FromProto<TCellTag>(rsp->cell_tag());
+        table->ExternalCellTag = rsp->external_cell_tag();
+        table->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : *table->TransactionId;
         PathToInputTables_[table->GetPath()].push_back(table);
     }
 }
@@ -4999,7 +4991,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "unflushed_timestamp",
                 "content_revision"
             });
-            SetTransactionId(req, *table->TransactionId);
+            SetTransactionId(req, table->ExternalTransactionId);
             req->Tag() = table;
             batchReq->AddRequest(req);
         }
@@ -5195,28 +5187,33 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         {
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : UpdatingTables_) {
-                auto req = TCypressYPathProxy::Lock(table->GetObjectIdPath());
+                auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
-                batchReq->AddRequest(req, "lock");
+                req->Tag() = table;
+                batchReq->AddRequest(req);
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
                 "Error locking output tables");
 
-            const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-            for (int index = 0; index < UpdatingTables_.size(); ++index) {
-                const auto& table = UpdatingTables_[index];
-                const auto& rsp = batchRsp[index].Value();
+            const auto& batchRsp = batchRspOrError.Value();
+            for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
+                const auto& rsp = rspOrError.Value();
+                const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
+
                 auto objectId = FromProto<TObjectId>(rsp->node_id());
                 auto revision = rsp->revision();
 
-                auto it = PathToInputTables_.find(table->GetPath());
-                if (it != PathToInputTables_.end()) {
+                table->ExternalTransactionId = rsp->has_external_transaction_id()
+                    ? FromProto<TTransactionId>(rsp->external_transaction_id())
+                    : GetTransactionForOutputTable(table)->GetId();
+
+                if (auto it = PathToInputTables_.find(table->GetPath())) {
                     for (const auto& inputTable : it->second) {
-                        // Check case of remote copy operation.
+                        // NB: remote copy is a special case.
                         if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
                             continue;
                         }
@@ -5335,8 +5332,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         YT_LOG_INFO("Starting upload for output tables");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -5370,11 +5367,6 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-
-                UploadSynchronizer_->AfterBeginUpload(
-                    GetTransactionForOutputTable(table)->GetId(),
-                    table->ObjectId,
-                    table->ExternalCellTag);
             }
         }
     }
@@ -5383,8 +5375,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         YT_LOG_INFO("Getting output tables upload parameters");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : externalCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -5464,7 +5456,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
-                        SetTransactionId(req, *file.TransactionId);
+                        SetTransactionId(req, file.ExternalTransactionId);
                     },
                     Logger);
 
@@ -5479,19 +5471,19 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
                 auto batchReq = proxy.ExecuteBatch();
 
-                auto req = TChunkOwnerYPathProxy::Fetch(file.GetObjectIdPath());
+                auto req = TFileYPathProxy::Fetch(file.GetObjectIdPath());
                 AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                SetTransactionId(req, *file.TransactionId);
-                batchReq->AddRequest(req, "fetch");
+                SetTransactionId(req, file.ExternalTransactionId);
+                batchReq->AddRequest(req);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
                      file.GetPath());
                 const auto& batchRsp = batchRspOrError.Value();
 
-                auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
+                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0).Value();
                 ProcessFetchResponse(
                     InputClient,
                     rsp,
@@ -5516,9 +5508,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
 void TOperationControllerBase::FetchUserFiles()
 {
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
         try {
             DoFetchUserFiles(userJobSpec, files);
         } catch (const std::exception& ex) {
@@ -5618,37 +5608,30 @@ void TOperationControllerBase::LockUserFiles()
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& files : GetValues(UserJobFiles_)) {
-        for (const auto& file : files) {
-            auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
+        for (auto& file : files) {
+            auto req = TFileYPathProxy::Lock(file.Path.GetPath());
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, *file.TransactionId);
+            req->Tag() = &file;
             batchReq->AddRequest(req);
         }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error locking user files");
 
-    const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-    int index = 0;
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
-        try {
-            for (auto& file : files) {
-                const auto& path = file.Path.GetPath();
-                const auto& rspOrError = batchRsp[index++];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %v", path);
-                const auto& rsp = rspOrError.Value();
-                file.ObjectId = FromProto<TObjectId>(rsp->node_id());
-            }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error locking user files")
-                 << TErrorAttribute("task_title", userJobSpec->TaskTitle)
-                 << ex;
-        }
+    const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
+        const auto& rsp = rspOrError.Value();
+        auto* file = std::any_cast<TUserFile*>(rsp->Tag());
+        file->ObjectId = FromProto<TObjectId>(rsp->node_id());
+        file->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : *file->TransactionId;
     }
 }
 
@@ -6842,23 +6825,19 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
     // We use this "result" variable to make sure that we have enough chunk lists
     // for every cell tag and start allocating them all in advance and simultaneously.
     bool result = true;
-    for (const auto& pair : CellTagToRequiredOutputChunkLists_) {
-        const auto cellTag = pair.first;
-        auto requiredChunkList = pair.second;
-        if (requiredChunkList && !OutputChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+    for (auto [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
+        if (count && !OutputChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
-    for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
-        const auto cellTag = pair.first;
-        auto requiredChunkList = pair.second;
+    for (auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
-            --requiredChunkList;
+            --count;
         }
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->ExternalCellTag == cellTag) {
-            --requiredChunkList;
+            --count;
         }
-        if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+        if (count && !DebugChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
@@ -7964,8 +7943,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
-    Persist(context, CellTagToRequiredOutputChunkLists_);
-    Persist(context, CellTagToRequiredDebugChunkLists_);
+    Persist(context, CellTagToRequiredOutputChunkListCount_);
+    Persist(context, CellTagToRequiredDebugChunkListCount_);
     Persist(context, CachedPendingJobCount);
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);
