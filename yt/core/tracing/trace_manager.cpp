@@ -118,7 +118,7 @@ private:
         auto traceDir = GetEnv("YT_TRACE_DUMP_DIR", "");
         if (!traceDir.empty()) {
             auto binary = TFsPath(GetExecPath()).Basename();
-            auto traceFileName = Format("%s/%s.%d", traceDir, binary, getpid());
+            auto traceFileName = Format("%v/%v.%v", traceDir, binary, getpid());
 
             NProto::TSpanBatch protoBatch;
             for (const auto& traceContext : batch) {

@@ -1150,7 +1150,7 @@ public:
         , Partitioner_(partitioner)
         , BlockReserveSize_(std::max(config->MaxBufferSize / partitioner->GetPartitionCount() / 2, i64(1)))
     {
-        Logger.AddTag("PartitionMultiChunkWriter: %s", TGuid::Create());
+        Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
 
         int partitionCount = Partitioner_->GetPartitionCount();
         BlockWriters_.reserve(partitionCount);
