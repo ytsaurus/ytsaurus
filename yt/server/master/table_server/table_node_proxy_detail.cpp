@@ -1415,13 +1415,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
     DeclareMutating();
     ValidateTransaction();
 
-    context->SetRequestInfo();
+    auto timestamp = request->timestamp();
+
+    context->SetRequestInfo("Timestamp: %llx",
+        timestamp);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->LockDynamicTable(
         GetThisImpl()->GetTrunkNode(),
         GetTransaction(),
-        request->timestamp());
+        timestamp);
 
     context->Reply();
 }
