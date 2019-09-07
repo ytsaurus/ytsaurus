@@ -611,7 +611,7 @@ protected:
     void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
-    void LockDynamicTables();
+    void LockOutputDynamicTables();
     void CommitTransactions();
     virtual void CustomCommit();
     void VerifySortedOutput(TOutputTablePtr table);
