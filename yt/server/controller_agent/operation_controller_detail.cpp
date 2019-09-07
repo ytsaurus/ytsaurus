@@ -6836,7 +6836,7 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
             result = false;
         }
     }
-    for (auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
+    for (auto [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
             --count;
         }
