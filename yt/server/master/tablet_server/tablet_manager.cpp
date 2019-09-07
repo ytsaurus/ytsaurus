@@ -272,6 +272,7 @@ public:
         return DoCreateTabletCellBundle(id, name, std::move(options));
     }
 
+    // XXX(babenko): move private
     TTabletCellBundle* DoCreateTabletCellBundle(
         TTabletCellBundleId id,
         const TString& name,
@@ -975,6 +976,7 @@ public:
         return action;
     }
 
+    // XXX(babenko): move private
     void UnbindTabletActionFromCells(TTabletAction* action)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -986,6 +988,7 @@ public:
         action->TabletCells().clear();
     }
 
+    // XXX(babenko): move private
     void UnbindTabletActionFromTablets(TTabletAction* action)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -998,6 +1001,7 @@ public:
         action->Tablets().clear();
     }
 
+    // XXX(babenko): move private
     void UnbindTabletAction(TTabletAction* action)
     {
         UnbindTabletActionFromTablets(action);
@@ -1021,6 +1025,7 @@ public:
             action->GetCorrelationId());
     }
 
+    // XXX(babenko): move private
     std::vector<TOwningKey> CalculatePivotKeys(
         TTableNode* table,
         int firstTabletIndex,
@@ -1092,6 +1097,7 @@ public:
         return pivotKeys;
     }
 
+    // XXX(babenko): move private
     void MountMissedInActionTablets(TTabletAction* action)
     {
         for (auto* tablet : action->Tablets()) {
@@ -1133,6 +1139,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void OnTabletActionTabletsTouched(
         TTabletAction* action,
         const THashSet<TTablet*>& touchedTablets,
@@ -1165,6 +1172,7 @@ public:
         OnTabletActionDisturbed(action, error);
     }
 
+    // XXX(babenko): move private
     void TouchAffectedTabletActions(
         TTableNode* table,
         int firstTabletIndex,
@@ -1185,6 +1193,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
@@ -1197,6 +1206,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void OnTabletActionDisturbed(TTabletAction* action, const TError& error)
     {
         // Take care of a rare case when tablet action has been already removed (cf. YT-9754).
@@ -1241,6 +1251,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void OnTabletActionStateChanged(TTabletAction* action)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1265,6 +1276,7 @@ public:
         } while (repeat);
     }
 
+    // XXX(babenko): move private
     void DoTabletActionStateChanged(TTabletAction* action)
     {
         switch (action->GetState()) {
@@ -1490,6 +1502,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* request)
     {
         auto orphanedActionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
@@ -1513,6 +1526,7 @@ public:
         }
     }
 
+    // XXX(babenko): move private
     void MergeTableNodes(TChunkOwnerBase* originatingChunkOwner, TChunkOwnerBase* branchedChunkOwner)
     {
         YT_VERIFY(originatingChunkOwner->GetType() == EObjectType::Table);
@@ -1586,6 +1600,7 @@ public:
         chunkManager->ClearChunkList(branchedChunkList);
     }
 
+    // XXX(babenko): move private
     void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     {
         if (chunkOwner->IsNative()) {
@@ -1599,6 +1614,7 @@ public:
         SendTableStatisticsUpdates(table);
     }
 
+    // XXX(babenko): move private
     const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
     {
         auto it = AddressToCell_.find(address);
@@ -1607,6 +1623,7 @@ public:
             : nullptr;
     }
 
+    // XXX(babenko): move private
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
@@ -2300,6 +2317,7 @@ public:
         UpdateTabletState(table);
     }
 
+    // XXX(babenko): move private
     void DoFreezeTablet(TTablet* tablet)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -2642,6 +2660,7 @@ public:
         UpdateTabletState(table);
     }
 
+    // XXX(babenko): move private
     int DoReshardTable(
         TTableNode* table,
         int firstTabletIndex,
@@ -3347,7 +3366,8 @@ public:
         TTransaction* transaction,
         TTimestamp timestamp)
     {
-        Y_ASSUME(table->IsTrunk());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
 
         if (!GetDynamicConfig()->EnableBulkInsert) {
             THROW_ERROR_EXCEPTION("Bulk insert is disabled");
@@ -3388,6 +3408,7 @@ public:
 
     }
 
+    // XXX(babenko): move private
     void HydraOnTabletLocked(TRspLockTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
@@ -3423,12 +3444,14 @@ public:
         TTransaction* transaction,
         NTableClient::NProto::TRspCheckDynamicTableLock* response)
     {
-        Y_ASSUME(table->IsTrunk());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
 
         auto it = table->DynamicTableLocks().find(transaction->GetId());
         response->set_confirmed(it && it->second.PendingTabletCount == 0);
     }
 
+    // XXX(babenko): move private
     void OnTransactionAborted(TTransaction* transaction)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();

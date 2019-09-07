@@ -6826,7 +6826,7 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
     // for every cell tag and start allocating them all in advance and simultaneously.
     bool result = true;
     for (auto [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
-        if (count && !OutputChunkListPool_->HasEnough(cellTag, count)) {
+        if (count > 0 && !OutputChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
@@ -6837,7 +6837,7 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->ExternalCellTag == cellTag) {
             --count;
         }
-        if (count && !DebugChunkListPool_->HasEnough(cellTag, count)) {
+        if (count > 0 && !DebugChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
