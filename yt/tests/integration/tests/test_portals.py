@@ -133,23 +133,30 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": external_cell_tag})
+        create("map_node", "//tmp/p/m")
+        
         PAYLOAD = [{"key": "value"}]
-        write_args = dict()
+
         if with_outer_tx:
             tx = start_transaction()
-            write_args["tx"] = tx
+        else:
+            tx = "0-0-0-0"
+
+        create("table", "//tmp/p/m/t", attributes={"external": True, "external_cell_tag": external_cell_tag}, tx=tx)
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        write_table("//tmp/p/t", PAYLOAD, **write_args)
+        write_table("//tmp/p/m/t", PAYLOAD, tx=tx)
+        assert get("//tmp/p/m/t/@row_count", tx=tx) == len(PAYLOAD)
+        assert get("//tmp/p/m/t/@chunk_count", tx=tx) == 1
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        assert read_table("//tmp/p/m/t", tx=tx) == PAYLOAD
+
         if with_outer_tx:
             commit_transaction(tx)
-        assert get("//tmp/p/t/@row_count") == len(PAYLOAD)
-        assert get("//tmp/p/t/@chunk_count") == 1
-        chunk_ids = get("//tmp/p/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/t"]
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        assert read_table("//tmp/p/t") == PAYLOAD
+
+        assert read_table("//tmp/p/m/t") == PAYLOAD
+
+        chunk_id = get_singular_chunk_id("//tmp/p/m/t")
+        assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/p/m/t"]
 
     @pytest.mark.parametrize("with_outer_tx,external_cell_tag,purge_resolve_cache",
                              [(with_outer_tx, external_cell_tag, purge_resolve_cache)
@@ -159,23 +166,30 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("file", "//tmp/p/f", attributes={"external": True, "external_cell_tag": external_cell_tag})
+        create("map_node", "//tmp/p/m")
+        
         PAYLOAD = "a" *  100
-        write_args = dict()
+
         if with_outer_tx:
             tx = start_transaction()
-            write_args["tx"] = tx
+        else:
+            tx = "0-0-0-0"
+
+        create("file", "//tmp/p/m/f", attributes={"external": True, "external_cell_tag": external_cell_tag}, tx=tx)
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        write_file("//tmp/p/f", PAYLOAD, **write_args)
+        write_file("//tmp/p/m/f", PAYLOAD, tx=tx)
+        assert get("//tmp/p/m/f/@uncompressed_data_size", tx=tx) == len(PAYLOAD)
+        assert get("//tmp/p/m/f/@chunk_count", tx=tx) == 1
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
+        assert read_file("//tmp/p/m/f", tx=tx) == PAYLOAD
+        
         if with_outer_tx:
             commit_transaction(tx)
-        assert get("//tmp/p/f/@uncompressed_data_size") == len(PAYLOAD)
-        assert get("//tmp/p/f/@chunk_count") == 1
-        chunk_ids = get("//tmp/p/f/@chunk_ids")
-        assert len(chunk_ids) == 1
-        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//tmp/p/f"]
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        assert read_file("//tmp/p/f") == PAYLOAD
+
+        assert read_file("//tmp/p/m/f") == PAYLOAD
+
+        chunk_id = get_singular_chunk_id("//tmp/p/m/f")
+        assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/p/m/f"]
 
     @authors("babenko")
     def test_account_lifetime(self):
