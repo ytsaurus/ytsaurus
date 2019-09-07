@@ -1642,7 +1642,7 @@ void TOperationControllerBase::SafeCommit()
 
     CustomCommit();
 
-    LockDynamicTables();
+    LockOutputDynamicTables();
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
@@ -1653,7 +1653,7 @@ void TOperationControllerBase::SafeCommit()
     YT_LOG_INFO("Results committed");
 }
 
-void TOperationControllerBase::LockDynamicTables()
+void TOperationControllerBase::LockOutputDynamicTables()
 {
     THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
     for (const auto& table : UpdatingTables_) {
@@ -1666,7 +1666,7 @@ void TOperationControllerBase::LockDynamicTables()
         return;
     }
 
-    YT_LOG_INFO("Locking dynamic tables");
+    YT_LOG_INFO("Locking output dynamic tables");
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     std::vector<TCellTag> cellTags;
