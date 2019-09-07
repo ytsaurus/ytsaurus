@@ -1413,6 +1413,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
 {
     DeclareMutating();
+    ValidateTransaction();
 
     context->SetRequestInfo();
 
