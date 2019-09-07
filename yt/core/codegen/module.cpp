@@ -375,7 +375,7 @@ private:
 
         info.print(printer);
 
-        YT_LOG_INFO("LLVM has triggered a message: %s/%s: %s",
+        YT_LOG_INFO("LLVM has triggered a message: %v/%v: %v",
             DiagnosticSeverityToString(info.getSeverity()),
             DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()),
             os.str().c_str());

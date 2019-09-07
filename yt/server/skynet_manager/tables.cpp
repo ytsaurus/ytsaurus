@@ -252,7 +252,7 @@ TTables::TTables(
 
 THashSet<TResourceId> TTables::ListResources()
 {
-    auto result = WaitFor(Client_->SelectRows(Format("resource_id FROM [%s] GROUP BY resource_id", ResourcesTable_)))
+    auto result = WaitFor(Client_->SelectRows(Format("resource_id FROM [%v] GROUP BY resource_id", ResourcesTable_)))
         .ValueOrThrow();
 
     THashSet<TResourceId> resources;
@@ -267,7 +267,7 @@ THashSet<TResourceId> TTables::ListResources()
 std::vector<TRequestKey> TTables::ListActiveRequests()
 {
     std::vector<TRequestKey> requests;
-    auto result = WaitFor(Client_->SelectRows(Format("table_path, options FROM [%s]", RequestsTable_)))
+    auto result = WaitFor(Client_->SelectRows(Format("table_path, options FROM [%v]", RequestsTable_)))
         .ValueOrThrow();
 
     auto nameTable = TNameTable::FromSchema(result.Rowset->Schema());
@@ -490,7 +490,7 @@ void TTables::GetResource(
     TYPath* tableRange,
     NProto::TResource* resource)
 {
-    auto query = Format("duplicate_id, table_range, meta FROM [%s] WHERE resource_id = \"%s\" LIMIT 1",
+    auto query = Format("duplicate_id, table_range, meta FROM [%v] WHERE resource_id = \"%s\" LIMIT 1",
         ResourcesTable_,
         resourceId);
 

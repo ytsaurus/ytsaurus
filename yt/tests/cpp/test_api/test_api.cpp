@@ -732,7 +732,7 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
         {"v2", "v3", "v1", "$tablet_index"},
         "<id=0> 24; <id=1> 25; <id=2> 23; <id=3> 0;");
 
-    auto res = WaitFor(Client_->SelectRows(Format("* from [%s]", Table_))).ValueOrThrow();
+    auto res = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_))).ValueOrThrow();
     auto rows = res.Rowset->GetRows();
 
     ASSERT_EQ(4, rows.Size());

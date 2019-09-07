@@ -85,7 +85,7 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
 
         TString errorContext(input.Begin() + contextStart, contextEnd - contextStart);
 
-        THROW_ERROR_EXCEPTION("HTTP parse error: %s", yt_http_errno_description(http_errno))
+        THROW_ERROR_EXCEPTION("HTTP parse error: %v", yt_http_errno_description(http_errno))
             << TErrorAttribute("parser_error_name", yt_http_errno_name(http_errno))
             << TErrorAttribute("error_context", EscapeC(errorContext));
     }
@@ -784,7 +784,7 @@ void THttpOutput::OnWriteFinish()
         }
 
         if (MessageFinished_) {
-            YT_LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
+            YT_LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %v)",
                 RequestId_,
                 GetWriteByteCount());
         }

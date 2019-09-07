@@ -128,7 +128,7 @@ static void CheckYajlCode(int yajlCode)
             errorMessage = "JSON key must be a string";
             break;
         case yajl_max_depth_exceeded:
-            errorMessage = Sprintf("JSON maximal depth exceeded %d", YAJL_MAX_DEPTH);
+            errorMessage = Format("JSON maximal depth exceeded %v", YAJL_MAX_DEPTH);
             break;
         case yajl_gen_in_error_state:
             errorMessage = "JSON: a generator function (yajl_gen_XXX) was called while in an error state";
@@ -143,7 +143,7 @@ static void CheckYajlCode(int yajlCode)
             errorMessage = "Invalid UTF-8 string in JSON";
             break;
         default:
-            errorMessage = Sprintf("Yajl writer failed with code %d", yajlCode);
+            errorMessage = Format("Yajl writer failed with code %v", yajlCode);
     }
     THROW_ERROR_EXCEPTION(errorMessage);
 }
