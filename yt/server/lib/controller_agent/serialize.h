@@ -12,17 +12,8 @@ bool ValidateSnapshotVersion(int version);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESnapshotVersion,
-    ((JobSplitterSpeculative)         (300104))
-    ((InputOutputTableLock)           (300105))
-    ((PrepareRootFSDuration)          (300106))
-    // It is intentionally differ from version in stable/19.5.
-    ((JobMetricsAggregationType)      (300107))
-    ((SaveJobPhase)                   (300108))
-    ((JobSplitterPrepareDuration)     (300109))
-    ((ForceAdvanceBefore19_6)         (300150))
-    ((VanillaRestartCompletedJobs)    (300151))
-    ((JobMetricsByOperationState)     (300152))
-    ((OutputToDynamicTables)          (300153))
+    // 19.7 starts here
+    ((TransactionMirroring)           (300200))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

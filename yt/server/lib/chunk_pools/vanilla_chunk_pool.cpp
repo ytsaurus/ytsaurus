@@ -41,12 +41,7 @@ public:
         TChunkPoolOutputWithJobManagerBase::Persist(context);
 
         using NYT::Persist;
-        // COMPAT(dakovalkov)
-        if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::VanillaRestartCompletedJobs)) {
-            Persist(context, RestartCompletedJobs_);
-        } else if (context.IsLoad()) {
-            RestartCompletedJobs_ = false;
-        }
+        Persist(context, RestartCompletedJobs_);
     }
 
     virtual bool IsCompleted() const override

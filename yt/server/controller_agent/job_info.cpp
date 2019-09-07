@@ -99,9 +99,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobMetrics);
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
-    if (context.GetVersion() >= 300102) {
-        Persist(context, Speculative);
-    }
+    Persist(context, Speculative);
 
     if (context.IsLoad()) {
         Revived = true;
@@ -135,9 +133,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrSize);
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
-    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::SaveJobPhase)) {
-        Persist(context, Phase);
-    }
+    Persist(context, Phase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
