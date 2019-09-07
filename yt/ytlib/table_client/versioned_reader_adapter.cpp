@@ -180,7 +180,9 @@ public:
         YT_VERIFY(hasMore);
 
         for (auto row : *rows) {
-            ResetTimestamp(row);
+            if (row) {
+                ResetTimestamp(row);
+            }
         }
 
         return true;

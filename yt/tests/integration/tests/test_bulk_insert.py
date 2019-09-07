@@ -72,6 +72,8 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
 
+        assert lookup_rows("//tmp/t_output", [{"key": 123}]) == []
+
     def test_not_sorted_output(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
