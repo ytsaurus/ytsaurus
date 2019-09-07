@@ -30,10 +30,7 @@ void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& conte
 
     Persist(context, StatisticsPath);
     Persist(context, ProfilingName);
-
-    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::JobMetricsAggregationType)) {
-        Persist(context, AggregateType);
-    }
+    Persist(context, AggregateType);
 }
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)

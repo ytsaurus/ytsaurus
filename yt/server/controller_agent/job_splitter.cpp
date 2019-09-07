@@ -418,9 +418,7 @@ private:
             Persist(context, SecondsPerRow_);
             Persist(context, IsSplittable_);
             Persist(context, SplitDeadline_);
-            if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobSplitterPrepareDuration)) {
-                Persist(context, PrepareDuration_);
-            }
+            Persist(context, PrepareDuration_);
         }
 
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0)

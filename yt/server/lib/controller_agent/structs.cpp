@@ -78,14 +78,8 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ArchiveStderr);
     Persist(context, ArchiveFailContext);
     Persist(context, ArchiveProfile);
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::PrepareRootFSDuration)) {
-        Persist(context, PrepareRootFSDuration);
-    }
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::SaveJobPhase)) {
-        Persist(context, Phase);
-    }
+    Persist(context, PrepareRootFSDuration);
+    Persist(context, Phase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -522,9 +522,7 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, TaskJobIndexGenerator_);
 
-    if (context.GetVersion() >= 300102) {
-        Persist(context, CompetitiveJobManager_);
-    }
+    Persist(context, CompetitiveJobManager_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)

@@ -7971,6 +7971,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
     Persist(context, Acl);
+    Persist(context, BannedTreeIds_);
+    Persist(context, PathToInputTables_);
+    Persist(context, JobMetricsDeltaPerTree_);
+    Persist(context, TotalTimePerTree_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -7980,17 +7984,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
         InitializeOrchid();
-    }
-
-    Persist(context, BannedTreeIds_);
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
-        Persist(context, PathToInputTables_);
-    }
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobMetricsByOperationState)) {
-        Persist(context, JobMetricsDeltaPerTree_);
-        Persist(context, TotalTimePerTree_);
     }
 }
 

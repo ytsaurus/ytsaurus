@@ -36,28 +36,13 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, UpdateMode);
     Persist(context, LockMode);
     Persist(context, TableSchema);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 300153) {
-        Persist(context, SchemaModification);
-    } else {
-        YT_VERIFY(context.IsLoad());
-        SchemaModification = ETableSchemaModification::None;
-    }
+    Persist(context, SchemaModification);
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300100) {
-        Persist(context, SecurityTags);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 300153) {
-        Persist(context, PartiallySorted);
-    } else {
-        YT_VERIFY(context.IsLoad());
-        PartiallySorted = false;
-    }
+    Persist(context, SecurityTags);
+    Persist(context, PartiallySorted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
