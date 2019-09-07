@@ -1072,24 +1072,20 @@ class TestAccounts(YTEnvSetup):
     def test_change_account_with_snapshot_lock(self):
         self._replicator_sleep()
         tmp_nc = get("//sys/accounts/tmp/@resource_usage/node_count")
-        tmp_rc = get("//sys/accounts/tmp/@ref_counter")
         create("table", "//tmp/t")
         create_account("a")
         self._replicator_sleep()
-        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 1
         assert get("//sys/accounts/a/@ref_counter") == 1
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
         assert get("//sys/accounts/a/@resource_usage/node_count") == 0
         tx = start_transaction()
         lock("//tmp/t", mode="snapshot", tx=tx)
         self._replicator_sleep()
-        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 2
         assert get("//sys/accounts/a/@ref_counter") == 1
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 2
         assert get("//sys/accounts/a/@resource_usage/node_count") == 0
         set("//tmp/t/@account", "a")
         self._replicator_sleep()
-        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 1
         assert get("//sys/accounts/a/@ref_counter") == 3
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
         assert get("//sys/accounts/a/@resource_usage/node_count") == 1
@@ -1097,7 +1093,6 @@ class TestAccounts(YTEnvSetup):
         self._replicator_sleep()
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc
         assert get("//sys/accounts/a/@resource_usage/node_count") == 1
-        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc
         assert get("//sys/accounts/a/@ref_counter") == 3
 
 
