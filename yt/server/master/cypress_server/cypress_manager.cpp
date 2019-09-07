@@ -139,9 +139,9 @@ public:
 
         for (const auto& externalNode : CreatedExternalNodes_) {
             NProto::TReqCreateForeignNode protoRequest;
-            ToProto(protoRequest.mutable_node_id(), externalNode.NodeId);
-            if (Transaction_) {
-                ToProto(protoRequest.mutable_transaction_id(), Transaction_->GetId());
+            ToProto(protoRequest.mutable_node_id(), externalNode.NodeId.ObjectId);
+            if (externalNode.NodeId.TransactionId) {
+                ToProto(protoRequest.mutable_transaction_id(), externalNode.NodeId.TransactionId);
             }
             protoRequest.set_type(static_cast<int>(externalNode.NodeType));
             ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
@@ -351,7 +351,7 @@ public:
 
         handler->FillAttributes(trunkNode, inheritedAttributes, explicitAttributes);
 
-        cypressManager->LockNode(
+        auto* node = cypressManager->LockNode(
             trunkNode,
             Transaction_,
             ELockMode::Exclusive,
@@ -359,9 +359,12 @@ public:
             true);
 
         if (external) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto externalCellTag = node->GetExternalCellTag();
+            auto mirroredTransactionId = transactionManager->MirrorTransaction(node->GetTransaction(), externalCellTag);
             CreatedExternalNodes_.push_back(TCreatedExternalNode{
                 .NodeType = trunkNode->GetType(),
-                .NodeId = trunkNode->GetId(),
+                .NodeId = TVersionedNodeId(trunkNode->GetId(), mirroredTransactionId),
                 .AccountId = account->GetId(),
                 .ReplicationExplicitAttributes = std::move(replicationExplicitAttributes),
                 .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes),
@@ -371,7 +374,7 @@ public:
 
         if (type == EObjectType::PortalEntrance)  {
             CreatedPortalEntrances_.push_back({
-                StageObject(trunkNode->As<TPortalEntranceNode>()),
+                StageNode(trunkNode->As<TPortalEntranceNode>()),
                 inheritedAttributes->Clone(),
                 explicitAttributes->Clone()
             });
@@ -492,7 +495,7 @@ private:
     struct TCreatedExternalNode
     {
         EObjectType NodeType;
-        TNodeId NodeId;
+        TVersionedNodeId NodeId;
         TAccountId AccountId;
         std::unique_ptr<IAttributeDictionary> ReplicationExplicitAttributes;
         std::unique_ptr<IAttributeDictionary> ReplicationInheritedAttributes;
@@ -504,29 +507,19 @@ private:
     void RegisterCreatedNode(TCypressNode* trunkNode)
     {
         YT_ASSERT(trunkNode->IsTrunk());
-        StageObject(trunkNode);
+        StageNode(trunkNode);
         CreatedNodes_.push_back(trunkNode);
     }
 
 
-    static TObject* GetTrunkObject(TObject* object)
-    {
-        return object;
-    }
-
-    static TCypressNode* GetTrunkObject(TCypressNode* node)
-    {
-        return node->GetTrunkNode();
-    }
-
     template <class T>
-    T* StageObject(T* object)
+    T* StageNode(T* node)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* trunkObject = GetTrunkObject(object);
-        objectManager->RefObject(trunkObject);
-        StagedObjects_.push_back(trunkObject);
-        return object;
+        auto* trunkNode = node->GetTrunkNode();
+        objectManager->RefObject(trunkNode);
+        StagedObjects_.push_back(trunkNode);
+        return node;
     }
 
     void ReleaseStagedObjects()
