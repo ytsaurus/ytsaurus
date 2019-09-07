@@ -519,12 +519,13 @@ private:
 
         if (HasArgument(args, kwargs, "indent")) {
             auto arg = Py::Int(ExtractArgument(args, kwargs, "indent"));
-            if (arg > maxIndentValue) {
+            auto longIndent = arg.as_long();
+            if (longIndent > maxIndentValue) {
                 throw CreateYsonError(Format("Indent value exceeds indentation limit: %v > %v",
-                    arg,
+                    longIndent,
                     maxIndentValue));
             }
-            indent = static_cast<int>(Py::Long(arg).as_long());
+            indent = static_cast<int>(longIndent);
         }
 
         bool booleanAsString = false;
