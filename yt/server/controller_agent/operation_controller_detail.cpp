@@ -5211,6 +5211,12 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : GetTransactionForOutputTable(table)->GetId();
 
+                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, ExternalTransactionId: %v, Revision: %llx)",
+                    table->GetPath(),
+                    objectId,
+                    table->ExternalTransactionId,
+                    revision);
+
                 if (auto it = PathToInputTables_.find(table->GetPath())) {
                     for (const auto& inputTable : it->second) {
                         // NB: remote copy is a special case.
