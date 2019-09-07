@@ -497,7 +497,7 @@ private:
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > outcomingMessages.size()) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -526,7 +526,7 @@ private:
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
                     srcCellId,
                     firstMessageId);
                 return;
@@ -1196,7 +1196,7 @@ private:
     bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
         if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1207,7 +1207,7 @@ private:
         }
 
         if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
