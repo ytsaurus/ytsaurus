@@ -82,7 +82,6 @@ TTransactionId MakeMirroredTransactionId(
     }
     auto originalType = TypeFromId(originalId);
     YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
-    YT_VERIFY((originalId.Parts32[0] >> 16) == 0);
     auto mirroredType = (originalType == EObjectType::Transaction)
         ? EObjectType::MirroredTransaction
         : EObjectType::MirroredNestedTransaction;
