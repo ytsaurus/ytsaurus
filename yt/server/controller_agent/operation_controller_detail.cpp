@@ -1668,13 +1668,13 @@ void TOperationControllerBase::LockOutputDynamicTables()
 
     YT_LOG_INFO("Locking output dynamic tables");
 
-    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TCellTag> cellTags;
-
     const auto& timestampProvider = OutputClient->GetNativeConnection()->GetTimestampProvider();
-    auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
-        .ValueOrThrow();
+    auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+    THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError, "Error generating timestamp to lock output dynamic tables");
+    auto currentTimestamp = currentTimestampOrError.Value();
 
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    std::vector<TCellTag> externalCellTags;
     for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
         auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
@@ -1692,7 +1692,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
         }
 
         asyncResults.push_back(batchReq->Invoke());
-        cellTags.push_back(externalCellTag);
+        externalCellTags.push_back(externalCellTag);
     }
 
     auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
@@ -1709,7 +1709,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
     auto sleepDuration = Config->DynamicTableLockCheckingIntervalDurationMin;
     for (int attempt = 0; attempt < Config->DynamicTableLockCheckingAttemptCountLimit; ++attempt) {
         asyncResults.clear();
-        cellTags.clear();
+        externalCellTags.clear();
         innerErrors.clear();
 
         for (const auto& [externalCellTag, tables]  : externalCellTagToTables) {
@@ -1727,7 +1727,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
             }
 
             asyncResults.push_back(batchReq->Invoke());
-            cellTags.push_back(externalCellTag);
+            externalCellTags.push_back(externalCellTag);
         }
 
         auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
@@ -1737,7 +1737,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
         }
         auto& combinedResult = combinedResultOrError.Value();
 
-        for (size_t cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+        for (size_t cellIndex = 0; cellIndex < externalCellTags.size(); ++cellIndex) {
             auto& batchRspOrError = combinedResult[cellIndex];
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
@@ -1752,7 +1752,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
             const auto& batchRsp = batchRspOrError.Value();
             auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>();
 
-            auto& tables = externalCellTagToTables[cellTags[cellIndex]];
+            auto& tables = externalCellTagToTables[externalCellTags[cellIndex]];
             std::vector<TOutputTablePtr> pendingTables;
 
             for (size_t index = 0; index < tables.size(); ++index) {
@@ -1774,7 +1774,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
 
             tables = std::move(pendingTables);
             if (tables.empty()) {
-                externalCellTagToTables.erase(cellTags[cellIndex]);
+                externalCellTagToTables.erase(externalCellTags[cellIndex]);
             }
         }
 
