@@ -656,14 +656,88 @@ private:
     const TYsonToSkiffConverter InnerConverter_;
     const TComplexTypeFieldDescriptor Descriptor_;
 
-    // How many levels of yson optional we expect to be filled.
+    // Max level of outer yson optional we expect to be filled.
     const int OuterExpectFilledLevel_;
-    // How many levels of outer optional we want to translate to yson
+    // Max level of outer optional we want to translate to yson.
     const int OuterTranslateLevel_;
 
     // If true we translate inner yson optional into skiff optional
     // if false we expect inner yson optional to be filled.
     const bool InnerOptionalTranslate_;
+};
+
+class TOptionalNullYsonToSkiffConverterImpl
+{
+public:
+    TOptionalNullYsonToSkiffConverterImpl(
+        TComplexTypeFieldDescriptor descriptor,
+        int ysonOptionalLevel,
+        int skiffOptionalLevel)
+        : Descriptor_(std::move(descriptor))
+        , OuterExpectFilledLevel_(ysonOptionalLevel - skiffOptionalLevel)
+        , OuterTranslateLevel_(ysonOptionalLevel)
+    {}
+
+    void operator () (TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* writer)
+    {
+        auto throwValueExpectedToBeNonempty = [&] {
+            ThrowYsonToSkiffConversionError(Descriptor_, "\"#\" found while value expected to be nonempty");
+        };
+
+        int outerOptionalsFound = 0;
+        for (; outerOptionalsFound < OuterExpectFilledLevel_; ++outerOptionalsFound) {
+            if (cursor->GetCurrent().GetType() == EYsonItemType::BeginList) {
+                cursor->Next();
+            } else if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
+                throwValueExpectedToBeNonempty();
+            } else {
+                ThrowBadYsonToken(
+                    Descriptor_,
+                    {EYsonItemType::BeginList},
+                    cursor->GetCurrent().GetType());
+            }
+        }
+
+        for (; outerOptionalsFound < OuterTranslateLevel_; ++outerOptionalsFound) {
+            if (cursor->GetCurrent().GetType() == EYsonItemType::BeginList) {
+                writer->WriteVariant8Tag(1);
+                cursor->Next();
+            } else if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
+                writer->WriteVariant8Tag(0);
+                cursor->Next();
+                goto skip_end_list_tokens;
+            } else {
+                ThrowBadYsonToken(
+                    Descriptor_,
+                    {EYsonItemType::BeginList, EYsonItemType::EntityValue},
+                    cursor->GetCurrent().GetType());
+            }
+        }
+
+        if (cursor->GetCurrent().GetType() != EYsonItemType::EntityValue) {
+            ThrowBadYsonToken(
+                Descriptor_,
+                {EYsonItemType::EntityValue},
+                cursor->GetCurrent().GetType());
+        }
+        cursor->Next();
+
+skip_end_list_tokens:
+        for (int i = 0; i < outerOptionalsFound; ++i) {
+            if (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+                ThrowBadYsonToken(Descriptor_, {EYsonItemType::EndList}, cursor->GetCurrent().GetType());
+            }
+            cursor->Next();
+        }
+    }
+
+private:
+    const TComplexTypeFieldDescriptor Descriptor_;
+
+    // How many levels of yson optional we expect to be filled.
+    const int OuterExpectFilledLevel_;
+    // How many levels of outer optional we want to translate to yson
+    const int OuterTranslateLevel_;
 };
 
 TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
@@ -678,17 +752,24 @@ TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
         skiffSchema,
         allowOmitOptional);
 
-    auto innerConverter = CreateYsonToSkiffConverterImpl(
-        std::move(match.InnerTypes.first),
-        match.InnerTypes.second,
-        context,
-        config);
+    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+        return TOptionalNullYsonToSkiffConverterImpl(
+            descriptor,
+            match.LogicalNesting,
+            match.SkiffNesting);
+    } else {
+        auto innerConverter = CreateYsonToSkiffConverterImpl(
+            std::move(match.InnerTypes.first),
+            match.InnerTypes.second,
+            context,
+            config);
 
-    return TOptionalYsonToSkiffConverterImpl(
-        innerConverter,
-        std::move(descriptor),
-        match.LogicalNesting,
-        match.SkiffNesting);
+        return TOptionalYsonToSkiffConverterImpl(
+            innerConverter,
+            std::move(descriptor),
+            match.LogicalNesting,
+            match.SkiffNesting);
+    }
 }
 
 TYsonToSkiffConverter CreateListYsonToSkiffConverter(
@@ -1139,6 +1220,72 @@ private:
     const bool InnerTranslate_;
 };
 
+class TOptionalNullSkiffToYsonConverterImpl
+{
+public:
+    TOptionalNullSkiffToYsonConverterImpl(
+        TComplexTypeFieldDescriptor descriptor,
+        int ysonNesting,
+        int skiffNesting)
+        : Descriptor_(std::move(descriptor))
+        , OuterFill_(ysonNesting > 1 ? ysonNesting - skiffNesting : 0)
+        , OuterTranslate_(ysonNesting - OuterFill_)
+    {
+        YT_VERIFY(skiffNesting >= 0);
+        YT_VERIFY(ysonNesting > 0);
+
+        YT_VERIFY(skiffNesting <= ysonNesting);
+        YT_VERIFY(ysonNesting <= skiffNesting + 1);
+    }
+
+    void operator () (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer)
+    {
+        for (int i = 0; i < OuterFill_; ++i) {
+            consumer->OnBeginList();
+        }
+
+        int outerOptionalsFilled = 0;
+        for (; outerOptionalsFilled < OuterTranslate_; ++outerOptionalsFilled) {
+            auto tag = parser->ParseVariant8Tag();
+            if (tag == 0) {
+                consumer->OnEntity();
+                goto write_list_ends;
+            } else if (tag == 1) {
+                consumer->OnBeginList();
+            } else {
+                ThrowUnexpectedVariant8Tag(tag);
+            }
+        }
+        consumer->OnEntity();
+
+write_list_ends:
+        const int toClose = outerOptionalsFilled + OuterFill_;
+        for (int i = 0; i < toClose; ++i) {
+            consumer->OnEndList();
+        }
+    }
+
+private:
+    void ThrowUnexpectedVariant8Tag(ui8 tag) const
+    {
+        ThrowSkiffToYsonConversionError(Descriptor_, "Unexpected %lv tag, expected %Qv or %Qv got %Qv",
+            EWireType::Variant8,
+            0,
+            1,
+            tag);
+    }
+
+private:
+    const TSkiffToYsonConverter InnerConverter_;
+    const TComplexTypeFieldDescriptor Descriptor_;
+
+    // How many levels of yson optional we set unconditionally.
+    const int OuterFill_;
+
+    // How many levels of skiff optionals we translate to yson outer optionals (which are encoded as list).
+    const int OuterTranslate_;
+};
+
 TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
@@ -1153,12 +1300,18 @@ TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
                 <<= TError("Optional nesting mismatch"));
         }
     }
-    auto innerConverter = CreateSkiffToYsonConverterImpl(
-        std::move(match.InnerTypes.first),
-        match.InnerTypes.second,
-        context,
-        config);
-    return TOptionalSkiffToYsonConverterImpl(innerConverter, std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
+
+    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+        return TOptionalNullSkiffToYsonConverterImpl(std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
+    } else {
+        auto innerConverter = CreateSkiffToYsonConverterImpl(
+            std::move(match.InnerTypes.first),
+            match.InnerTypes.second,
+            context,
+            config);
+        return TOptionalSkiffToYsonConverterImpl(
+            innerConverter, std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
+    }
 }
 
 TSkiffToYsonConverter CreateListSkiffToYsonConverter(
