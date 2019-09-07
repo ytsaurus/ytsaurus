@@ -38,7 +38,6 @@ public:
     virtual bool ShouldHideAttributes() override;
 
     // IObjectProxy members
-    // XXX(babenko): deprecate?
     virtual TObjectId GetId() const override;
     virtual TObject* GetObject() const override;
     virtual NTransactionServer::TTransaction* GetTransaction() const override;

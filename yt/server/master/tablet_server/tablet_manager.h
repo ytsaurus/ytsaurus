@@ -45,7 +45,6 @@ public:
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
-
     void PrepareMountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -54,28 +53,23 @@ public:
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
-
     void PrepareUnmountTable(
         NTableServer::TTableNode* table,
         bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void PrepareRemountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void PrepareFreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex);
-
     void PrepareUnfreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void PrepareReshardTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -104,35 +98,29 @@ public:
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
-
     void UnmountTable(
         NTableServer::TTableNode* table,
         bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void RemountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void FreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex);
-
     void UnfreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-
     void ReshardTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
-
     void CloneTable(
         NTableServer::TTableNode* sourceTable,
         NTableServer::TTableNode* clonedTable,
@@ -152,23 +140,24 @@ public:
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction,
         NTransactionClient::TTimestamp timestamp);
-
     void CheckDynamicTableLock(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction,
         NTableClient::NProto::TRspCheckDynamicTableLock* response);
 
-
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
         bool keepActions);
-
-    std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table, bool keepActions);
+    std::vector<TTabletActionId> SyncBalanceTablets(
+        NTableServer::TTableNode* table,
+        bool keepActions);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
-    void MergeTableNodes(NChunkServer::TChunkOwnerBase* originatingNode, NChunkServer::TChunkOwnerBase* branchedNode);
+    void MergeTableNodes(
+        NChunkServer::TChunkOwnerBase* originatingNode,
+        NChunkServer::TChunkOwnerBase* branchedNode);
     void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwniner);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
@@ -208,6 +197,7 @@ private:
     friend class TTabletBalancer;
     class TImpl;
 
+    // XXX(babenko): why these in private?
     void DestroyTable(NTableServer::TTableNode* table);
 
     void DestroyTablet(TTablet* tablet);

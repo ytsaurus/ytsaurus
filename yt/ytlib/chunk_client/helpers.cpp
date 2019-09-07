@@ -113,11 +113,9 @@ void GetUserObjectBasicAttributes(
         if (rsp->has_security_tags()) {
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
-        if (rsp->has_external_transaction_id()) {
-            userObject->ExternalTransactionId = FromProto<TTransactionId>(rsp->external_transaction_id());
-        } else {
-            userObject->ExternalTransactionId = userObject->TransactionId.value_or(defaultTransactionId);
-        }
+        userObject->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : userObject->TransactionId.value_or(defaultTransactionId);
     }
 
     YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
