@@ -102,7 +102,7 @@ class TDynamicMulticellManagerConfig
 public:
     TDuration CellStatisticsGossipPeriod;
 
-    THashMap<NObjectServer::TCellTag, ECellRoles> CellRoles;
+    THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
 
     TDynamicMulticellManagerConfig()
     {

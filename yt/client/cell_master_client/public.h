@@ -16,7 +16,7 @@ class TCellDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_BIT_ENUM(ECellRoles,
+DEFINE_BIT_ENUM(EMasterCellRoles,
     ((None)                    (0x0000))
     ((CypressNodeHost)         (0x0001))
     ((TransactionCoordinator)  (0x0002))

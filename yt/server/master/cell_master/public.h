@@ -79,7 +79,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ReplicatedTableTracker)
 );
 
-using NCellMasterClient::ECellRoles;
+using NCellMasterClient::EMasterCellRoles;
 
 ////////////////////////////////////////////////////////////////////////////////
 

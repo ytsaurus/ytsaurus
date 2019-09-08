@@ -244,6 +244,12 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SCHEDULERS = 1
 
     @authors("babenko")
+    def test_validate_chunk_host_cell_role(self):
+        set("//sys/@config/multicell_manager/cell_roles", {"1": ["cypress_node_host"]})
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 1})
+
+    @authors("babenko")
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})

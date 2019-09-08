@@ -157,10 +157,10 @@ public:
         return FindMasterEntry(cellTag) != nullptr;
     }
 
-    ECellRoles GetMasterCellRoles(TCellTag cellTag)
+    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag)
     {
         auto* entry = FindMasterEntry(cellTag);
-        return entry ? entry->Roles : ECellRoles::None;
+        return entry ? entry->Roles : EMasterCellRoles::None;
     }
 
     const TCellTagList& GetRegisteredMasterCellTags()
@@ -174,19 +174,27 @@ public:
     }
 
 
-    TCellTag PickSecondaryMasterCell(double bias)
+    TCellTag PickSecondaryChunkHostCell(double bias)
     {
         // List candidates.
         SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
+        auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
+            if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+                return;
+            }
+            if (None(GetMasterCellRoles(cellTag) & EMasterCellRoles::ChunkHost)) {
+                return;
+            }
+            candidates.emplace_back(cellTag, chunkCount);
+        };
+
         if (Bootstrap_->IsSecondaryMaster()) {
-            candidates.emplace_back(
+            maybeAddCandidate(
                 Bootstrap_->GetCellTag(),
                 Bootstrap_->GetChunkManager()->Chunks().size());
         }
         for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
-            if (cellTag != Bootstrap_->GetPrimaryCellTag()) {
-                candidates.emplace_back(cellTag, entry.Statistics.chunk_count());
-            }
+            maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
         }
 
         // Sanity check.
@@ -231,8 +239,7 @@ public:
     NProto::TCellStatistics ComputeClusterStatistics()
     {
         auto result = GetLocalCellStatistics();
-        for (const auto& pair : RegisteredMasterMap_) {
-            const auto& entry = pair.second;
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
             result += entry.Statistics;
         }
         return result;
@@ -309,7 +316,7 @@ private:
         int Index = -1;
         NProto::TCellStatistics Statistics;
         TMailbox* Mailbox = nullptr;
-        ECellRoles Roles = ECellRoles::None;
+        EMasterCellRoles Roles = EMasterCellRoles::None;
 
         void Save(NCellMaster::TSaveContext& context) const
         {
@@ -611,11 +618,11 @@ private:
             index);
     }
 
-    ECellRoles GetCellRoles(TCellTag cellTag)
+    EMasterCellRoles GetCellRoles(TCellTag cellTag)
     {
-        auto defaultRoles = cellTag == Bootstrap_->GetPrimaryCellTag()
-            ? (ECellRoles::CypressNodeHost | ECellRoles::TransactionCoordinator)
-            : (ECellRoles::CypressNodeHost | ECellRoles::ChunkHost);
+        auto defaultRoles = (cellTag == Bootstrap_->GetPrimaryCellTag())
+            ? (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::TransactionCoordinator)
+            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
         return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 
@@ -834,7 +841,7 @@ bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
 }
 
-ECellRoles TMulticellManager::GetMasterCellRoles(NObjectClient::TCellTag cellTag)
+EMasterCellRoles TMulticellManager::GetMasterCellRoles(NObjectClient::TCellTag cellTag)
 {
     return Impl_->GetMasterCellRoles(cellTag);
 }
@@ -849,9 +856,9 @@ int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
     return Impl_->GetRegisteredMasterCellIndex(cellTag);
 }
 
-TCellTag TMulticellManager::PickSecondaryMasterCell(double bias)
+TCellTag TMulticellManager::PickSecondaryChunkHostCell(double bias)
 {
-    return Impl_->PickSecondaryMasterCell(bias);
+    return Impl_->PickSecondaryChunkHostCell(bias);
 }
 
 NProto::TCellStatistics TMulticellManager::ComputeClusterStatistics()
