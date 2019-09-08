@@ -71,7 +71,6 @@ public:
     TMulticellManager(
         TMulticellManagerConfigPtr config,
         TBootstrap* bootstrap);
-    ~TMulticellManager();
 
     void Initialize();
 
