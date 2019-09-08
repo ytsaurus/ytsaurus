@@ -139,14 +139,28 @@ public:
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
-    void UpdateResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
+    void UpdateResourceUsage(
+        const NChunkServer::TChunk* chunk,
+        const NChunkServer::TChunkRequisition& requisition,
+        i64 delta);
 
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
-    void UpdateTabletResourceUsage(NCypressServer::TCypressNode* node, const TClusterResources& resourceUsageDelta);
+    void UpdateTabletResourceUsage(
+        NCypressServer::TCypressNode* node,
+        const TClusterResources& resourceUsageDelta);
 
     //! Adds the #chunk to the resource usage of its staging transaction.
-    void UpdateTransactionResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
+    void UpdateTransactionResourceUsage(
+        const NChunkServer::TChunk* chunk,
+        const NChunkServer::TChunkRequisition& requisition,
+        i64 delta);
+
+    //! Clears the transaction per-account usage statistics releasing the references to accounts.
+    void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
+
+    //! Recomputes the transaction per-account usage statistics from scratch.
+    void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
 
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(

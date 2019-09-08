@@ -119,28 +119,6 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-void TTransaction::RecomputeResourceUsage()
-{
-    AccountResourceUsage_.clear();
-
-    for (auto* node : BranchedNodes_) {
-        AddNodeResourceUsage(node, false);
-    }
-    for (auto* node : StagedNodes_) {
-        AddNodeResourceUsage(node, true);
-    }
-}
-
-void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged)
-{
-    if (node->IsExternal()) {
-        return;
-    }
-
-    auto* account = node->GetAccount();
-    AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
-}
-
 bool TTransaction::IsDescendantOf(TTransaction* transaction) const
 {
     YT_VERIFY(transaction);

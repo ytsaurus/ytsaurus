@@ -79,8 +79,6 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    void RecomputeResourceUsage();
-
     NYson::TYsonString GetErrorDescription() const;
 
     //! Returns true iff this transaction is (arbitrarily deeply) nested in #transaction.
@@ -95,9 +93,6 @@ public:
 
     //! For mirrored transactions only; returns the original transaction id.
     TTransactionId GetUnmirroredTransactionId() const;
-
-private:
-    void AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged);
 
 };
 

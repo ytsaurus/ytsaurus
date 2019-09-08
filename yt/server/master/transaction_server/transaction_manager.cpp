@@ -360,8 +360,7 @@ public:
 
         RunCommitTransactionActions(transaction);
 
-        auto* parent = transaction->GetParent();
-        if (parent) {
+        if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
                 parent->ExportedObjects().end(),
                 transaction->ExportedObjects().begin(),
@@ -371,7 +370,8 @@ public:
                 transaction->ImportedObjects().begin(),
                 transaction->ImportedObjects().end());
 
-            parent->RecomputeResourceUsage();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->RecomputeTransactionAccountResourceUsage(parent);
         } else {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* object : transaction->ImportedObjects()) {
@@ -1013,10 +1013,8 @@ public:
 
         transaction->SetDeadline(std::nullopt);
 
-        for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
-            objectManager->UnrefObject(account);
-        }
-        transaction->AccountResourceUsage().clear();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ResetTransactionAccountResourceUsage(transaction);
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
