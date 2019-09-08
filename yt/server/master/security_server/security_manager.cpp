@@ -459,6 +459,37 @@ public:
         ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
     }
 
+    void ResetTransactionAccountResourceUsage(TTransaction* transaction)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+            objectManager->UnrefObject(account);
+        }
+        transaction->AccountResourceUsage().clear();
+    }
+
+    void RecomputeTransactionResourceUsage(TTransaction* transaction)
+    {
+        ResetTransactionAccountResourceUsage(transaction);
+
+        auto addNodeResourceUsage = [&] (const TCypressNode* node, bool staged) {
+            // XXX(babenko): staged is not used
+            if (node->IsExternal()) {
+                return;
+            }
+            auto* account = node->GetAccount();
+            auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
+            *transactionUsage += node->GetDeltaResourceUsage();
+        };
+
+        for (auto* node : transaction->BranchedNodes()) {
+            addNodeResourceUsage(node, false);
+        }
+        for (auto* node : transaction->StagedNodes()) {
+            addNodeResourceUsage(node, true);
+        }
+    }
+
     void SetAccount(
         TCypressNode* node,
         TAccount* oldAccount,
@@ -3040,6 +3071,16 @@ void TSecurityManager::UpdateTabletResourceUsage(TCypressNode* node, const TClus
 void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
 {
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
+}
+
+void TSecurityManager::ResetTransactionAccountResourceUsage(TTransaction* transaction)
+{
+    Impl_->ResetTransactionAccountResourceUsage(transaction);
+}
+
+void TSecurityManager::RecomputeTransactionAccountResourceUsage(TTransaction* transaction)
+{
+    Impl_->RecomputeTransactionResourceUsage(transaction);
 }
 
 void TSecurityManager::SetAccount(TCypressNode* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
