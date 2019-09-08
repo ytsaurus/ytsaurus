@@ -141,7 +141,7 @@ TString TNonversionedObjectBase::GetObjectName() const
 
 void TNonversionedObjectBase::ValidateActiveLifeStage() const
 {
-    if (LifeStage_ == EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
+    if (LifeStage_ != EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
             "%v cannot be used since it is in %Qlv life stage",
