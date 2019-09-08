@@ -159,8 +159,8 @@ public:
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag)
     {
-        auto* entry = FindMasterEntry(cellTag);
-        return entry ? entry->Roles : EMasterCellRoles::None;
+        auto it = MasterCellRolesMap_.find(cellTag);
+        return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
     const TCellTagList& GetRegisteredMasterCellTags()
@@ -316,14 +316,12 @@ private:
         int Index = -1;
         NProto::TCellStatistics Statistics;
         TMailbox* Mailbox = nullptr;
-        EMasterCellRoles Roles = EMasterCellRoles::None;
 
         void Save(NCellMaster::TSaveContext& context) const
         {
             using NYT::Save;
             Save(context, Index);
             Save(context, Statistics);
-            Save(context, Roles);
         }
 
         void Load(NCellMaster::TLoadContext& context)
@@ -331,10 +329,6 @@ private:
             using NYT::Load;
             Load(context, Index);
             Load(context, Statistics);
-            // COMPAT(shakurov)
-            if (context.GetVersion() >= EMasterReign::CellRoles) {
-                Load(context, Roles);
-            }
         }
     };
 
@@ -352,6 +346,7 @@ private:
     NConcurrency::TReaderWriterSpinLock MasterChannelCacheLock_;
     THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
+    THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
 
     virtual void OnAfterSnapshotLoaded()
     {
@@ -425,6 +420,13 @@ private:
         OnDynamicConfigChanged();
     }
 
+    virtual void OnStartLeading() override
+    {
+        TMasterAutomatonPart::OnStartLeading();
+
+        OnStartEpoch();
+    }
+
     virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
@@ -439,13 +441,31 @@ private:
             CellStatisticsGossipExecutor_.Reset();
         }
 
-        ClearCaches();
+        OnStopEpoch();
+    }
+
+    virtual void OnStartFollowing() override
+    {
+        TMasterAutomatonPart::OnStartFollowing();
+
+        OnStartEpoch();
     }
 
     virtual void OnStopFollowing() override
     {
         TMasterAutomatonPart::OnStopFollowing();
 
+        OnStopEpoch();
+    }
+
+
+    void OnStartEpoch()
+    {
+        RecomputeMasterCellRoles();
+    }
+
+    void OnStopEpoch()
+    {
         ClearCaches();
     }
 
@@ -603,7 +623,6 @@ private:
 
         auto& entry = it->second;
         entry.Index = index;
-        entry.Roles = GetCellRoles(cellTag);
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -613,17 +632,11 @@ private:
             PrimaryMasterMailbox_ = entry.Mailbox;
         }
 
+        RecomputeMasterCellRoles();
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
-    }
-
-    EMasterCellRoles GetCellRoles(TCellTag cellTag)
-    {
-        auto defaultRoles = (cellTag == Bootstrap_->GetPrimaryCellTag())
-            ? (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::TransactionCoordinator)
-            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
-        return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)
@@ -786,10 +799,28 @@ private:
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
         }
+        RecomputeMasterCellRoles();
+    }
 
+
+    void RecomputeMasterCellRoles()
+    {
+        MasterCellRolesMap_.clear();
+        auto populateCellRoles = [&] (TCellTag cellTag) {
+            MasterCellRolesMap_[cellTag] = ComputeMasterCellRolesFromConfig(cellTag);
+        };
+        populateCellRoles(Bootstrap_->GetCellTag());
         for (auto& [cellTag, entry] : RegisteredMasterMap_) {
-            entry.Roles = GetCellRoles(cellTag);
+            populateCellRoles(cellTag);
         }
+    }
+
+    EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
+    {
+        auto defaultRoles = (cellTag == Bootstrap_->GetPrimaryCellTag())
+            ? (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::TransactionCoordinator)
+            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
+        return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 };
 
@@ -800,8 +831,6 @@ TMulticellManager::TMulticellManager(
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
-
-TMulticellManager::~TMulticellManager() = default;
 
 void TMulticellManager::Initialize()
 {

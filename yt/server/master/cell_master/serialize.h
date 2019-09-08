@@ -89,7 +89,6 @@ DEFINE_ENUM(EMasterReign,
     ((CypressShardName)                                              (906))  // babenko
     ((YT_10855_EpochHistoryManager)                                  (907))  // ifsmirnov
     ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
-    ((CellRoles)                                                     (909))  // shakurov
     ((YT_11349_FixCypressMoveWithEscapedSymbols)                     (910))  // kiselyovp
     ((AddRefsFromTransactionToUsageAccounts)                         (911))  // babenko
     ((TransactionMirroring)                                          (912))  // babenko
