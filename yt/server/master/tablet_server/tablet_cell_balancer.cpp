@@ -181,8 +181,9 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cells distribution before balancing");
-            DumpState();
+            auto dumpId = TGuid::Create();
+            YT_LOG_DEBUG("Tablet cells distribution before balancing (DumpId: %v)", dumpId);
+            DumpState(dumpId);
         }
 
         for (const auto& pair : Provider_->TabletCellBundles()) {
@@ -192,8 +193,9 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cells distribution after balancing");
-            DumpState();
+            auto dumpId = TGuid::Create();
+            YT_LOG_DEBUG("Tablet cells distribution after balancing (DumpId: %v)", dumpId);
+            DumpState(dumpId);
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
@@ -313,16 +315,17 @@ private:
 
     std::vector<TTabletCellMoveDescriptor> TabletCellMoveDescriptors_;
 
-    void DumpState()
+    void DumpState(TGuid dumpId)
     {
         for (const auto& node : Nodes_) {
-            YT_LOG_DEBUG("Tablet cell distribution %v %v",
+            YT_LOG_DEBUG("Tablet cell distribution %v %v (DumpId: %v)",
                 node.GetNode()->GetDefaultAddress(),
                 MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TTabletCell*, int>& pair) {
                     const auto* cell = pair.first;
                     int peerId = pair.second;
                     builder->AppendFormat("<%v,%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId(), peerId);
-                }));
+                }),
+                dumpId);
         }
     }
 
