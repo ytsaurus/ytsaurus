@@ -770,11 +770,8 @@ int TObjectManager::TImpl::RefObject(TObject* object)
         GetObjectEphemeralRefCounter(object),
         GetObjectWeakRefCounter(object));
 
-    if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
-        object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
-    {
-        YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to reference an object after removal "
-            "has been pre-committed (ObjectId: %v, LifeStage: %v)",
+    if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
             object->GetId(),
             object->GetLifeStage());
     }

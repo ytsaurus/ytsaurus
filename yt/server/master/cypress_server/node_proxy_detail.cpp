@@ -389,7 +389,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             auto name = ConvertTo<TString>(value);
             auto* account = securityManager->GetAccountByNameOrThrow(name);
-            account->ValidateCreationCommitted();
+            account->ValidateActiveLifeStage();
 
             ValidateStorageParametersUpdate();
             ValidatePermission(account, EPermission::Use);
@@ -1364,7 +1364,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
-            account->ValidateCreationCommitted();
+            account->ValidateActiveLifeStage();
         }
 
         if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
@@ -1918,7 +1918,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
-            newBundle->ValidateCreationCommitted();
+            newBundle->ValidateActiveLifeStage();
 
             tabletManager->SetTabletCellBundle(node, newBundle);
 
@@ -2105,7 +2105,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName);
-        bundle->ValidateCreationCommitted();
+        bundle->ValidateActiveLifeStage();
         InheritedAttributes_.TabletCellBundle = bundle;
         return;
     }

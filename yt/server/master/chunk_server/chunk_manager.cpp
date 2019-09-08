@@ -2313,7 +2313,7 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        account->ValidateCreationCommitted();
+        account->ValidateActiveLifeStage();
 
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()

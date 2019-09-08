@@ -3082,7 +3082,7 @@ public:
         ValidateNodeCloneMode(trunkSourceTable, mode);
 
         if (auto* cellBundle = trunkSourceTable->GetTabletCellBundle()) {
-            cellBundle->ValidateCreationCommitted();
+            cellBundle->ValidateActiveLifeStage();
         }
     }
 
@@ -3097,7 +3097,7 @@ public:
 
         auto* cellBundle = trunkSourceTable->GetTabletCellBundle();
         if (cellBundle) {
-            cellBundle->ValidateCreationCommitted();
+            cellBundle->ValidateActiveLifeStage();
         }
     }
 

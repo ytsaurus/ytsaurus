@@ -1519,8 +1519,6 @@ THiveManager::THiveManager(
         automaton))
 { }
 
-THiveManager::~THiveManager() = default;
-
 IServicePtr THiveManager::GetRpcService()
 {
     return Impl_->GetRpcService();
