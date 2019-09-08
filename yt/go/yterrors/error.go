@@ -42,8 +42,8 @@ func (e *ErrorCode) UnmarshalYSON(r *yson.Reader) (err error) {
 type Error struct {
 	Code        ErrorCode              `yson:"code" json:"code"`
 	Message     string                 `yson:"message" json:"message"`
-	InnerErrors []*Error               `yson:"inner_errors" json:"inner_errors"`
-	Attributes  map[string]interface{} `yson:"attributes" json:"attributes"`
+	InnerErrors []*Error               `yson:"inner_errors,omitempty" json:"inner_errors,omitempty"`
+	Attributes  map[string]interface{} `yson:"attributes,omitempty" json:"attributes,omitempty"`
 }
 
 // ContainsErrorCode returns true iff any of the nested errors has ErrorCode equal to errorCode.
@@ -175,6 +175,20 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 type ErrorAttr struct {
 	Name  string
 	Value interface{}
+}
+
+// FromError converts any error to YT error, if it not already YT error.
+//
+// Nested errors are converted to nested YT errors.
+//
+// Otherwise, returns err unmodified.
+func FromError(err error) error {
+	switch v := err.(type) {
+	case *Error:
+		return v
+	default:
+		return Err(v.Error())
+	}
 }
 
 // Err creates new error of type Error.
