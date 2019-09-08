@@ -1242,7 +1242,7 @@ public:
             return;
         }
 
-        account->ValidateCreationCommitted();
+        account->ValidateActiveLifeStage();
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;

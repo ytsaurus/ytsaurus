@@ -5,6 +5,8 @@
 
 #include <yt/server/master/cypress_server/node.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectServer {
@@ -137,9 +139,9 @@ TString TNonversionedObjectBase::GetObjectName() const
     return Format("Object %v", Id_);
 }
 
-void TNonversionedObjectBase::ValidateCreationCommitted() const
+void TNonversionedObjectBase::ValidateActiveLifeStage() const
 {
-    if (LifeStage_ != EObjectLifeStage::CreationCommitted) {
+    if (LifeStage_ == EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
             "%v cannot be used since it is in %Qlv life stage",

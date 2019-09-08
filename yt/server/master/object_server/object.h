@@ -27,9 +27,12 @@ struct TObjectDynamicData
 // is unable to command the destruction of an object to its secondaries without risking
 // that some secondary still holds a reference to the object.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
+     // Creation workflow
      ((CreationStarted)         (0))
      ((CreationPreCommitted)    (1))
      ((CreationCommitted)       (2))
+
+     // Removal workflow
      ((RemovalStarted)          (3))
      ((RemovalPreCommitted)     (4))
      ((RemovalCommitted)        (5))
@@ -252,7 +255,7 @@ public:
     virtual TString GetObjectName() const;
 
     //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
-    void ValidateCreationCommitted() const;
+    void ValidateActiveLifeStage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

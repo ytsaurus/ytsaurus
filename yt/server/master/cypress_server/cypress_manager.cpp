@@ -231,7 +231,7 @@ public:
         TClusterResources sourceResourceUsage,
         TAccount* clonedAccount) override
     {
-        clonedAccount->ValidateCreationCommitted();
+        clonedAccount->ValidateActiveLifeStage();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(clonedAccount, EPermission::Use);
