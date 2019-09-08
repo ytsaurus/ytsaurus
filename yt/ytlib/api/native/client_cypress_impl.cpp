@@ -205,9 +205,6 @@ private:
 
     void BeginCopy()
     {
-        // XXX(babenko): no prereqs
-        // XXX(babenko): no retries
-
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(std::move(channel));
 
@@ -565,18 +562,28 @@ TNodeId TClient::DoCloneNode(
         .ValueOrThrow();
     auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0);
 
-    if (rspOrError.GetCode() == NObjectClient::EErrorCode::CrossCellAdditionalPath) {
-        TCrossCellNodeCopier<TOptions> copier(
-            this,
-            srcPath,
-            dstPath,
-            options,
-            Logger);
-        return copier.Run();
-    } else {
+    if (rspOrError.GetCode() != NObjectClient::EErrorCode::CrossCellAdditionalPath) {
         auto rsp = rspOrError.ValueOrThrow();
         return FromProto<TNodeId>(rsp->node_id());
     }
+
+    if (!options.PrerequisiteTransactionIds.empty() ||
+        !options.PrerequisiteRevisions.empty())
+    {
+        THROW_ERROR_EXCEPTION("Cross-cell \"copy\"/\"move\" command does not support prerequisites");
+    }
+
+    if (options.Retry) {
+        THROW_ERROR_EXCEPTION("Cross-cell \"copy\"/\"move\" command is not retriable");
+    }
+
+    TCrossCellNodeCopier<TOptions> copier(
+        this,
+        srcPath,
+        dstPath,
+        options,
+        Logger);
+    return copier.Run();
 }
 
 TNodeId TClient::DoLinkNode(
