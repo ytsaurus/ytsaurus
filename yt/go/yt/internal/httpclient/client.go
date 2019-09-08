@@ -153,7 +153,9 @@ func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, 
 	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")
 
-	if c.credentials != nil {
+	if requestCredentials := yt.ContextCredentials(ctx); requestCredentials != nil {
+		requestCredentials.Set(req)
+	} else if c.credentials != nil {
 		c.credentials.Set(req)
 	}
 
