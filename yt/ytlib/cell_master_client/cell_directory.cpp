@@ -91,7 +91,7 @@ public:
 
     TCellId PickRandomTransactionCoordinatorMasterCell()
     {
-        auto candidateCells = GetCellsForRole(ECellRoles::TransactionCoordinator);
+        auto candidateCells = GetCellsForRole(EMasterCellRoles::TransactionCoordinator);
         size_t randomIndex = 0;
         {
             TReaderGuard guard(SpinLock_);
@@ -103,9 +103,9 @@ public:
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
     {
-        THashMap<TCellTag, ECellRoles> cellRoles;
+        THashMap<TCellTag, EMasterCellRoles> cellRoles;
         cellRoles.reserve(protoDirectory.items_size());
-        THashMultiMap<ECellRoles, TCellTag> roleCells;
+        THashMultiMap<EMasterCellRoles, TCellTag> roleCells;
         roleCells.reserve(protoDirectory.items_size());
         THashMap<TCellTag, std::vector<TString>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
@@ -120,10 +120,10 @@ public:
             auto cellId = FromProto<TGuid>(item.cell_id());
             auto cellTag = CellTagFromId(cellId);
 
-            auto roles = ECellRoles::None;
+            auto roles = EMasterCellRoles::None;
             for (auto j = 0; j < item.roles_size(); ++j) {
-                auto role = ECellRoles(item.roles(j));
-                Y_ASSERT(role != ECellRoles::None);
+                auto role = EMasterCellRoles(item.roles(j));
+                Y_ASSERT(role != EMasterCellRoles::None);
                 roles = roles | role;
                 roleCells.emplace(role, cellTag);
             }
@@ -205,14 +205,14 @@ private:
     /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannels_;
 
     TReaderWriterSpinLock SpinLock_;
-    THashMap<TCellTag, ECellRoles> CellRoles_;
+    THashMap<TCellTag, EMasterCellRoles> CellRoles_;
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
-    THashMultiMap<ECellRoles, TCellTag> RoleCells_;
+    THashMultiMap<EMasterCellRoles, TCellTag> RoleCells_;
     TRandomGenerator RandomGenerator_;
 
     const NLogging::TLogger Logger;
 
-    TCellTagList GetCellsForRole(ECellRoles cellRole) const
+    TCellTagList GetCellsForRole(EMasterCellRoles cellRole) const
     {
         TCellTagList result;
 

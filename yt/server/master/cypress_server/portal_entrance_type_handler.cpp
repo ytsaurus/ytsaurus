@@ -71,7 +71,9 @@ private:
         if (!multicellManager->IsRegisteredMasterCell(exitCellTag)) {
             THROW_ERROR_EXCEPTION("Unknown cell tag %v", exitCellTag);
         }
-        // XXX(babenko): validate cell role
+        if (None(multicellManager->GetMasterCellRoles(exitCellTag) & EMasterCellRoles::CypressNodeHost)) {
+            THROW_ERROR_EXCEPTION("Cell with tag %v cannot host Cypress nodes", exitCellTag);
+        }
 
         auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();

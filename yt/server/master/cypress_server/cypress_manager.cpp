@@ -303,7 +303,7 @@ public:
             if (optionalExternalCellTag) {
                 externalCellTag = *optionalExternalCellTag;
             } else {
-                externalCellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
+                externalCellTag = multicellManager->PickSecondaryChunkHostCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
@@ -319,8 +319,13 @@ public:
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
-        if (externalCellTag != NotReplicatedCellTag && !multicellManager->IsRegisteredMasterCell(externalCellTag)) {
-            THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
+        if (externalCellTag != NotReplicatedCellTag) {
+            if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
+                THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
+            }
+            if (None(multicellManager->GetMasterCellRoles(externalCellTag) & EMasterCellRoles::ChunkHost)) {
+                THROW_ERROR_EXCEPTION("Cell with tag %v cannot host chunks", externalCellTag);
+            }
         }
 
         // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.

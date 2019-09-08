@@ -205,7 +205,7 @@ private:
                 }
 
                 auto roles = multicellManager->GetMasterCellRoles(CellTagFromId(cellConfig->CellId));
-                for (auto role : TEnumTraits<ECellRoles>::GetDomainValues()) {
+                for (auto role : TEnumTraits<EMasterCellRoles>::GetDomainValues()) {
                     if (Any(roles & role)) {
                         cellItem->add_roles(static_cast<i32>(role));
                     }
