@@ -15,7 +15,7 @@ from pyspark.storagelevel import StorageLevel as StorageLevel
 from pyspark.taskcontext import BarrierTaskContext as BarrierTaskContext, BarrierTaskInfo as BarrierTaskInfo, TaskContext as TaskContext
 
 # Compatiblity imports
-from pyspark.sql import SQLContext, HiveContext, Row
+from pyspark.sql import SQLContext, Row
 
 # Names in __all__ with no definition:
 #   SparkJobInfo

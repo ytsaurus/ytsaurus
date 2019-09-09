@@ -57,7 +57,7 @@ class KMeansModel(Saveable, Loader[KMeansModel]):
 
 class KMeans:
     @classmethod
-    def train(cls, rdd: RDD[VectorLike], k: int, maxIterations: int = ..., runs: int = ..., initializationMode: str = ..., seed: Optional[int] = ..., initializationSteps: int = ..., epsilon: float = ..., initialModel: Optional[KMeansModel] = ...) -> KMeansModel: ...
+    def train(cls, rdd: RDD[VectorLike], k: int, maxIterations: int = ..., initializationMode: str = ..., seed: Optional[int] = ..., initializationSteps: int = ..., epsilon: float = ..., initialModel: Optional[KMeansModel] = ...) -> KMeansModel: ...
 
 class GaussianMixtureModel(JavaModelWrapper, JavaSaveable, JavaLoader[GaussianMixtureModel]):
     @property
