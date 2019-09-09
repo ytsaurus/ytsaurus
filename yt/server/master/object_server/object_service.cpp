@@ -594,21 +594,8 @@ private:
         const auto& request = RpcContext_->Request();
         auto cellTags = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
         auto registerTransaction = [&] (TTransactionId transactionId) {
-            if (!transactionId) {
-                return;
-            }
-            auto type = TypeFromId(transactionId);
-            switch (type) {
-                case EObjectType::Transaction:
-                case EObjectType::NestedTransaction:
-                    cellTags.push_back(CellTagFromId(transactionId));
-                    break;
-                case EObjectType::MirroredTransaction:
-                case EObjectType::MirroredNestedTransaction:
-                    cellTags.push_back(NTransactionClient::MirrorCellTagFromTransactionId(transactionId));
-                    break;
-                default:
-                    break;
+            if (transactionId) {
+                cellTags.push_back(CellTagFromId(transactionId));
             }
         };
 
