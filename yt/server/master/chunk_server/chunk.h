@@ -80,10 +80,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
-    // This list is typically small, e.g. has the length of 1.
-    // It may contain duplicates, i.e. when a chunk is added into the same
-    // table multiple times during merge.
-    using TParents = SmallVector<TChunkTree*, TypicalChunkParentCount>;
+    // This map is typically small, e.g. has the size of 1.
+    using TParents = TSmallFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
@@ -113,6 +111,8 @@ public:
 
     void AddParent(TChunkTree* parent);
     void RemoveParent(TChunkTree* parent);
+    int GetParentCount() const;
+    bool HasParents() const;
 
     using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;

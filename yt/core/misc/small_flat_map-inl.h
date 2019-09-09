@@ -16,6 +16,18 @@ TSmallFlatMap<K, V, N>::TSmallFlatMap(TInputIterator begin, TInputIterator end)
 }
 
 template <class K, class V, unsigned N>
+bool TSmallFlatMap<K, V, N>::operator==(const TSmallFlatMap& rhs) const
+{
+    return Storage_ == rhs.Storage_;
+}
+
+template <class K, class V, unsigned N>
+bool TSmallFlatMap<K, V, N>::operator!=(const TSmallFlatMap& rhs) const
+{
+    return !(*this == rhs);
+}
+
+template <class K, class V, unsigned N>
 typename TSmallFlatMap<K, V, N>::iterator TSmallFlatMap<K, V, N>::begin()
 {
     return Storage_.begin();
@@ -84,14 +96,20 @@ typename TSmallFlatMap<K, V, N>::const_iterator TSmallFlatMap<K, V, N>::find(con
 }
 
 template <class K, class V, unsigned N>
+bool TSmallFlatMap<K, V, N>::contains(const K& k) const
+{
+    return find(k) != end();
+}
+
+template <class K, class V, unsigned N>
 std::pair<typename TSmallFlatMap<K, V, N>::iterator, bool> TSmallFlatMap<K, V, N>::insert(const value_type& value)
 {
     auto [rangeBegin, rangeEnd] = EqualRange(value.first);
     if (rangeBegin != rangeEnd) {
         return {rangeBegin, false};
     } else {
-        Storage_.insert(rangeBegin, value);
-        return {rangeBegin, true};
+        auto it = Storage_.insert(rangeBegin, value);
+        return {it, true};
     }
 }
 
@@ -116,6 +134,14 @@ void TSmallFlatMap<K, V, N>::erase(const K& k)
 {
     auto [rangeBegin, rangeEnd] = EqualRange(k);
     erase(rangeBegin, rangeEnd);
+}
+
+template <class K, class V, unsigned N>
+void TSmallFlatMap<K, V, N>::erase(iterator pos)
+{
+    Storage_.erase(pos);
+    // Try to keep the storage inline. This is why erase doesn't return an iterator.
+    Storage_.shrink_to_small();
 }
 
 template <class K, class V, unsigned N>

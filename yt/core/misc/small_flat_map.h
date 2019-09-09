@@ -19,6 +19,9 @@ namespace NYT {
  *  In return, the flat map provides
  *    - a smaller size overhead and
  *    - a guarantee that if data fits into inline storage, it goes there.
+ *
+ *  Because of the latter, one should be very careful with iterators: virtually
+ *  any call to insert or erase may potentially invalidate all iterators.
  */
 template <class K, class V, unsigned N>
 class TSmallFlatMap
@@ -54,6 +57,9 @@ public:
     template <class TInputIterator>
     TSmallFlatMap(TInputIterator begin, TInputIterator end);
 
+    bool operator==(const TSmallFlatMap& rhs) const;
+    bool operator!=(const TSmallFlatMap& rhs) const;
+
     iterator begin();
     const_iterator begin() const;
 
@@ -71,6 +77,8 @@ public:
     iterator find(const K& k);
     const_iterator find(const K& k) const;
 
+    bool contains(const K& k) const;
+
     std::pair<iterator, bool> insert(const value_type& value);
 
     template <class TInputIterator>
@@ -79,6 +87,7 @@ public:
     V& operator[](const K& k);
 
     void erase(const K& k);
+    void erase(iterator pos);
     void erase(iterator b, iterator e);
 
 private:
