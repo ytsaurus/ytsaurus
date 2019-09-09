@@ -483,10 +483,14 @@ private:
         auto codicilGuard = MakeCodicilGuard();
 
         const auto& request = RpcContext_->Request();
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v",
+
+        auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
+
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, OriginalRequestId: %v",
             TotalSubrequestCount_,
             request.supports_portals(),
-            request.suppress_upstream_sync());
+            request.suppress_upstream_sync(),
+            originalRequestId);
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
@@ -940,6 +944,7 @@ private:
                 auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+                batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 batchReq->SetUser(RpcContext_->GetUser());
                 it = batchMap.emplace(key, TBatchValue{

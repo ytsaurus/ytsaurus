@@ -31,6 +31,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channe
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteSubbatch& other)
     : TClientRequest(other)
+    , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
 {
     // Undo some work done by the base class's copy ctor and make some tweaks.
@@ -82,6 +83,9 @@ TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
 TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
 {
     NProto::TReqExecute req;
+    if (OriginalRequestId_) {
+        ToProto(req.mutable_original_request_id(), OriginalRequestId_);
+    }
     req.set_suppress_upstream_sync(SuppressUpstreamSync_);
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
@@ -144,9 +148,9 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     return DoInvoke();
 }
 
-void TObjectServiceProxy::TReqExecuteBatchBase::SetTimeout(std::optional<TDuration> timeout)
+void TObjectServiceProxy::TReqExecuteBatchBase::SetOriginalRequestId(TRequestId originalRequestId)
 {
-    TClientRequest::SetTimeout(timeout);
+    OriginalRequestId_ = originalRequestId;
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressUpstreamSync(bool value)
@@ -189,6 +193,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
         for (auto& descriptor : InnerRequestDescriptors_) {
             NRpc::NProto::TRequestHeader requestHeader;
             YT_VERIFY(ParseRequestHeader(descriptor.Message, &requestHeader));
+
             auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
             prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
             prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
@@ -215,45 +220,6 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     PushDownPrerequisites();
     InvokeNextBatch();
     return FullResponsePromise_;
-}
-
-TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetTimeout(
-    std::optional<TDuration> timeout)
-{
-    TReqExecuteBatchBase::SetTimeout(timeout);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetSuppressUpstreamSync(
-    bool value)
-{
-    TReqExecuteBatchBase::SetSuppressUpstreamSync(value);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchPtr
-TObjectServiceProxy::TReqExecuteBatch::AddRequest(
-    const TYPathRequestPtr& innerRequest,
-    std::optional<TString> key,
-    std::optional<size_t> hash)
-{
-    TReqExecuteBatchBase::AddRequest(innerRequest, std::move(key), hash);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchPtr
-TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
-    TSharedRefArray innerRequestMessage,
-    std::optional<TString> key,
-    std::any tag,
-    std::optional<size_t> hash)
-{
-    TReqExecuteBatchBase::AddRequestMessage(
-        std::move(innerRequestMessage),
-        std::move(key),
-        std::move(tag),
-        hash);
-    return this;
 }
 
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
@@ -416,45 +382,6 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     Initialize();
     InvokeNextBatch();
     return FullResponsePromise_;
-}
-
-TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr TObjectServiceProxy::TReqExecuteBatchWithRetries::SetTimeout(
-    std::optional<TDuration> timeout)
-{
-    TReqExecuteBatchBase::SetTimeout(timeout);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr TObjectServiceProxy::TReqExecuteBatchWithRetries::SetSuppressUpstreamSync(
-    bool value)
-{
-    TReqExecuteBatchBase::SetSuppressUpstreamSync(value);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
-TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequest(
-    const TYPathRequestPtr& innerRequest,
-    std::optional<TString> key,
-    std::optional<size_t> hash)
-{
-    TReqExecuteBatchBase::AddRequest(innerRequest, std::move(key), hash);
-    return this;
-}
-
-TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
-TObjectServiceProxy::TReqExecuteBatchWithRetries::AddRequestMessage(
-    TSharedRefArray innerRequestMessage,
-    std::optional<TString> key,
-    std::any tag,
-    std::optional<size_t> hash)
-{
-    TReqExecuteBatchBase::AddRequestMessage(
-        std::move(innerRequestMessage),
-        std::move(key),
-        std::move(tag),
-        hash);
-    return this;
 }
 
 void TObjectServiceProxy::TReqExecuteBatchWithRetries::Initialize()
@@ -802,22 +729,24 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
-    return New<TReqExecuteBatch>(Channel_)
-        ->SetTimeout(DefaultTimeout_);
+    auto batchReq = New<TReqExecuteBatch>(Channel_);
+    PrepareBatchRequest(batchReq);
+    return batchReq;
 }
 
 TObjectServiceProxy::TReqExecuteBatchBasePtr TObjectServiceProxy::ExecuteBatchNoBackoffRetries()
 {
-    auto result = New<TReqExecuteBatchBase>(Channel_);
-    result->SetTimeout(DefaultTimeout_);
-    return result;
+    auto batchReq = New<TReqExecuteBatchBase>(Channel_);
+    PrepareBatchRequest(batchReq);
+    return batchReq;
 }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config)
 {
-    return New<TReqExecuteBatchWithRetries>(Channel_, std::move(config))
-        ->SetTimeout(DefaultTimeout_);
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config));
+    PrepareBatchRequest(batchReq);
+    return batchReq;
 }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
@@ -825,8 +754,15 @@ TObjectServiceProxy::ExecuteBatchWithRetries(
     TReqExecuteBatchWithRetriesConfigPtr config,
     TCallback<bool(int, const TError&)> needRetry)
 {
-    return New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry))
-        ->SetTimeout(DefaultTimeout_);
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry));
+    PrepareBatchRequest(batchReq);
+    return batchReq;
+}
+
+template <class TBatchReqPtr>
+void TObjectServiceProxy::PrepareBatchRequest(const TBatchReqPtr& batchReq)
+{
+    batchReq->SetTimeout(DefaultTimeout_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

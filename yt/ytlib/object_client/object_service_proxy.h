@@ -97,6 +97,7 @@ private:
 
     protected:
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
+        NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
 
         explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
@@ -118,15 +119,12 @@ private:
     using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
 
 public:
-
     class TReqExecuteBatchBase
         : public TReqExecuteSubbatch
     {
     public:
-        //! Overrides base method for fluent use.
-        //! NB: the timeout only affects subbatch requests. The complete batch request
-        //! time is essentially unbounded.
-        void SetTimeout(std::optional<TDuration> timeout);
+        //! Sets the original request id (for diagnostics only).
+        void SetOriginalRequestId(NRpc::TRequestId originalRequestId);
 
         //! Sets the upstream sync suppression option.
         void SetSuppressUpstreamSync(bool value);
@@ -181,21 +179,8 @@ public:
     public:
         static constexpr int MaxSingleSubbatchSize = 100;
 
-        //! Runs asynchronous invocation.
+        //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
-
-        TReqExecuteBatchPtr SetTimeout(std::optional<TDuration> timeout);
-        TReqExecuteBatchPtr SetSuppressUpstreamSync(bool value);
-
-        TReqExecuteBatchPtr AddRequest(
-            const NYTree::TYPathRequestPtr& innerRequest,
-            std::optional<TString> key = std::nullopt,
-            std::optional<size_t> hash = std::nullopt);
-        TReqExecuteBatchPtr AddRequestMessage(
-            TSharedRefArray innerRequestMessage,
-            std::optional<TString> key = std::nullopt,
-            std::any tag = {},
-            std::optional<size_t> hash = std::nullopt);
 
     protected:
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
@@ -227,21 +212,8 @@ public:
         : public TReqExecuteBatchBase
     {
     public:
-        //! Runs asynchronous invocation.
+        //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
-
-        TReqExecuteBatchWithRetriesPtr SetTimeout(std::optional<TDuration> timeout);
-        TReqExecuteBatchWithRetriesPtr SetSuppressUpstreamSync(bool value);
-
-        TReqExecuteBatchWithRetriesPtr AddRequest(
-            const NYTree::TYPathRequestPtr& innerRequest,
-            std::optional<TString> key = std::nullopt,
-            std::optional<size_t> hash = std::nullopt);
-        TReqExecuteBatchWithRetriesPtr AddRequestMessage(
-            TSharedRefArray innerRequestMessage,
-            std::optional<TString> key = std::nullopt,
-            std::any tag = {},
-            std::optional<size_t> hash = std::nullopt);
 
     private:
         // For testing purposes
@@ -419,6 +391,9 @@ public:
     TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
         TReqExecuteBatchWithRetriesConfigPtr config,
         TCallback<bool(int, const TError&)> needRetry);
+
+    template <class TBatchReqPtr>
+    void PrepareBatchRequest(const TBatchReqPtr& batchReq);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

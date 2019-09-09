@@ -1,9 +1,14 @@
 package NYT.NObjectClient.NProto;
 
+import "yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
 {
+    // For forwarded and redirected requests, contains the original request id.
+    optional NYT.NProto.TGuid original_request_id = 6;
+
     // Each Execute call carries a number of YPath requests.
     // Each of these requests is represented by a message.
     // Each message, in turn, is a sequence of parts.
