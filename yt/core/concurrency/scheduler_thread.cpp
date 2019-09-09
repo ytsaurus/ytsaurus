@@ -450,23 +450,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
 void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 {
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    auto fiber = CurrentFiber_.Get();
-    YT_VERIFY(fiber);
-
-    fiber->UnwindIfCanceled();
-
-    // Update scheduling state.
-    YT_VERIFY(!SwitchToInvoker_);
-    SwitchToInvoker_ = std::move(invoker);
-
-    fiber->SetSleeping();
-
-    SwitchContextFrom(fiber);
-
-    // Cannot access |this| from this point as the fiber might be resumed
-    // in other scheduler.
+    WaitFor(TFuture<void>(), std::move(invoker));
 }
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
@@ -481,10 +465,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     fiber->SetSleeping(future);
 
     // Update scheduling state.
-    YT_VERIFY(!WaitForFuture_);
-    WaitForFuture_ = std::move(future);
     YT_VERIFY(!SwitchToInvoker_);
     SwitchToInvoker_ = std::move(invoker);
+    YT_VERIFY(!WaitForFuture_);
+    WaitForFuture_ = std::move(future);
 
     SwitchContextFrom(fiber);
 
