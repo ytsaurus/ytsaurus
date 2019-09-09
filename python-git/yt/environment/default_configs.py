@@ -410,6 +410,17 @@ b"""
             tablet_cell_decommission_check_period = 100;
         };
 
+        security_manager = {
+            table_permission_cache = {
+                expire_after_failed_update_time = 0;
+            };
+        };
+        resource_limits_cache = {
+            table_permission_cache = {
+                expire_after_failed_update_time = 0;
+            };
+        };
+
         hive_manager = {
             ping_period = 1000;
             idle_post_period = 1000;
