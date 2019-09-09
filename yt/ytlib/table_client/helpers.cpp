@@ -15,6 +15,7 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -355,6 +356,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+        AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
         SetTransactionId(req, userObject.ExternalTransactionId);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count"

@@ -31,6 +31,8 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/config.h>
@@ -1898,6 +1900,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
+            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
             NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",

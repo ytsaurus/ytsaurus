@@ -156,6 +156,7 @@ private:
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "revision"
             });
+            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 
