@@ -4,6 +4,7 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 
 import pytest
+from flaky import flaky
 
 import time
 
@@ -89,7 +90,9 @@ class TestGetJobStderr(YTEnvSetup):
     def test_get_job_stderr(self):
         self.do_test_get_job_stderr()
 
+    # Remove flaky after YT-11074.
     @authors("ignat")
+    @flaky(max_runs=3)
     def test_get_job_stderr_without_cypress(self):
         old_value = None
         try:
