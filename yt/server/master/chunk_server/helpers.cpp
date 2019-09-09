@@ -485,8 +485,8 @@ TYsonString DoGetMulticellOwningNodes(
         for (const auto* node : nodes) {
             TTransactionId transactionId;
             if (auto* transaction = node->GetTransaction()) {
-                transactionId = transaction->IsMirrored()
-                    ? transaction->GetUnmirroredTransactionId()
+                transactionId = transaction->IsExternalized()
+                    ? transaction->GetOriginalTransactionId()
                     : transaction->GetId();
             }
             nodeIds.emplace_back(node->GetId(), transactionId);

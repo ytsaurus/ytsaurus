@@ -73,9 +73,9 @@ TTransactionId MakeTabletTransactionId(
         hash);
 }
 
-TTransactionId MakeMirroredTransactionId(
+TTransactionId MakeExternalizedTransactionId(
     TTransactionId originalId,
-    TCellTag mirrorCellTag)
+    TCellTag externalizingCellTag)
 {
     if (!originalId) {
         return {};
@@ -83,36 +83,36 @@ TTransactionId MakeMirroredTransactionId(
 
     auto originalType = TypeFromId(originalId);
     YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
-    auto mirroredType = (originalType == EObjectType::Transaction)
-        ? EObjectType::MirroredTransaction
-        : EObjectType::MirroredNestedTransaction;
+    auto externalizedType = (originalType == EObjectType::Transaction)
+        ? EObjectType::ExternalizedTransaction
+        : EObjectType::ExternalizedNestedTransaction;
 
     auto nativeCellTag = CellTagFromId(originalId);
     return TTransactionId(
-        (originalId.Parts32[0] &  0xffff) | (nativeCellTag << 16), // keep the original cell tag
-        (mirrorCellTag << 16) | static_cast<ui32>(mirroredType),   // replace type and native cell tag
+        (originalId.Parts32[0] &  0xffff) | (nativeCellTag << 16),          // keep the original cell tag
+        (externalizingCellTag << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
         originalId.Parts32[2],
         originalId.Parts32[3]);
 }
 
-TTransactionId UnmirrorTransactionId(TTransactionId mirroredId)
+TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalizedId)
 {
-    if (!mirroredId) {
+    if (!externalizedId) {
         return {};
     }
 
-    auto mirroredType = TypeFromId(mirroredId);
-    YT_VERIFY(mirroredType == EObjectType::MirroredTransaction || mirroredType == EObjectType::MirroredNestedTransaction);
-    auto originalType = (mirroredType == EObjectType::MirroredTransaction)
+    auto externalizedType = TypeFromId(externalizedId);
+    YT_VERIFY(externalizedType == EObjectType::ExternalizedTransaction || externalizedType == EObjectType::ExternalizedNestedTransaction);
+    auto originalType = (externalizedType == EObjectType::ExternalizedTransaction)
         ? EObjectType::Transaction
         : EObjectType::NestedTransaction;
 
-    auto originalCellTag = (mirroredId.Parts32[0] >> 16);
+    auto originalCellTag = (externalizedId.Parts32[0] >> 16);
     return TTransactionId(
-        (mirroredId.Parts32[0] &  0xffff),                         // erase the original cell tag
+        (externalizedId.Parts32[0] &  0xffff),                     // erase the original cell tag
         (originalCellTag << 16) | static_cast<ui32>(originalType), // replace type and restore the original cell tag
-        mirroredId.Parts32[2],
-        mirroredId.Parts32[3]);
+        externalizedId.Parts32[2],
+        externalizedId.Parts32[3]);
 }
 
 TTimestamp TimestampFromTransactionId(TTransactionId id)

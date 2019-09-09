@@ -169,8 +169,8 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::MirroredTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::MirroredNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -343,11 +343,11 @@ public:
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
-        if (!transaction->MirroredToCellTags().empty()) {
+        if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeMirroredTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
             request.set_commit_timestamp(commitTimestamp);
-            multicellManager->PostToMasters(request, transaction->MirroredToCellTags());
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
         if (IsLeader()) {
@@ -430,11 +430,11 @@ public:
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
-        if (!transaction->MirroredToCellTags().empty()) {
+        if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeMirroredTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
             request.set_force(true);
-            multicellManager->PostToMasters(request, transaction->MirroredToCellTags());
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
         if (IsLeader()) {
@@ -468,7 +468,7 @@ public:
             force);
     }
 
-    TTransactionId MirrorTransaction(TTransaction* transaction, TCellTag dstCellTag)
+    TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
     {
         if (!transaction) {
             return {};
@@ -477,37 +477,37 @@ public:
             return transaction->GetId();
         }
 
-        SmallVector<TTransaction*, 32> transactionsToMirror;
+        SmallVector<TTransaction*, 32> transactionsToExternalize;
         {
             auto* currentTransaction = transaction;
             while (currentTransaction) {
-                auto& mirroredToCellTags = currentTransaction->MirroredToCellTags();
-                if (std::find(mirroredToCellTags.begin(), mirroredToCellTags.end(), dstCellTag) != mirroredToCellTags.end()) {
+                auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
+                if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
                     break;
                 }
-                mirroredToCellTags.push_back(dstCellTag);
-                transactionsToMirror.push_back(currentTransaction);
+                externalizedToCellTags.push_back(dstCellTag);
+                transactionsToExternalize.push_back(currentTransaction);
                 currentTransaction = currentTransaction->GetParent();
             }
         }
 
-        std::reverse(transactionsToMirror.begin(), transactionsToMirror.end());
+        std::reverse(transactionsToExternalize.begin(), transactionsToExternalize.end());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        for (auto* currentTransaction : transactionsToMirror) {
+        for (auto* currentTransaction : transactionsToExternalize) {
             auto transactionId = currentTransaction->GetId();
-            auto mirroredTransactionId = MakeMirroredTransactionId(transactionId, Bootstrap_->GetCellTag());
-            auto mirroredParentTransactionId = MakeMirroredTransactionId(GetObjectId(currentTransaction->GetParent()), Bootstrap_->GetCellTag());
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mirroring transaction (TransactionId: %v, DstCellTag: %v, MirroredTransactionId: %v)",
+            auto externalizedTransactionId = MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag());
+            auto externalizedParentTransactionId = MakeExternalizedTransactionId(GetObjectId(currentTransaction->GetParent()), Bootstrap_->GetCellTag());
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v)",
                 transactionId,
                 dstCellTag,
-                mirroredTransactionId);
+                externalizedTransactionId);
 
             NTransactionServer::NProto::TReqStartTransaction startRequest;
             startRequest.set_dont_replicate(true);
-            ToProto(startRequest.mutable_hint_id(), mirroredTransactionId);
-            if (mirroredParentTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), mirroredParentTransactionId);
+            ToProto(startRequest.mutable_hint_id(), externalizedTransactionId);
+            if (externalizedParentTransactionId) {
+                ToProto(startRequest.mutable_parent_id(), externalizedParentTransactionId);
             }
             if (currentTransaction->GetTitle()) {
                 startRequest.set_title(*currentTransaction->GetTitle());
@@ -515,10 +515,10 @@ public:
             multicellManager->PostToMaster(startRequest, dstCellTag);
         }
 
-        return MakeMirroredTransactionId(transaction->GetId(), Bootstrap_->GetCellTag());
+        return MakeExternalizedTransactionId(transaction->GetId(), Bootstrap_->GetCellTag());
     }
 
-    TTransactionId GetNearestMirroredTransactionAncestor(
+    TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
         TCellTag dstCellTag)
     {
@@ -531,9 +531,9 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            const auto& mirroredToCellTags = currentTransaction->MirroredToCellTags();
-            if (std::find(mirroredToCellTags.begin(), mirroredToCellTags.end(), dstCellTag) != mirroredToCellTags.end()) {
-                return MakeMirroredTransactionId(currentTransaction->GetId(), Bootstrap_->GetCellTag());
+            const auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
+            if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
+                return MakeExternalizedTransactionId(currentTransaction->GetId(), Bootstrap_->GetCellTag());
             }
             currentTransaction = currentTransaction->GetParent();
         }
@@ -702,11 +702,11 @@ public:
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
-        if (!transaction->MirroredToCellTags().empty()) {
+        if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
-            ToProto(request.mutable_transaction_id(), MakeMirroredTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
             request.set_prepare_timestamp(prepareTimestamp);
-            multicellManager->PostToMasters(request, transaction->MirroredToCellTags());
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
     }
 
@@ -1242,16 +1242,16 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-TTransactionId TTransactionManager::MirrorTransaction(TTransaction* transaction, TCellTag dstCellTag)
+TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
 {
-    return Impl_->MirrorTransaction(transaction, dstCellTag);
+    return Impl_->ExternalizeTransaction(transaction, dstCellTag);
 }
 
-TTransactionId TTransactionManager::GetNearestMirroredTransactionAncestor(
+TTransactionId TTransactionManager::GetNearestExternalizedTransactionAncestor(
     TTransaction* transaction,
     TCellTag dstCellTag)
 {
-    return Impl_->GetNearestMirroredTransactionAncestor(transaction, dstCellTag);
+    return Impl_->GetNearestExternalizedTransactionAncestor(transaction, dstCellTag);
 }
 
 // COMPAT(shakurov)

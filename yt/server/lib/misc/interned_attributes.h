@@ -232,7 +232,7 @@
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
-    XX(MirroredToCellTags, mirrored_to_cell_tags) \
+    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
     XX(SkipFreezing, skip_freezing) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \

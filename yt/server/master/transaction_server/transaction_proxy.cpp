@@ -54,7 +54,7 @@ private:
 
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::ReplicatedToCellTags);
-        descriptors->push_back(EInternedAttributeKey::MirroredToCellTags);
+        descriptors->push_back(EInternedAttributeKey::ExternalizedToCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
             .SetPresent(transaction->GetTimeout().operator bool())
             .SetWritable(true));
@@ -107,9 +107,9 @@ private:
                     .Value(transaction->ReplicatedToCellTags());
                 return true;
 
-            case EInternedAttributeKey::MirroredToCellTags:
+            case EInternedAttributeKey::ExternalizedToCellTags:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->MirroredToCellTags());
+                    .Value(transaction->ExternalizedToCellTags());
                 return true;
 
             case EInternedAttributeKey::Timeout:

@@ -750,8 +750,8 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     auto hash = mutationContext->RandomGenerator().Generate<ui32>();
     auto cellTag = Bootstrap_->GetCellTag();
 
-    // NB: The higest 16 bits of hash are used for mirror cell tag in
-    // mirror transaction ids.
+    // NB: The higest 16 bits of hash are used for externalizing cell tag in
+    // externalized transaction ids.
     if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
         hash &= 0xffff;
     }

@@ -36,7 +36,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, MirroredToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ExternalizedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
@@ -88,11 +88,11 @@ public:
      */
     bool IsDescendantOf(TTransaction* transaction) const;
 
-    //! Returns |true| if this a (topmost or nested) mirrored transaction.
-    bool IsMirrored() const;
+    //! Returns |true| if this a (topmost or nested) externalized transaction.
+    bool IsExternalized() const;
 
-    //! For mirrored transactions only; returns the original transaction id.
-    TTransactionId GetUnmirroredTransactionId() const;
+    //! For externalized transactions only; returns the original transaction id.
+    TTransactionId GetOriginalTransactionId() const;
 
 };
 

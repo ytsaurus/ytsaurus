@@ -890,7 +890,7 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     auto* transaction = GetTransaction();
     if (node->IsExternal()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        context->ExternalTransactionId = transactionManager->GetNearestMirroredTransactionAncestor(
+        context->ExternalTransactionId = transactionManager->GetNearestExternalizedTransactionAncestor(
             transaction,
             node->GetExternalCellTag());
     }
@@ -1094,12 +1094,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     if (node->IsExternal()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto mirroredTransactionId = Transaction && Transaction->IsForeign()
-            ? transactionManager->MirrorTransaction(Transaction, externalCellTag)
+        auto externalizedTransactionId = Transaction && Transaction->IsForeign()
+            ? transactionManager->ExternalizeTransaction(Transaction, externalCellTag)
             : GetObjectId(Transaction);
 
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
-        SetTransactionId(replicationRequest, mirroredTransactionId);
+        SetTransactionId(replicationRequest, externalizedTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
         replicationRequest->set_lock_mode(static_cast<int>(lockMode));
         ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
@@ -1233,7 +1233,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YT_VERIFY(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
-        MirrorToMaster(context, node->GetExternalCellTag());
+        ExternalizeToMaster(context, node->GetExternalCellTag());
     }
 
     node->EndUpload(uploadContext);
