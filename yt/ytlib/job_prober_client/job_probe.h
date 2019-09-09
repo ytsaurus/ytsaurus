@@ -2,10 +2,15 @@
 
 #include "public.h"
 
+#include <yt/core/yson/public.h>
+
 namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \note Thread affinity: any
+ */
 struct IJobProbe
     : public virtual TRefCounted
 {

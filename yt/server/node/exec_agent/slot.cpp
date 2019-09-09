@@ -5,16 +5,9 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
-#include <yt/ytlib/job_prober_client/job_probe.h>
-
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/core/bus/tcp/client.h>
-
-#include <yt/core/rpc/bus/channel.h>
-
-#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -31,8 +24,6 @@ namespace NYT::NExecAgent {
 using namespace NBus;
 using namespace NConcurrency;
 using namespace NDataNode;
-using namespace NJobProberClient;
-using namespace NRpc;
 using namespace NTools;
 using namespace NYTree;
 
@@ -79,7 +70,6 @@ public:
         TJobId jobId,
         TOperationId operationId) override
     {
-        JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);
         return RunPrepareAction<void>([&] {
                 auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
@@ -161,12 +151,6 @@ public:
             });
     }
 
-    virtual IJobProbePtr GetJobProberClient() override
-    {
-        YT_VERIFY(JobProberClient_);
-        return JobProberClient_;
-    }
-
     virtual int GetSlotIndex() const override
     {
         return SlotIndex_;
@@ -176,6 +160,12 @@ public:
     {
         auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+    }
+
+    virtual TTcpBusClientConfigPtr GetBusClientConfig() const override
+    {
+        auto unixDomainName = GetJobProxyUnixDomainName(NodeTag_, SlotIndex_);
+        return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
     }
 
     virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options)
@@ -204,23 +194,14 @@ public:
 
 private:
     const int SlotIndex_;
-    IJobEnvironmentPtr JobEnvironment_;
-    TSlotLocationPtr Location_;
-
+    const IJobEnvironmentPtr JobEnvironment_;
+    const TSlotLocationPtr Location_;
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
     const TString NodeTag_;
 
-    IJobProbePtr JobProberClient_;
-
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
-
-    TTcpBusClientConfigPtr GetRpcClientConfig() const
-    {
-        auto unixDomainName = GetJobProxyUnixDomainName(NodeTag_, SlotIndex_);
-        return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
-    }
 
     template <class T>
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)

@@ -504,7 +504,7 @@ public:
         ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->DumpInputContext();
+            return GetJobProbeOrThrow()->DumpInputContext();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting input contexts dump from job proxy")
                 << ex;
@@ -522,7 +522,7 @@ public:
         ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->GetStderr();
+            return GetJobProbeOrThrow()->GetStderr();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
@@ -553,10 +553,9 @@ public:
     virtual TYsonString StraceJob() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->StraceJob();
+            return GetJobProbeOrThrow()->StraceJob();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting strace dump from job proxy")
                 << ex;
@@ -571,7 +570,7 @@ public:
         Signaled_ = true;
 
         try {
-            Slot_->GetJobProberClient()->SignalJob(signalName);
+            GetJobProbeOrThrow()->SignalJob(signalName);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error sending signal to job proxy")
                 << ex;
@@ -580,14 +579,13 @@ public:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        ValidateJobRunning();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            return Slot_->GetJobProberClient()->PollJobShell(parameters);
+            return GetJobProbeOrThrow()->PollJobShell(parameters);
         } catch (const TErrorException& ex) {
             // The following code changes error code for more user-friendly
-            // diagnostics in interactive shell
+            // diagnostics in interactive shell.
             if (ex.Error().FindMatching(NRpc::EErrorCode::TransportError)) {
                 THROW_ERROR_EXCEPTION(NExecAgent::EErrorCode::JobProxyConnectionFailed,
                     "No connection to job proxy")
@@ -596,21 +594,6 @@ public:
             THROW_ERROR_EXCEPTION("Error polling job shell")
                 << ex;
         }
-    }
-
-    TJobStatistics MakeDefaultJobStatistics()
-    {
-        auto statistics = TJobStatistics()
-            .Type(GetType())
-            .State(GetState())
-            .StartTime(GetStartTime())
-            .SpecVersion(0) // TODO: fill correct spec version.
-            .Events(JobEvents_)
-            .CoreInfos(CoreInfos_);
-        if (FinishTime_) {
-            statistics.SetFinishTime(*FinishTime_);
-        }
-        return statistics;
     }
 
     virtual void ReportStatistics(TJobStatistics&& statistics) override
@@ -662,7 +645,7 @@ public:
         }
 
         try {
-            Slot_->GetJobProberClient()->Interrupt();
+            GetJobProbeOrThrow()->Interrupt();
         } catch (const std::exception& ex) {
             auto error = TError("Error interrupting job on job proxy")
                 << ex;
@@ -681,7 +664,7 @@ public:
         ValidateJobRunning();
 
         try {
-            Slot_->GetJobProberClient()->Fail();
+            GetJobProbeOrThrow()->Fail();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error failing job on job proxy")
                     << ex;
@@ -771,6 +754,9 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
+
+    TSpinLock JobProbeLock_;
+    IJobProbePtr JobProbe_;
 
     // Helpers.
 
@@ -1012,6 +998,7 @@ private:
     {
         ExecTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::PreparingProxy);
+        InitializeJobProbe();
 
         BIND(
             &ISlot::RunJobProxy,
@@ -1072,6 +1059,8 @@ private:
     void OnJobProxyFinished(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ResetJobProbe();
 
         if (HandleFinishingPhase()) {
             return;
@@ -1751,6 +1740,55 @@ private:
 
         return rootFS;
     }
+
+    TJobStatistics MakeDefaultJobStatistics()
+    {
+        auto statistics = TJobStatistics()
+            .Type(GetType())
+            .State(GetState())
+            .StartTime(GetStartTime())
+            .SpecVersion(0) // TODO: fill correct spec version.
+            .Events(JobEvents_)
+            .CoreInfos(CoreInfos_);
+        if (FinishTime_) {
+            statistics.SetFinishTime(*FinishTime_);
+        }
+        return statistics;
+    }
+
+
+    void InitializeJobProbe()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto probe = CreateJobProbe(Slot_->GetBusClientConfig(), Id_);
+        {
+            auto guard = Guard(JobProbeLock_);
+            std::swap(JobProbe_, probe);
+        }
+    }
+
+    void ResetJobProbe()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        IJobProbePtr probe;
+        {
+            auto guard = Guard(JobProbeLock_);
+            std::swap(JobProbe_, probe);
+        }
+    }
+
+    IJobProbePtr GetJobProbeOrThrow()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(JobProbeLock_);
+        if (!JobProbe_) {
+            THROW_ERROR_EXCEPTION("Job probe is not available");
+        }
+        return JobProbe_;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1773,6 +1811,3 @@ NJobAgent::IJobPtr CreateUserJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecAgent
-
-
-

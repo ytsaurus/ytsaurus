@@ -40,6 +40,8 @@
 
 #include <yt/core/net/helpers.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <limits>
 
 namespace NYT::NJobAgent {
@@ -78,7 +80,7 @@ public:
 
     void Initialize();
 
-    void RegisterFactory(
+    void RegisterJobFactory(
         EJobType type,
         TJobFactory factory);
 
@@ -109,8 +111,10 @@ private:
     const TJobControllerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    THashMap<EJobType, TJobFactory> Factories_;
-    THashMap<TJobId, IJobPtr> Jobs_;
+    THashMap<EJobType, TJobFactory> JobFactoryMap_;
+
+    NConcurrency::TReaderWriterSpinLock JobMapLock_;
+    THashMap<TJobId, IJobPtr> JobMap_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
     struct TRecentlyRemovedJobRecord
@@ -118,7 +122,7 @@ private:
         IJobPtr Job;
         TInstant RemovalTime;
     };
-    THashMap<TJobId, TRecentlyRemovedJobRecord> RecentlyRemovedJobs_;
+    THashMap<TJobId, TRecentlyRemovedJobRecord> RecentlyRemovedJobMap_;
 
     //! Jobs that did not succeed in fetching spec are not getting
     //! their IJob structure, so we have to store job id alongside
@@ -155,6 +159,8 @@ private:
     TNodeMemoryTrackerPtr ExternalMemoryUsageTracker_;
 
     THashSet<int> FreePorts_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     //! Starts a new job.
     IJobPtr CreateJob(
@@ -246,6 +252,7 @@ TJobController::TImpl::TImpl(
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
     if (Config_->PortSet) {
         FreePorts_ = *Config_->PortSet;
@@ -258,6 +265,8 @@ TJobController::TImpl::TImpl(
 
 void TJobController::TImpl::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
         YT_LOG_INFO("Using external user job memory");
         ExternalMemoryUsageTracker_ = New<TNodeMemoryTracker>(
@@ -290,26 +299,35 @@ void TJobController::TImpl::Initialize()
     RecentlyRemovedJobCleaner_->Start();
 }
 
-void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
+void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factory)
 {
-    YT_VERIFY(Factories_.insert(std::make_pair(type, factory)).second);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    YT_VERIFY(JobFactoryMap_.insert(std::make_pair(type, factory)).second);
 }
 
 TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
 {
-    auto it = Factories_.find(type);
-    YT_VERIFY(it != Factories_.end());
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto it = JobFactoryMap_.find(type);
+    YT_VERIFY(it != JobFactoryMap_.end());
     return it->second;
 }
 
 IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
 {
-    auto it = Jobs_.find(jobId);
-    return it == Jobs_.end() ? nullptr : it->second;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    NConcurrency::TReaderGuard guard(JobMapLock_);
+    auto it = JobMap_.find(jobId);
+    return it == JobMap_.end() ? nullptr : it->second;
 }
 
 IJobPtr TJobController::TImpl::GetJobOrThrow(TJobId jobId) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto job = FindJob(jobId);
     if (!job) {
         // We can get here only when job exists in scheduler, but job proxy is not yet started.
@@ -323,21 +341,29 @@ IJobPtr TJobController::TImpl::GetJobOrThrow(TJobId jobId) const
 
 IJobPtr TJobController::TImpl::FindRecentlyRemovedJob(TJobId jobId) const
 {
-    auto it = RecentlyRemovedJobs_.find(jobId);
-    return it == RecentlyRemovedJobs_.end() ? nullptr : it->second.Job;
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto it = RecentlyRemovedJobMap_.find(jobId);
+    return it == RecentlyRemovedJobMap_.end() ? nullptr : it->second.Job;
 }
 
 std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    NConcurrency::TReaderGuard guard(JobMapLock_);
     std::vector<IJobPtr> result;
-    for (const auto& pair : Jobs_) {
-        result.push_back(pair.second);
+    result.reserve(JobMap_.size());
+    for (const auto& [id, job] : JobMap_) {
+        result.push_back(job);
     }
     return result;
 }
 
 TNodeResources TJobController::TImpl::GetResourceLimits() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TNodeResources result;
 
     // If chunk cache is disabled, we disable all scheduler jobs.
@@ -384,9 +410,10 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 
 TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto result = ZeroNodeResources();
-    for (const auto& pair : Jobs_) {
-        const auto& job = pair.second;
+    for (const auto& job : GetJobs()) {
         if (includeWaiting || job->GetState() != EJobState::Waiting) {
             result += job->GetResourceUsage();
         }
@@ -440,9 +467,10 @@ void TJobController::TImpl::AdjustResources()
 
     if (preemptCpuOverdraft || preemptMemoryOverdraft) {
         std::vector<IJobPtr> schedulerJobs;
-        for (const auto& pair : Jobs_) {
-            if (TypeFromId(pair.first) == EObjectType::SchedulerJob && pair.second->GetState() == EJobState::Running) {
-                schedulerJobs.push_back(pair.second);
+        for (const auto& job : GetJobs()) {
+            auto jobType = TypeFromId(job->GetId());
+            if (jobType == EObjectType::SchedulerJob && job->GetState() == EJobState::Running) {
+                schedulerJobs.push_back(job);
             }
         }
 
@@ -474,7 +502,7 @@ void TJobController::TImpl::CleanRecentlyRemovedJobs()
     auto now = TInstant::Now();
 
     std::vector<TJobId> jobIdsToRemove;
-    for (const auto& [jobId, jobRecord] : RecentlyRemovedJobs_) {
+    for (const auto& [jobId, jobRecord] : RecentlyRemovedJobMap_) {
         if (jobRecord.RemovalTime + Config_->RecentlyRemovedJobsStoreTimeout < now) {
             jobIdsToRemove.push_back(jobId);
         }
@@ -482,7 +510,7 @@ void TJobController::TImpl::CleanRecentlyRemovedJobs()
 
     for (auto jobId : jobIdsToRemove) {
         YT_LOG_INFO("Job is finally removed (JobId: %v)", jobId);
-        RecentlyRemovedJobs_.erase(jobId);
+        RecentlyRemovedJobMap_.erase(jobId);
     }
 }
 
@@ -493,6 +521,8 @@ TDiskResources TJobController::TImpl::GetDiskInfo() const
 
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     ResourceLimitsOverrides_ = resourceLimits;
     if (ResourceLimitsOverrides_.has_user_memory()) {
         GetUserMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
@@ -509,22 +539,25 @@ void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimits
 
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     DisableSchedulerJobs_ = value;
 
-    if (value) {
-        for (const auto& pair : Jobs_) {
-            auto job = pair.second;
-            if (TypeFromId(pair.first) == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
-                try {
-                    YT_LOG_DEBUG(
-                        "Trying to interrupt scheduler job, because @disable_scheduler_jobs is set (JobId: %v)",
-                        pair.first);
-                    job->Interrupt();
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(
-                        "Failed to interrupt scheduler job (JobId: %v)",
-                        pair.first);
-                }
+    if (!value) {
+        return;
+    }
+
+    for (const auto& job : GetJobs()) {
+        auto jobId = job->GetId();
+        auto jobType = TypeFromId(jobId);
+        if (jobType == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
+            try {
+                YT_LOG_DEBUG("Trying to interrupt scheduler job due to @disable_scheduler_jobs being set (JobId: %v)",
+                    jobId);
+                job->Interrupt();
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to interrupt scheduler job (JobId: %v)",
+                    jobId);
             }
         }
     }
@@ -550,13 +583,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
     }
 
-    for (const auto& pair : Jobs_) {
-        auto job = pair.second;
-        if (job->GetState() != EJobState::Waiting)
+    for (const auto& job : GetJobs()) {
+        if (job->GetState() != EJobState::Waiting) {
             continue;
+        }
 
-        auto jobLogger = JobAgentServerLogger;
-        jobLogger.AddTag("JobId: %v", job->GetId());
+        auto jobLogger = NLogging::TLogger(JobAgentServerLogger)
+            .AddTag("JobId: %v", job->GetId());
 
         const auto& Logger = jobLogger;
 
@@ -675,7 +708,11 @@ IJobPtr TJobController::TImpl::CreateJob(
         operationId,
         type);
 
-    YT_VERIFY(Jobs_.insert(std::make_pair(jobId, job)).second);
+    {
+        NConcurrency::TWriterGuard guard(JobMapLock_);
+        YT_VERIFY(JobMap_.emplace(jobId, job).second);
+    }
+
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
@@ -778,10 +815,13 @@ void TJobController::TImpl::RemoveJob(
     bool shouldSave = archiveJobSpec || archiveStderr;
     if (shouldSave) {
         YT_LOG_INFO("Job saved to recently finished jobs (JobId: %v)", job->GetId());
-        RecentlyRemovedJobs_.emplace(job->GetId(), TRecentlyRemovedJobRecord{job, TInstant::Now()});
+        RecentlyRemovedJobMap_.emplace(job->GetId(), TRecentlyRemovedJobRecord{job, TInstant::Now()});
     }
 
-    YT_VERIFY(Jobs_.erase(job->GetId()) == 1);
+    {
+        NConcurrency::TWriterGuard guard(JobMapLock_);
+        YT_VERIFY(JobMap_.erase(job->GetId()) == 1);
+    }
 
     YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
 }
@@ -855,7 +895,9 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
-    auto masterConnector = Bootstrap_->GetMasterConnector();
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
     ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
@@ -891,18 +933,19 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
     int confirmedJobCount = 0;
 
-    for (const auto& pair : Jobs_) {
-        auto jobId = pair.first;
-        const auto& job = pair.second;
-        if (CellTagFromId(jobId) != cellTag)
-            continue;
-        if (TypeFromId(jobId) != jobObjectType)
-            continue;
-        auto it = JobIdsToConfirm_.find(jobId);
-        if (job->GetStored() && !totalConfirmation && it == JobIdsToConfirm_.end()) {
+    for (const auto& job : GetJobs()) {
+        auto jobId = job->GetId();
+
+        if (CellTagFromId(jobId) != cellTag || TypeFromId(jobId) != jobObjectType) {
             continue;
         }
-        if (job->GetStored() || it != JobIdsToConfirm_.end()) {
+
+        auto confirmIt = JobIdsToConfirm_.find(jobId);
+        if (job->GetStored() && !totalConfirmation && confirmIt == JobIdsToConfirm_.end()) {
+            continue;
+        }
+
+        if (job->GetStored() || confirmIt != JobIdsToConfirm_.end()) {
             YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                 jobId,
                 job->GetOperationId(),
@@ -910,8 +953,8 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
                 job->GetState());
             ++confirmedJobCount;
         }
-        if (it != JobIdsToConfirm_.end()) {
-            JobIdsToConfirm_.erase(it);
+        if (confirmIt != JobIdsToConfirm_.end()) {
+            JobIdsToConfirm_.erase(confirmIt);
         }
 
         auto* jobStatus = request->add_jobs();
@@ -1000,6 +1043,8 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     for (const auto& protoJobToRemove : response->jobs_to_remove()) {
         auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
         auto jobId = jobToRemove.JobId;
@@ -1189,20 +1234,20 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
 TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> TJobController::TImpl::GetJobsByOrigin() const
 {
-    auto jobs = TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>>();
-    for (const auto& pair : Jobs_) {
-        switch (TypeFromId(pair.first)) {
+    TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> result;
+    for (const auto& job : GetJobs()) {
+        switch (TypeFromId(job->GetId())) {
             case EObjectType::MasterJob:
-                jobs[EJobOrigin::Master].push_back(pair.second);
+                result[EJobOrigin::Master].push_back(job);
                 break;
             case EObjectType::SchedulerJob:
-                jobs[EJobOrigin::Scheduler].push_back(pair.second);
+                result[EJobOrigin::Scheduler].push_back(job);
                 break;
             default:
                 YT_ABORT();
         }
     }
-    return jobs;
+    return result;
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
@@ -1260,6 +1305,8 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
 
 IYPathServicePtr TJobController::TImpl::GetOrchidService()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
     return IYPathService::FromProducer(producer);
 }
@@ -1350,11 +1397,11 @@ void TJobController::Initialize()
 }
 
 
-void TJobController::RegisterFactory(
+void TJobController::RegisterJobFactory(
     EJobType type,
     TJobFactory factory)
 {
-    Impl_->RegisterFactory(type, std::move(factory));
+    Impl_->RegisterJobFactory(type, std::move(factory));
 }
 
 IJobPtr TJobController::FindJob(TJobId jobId) const

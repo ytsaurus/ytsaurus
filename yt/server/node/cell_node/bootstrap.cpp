@@ -494,22 +494,22 @@ void TBootstrap::DoInitialize()
                 std::move(jobSpec),
                 this);
         });
-    JobController_->RegisterFactory(NJobAgent::EJobType::Map,               createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::PartitionMap,      createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::SortedMerge,       createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::OrderedMerge,      createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,    createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::Partition,         createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::SimpleSort,        createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::IntermediateSort,  createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::FinalSort,         createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::SortedReduce,      createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::PartitionReduce,   createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,    createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::RemoteCopy,        createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::OrderedMap,        createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::JoinReduce,        createExecJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::Map, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::PartitionMap, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::SortedMerge, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::OrderedMerge, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::UnorderedMerge, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::Partition, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::SimpleSort, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::IntermediateSort, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::FinalSort, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::SortedReduce, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::ReduceCombiner, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::RemoteCopy, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::OrderedMap, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::JoinReduce, createExecJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::Vanilla, createExecJob);
 
     auto createChunkJob = BIND([this] (
             NJobAgent::TJobId jobId,
@@ -525,10 +525,10 @@ void TBootstrap::DoInitialize()
                 Config_->DataNode,
                 this);
         });
-    JobController_->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
-    JobController_->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
 
     StatisticsReporter_ = New<TStatisticsReporter>(
         Config_->ExecAgent->StatisticsReporter,
