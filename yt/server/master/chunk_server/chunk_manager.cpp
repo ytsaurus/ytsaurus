@@ -3318,11 +3318,11 @@ private:
     {
         YT_ASSERT(chunk->IsSealed());
 
-        if (chunk->Parents().empty())
+        if (!chunk->HasParents())
             return;
 
         // Go upwards and apply delta.
-        YT_VERIFY(chunk->Parents().size() == 1);
+        YT_VERIFY(chunk->GetParentCount() == 1);
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 

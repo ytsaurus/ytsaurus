@@ -951,16 +951,14 @@ void SmallVector<T, N>::shrink_to_small() {
     return;
   }
 
-  auto* firstEl = Storage.InlineElts - 1;
+  auto* firstEl = (T*)(Storage.InlineElts - 1);
 
   this->uninitialized_move(this->begin(), this->end(), firstEl);
   this->destroy_range(this->begin(), this->end());
   free(this->begin());
 
-  auto s = this->size();
-
+  this->EndX = firstEl + this->size();
   this->BeginX = firstEl;
-  this->EndX = firstEl + s;
   this->CapacityX = firstEl + N;
 }
 

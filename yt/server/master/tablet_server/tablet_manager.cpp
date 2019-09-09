@@ -5541,7 +5541,7 @@ private:
     bool CanUnambiguouslyDetachChunk(TChunkList* tabletChunkList, const TChunkTree* child)
     {
         while (GetParentCount(child) == 1) {
-            auto* parent = GetParent(child, 0);
+            auto* parent = GetUniqueParent(child);
             if (parent == tabletChunkList) {
                 return true;
             }
@@ -5551,15 +5551,7 @@ private:
             child = parent;
         }
 
-        int parentCount = GetParentCount(child);
-        YT_VERIFY(parentCount > 0);
-        for (int index = 0; index < parentCount; ++index) {
-            if (GetParent(child, index) == tabletChunkList) {
-                return true;
-            }
-        }
-
-        return false;
+        return HasParent(child, tabletChunkList);
     }
 
     void DetachChunksFromTablet(TChunkList* tabletChunkList, const std::vector<TChunkTree*>& chunksOrViews)
@@ -5569,17 +5561,11 @@ private:
         for (auto* child : chunksOrViews) {
             int parentCount = GetParentCount(child);
             if (parentCount == 1) {
-                auto* parent = GetParent(child, 0);
+                auto* parent = GetUniqueParent(child);
                 YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
                 childrenByParent[parent->GetId()].push_back(child);
             } else {
-                bool foundParent = false;
-                for (int index = 0; index < parentCount; ++index) {
-                    if (GetParent(child, index) == tabletChunkList) {
-                        foundParent = true;
-                        break;
-                    }
-                }
+                auto foundParent = HasParent(child, tabletChunkList);
                 YT_VERIFY(foundParent);
                 childrenByParent[tabletChunkList->GetId()].push_back(child);
             }
@@ -5652,7 +5638,7 @@ private:
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                if (!chunk->Parents().empty()) {
+                if (chunk->HasParents()) {
                     THROW_ERROR_EXCEPTION("Chunk %v cannot be attached since it already has a parent",
                         chunk->GetId());
                 }

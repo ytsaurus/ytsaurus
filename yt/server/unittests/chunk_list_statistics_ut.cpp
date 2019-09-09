@@ -167,7 +167,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)
         ASSERT_TRUE(chunk->IsConfirmed());
 
         // The following lines mimic to those in TChunkManager::TImpl::OnChunkSealed.
-        YT_VERIFY(chunk->Parents().size() == 1);
+        YT_VERIFY(chunk->GetParentCount() == 1);
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 

@@ -68,8 +68,10 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
                 return nullptr;
             }
             YT_VERIFY(parents.size() == 1);
-            YT_VERIFY(parents[0]->GetType() == EObjectType::ChunkList);
-            return parents[0]->AsChunkList();
+            auto [parent, cardinality] = *parents.begin();
+            YT_VERIFY(cardinality == 1);
+            YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+            return parent->AsChunkList();
         }
 
         case EObjectType::ChunkView: {
@@ -101,7 +103,7 @@ int GetParentCount(const TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
-            return chunkTree->AsChunk()->Parents().size();
+            return chunkTree->AsChunk()->GetParentCount();
 
         case EObjectType::ChunkView:
             return chunkTree->AsChunkView()->Parents().size();
@@ -114,19 +116,29 @@ int GetParentCount(const TChunkTree* chunkTree)
     }
 }
 
-TChunkTree* GetParent(const TChunkTree* chunkTree, int index)
+bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
-            return chunkTree->AsChunk()->Parents()[index];
+            return chunkTree->AsChunk()->Parents().contains(potentialParent);
 
         case EObjectType::ChunkView:
-            return chunkTree->AsChunkView()->Parents()[index];
+            for (auto* parent : chunkTree->AsChunkView()->Parents()) {
+                if (parent == potentialParent) {
+                    return true;
+                }
+            }
+            return false;
 
         case EObjectType::ChunkList:
-            return chunkTree->AsChunkList()->Parents()[index];
+            for (auto* parent : chunkTree->AsChunkList()->Parents()) {
+                if (parent == potentialParent) {
+                    return true;
+                }
+            }
+            return false;
 
         default:
             YT_ABORT();
@@ -431,7 +443,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
             case EObjectType::JournalChunk: {
-                for (auto* parent : chunkTree->AsChunk()->Parents()) {
+                for (auto [parent, cardinality] : chunkTree->AsChunk()->Parents()) {
                     visit(parent);
                 }
                 break;
