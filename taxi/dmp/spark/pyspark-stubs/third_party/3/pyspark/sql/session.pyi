@@ -13,11 +13,11 @@ from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.sql.catalog import Catalog
 from pyspark.sql.conf import RuntimeConfig
-from pyspark.sql.context import UDFRegistration
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DataType
 from pyspark.sql.readwriter import DataFrameReader
 from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager
+from pyspark.sql.udf import UDFRegistration
 
 T = TypeVar('T')
 
