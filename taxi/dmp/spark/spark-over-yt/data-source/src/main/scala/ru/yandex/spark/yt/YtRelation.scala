@@ -32,7 +32,7 @@ class YtRelation(@transient val sqlContext: SQLContext,
   lazy val ytChunksCount: Int = {
     val timeout = sqlContext.getConf("spark.yt.timeout.minutes").toLong
     val client = YtClientProvider.ytClient(proxy, new RpcCredentials(user, token), 1, Duration.ofMinutes(timeout))
-    client.getNode(s"$path/@chunks_count").join().longValue().toInt
+    client.getNode(s"$path/@chunk_count").join().longValue().toInt
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {

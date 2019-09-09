@@ -1,18 +1,23 @@
 package ru.yandex.spark.yt.utils
 
-import org.apache.spark.sql.DataFrame
+import java.util.function.Consumer
+
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row}
+import java.util.{ArrayList => JList}
 
 object DataFrameUtils {
+
   implicit class UtilsDataFrame(df: DataFrame) {
     private val shufflePartitions = df.sparkSession.sqlContext.getConf("spark.sql.shuffle.partitions").toInt
 
     def top(groupBy: Seq[String], topBy: Seq[String], partitions: Int = shufflePartitions): DataFrame = {
       val sortCols = groupBy ++ topBy
       df
-        .repartition(partitions, groupBy.map(col):_*)
-        .sortWithinPartitions(sortCols.head, sortCols.tail:_*)
+        .repartition(partitions, groupBy.map(col): _*)
+        .sortWithinPartitions(sortCols.head, sortCols.tail: _*)
         .mapPartitions { rows =>
           var currentKey = Option.empty[Seq[String]]
           rows.flatMap { row =>
@@ -52,9 +57,44 @@ object DataFrameUtils {
         .drop(splitRight(key))
         .drop(s"${key}_key")
     }
+
+    type MinBy = (String, Seq[String])
+
+    def minByColumns(groupBy: String,
+                     minBy: Seq[MinBy],
+                     maxBy: Seq[MinBy],
+                     outputSchema: StructType): DataFrame = {
+      import df.sparkSession.implicits._
+
+      df.
+        groupByKey(_.getAs[String](groupBy)).
+        mapGroups { case (id, rows) =>
+          val collected = rows.toList
+
+          Row.fromSeq(
+            (id +: minBy.flatMap { case (minByName, fields) =>
+              val minRow = minByNoneLast(collected)(_.getAsOption[String](minByName))
+              fields.map(minRow.getAs[Any])
+            }) ++ maxBy.flatMap { case (maxByName, fields) =>
+              val maxRow = collected.maxBy(_.getAsOption[String](maxByName))
+              fields.map(maxRow.getAs[Any])
+            }
+          )
+        }(RowEncoder(outputSchema))
+    }
   }
 
-  def getDataFrameTop(df: DataFrame, groupBy: java.util.ArrayList[String], topBy: java.util.ArrayList[String], partitions: java.lang.Integer): DataFrame = {
+  implicit class UtilsRow(row: Row) {
+    def getAsOption[T](name: String): Option[T] = {
+      if (row.isNullAt(row.fieldIndex(name))) {
+        None
+      } else {
+        Some(row.getAs[T](name))
+      }
+    }
+  }
+
+  def getDataFrameTop(df: DataFrame, groupBy: JList[String], topBy: JList[String], partitions: java.lang.Integer): DataFrame = {
     import scala.collection.JavaConverters._
     df.top(groupBy.asScala, topBy.asScala, partitions)
   }
@@ -63,4 +103,25 @@ object DataFrameUtils {
     left.joinWithHotKey(right, key, None, joinType)
   }
 
+  def minByColumns(df: DataFrame, groupBy: String,
+                   minBy: JList[JList[String]],
+                   maxBy: JList[JList[String]]): DataFrame = {
+    import scala.collection.JavaConverters._
+    val minByScala = minBy.asScala.map{v =>
+      val asScala = v.asScala
+      asScala.head -> asScala
+    }
+    val maxByScala = maxBy.asScala.map{v =>
+      val asScala = v.asScala
+      asScala.head -> asScala
+    }
+    df.minByColumns(groupBy, minByScala, maxByScala, df.schema)
+  }
+
+  def minByNoneLast[A, B](seq: Seq[A])(f: A => Option[B])(implicit ordering: Ordering[B]): A = {
+    seq.minBy { a =>
+      val b = f(a)
+      b.isEmpty -> b
+    }
+  }
 }

@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.utils
 
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.LocalSpark
+import org.apache.spark.sql.functions._
 
 class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
 
@@ -51,7 +51,45 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
       (Some("2"), "8")
     ).toDF("key", "valueB")
 
-    df.joinWithHotKey(df2, "key", None, "left_outer").show()
+    val res = df.joinWithHotKey(df2, "key", None, "left_outer")
+
+    val expectedColumns = Seq("key", "valueA", "valueB")
+    res.columns should contain theSameElementsAs expectedColumns
+    res.select(expectedColumns.map(col):_*).collect() should contain theSameElementsAs Seq(
+      Row(null, "1", null),
+      Row(null, "2", null),
+      Row(null, "3", null),
+      Row(null, "4", null),
+      Row("1", "5", "7"),
+      Row("2", "6", "8")
+    )
+  }
+
+  it should "collect min by column" in {
+    import spark.implicits._
+
+    val df = Seq(
+      ("1", Some("1"), "a", "aaa", Some("1"), "aa"),
+      ("1", Some("2"), "b", "bbb", Some("2"), "bb"),
+      ("1", Some("3"), "c", "ccc", Some("3"), "cc"),
+      ("1", Some("4"), "d", "ddd", Some("4"), "dd"),
+      ("1", Some("5"), "e", "eee", Some("5"), "ee"),
+      ("1", None,      "f", "fff", None,      "ff"),
+      ("2", Some("1"), "a", "aaa", None, "aa")
+    ).toDF("key", "min_by_key", "min_by_value1", "min_by_value2", "max_by_key", "max_by_value")
+
+    val res = df.minByColumns(
+      groupBy = "key",
+      minBy = Seq("min_by_key" -> Seq("min_by_key", "min_by_value1", "min_by_value2")),
+      maxBy = Seq("max_by_key" -> Seq("max_by_key", "max_by_value")),
+      outputSchema = df.schema
+    )
+
+    res.columns should contain theSameElementsAs df.columns
+    res.select(df.columns.map(col):_*).collect() should contain theSameElementsAs Seq(
+      Row("1", "1", "a", "aaa", "5", "ee"),
+      Row("2", "1", "a", "aaa", null, "aa")
+    )
   }
 
 }

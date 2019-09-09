@@ -307,6 +307,10 @@ class DefaultSourceTest extends FlatSpec with Matchers with LocalSpark {
 
     df.show()
   }
+
+  it should "show nulls" in {
+    spark.read.hume.yt("//home/sashbel/data/test_project_input").show
+  }
 }
 
 case class Driver(unique_driver_id: String,
