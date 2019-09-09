@@ -20,8 +20,6 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
-
     virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
 
     virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;

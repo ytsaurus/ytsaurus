@@ -346,12 +346,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     }
 }
 
-template <class TImpl>
-ETypeFlags TTableNodeTypeHandlerBase<TImpl>::GetFlags() const
-{
-    return TBase::GetFlags() | ETypeFlags::Externalizable;
-}
-
 template<class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
 {
