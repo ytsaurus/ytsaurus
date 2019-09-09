@@ -1408,6 +1408,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
 
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(header.user());
     batchReq->AddRequestMessage(std::move(requestMessage));
