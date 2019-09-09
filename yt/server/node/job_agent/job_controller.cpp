@@ -789,7 +789,7 @@ void TJobController::TImpl::RemoveJob(
     YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
     if (archiveJobSpec) {
-        YT_LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Archivind job spec (JobId: %v)", job->GetId());
         job->ReportSpec();
     }
 
@@ -803,12 +803,12 @@ void TJobController::TImpl::RemoveJob(
     }
 
     if (archiveFailContext) {
-        YT_LOG_INFO("Fail context archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Archiving fail context (JobId: %v)", job->GetId());
         job->ReportFailContext();
     }
 
     if (archiveProfile) {
-        YT_LOG_INFO("Profile archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Archiving profile (JobId: %v)", job->GetId());
         job->ReportProfile();
     }
 
