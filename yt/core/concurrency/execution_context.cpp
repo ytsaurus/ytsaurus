@@ -14,10 +14,9 @@ namespace NYT::NConcurrency {
 TExecutionContext::TExecutionContext(
     TExecutionStack* stack,
     ITrampoLine* trampoline)
-    : ContClosure_{
+    : ContContext_({
         trampoline,
-        TArrayRef(static_cast<char*>(stack->GetStack()), stack->GetSize())}
-    , ContContext_(ContClosure_)
+        TArrayRef(static_cast<char*>(stack->GetStack()), stack->GetSize())})
 {
 #ifdef CXXABIv1
     static_assert(
