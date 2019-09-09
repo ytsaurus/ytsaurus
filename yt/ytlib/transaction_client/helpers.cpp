@@ -80,21 +80,19 @@ TTransactionId MakeMirroredTransactionId(
     if (!originalId) {
         return {};
     }
+
     auto originalType = TypeFromId(originalId);
     YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
     auto mirroredType = (originalType == EObjectType::Transaction)
         ? EObjectType::MirroredTransaction
         : EObjectType::MirroredNestedTransaction;
+
+    auto nativeCellTag = CellTagFromId(originalId);
     return TTransactionId(
-        (originalId.Parts32[0] &  0xffff) | (mirrorCellTag << 16),           // insert mirror cell tag
-        (originalId.Parts32[1] & ~0xffff) | static_cast<ui32>(mirroredType), // replace type
+        (originalId.Parts32[0] &  0xffff) | (nativeCellTag << 16), // keep the original cell tag
+        (mirrorCellTag << 16) | static_cast<ui32>(mirroredType),   // replace type and native cell tag
         originalId.Parts32[2],
         originalId.Parts32[3]);
-}
-
-TCellTag MirrorCellTagFromTransactionId(TTransactionId id)
-{
-    return id.Parts32[0] >> 16;
 }
 
 TTransactionId UnmirrorTransactionId(TTransactionId mirroredId)
@@ -102,14 +100,17 @@ TTransactionId UnmirrorTransactionId(TTransactionId mirroredId)
     if (!mirroredId) {
         return {};
     }
+
     auto mirroredType = TypeFromId(mirroredId);
     YT_VERIFY(mirroredType == EObjectType::MirroredTransaction || mirroredType == EObjectType::MirroredNestedTransaction);
     auto originalType = (mirroredType == EObjectType::MirroredTransaction)
         ? EObjectType::Transaction
         : EObjectType::NestedTransaction;
+
+    auto originalCellTag = (mirroredId.Parts32[0] >> 16);
     return TTransactionId(
-        (mirroredId.Parts32[0] &  0xffff),                                   // erase mirror cell tag
-        (mirroredId.Parts32[1] & ~0xffff) | static_cast<ui32>(originalType), // replace type
+        (mirroredId.Parts32[0] &  0xffff),                         // erase the original cell tag
+        (originalCellTag << 16) | static_cast<ui32>(originalType), // replace type and restore the original cell tag
         mirroredId.Parts32[2],
         mirroredId.Parts32[3]);
 }

@@ -1654,12 +1654,6 @@ void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
         return;
     }
 
-    if (Transaction->IsMirrored() &&
-        NTransactionClient::MirrorCellTagFromTransactionId(Transaction->GetId()) == Object_->GetNativeCellTag())
-    {
-        return;
-    }
-
     THROW_ERROR_EXCEPTION("Accessing a foreign object %v via transaction %v is not allowed",
         Object_->GetId(),
         Transaction->GetId());

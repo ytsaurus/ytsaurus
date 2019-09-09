@@ -37,9 +37,6 @@ TTransactionId MakeMirroredTransactionId(
     TTransactionId originalId,
     NObjectClient::TCellTag mirrorCellTag);
 
-//! Extracts the mirror cell tag from a given transaction #id.
-NObjectClient::TCellTag MirrorCellTagFromTransactionId(TTransactionId id);
-
 //! Undones the effect of #MakeMirroredTransactionId.
 TTransactionId UnmirrorTransactionId(TTransactionId mirroredId);
 
