@@ -13,7 +13,7 @@ bool ValidateSnapshotVersion(int version);
 
 DEFINE_ENUM(ESnapshotVersion,
     // 19.7 starts here
-    ((TransactionMirroring)           (300200))
+    ((ExternalizedTransactions)           (300200))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

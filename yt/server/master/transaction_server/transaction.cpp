@@ -53,7 +53,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Timeout_);
     Save(context, Title_);
     Save(context, ReplicatedToCellTags_);
-    Save(context, MirroredToCellTags_);
+    Save(context, ExternalizedToCellTags_);
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
@@ -84,8 +84,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Title_);
     Load(context, ReplicatedToCellTags_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::TransactionMirroring) {
-        Load(context, MirroredToCellTags_);
+    if (context.GetVersion() >= EMasterReign::ExternalizedTransactions) {
+        Load(context, ExternalizedToCellTags_);
     }
     Load(context, NestedTransactions_);
     Load(context, Parent_);
@@ -130,16 +130,16 @@ bool TTransaction::IsDescendantOf(TTransaction* transaction) const
     return false;
 }
 
-bool TTransaction::IsMirrored() const
+bool TTransaction::IsExternalized() const
 {
-    return GetType() == EObjectType::MirroredTransaction ||
-           GetType() == EObjectType::MirroredNestedTransaction;
+    return GetType() == EObjectType::ExternalizedTransaction ||
+           GetType() == EObjectType::ExternalizedNestedTransaction;
 }
 
-TTransactionId TTransaction::GetUnmirroredTransactionId() const
+TTransactionId TTransaction::GetOriginalTransactionId() const
 {
-    YT_VERIFY(IsMirrored());
-    return NTransactionClient::UnmirrorTransactionId(Id_);
+    YT_VERIFY(IsExternalized());
+    return NTransactionClient::OriginalFromExternalizedTransactionId(Id_);
 }
 
 namespace {

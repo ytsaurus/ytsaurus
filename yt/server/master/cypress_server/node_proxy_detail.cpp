@@ -347,7 +347,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     auto externalCellTag = node->GetExternalCellTag();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto transactionId = transactionManager->GetNearestMirroredTransactionAncestor(
+    auto transactionId = transactionManager->GetNearestExternalizedTransactionAncestor(
         GetTransaction(),
         externalCellTag);
 
@@ -1243,7 +1243,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         : Bootstrap_->GetCellTag();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto externalTransactionId = transactionManager->MirrorTransaction(Transaction, externalCellTag);
+    auto externalTransactionId = transactionManager->ExternalizeTransaction(Transaction, externalCellTag);
 
     auto lockId = lock->GetId();
     auto revision = TrunkNode->GetRevision();

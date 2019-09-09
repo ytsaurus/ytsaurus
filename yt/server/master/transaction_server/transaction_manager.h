@@ -57,10 +57,10 @@ public:
     void AbortTransaction(
         TTransaction* transaction,
         bool force);
-    TTransactionId MirrorTransaction(
+    TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag);
-    TTransactionId GetNearestMirroredTransactionAncestor(
+    TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag);
 

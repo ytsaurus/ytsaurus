@@ -13,7 +13,7 @@ using namespace NObjectClient;
 bool IsMasterTransactionId(TTransactionId id)
 {
     auto type = TypeFromId(id);
-    // NB: Mirrored transactions are for internal use only.
+    // NB: Externalized transactions are for internal use only.
     return type == NObjectClient::EObjectType::Transaction ||
            type == NObjectClient::EObjectType::NestedTransaction;
 }

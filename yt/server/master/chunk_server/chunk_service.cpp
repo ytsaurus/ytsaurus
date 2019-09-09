@@ -294,8 +294,8 @@ private:
             auto* protoNode = response->add_nodes();
             ToProto(protoNode->mutable_node_id(), node->GetId());
             if (auto* transaction = node->GetTransaction()) {
-                auto transactionId = transaction->IsMirrored()
-                    ? transaction->GetUnmirroredTransactionId()
+                auto transactionId = transaction->IsExternalized()
+                    ? transaction->GetOriginalTransactionId()
                     : transaction->GetId();
                 ToProto(protoNode->mutable_transaction_id(), transactionId);
             }

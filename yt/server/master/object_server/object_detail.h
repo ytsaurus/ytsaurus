@@ -149,11 +149,11 @@ protected:
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
-    //! Posts the request to given masters mirroring the transaction if needed.
-    void MirrorToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+    //! Posts the request to given masters externalizing the transaction if needed.
+    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
 
-    //! Posts the request to a given master mirroring the transaction if needed.
-    void MirrorToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
+    //! Posts the request to a given master externalizing the transaction if needed.
+    void ExternalizeToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 };

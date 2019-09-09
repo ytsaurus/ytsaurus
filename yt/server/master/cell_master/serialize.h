@@ -91,8 +91,8 @@ DEFINE_ENUM(EMasterReign,
     ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
     ((YT_11349_FixCypressMoveWithEscapedSymbols)                     (910))  // kiselyovp
     ((AddRefsFromTransactionToUsageAccounts)                         (911))  // babenko
-    ((TransactionMirroring)                                          (912))  // babenko
-    ((SyncCellsBeforeRemoval)                                          (913))  // babenko
+    ((ExternalizedTransactions)                                      (912))  // babenko
+    ((SyncCellsBeforeRemoval)                                        (913))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

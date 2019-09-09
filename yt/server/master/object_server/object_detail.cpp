@@ -412,7 +412,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& contex
         return;
     }
 
-    MirrorToMasters(std::move(context), handler->GetReplicationCellTags(Object_));
+    ExternalizeToMasters(std::move(context), handler->GetReplicationCellTags(Object_));
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -800,7 +800,7 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
         TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::MirrorToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());
@@ -813,12 +813,12 @@ void TObjectProxyBase::MirrorToMasters(IServiceContextPtr context, const TCellTa
             cellTags);
     } else {
         for (auto cellTag : cellTags) {
-            MirrorToMaster(context, cellTag);
+            ExternalizeToMaster(context, cellTag);
         }
     }
 }
 
-void TObjectProxyBase::MirrorToMaster(IServiceContextPtr context, TCellTag cellTag)
+void TObjectProxyBase::ExternalizeToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());
@@ -826,11 +826,11 @@ void TObjectProxyBase::MirrorToMaster(IServiceContextPtr context, TCellTag cellT
     auto* transaction = GetTransaction();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto mirroredTransactionId = transactionManager->MirrorTransaction(transaction, cellTag);
+    auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
-        TCrossCellMessage(object->GetId(), mirroredTransactionId, std::move(context)),
+        TCrossCellMessage(object->GetId(), externalizedTransactionId, std::move(context)),
         cellTag);
 }
 
