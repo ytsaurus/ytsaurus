@@ -351,7 +351,8 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
     if (!chunkBoundaries.empty()) {
         std::sort(chunkBoundaries.begin(), chunkBoundaries.end(),
             [] (const TBoundaryDescriptor& lhs, const TBoundaryDescriptor& rhs) -> bool {
-                return std::tie(lhs.Key, lhs.Type, lhs.DataSize) < std::tie(rhs.Key, rhs.Type, rhs.DataSize);
+                return std::tie(lhs.Key, lhs.Type, lhs.DescriptorIndex, lhs.DataSize) <
+                       std::tie(rhs.Key, rhs.Type, rhs.DescriptorIndex, rhs.DataSize);
         });
         std::vector<TOwningKey> pivotKeys{Tablet_->GetPivotKey()};
 
