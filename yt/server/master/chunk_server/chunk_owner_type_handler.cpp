@@ -34,11 +34,13 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NYTree;
 using namespace NFileServer;
 using namespace NTableServer;
 using namespace NJournalServer;
 using namespace NCypressServer;
 using namespace NSecurityServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,9 +51,15 @@ TChunkOwnerTypeHandler<TChunkOwner>::TChunkOwnerTypeHandler(NCellMaster::TBootst
 { }
 
 template <class TChunkOwner>
-NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
+ETypeFlags TChunkOwnerTypeHandler<TChunkOwner>::GetFlags() const
 {
-    return NYTree::ENodeType::Entity;
+    return TBase::GetFlags() | ETypeFlags::Externalizable;
+}
+
+template <class TChunkOwner>
+ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
+{
+    return ENodeType::Entity;
 }
 
 template <class TChunkOwner>
@@ -96,7 +104,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
 
-    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
+    auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);

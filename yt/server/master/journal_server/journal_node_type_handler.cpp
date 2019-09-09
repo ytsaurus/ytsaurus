@@ -37,11 +37,6 @@ public:
         return EObjectType::Journal;
     }
 
-    virtual ETypeFlags GetFlags() const override
-    {
-        return TBase::GetFlags() | ETypeFlags::Externalizable;
-    }
-
     virtual ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;

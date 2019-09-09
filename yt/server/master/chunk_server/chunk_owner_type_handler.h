@@ -22,6 +22,8 @@ private:
 public:
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
+    virtual NObjectServer::ETypeFlags GetFlags() const override;
+
     virtual NYTree::ENodeType GetNodeType() const override;
 
     virtual bool IsSupportedInheritableAttribute(const TString& key) const;

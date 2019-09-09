@@ -35,11 +35,6 @@ public:
         return EObjectType::File;
     }
 
-    virtual ETypeFlags GetFlags() const override
-    {
-        return TBase::GetFlags() | ETypeFlags::Externalizable;
-    }
-
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TFileNode* trunkNode,
