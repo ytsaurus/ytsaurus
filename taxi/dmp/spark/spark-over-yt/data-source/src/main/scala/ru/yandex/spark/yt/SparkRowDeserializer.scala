@@ -18,18 +18,6 @@ import scala.collection.mutable
 
 class SparkRowDeserializer(val schema: StructType, filters: Array[Filter]) extends WireRowDeserializer[Row] with WireValueDeserializer[Any] {
   private var _values: Array[Any] = _
-  private val nulls = schema.map { field =>
-    field.dataType match {
-      case StringType => null.asInstanceOf[String]
-      case LongType => null.asInstanceOf[Long]
-      case BooleanType => null.asInstanceOf[Boolean]
-      case DoubleType => null.asInstanceOf[Double]
-      case BinaryType => null.asInstanceOf[Array[Byte]]
-      case ArrayType(_, _) => null.asInstanceOf[Array[Any]]
-      case _: StructType => null.asInstanceOf[Row]
-      case _: MapType => null.asInstanceOf[Map[String, Any]]
-    }
-  }
 
   private val rowSerializers = schema.zipWithIndex.collect {
     case (field, index) if field.dataType.isInstanceOf[StructType] =>
@@ -69,7 +57,7 @@ class SparkRowDeserializer(val schema: StructType, filters: Array[Filter]) exten
     }
   }
 
-  override def onEntity(): Unit = addValue(nulls(_index))
+  override def onEntity(): Unit = addValue(null)
 
   override def onInteger(value: Long): Unit = addValue(value)
 

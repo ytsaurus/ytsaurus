@@ -59,11 +59,4 @@ package object yt {
       df.select(fields.head, fields.tail:_*).as[T]
     }
   }
-
-  def minByNoneLast[A, B](seq: Seq[A])(f: A => Option[B])(implicit ordering: Ordering[B]): A = {
-    seq.minBy{a =>
-      val b = f(a)
-      b.isEmpty -> b
-    }
-  }
 }
