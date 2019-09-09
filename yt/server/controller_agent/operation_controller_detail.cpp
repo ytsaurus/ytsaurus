@@ -1686,6 +1686,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
             auto objectIdPath = FromObjectId(table->ObjectId);
             auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
             req->set_timestamp(currentTimestamp);
+            AddCellTagToSyncWith(req, CellTagFromId(table->ObjectId));
             SetTransactionId(req, table->ExternalTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -1722,6 +1723,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
             for (const auto& table : tables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::CheckDynamicTableLock(objectIdPath);
+                AddCellTagToSyncWith(req, CellTagFromId(table->ObjectId));
                 SetTransactionId(req, table->ExternalTransactionId);
                 batchReq->AddRequest(req);
             }
@@ -4837,6 +4839,7 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
+                AddCellTagToSyncWith(req, CellTagFromId(table->ObjectId));
                 SetTransactionId(req, table->ExternalTransactionId);
             },
             Logger);
@@ -4991,6 +4994,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "unflushed_timestamp",
                 "content_revision"
             });
+            AddCellTagToSyncWith(req, CellTagFromId(table->ObjectId));
             SetTransactionId(req, table->ExternalTransactionId);
             req->Tag() = table;
             batchReq->AddRequest(req);
@@ -5462,6 +5466,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
+                        AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
                         SetTransactionId(req, file.ExternalTransactionId);
                     },
                     Logger);
@@ -5481,6 +5486,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
                 SetTransactionId(req, file.ExternalTransactionId);
                 batchReq->AddRequest(req);
 

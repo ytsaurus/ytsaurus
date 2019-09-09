@@ -34,6 +34,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/client/table_client/name_table.h>
 
 #include <yt/client/ypath/rich.h>
@@ -321,6 +323,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         // NB: objectId is null for virtual tables.
         auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
+        AddCellTagToSyncWith(req, CellTagFromId(userObject->ObjectId));
         SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
         std::vector<TString> attributeKeys{
@@ -365,6 +368,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->set_fetch_parity_replicas(config->EnableAutoRepair);
+                AddCellTagToSyncWith(req, CellTagFromId(userObject->ObjectId));
                 SetTransactionId(req, userObject->ExternalTransactionId);
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
