@@ -2300,13 +2300,9 @@ class TestCypressMulticell(TestCypress):
 class TestCypressPortal(TestCypressMulticell):
     ENABLE_TMP_PORTAL = True
 
-##################################################################
-
 class TestCypressRpcProxy(TestCypress):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-##################################################################
 
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     pass
