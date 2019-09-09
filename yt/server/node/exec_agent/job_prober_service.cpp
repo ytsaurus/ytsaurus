@@ -9,6 +9,8 @@
 
 #include <yt/core/rpc/service_detail.h>
 
+#include <yt/core/concurrency/thread_affinity.h>
+
 namespace NYT::NExecAgent {
 
 using namespace NRpc;
@@ -35,16 +37,24 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell)
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
+
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
     }
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -58,6 +68,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -74,6 +86,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetSpec)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -88,6 +102,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -100,6 +116,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& signalName = request->signal_name();
         context->SetRequestInfo("JobId: %v, SignalName: %v",
@@ -114,6 +132,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
 
@@ -129,6 +149,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
 
         context->SetRequestInfo("JobId: %v",
@@ -142,6 +164,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Abort)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto jobId = FromProto<TJobId>(request->job_id());
         auto error = FromProto<TError>(request->error());
 

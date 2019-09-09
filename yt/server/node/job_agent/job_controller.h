@@ -33,6 +33,7 @@ DEFINE_ENUM(EJobOrigin,
  *   Maintains a map of jobs, allows new jobs to be started and existing jobs to be stopped.
  *   New jobs are constructed by means of per-type factories registered via #RegisterFactory.
  *
+ *   \note Thread affinity: Control (unless noted otherwise)
  */
 class TJobController
     : public TRefCounted
@@ -47,17 +48,26 @@ public:
     void Initialize();
 
     //! Registers a factory for a given job type.
-    void RegisterFactory(
+    void RegisterJobFactory(
         EJobType type,
         TJobFactory factory);
 
     //! Finds the job by its id, returns |nullptr| if no job is found.
+    /*
+     * \note Thread affinity: any
+     */
     IJobPtr FindJob(TJobId jobId) const;
 
     //! Finds the job by its id, throws if no job is found.
+    /*
+     * \note Thread affinity: any
+     */
     IJobPtr GetJobOrThrow(TJobId jobId) const;
 
     //! Returns the list of all currently known jobs.
+    /*
+     * \note Thread affinity: any
+     */
     std::vector<IJobPtr> GetJobs() const;
 
     //! Finds the job that is held after it has been removed.
@@ -68,9 +78,6 @@ public:
 
     //! Return the current resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const;
-
-    //! Return ports allocated by job.
-    std::vector<int> GetJobPorts(TJobId jobId) const;
 
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);

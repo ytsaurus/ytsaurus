@@ -23,6 +23,9 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * \note Thread affinity: Control (unless noted otherwise)
+ */
 struct IJob
     : public virtual TRefCounted
 {
@@ -89,6 +92,10 @@ struct IJob
     virtual std::optional<TString> GetFailContext() = 0;
     virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const TString& signalName) = 0;
+
+    /*
+     * \note Thread affinity: any
+     */
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
     virtual bool GetStored() const = 0;

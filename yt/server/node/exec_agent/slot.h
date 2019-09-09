@@ -29,7 +29,7 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISlot
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Kill all possibly running processes and clean sandboxes.
     virtual void CleanProcesses() = 0;
@@ -68,9 +68,8 @@ struct ISlot
 
     virtual TFuture<void> FinalizePreparation() = 0;
 
-    virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
-
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
+    virtual NBus::TTcpBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
 
