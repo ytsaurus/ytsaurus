@@ -832,15 +832,18 @@ using TMapNodeTypeHandler = TMapNodeTypeHandlerImpl<TMapNode>;
 class TListNode
     : public TCompositeNodeBase
 {
+private:
+    using TBase = TCompositeNodeBase;
+
 public:
-    typedef std::vector<TCypressNode*> TIndexToChild;
-    typedef THashMap<TCypressNode*, int> TChildToIndex;
+    using TIndexToChild = std::vector<TCypressNode*>;
+    using TChildToIndex = THashMap<TCypressNode*, int>;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    using TCompositeNodeBase::TCompositeNodeBase;
+    using TBase::TBase;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -848,7 +851,6 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
     virtual int GetGCWeight() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -856,9 +858,10 @@ public:
 class TListNodeTypeHandler
     : public TCompositeNodeTypeHandler<TListNode>
 {
-public:
+private:
     using TBase = TCompositeNodeTypeHandler<TListNode>;
 
+public:
     using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
