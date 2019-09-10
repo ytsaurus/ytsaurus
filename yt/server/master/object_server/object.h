@@ -35,7 +35,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
      // Removal workflow
      ((RemovalStarted)          (3))
      ((RemovalPreCommitted)     (4))
-     ((RemovalAwaitingCellsSync)  (5))
+     ((RemovalAwaitingCellsSync)(5))
      ((RemovalCommitted)        (6))
 );
 
