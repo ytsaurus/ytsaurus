@@ -1735,7 +1735,7 @@ void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::
         }
 
         auto oldLifeStage = object->GetLifeStage();
-        if (oldLifeStage != EObjectLifeStage::RemovalAwaingCellsSync) {
+        if (oldLifeStage != EObjectLifeStage::RemovalAwaitingCellsSync) {
             YT_LOG_ALERT_UNLESS(IsRecovery(),
                 "Cells sync confirmed for an object with invalid life stage (ObjectId: %v, LifeStage: %v)",
                 objectId,
@@ -1817,7 +1817,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
                 newLifeStage = EObjectLifeStage::RemovalPreCommitted;
                 break;
             case EObjectLifeStage::RemovalPreCommitted:
-                newLifeStage = EObjectLifeStage::RemovalAwaingCellsSync;
+                newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
                 break;
             default:
                 YT_LOG_ALERT_UNLESS(IsRecovery(), "Unexpected object life stage (ObjectId: %v, LifeStage: %v)",
@@ -1834,7 +1834,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
             oldLifeStage,
             newLifeStage);
 
-        if (newLifeStage == EObjectLifeStage::RemovalAwaingCellsSync) {
+        if (newLifeStage == EObjectLifeStage::RemovalAwaitingCellsSync) {
             GarbageCollector_->RegisterRemovalAwaitingCellsSyncObject(object);
         } else {
             AdvanceObjectLifeStageAtSecondaryMasters(object);

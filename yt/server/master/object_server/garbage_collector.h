@@ -89,7 +89,7 @@ private:
     //! The total number of locked objects, including ghosts.
     int LockedObjectCount_ = 0;
 
-    //! Objects in |RemovalAwaingCellsSync| life stage.
+    //! Objects in |RemovalAwaitingCellsSync| life stage.
     THashSet<TObject*> RemovalAwaitingCellsSyncObjects_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

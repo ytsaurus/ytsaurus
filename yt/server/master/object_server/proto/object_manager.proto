@@ -67,7 +67,7 @@ message TReqAdvanceObjectLifeStage
 }
 
 // Committed at the primary master when all seconary cells are pairwise
-// synchronized to push dying objects from RemovalAwaingCellsSync to RemovalCommitted
+// synchronized to push dying objects from RemovalAwaitingCellsSync to RemovalCommitted
 // life stage.
 message TReqConfirmRemovalAwaitingCellsSyncObjects
 {
