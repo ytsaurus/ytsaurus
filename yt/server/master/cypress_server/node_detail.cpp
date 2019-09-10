@@ -497,6 +497,138 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(IMPLEMENT_ATTRIBUTE_ACCESSORS)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoDestroy(TImpl* node)
+{
+    if (auto* bundle = node->GetTabletCellBundle()) {
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(bundle);
+    }
+
+    TBase::DoDestroy(node);
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoClone(
+    TImpl* sourceNode,
+    TImpl* clonedTrunkNode,
+    ICypressNodeFactory* factory,
+    ENodeCloneMode mode,
+    TAccount* account)
+{
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+
+    clonedTrunkNode->SetAttributes(sourceNode->FindAttributes());
+
+    if (auto* bundle = clonedTrunkNode->GetTabletCellBundle()) {
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->RefObject(bundle);
+    }
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoBranch(
+    const TImpl* originatingNode,
+    TImpl* branchedNode,
+    const TLockRequest& lockRequest)
+{
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+    branchedNode->SetAttributes(originatingNode->FindAttributes());
+
+    if (auto* bundle = branchedNode->GetTabletCellBundle()) {
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->RefObject(bundle);
+    }
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoUnbranch(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
+{
+    TBase::DoUnbranch(originatingNode, branchedNode);
+
+    if (auto* bundle = branchedNode->GetTabletCellBundle()) {
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(bundle);
+    }
+
+    branchedNode->SetAttributes(nullptr); // just in case
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoMerge(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
+{
+    TBase::DoMerge(originatingNode, branchedNode);
+
+    if (auto* bundle =originatingNode->GetTabletCellBundle()) {
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(bundle);
+    }
+
+    originatingNode->SetAttributes(branchedNode->FindAttributes());
+}
+
+template <class TImpl>
+bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    auto* originatingAttributes = originatingNode->FindAttributes();
+    auto* branchedAttributes = originatingNode->FindAttributes();
+
+    if (!originatingAttributes && !branchedAttributes) {
+        return false;
+    }
+
+    if (originatingAttributes && !branchedAttributes ||
+        !originatingAttributes && branchedAttributes)
+    {
+        return true;
+    }
+
+    return *originatingAttributes != *branchedAttributes;
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoBeginCopy(
+    TImpl* node,
+    TBeginCopyContext* context)
+{
+    TBase::DoBeginCopy(node, context);
+
+    using NYT::Save;
+    const auto* attributes = node->FindAttributes();
+    Save(*context, attributes != nullptr);
+    if (attributes) {
+        Save(*context, *attributes);
+    }
+}
+
+template <class TImpl>
+void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
+    TImpl* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    TBase::DoEndCopy(trunkNode, context, factory);
+
+    using NYT::Load;
+    if (Load<bool>(*context)) {
+        auto attributes = Load<TCompositeNodeBase::TAttributes>(*context);
+        trunkNode->SetAttributes(&attributes);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMapNodeChildren::~TMapNodeChildren()
 {
     YT_VERIFY(KeyToChild.empty());
@@ -519,7 +651,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     // Reconstruct ChildToKey map.
     for (const auto& [key, childNode] : KeyToChild) {
         if (childNode) {
-            YT_VERIFY(ChildToKey.insert(std::make_pair(childNode, key)).second);
+            YT_VERIFY(ChildToKey.emplace(childNode, key).second);
         }
     }
 }
