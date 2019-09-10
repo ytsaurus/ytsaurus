@@ -677,6 +677,15 @@ class TestJobInput(ClickHouseTestBase):
             assert len(result) == 2
             assert len(result[0]) == 2
 
+    @authors("max42")
+    def test_duplicating_table_functions(self):
+        # CHYT-194.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 42}])
+        with Clique(1) as clique:
+            result = clique.make_query("select * from concatYtTables('//tmp/t') union all select * from concatYtTables('//tmp/t')")
+            assert result == [{"a": 42}, {"a": 42}]
+
 class TestMutations(ClickHouseTestBase):
     def setup(self):
         self._setup()

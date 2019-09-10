@@ -223,7 +223,13 @@ public:
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
-        Prepare(cliqueNodes.size(), queryInfo, context);
+        if (cliqueNodes.empty()) {
+            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
+        }
+
+        if (!Prepared_) {
+            Prepare(cliqueNodes.size(), queryInfo, context);
+        }
 
         YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             columnNames,
@@ -231,10 +237,6 @@ public:
             cliqueNodes.size(),
             static_cast<ui64>(context.getSettings().max_threads),
             Subqueries_.size());
-
-        if (cliqueNodes.empty()) {
-            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
-        }
 
         const auto& settings = context.getSettingsRef();
 
@@ -364,6 +366,7 @@ private:
     std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    bool Prepared_ = false;
 
     void Prepare(
         int subqueryCount,
@@ -404,6 +407,8 @@ private:
             subqueryCount * context.getSettings().max_threads,
             samplingRate,
             context);
+
+        Prepared_ = true;
     }
 };
 
