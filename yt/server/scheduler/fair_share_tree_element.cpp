@@ -1025,7 +1025,7 @@ bool TCompositeSchedulerElement::IsAggressiveStarvationPreemptionAllowed() const
     return true;
 }
 
-void TCompositeSchedulerElement::AddChild(const TSchedulerElementPtr& child, bool enabled)
+void TCompositeSchedulerElement::AddChild(TSchedulerElement* child, bool enabled)
 {
     YT_VERIFY(Mutable_);
 
@@ -1060,7 +1060,7 @@ void TCompositeSchedulerElement::DisableChild(const TSchedulerElementPtr& child)
     AddChild(&DisabledChildToIndex_, &DisabledChildren_, child);
 }
 
-void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
+void TCompositeSchedulerElement::RemoveChild(TSchedulerElement* child)
 {
     YT_VERIFY(Mutable_);
 
@@ -1068,6 +1068,11 @@ void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
     auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
     auto& list = enabled ? EnabledChildren_ : DisabledChildren_;
     RemoveChild(&map, &list, child);
+}
+
+bool TCompositeSchedulerElement::IsEnabledChild(TSchedulerElement* child)
+{
+    return ContainsChild(EnabledChildToIndex_, child);
 }
 
 bool TCompositeSchedulerElement::IsEmpty() const
@@ -1358,7 +1363,6 @@ TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFairShare(const
     }
     return bestChild;
 }
-
 
 void TCompositeSchedulerElement::AddChild(
     TChildMap* map,
@@ -1688,12 +1692,13 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
 
     Parent_->IncreaseOperationCount(-OperationCount());
     Parent_->IncreaseRunningOperationCount(-RunningOperationCount());
+    bool enabled = Parent_->IsEnabledChild(this);
     Parent_->RemoveChild(this);
 
     Parent_ = newParent;
     TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
-    Parent_->AddChild(this);
+    Parent_->AddChild(this, enabled);
     Parent_->IncreaseOperationCount(OperationCount());
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
 
@@ -3029,6 +3034,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
         Parent_->IncreaseRunningOperationCount(-1);
     }
     Parent_->IncreaseOperationCount(-1);
+    bool enabled = Parent_->IsEnabledChild(this);
     Parent_->RemoveChild(this);
 
     Parent_ = parent;
@@ -3036,7 +3042,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
 
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);
-    Parent_->AddChild(this);
+    Parent_->AddChild(this, enabled);
 
     YT_LOG_DEBUG("Operation changed pool (OldPool: %v, NewPool: %v)",
         oldParentId,
