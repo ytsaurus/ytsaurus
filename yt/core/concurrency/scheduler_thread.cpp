@@ -404,16 +404,6 @@ void TSchedulerThread::Return()
     YT_ABORT();
 }
 
-void TSchedulerThread::PushContextSwitchHandler(std::function<void()> out, std::function<void()> in)
-{
-    CurrentFiber_->PushContextHandler(std::move(out), std::move(in));
-}
-
-void TSchedulerThread::PopContextSwitchHandler()
-{
-    CurrentFiber_->PopContextHandler();
-}
-
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
@@ -513,8 +503,6 @@ void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
 void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
 {
     CurrentFiber_ = std::move(fiber);
-    SetCurrentMemoryTag(CurrentFiber_->GetMemoryTag());
-    SetCurrentMemoryZone(CurrentFiber_->GetMemoryZone());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

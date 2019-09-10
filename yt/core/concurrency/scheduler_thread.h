@@ -43,8 +43,6 @@ public:
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
-    virtual void PushContextSwitchHandler(std::function<void()> out, std::function<void()> in) override;
-    virtual void PopContextSwitchHandler() override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:

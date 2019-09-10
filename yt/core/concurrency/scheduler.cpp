@@ -12,6 +12,14 @@ Y_POD_THREAD(const TFiber*) CurrentFiber;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NProfiling::TCpuDuration GetCurrentRunCpuTime()
+{
+    const auto* fiber = GetCurrentFiber();
+    return fiber->GetRunCpuTime();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 static class TFiberIdGenerator
 {
 public:
@@ -46,6 +54,14 @@ TFiberId GenerateFiberId()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool CheckFreeStackSpace(size_t space)
+{
+    auto* fiber = TryGetCurrentFiber();
+    return !fiber || fiber->CheckFreeStackSpace(space);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Yield()
 {
     Y_UNUSED(WaitFor(VoidFuture));
@@ -61,17 +77,17 @@ void SwitchTo(IInvokerPtr invoker)
 
 TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        scheduler->PushContextSwitchHandler(std::move(out), std::move(in));
+    auto* fiber = TryGetCurrentFiber();
+    if (fiber) {
+        const_cast<TFiber*>(fiber)->PushContextHandler(std::move(out), std::move(in));
     }
 }
 
 TContextSwitchGuard::~TContextSwitchGuard()
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        scheduler->PopContextSwitchHandler();
+    auto* fiber = TryGetCurrentFiber();
+    if (fiber) {
+        const_cast<TFiber*>(fiber)->PopContextHandler();
     }
 }
 

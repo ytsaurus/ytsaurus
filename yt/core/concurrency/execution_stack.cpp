@@ -1,6 +1,5 @@
 #include "execution_stack.h"
 #include "execution_context.h"
-#include "fiber.h"
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -153,6 +152,34 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind)
             return ObjectPool<TPooledExecutionStack<EExecutionStackKind::Large, LargeExecutionStackSize>>().Allocate();
         default:
             YT_ABORT();
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+static std::atomic<int> SmallFiberStackPoolSize = {1024};
+static std::atomic<int> LargeFiberStackPoolSize = {1024};
+
+int GetFiberStackPoolSize(EExecutionStackKind stackKind)
+{
+    switch (stackKind) {
+        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
+        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
+        default:                         YT_ABORT();
+    }
+}
+
+void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
+{
+    if (poolSize < 0) {
+        THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
+            poolSize,
+            stackKind);
+    }
+    switch (stackKind) {
+        case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize; break;
+        case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize; break;
+        default:                         YT_ABORT();
     }
 }
 
