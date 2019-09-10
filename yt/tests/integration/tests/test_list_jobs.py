@@ -32,7 +32,7 @@ def get_profile_from_table(operation_id, job_id):
 def checked_list_jobs(*args, **kwargs):
     res = list_jobs(*args, **kwargs)
     if res["errors"]:
-        raise YtError(message="list_jobs failed", inner_erros=res["errors"])
+        raise YtError(message="list_jobs failed", inner_errors=res["errors"])
     return res
 
 
