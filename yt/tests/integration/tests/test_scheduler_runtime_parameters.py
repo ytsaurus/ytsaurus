@@ -138,6 +138,13 @@ class TestRuntimeParameters(YTEnvSetup):
         assert get(path) == "initial_pool"
 
     @authors("renadeen")
+    def test_change_pool_during_prepare_phase_bug(self):
+        op = run_test_vanilla(":", spec={"testing": {"delay_during_prepare": 1000}})
+        update_op_parameters(op.id, parameters={"pool": "another_pool"})
+        # core was in MaterializeOperation
+        op.track()
+
+    @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
         set("//sys/pools/test_pool", {})
         op = run_sleeping_vanilla(spec={"pool": "test_pool"})

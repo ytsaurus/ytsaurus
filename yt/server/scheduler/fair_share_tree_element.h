@@ -444,10 +444,11 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
-    void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
+    void AddChild(TSchedulerElement* child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void DisableChild(const TSchedulerElementPtr& child);
-    void RemoveChild(const TSchedulerElementPtr& child);
+    void RemoveChild(TSchedulerElement* child);
+    bool IsEnabledChild(TSchedulerElement* child);
 
     bool IsEmpty() const;
 
