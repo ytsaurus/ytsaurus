@@ -63,6 +63,15 @@ message TReqConfirmObjectLifeStage
 message TReqAdvanceObjectLifeStage
 {
     required NYT.NProto.TGuid object_id = 1;
+    required int32 new_life_stage = 2; // EObjectLifeStage
+}
+
+// Committed at the primary master when all seconary cells are pairwise
+// synchronized to push dying objects from RemovalAwaingCellsSync to RemovalCommitted
+// life stage.
+message TReqConfirmRemovalAwaitingCellsSyncObjects
+{
+    repeated NYT.NProto.TGuid object_ids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

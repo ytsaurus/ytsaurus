@@ -23,7 +23,7 @@ struct TObjectDynamicData
 // former cell sending a chunk requisition update to the latter will cause
 // trouble.
 //
-// Removal also needs two-phase locking since otherwise a primary master
+// Removal also needs two-phase (and even more!) locking since otherwise a primary master
 // is unable to command the destruction of an object to its secondaries without risking
 // that some secondary still holds a reference to the object.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
@@ -35,11 +35,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
      // Removal workflow
      ((RemovalStarted)          (3))
      ((RemovalPreCommitted)     (4))
-     ((RemovalCommitted)        (5))
+     ((RemovalAwaingCellsSync)  (5))
+     ((RemovalCommitted)        (6))
 );
-
-EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage);
-bool IsStableLifeStage(EObjectLifeStage lifeStage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
