@@ -138,6 +138,17 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("ilpauzner")
     def test_progress_merge(self):
+        enable_operation_progress_archivation_path = "//sys/controller_agents/config/enable_operation_progress_archivation"
+        try:
+            set(enable_operation_progress_archivation_path, False, recursive=True)
+            instances = ls("//sys/controller_agents/instances")
+            assert len(instances) > 0
+            wait(lambda: not get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_operation_progress_archivation".format(instances[0])))
+            self.do_test_progress_merge()
+        finally:
+            remove(enable_operation_progress_archivation_path)
+
+    def do_test_progress_merge(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -158,8 +169,8 @@ class TestGetOperation(YTEnvSetup):
 
         id_hi, id_lo = uuid_to_parts(op.id)
         archive_table_path = "//sys/operations_archive/ordered_by_id"
-        brief_progress = {"ivan": "ivanov"}
-        progress = {"semen": "semenych", "semenych": "gorbunkov"}
+        brief_progress = {"ivan": "ivanov", "build_time": "2100-01-01T00:00:00.000000Z"}
+        progress = {"semen": "semenych", "semenych": "gorbunkov", "build_time": "2100-01-01T00:00:00.000000Z"}
 
         insert_rows(
             archive_table_path,
@@ -169,6 +180,7 @@ class TestGetOperation(YTEnvSetup):
         wait(lambda: _get_operation_from_archive(op.id))
 
         res_get_operation_new = get_operation(op.id)
+        self.clean_build_time(res_get_operation_new)
         assert res_get_operation_new["brief_progress"] == {"ivan": "ivanov"}
         assert res_get_operation_new["progress"] == {"semen": "semenych", "semenych": "gorbunkov"}
 
@@ -177,6 +189,7 @@ class TestGetOperation(YTEnvSetup):
 
         clean_operations()
         res_get_operation_new = get_operation(op.id)
+        self.clean_build_time(res_get_operation_new)
         assert res_get_operation_new["brief_progress"] != {"ivan": "ivanov"}
         assert res_get_operation_new["progress"] != {"semen": "semenych", "semenych": "gorbunkov"}
 
