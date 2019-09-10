@@ -69,6 +69,16 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 #ifdef DEBUG
     Iterator_ = GetFiberRegistry()->Register(this);
 #endif
+
+    PushContextHandler(
+        [this] () noexcept {
+             NYTAlloc::SetCurrentMemoryTag(MemoryTag_);
+             NYTAlloc::SetCurrentMemoryZone(MemoryZone_);
+        },
+        [this] () noexcept {
+            MemoryTag_ = NYTAlloc::GetCurrentMemoryTag();
+            MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
+        });
 }
 
 TFiber::~TFiber()
@@ -284,26 +294,6 @@ void TFiber::InvokeContextInHandlers()
     }
 }
 
-TMemoryTag TFiber::GetMemoryTag() const
-{
-    return MemoryTag_;
-}
-
-void TFiber::SetMemoryTag(TMemoryTag tag)
-{
-    MemoryTag_ = tag;
-}
-
-EMemoryZone TFiber::GetMemoryZone() const
-{
-    return MemoryZone_;
-}
-
-void TFiber::SetMemoryZone(EMemoryZone zone)
-{
-    MemoryZone_ = zone;
-}
-
 bool TFiber::CheckFreeStackSpace(size_t space) const
 {
     return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
@@ -325,34 +315,6 @@ void TFiber::FinishRunning()
     auto now = NProfiling::GetCpuInstant();
     SavedTraceContext_ = UninstallTraceContext(now);
     RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static std::atomic<int> SmallFiberStackPoolSize = {1024};
-static std::atomic<int> LargeFiberStackPoolSize = {1024};
-
-int GetFiberStackPoolSize(EExecutionStackKind stackKind)
-{
-    switch (stackKind) {
-        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
-        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
-        default:                         YT_ABORT();
-    }
-}
-
-void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
-{
-    if (poolSize < 0) {
-        THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
-            poolSize,
-            stackKind);
-    }
-    switch (stackKind) {
-        case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize; break;
-        case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize; break;
-        default:                         YT_ABORT();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

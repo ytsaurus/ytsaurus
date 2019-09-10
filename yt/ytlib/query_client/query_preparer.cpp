@@ -16,8 +16,6 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/fiber.h>
-
 #include <unordered_set>
 
 namespace NYT::NQueryClient {
@@ -44,8 +42,7 @@ namespace {
 
 void CheckStackDepth()
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
+    if (!CheckFreeStackSpace(MinimumStackFreeSpace)) {
         THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
     }
 }

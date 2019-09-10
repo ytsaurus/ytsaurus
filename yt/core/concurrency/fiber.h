@@ -162,18 +162,6 @@ public:
      */
     void InvokeContextInHandlers();
 
-    //! Returns memory tag currently used in this fiber.
-    NYTAlloc::TMemoryTag GetMemoryTag() const;
-
-    //! Sets the memory tag used in this fiber.
-    void SetMemoryTag(NYTAlloc::TMemoryTag tag);
-
-    //! Returns memory zone currently used in this fiber.
-    NYTAlloc::EMemoryZone GetMemoryZone() const;
-
-    //! Sets the memory zone used in this fiber.
-    void SetMemoryZone(NYTAlloc::EMemoryZone zone);
-
     //! Returns |true| if there is enough remaining stack space.
     /*!
      *  Thread affinity: OwnerThread
@@ -228,14 +216,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Returns the current global limit for the number of pooled fiber stacks of a given size.
-int GetFiberStackPoolSize(EExecutionStackKind stackKind);
-
-//! Sets the global limit for the number of pooled fiber stacks of a given size.
-void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,10 +2,6 @@
 #include "private.h"
 #include "trace_manager.h"
 
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/fiber.h>
-#include <yt/core/concurrency/scheduler.h>
-
 #include <yt/core/profiling/timing.h>
 
 namespace NYT::NTracing {

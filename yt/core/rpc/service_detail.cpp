@@ -12,7 +12,6 @@
 #include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/fiber.h>
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -603,8 +602,7 @@ private:
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        const auto* fiber = GetCurrentFiber();
-        auto handlerFiberTime = CpuDurationToDuration(fiber->GetRunCpuTime());
+        auto handlerFiberTime = CpuDurationToDuration(GetCurrentRunCpuTime());
         Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
 
         if (TraceContext_) {

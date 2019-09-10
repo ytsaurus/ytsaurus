@@ -88,6 +88,11 @@ Y_FORCE_INLINE const TFiber* GetCurrentFiber()
     return CurrentFiber;
 }
 
+Y_FORCE_INLINE const TFiber* TryGetCurrentFiber()
+{
+    return CurrentFiber;
+}
+
 Y_FORCE_INLINE void SetCurrentFiber(const TFiber* fiber)
 {
     CurrentFiber = fiber;
