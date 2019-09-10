@@ -453,7 +453,7 @@ bool TCompositeNodeBase::HasInheritableAttributes() const
     }
 }
 
-const TCompositeNodeBase::TAttributes* TCompositeNodeBase::Attributes() const
+const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() const
 {
     return Attributes_.get();
 }
