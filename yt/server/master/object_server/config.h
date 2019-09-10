@@ -31,7 +31,7 @@ public:
     TDuration GCSweepPeriod;
 
     //! Period between pairwise secondary cells sync, which enables
-    //! advancing from |RemovalAwaingCellsSync| to |RemovalCommitted| life stage.
+    //! advancing from |RemovalAwaitingCellsSync| to |RemovalCommitted| life stage.
     TDuration ObjectRemovalCellsSyncPeriod;
 
     TDynamicObjectManagerConfig()
@@ -40,8 +40,8 @@ public:
             .Default(100000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("object_removal_cellss_sync_period", ObjectRemovalCellsSyncPeriod)
-            .Default(TDuration::MilliSeconds(1000));
+        RegisterParameter("object_removal_cells_sync_period", ObjectRemovalCellsSyncPeriod)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 

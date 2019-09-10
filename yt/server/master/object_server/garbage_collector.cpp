@@ -12,6 +12,8 @@
 
 #include <yt/server/master/object_server/proto/object_manager.pb.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/collection_helpers.h>
@@ -462,13 +464,28 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
         objectIds.push_back(object->GetId());
     }
 
-    // XXX
+    std::vector<TCellId> secondaryCellIds;
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+        secondaryCellIds.push_back(connection->GetMasterCellId(cellTag));
+    }
+
+    std::vector<TFuture<void>> futures;
+    for (auto cellId : secondaryCellIds) {
+        futures.push_back(connection->SyncHiveCellWithOthers(secondaryCellIds, cellId));
+    }
+
+    auto result = WaitFor(Combine(futures));
+    if (!result.IsOK()) {
+        YT_LOG_WARNING(result, "Error synchronizing secondary cells");
+        return;
+    }
 
     NProto::TReqConfirmRemovalAwaitingCellsSyncObjects request;
     ToProto(request.mutable_object_ids(), objectIds);
 
-    YT_LOG_DEBUG("Confirming removal awaiting cells sync objects (Count: %v)",
-        request.object_ids_size());
+    YT_LOG_DEBUG("Confirming removal awaiting cells sync objects (ObjectIds: %v)",
+        objectIds);
 
     auto asyncResult = CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
