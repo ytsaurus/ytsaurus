@@ -618,7 +618,7 @@ public:
         bool AreEmpty() const;
     };
 
-    const TAttributes* Attributes() const;
+    const TAttributes* FindAttributes() const;
     void SetAttributes(const TAttributes* attributes);
 
 private:
@@ -674,7 +674,7 @@ protected:
     {
         TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        clonedTrunkNode->SetAttributes(sourceNode->Attributes());
+        clonedTrunkNode->SetAttributes(sourceNode->FindAttributes());
 
         if (clonedTrunkNode->GetTabletCellBundle()) {
             const auto& objectManager = this->Bootstrap_->GetObjectManager();
@@ -689,7 +689,7 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
-        branchedNode->SetAttributes(originatingNode->Attributes());
+        branchedNode->SetAttributes(originatingNode->FindAttributes());
 
         if (branchedNode->GetTabletCellBundle()) {
             const auto& objectManager = this->Bootstrap_->GetObjectManager();
@@ -722,7 +722,7 @@ protected:
             objectManager->UnrefObject(originatingNode->GetTabletCellBundle());
         }
 
-        originatingNode->SetAttributes(branchedNode->Attributes());
+        originatingNode->SetAttributes(branchedNode->FindAttributes());
     }
 
     virtual bool HasBranchedChangesImpl(
@@ -733,8 +733,8 @@ protected:
             return true;
         }
 
-        auto* originatingAttributes = originatingNode->Attributes();
-        auto* branchedAttributes = originatingNode->Attributes();
+        auto* originatingAttributes = originatingNode->FindAttributes();
+        auto* branchedAttributes = originatingNode->FindAttributes();
 
         if (!originatingAttributes && !branchedAttributes) {
             return false;
@@ -756,7 +756,7 @@ protected:
         TBase::DoBeginCopy(node, context);
 
         using NYT::Save;
-        const auto* attributes = node->Attributes();
+        const auto* attributes = node->FindAttributes();
         Save(*context, attributes != nullptr);
         if (attributes) {
             Save(*context, *attributes);
