@@ -464,7 +464,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoListFor(chunk->Parents(), [] (TFluentList fluent, const TChunk::TParents::value_type& pair) {
                         auto [parent, cardinality] = pair;
-                        for (auto i = cardinality; i < cardinality; ++i) {
+                        for (auto i = 0; i < cardinality; ++i) {
                             fluent
                                 .Item().Value(parent->GetId());
                         }
