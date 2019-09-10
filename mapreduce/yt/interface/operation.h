@@ -624,9 +624,9 @@ struct TRawMapReduceOperationSpec
 // See https://wiki.yandex-team.ru/yt/userdoc/static_schema/#sxemaisistemnyeoperacii
 enum class ESchemaInferenceMode : int
 {
-    FromInput   /* from_input */,
-    FromOutput  /* from_output */,
-    Auto        /* auto */,
+    FromInput   /* "from_input" */,
+    FromOutput  /* "from_output" */,
+    Auto        /* "auto" */,
 };
 
 struct TSortOperationSpec
