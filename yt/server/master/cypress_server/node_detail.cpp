@@ -770,7 +770,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
         // Reconstruct ChildToKey map.
         for (const auto& [key, childNode] : keyToChild) {
             if (childNode) {
-                YT_VERIFY(childToKey.insert(std::make_pair(childNode, key)).second);
+                YT_VERIFY(childToKey.emplace(childNode, key).second);
             }
         }
     } else {
@@ -859,36 +859,32 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
     auto& keyToChild = originatingNode->MutableKeyToChild(objectManager);
     auto& childToKey = originatingNode->MutableChildToKey(objectManager);
 
-    for (const auto& pair : SortHashMapByKeys(branchedNode->KeyToChild())) {
-        const auto& key = pair.first;
-        auto* trunkChildNode = pair.second;
-
+    for (const auto& [key, trunkChildNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
         auto it = keyToChild.find(key);
         if (trunkChildNode) {
-
             objectManager->RefObject(trunkChildNode);
 
             if (it == keyToChild.end()) {
                 // Originating: missing
-                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
-                YT_VERIFY(keyToChild.insert(std::make_pair(key, trunkChildNode)).second);
+                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
+                YT_VERIFY(keyToChild.emplace(key, trunkChildNode).second);
             } else if (it->second) {
                 // Originating: present
                 objectManager->UnrefObject(it->second);
                 YT_VERIFY(childToKey.erase(it->second) == 1);
-                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
                 it->second = trunkChildNode;
             } else {
                 // Originating: tombstone
                 it->second = trunkChildNode;
-                YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
             }
         } else {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    YT_VERIFY(keyToChild.insert(std::make_pair(key, nullptr)).second);
+                    YT_VERIFY(keyToChild.emplace(key, nullptr).second);
                 }
             } else if (it->second) {
                 // Originating: present
@@ -948,17 +944,14 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
     auto& clonedNodeKeyToChild = clonedTrunkNode->MutableKeyToChild(objectManager);
     auto& clonedNodeChildToKey = clonedTrunkNode->MutableChildToKey(objectManager);
 
-    for (const auto& pair : keyToChildList) {
-        const auto& key = pair.first;
-        auto* trunkChildNode = pair.second;
-
+    for (const auto& [key, trunkChildNode] : keyToChildList) {
         auto* childNode = cypressManager->GetVersionedNode(trunkChildNode, transaction);
 
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        YT_VERIFY(clonedNodeKeyToChild.insert(std::make_pair(key, clonedTrunkChildNode)).second);
-        YT_VERIFY(clonedNodeChildToKey.insert(std::make_pair(clonedTrunkChildNode, key)).second);
+        YT_VERIFY(clonedNodeKeyToChild.emplace(key, clonedTrunkChildNode).second);
+        YT_VERIFY(clonedNodeChildToKey.emplace(clonedTrunkChildNode, key).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
 
@@ -1026,8 +1019,8 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
         auto* childNode = factory->EndCopyNode(context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
-        YT_VERIFY(keyToChild.insert(std::make_pair(key, trunkChildNode)).second);
-        YT_VERIFY(childToKey.insert(std::make_pair(trunkChildNode, key)).second);
+        YT_VERIFY(keyToChild.emplace(key, trunkChildNode).second);
+        YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
 
         AttachChild(objectManager, trunkNode->GetTrunkNode(), childNode);
 
@@ -1067,7 +1060,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
     // Reconstruct ChildToIndex.
     for (int index = 0; index < IndexToChild_.size(); ++index) {
-        YT_VERIFY(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
+        YT_VERIFY(ChildToIndex_.emplace(IndexToChild_[index], index).second);
     }
 }
 
@@ -1162,7 +1155,7 @@ void TListNodeTypeHandler::DoClone(
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedTrunkNode->IndexToChild().push_back(clonedChildTrunkNode);
-        YT_VERIFY(clonedTrunkNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
+        YT_VERIFY(clonedTrunkNode->ChildToIndex().emplace(clonedChildTrunkNode, index).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
     }
@@ -1208,13 +1201,13 @@ void TListNodeTypeHandler::DoEndCopy(
     auto& indexToChild = trunkNode->IndexToChild();
     auto& childToIndex = trunkNode->ChildToIndex();
 
-    size_t size = TSizeSerializer::Load(*context);
-    for (size_t index = 0; index < size; ++index) {
+    int size = static_cast<int>(TSizeSerializer::Load(*context));
+    for (int index = 0; index < size; ++index) {
         auto* childNode = factory->EndCopyNode(context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
         indexToChild.push_back(trunkChildNode);
-        YT_VERIFY(childToIndex.insert(std::make_pair(trunkChildNode, index)).second);
+        YT_VERIFY(childToIndex.emplace(trunkChildNode, index).second);
 
         AttachChild(objectManager, trunkNode, childNode);
     }
