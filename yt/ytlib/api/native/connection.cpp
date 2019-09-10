@@ -17,6 +17,7 @@
 #include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+    #include <yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/evaluator.h>
@@ -360,6 +361,34 @@ public:
     virtual bool IsTerminated() override
     {
         return Terminated_;
+    }
+
+    virtual TFuture<void> SyncHiveCellWithOthers(
+        const std::vector<TCellId>& srcCellIds,
+        TCellId dstCellId) override
+    {
+        YT_LOG_DEBUG("Started synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
+            srcCellIds,
+            dstCellId);
+
+        auto channel = CellDirectory_->GetChannelOrThrow(dstCellId);
+        THiveServiceProxy proxy(std::move(channel));
+
+        auto req = proxy.SyncWithOthers();
+        req->SetTimeout(Config_->HiveSyncRpcTimeout);
+        ToProto(req->mutable_src_cell_ids(), srcCellIds);
+
+        return req->Invoke()
+            .Apply(BIND([=] (const THiveServiceProxy::TErrorOrRspSyncWithOthersPtr& rspOrError) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error synchronizing Hive cell %v with %v",
+                    dstCellId,
+                    srcCellIds);
+                YT_LOG_DEBUG("Finished synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
+                    srcCellIds,
+                    dstCellId);
+            }));
     }
 
 private:

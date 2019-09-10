@@ -64,6 +64,10 @@ struct IConnection
 
     virtual void Terminate() = 0;
     virtual bool IsTerminated() = 0;
+
+    virtual TFuture<void> SyncHiveCellWithOthers(
+        const std::vector<NElection::TCellId>& srcCellIds,
+        NElection::TCellId dstCellId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

@@ -20,8 +20,6 @@
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <yt/ytlib/hive/helpers.h>
-
 #include <yt/core/ypath/tokenizer.h>
 
 namespace NYT::NApi::NNative {
@@ -280,11 +278,9 @@ private:
         const auto& connection = Client_->GetNativeConnection();
         std::vector<TFuture<void>> futures;
         for (auto externalCellTag : ExternalCellTags_) {
-            futures.push_back(SyncHiveCellWithOthers(
-                connection->GetCellDirectory(),
+            futures.push_back(connection->SyncHiveCellWithOthers(
                 {connection->GetMasterCellId(nodeCellTag)},
-                connection->GetMasterCellId(externalCellTag),
-                connection->GetConfig()->HiveSyncRpcTimeout));
+                connection->GetMasterCellId(externalCellTag)));
         }
 
         auto error = WaitFor(Combine(futures));
