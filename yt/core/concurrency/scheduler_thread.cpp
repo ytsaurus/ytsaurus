@@ -23,7 +23,7 @@ void ResumeFiber(TFiberPtr fiber)
     YT_VERIFY(fiber->GetState() == EFiberState::Sleeping);
     fiber->SetSuspended();
 
-    GetCurrentScheduler()->YieldTo(std::move(fiber));
+    YieldToFiber(std::move(fiber));
 }
 
 void UnwindFiber(TFiberPtr fiber)
@@ -349,8 +349,6 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
 
 void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
 {
-    SetCurrentInvoker(invoker, fiber.Get());
-
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
     auto resumer = BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, fiber);
@@ -384,13 +382,6 @@ bool TSchedulerThread::IsStarted() const
 bool TSchedulerThread::IsShutdown() const
 {
     return Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask;
-}
-
-TFiber* TSchedulerThread::GetCurrentFiber()
-{
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    return CurrentFiber_.Get();
 }
 
 void TSchedulerThread::Return()
@@ -449,6 +440,8 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     auto fiber = CurrentFiber_.Get();
     YT_VERIFY(fiber);
+
+    SetCurrentInvoker(invoker);
 
     // NB: This may throw TFiberCanceledException;
     // therefore this call must come first and succeed before we update our internal state.

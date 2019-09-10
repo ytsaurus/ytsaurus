@@ -35,7 +35,6 @@ public:
     bool IsStarted() const;
     bool IsShutdown() const;
 
-    virtual TFiber* GetCurrentFiber() override;
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
