@@ -24,8 +24,6 @@
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
 
-#include <yt/ytlib/hive/helpers.h>
-
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>

@@ -15,8 +15,6 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/hive/helpers.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
