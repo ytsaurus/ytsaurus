@@ -414,9 +414,7 @@ b"""
             table_permission_cache = {
                 expire_after_failed_update_time = 0;
             };
-        };
-        resource_limits_cache = {
-            table_permission_cache = {
+            resource_limits_cache = {
                 expire_after_failed_update_time = 0;
             };
         };
