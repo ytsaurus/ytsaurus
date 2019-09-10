@@ -1344,6 +1344,7 @@ private:
             auto oldConfigNode = ConvertToNode(Config_);
             auto newConfigNode = ConvertToNode(newConfig);
             if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+                YT_LOG_INFO("Controller agent configuration is not changed");
                 return;
             }
 
