@@ -219,6 +219,7 @@
     XX(ReplicationStatus, replication_status) \
     XX(RequestCount, request_count) \
     XX(RequestQueueSizeLimit, request_queue_size_limit) \
+    XX(RequestLimits, request_limits) \
     XX(Requisition, requisition) \
     XX(ResourceLimits, resource_limits) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \

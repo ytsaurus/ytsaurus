@@ -1359,6 +1359,11 @@ public:
         RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
 
+    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+    {
+        RequestTracker_->SetUserRequestLimits(user, std::move(config));
+    }
+
     void SetUserRequestQueueSizeLimit(TUser* user, int limit)
     {
         RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
@@ -3318,6 +3323,11 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUse
 void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
     Impl_->SetUserRequestRateLimit(user, limit, type);
+}
+
+void TSecurityManager::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+{
+    Impl_->SetUserRequestLimits(user, std::move(config));
 }
 
 void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)

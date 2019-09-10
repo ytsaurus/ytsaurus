@@ -1117,7 +1117,8 @@ private:
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit());
+                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag()))
+                    << TErrorAttribute("cell_tag", Bootstrap_->GetCellTag());
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
             }

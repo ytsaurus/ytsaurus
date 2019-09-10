@@ -156,6 +156,12 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
     ReconfigureUserRequestRateThrottler(user);
 }
 
+void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+{
+    user->SetRequestLimits(config);
+    ReconfigureUserRequestRateThrottler(user);
+}
+
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
@@ -166,7 +172,7 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
 
-        auto requestRateLimit = user->GetRequestRateLimit(workloadType);
+        auto requestRateLimit = user->GetRequestRateLimit(workloadType, Bootstrap_->GetCellTag());
 
         // If there're three or more peers, divide user limits by the number of
         // followers (because it's they who handle read requests).
@@ -190,7 +196,7 @@ void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)
 bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
 {
     auto size = user->GetRequestQueueSize();
-    auto limit = user->GetRequestQueueSizeLimit();
+    auto limit = user->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag());
     if (size >= limit) {
         return false;
     }
