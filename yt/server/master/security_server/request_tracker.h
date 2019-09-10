@@ -42,6 +42,10 @@ public:
         int limit,
         EUserWorkloadType type);
 
+    void SetUserRequestLimits(
+        TUser* user,
+        TUserRequestLimitsConfigPtr config);
+
     void ReconfigureUserRequestRateThrottler(TUser* user);
 
     void SetUserRequestQueueSizeLimit(

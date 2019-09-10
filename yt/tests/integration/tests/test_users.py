@@ -70,6 +70,15 @@ class TestUsers(YTEnvSetup):
         set("//sys/users/u/@request_queue_size_limit", 1)
         ls("/", authenticated_user="u")
 
+    @authors("aozeritsky")
+    def test_request_limits_per_cell(self):
+        create_user("u")
+        set("//sys/users/u/@request_limits/read_request_rate/default", 1337)
+        assert(get("//sys/users/u/@request_limits/read_request_rate/default") == 1337)
+
+        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"0": 1337})
+        assert(get("//sys/users/u/@request_limits/read_request_rate/per_cell/0") == 1337)
+
     @authors("babenko")
     def test_access_counter1(self):
         create_user("u")

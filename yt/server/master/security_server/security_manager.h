@@ -336,6 +336,9 @@ public:
     //! Updates the user request queue size limit.
     void SetUserRequestQueueSizeLimit(TUser* user, int limit);
 
+    //! Updates the user request limit options.
+    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config);
+
     //! Attempts to increase the queue size for a given #user and validates the limit.
     //! Returns |true| on success.
     bool TryIncreaseRequestQueueSize(TUser* user);

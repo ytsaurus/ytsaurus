@@ -93,6 +93,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddRefsFromTransactionToUsageAccounts)                         (911))  // babenko
     ((ExternalizedTransactions)                                      (912))  // babenko
     ((SyncCellsBeforeRemoval)                                        (913))  // babenko
+    ((RequestLimits)                                                 (914))  // aozeritsky
 );
 
 ////////////////////////////////////////////////////////////////////////////////
