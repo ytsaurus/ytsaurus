@@ -139,9 +139,11 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):
-        op = run_test_vanilla(":", spec={"testing": {"delay_during_prepare": 1000}})
+        op = run_test_vanilla(":", spec={"testing": {"delay_inside_prepare": 2000}})
+        wait(lambda: op.get_state() == "preparing", sleep_backoff=0.1)
         update_op_parameters(op.id, parameters={"pool": "another_pool"})
-        # core was in MaterializeOperation
+        assert op.get_state() == "preparing"
+        # YT-11311: core was in MaterializeOperation.
         op.track()
 
     @authors("renadeen")
