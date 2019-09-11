@@ -1,7 +1,7 @@
 PySpark Stubs
 =============
 
-|Build Status| |PyPI version|
+|Build Status| |PyPI version| |Conda Forge version|
 
 A collection of the Apache Spark `stub
 files <https://www.python.org/dev/peps/pep-0484/#stub-files>`__. These
@@ -279,6 +279,8 @@ sponsored by The Apache Software Foundation.
    :target: https://travis-ci.org/zero323/pyspark-stubs
 .. |PyPI version| image:: https://badge.fury.io/py/pyspark-stubs.svg
    :target: https://badge.fury.io/py/pyspark-stubs
+.. |Conda Forge version| image:: https://img.shields.io/conda/vn/conda-forge/pyspark-stubs.svg
+   :target: https://anaconda.org/conda-forge/pyspark-stubs
 .. |SPARK-20631| image:: https://i.imgur.com/GfDCGjv.gif
      :alt: SPARK-20631
 .. |Syntax completion| image:: https://i.imgur.com/qvkLTAp.gif
