@@ -264,6 +264,11 @@ public:
                 type);
         }
 
+        if (None(handler->GetFlags() & ETypeFlags::Creatable)) {
+            THROW_ERROR_EXCEPTION("Nodes of type %Qlv cannot be created explicitly",
+                type);
+        }
+
         std::unique_ptr<IAttributeDictionary> explicitAttributeHolder;
         if (!explicitAttributes) {
             explicitAttributeHolder = CreateEphemeralAttributes();
