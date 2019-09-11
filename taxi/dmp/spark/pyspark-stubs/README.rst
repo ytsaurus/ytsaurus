@@ -277,8 +277,8 @@ sponsored by The Apache Software Foundation.
 
 .. |Build Status| image:: https://travis-ci.org/zero323/pyspark-stubs.svg?branch=master
    :target: https://travis-ci.org/zero323/pyspark-stubs
-.. |PyPI version| image:: https://badge.fury.io/py/pyspark-stubs.svg
-   :target: https://badge.fury.io/py/pyspark-stubs
+.. |PyPI version| image:: https://img.shields.io/pypi/v/pyspark-stubs.svg
+   :target: https://pypi.org/project/pyspark-stubs/
 .. |Conda Forge version| image:: https://img.shields.io/conda/vn/conda-forge/pyspark-stubs.svg
    :target: https://anaconda.org/conda-forge/pyspark-stubs
 .. |SPARK-20631| image:: https://i.imgur.com/GfDCGjv.gif
