@@ -704,6 +704,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 RegisterNode(nodeId, TNodeDescriptor(address), ENodeState::Offline);
             } else {
                 // Skip nodes that offline both at master and at scheduler.
+                YT_LOG_DEBUG("Skipping node since it is offline both at scheduler and at master (NodeId: %v, NodeAddress: %v)",
+                    nodeId,
+                    address);
                 continue;
             }
         }
