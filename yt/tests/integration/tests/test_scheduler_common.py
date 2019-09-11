@@ -4674,3 +4674,58 @@ class TestContainerCpuLimit(YTEnvSetup):
         cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
         assert cpu_usage < 2500
 
+class TestNodeDoubleRegistration(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_heartbeat_timeout": 10000
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 10000,
+            "lease_transaction_ping_period": 10000,
+            "register_timeout": 10000,
+            "incremental_heartbeat_timeout": 10000,
+            "full_heartbeat_timeout": 10000,
+            "job_heartbeat_timeout": 10000,
+        }
+    }
+
+    def test_remove(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            remove("//sys/nodes/" + node)
+
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+    # It is disabled since Restarter await node to become online, this wait fails for banned node.
+    def disabled_test_remove_banned(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        set_banned_flag(True, [node])
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")

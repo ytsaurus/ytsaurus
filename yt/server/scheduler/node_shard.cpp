@@ -388,6 +388,18 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
         operationId);
 }
 
+void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto it = IdToNode_.find(nodeId);
+    if (it != IdToNode_.end()) {
+        const auto& node = it->second;
+        UnregisterNode(node);
+        RemoveNode(node);
+    }
+}
+
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     GetInvoker()->Invoke(
@@ -607,26 +619,25 @@ void TNodeShard::UpdateExecNodeDescriptors()
 
     auto now = TInstant::Now();
 
-    std::vector<TNodeId> nodeIdsToRemove;
+    std::vector<TExecNodePtr> nodesToRemove;
 
     auto result = New<TRefCountedExecNodeDescriptorMap>();
     result->reserve(IdToNode_.size());
-    for (const auto& pair : IdToNode_) {
-        auto nodeId = pair.first;
-        const auto& node = pair.second;
+    for (const auto& [nodeId, node] : IdToNode_) {
         if (node->GetLastSeenTime() + Config_->MaxOfflineNodeAge > now) {
-            YT_VERIFY(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
+            YT_VERIFY(result->emplace(nodeId, node->BuildExecDescriptor()).second);
         } else {
-            if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
-                TLeaseManager::CloseLease(node->GetRegistrationLease());
-                TLeaseManager::CloseLease(node->GetHeartbeatLease());
-                nodeIdsToRemove.push_back(nodeId);
+            if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online && node->GetSchedulerState() == ENodeState::Offline) {
+                nodesToRemove.push_back(node);
             }
         }
     }
 
-    for (auto nodeId : nodeIdsToRemove) {
-        YT_VERIFY(IdToNode_.erase(nodeId));
+    for (const auto& node : nodesToRemove) {
+        YT_LOG_INFO("Node has not seen more that %v seconds, remove it (NodeId: %v, Address: %v)",
+            node->GetId(),
+            node->GetDefaultAddress());
+        RemoveNode(node);
     }
 
     {
@@ -657,6 +668,36 @@ void TNodeShard::UpdateNodeState(
             newMasterState,
             oldSchedulerState,
             newSchedulerState);
+    }
+}
+
+void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (!Connected_) {
+        return;
+    }
+
+    auto nodeAddressesSet = THashSet<TString>(nodeAddresses.begin(), nodeAddresses.end());
+
+    std::vector<TExecNodePtr> nodesToUnregister;
+    for (const auto& [id, node] : IdToNode_) {
+        auto it = nodeAddressesSet.find(node->GetDefaultAddress());
+        if (it == nodeAddressesSet.end()) {
+            nodesToUnregister.push_back(node);
+        }
+    }
+
+    for (const auto& node : nodesToUnregister) {
+        YT_LOG_DEBUG(
+            "Node is not found at master, unregister and remove it "
+            "(NodeId: %v, NodeShardId: %v, Address: %v)",
+            node->GetId(),
+            Id_,
+            node->GetDefaultAddress());
+        UnregisterNode(node);
+        RemoveNode(node);
     }
 }
 
@@ -744,6 +785,8 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
             ++nodeChangesCount;
             continue;
+        } else if (oldState != newState) {
+            UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
         }
 
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags) {
@@ -761,13 +804,13 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                     SubtractNodeResources(execNode);
                     AbortAllJobsAtNode(execNode);
                 }
-                UpdateNodeState(execNode, newState, ENodeState::Offline, error);
+                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ ENodeState::Offline, error);
             } else {
                 if (oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) {
                     AddNodeResources(execNode);
                 }
                 execNode->Tags() = tags;
-                UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
+                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ execNode->GetSchedulerState());
             }
             ++nodeChangesCount;
         }
@@ -1367,12 +1410,11 @@ void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
     YT_VERIFY(it != IdToNode_.end());
-
     const auto& node = it->second;
 
     // We intentionally do not abort jobs here, it will happen when RegistrationLease expired or
     // at node attributes update by separate timeout.
-    node->SetSchedulerState(ENodeState::Offline);
+    UpdateNodeState(node, /* newMasterState */ node->GetMasterState(), /* newSchedulerState */ ENodeState::Offline);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeHeartbeatTimeout,
@@ -1408,6 +1450,19 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     YT_LOG_INFO("Node registered (Address: %v)", address);
 
     return node;
+}
+
+void TNodeShard::RemoveNode(TExecNodePtr node)
+{
+    TLeaseManager::CloseLease(node->GetRegistrationLease());
+    TLeaseManager::CloseLease(node->GetHeartbeatLease());
+
+    IdToNode_.erase(node->GetId());
+
+    YT_LOG_INFO("Node removed (NodeId: %v, Address: %v, NodeShardId: %v)",
+        node->GetId(),
+        node->GetDefaultAddress(),
+        Id_);
 }
 
 void TNodeShard::UnregisterNode(const TExecNodePtr& node)

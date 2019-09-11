@@ -119,9 +119,12 @@ public:
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
+    void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
+
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
+    void RemoveMissingNodes(const std::vector<TString>& nodeAddresses);
     std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated);
@@ -295,6 +298,8 @@ private:
     void DoUnregisterNode(const TExecNodePtr& node);
     void OnNodeHeartbeatLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
     void OnNodeRegistrationLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
+    // NB: 'node' passed by value since we want to own it after remove.
+    void RemoveNode(TExecNodePtr node);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node);
     void AbortUnconfirmedJobs(
