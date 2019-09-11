@@ -987,7 +987,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
     auto* uploadTransaction = transactionManager->StartTransaction(
-        /* parent */ Transaction,
+        /* parent */ Transaction_,
         /* prerequisiteTransactions */ {},
         replicatedToCellTags,
         replicateStartToCellTags,
@@ -998,7 +998,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         uploadTransactionIdHint);
 
     auto* lockedNode = cypressManager
-        ->LockNode(TrunkNode, uploadTransaction, lockMode, false, true)
+        ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
     switch (uploadContext.Mode) {
@@ -1094,9 +1094,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     if (node->IsExternal()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto externalizedTransactionId = Transaction && Transaction->IsForeign()
-            ? transactionManager->ExternalizeTransaction(Transaction, externalCellTag)
-            : GetObjectId(Transaction);
+        auto externalizedTransactionId = Transaction_ && Transaction_->IsForeign()
+            ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
+            : GetObjectId(Transaction_);
 
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
         SetTransactionId(replicationRequest, externalizedTransactionId);
@@ -1230,7 +1230,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateInUpdate();
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YT_VERIFY(node->GetTransaction() == Transaction);
+    YT_VERIFY(node->GetTransaction() == Transaction_);
 
     if (node->IsExternal()) {
         ExternalizeToMaster(context, node->GetExternalCellTag());
@@ -1242,7 +1242,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     if (node->IsNative()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->CommitTransaction(Transaction, NullTimestamp);
+        transactionManager->CommitTransaction(Transaction_, NullTimestamp);
     }
 
     context->Reply();
