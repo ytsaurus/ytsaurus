@@ -73,13 +73,13 @@ protected:
 
     class TResourceUsageVisitor;
 
-    NTransactionServer::TTransaction* const Transaction;
-    TCypressNode* const TrunkNode;
+    NTransactionServer::TTransaction* const Transaction_;
+    TCypressNode* const TrunkNode_;
 
-    mutable TCypressNode* CachedNode = nullptr;
+    mutable TCypressNode* CachedNode_ = nullptr;
 
-    bool AccessTrackingSuppressed = false;
-    bool ModificationTrackingSuppressed = false;
+    bool AccessTrackingSuppressed_ = false;
+    bool ModificationTrackingSuppressed_ = false;
 
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
@@ -252,7 +252,6 @@ protected:
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,18 +341,22 @@ template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>
 {
+private:
+    using TBase =  TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>;
+
 public:
-    TScalarNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TScalarNode<TValue>* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TBase::TBase;
+//    TScalarNodeProxy(
+//        NCellMaster::TBootstrap* bootstrap,
+//        NObjectServer::TObjectTypeMetadata* metadata,
+//        NTransactionServer::TTransaction* transaction,
+//        TScalarNode<TValue>* trunkNode)
+//        : TBase(
+//            bootstrap,
+//            metadata,
+//            transaction,
+//            trunkNode)
+//    { }
 
     virtual NYTree::ENodeType GetType() const override
     {
@@ -373,8 +376,6 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl> TBase;
-
     virtual void ValidateValue(typename NMpl::TCallTraits<TValue>::TType /*value*/)
     { }
 };
@@ -463,8 +464,10 @@ class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
+private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
 
+public:
     YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Map)
 
 public:
@@ -521,8 +524,10 @@ class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
+private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
 
+public:
     YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(List)
 
 public:
