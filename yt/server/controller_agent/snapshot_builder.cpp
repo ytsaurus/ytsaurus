@@ -310,12 +310,17 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
         if (!job->Suspended || !controller || !controller->IsRunning()) {
             continue;
         }
-        auto cancelableInvoker = controller->GetCancelableContext()->CreateInvoker(IOInvoker_);
+        const auto& cancelableContext = controller->GetCancelableContext();
+        auto cancelableInvoker = cancelableContext->CreateInvoker(IOInvoker_);
+        auto operationId = job->OperationId;
+        auto snapshotIndex = job->Cookie.SnapshotIndex;
         auto uploadFuture = BIND(
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
             Passed(std::move(job)))
-                .AsyncVia(cancelableInvoker)
+                .AsyncViaGuarded(cancelableInvoker, TError("Can't upload snapshot for canceled controller")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("snapshot_index", snapshotIndex))
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }

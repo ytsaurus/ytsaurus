@@ -243,6 +243,14 @@ public:
     TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker) const;
 
+    //! This version of AsyncVia is designed for cases when invoker may discard submitted callbacks
+    //! (for example, if it is cancellable invoker). Regular AsyncVia results in "Promise abandoned"
+    //! error, which is almost non-informative and quite frustrating, while this overload
+    //! allows you to specify the cancellation error, which costs a bit more allocations
+    //! but much more convenient.
+    TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
+    AsyncViaGuarded(TIntrusivePtr<IInvoker> invoker, TError cancellationError) const;
+
 private:
     typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&& ...);
 
