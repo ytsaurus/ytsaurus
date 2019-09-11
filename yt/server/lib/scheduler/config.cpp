@@ -446,6 +446,9 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(4)
         .GreaterThan(0);
 
+    RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
+        .Default(true);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

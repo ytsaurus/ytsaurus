@@ -472,7 +472,7 @@ public:
     TDuration MaxNodeUnseenPeriodToAbortJobs;
 
     //! By default, when the scheduler encounters a malformed operation spec during revival, it disconnects.
-    //! This serves as a safeguard protecting us from accidentially failing all operations in case a bug
+    //! This serves as a safeguard protecting us from accidentally failing all operations in case a bug
     //! is introduced in spec parser. This option, when set to true, overrides this behavior and enables
     //! such operations to be just skipped.
     bool SkipOperationsWithMalformedSpecDuringRevival;
@@ -480,6 +480,11 @@ public:
     //! The number of threads in OrchidWorker thread pool used for serving reads from
     //! the scheduler's orchid.
     int OrchidWorkerThreadCount;
+
+    //! This option enables special logic to handle the situation when node has changed the id.
+    //! To prevent node duplication in orchid we must detect such situations and immediately remove node from old node shard.
+    //! This option can cause performance issues.
+    bool HandleNodeIdChangesStrictly;
 
     TSchedulerConfig();
 };

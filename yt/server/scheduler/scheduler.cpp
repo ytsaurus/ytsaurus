@@ -185,6 +185,8 @@ public:
             CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
+        HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
+
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
         OperationsCleaner_->SubscribeOperationsArchived(BIND(&TImpl::OnOperationsArchived, MakeWeak(this)));
@@ -965,7 +967,32 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        // We extract operation states here as they may be accessed only from
+        TFuture<void> unregisterFuture;
+
+        if (HandleNodeIdChangesStrictly_)
+        {
+            auto guard = Guard(NodeAddressToNodeShardIdLock_);
+
+            auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+            const auto& address = descriptor.GetDefaultAddress();
+            auto it = NodeAddressToNodeShardId_.find(address);
+            if (it != NodeAddressToNodeShardId_.end()) {
+                int oldNodeId = it->second;
+                if (nodeId != oldNodeId) {
+                    auto nodeShard = GetNodeShard(oldNodeId);
+                    unregisterFuture =
+                        BIND(&TNodeShard::UnregisterAndRemoveNodeById, GetNodeShard(oldNodeId), oldNodeId)
+                            .AsyncVia(nodeShard->GetInvoker())
+                            .Run();
+                }
+            }
+            NodeAddressToNodeShardId_[address] = nodeId;
+        }
+
+        if (unregisterFuture) {
+            WaitFor(unregisterFuture)
+                .ThrowOnError();
+        }
 
         const auto& nodeShard = GetNodeShard(nodeId);
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
@@ -1306,6 +1333,11 @@ private:
     };
 
     THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
+
+    // Special map to support node consistency between node shards YT-11381.
+    std::atomic<bool> HandleNodeIdChangesStrictly_;
+    TSpinLock NodeAddressToNodeShardIdLock_;
+    THashMap<TString, int> NodeAddressToNodeShardId_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
@@ -1821,27 +1853,41 @@ private:
             const auto& rsp = rspOrError.Value();
             auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
             std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
-            std::vector<TFuture<std::vector<TError>>> shardFutures;
+            std::vector<std::vector<TString>> nodeAddressesForShard(NodeShards_.size());
+
             for (const auto& child : nodesList->GetChildren()) {
                 auto address = child->GetValue<TString>();
                 auto objectId = child->Attributes().Get<TObjectId>("id");
                 auto nodeId = NodeIdFromObjectId(objectId);
                 auto nodeShardId = GetNodeShardId(nodeId);
+                nodeAddressesForShard[nodeShardId].push_back(address);
                 nodesForShard[nodeShardId].emplace_back(address, child);
             }
 
+            std::vector<TFuture<void>> removeFutures;
             for (int i = 0 ; i < NodeShards_.size(); ++i) {
                 auto& nodeShard = NodeShards_[i];
-                shardFutures.push_back(
+                removeFutures.push_back(
+                    BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
+                        .AsyncVia(nodeShard->GetInvoker())
+                        .Run(std::move(nodeAddressesForShard[i])));
+            }
+            WaitFor(Combine(removeFutures))
+                .ThrowOnError();
+
+            std::vector<TFuture<std::vector<TError>>> handleFutures;
+            for (int i = 0 ; i < NodeShards_.size(); ++i) {
+                auto& nodeShard = NodeShards_[i];
+                handleFutures.push_back(
                     BIND(&TNodeShard::HandleNodesAttributes, nodeShard)
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run(std::move(nodesForShard[i])));
             }
-            auto shardsErrors = WaitFor(Combine(shardFutures))
+            auto handleErrors = WaitFor(Combine(handleFutures))
                 .ValueOrThrow();
 
             std::vector<TError> allErrors;
-            for (auto& errors : shardsErrors) {
+            for (auto& errors : handleErrors) {
                 for (auto& error : errors) {
                     allErrors.emplace_back(std::move(error));
                 }
@@ -1947,6 +1993,8 @@ private:
 
             Config_ = newConfig;
             ValidateConfig();
+
+            HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
