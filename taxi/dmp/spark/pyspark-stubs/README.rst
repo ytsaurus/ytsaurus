@@ -59,7 +59,12 @@ The package is available on PYPI:
 .. code:: bash
 
     pip install pyspark-stubs
+    
+and conda-forge:
 
+.. code:: bash
+
+    conda install -c conda-forge pyspark-stubs
 
 Depending on your environment you might also need a type checker, like `Mypy <https://github.com/python/mypy>`__
 or `Pytype <https://github.com/google/pytype/>`__.
