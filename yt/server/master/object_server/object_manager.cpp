@@ -424,6 +424,7 @@ public:
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
+        // XXX(babenko): profiling
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
             "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
