@@ -371,6 +371,8 @@ private:
                 cellTag,
                 entry.Index);
         }
+
+        RecomputeMasterCellRoles();
     }
 
     virtual void Clear() override
@@ -460,9 +462,7 @@ private:
 
 
     void OnStartEpoch()
-    {
-        RecomputeMasterCellRoles();
-    }
+    { }
 
     void OnStopEpoch()
     {
