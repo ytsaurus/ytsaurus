@@ -1175,10 +1175,12 @@ private:
 
         TOperationIdToWeakControllerMap weakControllerMap;
 
-        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controllerMap = controllerAgent->GetOperations();
-        for (const auto& pair : controllerMap) {
-            weakControllerMap.insert({pair.first, pair.second->GetController()});
+        {
+            const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+            auto controllerMap = controllerAgent->GetOperations();
+            for (const auto& pair : controllerMap) {
+                weakControllerMap.insert({pair.first, pair.second->GetController()});
+            }
         }
 
         auto builder = New<TSnapshotBuilder>(
