@@ -188,13 +188,14 @@ public:
             candidates.emplace_back(cellTag, chunkCount);
         };
 
-        if (Bootstrap_->IsSecondaryMaster()) {
+        if (Bootstrap_->IsSecondaryMaster() && !Bootstrap_->IsMulticell()) {
             maybeAddCandidate(
                 Bootstrap_->GetCellTag(),
                 Bootstrap_->GetChunkManager()->Chunks().size());
-        }
-        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
-            maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
+        } else {
+            for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+                maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
+            }
         }
 
         // Sanity check.
