@@ -67,7 +67,7 @@ TProgram::~TProgram() = default;
 
 int TProgram::Run(int argc, const char** argv)
 {
-    TThread::CurrentThreadSetName("ProgramMain");
+    TThread::SetCurrentThreadName("ProgramMain");
 
     srand(time(nullptr));
 
