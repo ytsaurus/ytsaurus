@@ -45,11 +45,13 @@ TDuration ComputeForwardingTimeout(
         return config->DefaultExecuteTimeout;
     }
 
-    return
+    auto timeout =
         *context->GetStartTime() +
         *context->GetTimeout() -
-        NProfiling::GetInstant() -
-        config->ForwardedRequestTimeoutReserve;
+        NProfiling::GetInstant();
+    return timeout > 2 * config->ForwardedRequestTimeoutReserve
+        ? timeout - config->ForwardedRequestTimeoutReserve
+        : timeout;
 }
 
 
