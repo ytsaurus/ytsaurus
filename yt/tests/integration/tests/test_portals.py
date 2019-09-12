@@ -30,6 +30,11 @@ class TestPortals(YTEnvSetup):
 
 
     @authors("babenko")
+    def test_cannot_create_portal_exit(self):
+        with pytest.raises(YtError):
+            create("portal_exit", "//tmp/e")
+
+    @authors("babenko")
     def test_validate_cypress_node_host_cell_role(self):
         set("//sys/@config/multicell_manager/cell_roles", {"1": ["chunk_host"]})
         with pytest.raises(YtError):
