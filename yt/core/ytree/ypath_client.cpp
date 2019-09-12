@@ -107,7 +107,7 @@ void TYPathRequest::SetRetry(bool value)
 
 TMutationId TYPathRequest::GetMutationId() const
 {
-    return FromProto<TMutationId>(Header_.mutation_id());
+    return NRpc::GetMutationId(Header_);
 }
 
 void TYPathRequest::SetMutationId(TMutationId id)

@@ -404,6 +404,10 @@ public:
             }
         }
 
+        if (auto mutationId = NRpc::GetMutationId(forwardedRequestHeader)) {
+            SetMutationId(&forwardedRequestHeader, GenerateNextForwardedMutationId(mutationId), forwardedRequestHeader.retry());
+        }
+
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
@@ -1403,6 +1407,10 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
 
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
+    if (auto mutationId = NRpc::GetMutationId(header)) {
+        SetMutationId(&header, GenerateNextForwardedMutationId(mutationId), header.retry());
+    }
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);

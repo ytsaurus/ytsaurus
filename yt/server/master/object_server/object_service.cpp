@@ -805,6 +805,10 @@ private:
             }
         }
 
+        if (auto mutationId = NRpc::GetMutationId(remoteRequestHeader)) {
+            SetMutationId(&remoteRequestHeader, GenerateNextForwardedMutationId(mutationId), remoteRequestHeader.retry());
+        }
+
         subrequest->ForwardedCellTag = forwardedCellTag;
         subrequest->RemoteRequestMessage = SetRequestHeader(subrequest->RequestMessage, remoteRequestHeader);
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
