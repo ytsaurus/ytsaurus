@@ -35,6 +35,17 @@ class TestPortals(YTEnvSetup):
             create("portal_exit", "//tmp/e")
 
     @authors("babenko")
+    def test_cannot_create_portal_to_primary1(self):
+        with pytest.raises(YtError):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 0})
+
+    @authors("babenko")
+    def test_cannot_create_portal_to_primary2(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        with pytest.raises(YtError):
+            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 0})
+
+    @authors("babenko")
     def test_validate_cypress_node_host_cell_role(self):
         set("//sys/@config/multicell_manager/cell_roles", {"1": ["chunk_host"]})
         with pytest.raises(YtError):
@@ -478,107 +489,24 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p1")
         remove("//tmp/p2")
 
-    @pytest.mark.xfail(run=False, reason="ifsmirnov")
     @authors("babenko")
-    def test_cannot_create_portal_exit(self):
-        #  with pytest.raises(YtError):
-        create("portal_exit", "//tmp/exit")
-
+    def test_portal_inside_portal(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        #  with pytest.raises(YtError):
-        create("portal_exit", "//tmp/p/exit")
-
-        config = self.Env.configs["master"][0]
-        build_snapshot(cell_id=config["primary_master"]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][0]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][1]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][2]["cell_id"])
-
-    @pytest.mark.xfail(run=False, reason="ifsmirnov")
-    @authors("babenko")
-    def test_portal_to_self(self):
-        with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 0})
-
-    @pytest.mark.xfail(run=False, reason="ifsmirnov")
-    @authors("babenko")
-    @pytest.mark.parametrize("table_cell_tag", [1, 2])
-    def test_portal_inside_portal_1(self, table_cell_tag):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": inner_portal_cell_tag})
+        create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 2})
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/t", attributes={"external_cell_tag": table_cell_tag})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 3})
         write_table("//tmp/t", TABLE_PAYLOAD)
 
         move("//tmp/t", "//tmp/p/q/t")
-        # Hangs at this point, with master-1 and master-2 constantly restarting
-        # (but, strangely, I didn't get any core dumps).
         assert read_table("//tmp/p/q/t") == TABLE_PAYLOAD
-
-        config = self.Env.configs["master"][0]
-        build_snapshot(cell_id=config["primary_master"]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][0]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][1]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][2]["cell_id"])
-
-    @pytest.mark.xfail(run=False, reason="ifsmirnov")
-    @authors("babenko")
-    def test_portal_inside_portal_2(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
-        # Inner portal cell tag differs.
-        create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 0})
-
-        TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
-        write_table("//tmp/t", TABLE_PAYLOAD)
-
-        with pytest.raises(YtError):
-            # 'Duplicate request is not marked with "retry"'.
-            move("//tmp/t", "//tmp/p/q/table_t")
-
-        # This line hangs as well, btw.
-        assert read_table("//tmp/p/q/t") == TABLE_PAYLOAD
-
-        config = self.Env.configs["master"][0]
-        build_snapshot(cell_id=config["primary_master"]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][0]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][1]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][2]["cell_id"])
-
-    @pytest.mark.xfail(run=False, reason="ifsmirnov")
-    @authors("babenko")
-    @pytest.mark.parametrize("try_doomed_read", [False, True])
-    def test_portal_inside_portal_3(self, try_doomed_read):
-        remove("//home", force=True)
-        create("map_node", "//home")
-        create("portal_entrance", "//home/p", attributes={"exit_cell_tag": 2})
-        create("portal_entrance", "//home/p/q", attributes={"exit_cell_tag": 0})
-
-        TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
-        write_table("//tmp/t", TABLE_PAYLOAD)
-
-        # The only difference is that portals are created in //home instead of //tmp.
-        # Move suddenly works.
-        move("//tmp/t", "//home/p/q/table_t")
-
-        # This still hangs, though on Socrates I read the table successfully.
-        if try_doomed_read:
-            assert read_table("//home/p/q/t") == TABLE_PAYLOAD
-
-        config = self.Env.configs["master"][0]
-        build_snapshot(cell_id=config["primary_master"]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][0]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][1]["cell_id"])
-        build_snapshot(cell_id=config["secondary_masters"][2]["cell_id"])
 
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
-    NUM_SECONDARY_MASTER_CELLS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("babenko")
     def test_cache_populated_on_resolve(self):
