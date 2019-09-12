@@ -777,9 +777,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     auto request = TMutationRequest(header.reign());
     request.Type = header.mutation_type();
-    if (header.has_mutation_id()) {
-        request.MutationId = FromProto<TMutationId>(header.mutation_id());
-    }
+    request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
 
     TMutationContext context(
@@ -872,9 +870,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     auto request = TMutationRequest(MutationHeader_.reign());
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
-    request.MutationId = MutationHeader_.has_mutation_id()
-        ? FromProto<TMutationId>(MutationHeader_.mutation_id())
-        : TMutationId();
+    request.MutationId = MFromProto<TMutationId>(MutationHeader_.mutation_id());
 
     PendingMutations_.emplace(
         version,
