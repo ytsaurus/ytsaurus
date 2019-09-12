@@ -90,6 +90,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
     for (const auto& descriptor : InnerRequestDescriptors_) {
+        // XXX(babenko): drop?
         if (descriptor.Message) {
             req.add_part_counts(descriptor.Message.Size());
         } else {
