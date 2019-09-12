@@ -318,9 +318,11 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
             Passed(std::move(job)))
-                .AsyncViaGuarded(cancelableInvoker, TError("Can't upload snapshot for canceled controller")
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("snapshot_index", snapshotIndex))
+                .AsyncViaGuarded(
+                    cancelableInvoker,
+                    TError("Cannot upload snapshot for canceled controller of operation %v", operationId)
+                        << TErrorAttribute("operation_id", operationId)
+                        << TErrorAttribute("snapshot_index", snapshotIndex))
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
