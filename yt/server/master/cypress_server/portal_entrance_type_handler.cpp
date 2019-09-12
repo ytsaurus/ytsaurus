@@ -66,6 +66,9 @@ private:
         }
 
         auto exitCellTag  = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
+        if (exitCellTag == Bootstrap_->GetPrimaryCellTag()) {
+            THROW_ERROR_EXCEPTION("Portal exit cannot be placed on the primary cell");
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(exitCellTag)) {
