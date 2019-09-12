@@ -22,24 +22,6 @@ namespace NYT {
 
 namespace NDetail {
 
-// Taken from here https://stackoverflow.com/questions/18063451/get-index-of-a-tuple-elements-type
-template <class T, class Tuple>
-struct TIndexOfType;
-
-template <class T, class... Types>
-struct TIndexOfType<T, std::tuple<T, Types...>>
-{
-    static constexpr std::size_t Value = 0;
-};
-
-template <class T, class U, class... Types>
-struct TIndexOfType<T, std::tuple<U, Types...>>
-{
-    static constexpr std::size_t Value = 1 + TIndexOfType<T, std::tuple<Types...>>::Value;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template<class T>
 struct TIsYdlOneOf
     : std::false_type
