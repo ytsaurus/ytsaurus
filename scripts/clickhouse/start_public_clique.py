@@ -33,11 +33,14 @@ def main():
             }],
             "title": args.type.capitalize() + " clique",
             "pool": "chyt",
-            "core_table_path": "//sys/clickhouse/kolkhoz/core_table_" + args.type,
-            "stderr_table_path": "//sys/clickhouse/kolkhoz/stderr_table_" + args.type,
+            "tasks": {"instances": {
+                "core_table_path": "//sys/clickhouse/kolkhoz/core_table_" + args.type,
+                "stderr_table_path": "//sys/clickhouse/kolkhoz/stderr_table_" + args.type,
+            }},
         },
         operation_alias=alias,
-        abort_existing=True)
+        abort_existing=True,
+        dump_tables=True)
 
 
 if __name__ == "__main__": 
