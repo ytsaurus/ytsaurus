@@ -159,7 +159,7 @@ void TSchedulerThread::ThreadMain()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     SetCurrentScheduler(this);
-    TThread::CurrentThreadSetName(ThreadName_.c_str());
+    TThread::SetCurrentThreadName(ThreadName_.c_str());
 
     // Hold this strongly.
     auto this_ = MakeStrong(this);

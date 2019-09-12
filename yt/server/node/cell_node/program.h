@@ -40,7 +40,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("NodeMain");
+        TThread::SetCurrentThreadName("NodeMain");
 
         bool validateSnapshot = parseResult.Has("validate-snapshot");
 
