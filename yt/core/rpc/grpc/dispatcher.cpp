@@ -130,7 +130,7 @@ private:
         void ThreadMain()
         {
             auto threadName = Format("Grpc:%v", Index_);
-            ::TThread::CurrentThreadSetName(threadName.c_str());
+            ::TThread::SetCurrentThreadName(threadName.c_str());
 
             YT_LOG_DEBUG("Dispatcher thread started (Name: %v)", threadName);
 

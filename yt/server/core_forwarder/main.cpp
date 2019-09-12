@@ -60,7 +60,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("CoreForwarder");
+        TThread::SetCurrentThreadName("CoreForwarder");
 
         ParseFreeArgs(parseResult);
 

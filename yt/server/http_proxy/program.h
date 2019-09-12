@@ -40,7 +40,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("ProxyMain");
+        TThread::SetCurrentThreadName("ProxyMain");
 
         ConfigureUids();
         ConfigureSignals();
