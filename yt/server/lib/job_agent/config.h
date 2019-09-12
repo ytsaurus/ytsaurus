@@ -131,6 +131,29 @@ DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMappedMemoryControllerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration CheckPeriod;
+    i64 ReservedMemory;
+
+    TMappedMemoryControllerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("reserved_memory", ReservedMemory)
+            .Default(10_GB);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMappedMemoryControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerConfig
     : public NYTree::TYsonSerializable
 {
@@ -163,6 +186,8 @@ public:
     bool TestGpu;
 
     TGpuManagerConfigPtr GpuManager;
+
+    TMappedMemoryControllerConfigPtr MappedMemoryController;
 
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
@@ -211,6 +236,9 @@ public:
             .Default(false);
 
         RegisterParameter("gpu_manager", GpuManager)
+            .DefaultNew();
+
+        RegisterParameter("mapped_memory_controller", MappedMemoryController)
             .DefaultNew();
 
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)

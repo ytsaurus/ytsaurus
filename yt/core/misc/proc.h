@@ -38,6 +38,8 @@ struct TMemoryUsage
 
 TMemoryUsage GetProcessMemoryUsage(int pid = -1);
 
+THashMap<TString, i64> GetVmstat();
+
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
 
 size_t GetCurrentProcessId();

@@ -37,6 +37,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/net/helpers.h>
 
@@ -152,6 +153,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
+    TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
 
     THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
@@ -235,6 +237,8 @@ private:
     TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> GetJobsByOrigin() const;
 
     void CleanRecentlyRemovedJobs();
+
+    void CheckReservedMappedMemory();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,6 +301,14 @@ void TJobController::TImpl::Initialize()
         BIND(&TImpl::CleanRecentlyRemovedJobs, MakeWeak(this)),
         Config_->RecentlyRemovedJobsCleanPeriod);
     RecentlyRemovedJobCleaner_->Start();
+
+    if (Config_->MappedMemoryController->Enabled) {
+        ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
+            Config_->MappedMemoryController->CheckPeriod);
+        ReservedMappedMemoryChecker_->Start();
+    }
 }
 
 void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factory)
@@ -511,6 +523,54 @@ void TJobController::TImpl::CleanRecentlyRemovedJobs()
     for (auto jobId : jobIdsToRemove) {
         YT_LOG_INFO("Job is finally removed (JobId: %v)", jobId);
         RecentlyRemovedJobMap_.erase(jobId);
+    }
+}
+
+void TJobController::TImpl::CheckReservedMappedMemory()
+{
+    YT_LOG_INFO("Check mapped memory usage");
+
+    auto vmstat = GetVmstat();
+    auto mappedIt = vmstat.find("nr_mapped");
+    if (mappedIt == vmstat.end()) {
+        return;
+    }
+
+
+    i64 mappedMemory = mappedIt->second;
+
+    YT_LOG_INFO("Mapped memory usage (Usage: %v, Reserved: %v)",
+        mappedMemory,
+        Config_->MappedMemoryController->ReservedMemory);
+
+    if (mappedMemory <= Config_->MappedMemoryController->ReservedMemory) {
+        return;
+    }
+
+    std::vector<IJobPtr> schedulerJobs;
+    for (const auto& job : GetJobs()) {
+        auto jobType = TypeFromId(job->GetId());
+        if (jobType == EObjectType::SchedulerJob && job->GetState() == EJobState::Running) {
+            schedulerJobs.push_back(job);
+        }
+    }
+
+    std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
+        return lhs->GetStartTime() < rhs->GetStartTime();
+    });
+
+    auto usage = GetResourceUsage(false);
+    auto limits = GetResourceLimits();
+    while (usage.user_memory() + mappedMemory > limits.user_memory()) {
+        if (schedulerJobs.empty()) {
+            break;
+        }
+
+        usage -= schedulerJobs.back()->GetResourceUsage();
+        schedulerJobs.back()->Abort(TError(
+            NExecAgent::EErrorCode::ResourceOverdraft,
+            "Mapped memory usage overdraft"));
+        schedulerJobs.pop_back();
     }
 }
 

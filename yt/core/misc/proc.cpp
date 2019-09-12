@@ -187,6 +187,22 @@ TMemoryUsage GetProcessMemoryUsage(int pid)
 #endif
 }
 
+THashMap<TString, i64> GetVmstat()
+{
+#ifdef _linux_
+    THashMap<TString, i64> result;
+    TString path = "/proc/vmstat";
+    TFileInput vmstatFile(path);
+    for (TString line; vmstatFile.ReadLine(line) != 0;) {
+        auto fields = SplitString(line, " ");
+        result[fields[0]] = NSystemInfo::GetPageSize() * FromString<i64>(fields[1]);
+    }
+    return result;
+#else
+    return {};
+#endif
+}
+
 ui64 GetProcessCumulativeMajorPageFaults(int pid)
 {
 #ifdef _linux_
