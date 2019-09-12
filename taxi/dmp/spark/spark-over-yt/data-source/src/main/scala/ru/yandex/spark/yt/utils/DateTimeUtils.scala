@@ -38,4 +38,11 @@ object DateTimeUtils {
     DateTimeUtils.format.format(parseDatetime(dt, ZoneId.of("Europe/Moscow")).withZoneSameInstant(ZoneOffset.UTC))
   }
 
+  def time(f: => Unit): Unit = {
+    val start = System.currentTimeMillis()
+    f
+    val end = System.currentTimeMillis()
+    println(s"${end - start} ms")
+    println(s"${(end - start) / 1000} s")
+  }
 }
