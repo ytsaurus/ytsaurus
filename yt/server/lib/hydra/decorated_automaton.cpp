@@ -870,7 +870,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     auto request = TMutationRequest(MutationHeader_.reign());
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
-    request.MutationId = MFromProto<TMutationId>(MutationHeader_.mutation_id());
+    request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
     PendingMutations_.emplace(
         version,
