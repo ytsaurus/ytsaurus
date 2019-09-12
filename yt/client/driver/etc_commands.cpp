@@ -293,7 +293,7 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
             request,
             mutationId,
             Options.Retry);
-        ++mutationId.Parts32[0];
+        mutationId = NRpc::GenerateNextBatchMutationId(mutationId);
         callbacks.push_back(BIND(&TRequestExecutor::Run, executor));
     }
 
