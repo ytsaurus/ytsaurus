@@ -413,6 +413,7 @@ public:
 
         TObjectServiceProxy proxy(std::move(channel));
         auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
         batchReq->SetUser(context->GetUser());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
