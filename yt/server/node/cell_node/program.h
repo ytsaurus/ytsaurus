@@ -42,8 +42,6 @@ protected:
     {
         TThread::SetCurrentThreadName("NodeMain");
 
-        bool validateSnapshot = parseResult.Has("validate-snapshot");
-
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
@@ -79,7 +77,7 @@ protected:
         auto* bootstrap = new NCellNode::TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Initialize();
 
-        if (validateSnapshot) {
+        if (ValidateSnapshot_) {
             bootstrap->ValidateSnapshot(ValidateSnapshot_);
         } else {
             bootstrap->Run();
