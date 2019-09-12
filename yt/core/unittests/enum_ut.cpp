@@ -30,7 +30,7 @@ DEFINE_BIT_ENUM(EFlag,
     ((_4)(0x0008))
 );
 
-DEFINE_ENUM(EMultipleNames,
+DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(EMultipleNames, int,
      (A1)
     ((A2)(0))
      (B)

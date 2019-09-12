@@ -95,7 +95,7 @@ DEFINE_ENUM(EPartitionState,
     (Sampling)           // sampling is in progress
 );
 
-DEFINE_ENUM(ETabletState,
+DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ETabletState, int,
     // The only good state admitting read and write requests.
     ((Mounted)                  (0))
 

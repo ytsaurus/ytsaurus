@@ -26,7 +26,7 @@ TEST(TStracer, Basic)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        TThread::CurrentThreadSetName("SomeCoolProcess");
+        TThread::SetCurrentThreadName("SomeCoolProcess");
         while (true) {
             ssize_t ignored __attribute__((unused));
             ignored = write(42, "hello\n", 6);
