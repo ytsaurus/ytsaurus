@@ -26,6 +26,7 @@ public:
     void SwitchTo(TExecutionContext* target);
 
 private:
+    TContClosure ContClosure_;
     TContMachineContext ContContext_;
 #ifdef CXXABIv1
     static constexpr size_t EHSize = 16;
