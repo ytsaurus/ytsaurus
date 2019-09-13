@@ -218,6 +218,7 @@ private:
 
         for (const auto& table : InputTables_) {
             auto req = TTableYPathProxy::Get(table.GetObjectIdPath() + "/@");
+            AddCellTagToSyncWith(req, table.ObjectId);
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "dynamic",
                 "chunk_count",

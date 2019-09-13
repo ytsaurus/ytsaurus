@@ -131,7 +131,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TJournalYPathProxy::Fetch(userObject.GetObjectIdPath());
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
 
             TReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
@@ -147,7 +147,7 @@ private:
             range.UpperLimit() = upperLimit;
             ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
 
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);

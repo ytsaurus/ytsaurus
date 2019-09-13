@@ -156,7 +156,7 @@ private:
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "revision"
             });
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 
@@ -180,7 +180,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.value_or(0);

@@ -255,8 +255,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
     TObjectServiceProxy proxy(channel);
 
     auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
-    AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
-
+    AddCellTagToSyncWith(req, userObject.ObjectId);
     ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
     SetSuppressAccessTracking(req, true);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
