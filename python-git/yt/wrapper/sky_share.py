@@ -27,7 +27,7 @@ def sky_share(path, cluster=None, key_columns=[], client=None):
         url=get_config(client)["skynet_manager_url"] + "/share",
         headers=headers,
         response_format=None,
-        error_format="yson",
+        error_format="json",
         client=client)
 
     while True:
