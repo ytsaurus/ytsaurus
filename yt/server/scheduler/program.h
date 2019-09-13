@@ -31,7 +31,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("Main");
+        TThread::SetCurrentThreadName("Main");
 
         ConfigureUids();
         ConfigureSignals();

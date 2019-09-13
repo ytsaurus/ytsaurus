@@ -241,7 +241,7 @@ private:
 
     void SleeperThreadMain()
     {
-        TThread::CurrentThreadSetName("DelayedSleeper");
+        TThread::SetCurrentThreadName("DelayedSleeper");
         InDelayedSleeperThread_ = true;
 
         // Run the main loop.
