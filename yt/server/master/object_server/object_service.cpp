@@ -326,7 +326,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference eleaked due to unfinished request (RequestId: %v)",
+        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference leaked due to unfinished request (RequestId: %v)",
             RequestId_);
         YT_LOG_DEBUG_IF(RequestQueueSizeIncreased_ && !Finished_, "Request queue size increment leaked due to unfinished request (RequestId: %v)",
             RequestId_);
