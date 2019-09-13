@@ -6749,6 +6749,11 @@ void TOperationControllerBase::Dispose()
                     YT_ABORT();
             }
         }
+
+        YT_LOG_DEBUG(
+            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %Qlv, TotalTimePerTree: %v)",
+            State.load(),
+            TotalTimePerTree_);
     }
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
