@@ -1558,6 +1558,11 @@ private:
             return false;
         }
 
+        if (ReplyLockCount_.load() == 0) {
+            Reply();
+            return true;
+        }
+
         if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
             YT_LOG_DEBUG("Local execution interrupted due to backoff alarm (RequestId: %v)",
                 RequestId_);
@@ -1565,12 +1570,7 @@ private:
             return ReleaseUltimateReplyLock();
         }
 
-        if (ReplyLockCount_.load() > 0) {
-            return false;
-        }
-
-        Reply();
-        return true;
+        return false;
     }
 
 
