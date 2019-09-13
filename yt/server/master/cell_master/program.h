@@ -53,7 +53,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("MasterMain");
+        TThread::SetCurrentThreadName("MasterMain");
 
         bool dumpSnapshot = parseResult.Has("dump-snapshot");
         bool validateSnapshot = parseResult.Has("validate-snapshot");

@@ -84,7 +84,7 @@ static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& ser
 
         const auto& toolDescription = it->second;
 
-        TThread::CurrentThreadSetName(toolDescription.Name.c_str());
+        TThread::SetCurrentThreadName(toolDescription.Name.c_str());
 
         auto result = toolDescription.Tool(serializedArgument);
         return result;

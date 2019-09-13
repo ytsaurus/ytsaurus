@@ -7,7 +7,7 @@
 extern "C" {
 
 #define UNW_LOCAL_ONLY
-#include <contrib/libs/libunwind_master/include/libunwind.h>
+#include <contrib/libs/libunwind/include/libunwind.h>
 
 } // extern "C"
 
@@ -35,7 +35,7 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
         fprintf(stderr, "unw_getcontext failed; terminating\n");
         abort();
     }
-    
+
     if (unw_init_local(&cursor, &context) != 0) {
         fprintf(stderr, "unw_init_local failed; terminating\n");
         abort();

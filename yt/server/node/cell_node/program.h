@@ -40,9 +40,7 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("NodeMain");
-
-        bool validateSnapshot = parseResult.Has("validate-snapshot");
+        TThread::SetCurrentThreadName("NodeMain");
 
         ConfigureUids();
         ConfigureSignals();
@@ -79,7 +77,7 @@ protected:
         auto* bootstrap = new NCellNode::TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Initialize();
 
-        if (validateSnapshot) {
+        if (ValidateSnapshot_) {
             bootstrap->ValidateSnapshot(ValidateSnapshot_);
         } else {
             bootstrap->Run();
