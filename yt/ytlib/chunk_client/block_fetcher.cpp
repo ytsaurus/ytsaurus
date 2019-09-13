@@ -365,7 +365,7 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
 {
     return TCodecDuration{
         Codec_->GetId(),
-        NProfiling::CpuDurationToDuration(DecompressionTime_)
+        NProfiling::ValueToDuration(DecompressionTime_)
     };
 }
 

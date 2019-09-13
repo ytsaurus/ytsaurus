@@ -95,7 +95,7 @@ private:
 
     std::atomic<i64> UncompressedDataSize_ = {0};
     std::atomic<i64> CompressedDataSize_ = {0};
-    std::atomic<NProfiling::TCpuDuration> DecompressionTime_;
+    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = {0};
 
     THashMap<int, int> BlockIndexToWindowIndex_;
 
