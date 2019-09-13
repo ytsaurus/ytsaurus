@@ -254,6 +254,7 @@ void TDriverModuleBase::Initialize(
     addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");
     addPycxxMethod("configure_address_resolver", &TDriverModuleBase::ConfigureAddressResolver, "Configures YT address resolver");
     addPycxxMethod("configure_tracing", &TDriverModuleBase::ConfigureTracing, "Configures YT driver tracing");
+    addPycxxMethod("reopen_logs", &TDriverModuleBase::ReopenLogs, "Reopen driver logs");
     addPycxxMethod("shutdown", &TDriverModuleBase::Shutdown, "Shutdown YT subsystem");
 
     initModule();
@@ -301,6 +302,13 @@ Py::Object TDriverModuleBase::ConfigureTracing(const Py::Tuple& args_, const Py:
     auto config = ConvertTo<NTracing::TTraceManagerConfigPtr>(configNode);
 
     NTracing::TTraceManager::Get()->Configure(config);
+
+    return Py::None();
+}
+
+Py::Object TDriverModuleBase::ReopenLogs(const Py::Tuple& args_, const Py::Dict& kwargs_)
+{
+    NLogging::TLogManager::Get()->Reopen();
 
     return Py::None();
 }

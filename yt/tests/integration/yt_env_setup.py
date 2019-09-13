@@ -616,6 +616,11 @@ class YTEnvSetup(object):
 
         cls.liveness_checkers = []
 
+        log_rotator = Checker(yt_commands.reopen_logs)
+        log_rotator.daemon = True
+        log_rotator.start()
+        cls.liveness_checkers.append(log_rotator)
+
         prepare_yatest_environment() # It initializes SANDBOX_ROOTDIR
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
