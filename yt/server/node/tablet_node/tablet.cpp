@@ -102,6 +102,7 @@ TReplicaCounters NullReplicaCounters;
 
 TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
     : OverlappingStoreCount("/tablet/overlapping_store_count", list)
+    , EdenStoreCount("/tablet/eden_store_count", list)
 { }
 
 using TTabletInternalProfilerTrait = TTagListProfilerTrait<TTabletCounters>;
@@ -1378,6 +1379,7 @@ void TTablet::UpdateOverlappingStoreCount()
 
     if (ProfilerCounters_) {
         TabletNodeProfiler.Update(ProfilerCounters_->OverlappingStoreCount, OverlappingStoreCount_);
+        TabletNodeProfiler.Update(ProfilerCounters_->EdenStoreCount, GetEdenStoreCount());
     }
 }
 
@@ -1422,6 +1424,10 @@ i64 TTablet::Unlock()
 i64 TTablet::GetTabletLockCount() const
 {
     return TabletLockCount_;
+}
+
+int TTablet::GetEdenStoreCount() const {
+    return Eden_->Stores().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
