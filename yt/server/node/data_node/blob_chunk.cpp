@@ -176,6 +176,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     }
 
     session->SessionPromise.TrySet(error);
+    session->DiskFetchPromise.TrySet(error);
 }
 
 void TBlobChunkBase::DoReadMeta(
