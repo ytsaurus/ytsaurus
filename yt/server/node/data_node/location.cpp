@@ -754,6 +754,11 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
     return Config_->LowWatermark;
 }
 
+const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
+{
+    return Config_;
+}
+
 bool TStoreLocation::IsFull() const
 {
     auto available = GetAvailableSpace();

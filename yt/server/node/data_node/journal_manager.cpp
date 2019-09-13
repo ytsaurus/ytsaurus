@@ -836,6 +836,7 @@ public:
         TStoreLocation* location,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
+        , ChangelogDispatcherConfig_(UpdateYsonSerializable(Config_->MultiplexedChangelog, location->GetConfig()->ChangelogDispatcher))
         , Location_(location)
         , Bootstrap_(bootstrap)
         , Logger(NLogging::TLogger(DataNodeLogger)
@@ -843,13 +844,13 @@ public:
     {
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
-            Config_->MultiplexedChangelog,
+            ChangelogDispatcherConfig_,
             "MFlush:" + Location_->GetId(),
             DataNodeProfiler.AppendPath("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
-            Config_->MultiplexedChangelog,
+            ChangelogDispatcherConfig_,
             "SFlush:" + Location_->GetId(),
             DataNodeProfiler.AppendPath("/split_changelogs"));
 
@@ -972,6 +973,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
+    const TFileChangelogDispatcherConfigPtr ChangelogDispatcherConfig_;
     TStoreLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 

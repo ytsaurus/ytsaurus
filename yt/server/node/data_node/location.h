@@ -309,6 +309,8 @@ public:
     //! Removes a chunk permanently or moves it to the trash.
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
+    const TStoreLocationConfigPtr& GetConfig() const;
+
 private:
     const TStoreLocationConfigPtr Config_;
 
