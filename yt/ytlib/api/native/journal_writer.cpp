@@ -23,7 +23,9 @@
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -36,10 +38,6 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/retrying_channel.h>
@@ -405,6 +403,7 @@ private:
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
+                AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, Transaction_);
                 std::vector<TString> attributeKeys{
                     "type",

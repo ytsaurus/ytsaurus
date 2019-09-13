@@ -356,7 +356,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-        AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+        AddCellTagToSyncWith(req, userObject.ObjectId);
         SetTransactionId(req, userObject.ExternalTransactionId);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count"

@@ -163,6 +163,7 @@ std::unique_ptr<TTableObject> GetTableAttributes(
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject->GetObjectIdPath() + "/@");
+        AddCellTagToSyncWith(req, userObject->ObjectId);
         SetSuppressAccessTracking(req, true);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",

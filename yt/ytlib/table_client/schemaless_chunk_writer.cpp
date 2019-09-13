@@ -1900,7 +1900,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
             NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
