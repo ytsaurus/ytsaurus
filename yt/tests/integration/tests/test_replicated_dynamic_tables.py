@@ -776,13 +776,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
 
-        for i in range(5):
-            try:
-                insert_rows("//tmp/t", [{"key": i, "value1": "test%d"%(i), "value2": i}])
-            except:
-                pass
-
-        get("#{0}/@errors".format(replica_id1))
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
