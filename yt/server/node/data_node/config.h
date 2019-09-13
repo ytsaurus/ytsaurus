@@ -225,6 +225,8 @@ public:
     //! Controls incoming location bandwidth used by tablet store flush.
     NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
 
+    //! Per-location changelog dispatcher configuration patch.
+    NYTree::INodePtr ChangelogDispatcher;
 
     TStoreLocationConfig()
     {
@@ -258,6 +260,8 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
+        RegisterParameter("changelog_dispatcher", ChangelogDispatcher)
+            .Default();
 
         // NB: base class's field.
         RegisterParameter("medium_name", MediumName)
