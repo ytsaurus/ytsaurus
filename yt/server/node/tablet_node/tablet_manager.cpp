@@ -3154,6 +3154,18 @@ private:
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
 
+        auto edenStoreCount = tablet->GetEdenStoreCount();
+        auto edenStoreCountLimit = tablet->GetConfig()->MaxEdenStoresPerTablet;
+        if (edenStoreCount >= edenStoreCountLimit) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Too many eden stores in tablet, all writes disabled")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("eden_store_count", edenStoreCount)
+                    << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
+        }
+
         auto overflow = tablet->GetStoreManager()->CheckOverflow();
         if (!overflow.IsOK()) {
             THROW_ERROR_EXCEPTION(
