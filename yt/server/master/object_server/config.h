@@ -87,7 +87,7 @@ public:
             .Default(TDuration::MilliSeconds(10));
 
         RegisterParameter("timeout_backoff_lead_time", TimeoutBackoffLeadTime)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(3));
         RegisterParameter("default_execute_timeout", DefaultExecuteTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("forwarded_request_timeout_reserve", ForwardedRequestTimeoutReserve)
