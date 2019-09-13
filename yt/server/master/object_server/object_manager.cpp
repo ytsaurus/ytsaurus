@@ -416,7 +416,7 @@ public:
         auto channel = multicellManager->GetMasterChannelOrThrow(forwardedCellTag, peerKind);
 
         TObjectServiceProxy proxy(std::move(channel));
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
         batchReq->SetUser(context->GetUser());
@@ -1417,7 +1417,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
 
     TObjectServiceProxy proxy(std::move(channel));
-    auto batchReq = proxy.ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(header.user());
