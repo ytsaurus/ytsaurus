@@ -4,7 +4,7 @@ from yt.environment.yt_env import set_environment_driver_logging_config
 from yt.environment import arcadia_interop
 
 import yt.yson as yson
-from yt_driver_bindings import Driver, Request
+from yt_driver_bindings import Driver, Request, reopen_logs
 from yt.common import YtError, YtResponseError, flatten, update_inplace, update, date_string_to_datetime
 
 from yt.test_helpers import wait, WaitFailed
