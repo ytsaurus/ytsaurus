@@ -716,7 +716,6 @@ class YTInstance(object):
                     break
 
     def _configure_driver_logging(self):
-        yt_driver_bindings = None
         try:
             import yt_driver_bindings
             yt_driver_bindings.configure_logging(
@@ -1446,8 +1445,11 @@ class YTInstance(object):
 
     def _start_watcher(self):
         postrotate_commands = []
+        def send_sighup(pid):
+            return "\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid)
+        
         for pid in self._all_processes.keys():
-            postrotate_commands.append("\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid))
+            postrotate_commands.append(send_sighup(pid))
 
         logrotate_options = [
             "rotate {0}".format(self.watcher_config["logs_rotate_max_part_count"]),
@@ -1467,22 +1469,26 @@ class YTInstance(object):
         config_path = os.path.join(self.configs_path, "logs_rotator")
         with open(config_path, "w") as config_file:
             if self._enable_debug_logging:
-                for service, configs in iteritems(self.configs):
-                    if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
-                        continue
+                def emit_rotate_config(service, config):
+                    for log_type in ["debug", "info"]:
+                        log_config_path = "logging/writers/" + log_type + "/file_name"
+                        if service == "http_proxy":
+                            log_config_path = "proxy/" + log_config_path
+                        log_path = _config_safe_get(config, service, log_config_path)
+                        config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
+                        if service == "node":
+                            job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/" + log_type + "/file_name"
+                            job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
+                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
+
+                emit_rotate_config("driver", {"logging": self.driver_logging_config})
+                for service, configs in list(iteritems(self.configs)):
                     for config in flatten(configs):
-                        for log_type in ["debug", "info"]:
-                            log_config_path = "logging/writers/" + log_type + "/file_name"
-                            if service == "http_proxy":
-                                log_config_path = "proxy/" + log_config_path
-                            log_path = _config_safe_get(config, service, log_config_path)
-                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
+                        if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
+                            continue
 
-                            if service == "node":
-                                job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/" + log_type + "/file_name"
-                                job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
-                                config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
+                        emit_rotate_config(service, config)
 
         logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
         makedirp(logs_rotator_data_path)
