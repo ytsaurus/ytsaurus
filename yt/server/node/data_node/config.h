@@ -225,8 +225,15 @@ public:
     //! Controls incoming location bandwidth used by tablet store flush.
     NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
 
-    //! Per-location changelog dispatcher configuration patch.
-    NYTree::INodePtr ChangelogDispatcher;
+    //! Per-location multiplexed changelog configuration.
+    NYTree::INodePtr MultiplexedChangelog;
+
+    //! Per-location  configuration of per-chunk changelog that backs the multiplexed changelog.
+    NYTree::INodePtr HighLatencySplitChangelog;
+
+    //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
+    NYTree::INodePtr LowLatencySplitChangelog;
+
 
     TStoreLocationConfig()
     {
@@ -260,7 +267,12 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
-        RegisterParameter("changelog_dispatcher", ChangelogDispatcher)
+
+        RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
+            .Default();
+        RegisterParameter("high_latency_split_changelog", HighLatencySplitChangelog)
+            .Default();
+        RegisterParameter("low_latency_split_changelog", LowLatencySplitChangelog)
             .Default();
 
         // NB: base class's field.
