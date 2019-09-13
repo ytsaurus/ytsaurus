@@ -11,6 +11,7 @@
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 

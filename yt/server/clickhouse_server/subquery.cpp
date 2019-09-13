@@ -28,6 +28,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
