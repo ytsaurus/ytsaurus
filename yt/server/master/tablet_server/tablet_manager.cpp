@@ -926,6 +926,58 @@ public:
     }
 
 
+    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
+    {
+        auto it = AddressToCell_.find(address);
+        return it != AddressToCell_.end()
+            ? &it->second
+            : nullptr;
+    }
+
+    TTabletStatistics GetTabletStatistics(const TTablet* tablet)
+    {
+        const auto* table = tablet->GetTable();
+        const auto* tabletChunkList = tablet->GetChunkList();
+        const auto& treeStatistics = tabletChunkList->Statistics();
+        const auto& nodeStatistics = tablet->NodeStatistics();
+
+        TTabletStatistics tabletStatistics;
+        tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+        tabletStatistics.StoreCount = nodeStatistics.store_count();
+        tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
+        tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
+        tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
+        tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
+        tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
+        tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
+        tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
+        tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
+        switch (tablet->GetInMemoryMode()) {
+            case EInMemoryMode::Compressed:
+                tabletStatistics.MemorySize = tabletStatistics.CompressedDataSize;
+                break;
+            case EInMemoryMode::Uncompressed:
+                tabletStatistics.MemorySize = tabletStatistics.UncompressedDataSize;
+                break;
+            case EInMemoryMode::None:
+                tabletStatistics.MemorySize = 0;
+                break;
+            default:
+                YT_ABORT();
+        }
+        for (const auto& entry : table->Replication()) {
+            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
+                entry.Policy().GetReplicationFactor(),
+                treeStatistics.RegularDiskSpace,
+                treeStatistics.ErasureDiskSpace);
+        }
+        tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
+        tabletStatistics.TabletCount = 1;
+        tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
+        return tabletStatistics;
+    }
+
+
     void PrepareMountTable(
         TTableNode* table,
         int firstTabletIndex,
@@ -1673,6 +1725,75 @@ public:
         }
     }
 
+    void MergeTable(TTableNode* originatingNode, TTableNode* branchedNode)
+    {
+        YT_VERIFY(originatingNode->IsTrunk());
+
+        CopyChunkListIfShared(originatingNode, 0, originatingNode->GetChunkList()->Children().size() - 1);
+        auto* originatingChunkList = originatingNode->GetChunkList();
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        auto* transaction = branchedNode->GetTransaction();
+
+        YT_VERIFY(originatingNode->IsPhysicallySorted());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        transaction->LockedDynamicTables().erase(originatingNode);
+
+        i64 totalMemorySizeDelta = 0;
+
+        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
+            auto* appendChunkList = branchedChunkList->Children()[index];
+            auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
+            auto* tablet = originatingNode->Tablets()[index];
+
+            auto oldMemorySize = tablet->GetTabletStaticMemorySize();
+            auto oldStatistics = GetTabletStatistics(tablet);
+
+            if (!appendChunkList->AsChunkList()->Children().empty()) {
+                chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+            }
+
+            auto newMemorySize = tablet->GetTabletStaticMemorySize();
+            auto newStatistics = GetTabletStatistics(tablet);
+            auto deltaStatistics = newStatistics - oldStatistics;
+            totalMemorySizeDelta += newMemorySize - oldMemorySize;
+
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
+            auto* cell = tablet->GetCell();
+            cell->LocalStatistics() += deltaStatistics;
+
+            TReqUnlockTablet req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_transaction_id(), transaction->GetId());
+            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
+            auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+            i64 startingRowIndex = 0;
+
+            for (const auto* chunkOrView : chunksOrViews) {
+                auto* descriptor = req.add_stores_to_add();
+                FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
+            }
+
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
+            hiveManager->PostMessage(mailbox, req);
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto resourceUsageDelta = TClusterResources()
+            .SetTabletStaticMemory(totalMemorySizeDelta);
+        securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
+        ScheduleTableStatisticsUpdate(originatingNode);
+
+        originatingNode->RemoveDynamicTableLock(transaction->GetId());
+
+        chunkManager->ClearChunkList(branchedChunkList);
+    }
+
 
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
@@ -2220,6 +2341,20 @@ public:
 
         node->SetTabletCellBundle(newBundle);
         objectManager->RefObject(newBundle);
+    }
+
+
+    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
+    {
+        if (chunkOwner->IsNative()) {
+            return;
+        }
+
+        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
+        auto* table = static_cast<TTableNode*>(chunkOwner);
+        YT_VERIFY(table->IsDynamic());
+
+        SendTableStatisticsUpdates(table);
     }
 
 
@@ -2902,143 +3037,6 @@ private:
                 }
             }
         }
-    }
-
-    void MergeTableNodes(TChunkOwnerBase* originatingChunkOwner, TChunkOwnerBase* branchedChunkOwner)
-    {
-        YT_VERIFY(originatingChunkOwner->GetType() == EObjectType::Table);
-        YT_VERIFY(branchedChunkOwner->GetType() == EObjectType::Table);
-        YT_VERIFY(originatingChunkOwner->IsTrunk());
-
-        auto* originatingNode = static_cast<TTableNode*>(originatingChunkOwner);
-        CopyChunkListIfShared(originatingNode, 0, originatingNode->GetChunkList()->Children().size() - 1);
-        auto* branchedNode = static_cast<TTableNode*>(branchedChunkOwner);
-        auto* originatingChunkList = originatingNode->GetChunkList();
-        auto* branchedChunkList = branchedNode->GetChunkList();
-        auto* transaction = branchedNode->GetTransaction();
-
-        YT_VERIFY(originatingNode->IsPhysicallySorted());
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-
-        transaction->LockedDynamicTables().erase(originatingNode);
-
-        i64 totalMemorySizeDelta = 0;
-
-        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
-            auto* appendChunkList = branchedChunkList->Children()[index];
-            auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
-            auto* tablet = originatingNode->Tablets()[index];
-
-            auto oldMemorySize = tablet->GetTabletStaticMemorySize();
-            auto oldStatistics = GetTabletStatistics(tablet);
-
-            if (!appendChunkList->AsChunkList()->Children().empty()) {
-                chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
-            }
-
-            auto newMemorySize = tablet->GetTabletStaticMemorySize();
-            auto newStatistics = GetTabletStatistics(tablet);
-            auto deltaStatistics = newStatistics - oldStatistics;
-            totalMemorySizeDelta += newMemorySize - oldMemorySize;
-
-            if (tablet->GetState() == ETabletState::Unmounted) {
-                continue;
-            }
-
-            auto* cell = tablet->GetCell();
-            cell->LocalStatistics() += deltaStatistics;
-
-            TReqUnlockTablet req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            ToProto(req.mutable_transaction_id(), transaction->GetId());
-            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
-            auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
-            i64 startingRowIndex = 0;
-
-            for (const auto* chunkOrView : chunksOrViews) {
-                auto* descriptor = req.add_stores_to_add();
-                FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
-            }
-
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
-            hiveManager->PostMessage(mailbox, req);
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto resourceUsageDelta = TClusterResources()
-            .SetTabletStaticMemory(totalMemorySizeDelta);
-        securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
-        ScheduleTableStatisticsUpdate(originatingNode);
-
-        originatingNode->RemoveDynamicTableLock(transaction->GetId());
-
-        chunkManager->ClearChunkList(branchedChunkList);
-    }
-
-    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
-    {
-        if (chunkOwner->IsNative()) {
-            return;
-        }
-
-        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
-        auto* table = static_cast<TTableNode*>(chunkOwner);
-        YT_VERIFY(table->IsDynamic());
-
-        SendTableStatisticsUpdates(table);
-    }
-
-    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
-    {
-        auto it = AddressToCell_.find(address);
-        return it != AddressToCell_.end()
-            ? &it->second
-            : nullptr;
-    }
-
-    TTabletStatistics GetTabletStatistics(const TTablet* tablet)
-    {
-        const auto* table = tablet->GetTable();
-        const auto* tabletChunkList = tablet->GetChunkList();
-        const auto& treeStatistics = tabletChunkList->Statistics();
-        const auto& nodeStatistics = tablet->NodeStatistics();
-
-        TTabletStatistics tabletStatistics;
-        tabletStatistics.PartitionCount = nodeStatistics.partition_count();
-        tabletStatistics.StoreCount = nodeStatistics.store_count();
-        tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
-        tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
-        tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
-        tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
-        tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
-        tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
-        tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
-        tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
-        switch (tablet->GetInMemoryMode()) {
-            case EInMemoryMode::Compressed:
-                tabletStatistics.MemorySize = tabletStatistics.CompressedDataSize;
-                break;
-            case EInMemoryMode::Uncompressed:
-                tabletStatistics.MemorySize = tabletStatistics.UncompressedDataSize;
-                break;
-            case EInMemoryMode::None:
-                tabletStatistics.MemorySize = 0;
-                break;
-            default:
-                YT_ABORT();
-        }
-        for (const auto& entry : table->Replication()) {
-            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
-                entry.Policy().GetReplicationFactor(),
-                treeStatistics.RegularDiskSpace,
-                treeStatistics.ErasureDiskSpace);
-        }
-        tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
-        tabletStatistics.TabletCount = 1;
-        tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
-        return tabletStatistics;
     }
 
 
@@ -7337,9 +7335,9 @@ void TTabletManager::DestroyTabletAction(TTabletAction* action)
     Impl_->DestroyTabletAction(action);
 }
 
-void TTabletManager::MergeTableNodes(TChunkOwnerBase* originatingChunkOwniner, TChunkOwnerBase* branchedChunkOwner)
+void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)
 {
-    Impl_->MergeTableNodes(originatingChunkOwniner, branchedChunkOwner);
+    Impl_->MergeTable(originatingNode, branchedNode);
 }
 
 void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)

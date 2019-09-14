@@ -317,7 +317,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 if (originatingNode->IsTrunk()) {
                     if (branchedChunkList != originatingChunkList) {
                         const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
-                        tabletManager->MergeTableNodes(originatingNode, branchedNode);
+                        tabletManager->MergeTable(originatingNode->template As<TTableNode>(), branchedNode->template As<TTableNode>());
                     }
 
                     objectManager->UnrefObject(branchedChunkList);
