@@ -422,7 +422,8 @@ private:
         TFuture<TMutationResponse> AsyncCommitResult;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
-        const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt  = nullptr;
+        const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
+        const NObjectClient::NProto::TMulticellSyncExt* MulticellSyncExt = nullptr;
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
         std::optional<TYPathRewrite> TargetPathRewrite;
@@ -486,7 +487,8 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, OriginalRequestId: %v",
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
+            "OriginalRequestId: %v",
             TotalSubrequestCount_,
             request.supports_portals(),
             request.suppress_upstream_sync(),
@@ -561,8 +563,9 @@ private:
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
 
-            const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            subrequest.PrerequisitesExt = &prerequisitesExt;
+            subrequest.PrerequisitesExt = &requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+
+            subrequest.MulticellSyncExt = &requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
 
             // Store original path.
             ypathExt->set_original_target_path(ypathExt->target_path());
@@ -595,8 +598,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& request = RpcContext_->Request();
-        auto cellTags = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
+        TCellTagList cellTags;
+
         auto registerTransaction = [&] (TTransactionId transactionId) {
             if (transactionId) {
                 cellTags.push_back(CellTagFromId(transactionId));
@@ -615,11 +618,17 @@ private:
             }
 
             registerTransaction(GetTransactionId(subrequest.RequestHeader));
+
             for (const auto& prerequisite : subrequest.PrerequisitesExt->transactions()) {
                 registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
             }
+
             for (const auto& prerequisite : subrequest.PrerequisitesExt->revisions()) {
                 registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
+
+            for (auto cellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
+                cellTags.push_back(cellTag);
             }
         }
 
@@ -888,7 +897,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto future = StartSync(true);
+        auto future = StartSync(false);
         if (future) {
             future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
         } else {
