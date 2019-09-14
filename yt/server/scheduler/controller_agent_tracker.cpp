@@ -718,9 +718,10 @@ public:
                     }
 
                     i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
-                    double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
+                    double rawScore = static_cast<double>(freeMemory) / memoryStatistics->Limit;
+                    double score = std::pow(rawScore, Config_->MemoryBalancedPickStrategyScorePower);
 
-                    scoreSum += std::pow(score, Config_->MemoryBalancedPickStrategyScorePower);
+                    scoreSum += score;
                     if (RandomNumber<float>() <= static_cast<float>(score) / scoreSum) {
                         pickedAgent = agent;
                     }
