@@ -323,7 +323,9 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         // NB: objectId is null for virtual tables.
         auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
-        AddCellTagToSyncWith(req, userObject->ObjectId);
+        if (userObject->ObjectId) {
+            AddCellTagToSyncWith(req, userObject->ObjectId);
+        }
         SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
