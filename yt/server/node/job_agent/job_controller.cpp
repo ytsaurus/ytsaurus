@@ -196,6 +196,8 @@ private:
         bool archiveFailContext,
         bool archiveProfile);
 
+    std::vector<IJobPtr> GetRunningSchedulerJobsSortedByStartTime() const;
+
     TJobFactory GetFactory(EJobType type) const;
 
     void ScheduleStart();
@@ -372,6 +374,24 @@ std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
     return result;
 }
 
+std::vector<IJobPtr> TJobController::TImpl::GetRunningSchedulerJobsSortedByStartTime() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    std::vector<IJobPtr> schedulerJobs;
+    for (const auto& job : GetJobs()) {
+        if (TypeFromId(job->GetId()) == EObjectType::SchedulerJob && job->GetState() == EJobState::Running) {
+            schedulerJobs.push_back(job);
+        }
+    }
+
+    std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
+        return lhs->GetStartTime() < rhs->GetStartTime();
+    });
+
+    return schedulerJobs;
+}
+
 TNodeResources TJobController::TImpl::GetResourceLimits() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -478,17 +498,7 @@ void TJobController::TImpl::AdjustResources()
         CpuOverdraftInstant_);
 
     if (preemptCpuOverdraft || preemptMemoryOverdraft) {
-        std::vector<IJobPtr> schedulerJobs;
-        for (const auto& job : GetJobs()) {
-            auto jobType = TypeFromId(job->GetId());
-            if (jobType == EObjectType::SchedulerJob && job->GetState() == EJobState::Running) {
-                schedulerJobs.push_back(job);
-            }
-        }
-
-        std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
-            return lhs->GetStartTime() < rhs->GetStartTime();
-        });
+        auto schedulerJobs = GetRunningSchedulerJobsSortedByStartTime();
 
         while ((preemptCpuOverdraft && usage.cpu() > limits.cpu()) ||
             (preemptMemoryOverdraft && usage.user_memory() > limits.user_memory()))
@@ -547,17 +557,7 @@ void TJobController::TImpl::CheckReservedMappedMemory()
         return;
     }
 
-    std::vector<IJobPtr> schedulerJobs;
-    for (const auto& job : GetJobs()) {
-        auto jobType = TypeFromId(job->GetId());
-        if (jobType == EObjectType::SchedulerJob && job->GetState() == EJobState::Running) {
-            schedulerJobs.push_back(job);
-        }
-    }
-
-    std::sort(schedulerJobs.begin(), schedulerJobs.end(), [] (const IJobPtr& lhs, const IJobPtr& rhs) {
-        return lhs->GetStartTime() < rhs->GetStartTime();
-    });
+    auto schedulerJobs = GetRunningSchedulerJobsSortedByStartTime();
 
     auto usage = GetResourceUsage(false);
     auto limits = GetResourceLimits();
@@ -609,8 +609,7 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 
     for (const auto& job : GetJobs()) {
         auto jobId = job->GetId();
-        auto jobType = TypeFromId(jobId);
-        if (jobType == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
+        if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
             try {
                 YT_LOG_DEBUG("Trying to interrupt scheduler job due to @disable_scheduler_jobs being set (JobId: %v)",
                     jobId);
