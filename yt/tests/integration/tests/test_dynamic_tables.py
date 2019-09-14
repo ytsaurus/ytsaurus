@@ -45,7 +45,7 @@ class DynamicTablesBase(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 3000,
         },
         "chunk_manager": {
@@ -1669,7 +1669,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 class TestDynamicTableStateTransitions(DynamicTablesBase):
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 600000,
         }
     }

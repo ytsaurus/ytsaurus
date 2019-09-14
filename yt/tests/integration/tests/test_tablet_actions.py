@@ -18,7 +18,7 @@ class TabletActionsBase(DynamicTablesBase):
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 3000,
             "tablet_balancer": {
                 "config_check_period": 100,
