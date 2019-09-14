@@ -326,14 +326,13 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         AddCellTagToSyncWith(req, userObject->ObjectId);
         SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
-        std::vector<TString> attributeKeys{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",
             "retained_timestamp",
             "schema",
             "unflushed_timestamp"
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
