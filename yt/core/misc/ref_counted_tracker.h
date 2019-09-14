@@ -100,14 +100,14 @@ private:
     using TNamedStatistics = std::vector<TNamedSlot>;
 
     // nullptr if not initialized or already destroyed
-    Y_POD_STATIC_THREAD(TLocalSlots*) LocalSlots_;
+    static thread_local TLocalSlots* LocalSlots_;
 
     // nullptr if not initialized or already destroyed
-    Y_POD_STATIC_THREAD(TLocalSlot*) LocalSlotsBegin_;
+    static thread_local TLocalSlot* LocalSlotsBegin_;
 
     //  0 if not initialized
     // -1 if already destroyed
-    Y_POD_STATIC_THREAD(int) LocalSlotsSize_;
+    static thread_local int LocalSlotsSize_;
 
     mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;

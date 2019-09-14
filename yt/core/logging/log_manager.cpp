@@ -342,7 +342,7 @@ NProfiling::TCpuInstant GetEventInstant(const TLoggerQueueItem& item)
 using TThreadLocalQueue = TSingleProducerSingleConsumerQueue<TLoggerQueueItem>;
 
 static constexpr uintptr_t ThreadQueueDestroyedSentinel = -1;
-Y_POD_STATIC_THREAD(TThreadLocalQueue*) PerThreadQueue;
+static thread_local TThreadLocalQueue* PerThreadQueue;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1287,7 +1287,7 @@ struct TLocalQueueReclaimer
     }
 };
 
-Y_STATIC_THREAD(TLocalQueueReclaimer) LocalQueueReclaimer;
+static thread_local TLocalQueueReclaimer LocalQueueReclaimer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
