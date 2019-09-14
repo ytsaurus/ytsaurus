@@ -377,7 +377,7 @@ TError TTabletTrackerImpl::IsFailed(
         }
 
         if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
-            return TError("Node tags dont satisfy filter");
+            return TError("Node does not satisfy tag filter");
         }
     }
 
