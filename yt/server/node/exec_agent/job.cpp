@@ -1592,6 +1592,7 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
+            resultError.FindMatching(NChunkClient::EErrorCode::ReaderTimeout) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
