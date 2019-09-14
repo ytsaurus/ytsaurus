@@ -1748,8 +1748,9 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
                     self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
+            wait(lambda: get("//tmp/t/@tablet_state") in ["mounted", "unmounted", "frozen"])
             self._get_callback(second_command)("//tmp/t")
-            wait_for_tablet_state("//tmp/t", expected)
+            wait(lambda: get("//tmp/t/@tablet_state") == expected)
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
     @authors("savrus", "levysotsky")
