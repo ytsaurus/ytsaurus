@@ -13,6 +13,7 @@
 namespace NYT::NTabletServer {
 
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerClient;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,8 +202,8 @@ public:
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
+                        action.Source ? action.Source->GetDefaultAddress() : NullNodeAddress(),
+                        action.Target ? action.Target->GetDefaultAddress() : NullNodeAddress());
                 }));
         }
 
@@ -214,8 +215,8 @@ public:
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
+                        action.Source ? action.Source->GetDefaultAddress() : NullNodeAddress(),
+                        action.Target ? action.Target->GetDefaultAddress() : NullNodeAddress());
                 }));
         }
 

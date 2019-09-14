@@ -57,6 +57,7 @@ private:
     std::vector<TString> Tags_;
 };
 
+const TString& NullNodeAddress();
 const TNodeDescriptor& NullNodeDescriptor();
 
 ////////////////////////////////////////////////////////////////////////////////
