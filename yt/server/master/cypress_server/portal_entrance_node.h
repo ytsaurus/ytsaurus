@@ -12,6 +12,7 @@ class TPortalEntranceNode
     : public TCypressNode
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, RemovalStarted);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExitCellTag);
 
 public:

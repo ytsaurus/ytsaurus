@@ -61,10 +61,6 @@ private:
         const TVersionedNodeId& id,
         const TCreateNodeContext& context) override
     {
-        if (context.Transaction) {
-            THROW_ERROR_EXCEPTION("Portals cannot be created in a transaction");
-        }
-
         auto exitCellTag  = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
         if (exitCellTag == Bootstrap_->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Portal exit cannot be placed on the primary cell");
@@ -97,18 +93,13 @@ private:
     }
 
     virtual void DoBranch(
-        const TPortalEntranceNode* /*originatingNode*/,
-        TPortalEntranceNode* /*branchedNode*/,
-        const TLockRequest& /*lockRequest*/) override
+        const TPortalEntranceNode* originatingNode,
+        TPortalEntranceNode* branchedNode,
+        const TLockRequest& lockRequest) override
     {
-        YT_ABORT();
-    }
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
-    virtual void DoMerge(
-        TPortalEntranceNode* /*originatingNode*/,
-        TPortalEntranceNode* /*branched*/Node) override
-    {
-        YT_ABORT();
+        branchedNode->SetExitCellTag(originatingNode->GetExitCellTag());
     }
 
     virtual void DoClone(

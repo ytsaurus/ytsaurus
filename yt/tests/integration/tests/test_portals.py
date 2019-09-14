@@ -501,6 +501,55 @@ class TestPortals(YTEnvSetup):
         move("//tmp/t", "//tmp/p/q/t")
         assert read_table("//tmp/p/q/t") == TABLE_PAYLOAD
 
+    @authors("babenko")
+    def test_create_portal_in_tx_commit(self):
+        tx = start_transaction()
+
+        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
+
+        assert ls("//tmp/p", tx=tx) == []
+        assert exists("//sys/portal_entrances/{}".format(entrance_id))
+        assert exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        create("table", "//tmp/p/t", tx=tx)
+        write_table("//tmp/p/t", TABLE_PAYLOAD, tx=tx)
+
+        assert ls("//tmp/p", tx=tx) == ["t"]
+        assert read_table("//tmp/p/t", tx=tx) == TABLE_PAYLOAD
+
+        commit_transaction(tx)
+
+        assert ls("//tmp/p") == ["t"]
+        assert exists("//sys/portal_entrances/{}".format(entrance_id))
+        assert exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
+        assert read_table("//tmp/p/t") == TABLE_PAYLOAD
+
+    @authors("babenko")
+    def test_create_portal_in_tx_abort(self):
+        tx = start_transaction()
+
+        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
+
+        assert ls("//tmp/p", tx=tx) == []
+        assert exists("//sys/portal_entrances/{}".format(entrance_id))
+        assert exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        create("table", "//tmp/p/t", tx=tx)
+        write_table("//tmp/p/t", TABLE_PAYLOAD, tx=tx)
+
+        assert ls("//tmp/p", tx=tx) == ["t"]
+        assert read_table("//tmp/p/t", tx=tx) == TABLE_PAYLOAD
+
+        abort_transaction(tx)
+
+        assert ls("//tmp") == []
+        assert not exists("//sys/portal_entrances/{}".format(entrance_id))
+        assert not exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):

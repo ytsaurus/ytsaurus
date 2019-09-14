@@ -10,6 +10,7 @@ class TPortalExitNode
     : public TMapNode
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, RemovalStarted);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, EntranceCellTag);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, Path);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Key);

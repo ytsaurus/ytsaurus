@@ -40,6 +40,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        descriptors->push_back(EInternedAttributeKey::RemovalStarted);
         descriptors->push_back(EInternedAttributeKey::ExitCellTag);
         descriptors->push_back(EInternedAttributeKey::ExitNodeId);
     }
@@ -48,6 +49,11 @@ private:
     {
         const auto* node = GetThisImpl();
         switch (key) {
+            case EInternedAttributeKey::RemovalStarted:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetRemovalStarted());
+                return true;
+
             case EInternedAttributeKey::ExitCellTag:
                 BuildYsonFluently(consumer)
                     .Value(node->GetExitCellTag());

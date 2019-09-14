@@ -210,6 +210,7 @@
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
+    XX(RemovalStarted, removal_started) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
