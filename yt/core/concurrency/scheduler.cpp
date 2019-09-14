@@ -6,9 +6,9 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_POD_THREAD(IScheduler*) CurrentScheduler;
-Y_POD_THREAD(TFiberId) CurrentFiberId;
-Y_POD_THREAD(const TFiber*) CurrentFiber;
+thread_local IScheduler* CurrentScheduler;
+thread_local TFiberId CurrentFiberId;
+thread_local const TFiber* CurrentFiber;
 
 ////////////////////////////////////////////////////////////////////////////////
 

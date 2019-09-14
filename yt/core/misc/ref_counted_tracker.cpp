@@ -141,14 +141,14 @@ size_t TRefCountedTracker::TNamedSlot::ClampNonnegative(size_t allocated, size_t
 ////////////////////////////////////////////////////////////////////////////////
 
 // nullptr if not initialized or already destroyed
-Y_POD_THREAD(TRefCountedTracker::TLocalSlots*) TRefCountedTracker::LocalSlots_;
+thread_local TRefCountedTracker::TLocalSlots* TRefCountedTracker::LocalSlots_;
 
 // nullptr if not initialized or already destroyed
-Y_POD_THREAD(TRefCountedTracker::TLocalSlot*) TRefCountedTracker::LocalSlotsBegin_;
+thread_local TRefCountedTracker::TLocalSlot* TRefCountedTracker::LocalSlotsBegin_;
 
 //  0 if not initialized
 // -1 if already destroyed
-Y_POD_THREAD(int) TRefCountedTracker::LocalSlotsSize_;
+thread_local int TRefCountedTracker::LocalSlotsSize_;
 
 int TRefCountedTracker::GetTrackedThreadCount() const
 {
@@ -424,7 +424,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         }
     };
 
-    Y_STATIC_THREAD(TReclaimer) Reclaimer;
+    static thread_local TReclaimer Reclaimer;
 
     YT_VERIFY(LocalSlotsSize_ >= 0);
 

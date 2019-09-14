@@ -176,7 +176,7 @@ private:
     TPromise<void> Stopped_ = NewPromise<void>();
     TPromise<void> Exited_ = NewPromise<void>();
 
-    Y_POD_STATIC_THREAD(bool) InDelayedSleeperThread_;
+    static thread_local bool InDelayedSleeperThread_;
 
     /*!
      * If |true| is returned then it is guaranteed that all entries enqueued up to this call
@@ -356,7 +356,7 @@ private:
     }
 };
 
-Y_POD_THREAD(bool) TDelayedExecutor::TImpl::InDelayedSleeperThread_;
+thread_local bool TDelayedExecutor::TImpl::InDelayedSleeperThread_;
 
 ////////////////////////////////////////////////////////////////////////////////
 

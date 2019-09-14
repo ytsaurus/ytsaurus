@@ -25,7 +25,7 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
 
     int frames = 0;
 
-    Y_POD_STATIC_THREAD(bool) AlreadyUnwinding;
+    static thread_local bool AlreadyUnwinding;
     if (AlreadyUnwinding) {
         return 0;
     }

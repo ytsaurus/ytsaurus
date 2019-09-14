@@ -44,7 +44,7 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern Y_POD_THREAD(IScheduler*) CurrentScheduler;
+extern thread_local IScheduler* CurrentScheduler;
 
 Y_FORCE_INLINE IScheduler* GetCurrentScheduler()
 {
@@ -65,7 +65,7 @@ Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern Y_POD_THREAD(TFiberId) CurrentFiberId;
+extern thread_local TFiberId CurrentFiberId;
 
 Y_FORCE_INLINE TFiberId GetCurrentFiberId()
 {
@@ -80,7 +80,7 @@ Y_FORCE_INLINE void SetCurrentFiberId(TFiberId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern Y_POD_THREAD(const TFiber*) CurrentFiber;
+extern thread_local const TFiber* CurrentFiber;
 
 Y_FORCE_INLINE const TFiber* GetCurrentFiber()
 {

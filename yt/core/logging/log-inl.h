@@ -57,8 +57,8 @@ private:
     TSharedMutableRef Buffer_;
 
 #ifndef __APPLE__
-    Y_POD_STATIC_THREAD(TPerThreadCache*) Cache_;
-    Y_POD_STATIC_THREAD(bool) CacheDestroyed_;
+    static thread_local TPerThreadCache* Cache_;
+    static thread_local bool CacheDestroyed_;
 #endif
     static TPerThreadCache* GetCache();
 
