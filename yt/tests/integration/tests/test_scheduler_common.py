@@ -4695,6 +4695,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         }
     }
 
+    @authors("ignat")
     def test_remove(self):
         nodes = ls("//sys/nodes")
         assert len(nodes) == 1
@@ -4713,6 +4714,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
     # It is disabled since Restarter await node to become online, this wait fails for banned node.
+    @authors("ignat")
     def disabled_test_remove_banned(self):
         nodes = ls("//sys/nodes")
         assert len(nodes) == 1
