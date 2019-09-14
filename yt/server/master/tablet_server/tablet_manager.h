@@ -155,9 +155,10 @@ public:
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
-    void MergeTableNodes(
-        NChunkServer::TChunkOwnerBase* originatingNode,
-        NChunkServer::TChunkOwnerBase* branchedNode);
+    void MergeTable(
+        NTableServer::TTableNode* originatingNode,
+        NTableServer::TTableNode* branchedNode);
+
     void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwniner);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
