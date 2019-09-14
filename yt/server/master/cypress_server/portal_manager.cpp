@@ -18,6 +18,8 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/acl.h>
 
+#include <yt/server/master/object_server/object_manager.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/ytree/helpers.h>
@@ -62,6 +64,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraCreatePortalExit, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemovePortalEntrance, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemovePortalExit, Unretained(this)));
     }
 
     void RegisterEntranceNode(
@@ -118,6 +121,11 @@ public:
             return;
         }
 
+        NProto::TReqRemovePortalExit request;
+        ToProto(request.mutable_exit_node_id(), MakePortalExitNodeId(trunkNode->GetId(), trunkNode->GetExitCellTag()));
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
+
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal entrance unregistered (NodeId: %v)",
             trunkNode->GetId());
     }
@@ -131,11 +139,8 @@ public:
             return;
         }
 
-        auto entranceNodeId = MakePortalEntranceNodeId(trunkNode->GetId(), trunkNode->GetEntranceCellTag());
-
         NProto::TReqRemovePortalEntrance request;
-        ToProto(request.mutable_entrance_node_id(), entranceNodeId);
-
+        ToProto(request.mutable_entrance_node_id(), MakePortalEntranceNodeId(trunkNode->GetId(), trunkNode->GetEntranceCellTag()));
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetEntranceCellTag());
 
@@ -261,22 +266,60 @@ private:
         auto entranceNodeId = FromProto<TObjectId>(request->entrance_node_id());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* entranceNode = cypressManager->FindNode(TVersionedObjectId(entranceNodeId));
-        if (!IsObjectAlive(entranceNode)) {
+        auto* node = cypressManager->FindNode(TVersionedObjectId(entranceNodeId));
+        if (!IsObjectAlive(node)) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing portal entrance node (EntranceNodeId: %v)",
                 entranceNodeId);
             return;
         }
 
-        auto* parentNode = entranceNode->GetParent();
+        auto* entranceNode = node->As<TPortalEntranceNode>();
+        if (entranceNode->GetRemovalStarted()) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a portal entrance node for which removal is already started (EntranceNodeId: %v)",
+                entranceNodeId);
+            return;
+        }
+
+        entranceNode->SetRemovalStarted(true);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal entrance removal started (EntranceNodeId: %)",
+            entranceNodeId);
 
         // XXX(babenko)
+        auto* parentNode = entranceNode->GetParent();
         auto entranceProxy = cypressManager->GetNodeProxy(entranceNode);
         auto parentProxy = cypressManager->GetNodeProxy(parentNode)->AsComposite();
         parentProxy->RemoveChild(entranceProxy);
+    }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal entrance removed (EntranceNodeId: %)",
-            entranceNodeId);
+    void HydraRemovePortalExit(NProto::TReqRemovePortalExit* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto exitNodeId = FromProto<TObjectId>(request->exit_node_id());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->FindNode(TVersionedObjectId(exitNodeId));
+        if (!IsObjectAlive(node)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing portal exit node (ExitNodeId: %v)",
+                exitNodeId);
+            return;
+        }
+
+        auto* exitNode = node->As<TPortalExitNode>();
+        if (exitNode->GetRemovalStarted()) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a portal exit node for which removal is already started (EntranceNodeId: %v)",
+                exitNodeId);
+            return;
+        }
+
+        exitNode->SetRemovalStarted(true);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal exit removal started (EntranceNodeId: %)",
+            exitNodeId);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(exitNode);
     }
 };
 

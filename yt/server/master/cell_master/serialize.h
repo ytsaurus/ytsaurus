@@ -94,6 +94,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExternalizedTransactions)                                      (912))  // babenko
     ((SyncCellsBeforeRemoval)                                        (913))  // babenko
     ((RequestLimits)                                                 (914))  // aozeritsky
+    ((TwoSidedPortalRemoval)                                         (915))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
