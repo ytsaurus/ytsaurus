@@ -98,7 +98,8 @@ public:
     {
         return
             ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes;
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
