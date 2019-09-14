@@ -282,12 +282,7 @@ public:
         }
 
         // XXX(babenko): is this needed during forwarding?
-        auto isRetryableError = BIND([] (const TError& error) {
-            return
-                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded ||
-                IsRetriableError(error);
-        });
-        channel = CreateRetryingChannel(Config_->MasterConnection, channel, isRetryableError);
+        channel = CreateRetryingChannel(Config_->MasterConnection, channel);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
         {
