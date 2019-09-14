@@ -1933,10 +1933,3 @@ class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase
         "enable_legacy_rpc_codecs": False
     }
 
-class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-class TestDynamicTableStateTransitionsRpcProxy(TestDynamicTableStateTransitions):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
