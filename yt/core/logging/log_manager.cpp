@@ -32,7 +32,6 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
-#include <util/system/tls.h>
 
 #include <util/string/vector.h>
 

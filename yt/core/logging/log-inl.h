@@ -8,8 +8,6 @@
 
 #include <yt/core/profiling/timing.h>
 
-#include <util/system/tls.h>
-
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////

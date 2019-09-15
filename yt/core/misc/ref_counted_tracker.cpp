@@ -3,8 +3,6 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <util/system/tls.h>
-
 #include <algorithm>
 
 namespace NYT {

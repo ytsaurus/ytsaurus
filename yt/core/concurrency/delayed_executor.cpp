@@ -10,8 +10,6 @@
 
 #include <util/datetime/base.h>
 
-#include <util/system/tls.h>
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
