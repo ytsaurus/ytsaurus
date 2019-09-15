@@ -83,3 +83,14 @@ def f(batch_iter):
 
 spark.range(1).mapInPandas(f).show()
 [out]
+
+
+[case legacyUDF]
+from pyspark.sql.functions import udf
+
+udf(lambda x: x, "string")
+
+@udf("string")
+def f(x):
+    return x
+[out]
