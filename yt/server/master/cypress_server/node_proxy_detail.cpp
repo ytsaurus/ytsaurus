@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/logging/fluent_log.h>
@@ -352,7 +354,9 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         externalCellTag);
 
     auto key = TString(GetUninternedAttributeKey(internedKey));
+    
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
+    AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
