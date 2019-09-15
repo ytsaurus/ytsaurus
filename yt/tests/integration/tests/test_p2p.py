@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
-from yt_helpers import ProfileMetric
+from yt_helpers import *
 
 from flaky import flaky
 
@@ -67,26 +67,30 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @authors("max42")
     @clear_everything_after_test
     def test_no_distribution(self):
-        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
-            # Keep number of tries in sync with min_request_count.
-            self._access()
-            self._access()
-            time.sleep(2)
-        assert p.delta() == 0
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+
+        # Keep number of tries in sync with min_request_count.
+        self._access()
+        self._access()
+        time.sleep(2)
+
+        wait(lambda: metric_delta.update().get(verbose=True) == 0)
 
     @authors("max42", "psushin")
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
-        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
-            # Must be greater than min_request_count in config.
-            self._access()
-            self._access()
-            self._access()
-            self._access()
-            self._access()
-            time.sleep(2)
-        assert p.delta() > 0
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+
+        # Must be greater than min_request_count in config.
+        self._access()
+        self._access()
+        self._access()
+        self._access()
+        self._access()
+        time.sleep(2)
+
+        wait(lambda: metric_delta.update().get(verbose=True) > 0)
 
     @authors("max42")
     @clear_everything_after_test
@@ -95,12 +99,15 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             set("//sys/cluster_nodes/{0}/@user_tags".format(non_seed), ["tag42"])
         # Wait for node directory to become updated.
         time.sleep(2)
-        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
-            self._access()
-            self._access()
-            self._access()
-            time.sleep(2)
-        assert p.delta() == 0
+
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+
+        self._access()
+        self._access()
+        self._access()
+        time.sleep(2)
+
+        wait(lambda: metric_delta.update().get(verbose=True) == 0)
 
 class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
     DELTA_NODE_CONFIG = {
@@ -134,14 +141,15 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_wow_block_so_hot_such_many_requests(self):
-        with ProfileMetric.at_node(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
-            ProfileMetric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
-            ProfileMetric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \
-            ProfileMetric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit") as pns2:
+        metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
+        metric_ns0_delta = Metric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit")
+        metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
+        metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
 
-            for i in range(300):
-                self._access()
-        assert ps.delta() > 0
-        assert pns0.delta() > 0
-        assert pns1.delta() > 0
-        assert pns2.delta() > 0
+        for i in range(300):
+            self._access()
+
+        wait(lambda: metric_s_delta.update().get(verbose=True) > 0)
+        wait(lambda: metric_ns0_delta.update().get(verbose=True) > 0)
+        wait(lambda: metric_ns1_delta.update().get(verbose=True) > 0)
+        wait(lambda: metric_ns2_delta.update().get(verbose=True) > 0)

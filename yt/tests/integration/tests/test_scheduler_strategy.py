@@ -3,7 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait, Restarter, SCHEDULERS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
-from yt_helpers import ProfileMetric
+from yt_helpers import *
 
 from yt.common import date_string_to_timestamp
 
@@ -2943,17 +2943,22 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             }
         }
 
-        with ProfileMetric.at_scheduler("scheduler/pools/fair_share_ratio_x100000").with_tag("pool", "child2") as fair_share_ratio:
-            op2 = vanilla(
-                spec={
-                    "pool": "child2",
-                    "tasks": op2_tasks_spec
-                },
-                dont_track=True)
+        fair_share_ratio_max = Metric.at_scheduler(
+            "scheduler/pools/fair_share_ratio_x100000",
+            with_tags={"pool": "child2"},
+            aggr_method="max")
+
+        op2 = vanilla(
+            spec={
+                "pool": "child2",
+                "tasks": op2_tasks_spec
+            },
+            dont_track=True)
 
         # it's hard to estimate historic usage for all children, because run time can vary and jobs
         # can spuriously abort and restart; so we don't set the threshold any greater than 0.5
-        wait(lambda: fair_share_ratio.update() and fair_share_ratio.update().max(verbose=True) > 0.5 * 100000)
+        wait(lambda: fair_share_ratio_max.update().get(verbose=True) is not None)
+        wait(lambda: fair_share_ratio_max.update().get(verbose=True) > 0.5 * 100000)
 
         op1.complete()
         op2.complete()
@@ -3008,15 +3013,20 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             }
         }
 
-        with ProfileMetric.at_scheduler("scheduler/pools/fair_share_ratio_x100000").with_tag("pool", "child2") as fair_share_ratio:
-            op2 = vanilla(
-                spec={
-                    "pool": "child2",
-                    "tasks": op2_tasks_spec
-                },
-                dont_track=True)
+        fair_share_ratio_max = Metric.at_scheduler(
+            "scheduler/pools/fair_share_ratio_x100000",
+            with_tags={"pool": "child2"},
+            aggr_method="max")
 
-        wait(lambda: fair_share_ratio.update() and fair_share_ratio.update().max(verbose=True) in (49999, 50000, 50001))
+        op2 = vanilla(
+            spec={
+                "pool": "child2",
+                "tasks": op2_tasks_spec
+            },
+            dont_track=True)
+
+        wait(lambda: fair_share_ratio_max.update().get(verbose=True) is not None)
+        wait(lambda: fair_share_ratio_max.update().get(verbose=True) in (49999, 50000, 50001))
 
         op1.complete()
         op2.complete()
