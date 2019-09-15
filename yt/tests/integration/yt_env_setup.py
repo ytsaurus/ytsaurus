@@ -860,7 +860,7 @@ class YTEnvSetup(object):
             yt_commands.remove("//tmp", driver=driver)
             if cls.ENABLE_TMP_PORTAL:
                 # XXX(babenko): portals
-                wait(lambda: not yt_commands.exists("//tmp", driver=driver))
+                wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
             yt_commands.gc_collect(driver=driver)
 
