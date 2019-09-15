@@ -558,6 +558,11 @@ class YTEnvSetup(object):
             cls.apply_config_patches,
             cluster_index=index)
 
+        if arcadia_interop.yatest_common is None:
+            capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
+        else:
+            capture_stderr_to_file = True
+
         instance = YTInstance(
             path,
             master_count=cls.get_param("NUM_MASTERS", index),
@@ -581,7 +586,8 @@ class YTEnvSetup(object):
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
-            enable_structured_master_logging=True)
+            enable_structured_master_logging=True,
+            capture_stderr_to_file=capture_stderr_to_file)
 
         instance._cluster_name = cls.get_cluster_name(index)
 
