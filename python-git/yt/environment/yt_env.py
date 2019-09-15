@@ -179,7 +179,7 @@ class YTInstance(object):
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
                  add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
-                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True):
+                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True, capture_stderr_to_file=None):
         # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
@@ -269,7 +269,9 @@ class YTInstance(object):
         else:
             self._hostname = fqdn
 
-        self._capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
+        if capture_stderr_to_file is None:
+            capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
+        self._capture_stderr_to_file = capture_stderr_to_file
 
         self._process_to_kill = defaultdict(list)
         self._all_processes = {}
