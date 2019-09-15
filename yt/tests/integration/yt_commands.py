@@ -936,11 +936,15 @@ class Operation(object):
             counter += 1
             time.sleep(self._poll_frequency)
 
-    def abort(self, **kwargs):
+    def abort(self, wait_until_finished=False, **kwargs):
         abort_op(self.id, **kwargs)
+        if wait_until_finished:
+            self.wait_for_state("aborted")
 
-    def complete(self, **kwargs):
+    def complete(self, wait_until_finished=False, **kwargs):
         complete_op(self.id, **kwargs)
+        if wait_until_finished:
+            self.wait_for_state("completed")
 
     def suspend(self, **kwargs):
         suspend_op(self.id, **kwargs)
