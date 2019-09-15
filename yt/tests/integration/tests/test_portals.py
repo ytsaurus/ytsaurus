@@ -547,8 +547,8 @@ class TestPortals(YTEnvSetup):
         abort_transaction(tx)
 
         assert ls("//tmp") == []
-        assert not exists("//sys/portal_entrances/{}".format(entrance_id))
-        assert not exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
+        wait(lambda: not exists("//sys/portal_entrances/{}".format(entrance_id)))
+        wait(lambda: not exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1)))
 
 ##################################################################
 
