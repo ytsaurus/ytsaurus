@@ -304,7 +304,7 @@ void TJobController::TImpl::Initialize()
         Config_->RecentlyRemovedJobsCleanPeriod);
     RecentlyRemovedJobCleaner_->Start();
 
-    if (Config_->MappedMemoryController->Enabled) {
+    if (Config_->MappedMemoryController) {
         ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),

@@ -135,14 +135,11 @@ class TMappedMemoryControllerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool Enabled;
     TDuration CheckPeriod;
     i64 ReservedMemory;
 
     TMappedMemoryControllerConfig()
     {
-        RegisterParameter("enabled", Enabled)
-            .Default(false);
         RegisterParameter("check_period", CheckPeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("reserved_memory", ReservedMemory)
@@ -239,7 +236,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("mapped_memory_controller", MappedMemoryController)
-            .DefaultNew();
+            .Default(nullptr);
 
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
             .Default(0)
