@@ -1,0 +1,10 @@
+[case oneVsRest]
+from pyspark.ml.classification import (
+    OneVsRest, OneVsRestModel, LogisticRegression, LogisticRegressionModel
+)
+
+# Should support
+OneVsRest(classifier=LogisticRegression())
+OneVsRest(classifier=LogisticRegressionModel.load("/foo"))  # E: Argument "classifier" to "OneVsRest" has incompatible type "LogisticRegressionModel"; expected "Estimator[<nothing>]"
+OneVsRest(classifier="foo")  # E: Argument "classifier" to "OneVsRest" has incompatible type "str"; expected "Estimator[<nothing>]"
+[out]
