@@ -829,6 +829,10 @@ class YTEnvSetup(object):
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
+            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+                yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, driver=driver)
+                yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, driver=driver)
+
             if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create("portal_entrance", "//tmp",
                     attributes={
@@ -865,6 +869,8 @@ class YTEnvSetup(object):
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
+                yt_commands.remove("//sys/scheduler/config", force=True, driver=driver)
+                yt_commands.remove("//sys/controller_agents/config", force=True, driver=driver)
 
             _abort_transactions(driver=driver)
 
