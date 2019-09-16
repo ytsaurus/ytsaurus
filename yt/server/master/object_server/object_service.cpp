@@ -1427,11 +1427,23 @@ private:
         auto& response = RpcContext_->Response();
         auto& attachments = response.Attachments();
 
+        // Will take a snapshot.
+        SmallVector<int, 16> completedIndexes;
+        SmallVector<int, 16> uncertainIndexes;
+
         // Check for forwarding errors.
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
-            const auto& subresponseMessage = subrequest.ResponseMessage;
+            if (!subrequest.Completed) {
+                continue;
+            }
 
+            if (subrequest.Uncertain) {
+                uncertainIndexes.push_back(index);
+                continue;
+            }
+            
+            const auto& subresponseMessage = subrequest.ResponseMessage;
             NRpc::NProto::TResponseHeader subresponseHeader;
             YT_VERIFY(ParseResponseHeader(subresponseMessage, &subresponseHeader));
 
@@ -1450,31 +1462,24 @@ private:
                 YT_LOG_DEBUG(forwardingError, "Omitting subresponse due to retryable forwarding error (SubrequestIndex: %v)",
                     index);
 
-                subrequest.Uncertain = true;
-                subrequest.Completed.store(false);
+                uncertainIndexes.push_back(index);
+            } else {
+                completedIndexes.push_back(index);
             }
         }
 
         // COMPAT(babenko)
-        int effectiveSubrequestCount = TotalSubrequestCount_;
         if (!request.supports_portals()) {
-            effectiveSubrequestCount = 0;
-            for (auto index = 0; index < TotalSubrequestCount_; ++index) {
-                const auto& subrequest = Subrequests_[index];
-                if (!subrequest.Completed) {
+            for (int index = 0; index < static_cast<int>(completedIndexes.size()); ++index) {
+                if (completedIndexes[index] != index) {
+                    completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
                     break;
                 }
-                effectiveSubrequestCount = index + 1;
             }
         }
 
-        for (auto index = 0; index < effectiveSubrequestCount; ++index) {
+        for (int index : completedIndexes) {
             const auto& subrequest = Subrequests_[index];
-            if (!subrequest.Completed) {
-                YT_ASSERT(request.supports_portals());
-                continue;
-            }
-
             const auto& subresponseMessage = subrequest.ResponseMessage;
             attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
 
@@ -1488,11 +1493,7 @@ private:
             subresponse->set_revision(subrequest.Revision);
         }
 
-        for (int index = 0; index < TotalSubrequestCount_; ++index) {
-            if (Subrequests_[index].Uncertain) {
-                response.add_uncertain_subrequest_indexes(index);
-            }
-        }
+        ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
 
         if (response.subresponses_size() == 0) {
             YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
