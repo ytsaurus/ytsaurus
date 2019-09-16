@@ -11,6 +11,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/public.h>
 
 namespace NYT::NTabletServer {
 
@@ -26,6 +27,8 @@ public:
 
     void ScanCells();
 
+    using TBundleCounter = THashMap<NProfiling::TTagIdList, int>;
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
@@ -39,11 +42,16 @@ private:
 
     const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
 
-    void ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors);
+    void Profile(
+        const std::vector<TTabletCellMoveDescriptor>& moveDescriptors,
+        const TBundleCounter& leaderReassignmentCounter,
+        const TBundleCounter& peerRevocationCounter,
+        const TBundleCounter& peerAssignmentCounter
+    );
 
-    void ScheduleLeaderReassignment(TTabletCell* cell);
-    void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer);
-    void SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer);
+    void ScheduleLeaderReassignment(TTabletCell* cell, TBundleCounter* counter);
+    void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter);
+    void SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer, TBundleCounter* counter);
 
     TError IsFailed(
         const TTabletCell::TPeer& peer,
