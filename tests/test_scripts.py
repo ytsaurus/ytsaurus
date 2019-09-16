@@ -2,14 +2,10 @@ from .conftest import (
     Cli,
     create_nodes,
     create_pod_with_boilerplate,
-    get_pod_scheduling_status,
-    is_assigned_pod_scheduling_status,
 )
 
-import yt.yson as yson
 from yp.common import YtResponseError
-
-from yp.logger import logger
+import yt.yson as yson
 
 import os
 
@@ -17,7 +13,7 @@ import pytest
 
 class ScriptWrapper(Cli):
     def __init__(self, name):
-        super(ScriptWrapper, self).__init__("scripts/" + name, '', 'yp-' + name.replace('_', '-'))
+        super(ScriptWrapper, self).__init__("scripts/" + name, "", "yp-" + name.replace("_", "-"))
         self.set_config(dict(enable_ssl=False))
 
     def set_config(self, config):
@@ -28,7 +24,7 @@ class ScriptWrapper(Cli):
 
 
 @pytest.mark.usefixtures("yp_env")
-@pytest.mark.skipif("True", reason="YP-1155")
+#@pytest.mark.skipif("True", reason="YP-1155")
 class TestScripts(object):
     def test_touch_pod_master_spec_timestamp(self, yp_env, tmpdir):
         yp_client = yp_env.yp_client
@@ -43,23 +39,39 @@ class TestScripts(object):
         timestamps1 = get_timestamps()
 
         grpc_address = yp_env.yp_instance.yp_client_grpc_address
-        script_wrapper = ScriptWrapper('touch_pod_master_spec_timestamps')
+        script_wrapper = ScriptWrapper("touch_pod_master_spec_timestamps")
 
-        def run_script(filter=None, node=None, node_list=None, dry_run=False):
+        def run_script(filter=None, node=None, node_list=None, batch_size=None, dry_run=False):
             if node_list:
                 file = tmpdir.join('test_nodes')
                 file.write('\n'.join(node_list))
                 node_list = str(file)
 
-            script_wrapper.check_output(['--cluster', grpc_address] +
-                                       (['--dry-run'] if dry_run else []) +
-                                       (['--filter', filter] if filter else []) +
-                                       (['--node', node] if node else []) +
-                                       (['--node-list', node_list] if node_list else []))
+            script_wrapper.check_output(["--cluster", grpc_address] +
+                                       (["--dry-run"] if dry_run else []) +
+                                       (["--filter", filter] if filter else []) +
+                                       (["--node", node] if node else []) +
+                                       (["--batch-size", batch_size] if batch_size else []) +
+                                       (["--node-list", node_list] if node_list else []))
 
         run_script()
         timestamps2 = get_timestamps()
-        assert (len(set(timestamps2)) == 1) and all(timestamps2[i] > timestamps1[i] for i in range(10))
+        assert all(timestamps2[i] > timestamps1[i] for i in range(10))
+        timestamps1 = timestamps2
+
+        run_script(batch_size='1')
+        timestamps2 = get_timestamps()
+        assert all(timestamps2[i] > timestamps1[i] for i in range(10))
+        timestamps1 = timestamps2
+
+        run_script(batch_size='9')
+        timestamps2 = get_timestamps()
+        assert all(timestamps2[i] > timestamps1[i] for i in range(10))
+        timestamps1 = timestamps2
+
+        run_script(batch_size='500')
+        timestamps2 = get_timestamps()
+        assert all(timestamps2[i] > timestamps1[i] for i in range(10))
         timestamps1 = timestamps2
 
         run_script(dry_run=True)
@@ -72,7 +84,7 @@ class TestScripts(object):
         assert timestamps2[0] > timestamps1[0] and timestamps1[1:] == timestamps2[1:]
         timestamps1 = timestamps2
 
-        run_script(filter='[/meta/id]="{}"'.format(pod_ids[0]))
+        run_script(filter="[/meta/id]=\"{}\"".format(pod_ids[0]))
         timestamps2 = get_timestamps()
         assert timestamps2[0] > timestamps1[0] and timestamps1[1:] == timestamps2[1:]
         timestamps1 = timestamps2

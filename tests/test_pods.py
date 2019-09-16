@@ -670,10 +670,17 @@ class TestPods(object):
         assert ts1 < ts2
         assert ts2 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
 
-        yp_client.touch_master_spec_timestamps([pod_id])
-        ts3 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+    def test_touch_pod_master_spec_timestamp(self, yp_env):
+        yp_client = yp_env.yp_client
 
-        assert ts2 < ts3
+        pod_set_id = yp_client.create_object(object_type="pod_set")
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
+
+        ts1 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+        yp_client.touch_pod_master_spec_timestamps([pod_id])
+        ts2 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        assert ts1 < ts2
 
     def test_iss_spec(self, yp_env):
         yp_client = yp_env.yp_client

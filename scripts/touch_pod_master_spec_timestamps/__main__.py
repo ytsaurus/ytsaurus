@@ -17,24 +17,53 @@ def configure_logging():
 
 
 def main_impl(yp_client, arguments):
-    filter = get_value(arguments.filter, 'True')
+    def get_filter(optional_node_ids):
+        filter = ""
+        if not optional_node_ids:
+            filter = arguments.filter
+        else:
+            assert len(optional_node_ids) > 0
+            filter = ("({}) and ("
+                      + " or ".join(["[/spec/node_id] = \"{}\""] * len(optional_node_ids))
+                      + ")").format(arguments.filter, *optional_node_ids)
+        return filter
 
-    if arguments.node:
-        filter = "({}) and [/spec/node_id] = \"{}\"".format(filter, arguments.node)
-    elif arguments.node_list:
-        node_ids = [line.rstrip('\n') for line in open(arguments.node_list)]
-        filter = ("({}) and (" + " or ".join(["[/spec/node_id] = \"{}\""] * len(node_ids)) + ")").format(filter, *node_ids)
+    def process_batch(optional_node_ids):
+        filter = get_filter(optional_node_ids)
+        responses = yp_client.select_objects("pod", selectors=["/meta/id"], filter=filter)
+        return map(lambda response: response[0], responses)
 
-    responses = yp_client.select_objects("pod", selectors=["/meta/id"], filter=filter)
-    filtered_pod_ids = map(lambda response: response[0], responses)
-    logging.info("Selected %d pods", len(filtered_pod_ids))
+    def get_optional_node_ids():
+        optional_node_ids = None
+        if arguments.node:
+            optional_node_ids = [arguments.node]
+        elif arguments.node_list:
+            optional_node_ids = [line.rstrip('\n') for line in open(arguments.node_list)]
+        return optional_node_ids
 
-    tx_id = yp_client.start_transaction()
-    for pod_id in filtered_pod_ids:
-        logging.info("Touching pod (id: %s)", pod_id)
-    if not arguments.dry_run:
-        yp_client.touch_master_spec_timestamps(filtered_pod_ids, transaction_id=tx_id)
-    yp_client.commit_transaction(tx_id)
+    def get_optional_node_batch(optional_node_ids, batch_index):
+        if not optional_node_ids:
+            return None
+        else:
+            return optional_node_ids[batch_index::batch_step]
+
+    def get_number_of_batches(optional_node_ids):
+        if not optional_node_ids:
+            return 1
+        else:
+            return 1 + (len(optional_node_ids) - 1) // arguments.batch_size
+
+    assert arguments.batch_size > 0
+    optional_node_ids = get_optional_node_ids()
+    batch_step = get_number_of_batches(optional_node_ids)
+
+    for i in range(batch_step):
+        filtered_pod_ids = process_batch(get_optional_node_batch(optional_node_ids, i))
+        logging.info("Selected %d pods in %d-th batch", len(filtered_pod_ids), i + 1)
+        for pod_id in filtered_pod_ids:
+            logging.info("Touching pod (id: %s)", pod_id)
+        if not arguments.dry_run:
+            yp_client.touch_pod_master_spec_timestamps(filtered_pod_ids)
 
 
 def main(arguments):
@@ -64,7 +93,7 @@ def parse_arguments():
     parser.add_argument(
         "--filter",
         type=str,
-        default=None,
+        default="True",
         help="Touch pods with given pod id filter",
     )
     parser.add_argument(
@@ -78,6 +107,12 @@ def parse_arguments():
         type=str,
         default=None,
         help="Restrict filtering to the list of nodes in given file, one node id at each line",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=50,
+        help="Group nodes in batches with given size",
     )
     parser.add_argument(
         "--dry-run",

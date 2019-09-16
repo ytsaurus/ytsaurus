@@ -236,3 +236,40 @@ class TestCli(object):
         assert get_eviction_state() == "requested"
         yp_client.commit_transaction(tx_id)
         assert get_eviction_state() in ("acknowledged", "none")
+
+    def test_touch_pod_master_spec_timestamps(self, yp_env):
+        cli = create_cli(yp_env)
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        node_ids = create_nodes(yp_client, 10)
+        pod_ids = [create_pod_with_boilerplate(yp_client, pod_set_id, {"node_id": node_id}) for node_id in node_ids]
+
+        def get_timestamps():
+            return [t[0] for t in yp_client.get_objects("pod", pod_ids, selectors=["/status/master_spec_timestamp"])]
+
+        timestamps1 = get_timestamps()
+
+        def run_script(pod_ids, tx_id=None):
+            cli.check_output(["touch-pod-master-spec-timestamps"]
+                             + pod_ids
+                             + (["--transaction-id", tx_id] if tx_id else []))
+
+        run_script([])
+        timestamps2 = get_timestamps()
+        assert timestamps2 == timestamps1
+        timestamps1 = timestamps2
+
+        run_script(pod_ids[0:1])
+        timestamps2 = get_timestamps()
+        assert timestamps2[0] > timestamps1[0] and timestamps1[1:] == timestamps2[1:]
+        timestamps1 = timestamps2
+
+        tx_id = yp_client.start_transaction()
+        run_script(pod_ids[0:5], tx_id)
+        timestamps2 = get_timestamps()
+        assert timestamps2 == timestamps1
+        yp_client.commit_transaction(tx_id)
+        timestamps2 = get_timestamps()
+        assert all(timestamps2[i] > timestamps1[i] for i in range(5)) and timestamps1[5:] == timestamps2[5:]
+        timestamps1 = timestamps2
