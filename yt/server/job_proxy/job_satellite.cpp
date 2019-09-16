@@ -532,7 +532,14 @@ void TJobSatellite::Run()
     StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
         MakeWeak(jobSatelliteService));
 
-    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessMemoryUsage(-1).Rss);
+    i64 rss = 0;
+    try {
+        rss = GetProcessMemoryUsage(-1).Rss;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to get process memory usage");
+    }
+
+    JobProxyControl_->NotifyJobSatellitePrepared(rss);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
