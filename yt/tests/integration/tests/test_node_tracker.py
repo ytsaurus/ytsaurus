@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from time import sleep
 
 ##################################################################
 
@@ -41,16 +40,19 @@ class TestNodeTracker(YTEnvSetup):
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(node), True)
 
-        with pytest.raises(YtError):
-            write_table("//tmp/t", {"a" : "b"})
+        def can_write():
+            try:
+                write_table("//tmp/t", {"a" : "b"})
+                return True
+            except:
+                return False
+
+        assert not can_write()
 
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(node), False)
 
-        sleep(1)
-
-        # Now write must be successful.
-        write_table("//tmp/t", {"a" : "b"})
+        wait(lambda: can_write())
 
     @authors("psushin", "babenko")
     def test_disable_scheduler_jobs(self):
@@ -61,9 +63,7 @@ class TestNodeTracker(YTEnvSetup):
         assert get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) > 0
         set("//sys/cluster_nodes/{0}/@disable_scheduler_jobs".format(test_node), True)
 
-        sleep(1)
-
-        assert get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0
+        wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0)
 
     @authors("babenko")
     def test_resource_limits_overrides_valiation(self):
