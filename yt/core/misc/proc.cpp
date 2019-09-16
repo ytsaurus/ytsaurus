@@ -17,6 +17,7 @@
 #include <util/stream/file.h>
 
 #include <util/string/split.h>
+#include <util/string/strip.h>
 #include <util/string/vector.h>
 
 #include <util/system/info.h>
@@ -193,7 +194,13 @@ THashMap<TString, i64> GetVmstat()
     THashMap<TString, i64> result;
     TString path = "/proc/vmstat";
     TFileInput vmstatFile(path);
-    for (TString line; vmstatFile.ReadLine(line) != 0;) {
+    auto data = vmstatFile.ReadAll();
+    auto lines = SplitString(data, "\n");
+    for (const auto& line : lines) {
+        auto strippedLine = Strip(line);
+        if (strippedLine.empty()) {
+            continue;
+        }
         auto fields = SplitString(line, " ");
         result[fields[0]] = NSystemInfo::GetPageSize() * FromString<i64>(fields[1]);
     }

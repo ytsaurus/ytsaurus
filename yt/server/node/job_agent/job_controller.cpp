@@ -540,9 +540,17 @@ void TJobController::TImpl::CheckReservedMappedMemory()
 {
     YT_LOG_INFO("Check mapped memory usage");
 
-    auto vmstat = GetVmstat();
+    THashMap<TString, i64> vmstat;
+    try {
+        vmstat = GetVmstat();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to read /proc/vmstat; skipping mapped memory check");
+        return;
+    }
+
     auto mappedIt = vmstat.find("nr_mapped");
     if (mappedIt == vmstat.end()) {
+        YT_LOG_WARNING("Field \"nr_mapped\" is not found in /proc/vmstat; skipping mapped memory check");
         return;
     }
 
