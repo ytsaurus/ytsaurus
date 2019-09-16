@@ -1469,6 +1469,11 @@ def get_guid_from_parts(lo, hi):
     ints[3] = lo >> 32
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
 
+def generate_uuid(generator=None):
+    def get_int():
+        return hex(random.randint(0, 2**32 - 1))[2:].rstrip("L")
+    return "-".join([get_int() for _ in xrange(4)])
+    
 ##################################################################
 
 def get_statistics(statistics, complex_key):
