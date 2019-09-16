@@ -307,3 +307,29 @@ class TestInternetAddresses(object):
         addr_requests[0]["enable_internet"] = True
         with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/ip6_address_requests", "value": addr_requests}])
+
+    def test_empty_pool_id(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = self._prepare_objects(yp_client)
+        node_id = self._create_node(yp_client, "netmodule")
+        inet_addr_id = self._create_inet_addr(yp_client, "netmodule", "1.2.3.4")
+
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
+                "ip6_address_requests": [
+                    {
+                        "vlan_id": "somevlan",
+                        "network_id": "somenet",
+                        "ip4_address_pool_id": "",
+                    },
+                ],
+                "enable_scheduling": True
+            }
+        })
+
+        self._wait_scheduled_state(yp_client, [pod_id], "assigned")

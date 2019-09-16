@@ -48,10 +48,10 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
         }
 
         NObjects::TObjectId ip4AddressPoolId;
-        if (ip6AddressRequest.has_ip4_address_pool_id()) {
-            ip4AddressPoolId = ip6AddressRequest.ip4_address_pool_id();
-        } else {
+        if (ip6AddressRequest.ip4_address_pool_id().empty()) {
             ip4AddressPoolId = GetDefaultIP4AddressPoolId();
+        } else {
+            ip4AddressPoolId = ip6AddressRequest.ip4_address_pool_id();
         }
 
         auto scheduledInternetAddressId = TakeInternetAddress(ip4AddressPoolId, node->Spec().Load().network_module_id());
