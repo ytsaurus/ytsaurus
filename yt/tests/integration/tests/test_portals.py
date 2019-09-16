@@ -550,6 +550,26 @@ class TestPortals(YTEnvSetup):
         wait(lambda: not exists("//sys/portal_entrances/{}".format(entrance_id)))
         wait(lambda: not exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1)))
 
+    @authors("babenko")
+    def test_mutation_id1(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+
+        mutation_id = generate_uuid()
+
+        create("table", "//tmp/p/t", mutation_id=mutation_id)
+        remove("//tmp/p/t", mutation_id=mutation_id, retry=True)
+        assert exists("//tmp/p/t")
+
+    @authors("babenko")
+    def test_mutation_id2(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+
+        mutation_id = generate_uuid()
+
+        create("table", "//tmp/p/t", mutation_id=mutation_id)
+        with pytest.raises(YtError):
+            remove("//tmp/p/t", mutation_id=mutation_id)
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):

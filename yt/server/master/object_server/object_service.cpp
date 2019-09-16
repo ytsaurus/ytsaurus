@@ -1033,9 +1033,22 @@ private:
                             MarkSubrequestAsUncertain(batch.Indexes[index]);
                         }
                     } else {
-                        YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
+                        const auto& forwardingError = batchRspOrError;
+
+                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
                             RequestId_,
                             batch.BatchReq->GetRequestId(),
+                            batch.Indexes);
+
+                        if (!IsRetriableError(forwardingError)) {
+                            YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
+                                batch.Indexes);
+                            Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                                << forwardingError);
+                            return;
+                        }
+
+                        YT_LOG_DEBUG(forwardingError, "Omitting subresponses due to retryable forwarding error (SubrequestIndexes: %v)",
                             batch.Indexes);
 
                         for (auto index : batch.Indexes) {
@@ -1405,62 +1418,93 @@ private:
             return;
         }
 
-        if (error.IsOK()) {
-            auto& request = RpcContext_->Request();
-            auto& response = RpcContext_->Response();
-            auto& attachments = response.Attachments();
-
-            // COMPAT(babenko)
-            int effectiveSubrequestCount = TotalSubrequestCount_;
-            if (!request.supports_portals()) {
-                effectiveSubrequestCount = 0;
-                for (auto index = 0; index < TotalSubrequestCount_; ++index) {
-                    const auto& subrequest = Subrequests_[index];
-                    if (!subrequest.Completed) {
-                        break;
-                    }
-                    effectiveSubrequestCount = index + 1;
-                }
-            }
-
-            for (auto index = 0; index < effectiveSubrequestCount; ++index) {
-                const auto& subrequest = Subrequests_[index];
-                if (!subrequest.Completed) {
-                    YT_ASSERT(request.supports_portals());
-                    continue;
-                }
-
-                const auto& subresponseMessage = subrequest.ResponseMessage;
-                attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
-
-                // COMPAT(babenko)
-                response.add_part_counts(subresponseMessage.Size());
-                response.add_revisions(subrequest.Revision);
-
-                auto* subresponse = response.add_subresponses();
-                subresponse->set_index(index);
-                subresponse->set_part_count(subresponseMessage.Size());
-                subresponse->set_revision(subrequest.Revision);
-            }
-
-            for (int index = 0; index < TotalSubrequestCount_; ++index) {
-                if (Subrequests_[index].Uncertain) {
-                    response.add_uncertain_subrequest_indexes(index);
-                }
-            }
-
-            if (response.subresponses_size() == 0) {
-                YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
-                    RequestId_);
-                return;
-            }
-
-            RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
-                response.subresponses_size(),
-                response.uncertain_subrequest_indexes());
+        if (!error.IsOK()) {
+            RpcContext_->Reply(error);
+            return;
         }
 
-        RpcContext_->Reply(error);
+        auto& request = RpcContext_->Request();
+        auto& response = RpcContext_->Response();
+        auto& attachments = response.Attachments();
+
+        // Check for forwarding errors.
+        for (auto index = 0; index < TotalSubrequestCount_; ++index) {
+            auto& subrequest = Subrequests_[index];
+            const auto& subresponseMessage = subrequest.ResponseMessage;
+
+            NRpc::NProto::TResponseHeader subresponseHeader;
+            YT_VERIFY(ParseResponseHeader(subresponseMessage, &subresponseHeader));
+
+            if (subresponseHeader.error().code() == NObjectClient::EErrorCode::ForwardedRequestFailed) {
+                auto wrapperError = FromProto<TError>(subresponseHeader.error());
+                YT_VERIFY(wrapperError.InnerErrors().size() == 1);
+
+                const auto& forwardingError = wrapperError.InnerErrors()[0];
+                if (!IsRetriableError(forwardingError)) {
+                    YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndex: %v)",
+                        index);
+                    RpcContext_->Reply(wrapperError);
+                    return;
+                }
+
+                YT_LOG_DEBUG(forwardingError, "Omitting subresponse due to retryable forwarding error (SubrequestIndex: %v)",
+                    index);
+
+                subrequest.Uncertain = true;
+                subrequest.Completed.store(false);
+            }
+        }
+
+        // COMPAT(babenko)
+        int effectiveSubrequestCount = TotalSubrequestCount_;
+        if (!request.supports_portals()) {
+            effectiveSubrequestCount = 0;
+            for (auto index = 0; index < TotalSubrequestCount_; ++index) {
+                const auto& subrequest = Subrequests_[index];
+                if (!subrequest.Completed) {
+                    break;
+                }
+                effectiveSubrequestCount = index + 1;
+            }
+        }
+
+        for (auto index = 0; index < effectiveSubrequestCount; ++index) {
+            const auto& subrequest = Subrequests_[index];
+            if (!subrequest.Completed) {
+                YT_ASSERT(request.supports_portals());
+                continue;
+            }
+
+            const auto& subresponseMessage = subrequest.ResponseMessage;
+            attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
+
+            // COMPAT(babenko)
+            response.add_part_counts(subresponseMessage.Size());
+            response.add_revisions(subrequest.Revision);
+
+            auto* subresponse = response.add_subresponses();
+            subresponse->set_index(index);
+            subresponse->set_part_count(subresponseMessage.Size());
+            subresponse->set_revision(subrequest.Revision);
+        }
+
+        for (int index = 0; index < TotalSubrequestCount_; ++index) {
+            if (Subrequests_[index].Uncertain) {
+                response.add_uncertain_subrequest_indexes(index);
+            }
+        }
+
+        if (response.subresponses_size() == 0) {
+            YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
+                RequestId_);
+            return;
+        }
+
+        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
+            response.subresponses_size(),
+            response.uncertain_subrequest_indexes());
+
+        RpcContext_->Reply();
     }
 
 

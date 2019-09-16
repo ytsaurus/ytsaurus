@@ -15,6 +15,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidObjectLifeStage)                    (1001))
     ((CrossCellAdditionalPath)                   (1002))
     ((CrossCellRevisionPrerequisitePath)         (1003))
+    ((ForwardedRequestFailed)                    (1004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

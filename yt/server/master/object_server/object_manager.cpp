@@ -460,7 +460,7 @@ public:
                     YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
                         context->GetRequestId(),
                         forwardedRequestId);
-                    auto error = TError(NRpc::EErrorCode::Unavailable, "Forwarded request failed")
+                    auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                         << batchRspOrError;
                     context->Reply(error);
                     if (mutationId) {
@@ -1436,7 +1436,14 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
         peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Object request forwarding failed");
+        if (!batchRspOrError.IsOK()) {
+            YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
+                requestId,
+                batchReq->GetRequestId());
+            auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                << batchRspOrError;
+            return NRpc::CreateErrorResponseMessage(requestId, batchRspOrError);
+        }
 
         YT_LOG_DEBUG("Object request forwarding succeeded (RequestId: %v)",
             requestId);
