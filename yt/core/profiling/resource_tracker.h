@@ -22,9 +22,17 @@ public:
 
     void Start();
 
+    double GetUserCpu();
+    double GetSystemCpu();
+    double GetCpuWait();
+
 private:
-    i64 TicksPerSecond;
-    TInstant LastUpdateTime;
+    i64 TicksPerSecond_;
+    TInstant LastUpdateTime_;
+
+    std::atomic<double> LastUserCpu_{0.0};
+    std::atomic<double> LastSystemCpu_{0.0};
+    std::atomic<double> LastCpuWait_{0.0};
 
     struct TJiffies
     {
@@ -33,9 +41,9 @@ private:
         i64 PreviousWait;
     };
 
-    THashMap<TString, TJiffies> ThreadNameToJiffies;
+    THashMap<TString, TJiffies> ThreadNameToJiffies_;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     void EnqueueUsage();
 

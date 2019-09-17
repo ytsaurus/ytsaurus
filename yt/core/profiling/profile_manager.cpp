@@ -58,7 +58,7 @@ public:
         , DroppedCounter_("/dropped")
     {
 #ifdef _linux_
-        ResourceTracker = New<TResourceTracker>(GetInvoker());
+        ResourceTracker_ = New<TResourceTracker>(GetInvoker());
 #endif
     }
 
@@ -79,7 +79,7 @@ public:
         DequeueExecutor_->Start();
 
 #ifdef _linux_
-        ResourceTracker->Start();
+        ResourceTracker_->Start();
 #endif
     }
 
@@ -161,6 +161,11 @@ public:
         auto result = BIND(&TSampleStorage::GetProtoSamples, &Storage_, count)
             .AsyncVia(GetInvoker()).Run();
         return WaitFor(result).ValueOrThrow();
+    }
+
+    TResourceTrackerPtr GetResourceTracker() const
+    {
+        return ResourceTracker_;
     }
 
 private:
@@ -460,7 +465,7 @@ private:
     TSampleStorage Storage_;
 
 #ifdef _linux_
-    TIntrusivePtr<TResourceTracker> ResourceTracker;
+    TIntrusivePtr<TResourceTracker> ResourceTracker_;
 #endif
 
     THashMap<TString, TString> GlobalTags_;
@@ -610,6 +615,11 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 std::pair<i64, NProto::TPointBatch> TProfileManager::GetSamples(std::optional<i64> count)
 {
     return Impl_->GetSamples(count);
+}
+
+TResourceTrackerPtr TProfileManager::GetResourceTracker() const
+{
+    return Impl_->GetResourceTracker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

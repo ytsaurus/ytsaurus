@@ -98,6 +98,8 @@ public:
 
     std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> cnt = std::nullopt);
 
+    TResourceTrackerPtr GetResourceTracker() const;
+
 private:
     TProfileManager();
 

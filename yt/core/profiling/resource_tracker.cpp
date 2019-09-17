@@ -25,6 +25,8 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NConcurrency;
 
+DEFINE_REFCOUNTED_TYPE(TResourceTracker)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TDuration UpdatePeriod = TDuration::Seconds(1);
@@ -51,10 +53,10 @@ i64 GetTicksPerSecond()
 TResourceTracker::TResourceTracker(IInvokerPtr invoker)
     // CPU time is measured in jiffies; we need USER_HZ to convert them
     // to milliseconds and percentages.
-    : TicksPerSecond(GetTicksPerSecond())
-    , LastUpdateTime(TInstant::Now())
+    : TicksPerSecond_(GetTicksPerSecond())
+    , LastUpdateTime_(TInstant::Now())
 {
-    PeriodicExecutor = New<TPeriodicExecutor>(
+    PeriodicExecutor_ = New<TPeriodicExecutor>(
         invoker,
         BIND(&TResourceTracker::EnqueueUsage, Unretained(this)),
         UpdatePeriod);
@@ -62,7 +64,7 @@ TResourceTracker::TResourceTracker(IInvokerPtr invoker)
 
 void TResourceTracker::Start()
 {
-    PeriodicExecutor->Start();
+    PeriodicExecutor_->Start();
 }
 
 void TResourceTracker::EnqueueUsage()
@@ -73,7 +75,7 @@ void TResourceTracker::EnqueueUsage()
 
 void TResourceTracker::EnqueueCpuUsage()
 {
-    i64 timeDelta = TInstant::Now().MilliSeconds() - LastUpdateTime.MilliSeconds();
+    i64 timeDelta = TInstant::Now().MilliSeconds() - LastUpdateTime_.MilliSeconds();
     if (timeDelta <= 0)
         return;
 
@@ -127,35 +129,43 @@ void TResourceTracker::EnqueueCpuUsage()
         }
     }
 
+    double totalUserCpu = 0.0, totalSystemCpu = 0.0, totalWaitTime = 0.0;
     for (const auto& stat : threadStats)
     {
         const auto& threadName = stat.first;
         auto [userJiffies, systemJiffies, cpuWait] = stat.second;
  
-        auto it = ThreadNameToJiffies.find(threadName);
-        if (it != ThreadNameToJiffies.end()) {
+        auto it = ThreadNameToJiffies_.find(threadName);
+        if (it != ThreadNameToJiffies_.end()) {
             auto& jiffies = it->second;
-            i64 userCpuTime = std::max<i64>((userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond, 0);
-            i64 systemCpuTime = std::max<i64>((systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond, 0);
-            double waitTime = std::max<double>((cpuWait - jiffies.PreviousWait) / 1'000'000'000., 0.);
+            double userCpuTime = 100. * std::max<i64>((userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond_, 0) / timeDelta;
+            double systemCpuTime = 100. * std::max<i64>((systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond_, 0) / timeDelta;
+            double waitTime = 100 * std::max<double>((cpuWait - jiffies.PreviousWait) / 1'000'000'000., 0.) * 1000 / timeDelta;
+
+            totalUserCpu += userCpuTime;
+            totalSystemCpu += systemCpuTime;
+            totalWaitTime += waitTime;
 
             TTagIdList tagIds;
             tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
 
-            Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/cpu_wait", 100 * waitTime * 1000 / timeDelta, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/user_cpu", userCpuTime, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
         }
 
         {
-            auto& jiffies = ThreadNameToJiffies[threadName];
+            auto& jiffies = ThreadNameToJiffies_[threadName];
             jiffies.PreviousUser = userJiffies;
             jiffies.PreviousSystem = systemJiffies;
             jiffies.PreviousWait = cpuWait;
         }
     }
 
-    LastUpdateTime = TInstant::Now();
+    LastUserCpu_.store(totalUserCpu);
+    LastSystemCpu_.store(totalSystemCpu);
+    LastCpuWait_.store(totalWaitTime);
+    LastUpdateTime_ = TInstant::Now();
 }
 
 void TResourceTracker::EnqueueMemoryUsage()
@@ -166,6 +176,21 @@ void TResourceTracker::EnqueueMemoryUsage()
         // Ignore all IO exceptions.
         return;
     }
+}
+
+double TResourceTracker::GetUserCpu()
+{
+    return LastUserCpu_.load();
+}
+
+double TResourceTracker::GetSystemCpu()
+{
+    return LastSystemCpu_.load();
+}
+
+double TResourceTracker::GetCpuWait()
+{
+    return LastCpuWait_.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
