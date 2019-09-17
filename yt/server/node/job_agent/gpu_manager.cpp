@@ -365,7 +365,7 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
 {
     if (!Config_->ToolkitMinDriverVersion.contains(toolkitVersion)) {
-        THROW_ERROR_EXCEPTION("Unknown toolkit version: %v", toolkitVersion);
+        THROW_ERROR_EXCEPTION("Unknown toolkit version %v", toolkitVersion);
     }
 
     auto minVersionString = Config_->ToolkitMinDriverVersion[toolkitVersion];
@@ -374,7 +374,7 @@ void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
     auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
 
     if (actualVersion < minVersion) {
-        THROW_ERROR_EXCEPTION("Unsupported driver version for CUDA toolkit %v, required: %v, actual: %v",
+        THROW_ERROR_EXCEPTION("Unsupported driver version for CUDA toolkit %v, required %v, actual %v",
             toolkitVersion,
             minVersionString,
             DriverVersionString_);
