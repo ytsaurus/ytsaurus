@@ -22,6 +22,8 @@ struct TLiveness
     TInstant UpdatedAt;
     double LoadAverage;
     double NetworkCoef;
+    double UserCpu, SystemCpu, CpuWait;
+    int ConcurrentRequests;
 
     std::atomic<i64> Dampening{0};
 
@@ -75,6 +77,8 @@ class TDynamicConfig
 {
 public:
     TTracingConfigPtr Tracing;
+
+    TString FitnessFunction;
 
     TDynamicConfig();
 };

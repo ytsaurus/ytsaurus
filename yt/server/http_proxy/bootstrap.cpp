@@ -231,6 +231,11 @@ const NApi::IClientPtr& TBootstrap::GetClickHouseClient() const
     return ClickHouseClient_;
 }
 
+const TApiPtr& TBootstrap::GetApi() const
+{
+    return Api_;
+}
+
 void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 {
     server->AddHandler("/auth/whoami", HttpAuthenticator_);
