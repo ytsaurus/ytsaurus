@@ -955,7 +955,7 @@ protected:
                 }
 
                 if (IdMapping_[valueIt->Id] == -1) {
-                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetName(valueIt->Id));
+                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetNameOrThrow(valueIt->Id));
                 }
 
                 int id = IdMapping_[valueIt->Id];
