@@ -87,16 +87,23 @@ void TResourceTracker::EnqueueCpuUsage()
         return;
     }
 
-    std::unordered_map<TString, std::pair<i64, i64>> threadStats;
+    std::unordered_map<TString, std::tuple<i64, i64, i64>> threadStats;
 
     for (int index = 0; index < dirsList.Size(); ++index) {
         auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
+        auto schedStatPath = NFS::CombinePaths(threadStatPath, "schedstat");
 
-        std::vector<TString> fields;
+        std::vector<TString> fields, schedFields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
             fields = SplitString(cpuStatFile.ReadLine(), " ");
+
+            TIFStream schedStatFile(schedStatPath);
+            schedFields = SplitString(schedStatFile.ReadLine(), " ");
+            if (schedFields.size() < 3) {
+                continue;
+            }
         } catch (const TIoException&) {
             // Ignore all IO exceptions.
             continue;
@@ -108,39 +115,43 @@ void TResourceTracker::EnqueueCpuUsage()
         auto threadName = fields[1].substr(1, fields[1].size() - 2);
         i64 userJiffies = FromString<i64>(fields[13]); // In jiffies
         i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies
+        i64 cpuWait = FromString<i64>(schedFields[1]); // In nanoseconds
 
         auto it = threadStats.find(threadName);
         if (it == threadStats.end()) {
-            threadStats.emplace(threadName, std::make_pair(userJiffies, systemJiffies));
+            threadStats.emplace(threadName, std::make_tuple(userJiffies, systemJiffies, cpuWait));
         } else {
-            it->second.first += userJiffies;
-            it->second.second += systemJiffies;
+            std::get<0>(it->second) += userJiffies;
+            std::get<1>(it->second) += systemJiffies;
+            std::get<2>(it->second) += cpuWait;
         }
     }
 
     for (const auto& stat : threadStats)
     {
         const auto& threadName = stat.first;
-        auto userJiffies = stat.second.first;
-        auto systemJiffies = stat.second.second;
-
+        auto [userJiffies, systemJiffies, cpuWait] = stat.second;
+ 
         auto it = ThreadNameToJiffies.find(threadName);
         if (it != ThreadNameToJiffies.end()) {
             auto& jiffies = it->second;
             i64 userCpuTime = std::max<i64>((userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond, 0);
             i64 systemCpuTime = std::max<i64>((systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond, 0);
+            double waitTime = std::max<double>((cpuWait - jiffies.PreviousWait) / 1'000'000'000., 0.);
 
             TTagIdList tagIds;
             tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
 
             Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, EMetricType::Gauge, tagIds);
             Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/cpu_wait", 100 * waitTime * 1000 / timeDelta, EMetricType::Gauge, tagIds);
         }
 
         {
             auto& jiffies = ThreadNameToJiffies[threadName];
             jiffies.PreviousUser = userJiffies;
             jiffies.PreviousSystem = systemJiffies;
+            jiffies.PreviousWait = cpuWait;
         }
     }
 
