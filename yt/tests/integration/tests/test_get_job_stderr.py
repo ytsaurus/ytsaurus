@@ -94,15 +94,10 @@ class TestGetJobStderr(YTEnvSetup):
     @authors("ignat")
     @flaky(max_runs=3)
     def test_get_job_stderr_without_cypress(self):
-        old_value = None
-        try:
-            instances = ls("//sys/controller_agents/instances")
-            old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))
-            set("//sys/controller_agents/config/enable_cypress_job_nodes", False, recursive=True)
-            self.do_test_get_job_stderr()
-        finally:
-            if old_value is not None:
-                set("//sys/controller_agents/config/enable_cypress_job_nodes", old_value, recursive=True)
+        instances = ls("//sys/controller_agents/instances")
+        old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))
+        set("//sys/controller_agents/config/enable_cypress_job_nodes", False, recursive=True)
+        self.do_test_get_job_stderr()
 
     @authors("ignat")
     def test_get_job_stderr_acl(self):

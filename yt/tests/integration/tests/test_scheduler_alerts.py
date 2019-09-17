@@ -400,9 +400,8 @@ class TestControllerAgentAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 
-    def teardown(self):
-        remove("//sys/controller_agents/config", force=True)
-        create("document", "//sys/controller_agents/config", attributes={"value": {}})
+    def teardown_method(self, method):
+        YTEnvSetup.teardown_method(self, method)
         agent = ls("//sys/controller_agents/instances")[0]
         agent_path = "//sys/controller_agents/instances/" + agent
         wait(lambda: len(get(agent_path + "/@alerts")) == 0)
