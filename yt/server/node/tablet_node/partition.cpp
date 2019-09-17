@@ -173,6 +173,16 @@ void TPartition::StopEpoch()
     State_ = EPartitionState::Normal;
 }
 
+void TPartition::RequestImmediateSplit(std::vector<TOwningKey> pivotKeys)
+{
+    PivotKeysForImmediateSplit_ = std::move(pivotKeys);
+}
+
+bool TPartition::IsImmediateSplitRequested() const
+{
+    return !PivotKeysForImmediateSplit_.empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPartitionIdFormatter::operator()(TStringBuilderBase* builder, const std::unique_ptr<TPartition>& partition) const

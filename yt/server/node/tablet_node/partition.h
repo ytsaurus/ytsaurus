@@ -55,6 +55,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<ISortedStorePtr>, Stores);
 
+    // NB: Partition state is transient.
     DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State, EPartitionState::Normal);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingTime);
@@ -63,6 +64,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOwningKey>, PivotKeysForImmediateSplit);
 
 public:
     TPartition(
@@ -91,6 +94,8 @@ public:
     void StartEpoch();
     void StopEpoch();
 
+    void RequestImmediateSplit(std::vector<TOwningKey> pivotKeys);
+    bool IsImmediateSplitRequested() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

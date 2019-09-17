@@ -423,24 +423,12 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
             partition->GetId(),
             addedStores.size());
 
-        if (partition->GetState() != EPartitionState::Normal) {
+        if (partition->GetState() == EPartitionState::Splitting || partition->GetState() == EPartitionState::Merging) {
             YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
-                "Will not split partition due to improper partition state (PartitionId: %v, PartitionState: %v)",
+                "Will not request partition split due to improper partition state (PartitionId: %v, PartitionState: %v)",
                 partition->GetId(),
                 partition->GetState());
             continue;
-        }
-
-        for (const auto& store : partition->Stores()) {
-            if (store->GetStoreState() != EStoreState::Persistent) {
-                YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
-                    "Will not split partition due to improper store state "
-                    "(PartitionId: %v, StoreId: %v, StoreState: %v)",
-                    partition->GetId(),
-                    store->GetId(),
-                    store->GetStoreState());
-                continue;
-            }
         }
 
         TrySplitPartitionByAddedStores(partition, std::move(addedStores));
@@ -769,7 +757,6 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
             return lhs->GetId() < rhs->GetId();
         });
 
-    auto* tablet = partition->GetTablet();
     const auto& config = partition->GetTablet()->GetConfig();
 
     std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
@@ -801,28 +788,12 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
         lastKey = store->GetUpperBoundKey();
     }
 
-    YT_LOG_DEBUG("Splitting partition while adding stores (PartitionId: %v, SplitFactor: %v)",
-        partition->GetId(),
-        proposedPivots.size());
+    if (proposedPivots.size() > 1) {
+        YT_LOG_DEBUG("Requesting partition split while adding stores (PartitionId: %v, SplitFactor: %v)",
+            partition->GetId(),
+            proposedPivots.size());
 
-    partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-    auto partitionId = partition->GetId();
-    auto partitionIndex = partition->GetIndex();
-
-    if (SplitPartition(partitionIndex, proposedPivots)) {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split (OriginalPartitionId: %v, "
-            "ResultingPartitionIds: %v, Keys: %v)",
-            partitionId,
-            MakeFormattableView(
-                MakeRange(
-                    tablet->PartitionList().data() + partitionIndex,
-                    tablet->PartitionList().data() + partitionIndex + proposedPivots.size()),
-                TPartitionIdFormatter()),
-            JoinToString(proposedPivots, AsStringBuf(" .. ")));
-    } else {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (PartitionId: %v, Keys: %v)",
-            partitionId,
-            JoinToString(proposedPivots, AsStringBuf(" .. ")));
+        partition->RequestImmediateSplit(std::move(proposedPivots));
     }
 }
 
