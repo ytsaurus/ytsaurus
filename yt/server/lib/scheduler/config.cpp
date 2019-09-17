@@ -452,6 +452,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("allowed_node_resources_overcommit_duration", AllowedNodeResourcesOvercommitDuration)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("pool_trees_root", PoolTreesRoot)
+        .Default("//sys/pool_trees");
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

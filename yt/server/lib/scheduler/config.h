@@ -489,6 +489,10 @@ public:
     //! Allowed resources overcommit duration before scheduler initiate job abortions.
     TDuration AllowedNodeResourcesOvercommitDuration;
 
+    //! Path to cypress root node with pool tree and pool configs.
+    //! Can be path to simple map node or special virtual map node.
+    TString PoolTreesRoot;
+
     TSchedulerConfig();
 };
 
