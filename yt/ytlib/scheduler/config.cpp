@@ -562,6 +562,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("enable_gpu_layers", EnableGpuLayers)
         .Default(false);
+    RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

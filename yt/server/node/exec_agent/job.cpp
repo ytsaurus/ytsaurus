@@ -161,16 +161,22 @@ public:
                             .Via(Invoker_),
                         prepareTimeLimit);
                 }
-
             }
 
-            if (!Config_->JobController->TestGpu) {
+            if (!Config_->JobController->TestGpuResource) {
                 for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
                     GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
 
                     TGpuStatistics statistics;
                     statistics.LastUpdateTime = now;
                     GpuStatistics_.emplace_back(std::move(statistics));
+                }
+
+                if (schedulerJobSpecExt.has_user_job_spec()) {
+                    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                    if (userJobSpec.has_cuda_toolkit_version()) {
+                        Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(userJobSpec.cuda_toolkit_version());
+                    }
                 }
             }
 
@@ -1350,7 +1356,7 @@ private:
                     nullptr});
             }
 
-            bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpu;
+            bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuLayers;
 
             if (needGpu && userJobSpec.enable_gpu_layers()) {
                 if (userJobSpec.layers().empty()) {

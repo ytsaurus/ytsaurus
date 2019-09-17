@@ -58,6 +58,7 @@ public:
     TGpuSlotPtr AcquireGpuSlot();
 
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
+    void VerifyToolkitDriverVersion(const TString& toolkitVersion);
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;
@@ -75,10 +76,12 @@ private:
     ui64 DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+    TString DriverVersionString_;
 
     void OnHealthCheck();
     void FetchDriverLayerInfo();
     void DoFetchDriverLayerInfo();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

@@ -32,7 +32,16 @@ TString GetGpuDeviceName(int deviceNumber);
 
 void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, const NProfiling::TTagIdList& tagIds);
 
-TString GetGpuDriverVersion();
+struct TGpuDriverVersion
+{
+    std::vector<int> Components;
+
+    static TGpuDriverVersion FromString(TStringBuf driverVersionString);
+};
+
+bool operator < (const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs);
+
+TString GetGpuDriverVersionString();
 
 ////////////////////////////////////////////////////////////////////////////////
 

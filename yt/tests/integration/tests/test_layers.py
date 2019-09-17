@@ -236,7 +236,8 @@ class TestGpuLayer(YTEnvSetup):
                     "path": "/static-bin/static-bash",
                     "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"]
                 },
-                "test_gpu": True,
+                "test_gpu_resource": True,
+                "test_gpu_layers": True,
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
@@ -283,6 +284,87 @@ class TestGpuLayer(YTEnvSetup):
                     "layer_paths": ["//tmp/layer2"],
                     "enable_setup_commands": True,
                     "enable_gpu_layers": True,
+                }
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        job_id = ls(jobs_path)[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "SETUP-OUTPUT\n"
+
+
+@require_ytserver_root_privileges
+@pytest.mark.skip_if('not porto_avaliable()')
+@authors("mrkastep")
+class TestCudaLayer(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    NUM_SECONDARY_MASTER_CELLS = 1
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs" : True,
+            "job_controller": {
+                "job_setup_command": {
+                    "path": "/static-bin/static-bash",
+                    "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"]
+                },
+                "test_gpu_resource": True,
+                "test_gpu_layers": True,
+                "gpu_manager": {
+                    "driver_version": "0",
+                    "toolkit_min_driver_version": {
+                        "0": "0"
+                    }
+                }
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            }
+        },
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "cuda_toolkit_layer_directory_path": "//tmp/cuda"
+        }
+    }
+    USE_PORTO_FOR_SERVERS = True
+
+    def setup_files(self):
+        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+
+        create("map_node", "//tmp/cuda")
+        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
+
+        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        write_file("//tmp/cuda/0", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+
+        create("file", "//tmp/layer2", attributes={"replication_factor": 1})
+        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+
+    def test_setup_cat_gpu_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command='$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2',
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/layer2"],
+                    "enable_setup_commands": True,
+                    "enable_gpu_layers": True,
+                    "cuda_toolkit_version": "0",
                 }
             })
 

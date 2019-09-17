@@ -553,15 +553,7 @@ std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransact
             }
         }
 
-        auto layerPaths = userJobSpec->LayerPaths;
-        if (Config->DefaultLayerPath && layerPaths.empty()) {
-            // If no layers were specified, we insert the default one.
-            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
-        }
-        if (Config->SystemLayerPath && !layerPaths.empty()) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
-        }
+        auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             if (path.GetTransactionId()) {
                 inputTransactionIds.push_back(*path.GetTransactionId());
@@ -619,15 +611,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add layer files.
-        auto layerPaths = userJobSpec->LayerPaths;
-        if (Config->DefaultLayerPath && layerPaths.empty()) {
-            // If no layers were specified, we insert the default one.
-            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
-        }
-        if (Config->SystemLayerPath && !layerPaths.empty()) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
-        }
+        auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             files.push_back(TUserFile(
                 path,
@@ -7588,6 +7572,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_setup_commands(config->EnableSetupCommands);
     jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
 
+    if (config->CudaToolkitVersion) {
+        jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
+    }
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
@@ -8270,6 +8258,30 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
             task->TryRegisterSpeculativeJob(joblet);
         }
     }
+}
+
+std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
+    const NYT::NScheduler::TUserJobSpecPtr& userJobSpec)
+{
+    auto layerPaths = userJobSpec->LayerPaths;
+    if (Config->DefaultLayerPath && layerPaths.empty()) {
+        // If no layers were specified, we insert the default one.
+        layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+    }
+    if (Config->CudaToolkitLayerDirectoryPath &&
+        !layerPaths.empty() &&
+        userJobSpec->CudaToolkitVersion &&
+        userJobSpec->EnableGpuLayers)
+    {
+        // If cuda toolkit is requested, add the layer as the topmost user layer
+        auto path = *Config->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
+        layerPaths.insert(layerPaths.begin(), path);
+    }
+    if (Config->SystemLayerPath && !layerPaths.empty()) {
+        // This must be the top layer, so insert in the beginning.
+        layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
+    }
+    return layerPaths;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
