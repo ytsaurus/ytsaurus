@@ -455,6 +455,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("pool_trees_root", PoolTreesRoot)
         .Default("//sys/pool_trees");
 
+    RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

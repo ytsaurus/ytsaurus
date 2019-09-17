@@ -22,6 +22,7 @@ class TestSchedulerAlerts(YTEnvSetup):
             # Unrecognized alert often interfers with the alerts that
             # are tested in this test suite.
             "enable_unrecognized_alert": False,
+            "validate_node_tags_period": 100,
         }
     }
 
@@ -77,6 +78,23 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/controller_agents/config/enable_snapshot_loading", True)
 
         wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0)
+
+    @authors("ignat")
+    def test_nodes_without_pool_tree_alert(self):
+        nodes = ls("//sys/nodes")
+        set("//sys/nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
+        set("//sys/pool_trees/default/@nodes_filter", "my_tag")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        alerts = get("//sys/scheduler/@alerts")
+        attributes = alerts[0]["attributes"]
+        assert attributes["alert_type"] == "nodes_without_pool_tree"
+        assert len(attributes["node_addresses"]) == 2
+        assert attributes["node_count"] == 2
+
+        set("//sys/pool_trees/default/@nodes_filter", "")
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
 ##################################################################
 
