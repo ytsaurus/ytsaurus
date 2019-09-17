@@ -326,7 +326,10 @@ private:
 
     bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
     {
-        if (!ScanForCompactions_ || partition->GetState() != EPartitionState::Normal) {
+        if (!ScanForCompactions_ ||
+            partition->GetState() != EPartitionState::Normal ||
+            partition->IsImmediateSplitRequested())
+        {
             return false;
         }
 
