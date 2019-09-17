@@ -84,6 +84,11 @@ void TApi::PutUserIntoBanCache(const TString& user)
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
+int TApi::GetNumberOfConcurrentRequests()
+{
+    return GlobalSemaphore_.load();
+}
+
 std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
 {
     auto value = GlobalSemaphore_.load();
