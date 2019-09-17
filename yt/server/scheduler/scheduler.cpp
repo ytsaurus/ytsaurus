@@ -282,6 +282,12 @@ public:
             Config_->NodesInfoLoggingPeriod);
         NodesInfoLoggingExecutor_->Start();
 
+        ValidateNodeTagsExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::ValidateNodeTags, MakeWeak(this)),
+            Config_->ValidateNodeTagsPeriod);
+        ValidateNodeTagsExecutor_->Start();
+
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
@@ -1185,7 +1191,50 @@ public:
                     NodeIdToInfo_.erase(it);
                     YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
+                NodeIdsWithoutTree_.erase(nodeId);
             }));
+    }
+
+    void DoValidateNode(TNodeId nodeId, const TString& address, const THashSet<TString>& tags)
+    {
+        int treeCount;
+        Strategy_->ValidateNodeTags(tags, &treeCount);
+
+        if (treeCount == 1) {
+            NodeIdsWithoutTree_.erase(nodeId);
+        } else if (treeCount == 0) {
+            NodeIdsWithoutTree_.insert(nodeId);
+        }
+
+        YT_LOG_DEBUG("DoValidateNode (NodeId: %v, Address: %v, TreeCount: %v)", nodeId, address, treeCount);
+    }
+
+    void ProcessNodesWithoutPoolTreeAlert()
+    {
+        if (NodeIdsWithoutTree_.empty()) {
+            SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
+        } else {
+            std::vector<TString> nodeAddresses;
+            int nodeCount;
+            bool truncated = false;
+            for (auto nodeId : NodeIdsWithoutTree_) {
+                nodeCount++;
+                if (nodeCount > MaxNodesWithoutPoolTreeToAlert) {
+                    truncated = true;
+                    break;
+                }
+                auto nodeIt = NodeIdToInfo_.find(nodeId);
+                YT_VERIFY(nodeIt != NodeIdToInfo_.end());
+                nodeAddresses.push_back(nodeIt->second.Address);
+            }
+
+            SetSchedulerAlert(
+                ESchedulerAlertType::NodesWithoutPoolTree,
+                TError("Found nodes that do not match any pool tree")
+                    << TErrorAttribute("node_addresses", nodeAddresses)
+                    << TErrorAttribute("truncated", truncated)
+                    << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
+        }
     }
 
     void DoRegisterOrUpdateNode(
@@ -1195,7 +1244,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Strategy_->ValidateNodeTags(tags);
+        DoValidateNode(nodeId, nodeAddress, tags);
 
         auto it = NodeIdToInfo_.find(nodeId);
         if (it == NodeIdToInfo_.end()) {
@@ -1209,6 +1258,21 @@ public:
                 nodeAddress,
                 tags);
         }
+
+        ProcessNodesWithoutPoolTreeAlert();
+    }
+
+    void ValidateNodeTags()
+    {
+        for (const auto& [nodeId, nodeInfo] : NodeIdToInfo_) {
+            try {
+                DoValidateNode(nodeId, nodeInfo.Address, nodeInfo.Tags);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(ex, "Found invalid node that belongs to multiple pool trees");
+                YT_ABORT();
+            }
+        }
+        ProcessNodesWithoutPoolTreeAlert();
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1310,6 +1374,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
+    TPeriodicExecutorPtr ValidateNodeTagsExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
@@ -1333,6 +1398,7 @@ private:
     };
 
     THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
+    THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
     std::atomic<bool> HandleNodeIdChangesStrictly_;
@@ -2011,6 +2077,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
+            ValidateNodeTagsExecutor_->SetPeriod(Config_->ValidateNodeTagsPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);

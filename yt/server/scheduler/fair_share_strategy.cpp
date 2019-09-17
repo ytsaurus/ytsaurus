@@ -833,7 +833,7 @@ public:
         }
     }
 
-    virtual void ValidateNodeTags(const THashSet<TString>& tags) override
+    virtual void ValidateNodeTags(const THashSet<TString>& tags, int* treeCount) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -847,6 +847,8 @@ public:
                 trees.push_back(treeId);
             }
         }
+
+        *treeCount = trees.size();
 
         if (trees.size() > 1) {
             THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")

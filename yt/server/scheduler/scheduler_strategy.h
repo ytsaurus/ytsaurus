@@ -163,7 +163,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
-    virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
+    virtual void ValidateNodeTags(const THashSet<TString>& tags, int* treeCount) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 
