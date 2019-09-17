@@ -1326,6 +1326,7 @@ private:
             auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_INFO("No configuration found in Cypress");
+                SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
                 SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
                 return;
             }

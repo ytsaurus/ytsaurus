@@ -138,15 +138,11 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("ilpauzner")
     def test_progress_merge(self):
-        enable_operation_progress_archivation_path = "//sys/controller_agents/config/enable_operation_progress_archivation"
-        try:
-            set(enable_operation_progress_archivation_path, False, recursive=True)
-            instances = ls("//sys/controller_agents/instances")
-            assert len(instances) > 0
-            wait(lambda: not get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_operation_progress_archivation".format(instances[0])))
-            self.do_test_progress_merge()
-        finally:
-            remove(enable_operation_progress_archivation_path)
+        set(enable_operation_progress_archivation_path, False, recursive=True)
+        instances = ls("//sys/controller_agents/instances")
+        assert len(instances) > 0
+        wait(lambda: not get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_operation_progress_archivation".format(instances[0])))
+        self.do_test_progress_merge()
 
     def do_test_progress_merge(self):
         create("table", "//tmp/t1")
@@ -266,14 +262,11 @@ class TestGetOperation(YTEnvSetup):
             child_key="completion_transaction_id",
             transaction_id=tx)
 
-        try:
-            cleaner_path = "//sys/scheduler/config/operations_cleaner"
-            set(cleaner_path + "/enable", True, recursive=True)
-            wait(lambda: not exists("//sys/operations/" + op.id))
-            wait(lambda: exists(op.get_path()))
-            wait(lambda: "state" in get_operation(op.id))
-        finally:
-            set(cleaner_path + "/enable", False)
+        cleaner_path = "//sys/scheduler/config/operations_cleaner"
+        set(cleaner_path + "/enable", True, recursive=True)
+        wait(lambda: not exists("//sys/operations/" + op.id))
+        wait(lambda: exists(op.get_path()))
+        wait(lambda: "state" in get_operation(op.id))
 
     @authors("kiselyovp", "ilpauzner")
     def test_not_existing_operation(self):

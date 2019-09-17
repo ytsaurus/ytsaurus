@@ -476,6 +476,7 @@ class TestListJobs(YTEnvSetup):
                 enable_cypress_job_nodes=enable_cypress_job_nodes,
                 operation_cleaned=True)
         finally:
+            # TODO(ignat): move it to teardown.
             if original_enable_cypress_job_nodes is not None:
                 set("//sys/controller_agents/config/enable_cypress_job_nodes", original_enable_cypress_job_nodes, recursive=True)
                 wait(lambda: get(orchid_path) == original_enable_cypress_job_nodes)

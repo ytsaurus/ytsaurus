@@ -51,7 +51,6 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     def teardown(self):
         remove("//sys/operations_archive", force=True)
-        remove("//sys/scheduler/config", force=True)
 
         # Drain archive queue
         with Restarter(self.Env, SCHEDULERS_SERVICE):

@@ -2609,9 +2609,11 @@ class TestTentativePoolTrees(YTEnvSetup):
         },
     }
 
+    def setup_method(self, method):
+        set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
+        super(TestTentativePoolTrees, self).setup_method(method)
+
     def teardown_method(self, method):
-        if exists("//sys/controller_agents/config"):
-            set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
         remove("//sys/pool_trees/other")
         super(TestTentativePoolTrees, self).teardown_method(method)
 
@@ -2882,27 +2884,24 @@ class TestTentativePoolTrees(YTEnvSetup):
         set("//sys/scheduler/config/default_tentative_pool_trees", ["other"], recursive=True)
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/config/default_tentative_pool_trees"))
 
-        try:
-            spec = self._create_spec()
-            spec["use_default_tentative_pool_trees"] = True
+        spec = self._create_spec()
+        spec["use_default_tentative_pool_trees"] = True
 
-            create("table", "//tmp/t_in")
-            write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
-            create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        create("table", "//tmp/t_out")
 
-            events = events_on_fs()
-            op = map(
-                command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
-                in_="//tmp/t_in",
-                out="//tmp/t_out",
-                spec=spec,
-                dont_track=True)
+        events = events_on_fs()
+        op = map(
+            command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec=spec,
+            dont_track=True)
 
-            op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
-            wait(lambda: exists(op_pool_trees_path + "other"))
-            assert get(op_pool_trees_path + "other/tentative")
-        finally:
-            remove("//sys/scheduler/config/default_tentative_pool_trees")
+        op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
+        wait(lambda: exists(op_pool_trees_path + "other"))
+        assert get(op_pool_trees_path + "other/tentative")
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
