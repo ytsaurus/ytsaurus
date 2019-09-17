@@ -492,7 +492,7 @@ public:
             path);
 
         const auto& client = GetMasterClient();
-        auto result = WaitFor(client->CheckPermission(user, GetPoolTreesPath() + path, permission))
+        auto result = WaitFor(client->CheckPermission(user, Config_->PoolTreesRoot + path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
@@ -1798,7 +1798,7 @@ private:
 
         YT_LOG_INFO("Requesting pool trees");
 
-        auto req = TYPathProxy::Get(GetPoolTreesPath());
+        auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pool_trees");
     }

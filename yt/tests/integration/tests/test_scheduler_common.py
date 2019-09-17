@@ -4770,3 +4770,28 @@ class TestNodeDoubleRegistration(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+@authors("renadeen")
+class TestConfigurablePoolTreeRoot(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "pool_trees_root": "//sys/test_root"
+        }
+    }
+
+    def test_scheduler_reads_pool_config_from_different_path(self):
+        set("//sys/test_root", {
+            "tree": {
+                "parent": {"pool": {}}
+            }
+        })
+        set("//sys/test_root/tree/parent/pool/@max_operation_count", 10)
+
+        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
+        wait(lambda: exists(pools_path + "/pool"))
+        assert get(pools_path + "/pool/parent") == "parent"
+        assert get(pools_path + "/pool/max_operation_count") == 10

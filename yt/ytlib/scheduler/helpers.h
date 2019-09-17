@@ -43,7 +43,6 @@ NYPath::TYPath GetJobPath(
     TJobId jobId,
     const TString& resourceName);
 
-const NYPath::TYPath& GetPoolTreesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByIdPath();
 const NYPath::TYPath& GetOperationsArchiveOperationAliasesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByStartTimePath();

@@ -172,12 +172,6 @@ NYPath::TYPath GetJobPath(
     return GetJobPath(operationId, jobId) + suffix;
 }
 
-const TYPath& GetPoolTreesPath()
-{
-    static TYPath path =  "//sys/pool_trees";
-    return path;
-}
-
 const TYPath& GetOperationsArchiveOrderedByIdPath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_id";
