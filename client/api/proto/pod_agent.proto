@@ -678,6 +678,15 @@ message TBoxStatus {
 
     // spec_timestamp до которого обновлен box
     uint64 spec_timestamp = 12;
+
+    // Список статических ресурсов box
+    repeated string static_resource_refs = 13;
+
+    // Список rootfs лейеров box
+    repeated string rootfs_layer_refs = 14;
+
+    // Список вольюмов box
+    repeated string volume_refs = 15;
 }
 
 enum EBoxState {
