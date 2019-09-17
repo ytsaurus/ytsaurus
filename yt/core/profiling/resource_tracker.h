@@ -30,6 +30,7 @@ private:
     {
         i64 PreviousUser;
         i64 PreviousSystem;
+        i64 PreviousWait;
     };
 
     THashMap<TString, TJiffies> ThreadNameToJiffies;
