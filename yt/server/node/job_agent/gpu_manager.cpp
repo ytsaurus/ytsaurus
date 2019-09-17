@@ -80,7 +80,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
     if (!descriptors.empty() || testGpu) {
         try {
             DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
-        } catch (std::exception& ex) {
+        } catch (const std::exception& ex) {
             YT_LOG_FATAL(ex, "Cannot determine driver version");
         }
 
