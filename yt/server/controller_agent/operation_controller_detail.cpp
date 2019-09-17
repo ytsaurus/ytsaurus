@@ -8273,7 +8273,7 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         userJobSpec->CudaToolkitVersion &&
         userJobSpec->EnableGpuLayers)
     {
-        // If cuda toolkit is requested, add the layer as the topmost user layer
+        // If cuda toolkit is requested, add the layer as the topmost user layer.
         auto path = *Config->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
         layerPaths.insert(layerPaths.begin(), path);
     }

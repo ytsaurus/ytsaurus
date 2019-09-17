@@ -674,7 +674,7 @@ public:
     std::optional<TString> DefaultLayerPath;
 
     // Cypress path to the directory with CUDA toolkit layers which are required for some
-    // GPU jobs. Is applied as an additional user layer on top of the others if they are
+    // GPU jobs. The layer is applied as an additional user layer on top of the others if they are
     // present.
     std::optional<TString> CudaToolkitLayerDirectoryPath;
 
