@@ -88,6 +88,8 @@ public:
     std::optional<TString> DriverVersion;
     TDuration DriverLayerFetchPeriod;
 
+    THashMap<TString, TString> ToolkitMinDriverVersion;
+
     TGpuManagerConfig()
     {
         RegisterParameter("health_check_timeout", HealthCheckTimeout)
@@ -104,6 +106,8 @@ public:
             .Default();
         RegisterParameter("driver_layer_fetch_period", DriverLayerFetchPeriod)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("toolkit_min_driver_version", ToolkitMinDriverVersion)
+            .Default();
     }
 };
 
@@ -180,7 +184,9 @@ public:
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
-    bool TestGpu;
+    bool TestGpuResource;
+
+    bool TestGpuLayers;
 
     TGpuManagerConfigPtr GpuManager;
 
@@ -229,7 +235,10 @@ public:
         RegisterParameter("port_set", PortSet)
             .Default();
 
-        RegisterParameter("test_gpu", TestGpu)
+        RegisterParameter("test_gpu_resource", TestGpuResource)
+            .Default(false);
+
+        RegisterParameter("test_gpu_layers", TestGpuLayers)
             .Default(false);
 
         RegisterParameter("gpu_manager", GpuManager)

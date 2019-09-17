@@ -76,25 +76,33 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
     , Config_(std::move(config))
 {
     auto descriptors = NJobAgent::ListGpuDevices();
-    bool testGpu = Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpu;
-    if ((!descriptors.empty() || testGpu) && Config_->DriverLayerDirectoryPath) {
-        auto driverVersion = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersion();
-        DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + driverVersion;
+    bool testGpu = Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
+    if (!descriptors.empty() || testGpu) {
+        try {
+            DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
+        } catch (std::exception& ex) {
+            YT_LOG_FATAL(ex, "Cannot determine driver version");
+        }
 
-        YT_LOG_INFO("GPU layer specified (Path: %v, Version: %v)",
-            DriverLayerPath_,
-            driverVersion);
+        if (Config_->DriverLayerDirectoryPath) {
+            DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 
-        FetchDriverLayerExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
-            BIND(&TGpuManager::FetchDriverLayerInfo, MakeWeak(this)),
-            Config_->DriverLayerFetchPeriod,
-            EPeriodicExecutorMode::Automatic /*mode*/,
-            Config_->DriverLayerFetchPeriod /*splay*/);
-        FetchDriverLayerExecutor_->Start();
-    } else {
-        YT_LOG_INFO("No GPU layer specified");
+            YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
+                DriverLayerPath_,
+                DriverVersionString_);
+
+            FetchDriverLayerExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetControlInvoker(),
+                BIND(&TGpuManager::FetchDriverLayerInfo, MakeWeak(this)),
+                Config_->DriverLayerFetchPeriod,
+                EPeriodicExecutorMode::Automatic /*mode*/,
+                Config_->DriverLayerFetchPeriod /*splay*/);
+            FetchDriverLayerExecutor_->Start();
+        } else {
+            YT_LOG_INFO("No GPU driver layer directory specified");
+        }
     }
+
     if (descriptors.empty()) {
         return;
     }
@@ -351,6 +359,25 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
         THROW_ERROR_EXCEPTION(NExecAgent::EErrorCode::GpuLayerNotFetched, "GPU layer is not fetched yet");
     } else {
         return {};
+    }
+}
+
+void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
+{
+    if (!Config_->ToolkitMinDriverVersion.contains(toolkitVersion)) {
+        THROW_ERROR_EXCEPTION("Unknown toolkit version: %v", toolkitVersion);
+    }
+
+    auto minVersionString = Config_->ToolkitMinDriverVersion[toolkitVersion];
+    auto minVersion = TGpuDriverVersion::FromString(minVersionString);
+
+    auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
+
+    if (actualVersion < minVersion) {
+        THROW_ERROR_EXCEPTION("Unsupported driver version for CUDA toolkit %v, required: %v, actual: %v",
+            toolkitVersion,
+            minVersionString,
+            DriverVersionString_);
     }
 }
 

@@ -682,6 +682,8 @@ public:
     bool EnableSetupCommands;
     bool EnableGpuLayers;
 
+    std::optional<TString> CudaToolkitVersion;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

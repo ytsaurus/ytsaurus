@@ -261,7 +261,27 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
     profiler.Enqueue("/memory_used", gpuInfo.MemoryUsed, NProfiling::EMetricType::Gauge, tagIds);
 }
 
-TString GetGpuDriverVersion()
+TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)
+{
+    std::vector<int> result;
+    auto components = StringSplitter(driverVersionString).Split('.');
+
+    try {
+        for (auto component : components) {
+            result.push_back(::FromString<int>(component));
+        }
+        return {result};
+    } catch (std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to parse driver version %v", driverVersionString) << ex;
+    }
+}
+
+bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs)
+{
+    return lhs.Components < rhs.Components;
+}
+
+TString GetGpuDriverVersionString()
 {
     try {
         TFileInput moduleVersion(NvidiaModuleVersionPath);
