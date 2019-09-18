@@ -138,6 +138,7 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("ilpauzner")
     def test_progress_merge(self):
+        enable_operation_progress_archivation_path = "//sys/controller_agents/config/enable_operation_progress_archivation"
         set(enable_operation_progress_archivation_path, False, recursive=True)
         instances = ls("//sys/controller_agents/instances")
         assert len(instances) > 0
