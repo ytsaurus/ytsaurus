@@ -57,9 +57,7 @@ public:
         , DequeuedCounter_("/dequeued")
         , DroppedCounter_("/dropped")
     {
-#ifdef _linux_
         ResourceTracker_ = New<TResourceTracker>(GetInvoker());
-#endif
     }
 
     void Start()
@@ -464,9 +462,7 @@ private:
     //! One deque instead of buckets with deques.
     TSampleStorage Storage_;
 
-#ifdef _linux_
     TIntrusivePtr<TResourceTracker> ResourceTracker_;
-#endif
 
     THashMap<TString, TString> GlobalTags_;
 
