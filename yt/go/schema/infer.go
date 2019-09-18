@@ -54,7 +54,7 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 	case reflect.Float64:
 		return TypeFloat64, nil
 
-	case reflect.Struct, reflect.Slice, reflect.Map, reflect.Interface:
+	case reflect.Struct, reflect.Slice, reflect.Map, reflect.Interface, reflect.Array:
 		return TypeAny, nil
 	}
 

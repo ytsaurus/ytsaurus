@@ -150,3 +150,29 @@ func TestUnexportedFields(t *testing.T) {
 
 	require.Equal(t, Unexported{A: 10}, out)
 }
+
+type (
+	RecursiveA struct {
+		*RecursiveB
+	}
+
+	RecursiveB struct {
+		*RecursiveA
+	}
+)
+
+func TestRecursiveTypes(t *testing.T) {
+	t.Skipf("this is broken")
+
+	in := RecursiveA{&RecursiveB{&RecursiveA{&RecursiveB{}}}}
+	expected := `{}`
+
+	ys, err := yson.Marshal(in)
+	require.NoError(t, err)
+	require.Equal(t, expected, string(ys))
+
+	var out RecursiveA
+	require.NoError(t, yson.Unmarshal(ys, &out))
+
+	require.Equal(t, in, out)
+}

@@ -344,6 +344,8 @@ func encodeReflect(w *Writer, value reflect.Value) error {
 		return encodeReflectStruct(w, value)
 	case reflect.Slice:
 		return encodeReflectSlice(w, value)
+	case reflect.Array:
+		return encodeReflectSlice(w, value)
 	case reflect.Ptr:
 		if value.IsNil() {
 			w.Entity()
