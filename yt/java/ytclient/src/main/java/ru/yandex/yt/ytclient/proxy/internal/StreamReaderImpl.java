@@ -162,7 +162,7 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
     }
 
     CompletableFuture<Void> getReadyEvent() {
-        return stash.readyEvent();
+        return CompletableFuture.anyOf(stash.readyEvent(), result).thenAccept((unused) -> {});
     }
 
     CompletableFuture<Void> doClose() {
