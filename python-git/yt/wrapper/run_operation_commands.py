@@ -299,6 +299,7 @@ def run_reduce(binary, source_table, destination_table=None,
                reduce_by=None,
                join_by=None,
                stderr_table=None,
+               enable_key_guarantee=None,
                client=None):
     """Runs reduce operation.
 
@@ -325,6 +326,7 @@ def run_reduce(binary, source_table, destination_table=None,
         .join_by(join_by) \
         .job_count(job_count) \
         .job_io(job_io) \
+        .enable_key_guarantee(enable_key_guarantee) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 

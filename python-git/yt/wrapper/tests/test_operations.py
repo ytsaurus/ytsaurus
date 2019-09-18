@@ -930,6 +930,22 @@ print(op.id)
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
 
+    def test_reduce_with_foreign_tables_and_disabled_key_guarantee(self):
+        table1 = TEST_DIR + "/table1"
+        table2 = TEST_DIR + "/table2"
+        table = TEST_DIR + "/table"
+        yt.write_table("<sorted_by=[x;y]>" + table1, [{"x": 1, "y": 1}])
+        yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
+
+        def func(_, rows):
+            for row in rows:
+                yield row
+
+        op = yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
+                           join_by=["x"], enable_key_guarantee=False)
+        assert "enable_key_guarantee" in op.get_attributes()["spec"]
+        check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
+
     def test_operations_tracker_multiple_instances(self):
         tracker = yt.OperationsTracker()
 
