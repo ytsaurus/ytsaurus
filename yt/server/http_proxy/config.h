@@ -170,6 +170,9 @@ public:
     //! Force update can be skipped by discovery if the data is younger than this age threshold.
     TDuration ForceDiscoveryUpdateAgeThreshold;
 
+    //! Timeout to resolve alias.
+    TDuration AliasResolutionTimeout;
+
     TClickHouseConfig()
     {
         RegisterParameter("discovery_path", DiscoveryPath)
@@ -188,6 +191,8 @@ public:
             .Default(2);
         RegisterParameter("force_discovery_update_age_threshold", ForceDiscoveryUpdateAgeThreshold)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("alias_resolution_timeout", AliasResolutionTimeout)
+            .Default(TDuration::Seconds(30));
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);

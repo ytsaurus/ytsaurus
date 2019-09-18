@@ -26,6 +26,7 @@
 
 namespace NYT::NHttpProxy {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
@@ -77,21 +78,15 @@ public:
                 return false;
             }
 
-            CliqueId_ = CgiParameters_.Get("database");
+            CliqueIdOrAlias_ = CgiParameters_.Get("database");
 
-            if (CliqueId_.empty()) {
+            if (CliqueIdOrAlias_.empty()) {
                 ReplyWithError(
                     EStatusCode::NotFound,
                     TError("Clique id or alias should be specified using the `database` CGI parameter"));
             }
 
-            if (CliqueId_.StartsWith("*")) {
-                if (!TryResolveAlias()) {
-                    return false;
-                }
-            }
-
-            YT_LOG_DEBUG("Clique id parsed (CliqueId: %v)", CliqueId_);
+            YT_LOG_DEBUG("Clique id parsed (CliqueId: %v)", CliqueIdOrAlias_);
 
             // TODO(max42): remove this when DataLens makes proper authorization. Duh.
             if (auto* header = Request_->GetHeaders()->Find("X-DataLens-Real-User")) {
@@ -109,7 +104,6 @@ public:
             ProxiedRequestHeaders_->Add("X-Yt-User", User_);
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
             ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
-            ProxiedRequestHeaders_->Add("X-Clique-Id", CliqueId_);
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
@@ -135,7 +129,7 @@ public:
 
             auto instances = Discovery_->List();
             if (instances.empty()) {
-                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueId_);
+                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueIdOrAlias_);
                 return false;
             }
             auto it = instances.begin();
@@ -207,6 +201,11 @@ public:
         YT_LOG_DEBUG("Proxied response forwarded");
     }
 
+    void RemoveCliqueFromCache()
+    {
+        CliqueCache_->TryRemove(CliqueIdOrAlias_);
+    }
+
     const TString& GetUser() const
     {
         return User_;
@@ -225,7 +224,11 @@ private:
 
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
-    TString CliqueId_;
+    // CliqueId or alias.
+    TString CliqueIdOrAlias_;
+    // Do TryResolveAliase() to set up this value.
+    // Will be set automatically after finding Discovery in cache.
+    std::optional<TString> CliqueId_;
     TString Token_;
     TString User_;
     TString InstanceId_;
@@ -243,6 +246,12 @@ private:
 
     std::vector<TError> RequestErrors_;
 
+    void SetCliqueId(TString cliqueId)
+    {
+        CliqueId_ = std::move(cliqueId);
+        ProxiedRequestHeaders_->Add("X-Clique-Id", CliqueId_.value());
+    }
+
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
     {
         YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
@@ -251,23 +260,33 @@ private:
 
     bool TryResolveAlias()
     {
-        auto alias = CliqueId_;
-        YT_LOG_DEBUG("Resolving alias (Alias: %v)", alias);
+        if (CliqueId_) {
+            return true;
+        }
+
+        if (!CliqueIdOrAlias_.StartsWith("*")) {
+            SetCliqueId(CliqueIdOrAlias_);
+            return true;
+        }
+
+        YT_LOG_DEBUG("Resolving alias (Alias: %v)", CliqueIdOrAlias_);
         try {
+            TGetNodeOptions options;
+            options.Timeout = Config_->AliasResolutionTimeout;
             auto operationId = ConvertTo<TGuid>(WaitFor(
                 Client_->GetNode(
                     Format("//sys/scheduler/orchid/scheduler/operations/%v/operation_id",
-                    ToYPathLiteral(alias))))
+                        ToYPathLiteral(CliqueIdOrAlias_)),
+                    options))
                     .ValueOrThrow());
-            CliqueId_ = ToString(operationId);
+            SetCliqueId(ToString(operationId));
         } catch (const std::exception& ex) {
-            ReplyWithError(EStatusCode::NotFound, TError("Error while resolving alias %Qv", alias)
+            RequestErrors_.emplace_back(TError("Error while resolving alias %Qv", CliqueIdOrAlias_)
                 << ex);
             return false;
         }
 
-        YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
-        CgiParameters_.ReplaceUnescaped("database", CliqueId_);
+        YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", CliqueIdOrAlias_, CliqueId_);
 
         return true;
     }
@@ -348,11 +367,15 @@ private:
         }
 
         try {
-            auto cookie = CliqueCache_->BeginInsert(CliqueId_);
+            auto cookie = CliqueCache_->BeginInsert(CliqueIdOrAlias_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueId_);
+                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueIdOrAlias_);
 
-                TString path = Config_->DiscoveryPath + "/" + CliqueId_;
+                if (!TryResolveAlias()) {
+                    return false;
+                }
+
+                TString path = Config_->DiscoveryPath + "/" + CliqueId_.value();
                 NApi::TGetNodeOptions options;
                 options.ReadFrom = NApi::EMasterChannelKind::Cache;
                 auto node = ConvertToNode(WaitFor(Client_->GetNode(path + "/@", options))
@@ -369,7 +392,8 @@ private:
                 }
 
                 cookie.EndInsert(New<TCachedDiscovery>(
-                    CliqueId_,
+                    CliqueIdOrAlias_,
+                    CliqueId_.value(),
                     config,
                     Client_,
                     ControlInvoker_,
@@ -379,6 +403,10 @@ private:
 
             Discovery_ = WaitFor(cookie.GetValue())
                 .ValueOrThrow();
+
+            if (!CliqueId_) {
+                SetCliqueId(Discovery_->GetCliqueId());
+            }
 
         } catch (const std::exception& ex) {
             RequestErrors_.push_back(TError("Failed to create discovery")
@@ -440,14 +468,30 @@ void TClickHouseHandler::HandleRequest(
         }
 
         bool success = false;
+        // Force update have already been done.
         bool forceUpdated = false;
-        bool pickedInstance = false;
+        // An instance was picked successfully on previous step or no step has happened yet.
+        bool pickedInstance = true;
         for (int retry = 0; retry <= Config_->DeadInstanceRetryCount; ++retry) {
-            bool forceUpdate = !forceUpdated;
-            forceUpdate &= !pickedInstance || retry > Config_->RetryWithoutUpdateLimit;
+            bool forceUpdate = retry > Config_->RetryWithoutUpdateLimit;
+            // If we did not find any instances on previous step, we need to do force update right now.
+            if (!pickedInstance) {
+                forceUpdate = true;
+            }
+            // We don't allow to do force update several times per one request.
+            if (forceUpdated) {
+                forceUpdate = false;
+            }
 
             pickedInstance = false;
             if (!context->TryPickRandomInstance(forceUpdate)) {
+                // There is no chance to invoke the request if we can not pick an instance even after force update.
+                if (forceUpdated) {
+                    // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
+                    // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
+                    context->RemoveCliqueFromCache();
+                    break;
+                }
                 continue;
             }
             pickedInstance = true;
