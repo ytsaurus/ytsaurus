@@ -2610,8 +2610,8 @@ class TestTentativePoolTrees(YTEnvSetup):
     }
 
     def setup_method(self, method):
-        set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
         super(TestTentativePoolTrees, self).setup_method(method)
+        set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
 
     def teardown_method(self, method):
         remove("//sys/pool_trees/other")
