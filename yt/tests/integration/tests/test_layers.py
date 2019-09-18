@@ -254,17 +254,21 @@ class TestGpuLayer(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
+        tx = start_transaction()
+
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
-        create("map_node", "//tmp/drivers")
-        create("file", "//tmp/drivers/test_version", attributes={"replication_factor": 1})
+        create("map_node", "//tmp/drivers", tx=tx)
+        create("file", "//tmp/drivers/test_version", attributes={"replication_factor": 1}, tx=tx)
 
         file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
-        write_file("//tmp/drivers/test_version", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+        write_file("//tmp/drivers/test_version", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
 
-        create("file", "//tmp/layer2", attributes={"replication_factor": 1})
+        create("file", "//tmp/layer2", attributes={"replication_factor": 1}, tx=tx)
         file_name = os.path.join(current_dir, "layers/test.tar.gz")
-        write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+        write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
+
+        commit_transaction(tx)
 
     def test_setup_cat_gpu_layer(self):
         self.setup_files()
