@@ -124,6 +124,13 @@ TDynamicConfig::TDynamicConfig()
 
     RegisterParameter("fitness_function", FitnessFunction)
         .Default();
+
+    RegisterParameter("cpu_weight", CpuWeight)
+        .Default(1);
+    RegisterParameter("cpu_wait_weight", CpuWaitWeight)
+        .Default(10);
+    RegisterParameter("concurrent_requests_weight", ConcurrentRequestsWeight)
+        .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,21 +209,18 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
         }
     }
 
-    TString fitnessFunction;
-    if (auto dynamicConfig = GetDynamicConfig()) {
-        fitnessFunction = dynamicConfig->FitnessFunction;
-    }
+    auto dynamicConfig = GetDynamicConfig();
+    TString fitnessFunction = dynamicConfig->FitnessFunction;
 
     std::vector<std::pair<double, TProxyEntryPtr>> ordered;
     for (const auto& proxy : filtered) {
         auto liveness = proxy->Liveness;
 
         double fitness = 0.0;
-        if (fitnessFunction == "marina") {
-            fitness = liveness->UserCpu
-                + liveness->SystemCpu
-                - 10 * liveness->CpuWait
-                - liveness->ConcurrentRequests;
+        if (fitnessFunction == "cpu") {
+            fitness = (liveness->UserCpu + liveness->SystemCpu) * dynamicConfig->CpuWeight
+                + liveness->CpuWait * dynamicConfig->CpuWaitWeight
+                + liveness->ConcurrentRequests * dynamicConfig->ConcurrentRequestsWeight;
         } else {
             auto adjustedNetworkLoad = std::pow(1.5, liveness->NetworkCoef);
             fitness = liveness->LoadAverage * Config_->LoadAverageWeight

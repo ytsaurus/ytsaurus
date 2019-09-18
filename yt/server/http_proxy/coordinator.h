@@ -79,6 +79,7 @@ public:
     TTracingConfigPtr Tracing;
 
     TString FitnessFunction;
+    double CpuWeight, CpuWaitWeight, ConcurrentRequestsWeight;
 
     TDynamicConfig();
 };
