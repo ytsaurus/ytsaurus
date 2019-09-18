@@ -7,6 +7,7 @@ namespace NYT::NHttpProxy {
 
 TCachedDiscovery::TCachedDiscovery(
     TString key,
+    TString cliqueId,
     TDiscoveryConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
@@ -19,6 +20,7 @@ TCachedDiscovery::TCachedDiscovery(
         extraAttributes,
         logger)
     , TAsyncCacheValueBase(key)
+    , CliqueId_(std::move(cliqueId))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
