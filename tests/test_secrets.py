@@ -127,5 +127,5 @@ class TestSecrets(object):
             yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])
 
             assert yp_client1.get_object("pod", pod_id, selectors=["/spec"])[0]["secrets"] == YsonEntity()
-            yp_client1.select_objects("pod", selectors=["/spec"])[0][0]["secrets"] == YsonEntity()
+            assert yp_client1.select_objects("pod", selectors=["/spec"])[0][0]["secrets"] == YsonEntity()
 
