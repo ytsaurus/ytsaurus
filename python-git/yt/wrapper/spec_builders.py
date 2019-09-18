@@ -30,14 +30,15 @@ def _check_columns(columns, type):
                     'Did you mean to %s by a composite key?',
                     columns[0], type)
 
-def _prepare_reduce_by(reduce_by, client):
+def _prepare_reduce_by(reduce_by, client, required=True):
     if reduce_by is None:
         if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
             reduce_by = ["key"]
-        else:
+        elif required:
             raise YtError("reduce_by option is required")
-    reduce_by = flatten(reduce_by)
-    _check_columns(reduce_by, "reduce")
+    else:
+        reduce_by = flatten(reduce_by)
+        _check_columns(reduce_by, "reduce")
     return reduce_by
 
 def _prepare_join_by(join_by, required=True):
@@ -997,6 +998,10 @@ class ReduceSpecBuilder(SpecBuilder):
     def consider_only_primary_size(self, flag=True):
         return _set_spec_value(self, "consider_only_primary_size", flag)
 
+    @spec_option("Standard key guarantee of reduce operation. Can be disabled to deal with skewed keys")
+    def enable_key_guarantee(self, flag):
+        return _set_spec_value(self, "enable_key_guarantee", flag)
+
     @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
     def job_io(self, job_io_spec):
         self._spec["job_io"] = deepcopy(job_io_spec)
@@ -1011,10 +1016,16 @@ class ReduceSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, client=client)
-        if spec.get("sort_by") is None and spec.get("reduce_by") is not None:
-            spec["sort_by"] = spec.get("reduce_by")
+        if spec.get("sort_by") is None:
+            if spec.get("reduce_by") is not None:
+                spec["sort_by"] = spec.get("reduce_by")
+            elif spec.get("join_by") is not None:
+                spec["sort_by"] = spec.get("join_by")
 
-        spec["reduce_by"] = _prepare_reduce_by(spec.get("reduce_by"), client)
+        reduce_by = _prepare_reduce_by(spec.get("reduce_by"), client, required=False)
+        if reduce_by is not None:
+            spec["reduce_by"] = reduce_by
+
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client)
 
         if spec.get("join_by") is not None:
