@@ -211,6 +211,8 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 		return decodeReflectStruct(d, v.Elem())
 	case reflect.Slice:
 		return decodeReflectSlice(d, v)
+	case reflect.Array:
+		return decodeReflectArray(d, v)
 	case reflect.Ptr:
 		return decodeReflectPtr(d, v.Elem())
 	case reflect.Map:
@@ -259,6 +261,51 @@ func decodeReflectSlice(d *Reader, v reflect.Value) error {
 	}
 
 	v.Elem().Set(slice)
+	return nil
+}
+
+func decodeReflectArray(d *Reader, v reflect.Value) error {
+	e, err := d.Next(true)
+	if err != nil {
+		return err
+	}
+
+	if e == EventLiteral && d.currentType == TypeEntity {
+		return nil
+	}
+
+	if e != EventBeginList {
+		return &TypeError{UserType: v.Type(), YSONType: d.currentType}
+	}
+
+	array := v.Elem()
+	for i := 0; true; i++ {
+		if ok, err := d.NextListItem(); err != nil {
+			return err
+		} else if !ok {
+			break
+		}
+
+		if i < array.Len() {
+			err = decodeAny(d, array.Index(i).Addr().Interface())
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = d.NextRawValue()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if e, err = d.Next(false); err != nil {
+		return err
+	}
+	if e != EventEndList {
+		panic("invalid decoder state")
+	}
+
 	return nil
 }
 

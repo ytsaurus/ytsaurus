@@ -28,6 +28,7 @@ type testBasicTypes struct {
 	A0 interface{}
 	A1 innerStruct
 	A2 map[string]interface{}
+	A3 [3]interface{}
 }
 
 func TestInfer(t *testing.T) {
@@ -49,6 +50,7 @@ func TestInfer(t *testing.T) {
 			{Name: "A0", Type: TypeAny},
 			{Name: "A1", Type: TypeAny},
 			{Name: "A2", Type: TypeAny},
+			{Name: "A3", Type: TypeAny},
 		},
 	})
 }

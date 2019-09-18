@@ -68,6 +68,11 @@ func TestRoundtripBasicTypes(t *testing.T) {
 	testRoundtrip(t, math.Inf(-1))
 }
 
+func TestRoundtripArrays(t *testing.T) {
+	testRoundtrip(t, [4]int{1, 2, 3, 4})
+	testRoundtrip(t, [3]interface{}{uint64(1), 2.3, "4"})
+}
+
 func TestMarhalStruct(t *testing.T) {
 	var simple simpleStruct
 	simple.String = "bar0"
@@ -120,4 +125,14 @@ func TestYSONTranscoding(t *testing.T) {
 	data, err := Marshal(&customMarshal{})
 	require.Nil(t, err)
 	assert.Equal(t, []byte("{a=b;c=[1;2;3;];}"), data)
+}
+
+func TestArraySizeMismatch(t *testing.T) {
+	var v [3]int
+
+	require.NoError(t, Unmarshal([]byte(`[1]`), &v))
+	require.Equal(t, [3]int{1, 0, 0}, v)
+
+	require.NoError(t, Unmarshal([]byte(`[1;2;3;4]`), &v))
+	require.Equal(t, [3]int{1, 2, 3}, v)
 }
