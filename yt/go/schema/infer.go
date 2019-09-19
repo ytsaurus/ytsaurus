@@ -4,9 +4,10 @@ import (
 	"encoding"
 	"reflect"
 	"sort"
-	"strings"
 
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 var (
@@ -61,28 +62,20 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 	return "", xerrors.Errorf("type %v has no associated YT type", typ)
 }
 
-func parseTag(fieldName string, typ reflect.Type, tag string) (c *Column, err error) {
+func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Column, err error) {
 	c = &Column{Required: true}
 
-	c.Name = fieldName
-	if tag != "" {
-		parts := strings.Split(tag, ",")
-		if parts[0] == "-" {
-			return nil, nil
-		}
+	decodedTag, skip := yson.ParseTag(fieldName, tag)
+	if skip {
+		return nil, nil
+	}
 
-		if parts[0] != "" {
-			c.Name = parts[0]
-		}
-
-		for _, option := range parts[1:] {
-			switch option {
-			case "key":
-				c.SortOrder = SortAscending
-			case "omitempty":
-				c.Required = false
-			}
-		}
+	c.Name = decodedTag.Name
+	if decodedTag.Key {
+		c.SortOrder = SortAscending
+	}
+	if decodedTag.Omitempty {
+		c.Required = false
 	}
 
 	c.Type, err = ytTypeFor(typ)
@@ -123,7 +116,7 @@ func Infer(value interface{}) (s Schema, err error) {
 		field := typ.Field(i)
 
 		var column *Column
-		column, err = parseTag(field.Name, field.Type, field.Tag.Get("yson"))
+		column, err = parseTag(field.Name, field.Type, field.Tag)
 		if err != nil {
 			return s, err
 		}
@@ -139,7 +132,7 @@ func Infer(value interface{}) (s Schema, err error) {
 // InferMap infers Schema from go map[string]interface{}.
 //
 // InferMap creates column for each key value pair.
-// Column name inferred from key itself, and colum type iferred from the type of value.
+// Column name inferred from key itself, and column type inferred from the type of value.
 //
 // To avoid ambiguity key type should always be string, while value type doesn't matter.
 func InferMap(value interface{}) (s Schema, err error) {
