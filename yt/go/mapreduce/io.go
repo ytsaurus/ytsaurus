@@ -35,7 +35,7 @@ func (c *jobContext) initEnv() error {
 }
 
 func (c *jobContext) onError(err error) {
-	fmt.Fprintf(os.Stderr, "error: %+v\n", err)
+	_, _ = fmt.Fprintf(os.Stderr, "error: %+v\n", err)
 	os.Exit(1)
 }
 
