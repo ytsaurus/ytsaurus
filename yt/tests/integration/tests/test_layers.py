@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.environment.porto_helpers import porto_avaliable
@@ -9,7 +9,6 @@ import os
 import time
 
 
-@require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -24,6 +23,7 @@ class TestLayers(YTEnvSetup):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
@@ -163,12 +163,12 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
-@require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs" : True,
@@ -185,7 +185,9 @@ class TestJobSetup(YTEnvSetup):
             }
         },
     }
+
     USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     def setup_files(self):
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -221,13 +223,13 @@ class TestJobSetup(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
-@require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_SECONDARY_MASTER_CELLS = 1
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs" : True,
@@ -251,7 +253,9 @@ class TestGpuLayer(YTEnvSetup):
             }
         },
     }
+
     USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     def setup_files(self):
         tx = start_transaction()
@@ -299,13 +303,13 @@ class TestGpuLayer(YTEnvSetup):
         assert res == "SETUP-OUTPUT\n"
 
 
-@require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestCudaLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_SECONDARY_MASTER_CELLS = 1
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs" : True,
@@ -330,12 +334,15 @@ class TestCudaLayer(YTEnvSetup):
             }
         },
     }
+
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "cuda_toolkit_layer_directory_path": "//tmp/cuda"
         }
     }
+
     USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     def setup_files(self):
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    require_ytserver_root_privileges, is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
+    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
 from yt_commands import *
 from yt_helpers import *
 
@@ -768,12 +768,12 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
 
 ##################################################################
 
-@require_ytserver_root_privileges
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

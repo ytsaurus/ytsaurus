@@ -599,8 +599,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_pool_profiling(self):
         self._prepare_tables()
         pool_path = "//sys/pools/unique_pool"
@@ -693,7 +694,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: min_share_resources_user_slots_max.update().get(verbose=True) == 0)
 
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
@@ -783,7 +783,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: guaranteed_resource_ratio_last.update().get("1", verbose=True) == 100000)
 
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_operations_by_user_profiling(self):
         create_user("ignat")
         create_user("egor")
@@ -912,7 +911,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_1)
 
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_job_count_profiling(self):
         self._prepare_tables()
 
@@ -994,13 +992,14 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
         return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
 
     @authors("eshcherbin")
     @unix_only
-    @require_ytserver_root_privileges
     def test_operation_completed(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
@@ -1018,7 +1017,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     @unix_only
-    @require_ytserver_root_privileges
     def test_operation_failed(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
