@@ -49,7 +49,7 @@ void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strate
 
 THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
-    THashSet<TString> result;
+    THashSet<TString> result(Parameters.size());
     for (const auto& pair : Parameters) {
         result.insert(pair.first);
         for (const auto& key : pair.second->GetAliases()) {
@@ -188,6 +188,41 @@ void TYsonSerializableLite::RegisterPreprocessor(const TPreprocessor& func)
 void TYsonSerializableLite::RegisterPostprocessor(const TPostprocessor& func)
 {
     Postprocessors.push_back(func);
+}
+
+void TYsonSerializableLite::SaveParameter(const TString& key, IYsonConsumer* consumer) const
+{
+    GetParameter(key)->Save(consumer);
+}
+
+void TYsonSerializableLite::LoadParameter(const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const
+{
+    GetParameter(key)->Load(node, /* path */"", mergeStrategy);
+}
+
+void TYsonSerializableLite::ResetParameter(const TString& key) const
+{
+    GetParameter(key)->SetDefaults();
+}
+
+TYsonSerializableLite::IParameterPtr TYsonSerializableLite::GetParameter(const TString& keyOrAlias) const
+{
+    auto it = Parameters.find(keyOrAlias);
+    if (it != Parameters.end()) {
+        return it->second;
+    } else {
+        for (const auto& [_, parameter] : Parameters) {
+            if (Count(parameter->GetAliases(), keyOrAlias) > 0) {
+                return parameter;
+            }
+        }
+        THROW_ERROR_EXCEPTION("Key or alias %Qv not found in yson serializable", keyOrAlias);
+    }
+}
+
+int TYsonSerializableLite::GetParameterCount() const
+{
+    return Parameters.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

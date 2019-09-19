@@ -340,10 +340,10 @@ TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
+void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy)
 {
     if (node) {
-        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy, KeepUnrecognizedRecursively);
+        NDetail::LoadFromNode(Parameter, node, path, mergeStrategy.value_or(MergeStrategy), KeepUnrecognizedRecursively);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
