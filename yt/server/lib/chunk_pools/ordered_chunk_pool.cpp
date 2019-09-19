@@ -372,8 +372,6 @@ private:
             EndJob();
         }
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
-        dataSliceCopy->InputStreamIndex = 0;
-        dataSliceCopy->ChunkSlices[0]->GetInputChunk()->SetRangeIndex(0);
         dataSliceCopy->Tag = cookie;
         CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
     }
