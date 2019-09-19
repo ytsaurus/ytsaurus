@@ -249,7 +249,8 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
     def failing_make_transactional_request(*args, **kwargs):
         with lock:
             if fail_state["fails_left"] > 0:
-                list(kwargs["data"])  # exhaust data generator
+                if "data" in kwargs:
+                    list(kwargs["data"])  # exhaust data generator
                 fail_state["fails_left"] -= 1
                 raise YtRetriableError
             else:
