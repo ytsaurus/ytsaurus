@@ -1215,7 +1215,7 @@ public:
             SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
         } else {
             std::vector<TString> nodeAddresses;
-            int nodeCount;
+            int nodeCount = 0;
             bool truncated = false;
             for (auto nodeId : NodeIdsWithoutTree_) {
                 nodeCount++;
