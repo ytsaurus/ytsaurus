@@ -2,7 +2,6 @@ package yson
 
 import (
 	"reflect"
-	"strings"
 	"sync"
 )
 
@@ -13,36 +12,6 @@ type field struct {
 	omitempty bool
 	attribute bool
 	value     bool
-}
-
-func (f *field) parseTag(tag string) (skip bool) {
-	if tag == "" {
-		return false
-	}
-
-	tokens := strings.Split(tag, ",")
-	if tokens[0] == "-" && len(tokens) == 1 {
-		return true
-	}
-
-	i := 0
-	if tag[0] != ',' {
-		f.name = tokens[0]
-		i = 1
-	}
-
-	for _, option := range tokens[i:] {
-		switch option {
-		case "attr":
-			f.attribute = true
-		case "omitempty":
-			f.omitempty = true
-		case "value":
-			f.value = true
-		}
-	}
-
-	return false
 }
 
 type structType struct {
@@ -95,17 +64,17 @@ func newStructType(t reflect.Type) *structType {
 				continue
 			}
 
-			structField := field{
-				name:  f.Name,
-				index: index,
+			tag, skip := ParseTag(f.Name, f.Tag)
+			if skip {
+				continue
 			}
 
-			tag, ok := f.Tag.Lookup("yson")
-			if ok {
-				skip := structField.parseTag(tag)
-				if skip {
-					continue
-				}
+			structField := field{
+				name:      tag.Name,
+				index:     index,
+				attribute: tag.Attr,
+				omitempty: tag.Omitempty,
+				value:     tag.Value,
 			}
 
 			// Add field, resolving name conflict according to go embedding rules.

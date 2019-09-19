@@ -124,17 +124,6 @@ func TestOmitEmpty(t *testing.T) {
 	assert.Equal(t, "<I2=1;>{S2=a;}", string(data))
 }
 
-func TestParseTag(t *testing.T) {
-	var f field
-
-	assert.False(t, f.parseTag(",omitempty,attr"))
-
-	assert.True(t, f.omitempty)
-	assert.True(t, f.attribute)
-
-	assert.True(t, f.parseTag("-"))
-}
-
 type rawValueWithAttrs struct {
 	TableIndex int      `yson:"table_index,attr"`
 	Value      RawValue `yson:",value"`
