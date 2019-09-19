@@ -1984,6 +1984,56 @@ print '{hello=world}'
             out="//tmp/t_out",
             command="cat")
 
+    @authors("max42")
+    def test_ordered_several_ranges(self):
+        # YT-11322
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t_out")
+        in_content = [{"key": 0}, {"key": 1}, {"key": 2}]
+        write_table("//tmp/t_in", [{"key": 0}, {"key": 1}, {"key": 2}])
+
+        script='\n'.join(["#!/usr/bin/python",
+                          "import yt.yson as yson",
+                          "import sys",
+                          "rows = yson.loads(sys.stdin.read(), yson_type='list_fragment')",
+                          "current_attrs = {}",
+                          "for row in rows:",
+                          "    if type(row) == yson.yson_types.YsonEntity:",
+                          "        for key, value in row.attributes.iteritems():",
+                          "            current_attrs[key] = value",
+                          "    else:",
+                          "        new_row = dict(row)",
+                          "        for key, value in current_attrs.iteritems():",
+                          "            new_row[key] = value",
+                          "        print yson.dumps(new_row) + ';'"])
+        create("file", "//tmp/script.py", attributes={"executable": True})
+        write_file("//tmp/script.py", script)
+
+        out_content = [{"key": 0, "table_index": 0, "row_index": 0, "range_index": 0},
+                       {"key": 1, "table_index": 0, "row_index": 1, "range_index": 1},
+                       {"key": 2, "table_index": 1, "row_index": 2, "range_index": 0}]
+
+        map(in_=["<ranges=[{exact={row_index=0}};{exact={row_index=1}}]>//tmp/t_in", "<ranges=[{exact={row_index=2}}]>//tmp/t_in"],
+            out="//tmp/t_out",
+            ordered=True,
+            spec={
+                "job_count": 1,
+                "mapper": {
+                    "file_paths": ["//tmp/script.py"],
+                    "format": "yson",
+                },
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "control_attributes": {
+                        "enable_range_index": True,
+                        "enable_row_index": True,
+                        "enable_table_index": True,
+                    }
+                },
+            },
+            command="./script.py")
+
+        assert read_table("//tmp/t_out") == out_content
 
 ##################################################################
 
