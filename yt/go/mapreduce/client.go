@@ -116,9 +116,9 @@ func (mr *client) uploadSelf(ctx context.Context) error {
 func (mr *client) operationStartClient() yt.OperationStartClient {
 	if mr.tx != nil {
 		return mr.tx
-	} else {
-		return mr.yc
 	}
+
+	return mr.yc
 }
 
 func (mr *client) start(spec *spec.Spec, actions []action) (Operation, error) {
