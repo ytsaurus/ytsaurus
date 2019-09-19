@@ -389,6 +389,12 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         public void handleTimeout() {
+            try {
+                cancel();
+            } catch (Throwable ex) {
+                logger.warn("Error on cancel {}", ex);
+            }
+
             error(new TimeoutException("Request timed out"));
         }
 
