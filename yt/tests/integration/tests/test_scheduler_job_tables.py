@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
-    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto, is_asan_build, \
+    patch_porto_env_only, skip_if_porto, is_asan_build, \
     Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
@@ -489,6 +489,7 @@ class TestCoreTable(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     CORE_TABLE = "//tmp/t_core"
 
@@ -653,7 +654,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_no_cores(self):
         op, correspondence_file_path = self._start_operation(2)
@@ -665,7 +665,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_simple(self):
         op, correspondence_file_path = self._start_operation(2)
@@ -685,7 +684,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_large_core(self):
         op, correspondence_file_path = self._start_operation(1)
@@ -706,7 +704,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_core_order(self):
         # In this test we check that cores are being processed
@@ -750,7 +747,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_operation_fails(self):
         op, correspondence_file_path = self._start_operation(1, max_failed_job_count=1)
@@ -772,7 +768,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_writing_core_to_fallback_path(self):
         ret_dict = {}
@@ -785,7 +780,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_cores_with_job_revival(self):
         op, correspondence_file_path = self._start_operation(1)
@@ -841,7 +835,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42")
     @skip_if_porto
-    @require_ytserver_root_privileges
     @unix_only
     def test_timeout_while_receiving_core(self):
         op, correspondence_file_path = self._start_operation(1)
@@ -870,7 +863,6 @@ class TestCoreTable(YTEnvSetup):
     @authors("max42")
     @skip_if_porto
     @require_enabled_core_dump
-    @require_ytserver_root_privileges
     @unix_only
     def test_core_when_user_job_was_killed(self):
         op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
@@ -895,7 +887,6 @@ class TestCoreTable(YTEnvSetup):
     @authors("max42")
     @skip_if_porto
     @require_enabled_core_dump
-    @require_ytserver_root_privileges
     @unix_only
     def test_core_timeout_when_user_job_was_killed(self):
         op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
@@ -921,7 +912,6 @@ class TestCoreTable(YTEnvSetup):
     @authors("ignat")
     @skip_if_porto
     @require_enabled_core_dump
-    @require_ytserver_root_privileges
     @unix_only
     def test_core_infos_from_archive(self):
         sync_create_cells(1)
@@ -959,9 +949,9 @@ class TestCoreTable(YTEnvSetup):
 class TestCoreTablePorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     @authors("dcherednik")
-    @require_ytserver_root_privileges
     @unix_only
     def test_core_when_user_job_was_killed_porto(self):
         op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)

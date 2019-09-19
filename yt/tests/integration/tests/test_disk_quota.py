@@ -1,14 +1,14 @@
-from yt_env_setup import require_ytserver_root_privileges
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
 
 
-@require_ytserver_root_privileges
 class TestDiskQuota(QuotaMixin):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 3
+
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2"]

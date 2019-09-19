@@ -333,36 +333,26 @@ def is_gcc_build():
     svnrevision = subprocess.check_output([binary, "--svnrevision"])
     return "GCC" in svnrevision
 
+def check_root_privileges():
+    if arcadia_interop.yatest_common is not None:
+        pytest.skip("root is not available inside distbuild")
+
+    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
+                   "ytserver-tools"]:
+        binary_path = find_executable(binary)
+        binary_stat = os.stat(binary_path)
+        if (binary_stat.st_mode & stat.S_ISUID) == 0:
+            pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
+        if binary_stat.st_uid != 0:
+            pytest.fail('This test requires "{}" being owned by root'.format(binary))
 
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
-def require_ytserver_root_privileges(func_or_class):
-    def check_root_privileges():
-        if arcadia_interop.yatest_common is not None:
-            pytest.skip("root is not available inside distbuild")
+def require_ytserver_root_privileges(func):
+    def wrap_func(self, *args, **kwargs):
+        check_root_privileges()
+        func(self, *args, **kwargs)
 
-        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
-                       "ytserver-tools"]:
-            binary_path = find_executable(binary)
-            binary_stat = os.stat(binary_path)
-            if (binary_stat.st_mode & stat.S_ISUID) == 0:
-                pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
-            if binary_stat.st_uid != 0:
-                pytest.fail('This test requires "{}" being owned by root'.format(binary))
-
-    if inspect.isclass(func_or_class):
-        class Wrap(func_or_class):
-            @classmethod
-            def setup_class(cls):
-                check_root_privileges()
-                func_or_class.setup_class()
-
-        return Wrap
-    else:
-        def wrap_func(self, *args, **kwargs):
-            check_root_privileges()
-            func_or_class(self, *args, **kwargs)
-
-        return wrap_func
+    return wrap_func
 
 
 def skip_if_rpc_driver_backend(func):
@@ -507,6 +497,8 @@ class YTEnvSetup(object):
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
 
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = False
+
     NUM_REMOTE_CLUSTERS = 0
 
     SINGLE_SETUP_TEARDOWN = False
@@ -603,6 +595,9 @@ class YTEnvSetup(object):
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
+
+        if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILIGES", False):
+            check_root_privileges()
 
         # Initialize `cls` fields before actual setup to make teardown correct.
 

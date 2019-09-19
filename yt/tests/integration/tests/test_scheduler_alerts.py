@@ -1,7 +1,7 @@
 import pytest
 from flaky import flaky
 
-from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 import string
@@ -99,11 +99,11 @@ class TestSchedulerAlerts(YTEnvSetup):
 ##################################################################
 
 
-@require_ytserver_root_privileges
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -395,10 +395,10 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 
-@require_ytserver_root_privileges
 class TestControllerAgentAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     def teardown_method(self, method):
         YTEnvSetup.teardown_method(self, method)

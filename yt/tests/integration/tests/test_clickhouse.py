@@ -1,6 +1,6 @@
 from yt_commands import *
 
-from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build, is_gcc_build
+from yt_env_setup import wait, YTEnvSetup, is_asan_build, is_gcc_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
@@ -231,12 +231,12 @@ class Clique(object):
             abort_job(job)
         wait(lambda: self.get_active_instance_count() == size)
 
-@require_ytserver_root_privileges
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     NODE_PORT_SET_SIZE = 5
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     ENABLE_HTTP_PROXY = True
 

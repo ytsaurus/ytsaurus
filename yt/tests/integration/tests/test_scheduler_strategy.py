@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, require_ytserver_root_privileges
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
 from yt_helpers import *
@@ -1988,11 +1988,11 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 
 ##################################################################
 
-@require_ytserver_root_privileges
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {

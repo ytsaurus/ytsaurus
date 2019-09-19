@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt_helpers import *
 
@@ -19,7 +19,6 @@ SPEC_WITH_CPU_MONITOR = {
 }
 
 
-@require_ytserver_root_privileges
 class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -53,6 +52,8 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             "job_metrics_report_period": 100,
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     @authors("renadeen")
     def test_sleeping(self):
@@ -99,7 +100,6 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
 
 
-@require_ytserver_root_privileges
 class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -129,6 +129,8 @@ class TestDynamicCpuReclaim(YTEnvSetup):
             }
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
@@ -177,7 +179,6 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         return result
 
 
-@require_ytserver_root_privileges
 class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -206,6 +207,8 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
@@ -227,7 +230,6 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
 
-@require_ytserver_root_privileges
 class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -243,6 +245,8 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
             }
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
 
     @authors("renadeen")
     @pytest.mark.xfail(run = False, reason = "Currently broken")
