@@ -382,6 +382,23 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
+    def test_get_job_context(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        wait_breakpoint()
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        with pytest.raises(YtError):
+            dump_job_context(job_id, "//tmp/input_context")
+
+        release_breakpoint()
+        wait(lambda: op.get_job_count("completed") == 1)
+
+        assert op.get_job_count("aborted") == 0
+        assert op.get_job_count("failed") == 0
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
