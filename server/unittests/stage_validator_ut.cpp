@@ -16,23 +16,77 @@ NInfra::NPodAgent::API::TEnvVar LiteralEnvVar(const TString& name, const TString
     return result;
 }
 
-TEST(StageValidator, ValidateIdTest)
+void AddStaticResourceToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& id)
+{
+    NInfra::NPodAgent::API::TResource* staticResource = spec.mutable_resources()->add_static_resources();
+    staticResource->set_id(id);
+}
+
+void AddLayerToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& id)
+{
+    NInfra::NPodAgent::API::TLayer* layer = spec.mutable_resources()->add_layers();
+    layer->set_id(id);
+}
+
+void AddVolumeToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& id,
+    const std::vector<TString>& layerRefs)
+{
+    NInfra::NPodAgent::API::TVolume* volume = spec.add_volumes();
+    volume->set_id(id);
+    for (const TString& layerRef : layerRefs) {
+        volume->mutable_generic()->add_layer_refs(layerRef);
+    }
+}
+
+void AddBoxToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& id,
+    const std::vector<TString>& staticResourceRefs,
+    const std::vector<TString>& rootfsLayerRefs,
+    const std::vector<TString>& volumesRefs)
+{
+    NInfra::NPodAgent::API::TBox* box = spec.add_boxes();
+    box->set_id(id);
+    for (const TString& staticResourceRef : staticResourceRefs) {
+        box->add_static_resources()->set_resource_ref(staticResourceRef);
+    }
+    for (const TString& rootfsLayerRef : rootfsLayerRefs) {
+        box->mutable_rootfs()->add_layer_refs(rootfsLayerRef);
+    }
+    for (const TString& volumesRef : volumesRefs) {
+        box->add_volumes()->set_volume_ref(volumesRef);
+    }
+}
+
+void AddWorkloadToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& id,
+    const TString& boxRef)
+{
+    NInfra::NPodAgent::API::TWorkload* workload = spec.add_workloads();
+    workload->set_id(id);
+    workload->set_box_ref(boxRef);
+}
+
+void AddMutableWorkloadToPodAgentSpec(
+    NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const TString& workloadRef)
+{
+    NInfra::NPodAgent::API::TMutableWorkload* mutableWorkload = spec.add_mutable_workloads();
+    mutableWorkload->set_workload_ref(workloadRef);
+}
+
+TEST(StageValidator, ValidateStageDeployUnitIdTest)
 {
     ASSERT_THROW(ValidateStageAndDeployUnitId("inv*", "Stage id"), TErrorException);
 
     ValidateStageAndDeployUnitId("valid", "Stage id");
-}
-
-TEST(StageValidator, ValidateEnvTest)
-{
-    NInfra::NPodAgent::API::TWorkload workload;
-    workload.set_id("id");
-    *workload.add_env() = LiteralEnvVar("NAME", "value1");
-    *workload.add_env() = LiteralEnvVar("NAME", "value2");
-    ASSERT_THROW(ValidatePodAgentWorkloadEnv(workload), TErrorException);
-
-    workload.clear_env();
-    ValidatePodAgentWorkloadEnv(workload);
 }
 
 TEST(StageValidator, ValidateTvmConfigTest)
@@ -49,6 +103,154 @@ TEST(StageValidator, ValidateTvmConfigTest)
     config.mutable_clients(0)->add_destinations()->set_alias("alias_destination");
     config.mutable_clients(0)->add_destinations()->set_alias("alias_destination");
     ASSERT_THROW(ValidateTvmConfig(config), TErrorException);
+}
+
+TEST(StageValidator, ValidatePodAgentObjectIdTest)
+{
+    ASSERT_THROW(ValidatePodAgentObjectId("box/workload_id", "Workload id"), TErrorException);
+
+    ValidatePodAgentObjectId("workload1_-@:.", "Workload id");
+}
+
+TEST(StageValidator, ValidatePodAgentObjectEnvTest)
+{
+    google::protobuf::RepeatedPtrField<NInfra::NPodAgent::API::TEnvVar> env;
+
+    *env.Add() = LiteralEnvVar("NAME1", "value1");
+    *env.Add() = LiteralEnvVar("NAME2", "value2");
+    ValidatePodAgentObjectEnv(env, "workload_id", "workload");
+
+    *env.Add() = LiteralEnvVar("NAME1", "value3");
+    ASSERT_THROW(ValidatePodAgentObjectEnv(env, "workload_id", "workload"), TErrorException);
+}
+
+TEST(StageValidator, ValidatePodAgentSpecSameIdTest)
+{
+    static auto checkSameId = [] (std::function<void(NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id)> addObject) {
+        NInfra::NPodAgent::API::TPodAgentSpec spec;
+
+        addObject(spec, "id1");
+        addObject(spec, "id2");
+        ValidatePodAgentSpec(spec);
+
+        addObject(spec, "id1");
+        ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+    };
+
+    // Static resource.
+    checkSameId([] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id) {
+        AddStaticResourceToPodAgentSpec(spec, id);
+    });
+
+    // Layer.
+    checkSameId([] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id) {
+        AddLayerToPodAgentSpec(spec, id);
+    });
+
+    // Volume.
+    checkSameId([] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id) {
+        AddVolumeToPodAgentSpec(spec, id, {});
+    });
+
+    // Box.
+    checkSameId([] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id) {
+        AddBoxToPodAgentSpec(spec, id, {}, {}, {});
+    });
+
+    // Workload.
+    checkSameId([] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id) {
+        if (spec.boxes().empty()) {
+            AddBoxToPodAgentSpec(spec, "box_ref", {}, {}, {});
+        }
+        AddWorkloadToPodAgentSpec(spec, id, "box_ref");
+        AddMutableWorkloadToPodAgentSpec(spec, id);
+    });
+}
+
+TEST(StageValidator, ValidatePodAgentSpecBadRefsTest)
+{
+    static auto checkBadRef = [] (
+        std::function<void(NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId)> addObjectWithRef,
+        std::function<void(NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId)> addRef)
+    {
+        NInfra::NPodAgent::API::TPodAgentSpec spec;
+
+        addObjectWithRef(spec, "id", "refId");
+        ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+
+        addRef(spec, "refId");
+        ValidatePodAgentSpec(spec);
+    };
+
+    // Volume -> layer.
+    checkBadRef(
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId) {
+            AddVolumeToPodAgentSpec(spec, id, {refId});
+        },
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId) {
+            AddLayerToPodAgentSpec(spec, refId);
+        }
+    );
+
+    // Box -> static resource.
+    checkBadRef(
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId) {
+            AddBoxToPodAgentSpec(spec, id, {refId}, {}, {});
+        },
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId) {
+            AddStaticResourceToPodAgentSpec(spec, refId);
+        }
+    );
+
+    // Box -> layer.
+    checkBadRef(
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId) {
+            AddBoxToPodAgentSpec(spec, id, {}, {refId}, {});
+        },
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId) {
+            AddLayerToPodAgentSpec(spec, refId);
+        }
+    );
+
+    // Box -> volume.
+    checkBadRef(
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId) {
+            AddBoxToPodAgentSpec(spec, id, {}, {}, {refId});
+        },
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId) {
+            AddVolumeToPodAgentSpec(spec, refId, {});
+        }
+    );
+
+    // Workload -> box.
+    checkBadRef(
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id, const TString& refId) {
+            AddWorkloadToPodAgentSpec(spec, id, refId);
+            AddMutableWorkloadToPodAgentSpec(spec, id);
+        },
+        [] (NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId) {
+            AddBoxToPodAgentSpec(spec, refId, {}, {}, {});
+        }
+    );
+}
+
+
+TEST(StageValidator, ValidatePodAgentSpecWorkloadAndMutableWorkloadTest)
+{
+    NInfra::NPodAgent::API::TPodAgentSpec spec;
+
+    AddBoxToPodAgentSpec(spec, "box_ref", {}, {}, {});
+
+    AddWorkloadToPodAgentSpec(spec, "id", "box_ref");
+    // Workload, no mutable workload.
+    ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+
+    AddMutableWorkloadToPodAgentSpec(spec, "id");
+    ValidatePodAgentSpec(spec);
+
+    spec.clear_workloads();
+    // No workload, mutable workload.
+    ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

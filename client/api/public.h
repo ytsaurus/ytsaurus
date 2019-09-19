@@ -54,6 +54,7 @@ DEFINE_ENUM(EErrorCode,
 
 namespace NInfra::NPodAgent::API {
 
-class TWorkload;
+class TEnvVar;
+class TPodAgentSpec;
 
 } // namespace NInfra::NPodAgent::API
