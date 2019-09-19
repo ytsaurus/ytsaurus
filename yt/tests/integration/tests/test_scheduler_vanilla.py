@@ -382,6 +382,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
+    @authors("ignat")
     def test_get_job_context(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         wait_breakpoint()
