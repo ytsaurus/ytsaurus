@@ -827,9 +827,14 @@ class Operation(object):
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
 
-    def get_job_count(self, state):
+    def get_job_count(self, state, from_orchid=True):
+        if from_orchid:
+            base_path = self.get_path() + "/controller_orchid/progress/jobs/"
+        else:
+            base_path = self.get_path() + "/@progress/jobs/"
+
         try:
-            path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
+            path = base_path + str(state)
             if state == "aborted" or state == "completed":
                 path += "/total"
             return get(path, verbose=False)
