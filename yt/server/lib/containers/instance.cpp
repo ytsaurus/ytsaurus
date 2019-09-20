@@ -263,7 +263,7 @@ public:
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse cpu limit value from porto")
-                    << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
+                << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
         }
 
         return TResourceLimits{cpuLimit, memoryLimit};
