@@ -491,7 +491,6 @@ class GetJobLogsTask(RemoteTask):
             for line in lineiter:
                 if "Logging started" in line:
                     unknown_job_head = [line]
-                    print "GG"
                 elif unknown_job_head:
                     unknown_job_head.append(line)
                     if len(unknown_job_head) > 100:
