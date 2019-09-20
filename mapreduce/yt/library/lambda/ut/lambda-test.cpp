@@ -387,6 +387,44 @@ Y_UNIT_TEST_SUITE(Lambda) {
 
         CompareTable(client, "//testing/output", ExpectedOutputNF);
     }
+
+    Y_UNIT_TEST(SortSep) {
+        auto reduceSpec = NYT::NDetail::PrepareReduceSpec<TNode, TNode>(
+            "//table1", "//table2", { "foo", SortBySep, "bar" });
+        auto mrSpec = NYT::NDetail::PrepareMRSpec<TNode, TNode>(
+            "//table1", "//table2", { "foo", SortBySep, "bar" });
+        TKeyColumns expectedReduceBy{ "foo" };
+        TKeyColumns expectedSortBy{ "foo", "bar" };
+        UNIT_ASSERT_VALUES_EQUAL(reduceSpec.ReduceBy_.Parts_, expectedReduceBy.Parts_);
+        UNIT_ASSERT_VALUES_EQUAL(reduceSpec.SortBy_.Parts_, expectedSortBy.Parts_);
+        UNIT_ASSERT_VALUES_EQUAL(mrSpec.ReduceBy_.Parts_, expectedReduceBy.Parts_);
+        UNIT_ASSERT_VALUES_EQUAL(mrSpec.SortBy_.Parts_,  expectedSortBy.Parts_);
+
+        auto client = CreateTestClient();
+        CreateTable(client,
+            TRichYPath("//testing/input").SortedBy({"key", "val"}),
+            SortedInputTableData);
+
+        Reduce<TSimpleKeyValue, TSimpleKeyValue>(client,
+            TRichYPath("//testing/input").RenameColumns({{"val", "value"}}),
+            "//testing/output",
+            { "key", SortBySep, "value" },
+            [](auto& src, auto& dst) { // reducer
+                if (src.GetValue() >= dst.GetValue()) {
+                    dst.SetValue(src.GetValue());
+                } else {
+                    dst.SetValue(Max<i64>());
+                }
+            });
+
+        TVector<TNode> expectedOutput = {
+            TNode()("key", "first")("value", 4000u),
+            TNode()("key", "second")("value", 20u),
+            TNode()("key", "third")("value", 300u),
+        };
+
+        CompareTable(client, "//testing/output", expectedOutput);
+    }
 }
 
 int main(int argc, const char** argv)

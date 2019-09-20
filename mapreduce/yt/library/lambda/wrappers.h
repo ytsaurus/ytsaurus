@@ -11,6 +11,8 @@
 namespace NYT::NDetail {
 // ==============================================
 
+static constexpr TStringBuf SortBySep; // empty string at the moment
+
 template <template<class Rd, class Wr> class Op, class R, class W, class F>
 class TLambdaOpBase : public Op<TTableReader<R>, TTableWriter<W>> {
 public:
@@ -63,10 +65,10 @@ protected:
     TFieldCopier<R, W> FieldCopier;
 };
 
-// fields before first empty-named
+// fields before first SortBySep
 TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields);
 
-// (all) emtpy-named field(s) removed
+// (all) SortBySep field(s) removed
 TKeyColumns GetSortByFields(const TKeyColumns& reduceFields);
 
 template<class R, class W>
@@ -89,8 +91,8 @@ TMapReduceOperationSpec PrepareMRSpec(
     const TRichYPath& to,
     const TKeyColumns& reduceFields)
 {
-    // empty-name element separates ReduceBy fields from the rest of SortBy fields
-    bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), "") != reduceFields.Parts_.end();
+    // SortBySep element separates ReduceBy fields from the rest of SortBy fields
+    bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), SortBySep) != reduceFields.Parts_.end();
 
     auto spec = TMapReduceOperationSpec()
         .template AddOutput<W>(MaybeWithSchema<W>(to))
@@ -112,9 +114,17 @@ TReduceOperationSpec PrepareReduceSpec(
     const TRichYPath& to,
     const TKeyColumns& reduceFields)
 {
+    // SortBySep element separates ReduceBy fields from the rest of SortBy fields
+    bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), SortBySep) != reduceFields.Parts_.end();
+    TKeyColumns reduceByFields = hasDelim ? GetReduceByFields(reduceFields) : reduceFields;
+
     auto spec = TReduceOperationSpec()
-        .template AddOutput<W>(MaybeWithSchema<W>(to, reduceFields))
-        .ReduceBy(reduceFields);
+        .template AddOutput<W>(MaybeWithSchema<W>(to, reduceByFields))
+        .ReduceBy(reduceByFields);
+
+    if (hasDelim) {
+        spec.SortBy(GetSortByFields(reduceFields));
+    }
 
     for (auto& input : from.Parts_) {
         spec.template AddInput<R>(input);

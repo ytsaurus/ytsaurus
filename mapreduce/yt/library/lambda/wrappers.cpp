@@ -5,7 +5,7 @@ namespace NYT::NDetail {
 TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields) {
     TKeyColumns dst;
     for (auto& name : reduceFields.Parts_) {
-        if (name.empty())
+        if (name == SortBySep)
             break;
         dst.Parts_.push_back(name);
     }
@@ -15,7 +15,7 @@ TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields) {
 TKeyColumns GetSortByFields(const TKeyColumns& reduceFields) {
     TKeyColumns dst;
     for (auto& name : reduceFields.Parts_) {
-        if (name.empty())
+        if (name == SortBySep)
             continue;
         dst.Parts_.push_back(name);
     }
