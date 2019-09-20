@@ -1,3 +1,7 @@
 #include "yt_lambda.h"
 
-// Everything is inlined at the moment
+namespace NYT {
+
+const TString SortBySep(NDetail::SortBySep);
+
+} // namespace NYT

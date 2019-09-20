@@ -70,6 +70,8 @@
 namespace NYT {
 // ==============================================
 
+extern const TString SortBySep;
+
 template <class T>
 void CopyIf(const IClientBasePtr& client, const TOneOrMany<TRichYPath>& from, const TRichYPath& to, bool (*p)(const T&)) {
     client->Map(
@@ -127,7 +129,7 @@ void Reduce(
     client->Reduce(
         spec,
         NDetail::ChooseReducer<TLambdaBufReducer<R, TReducerData, W>>(
-            reducer, finalizer, reduceFields));
+            reducer, finalizer, spec.ReduceBy_));
 }
 
 template <class R, class W>
