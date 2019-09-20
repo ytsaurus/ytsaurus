@@ -112,6 +112,7 @@ CLUSTER_MAP = {
     43: "landau",
     44: "yp-man-pre",
     45: "yp-msk",
+    46: "yp-xdc",
 }
 
 
