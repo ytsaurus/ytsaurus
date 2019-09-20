@@ -313,7 +313,7 @@ void TBlobChunkBase::DoReadBlockSet(
 {
     while (true) {
         if (currentEntryIndex >= session->EntryCount) {
-            session->DiskFetchPromise.Set();
+            session->DiskFetchPromise.TrySet();
             return;
         }
 
