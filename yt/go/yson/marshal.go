@@ -380,7 +380,7 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 	return w.Err()
 }
 
-func isEmptyValue(v reflect.Value) bool {
+func isZeroValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
 		return v.Len() == 0
@@ -408,7 +408,7 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 				continue
 			}
 
-			if field.omitempty && isEmptyValue(fieldValue) {
+			if field.omitempty && isZeroValue(fieldValue) {
 				continue
 			}
 

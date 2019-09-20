@@ -91,12 +91,7 @@ type WriterConfig struct {
 }
 
 func NewWriterConfig(inner io.Writer, c WriterConfig) (w *Writer) {
-	if buffered, ok := inner.(*bufio.Writer); ok {
-		w = &Writer{w: buffered}
-	} else {
-		w = &Writer{w: bufio.NewWriter(inner)}
-	}
-
+	w = &Writer{w: bufio.NewWriter(inner)}
 	w.format = c.Format
 	w.validator = newValidator(c.Kind)
 	return

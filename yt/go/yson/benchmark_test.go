@@ -70,7 +70,6 @@ func RunBenchmark(b *testing.B, do func(input []byte, typ Type) error) {
 			})
 		}
 	}
-
 }
 
 func BenchmarkScanner(b *testing.B) {
