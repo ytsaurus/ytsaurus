@@ -184,8 +184,9 @@ def iter_enabled_python_platforms(options):
         yield options.ya_target_platform
     else:
         yield "linux"
-        if options.package:
-            yield "darwin"
+        # Darwin build is used only for building python packages in release build,
+        # but we want to check that everything is ok in debug builds too.
+        yield "darwin"
 
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
