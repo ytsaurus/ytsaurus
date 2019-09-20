@@ -395,10 +395,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             dump_job_context(job_id, "//tmp/input_context")
 
         release_breakpoint()
-        wait(lambda: op.get_job_count("completed") == 1)
 
-        assert op.get_job_count("aborted") == 0
-        assert op.get_job_count("failed") == 0
+        wait(lambda: op.get_job_count("completed", from_orchid=False) == 1)
+        assert op.get_job_count("aborted", from_orchid=False) == 0
+        assert op.get_job_count("failed", from_orchid=False) == 0
+
 
 ##################################################################
 
