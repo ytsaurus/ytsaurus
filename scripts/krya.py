@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import pathlib
+import random
 import re
 import shlex
 import subprocess
@@ -56,6 +57,24 @@ DEFAULT_CONFIG = """\
     "yall_arguments": [] 
 }
 """
+
+DID_YOU_KNOWN_THAT = [
+    "you can use `logrep' (<yt-repo>/scripts/logrep) to get list of all Frued masters:\n"
+    " $ logrep /freud/master\n"
+    "more info at https://ya.cc/4Waoc\n",
+
+    "you can use `logrep' (<yt-repo>/scripts/logrep) to find Hume active scheduler:\n"
+    " $ logrep /hume/scheduler/@active\n"
+    "more info at https://ya.cc/4Waoc\n",
+
+    "you can use `logrep' (<yt-repo>/scripts/logrep) to find list of all Freud control proxies:\n"
+    " $ logrep /hume/freud/@control\n"
+    "more info at https://ya.cc/4Waoc\n",
+
+    "you can use `logrep' (<yt-repo>/scripts/logrep) to grep Hahn secondary master logs:\n"
+    " $ logrep /hahn/master/92e-640756-32de0066-b4ff2e9c/@leading --time now --grep 'Replication job scheduled'\n"
+    "more info at https://ya.cc/4Waoc\n",
+]
 
 
 class KryaError(RuntimeError):
@@ -311,6 +330,13 @@ def invoke_build(build_cmd, args, rest_args):
 
     if p.returncode != 0:
         exit(p.returncode)
+
+    if random.randint(0, 5) == 0:
+        logging.info("showing tip of a day")
+        print("\033[32m", file=sys.stderr) # switch to green color
+        print("Did you known that...", file=sys.stderr)
+        print(random.choice(DID_YOU_KNOWN_THAT), file=sys.stderr)
+        print("\033[0m", file=sys.stderr) # switch back to neutral color
 
 
 def invoke_ya_make(args, rest_args):
