@@ -67,9 +67,9 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
 
     bz_stream bzStream;
     Zero(bzStream);
-    int ret = ArcBZ2_bzCompressInit(&bzStream, level, 0, 0);
+    int ret = BZ2_bzCompressInit(&bzStream, level, 0, 0);
     YT_VERIFY(ret == BZ_OK);
-    auto finally = Finally([&] { ArcBZ2_bzCompressEnd(&bzStream); });
+    auto finally = Finally([&] { BZ2_bzCompressEnd(&bzStream); });
 
     output->Reserve(std::max(
         MinBlobSize,
@@ -81,7 +81,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
 
         DirectOutputToBlobEnd(output, &bzStream);
 
-        ret = ArcBZ2_bzCompress(&bzStream, BZ_RUN);
+        ret = BZ2_bzCompress(&bzStream, BZ_RUN);
         YT_VERIFY(ret == BZ_RUN_OK);
 
         ActualizeOutputBlobSize(output, &bzStream);
@@ -93,7 +93,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
     do {
         DirectOutputToBlobEnd(output, &bzStream);
 
-        ret = ArcBZ2_bzCompress(&bzStream, BZ_FINISH);
+        ret = BZ2_bzCompress(&bzStream, BZ_FINISH);
         YT_VERIFY(ret == BZ_FINISH_OK || ret == BZ_STREAM_END);
 
         ActualizeOutputBlobSize(output, &bzStream);
@@ -108,9 +108,9 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
         bz_stream bzStream;
         Zero(bzStream);
 
-        int ret = ArcBZ2_bzDecompressInit(&bzStream, 0, 0);
+        int ret = BZ2_bzDecompressInit(&bzStream, 0, 0);
         YT_VERIFY(ret == BZ_OK);
-        auto finally = Finally([&] { ArcBZ2_bzDecompressEnd(&bzStream); });
+        auto finally = Finally([&] { BZ2_bzDecompressEnd(&bzStream); });
 
         do {
             PeekInputBytes(source, &bzStream);
@@ -118,7 +118,7 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
 
             DirectOutputToBlobEnd(output, &bzStream);
 
-            ret = ArcBZ2_bzDecompress(&bzStream);
+            ret = BZ2_bzDecompress(&bzStream);
             YT_VERIFY(ret == BZ_OK || ret == BZ_STREAM_END);
 
             ActualizeOutputBlobSize(output, &bzStream);
