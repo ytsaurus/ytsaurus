@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"a.yandex-team.ru/yt/go/yson"
-	"golang.org/x/xerrors"
 )
 
 type WireType int
@@ -23,6 +22,15 @@ const (
 	TypeRepeatedVariant16
 	TypeTuple
 )
+
+func (t WireType) IsSimple() bool {
+	switch t {
+	case TypeBoolean, TypeInt64, TypeUint64, TypeDouble, TypeString32, TypeYSON32:
+		return true
+	default:
+		return false
+	}
+}
 
 func (t *WireType) UnmarshalYSON(data []byte) error {
 	var s string
@@ -60,34 +68,37 @@ func (t *WireType) UnmarshalYSON(data []byte) error {
 	return nil
 }
 
-func (t WireType) MarshalYSON(w *yson.Writer) error {
+func (t WireType) String() string {
 	switch t {
 	case TypeNothing:
-		w.String("nothing")
+		return "nothing"
 	case TypeBoolean:
-		w.String("boolean")
+		return "boolean"
 	case TypeInt64:
-		w.String("int64")
+		return "int64"
 	case TypeUint64:
-		w.String("uint64")
+		return "uint64"
 	case TypeDouble:
-		w.String("double")
+		return "double"
 	case TypeString32:
-		w.String("string32")
+		return "string32"
 	case TypeYSON32:
-		w.String("yson32")
+		return "yson32"
 	case TypeVariant8:
-		w.String("variant8")
+		return "variant8"
 	case TypeVariant16:
-		w.String("variant16")
+		return "variant16"
 	case TypeRepeatedVariant16:
-		w.String("repeated_variant16")
+		return "repeated_variant16"
 	case TypeTuple:
-		w.String("tuple")
+		return "tuple"
 	default:
-		return xerrors.Errorf("invalid skiff type %d", t)
+		return "invalid"
 	}
+}
 
+func (t WireType) MarshalYSON(w *yson.Writer) error {
+	w.String(t.String())
 	return nil
 }
 
@@ -98,14 +109,24 @@ type Schema struct {
 	Children []Schema `yson:"children,omitempty"`
 }
 
+func OptionalColumn(name string, typ WireType) Schema {
+	return Schema{Type: TypeVariant8, Name: name, Children: []Schema{{Type: TypeNothing}, {Type: typ}}}
+}
+
+var systemPrefix = []Schema{
+	{Type: TypeBoolean, Name: "$key_switch"},
+	OptionalColumn("$row_index", TypeInt64),
+	OptionalColumn("$range_index", TypeInt64),
+}
+
 // Format describes skiff schemas for the stream.
 type Format struct {
 	// name is always equal to string "skiff"
 	Name string `yson:",value"`
 
 	// either skiff.Schema of reference into registry
-	TableSchemas interface{} `yson:"table_skiff_schemas,attr"`
+	TableSchemas []interface{} `yson:"table_skiff_schemas,attr"`
 
 	// schemas shared between multiple tables
-	SchemaRegistry map[string]Schema `yson:"skiff_schema_registry,attr"`
+	SchemaRegistry map[string]*Schema `yson:"skiff_schema_registry,attr"`
 }
