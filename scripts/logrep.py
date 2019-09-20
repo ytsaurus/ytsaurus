@@ -1385,8 +1385,9 @@ TIME FORMATS
     now - use current moment (current log file will be grepped)
     HH:MM (e.g. 14:30) - today's date is used
     HH:MM:SS (e.g. 12:23:00) - today's date is used
-    YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
+    YYYY-mm-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
     DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
+    YYYY-mm-DDTHH:MM:SSZ (e.g. 2019-09-19T11:46:04.848360Z)
 
 Check https://ya.cc/4Waoc for examples of usage.
 """.format(
