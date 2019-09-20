@@ -34,6 +34,7 @@ OPERATION_GUID_TYPE = 1000
 
 GUID_RE = re.compile("^[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+$")
 LOG_FILE_NAME_RE = re.compile(r"^(?P<app_and_host>[^.]+)[.]debug[.]log([.](?P<log_index>\d+))?([.]gz)?$")
+CLUSTER_SERVICE_INSTANCE_SELECTOR_RE = re.compile(r"^(/[^/]+)+$")
 
 ParsedLogName = collections.namedtuple("ParsedLogName", ["log_prefix", "log_index"])
 
@@ -213,6 +214,42 @@ def reset_signals():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
+class Grepper(object):
+    """
+    class is able to launch find appropriate log and launch process that will grep them
+    """
+    def __init__(self, application, pattern, start_time, end_time, stdout=None):
+        self.application = application
+        self.pattern = pattern
+        self.start_time = start_time
+        self.end_time = end_time
+        self.stdout = stdout
+
+    def call(self):
+        return self._run_impl(subprocess.call)
+
+    def popen(self):
+        return self._run_impl(subprocess.Popen)
+    
+    def _run_impl(self, fn):
+        log_directories = collect_log_directories(self.application)
+        log_prefix = APPLICATION_MAP[self.application].log_prefix
+        file_to_grep_list = find_files_to_grep(log_directories, log_prefix, self.start_time, self.end_time)
+        if not file_to_grep_list:
+            raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
+
+        for f in file_to_grep_list:
+            first_line = get_first_file_line(f).strip()
+            logging.info("Would grep {} ({})".format(f, shorten(first_line, 50)))
+
+        cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
+        logging.info("Running {}".format(" ".join(map(shell_quote, cmd))))
+
+        cmd = ["stdbuf", "-oL", "-eL"] + cmd
+
+        return fn(cmd, preexec_fn=reset_signals(), stdout=self.stdout)
+
+
 class RemoteTask(object):
     def save(self):
         raise NotImplementedError("This method must be implemented in subclass")
@@ -331,21 +368,7 @@ class GrepTask(RemoteTask):
         watch_thread.start()
 
     def run(self):
-        log_directories = collect_log_directories(self.application)
-        file_to_grep_list = find_files_to_grep(log_directories, self.application, self.start_time, self.end_time)
-        if not file_to_grep_list:
-            raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
-
-        for f in file_to_grep_list:
-            first_line = get_first_file_line(f).strip()
-            logging.info("Would grep {} ({})".format(f, shorten(first_line, 50)))
-
-        cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
-        logging.info("Running {}".format(" ".join(map(shell_quote, cmd))))
-
-        cmd = ["stdbuf", "-oL", "-eL"] + cmd
-
-        code = subprocess.call(cmd, preexec_fn=reset_signals())
+        code = Grepper(self.application, self.pattern, self.start_time, self.end_time).call()
         if code <= 1:
             exit(0)
         exit(code)
@@ -414,6 +437,79 @@ class SshTask(RemoteTask):
         os.execlp("sudo", "sudo", "portoctl", "shell", container_id)
 
 
+class GetJobLogsTask(RemoteTask):
+    def __init__(self, host, job_id, time):
+        self.job_id = job_id
+        self.time = time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(time, datetime.datetime) else time
+        self.host = host
+
+    def save(self):
+        return json.dumps(
+            {
+                "job_id": self.job_id,
+                "time": self.time,
+                "host": self.host
+            }
+        )
+
+    def remote_run(self):
+        self.exec_on_remote_machine(self.host)
+
+    def run(self):
+        logging.info("Searching for working directory")
+        grep_process = Grepper("ytserver-node", self.job_id, self.time, self.time, stdout=subprocess.PIPE).popen()
+        working_directory = None
+        for line in grep_process.stdout:
+            if "Spawning a job proxy" in line:
+                m = re.search(r"WorkingDirectory: ([^,)]*)[,)]", line)
+                working_directory = m.group(1)
+                break
+
+        logging.info("Found working directory: {}".format(working_directory))
+
+        grep_process.stdout.close()
+        grep_process.wait()
+
+
+        logging.info("Serarch for job-proxy log")
+        file_to_grep_list = find_files_to_grep([working_directory], "job-proxy", self.time, self.time)
+
+        logging.info("Searching for job logs")
+
+        # We open all descriptors at the same time to reduce probability that
+        # job proxy log rotation will screw things up.
+        def open_log(fname):
+            return (gzip.open if fname.endswith(".gz") else open)(fname)
+
+        descriptor_list = map(open_log, file_to_grep_list)
+        for fname, fd in zip(file_to_grep_list, descriptor_list):
+            logging.info("Checking {}".format(fname))
+
+            lineiter = iter(fd)
+
+            unknown_job_head = []
+            for line in lineiter:
+                if "Logging started" in line:
+                    unknown_job_head = [line]
+                    print "GG"
+                elif unknown_job_head:
+                    unknown_job_head.append(line)
+                    if len(unknown_job_head) > 100:
+                        raise LogrepError("Job proxy log looks broken")
+                    if "JobId: " in line:
+                        m = re.search(r"JobId: ([^),]*)[,)]", line)
+                        if self.job_id != m.group(1):
+                            unknown_job_head = None
+                        else:
+                            for line in unknown_job_head:
+                                sys.stdout.write(line)
+
+                            for line in lineiter:
+                                sys.stdout.write(line)
+                                if "Logging started:" in line:
+                                    sys.stdout.flush()
+                                    exit(0)
+
 #
 # Searching for logs
 #
@@ -431,7 +527,6 @@ def collect_log_directories(application):
             cur_app = get_application_by_log_dir_name(name)
             if cur_app == application:
                 result.append(name)
-                print result
 
     for i in xrange(len(result)):
         result[i] = os.path.join(YT_DIR, result[i])
@@ -445,7 +540,7 @@ def collect_log_directories(application):
     return result
 
 
-def find_files_to_grep(log_directories, application, start_time_str, end_time_str):
+def find_files_to_grep(log_directories, expected_log_prefix, start_time_str, end_time_str):
     def binsearch_last_log_smaller_than(log_list, key):
         def first_line(idx):
             if not (0 <= idx < len(log_list)):
@@ -489,7 +584,6 @@ def find_files_to_grep(log_directories, application, start_time_str, end_time_st
         assert end_idx >= begin_idx
         return log_list[begin_idx:end_idx + 1]
 
-    expected_log_prefix = APPLICATION_MAP[application].log_prefix
     log_file_list = []
     for log_dir in log_directories:
         for filename in os.listdir(log_dir):
@@ -593,7 +687,7 @@ def resolve_instance(instance_str):
         else:
             raise LogrepError("Cannot resolve instance `{}'".format(instance_str))
 
-    if re.match(r"^(/[^/]+)+$", instance_str):
+    if CLUSTER_SERVICE_INSTANCE_SELECTOR_RE.match(instance_str):
         components = instance_str.strip("/").split("/")
 
         def _is_service(component):
@@ -732,6 +826,12 @@ def resolve_service(client, service_name, selector_list):
         instance_list = [instance for instance in instance_list if filter_func(instance)]
 
     return instance_list
+
+
+def extract_guids(instance_str):
+    if not CLUSTER_SERVICE_INSTANCE_SELECTOR_RE.match(instance_str):
+        return []
+    return [s for s in instance_str.strip("/").split("/") if GUID_RE.match(s)]
 
 
 class AddressInSet(object):
@@ -1175,6 +1275,60 @@ def subcommand_ssh(instance_list, args):
     SshTask(host, instance.application).remote_run()
 
 
+def subcommand_get_job_log(instance_list, args):
+    from yt.wrapper import YtClient
+    from yt.wrapper.common import object_type_from_uuid
+
+    instance = get_instance_for_subcommand(instance_list, args)
+
+    # Get job ids and operation ids from selector
+    job_ids = []
+    operation_ids = []
+    for instance_description in args.instance:
+        for guid in extract_guids(instance_description):
+            guid_type = object_type_from_uuid(guid)
+            if guid_type == JOB_GUID_TYPE:
+                job_ids.append(guid)
+            elif guid_type == OPERATION_GUID_TYPE:
+                operation_ids.append(guid)
+
+    # Check that we have exactly one job-id/operation id
+    def ensure_single_element(lst, element_description):
+        if not lst:
+            raise LogrepError("Cannot find {name} in instance selector".format(name=element_description))
+        if len(lst) > 1:
+            raise LogrepError(
+                "Expected to have exactly one {name} in instance selector but found multiple:\n"
+                "{lst}"
+                .format(
+                    name=element_description,
+                    lst=indented_lines(lst)
+                )
+            )
+        return lst[0]
+
+    job_id = ensure_single_element(job_ids, "job id")
+    operation_id = ensure_single_element(operation_ids, "job id")
+
+    # Find approximate time that job was running
+    logging.info("Resolving operation_id: {} job_id: {}".format(operation_id, job_id))
+    cluster = resolve_cluster(operation_id)
+    client = YtClient(cluster)
+    job_info = client.get_job(operation_id, job_id)
+
+    time = None
+    for event in job_info["events"]:
+        if event.get("state", None) == "running":
+            time = utc_to_local(datetime.datetime.strptime(event["time"], "%Y-%m-%dT%H:%M:%S.%fZ"))
+            break
+    else:
+        raise LogrepError("Cannot get the time when job was running")
+
+    host = parse_address(instance.address).host
+    task = GetJobLogsTask(host, job_id, time)
+    task.remote_run()
+
+
 EPILOG = """\
 INSTANCE SELECTORS
  Instance selector must start with /<cluster>/<service> or /<service>. In the latter case a guid selector
@@ -1311,6 +1465,14 @@ def main():
             "limit for the number of selected instances "
             "(pgrep will fail if number of selected instance exeeds this limit, default limit: 10)"
         )
+    )
+    
+    action_group.add_argument(
+        "--get-job-log",
+        help="find and get logs of a job proxy that executed job",
+        action="store_const",
+        dest="subcommand",
+        const=subcommand_get_job_log,
     )
 
     parser.add_argument("--any", action="store_true", default=False, help="select arbitrary instance")
