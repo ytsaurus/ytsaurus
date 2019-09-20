@@ -1341,8 +1341,8 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FairShareProfiling");
-    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FairShareUpdate");
+    const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
+    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FSUpdate");
 
     ISchedulerStrategyPtr Strategy_;
 
