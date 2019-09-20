@@ -50,6 +50,8 @@ using namespace NTools;
 
 static const auto& Logger = ExecAgentLogger;
 
+constexpr double CpuUpdatePrecision = 0.01;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -709,7 +711,7 @@ private:
             bool cpuLimitChanged = false;
 
             auto guard = Guard(LimitsLock_);
-            if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
+            if (!CpuLimit_ || std::abs(*CpuLimit_ - limits.Cpu) > CpuUpdatePrecision) {
                 YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)",
                     CpuLimit_,
                     newCpuLimit);
