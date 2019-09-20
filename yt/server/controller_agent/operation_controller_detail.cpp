@@ -2661,7 +2661,7 @@ void TOperationControllerBase::BuildJobAttributes(
 
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
-        .Item("stderr_size").Value(i64(job->StderrSize))
+        .Item("stderr_size").Value(static_cast<i64>(job->StderrSize))
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
