@@ -32,7 +32,7 @@ func findHeaders() (headers []string) {
 		})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "walk: %+v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "walk: %+v\n", err)
 		os.Exit(1)
 	}
 
@@ -78,7 +78,7 @@ func scanErrorCodes(lines []string) (ec []errorCode) {
 func readLines(path string) (lines []string) {
 	file, err := os.Open(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open: %+v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "open: %+v\n", err)
 		os.Exit(1)
 	}
 	defer func() { _ = file.Close() }()
@@ -89,7 +89,7 @@ func readLines(path string) (lines []string) {
 	for {
 		line, err = reader.ReadString('\n')
 		if err != nil && err != io.EOF {
-			fmt.Fprintf(os.Stderr, "readline: %+v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "readline: %+v\n", err)
 			os.Exit(1)
 		} else if err == io.EOF {
 			break
