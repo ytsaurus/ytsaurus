@@ -11,9 +11,29 @@ import (
 
 type TestRow struct {
 	First  *int64 `yson:"first"`
-	Second int64  `yson:"second"`
+	Second int64  `yson:"second,omitempty"`
 	Third  string `yson:"third"`
 }
+
+var (
+	testSchema = Schema{
+		Type: TypeTuple,
+		Children: []Schema{
+			systemPrefix[0],
+			systemPrefix[1],
+			systemPrefix[2],
+			OptionalColumn("first", TypeInt64),
+			OptionalColumn("second", TypeInt64),
+			{Type: TypeString32, Name: "third"},
+		},
+	}
+
+	testFormat = Format{
+		Name:           "skiff",
+		TableSchemas:   []interface{}{&testSchema},
+		SchemaRegistry: nil,
+	}
+)
 
 func TestDecoder(t *testing.T) {
 	input := bytes.NewBuffer([]byte{
@@ -32,27 +52,17 @@ func TestDecoder(t *testing.T) {
 		0x01, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // first field is present
 		0x00,                   // second field is missing
 		0x00, 0x00, 0x00, 0x00, // empty string
+
+		0x00, 0x00, // third row
+		0x00,                   // no key switch
+		0x00,                   // no row index
+		0x00,                   // no range index
+		0x00,                   // first field is missing
+		0x00,                   // second field is missing
+		0x00, 0x00, 0x00, 0x00, // empty string
 	})
 
-	schema := Schema{
-		Type: TypeTuple,
-		Children: []Schema{
-			systemPrefix[0],
-			systemPrefix[1],
-			systemPrefix[2],
-			OptionalColumn("first", TypeInt64),
-			OptionalColumn("second", TypeInt64),
-			{Type: TypeString32, Name: "third"},
-		},
-	}
-
-	format := Format{
-		Name:           "skiff",
-		TableSchemas:   []interface{}{&schema},
-		SchemaRegistry: nil,
-	}
-
-	decoder, err := NewDecoder(input, format)
+	decoder, err := NewDecoder(input, testFormat)
 	require.NoError(t, err)
 
 	var row TestRow
@@ -70,8 +80,20 @@ func TestDecoder(t *testing.T) {
 	require.False(t, decoder.KeySwitch())
 	require.Equal(t, int64(3), decoder.RowIndex())
 	require.Equal(t, 3, decoder.RangeIndex())
+
 	require.NoError(t, decoder.Scan(&row))
 	require.Equal(t, row, TestRow{First: ptr.Int64(5)})
+
+	// Test backup() && checkpoint().
+	require.NoError(t, decoder.Scan(&row))
+	require.Equal(t, row, TestRow{First: ptr.Int64(5)})
+
+	// Row is skipped.
+	require.True(t, decoder.Next())
+	require.Equal(t, 0, decoder.TableIndex())
+	require.False(t, decoder.KeySwitch())
+	require.Equal(t, int64(4), decoder.RowIndex())
+	require.Equal(t, 3, decoder.RangeIndex())
 
 	require.False(t, decoder.Next())
 	require.NoError(t, decoder.Err())

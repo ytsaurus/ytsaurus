@@ -2,8 +2,10 @@
 package skiff
 
 import (
+	"encoding/gob"
 	"fmt"
 
+	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/yson"
 )
 
@@ -22,6 +24,26 @@ const (
 	TypeRepeatedVariant16
 	TypeTuple
 )
+
+// FromYTType returns skiff wire type used for transferring YT type.
+func FromYTType(typ schema.Type) WireType {
+	switch typ {
+	case schema.TypeBoolean:
+		return TypeBoolean
+	case schema.TypeInt8, schema.TypeInt16, schema.TypeInt32, schema.TypeInt64:
+		return TypeInt64
+	case schema.TypeUint8, schema.TypeUint16, schema.TypeUint32, schema.TypeUint64:
+		return TypeUint64
+	case schema.TypeFloat64:
+		return TypeDouble
+	case schema.TypeBytes, schema.TypeString:
+		return TypeString32
+	case schema.TypeAny:
+		return TypeYSON32
+	default:
+		panic(fmt.Sprintf("invalid YT type %s", typ))
+	}
+}
 
 func (t WireType) IsSimple() bool {
 	switch t {
@@ -104,9 +126,32 @@ func (t WireType) MarshalYSON(w *yson.Writer) error {
 
 // Schema describes wire format for the single value.
 type Schema struct {
-	Type     WireType `yson:"type"`
+	Type     WireType `yson:"wire_type"`
 	Name     string   `yson:"name,omitempty"`
 	Children []Schema `yson:"children,omitempty"`
+}
+
+func init() {
+	gob.Register(&Schema{})
+}
+
+// FromTableSchema creates skiff schema from table schema.
+func FromTableSchema(schema schema.Schema) Schema {
+	var columns []Schema
+	columns = append(columns, systemPrefix...)
+
+	for _, row := range schema.Columns {
+		if row.Required {
+			columns = append(columns, Schema{Name: row.Name, Type: FromYTType(row.Type)})
+		} else {
+			columns = append(columns, OptionalColumn(row.Name, FromYTType(row.Type)))
+		}
+	}
+
+	return Schema{
+		Type:     TypeTuple,
+		Children: columns,
+	}
 }
 
 func OptionalColumn(name string, typ WireType) Schema {
