@@ -9,10 +9,13 @@ import (
 )
 
 type fieldOp struct {
-	wt       WireType
-	optional bool
+	wt WireType
 
-	unused bool
+	optional  bool // encoded as variant<nothing;T>
+	unused    bool // not present in type
+	omitempty bool // tagged with omitempty
+
+	schemaName string
 
 	index []int
 }
@@ -85,7 +88,7 @@ func checkTypes(typ reflect.Type, wt WireType) error {
 }
 
 // skiff encoding and decoding is always driven by the schema. newTranscoder generates
-// table describing necessary steps, that must be taken in order to decode or encode given struct type.
+// table describing necessary steps, that must be taken in order to decodeStruct or encode given struct type.
 func newTranscoder(schema *Schema, typ reflect.Type) ([]fieldOp, error) {
 	var fields []fieldOp
 
@@ -110,8 +113,9 @@ func newTranscoder(schema *Schema, typ reflect.Type) ([]fieldOp, error) {
 	}
 
 	var err error
-	for _, topValue := range schema.Children[len(systemPrefix):] {
+	for _, topValue := range schema.Children {
 		var op fieldOp
+		op.schemaName = topValue.Name
 		op.wt, op.optional, err = unpackSimpleVariant(&topValue)
 		if err != nil {
 			return nil, xerrors.Errorf("skiff: invalid schema for column %q: %w", topValue.Name, err)
@@ -119,11 +123,13 @@ func newTranscoder(schema *Schema, typ reflect.Type) ([]fieldOp, error) {
 
 		field, ok := fieldByName[topValue.Name]
 		if ok {
+			tag, _ := yson.ParseTag(field.Name, field.Tag)
 			if err := checkTypes(field.Type, op.wt); err != nil {
 				return nil, xerrors.Errorf("skiff: invalid schema for column %q: %w", topValue.Name, err)
 			}
 
 			op.index = field.Index
+			op.omitempty = tag.Omitempty
 		} else {
 			op.unused = true
 		}

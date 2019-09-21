@@ -1,3 +1,7 @@
+// Package skiff implements YT skiff format.
+//
+// Skiff provides very efficient encoding and decoding, but requires schema negotiation
+// and does not support schema evolution.
 package skiff
 
 import (
@@ -26,6 +30,9 @@ type Decoder struct {
 	keySwitch              bool
 }
 
+// NewDecoder creates decoder for reading rows from input stream formatted by format.
+//
+// Each table schema in format must start with three system columns.
 func NewDecoder(r io.Reader, format Format) (*Decoder, error) {
 	d := &Decoder{
 		opCaches: make([]opCache, len(format.TableSchemas)),
@@ -52,6 +59,12 @@ func NewDecoder(r io.Reader, format Format) (*Decoder, error) {
 			d.schemas[i] = v
 			d.opCaches[i] = make(opCache)
 		}
+
+		// System columns are decoded by hand.
+		// TODO(prime@): validate schema is statring with system columns.
+		s := *d.schemas[i]
+		s.Children = s.Children[len(systemPrefix):]
+		d.schemas[i] = &s
 	}
 
 	return d, nil
@@ -155,7 +168,7 @@ func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bo
 	return v, true
 }
 
-func (d *Decoder) decode(ops []fieldOp, value interface{}) error {
+func (d *Decoder) decodeStruct(ops []fieldOp, value interface{}) error {
 	v := reflect.ValueOf(value).Elem()
 	v.Set(reflect.New(v.Type()).Elem())
 
@@ -166,43 +179,57 @@ func (d *Decoder) decode(ops []fieldOp, value interface{}) error {
 			}
 		}
 
-		f, _ := fieldByIndex(v, op.index, true)
-		switch op.wt {
-		case TypeBoolean:
-			f.SetBool(d.r.readUint8() != 0)
-		case TypeInt64:
-			f.SetInt(d.r.readInt64())
-		case TypeUint64:
-			f.SetUint(d.r.readUint64())
-		case TypeDouble:
-			f.SetFloat(d.r.readDouble())
+		if !op.unused {
+			f, _ := fieldByIndex(v, op.index, true)
+			switch op.wt {
+			case TypeBoolean:
+				f.SetBool(d.r.readUint8() != 0)
+			case TypeInt64:
+				f.SetInt(d.r.readInt64())
+			case TypeUint64:
+				f.SetUint(d.r.readUint64())
+			case TypeDouble:
+				f.SetFloat(d.r.readDouble())
+			case TypeString32:
+				b := d.r.readBytes()
+				if d.r.err != nil {
+					return d.r.err
+				}
 
-		case TypeString32:
-			b := d.r.readBytes()
-			if d.r.err != nil {
-				return d.r.err
+				if f.Kind() == reflect.String {
+					f.SetString(string(b))
+				} else {
+					c := make([]byte, len(b))
+					copy(c, b)
+					f.SetBytes(c)
+				}
+			case TypeYSON32:
+				b := d.r.readBytes()
+				if d.r.err != nil {
+					return d.r.err
+				}
+
+				if err := yson.Unmarshal(b, f.Addr().Interface()); err != nil {
+					return err
+				}
+			default:
+				panic(fmt.Sprintf("unexpected wire type %s", op.wt))
 			}
-
-			if f.Kind() == reflect.String {
-				f.SetString(string(b))
-			} else {
-				c := make([]byte, len(b))
-				copy(c, b)
-				f.Set(reflect.ValueOf(c))
+		} else {
+			switch op.wt {
+			case TypeBoolean:
+				d.r.readUint8()
+			case TypeInt64:
+				d.r.readInt64()
+			case TypeUint64:
+				d.r.readUint64()
+			case TypeDouble:
+				d.r.readDouble()
+			case TypeString32, TypeYSON32:
+				d.r.readBytes()
+			default:
+				panic(fmt.Sprintf("unexpected wire type %s", op.wt))
 			}
-
-		case TypeYSON32:
-			b := d.r.readBytes()
-			if d.r.err != nil {
-				return d.r.err
-			}
-
-			if err := yson.Unmarshal(b, f.Addr().Interface()); err != nil {
-				return err
-			}
-
-		default:
-			panic(fmt.Sprintf("unexpected wire type %d", op.wt))
 		}
 	}
 
@@ -229,6 +256,9 @@ func (d *Decoder) Scan(value interface{}) (err error) {
 		return xerrors.Errorf("skiff: type %v is not a pointer", typ)
 	}
 	typ = typ.Elem()
+	if typ.Kind() != reflect.Struct {
+		return xerrors.Errorf("skiff: type %v is not a struct", typ)
+	}
 
 	ops, ok := cache[typ]
 	if !ok {
@@ -239,7 +269,7 @@ func (d *Decoder) Scan(value interface{}) (err error) {
 		cache[typ] = ops
 	}
 
-	if err := d.decode(ops, value); err != nil {
+	if err := d.decodeStruct(ops, value); err != nil {
 		d.r.backup()
 		return err
 	}
