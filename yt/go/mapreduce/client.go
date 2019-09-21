@@ -7,8 +7,6 @@ import (
 	"os"
 	"sync"
 
-	"a.yandex-team.ru/library/go/core/xerrors"
-
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 
@@ -119,45 +117,4 @@ func (mr *client) operationStartClient() yt.OperationStartClient {
 	}
 
 	return mr.yc
-}
-
-func (mr *client) start(spec *spec.Spec, actions []action) (Operation, error) {
-	if err := mr.uploadSelf(mr.ctx); err != nil {
-		return nil, err
-	}
-
-	for _, inputTablePath := range spec.InputTablePaths {
-		if ok, err := mr.yc.NodeExists(mr.ctx, inputTablePath, nil); err != nil {
-			return nil, err
-		} else if !ok {
-			return nil, xerrors.Errorf("unable to locate input table at specified path: %v", inputTablePath)
-		}
-	}
-
-	for _, outputTablePath := range spec.OutputTablePaths {
-		if ok, err := mr.yc.NodeExists(mr.ctx, outputTablePath, nil); err != nil {
-			return nil, err
-		} else if !ok {
-			_, err := mr.yc.CreateNode(mr.ctx, outputTablePath, yt.NodeTable, nil)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	spec.PatchUserBinary(mr.binaryPath)
-
-	for _, action := range actions {
-		err := action(&mr.ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	id, err := mr.operationStartClient().StartOperation(mr.ctx, spec.Type, spec, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &operation{c: mr.yc, ctx: mr.ctx, opID: id}, nil
 }

@@ -9,11 +9,31 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/yt/go/skiff"
 	"a.yandex-team.ru/yt/go/yson"
 )
 
-func (c *jobContext) initPipes(nOutputPipes int) error {
-	c.in = newReader(os.Stdin, c)
+type skiffReader struct {
+	*skiff.Decoder
+	ctx *jobContext
+}
+
+func (r *skiffReader) MustScan(value interface{}) {
+	if err := r.Scan(value); err != nil {
+		r.ctx.onError(err)
+	}
+}
+
+func (c *jobContext) initPipes(state *jobState, nOutputPipes int) error {
+	if state.InputSkiffFormat == nil {
+		c.in = newReader(os.Stdin, c)
+	} else {
+		in, err := skiff.NewDecoder(os.Stdin, *state.InputSkiffFormat)
+		if err != nil {
+			return err
+		}
+		c.in = &skiffReader{Decoder: in, ctx: c}
+	}
 
 	// Hide stdin from user code, just in case.
 	os.Stdin = nil

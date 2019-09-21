@@ -106,7 +106,9 @@ func (r Rich) MarshalYSON(w *yson.Writer) error {
 }
 
 // YPath is implementation of YPath interface.
-func (Rich) YPath() {}
+func (r Rich) YPath() Path {
+	return r.Path.YPath()
+}
 
 // Copy returns deep copy of p.
 func (r *Rich) Copy() *Rich {

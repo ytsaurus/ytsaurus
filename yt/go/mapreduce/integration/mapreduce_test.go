@@ -10,6 +10,8 @@ import (
 )
 
 func TestOutputTableCreation(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 

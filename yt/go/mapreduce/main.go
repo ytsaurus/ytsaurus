@@ -40,36 +40,30 @@ func JobMain() int {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 	}
 
-	job := NewJob(args.job)
-	if job == nil {
-		_, _ = fmt.Fprintf(os.Stderr, "job: unknown job type '%s'\n", args.job)
-		return 2
-	}
-
 	var ctx jobContext
 	if err = ctx.initEnv(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 5
 	}
 
-	if err = ctx.initPipes(args.nOutputPipes); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
-		return 3
-	}
-
-	content, err := os.Open("job-state")
+	stateFile, err := os.Open("job-state")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 6
 	}
 
-	err = decodeJob(content, &job)
+	state, err := decodeJob(stateFile)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 7
 	}
 
-	if err := job.Do(&ctx, ctx.in, ctx.writers()); err != nil {
+	if err = ctx.initPipes(state, args.nOutputPipes); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+		return 3
+	}
+
+	if err := state.Job.Do(&ctx, ctx.in, ctx.writers()); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 1
 	}

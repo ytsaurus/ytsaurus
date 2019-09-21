@@ -51,6 +51,8 @@ func (r *ReduceJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapr
 }
 
 func TestJobState(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
@@ -81,6 +83,8 @@ func TestJobState(t *testing.T) {
 }
 
 func TestMapReduceJobState(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
@@ -140,7 +144,9 @@ func init() {
 	mapreduce.Register(&TestSecondFieldJob{})
 }
 
-func TestVanilaJobState(t *testing.T) {
+func TestVanillaJobState(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 

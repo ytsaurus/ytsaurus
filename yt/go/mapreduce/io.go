@@ -12,7 +12,7 @@ import (
 type jobContext struct {
 	vault map[string]string
 
-	in  *reader
+	in  Reader
 	out []*writer
 }
 
@@ -40,9 +40,10 @@ func (c *jobContext) onError(err error) {
 }
 
 func (c *jobContext) finish() error {
-	if c.in.err != nil {
-		return xerrors.Errorf("input reader error: %w", c.in.err)
-	}
+	// TODO(prime@): return this check
+	//if c.in.err != nil {
+	//	return xerrors.Errorf("input reader error: %w", c.in.err)
+	//}
 
 	for _, out := range c.out {
 		_ = out.Close()
