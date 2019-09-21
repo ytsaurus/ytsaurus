@@ -69,14 +69,12 @@ and conda-forge:
 Depending on your environment you might also need a type checker, like `Mypy <https://github.com/python/mypy>`__
 or `Pytype <https://github.com/google/pytype/>`__.
 
-- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
 - `Atom <https://atom.io/>`__ - Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
 - `Jupyter Notebooks <https://jupyter.org/>`__ - `It is possible <https://web.archive.org/web/20190126155957/http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__ to use magics to type check directly in the notebook.
-- `Visual Studio Code <https://code.visualstudio.com/>`__ - With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
+- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
 - `VIM <https://www.vim.org/>`__ / `Neovim <https://neovim.io/>`__ - Using `vim-mypy <https://github.com/Integralist/vim-mypy>`__, `syntastic <https://github.com/vim-syntastic/syntastic>`__ or `Neomake <https://github.com/neomake/neomake>`__.
+- `Visual Studio Code <https://code.visualstudio.com/>`__ - With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
 - Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://eradman.com/entrproject/>`__.
-
-
 
 Version Compatibility
 ---------------------
