@@ -53,6 +53,12 @@ func ContainsErrorCode(err error, code ErrorCode) bool {
 	return FindErrorCode(err, code) != nil
 }
 
+// ContainsResolveError is convenient helper for checking ResolveError.
+func ContainsResolveError(err error) bool {
+	return ContainsErrorCode(err, CodeResolveError)
+}
+
+// FindErrorCode examines error and all nested errors, returning first YT error with given error code.
 func FindErrorCode(err error, code ErrorCode) *Error {
 	if err == nil {
 		return nil
