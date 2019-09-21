@@ -152,3 +152,7 @@ func (s Schema) WithUniqueKeys() Schema {
 	out.UniqueKeys = true
 	return out
 }
+
+func (s *Schema) IsStrict() bool {
+	return s.Strict != nil && *s.Strict
+}
