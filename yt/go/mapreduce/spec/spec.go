@@ -21,6 +21,8 @@ type File struct {
 type UserScript struct {
 	Command         string            `yson:"command"`
 	Format          interface{}       `yson:"format,omitempty"`
+	InputFormat     interface{}       `yson:"input_format,omitempty"`
+	OutputFormat    interface{}       `yson:"output_format,omitempty"`
 	Environment     map[string]string `yson:"environment,omitempty"`
 	FilePaths       []File            `yson:"file_paths,omitempty"`
 	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
@@ -64,7 +66,7 @@ type Spec struct {
 	InputTablePaths        []ypath.YPath `yson:"input_table_paths,omitempty"`
 	OutputTablePaths       []ypath.YPath `yson:"output_table_paths,omitempty"`
 	OutputTablePath        ypath.YPath   `yson:"output_table_path,omitempty"`
-	MapperOutputTableCount int           `yson:"mapper_output_table_count"`
+	MapperOutputTableCount int           `yson:"mapper_output_table_count,omitempty"`
 
 	Ordered   bool            `yson:"ordered,omitempty"`
 	ReduceBy  []string        `yson:"reduce_by,omitempty"`

@@ -64,6 +64,8 @@ func (*CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce
 }
 
 func TestMap(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 

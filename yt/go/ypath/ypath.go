@@ -30,7 +30,14 @@ type Path string
 const Root Path = "/"
 
 // YPath is implementation of YPath interface.
-func (Path) YPath() {}
+func (p Path) YPath() Path {
+	rich, err := Parse(p.String())
+	if err != nil {
+		// Garbage in, garbage out.
+		return p
+	}
+	return rich.Path
+}
 
 // UnmarshalText is implementation of encoding.TextUnmarshaler interface.
 func (p *Path) UnmarshalText(text []byte) error {
@@ -150,7 +157,10 @@ func (p Path) String() string {
 //
 // It is used by api methods that accept both kind of paths.
 type YPath interface {
-	YPath()
+	// YPath returns path with all attributes stripped.
+	//
+	// If path is malformed, returns original path unmodified. Use Parse() if you need to check path for correctness.
+	YPath() Path
 
 	yson.StreamMarhsaler
 }
