@@ -50,8 +50,6 @@ using namespace NTools;
 
 static const auto& Logger = ExecAgentLogger;
 
-constexpr double CpuUpdatePrecision = 0.01;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -422,6 +420,8 @@ private:
 
 #ifdef _linux_
 
+constexpr double CpuUpdatePrecision = 0.01;
+
 class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
 {
@@ -469,20 +469,12 @@ public:
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
     {
-#ifdef __linux__
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
-#else
-        return nullptr;
-#endif
     }
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
     {
-#ifdef __linux__
         return RootVolumeManager_->PrepareVolume(layers);
-#else
-        return VoidFuture;
-#endif
     }
 
     virtual std::optional<i64> GetMemoryLimit() const override
@@ -653,7 +645,6 @@ private:
 
         TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
 
-#ifdef __linux__
         // To these moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         RootVolumeManager_ = CreatePortoVolumeManager(
@@ -667,7 +658,6 @@ private:
                 *Config_->ResourceLimitsUpdatePeriod);
             LimitsUpdateExecutor_->Start();
         }
-#endif
     }
 
     void InitJobProxyInstance(int slotIndex, TJobId jobId)
