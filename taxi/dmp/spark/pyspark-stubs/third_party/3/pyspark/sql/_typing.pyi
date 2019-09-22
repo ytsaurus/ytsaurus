@@ -34,6 +34,7 @@ class SupportsClose(Protocol):
 PandasScalarUDFType = Literal[200]
 PandasScalarIterUDFType = Literal[204]
 PandasGroupedMapUDFType = Literal[201]
+PandasCogroupedMapUDFType = Literal[206]
 PandasGroupedAggUDFType = Literal[202]
 PandasMapIterUDFType = Literal[205]
 
@@ -61,9 +62,12 @@ PandasGroupedAggFunction = Union[Callable[[pandas.core.series.Series], LiteralTy
 
 PandasMapIterFunction = Callable[[Iterable[pandas.core.frame.DataFrame]], Iterable[pandas.core.frame.DataFrame]]
 
+PandasCogroupedMapFunction = Callable[[pandas.core.frame.DataFrame, pandas.core.frame.DataFrame], pandas.core.frame.DataFrame]
+
 class UserDefinedFunctionLike(Protocol):
     def __call__(self, *_: ColumnOrName) -> Column:
         ...
 
 MapIterPandasUserDefinedFunction = NewType("MapIterPandasUserDefinedFunction", FunctionType)
 GroupedMapPandasUserDefinedFunction = NewType("GroupedMapPandasUserDefinedFunction", FunctionType)
+CogroupedMapPandasUserDefinedFunction = NewType("CogroupedMapPandasUserDefinedFunction", FunctionType)

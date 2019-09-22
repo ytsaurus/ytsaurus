@@ -94,3 +94,29 @@ udf(lambda x: x, "string")
 def f(x):
     return x
 [out]
+
+[case cogroupedAggUdf]
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.session import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+dfg1 = spark.range(1).groupBy("id")
+dfg2 = spark.range(1).groupBy("id")
+
+@pandas_udf("id int", PandasUDFType.COGROUPED_MAP)
+def f(x, y):
+    return x
+
+@pandas_udf("id int", functionType=PandasUDFType.COGROUPED_MAP)
+def g(x, y):
+    return x
+
+@pandas_udf(returnType="id int", functionType=PandasUDFType.COGROUPED_MAP)
+def h(x, y):
+    return x
+
+dfg1.cogroup(dfg2).apply(f)
+dfg1.cogroup(dfg2).apply(g)
+dfg1.cogroup(dfg2).apply(h)
+[out]

@@ -3,10 +3,12 @@
 
 from typing import overload
 from typing import Any, Callable, Dict, Generic, Hashable, Iterable, Iterator, List, Optional, Tuple, Union, TypeVar
+from typing_extensions import Literal
 
 from numpy import int32, int64, float32, float64, ndarray  # type: ignore
 
 from pyspark._typing import SupportsOrdering
+from pyspark.sql._typing import PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasCogroupedMapUDFType, PandasGroupedAggUDFType, PandasMapIterUDFType
 import pyspark.context
 from pyspark.resultiterable import ResultIterable
 from pyspark.serializers import Serializer
@@ -30,14 +32,15 @@ NumberOrArray = TypeVar('NumberOrArray', float, int, complex, int32, int64, floa
 def portable_hash(x: Hashable) -> int: ...
 
 class PythonEvalType:
-    NON_UDF: int = ...
-    SQL_BATCHED_UDF: int = ...
-    SQL_SCALAR_PANDAS_UDF: int = ...
-    SQL_GROUPED_MAP_PANDAS_UDF: int = ...
-    SQL_GROUPED_AGG_PANDAS_UDF: int = ...
-    SQL_WINDOW_AGG_PANDAS_UDF: int = ...
-    SQL_SCALAR_PANDAS_ITER_UDF: int = ...
-    SQL_MAP_PANDAS_ITER_UDF: int = ...
+    NON_UDF: Literal[0]
+    SQL_BATCHED_UDF: Literal[100]
+    SQL_SCALAR_PANDAS_UDF: PandasScalarUDFType
+    SQL_GROUPED_MAP_PANDAS_UDF: PandasGroupedMapUDFType
+    SQL_GROUPED_AGG_PANDAS_UDF: PandasGroupedAggUDFType
+    SQL_WINDOW_AGG_PANDAS_UDF: Literal[203]
+    SQL_SCALAR_PANDAS_ITER_UDF: PandasScalarIterUDFType
+    SQL_MAP_PANDAS_ITER_UDF: PandasMapIterUDFType
+    SQL_COGROUPED_MAP_PANDAS_UDF: PandasCogroupedMapUDFType
 
 class BoundedFloat(float):
     def __new__(cls, mean: float, confidence: float, low: float, high: float): ...

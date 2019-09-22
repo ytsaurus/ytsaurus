@@ -6,7 +6,7 @@ from typing import Any, Optional, Union, Dict, Callable
 import pandas.core.frame   # type: ignore
 import pandas.core.series     # type: ignore
 
-from pyspark.sql._typing import ColumnOrName, DataTypeOrString, AtomicDataTypeOrString, PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasGroupedAggUDFType, PandasScalarToScalarFunction, PandasScalarToStructFunction, PandasScalarIterFunction, PandasGroupedMapFunction, PandasGroupedAggFunction, PandasMapIterFunction, PandasMapIterUDFType, UserDefinedFunctionLike, GroupedMapPandasUserDefinedFunction, MapIterPandasUserDefinedFunction
+from pyspark.sql._typing import AtomicDataTypeOrString, ColumnOrName, DataTypeOrString, GroupedMapPandasUserDefinedFunction, MapIterPandasUserDefinedFunction,CogroupedMapPandasUserDefinedFunction, PandasCogroupedMapFunction, PandasCogroupedMapUDFType, PandasGroupedAggFunction, PandasGroupedAggUDFType, PandasGroupedMapFunction, PandasGroupedMapUDFType, PandasMapIterFunction, PandasMapIterUDFType, PandasScalarIterFunction, PandasScalarIterUDFType, PandasScalarToScalarFunction, PandasScalarToStructFunction, PandasScalarUDFType, UserDefinedFunctionLike
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import ArrayType, DataType, StructType
@@ -248,6 +248,7 @@ class PandasUDFType:
     SCALAR: PandasScalarUDFType
     SCALAR_ITER: PandasScalarIterUDFType
     GROUPED_MAP: PandasGroupedMapUDFType
+    COGROUPED_MAP: PandasCogroupedMapUDFType
     GROUPED_AGG: PandasGroupedAggUDFType
     MAP_ITER: PandasMapIterUDFType
 
@@ -304,3 +305,12 @@ def pandas_udf(f: Union[StructType, str], returnType: PandasMapIterUDFType) -> C
 def pandas_udf(*, returnType: Union[StructType, str], functionType: PandasMapIterUDFType) -> Callable[[PandasMapIterFunction], MapIterPandasUserDefinedFunction]: ...
 @overload
 def pandas_udf(f: Union[StructType, str], *, functionType: PandasMapIterUDFType) -> Callable[[PandasMapIterFunction], MapIterPandasUserDefinedFunction]: ...
+
+@overload
+def pandas_udf(f: PandasCogroupedMapFunction, returnType: Union[StructType, str], functionType: PandasCogroupedMapUDFType) -> CogroupedMapPandasUserDefinedFunction: ...
+@overload
+def pandas_udf(f: Union[StructType, str], returnType: PandasCogroupedMapUDFType) -> Callable[[PandasCogroupedMapFunction], CogroupedMapPandasUserDefinedFunction]: ...
+@overload
+def pandas_udf(*, returnType: Union[StructType, str], functionType: PandasCogroupedMapUDFType) -> Callable[[PandasCogroupedMapFunction], CogroupedMapPandasUserDefinedFunction]: ...
+@overload
+def pandas_udf(f: Union[StructType, str], *, functionType: PandasCogroupedMapUDFType) -> Callable[[PandasCogroupedMapFunction], CogroupedMapPandasUserDefinedFunction]: ...
