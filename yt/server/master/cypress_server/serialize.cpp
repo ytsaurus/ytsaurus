@@ -26,14 +26,13 @@ TBeginCopyContext::TBeginCopyContext(
     : Transaction_(transaction)
     , Mode_(mode)
     , TableSchemaRegistry_(New<TTableSchemaRegistry>())
-    , Stream_(Data_)
 {
     SetOutput(&Stream_);
 }
 
-TString TBeginCopyContext::Finish()
+std::vector<TSharedRef> TBeginCopyContext::Finish()
 {
-    return std::move(Data_);
+    return Stream_.Flush();
 }
 
 TCellTagList TBeginCopyContext::GetExternalCellTags()
