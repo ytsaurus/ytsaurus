@@ -347,17 +347,6 @@ private:
 
 public:
     using TBase::TBase;
-//    TScalarNodeProxy(
-//        NCellMaster::TBootstrap* bootstrap,
-//        NObjectServer::TObjectTypeMetadata* metadata,
-//        NTransactionServer::TTransaction* transaction,
-//        TScalarNode<TValue>* trunkNode)
-//        : TBase(
-//            bootstrap,
-//            metadata,
-//            transaction,
-//            trunkNode)
-//    { }
 
     virtual NYTree::ENodeType GetType() const override
     {
