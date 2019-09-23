@@ -1192,32 +1192,50 @@ public:
         YT_VERIFY(transaction);
         YT_VERIFY(!transaction->Locks().empty());
 
-        auto getStrongestLockMode = [&] () {
-            auto result = ELockMode::None;
-            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                if (lock->GetTransaction() != transaction) {
-                    continue;
-                }
-                if (lock->Request().Mode > result) {
-                    result = lock->Request().Mode;
-                    if (result == ELockMode::Exclusive) {
-                        break; // as strong as it gets
-                    }
-                }
+        // Nodes must be unbranched before locks are released (because unbranching uses them).
+        // The effect of releasing locks must therefore be predicted without actually affecting them.
+        // Make sure this prediction is consistent with what actually releasing locks does.
+
+        auto strongestLockModeBefore = ELockMode::None;
+        auto strongestLockModeAfter = ELockMode::None;
+        for (auto* lock : transaction->Locks()) {
+            if (lock->GetState() != ELockState::Acquired) {
+                continue;
             }
-            return result;
-        };
 
-        auto strongestLockModeBefore = getStrongestLockMode();
-        RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
-        auto strongestLockModeAfter = getStrongestLockMode();
+            if (lock->GetTransaction() != transaction) {
+                continue;
+            }
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
-            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
+            auto lockMode = lock->Request().Mode;
+
+            if (lockMode > strongestLockModeBefore) {
+                strongestLockModeBefore = lockMode;
+            }
+
+            // This lock won't be destroyed and thus will affect the "after" mode.
+            if (!ShouldRemoveLockOnUnlock(lock, explicitOnly) && lockMode > strongestLockModeAfter) {
+                strongestLockModeAfter = lockMode;
+            }
+
+            if (strongestLockModeBefore == ELockMode::Exclusive &&
+                strongestLockModeAfter == ELockMode::Exclusive)
+            {
+                // As strong as it gets.
+                break;
+            }
         }
+
+        // Again, the order is crucial: first unbranch (or update) nodes, then destroy locks.
 
         if (strongestLockModeBefore != strongestLockModeAfter) {
             RemoveOrUpdateNodesOnLockModeChange(trunkNode, transaction, strongestLockModeBefore, strongestLockModeAfter);
+        }
+
+        RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
+
+        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
+            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
@@ -1232,18 +1250,18 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool explicitOnly)
     {
+        if (trunkNode->LockingState().IsEmpty()) {
+            return;
+        }
+
         auto isLockRelevant = [&] (TLock* l) { return l->GetTransaction() == transaction; };
 
         auto maybeRemoveLock = [&] (TLock* lock) {
             YT_ASSERT(lock->GetTrunkNode() == trunkNode);
-            if (isLockRelevant(lock) && (!explicitOnly || !lock->GetImplicit())) {
+            if (isLockRelevant(lock) && ShouldRemoveLockOnUnlock(lock, explicitOnly)) {
                 DoRemoveLock(lock, false /*resetEmptyLockingState*/);
             }
         };
-
-        if (trunkNode->LockingState().IsEmpty()) {
-            return;
-        }
 
         auto& acquiredLocks = trunkNode->MutableLockingState()->AcquiredLocks;
         for (auto it = acquiredLocks.begin(); it != acquiredLocks.end(); ) {
@@ -1267,6 +1285,11 @@ public:
         trunkNode->ResetLockingStateIfEmpty();
     }
 
+    bool ShouldRemoveLockOnUnlock(TLock* lock, bool explicitOnly)
+    {
+        return !explicitOnly || !lock->GetImplicit();
+    }
+
     // Returns the mode of the strongest lock among all of the descendants
     // (branches, subbranches, subsubbranches...) of the node.
     // NB: doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
@@ -1279,19 +1302,20 @@ public:
 
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
-            if (!versionedNode) {
-                continue;
-            }
+            for (auto* branchedNode : nestedTransaction->BranchedNodes()) {
+                if (branchedNode->GetTrunkNode() == trunkNode) {
+                    auto lockMode = branchedNode->GetLockMode();
+                    YT_VERIFY(lockMode != ELockMode::None);
 
-            auto lockMode = versionedNode->GetLockMode();
-            YT_VERIFY(lockMode != ELockMode::None);
+                    if (result < lockMode) {
+                        result = lockMode;
 
-            if (result < lockMode) {
-                result = lockMode;
+                        if (result == ELockMode::Exclusive) {
+                            // As strong as it gets.
+                            return result;
+                        }
+                    }
 
-                if (result == ELockMode::Exclusive) {
-                    break; // as strong as it gets
                 }
             }
         }
@@ -1349,9 +1373,8 @@ public:
         }
 
         SmallSet<TCypressNode*, 8> unbranchedNodes;
-        TCypressNode* newOriginator = nullptr;
-        auto unbranchNode = [&] (TCypressNode* node) {
-            newOriginator = node->GetOriginator();
+        auto unbranchNode = [&] (TCypressNode* node) -> TCypressNode* {
+            auto* originator = node->GetOriginator();
             auto* transaction = node->GetTransaction();
 
             DestroyBranchedNode(transaction, node);
@@ -1361,11 +1384,15 @@ public:
             branchedNodes.erase(it, branchedNodes.end());
 
             unbranchedNodes.insert(node);
+
+            return originator;
         };
         YT_VERIFY(!mustUnbranchThisNode || !mustUpdateThisNode);
 
+        // Store the originator before (maybe) unbranching.
+        TCypressNode* newOriginator = branchedNode->GetOriginator();
         if (mustUnbranchThisNode) {
-            unbranchNode(branchedNode);
+            YT_VERIFY(unbranchNode(branchedNode) == newOriginator);
         }
 
         if (mustUpdateThisNode) {
@@ -1376,17 +1403,16 @@ public:
         YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
-            for (auto* t = transaction->GetParent(); t; t = t->GetParent()) {
-                if (t->LockedNodes().contains(trunkNode)) {
+            for (auto* aboveNode = newOriginator; aboveNode != trunkNode; aboveNode = aboveNode->GetOriginator()) {
+                auto* aboveNodeTransaction = aboveNode->GetTransaction();
+                if (aboveNodeTransaction->LockedNodes().contains(trunkNode)) {
                     break;
                 }
 
-                auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), t->GetId()});
-                YT_ASSERT(t == node->GetTransaction());
+                auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, aboveNodeTransaction);
 
-                auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, t);
                 auto updateNode = [&] () {
-                    node->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
+                    aboveNode->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
                         ? strongestLockModeBelow = ELockMode::None
                         : strongestLockModeBelow);
                 };
@@ -1398,7 +1424,7 @@ public:
                 if (mustUnbranchAboveNodes) {
                     // Be careful: it's not always possible to continue unbranching - some sibling may have a branch.
                     if (strongestLockModeBelow <= ELockMode::Snapshot) {
-                        unbranchNode(node);
+                        newOriginator = unbranchNode(aboveNode);
                     } else {
                         // Switch to updating.
                         updateNode();
@@ -1415,11 +1441,9 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
-            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                if (lock->Request().Mode != ELockMode::Snapshot) {
-                    continue;
-                }
-                auto* lockTransaction = lock->GetTransaction();
+            for (auto& [lockTransaction, lock] : trunkNode->LockingState().TransactionToSnapshotLocks) {
+                YT_ASSERT(lock->GetState() == ELockState::Acquired);
+                YT_ASSERT(lock->GetTrunkNode() == trunkNode);
 
                 // Locks are released later, so be sure to skip the node we've already unbranched.
                 if (lockTransaction == transaction) {
