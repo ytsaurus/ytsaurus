@@ -203,7 +203,10 @@ public:
 
     void RemoveCliqueFromCache()
     {
+        Discovery_.Reset();
+        CliqueId_.reset();
         CliqueCache_->TryRemove(CliqueIdOrAlias_);
+        YT_LOG_DEBUG("Discovery was removed from cache (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
     }
 
     const TString& GetUser() const
@@ -249,7 +252,7 @@ private:
     void SetCliqueId(TString cliqueId)
     {
         CliqueId_ = std::move(cliqueId);
-        ProxiedRequestHeaders_->Add("X-Clique-Id", CliqueId_.value());
+        ProxiedRequestHeaders_->Set("X-Clique-Id", CliqueId_.value());
     }
 
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
@@ -441,6 +444,14 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     ProfilingExecutor_->Start();
 }
 
+DEFINE_ENUM(ERetryState,
+    (Retrying)
+    (FailedToPickInstance)
+    (ForceUpdated)
+    (CacheRemoved)
+    (Success)
+);
+
 void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
     const IResponseWriterPtr& response)
@@ -467,42 +478,50 @@ void TClickHouseHandler::HandleRequest(
             return;
         }
 
-        bool success = false;
-        // Force update have already been done.
-        bool forceUpdated = false;
-        // An instance was picked successfully on previous step or no step has happened yet.
-        bool pickedInstance = true;
+        const auto& Logger = ClickHouseLogger;
+
+        auto state = ERetryState::Retrying;
+
         for (int retry = 0; retry <= Config_->DeadInstanceRetryCount; ++retry) {
-            bool forceUpdate = retry > Config_->RetryWithoutUpdateLimit;
-            // If we did not find any instances on previous step, we need to do force update right now.
-            if (!pickedInstance) {
-                forceUpdate = true;
-            }
-            // We don't allow to do force update several times per one request.
-            if (forceUpdated) {
-                forceUpdate = false;
+            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retry, state);
+            bool needForceUpdate = false;
+
+            if (state == ERetryState::Retrying && retry > Config_->RetryWithoutUpdateLimit) {
+                needForceUpdate = true;
+            } else if (state == ERetryState::FailedToPickInstance) {
+                // If we did not find any instances on previous step, we need to do force update right now.
+                needForceUpdate = true;
             }
 
-            pickedInstance = false;
-            if (!context->TryPickRandomInstance(forceUpdate)) {
-                // There is no chance to invoke the request if we can not pick an instance even after force update.
-                if (forceUpdated) {
+            if (needForceUpdate) {
+                state = ERetryState::ForceUpdated;
+            }
+
+            if (!context->TryPickRandomInstance(needForceUpdate)) {
+                // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
+                if (state == ERetryState::CacheRemoved) {
+                    break;
+                }
+                // Cache may be not relevant if we can not pick an instance after discovery force update.
+                if (state == ERetryState::ForceUpdated) {
                     // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
                     // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
                     context->RemoveCliqueFromCache();
-                    break;
+                    state = ERetryState::CacheRemoved;
+                } else {
+                    state = ERetryState::FailedToPickInstance;
                 }
+                
                 continue;
             }
-            pickedInstance = true;
 
             if (context->TryIssueProxiedRequest(retry)) {
-                success = true;
+                state = ERetryState::Success;
                 break;
             }
         }
 
-        if (!success) {
+        if (state != ERetryState::Success) {
             context->ReplyWithAllOccuredErrors(TError("Request failed"));
             return;
         }
