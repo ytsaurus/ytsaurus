@@ -31,10 +31,10 @@ DEFINE_BIT_ENUM(EPermission,
     //! Applies to: all objects
     ((Remove)     (0x0200))
 
-    //! Applies to: tables.
+    //! Applies to: tables
     ((Mount)      (0x0400))
 
-    //! Applies to: operations
+    //! Applies to: operations, map objects
     ((Manage)     (0x0800))
 );
 

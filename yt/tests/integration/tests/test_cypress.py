@@ -903,6 +903,13 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a/b/c/d", recursive=True)
         assert exists("//tmp/a/b/c/d")
 
+    @authors("kiselyovp")
+    def test_create_object_ignore_existing(self):
+        with pytest.raises(YtError): create_user("u", ignore_existing=True)
+        with pytest.raises(YtError): create_group("g", ignore_existing=True)
+        create_user("u")
+        with pytest.raises(YtError): create_user("u", ignore_existing=True)
+
     @authors("babenko", "ignat")
     def test_link1(self):
         with pytest.raises(YtError): link("//tmp/a", "//tmp/b")

@@ -87,6 +87,9 @@ struct IObjectTypeHandler
      */
     virtual void UnstageObject(TObject* object, bool recursive) = 0;
 
+    //! Searches for an object by attributes intended for #CreateObject.
+    virtual TObject* FindExistingObject(const NYTree::IAttributeDictionary* attributes) const = 0;
+
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) = 0;
 

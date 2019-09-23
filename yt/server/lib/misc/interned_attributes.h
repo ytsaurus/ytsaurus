@@ -187,6 +187,7 @@
     XX(OwningNodes, owning_nodes) \
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \
+    XX(ParentName, parent_name) \
     XX(Path, path) \
     XX(Peers, peers) \
     XX(PerformanceCounters, performance_counters) \

@@ -169,9 +169,10 @@ public:
     TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
+        bool ignoreExisting,
         NYTree::IAttributeDictionary* attributes);
 
-    //! Handles all kinds of paths, both to versioned and unversioned objects.
+    //! Handles paths to versioned and most unversioned objects.
     //! Pretty slow.
     TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
