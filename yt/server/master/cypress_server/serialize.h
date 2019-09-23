@@ -22,8 +22,6 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int TreeFormatVersion = 1;
-
 class TBeginCopyContext
     : public TEntityStreamSaveContext
 {
