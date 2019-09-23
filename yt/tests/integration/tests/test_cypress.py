@@ -1563,7 +1563,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
-    def test_copy_preserve_expiration_time_in_tx(self):
+    def test_copy_preserve_expiration_time_in_tx1(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
@@ -1572,8 +1572,23 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
-        time.sleep(1)
-        assert not exists("//tmp/t2")
+        wait(lambda: not exists("//tmp/t2"))
+
+    @authors("babenko")
+    def test_copy_preserve_expiration_time_in_tx2(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        set("//tmp/t1/@expiration_time", str(self._now() + timedelta(seconds=1)), tx=tx)
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
+        assert exists("//tmp/t1/@expiration_time", tx=tx)
+        assert exists("//tmp/t2/@expiration_time", tx=tx)
+        assert get("//tmp/t1/@expiration_time", tx=tx) == get("//tmp/t2/@expiration_time", tx=tx)
+        time.sleep(2)
+        assert exists("//tmp/t1")
+        assert exists("//tmp/t1", tx=tx)
+        assert exists("//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
     @authors("babenko")
     def test_expire_orphaned_node_yt_8064(self):
