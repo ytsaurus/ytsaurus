@@ -236,6 +236,120 @@ func (d *Decoder) decodeStruct(ops []fieldOp, value interface{}) error {
 	return d.r.err
 }
 
+func (d *Decoder) decodeMap(ops []fieldOp, value interface{}) error {
+	v := reflect.ValueOf(value).Elem()
+
+	if v.IsNil() || v.Len() != 0 {
+		v.Set(reflect.MakeMap(v.Type()))
+	}
+
+	mapValueType := v.Type().Elem()
+	generic := mapValueType.Kind() == reflect.Interface
+
+	for _, op := range ops {
+		if op.optional {
+			if d.r.readUint8() == 0 {
+				continue
+			}
+		}
+
+		if generic {
+			var field interface{}
+			switch op.wt {
+			case TypeBoolean:
+				field = d.r.readUint8() != 0
+			case TypeInt64:
+				field = d.r.readInt64()
+			case TypeUint64:
+				field = d.r.readUint64()
+			case TypeDouble:
+				field = d.r.readDouble()
+			case TypeString32:
+				b := d.r.readBytes()
+
+				c := make([]byte, len(b))
+				copy(c, b)
+				field = c
+
+			case TypeYSON32:
+				b := d.r.readBytes()
+				if d.r.err != nil {
+					return d.r.err
+				}
+
+				if err := yson.Unmarshal(b, &field); err != nil {
+					return err
+				}
+
+			default:
+				panic(fmt.Sprintf("unexpected wire type %s", op.wt))
+			}
+
+			v.SetMapIndex(reflect.ValueOf(op.schemaName), reflect.ValueOf(field))
+		} else {
+			field := reflect.New(mapValueType).Elem()
+			if err := checkTypes(mapValueType, op.wt); err != nil {
+				return xerrors.Errorf("skiff: can't decode field %q: %w", op.schemaName, err)
+			}
+
+			switch op.wt {
+			case TypeBoolean:
+				field.SetBool(d.r.readUint8() != 0)
+			case TypeInt64:
+				field.SetInt(d.r.readInt64())
+			case TypeUint64:
+				field.SetUint(d.r.readUint64())
+			case TypeDouble:
+				field.SetFloat(d.r.readDouble())
+			case TypeString32:
+				b := d.r.readBytes()
+				if field.Kind() == reflect.String {
+					field.SetString(string(b))
+				} else {
+					c := make([]byte, len(b))
+					copy(c, b)
+					field.SetBytes(c)
+				}
+
+			case TypeYSON32:
+				b := d.r.readBytes()
+				if d.r.err != nil {
+					return d.r.err
+				}
+
+				if err := yson.Unmarshal(b, field.Addr().Interface()); err != nil {
+					return err
+				}
+
+			default:
+				panic(fmt.Sprintf("unexpected wire type %s", op.wt))
+			}
+
+			v.SetMapIndex(reflect.ValueOf(op.schemaName), field)
+		}
+
+		if d.r.err != nil {
+			return d.r.err
+		}
+	}
+
+	return nil
+}
+
+func (d *Decoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
+	cache := d.opCaches[d.tableIndex]
+	ops, ok := cache[typ]
+	if !ok {
+		ops, err = newTranscoder(d.schemas[d.tableIndex], typ)
+		if err != nil {
+			return
+		}
+		cache[typ] = ops
+	}
+
+	return
+}
+
 // Scan unmarshals current record into the value.
 func (d *Decoder) Scan(value interface{}) (err error) {
 	if !d.hasValue {
@@ -248,30 +362,48 @@ func (d *Decoder) Scan(value interface{}) (err error) {
 
 	if d.valueRead {
 		d.r.backup()
+		d.valueRead = false
 	}
 
-	cache := d.opCaches[d.tableIndex]
 	typ := reflect.TypeOf(value)
 	if typ.Kind() != reflect.Ptr {
 		return xerrors.Errorf("skiff: type %v is not a pointer", typ)
 	}
 	typ = typ.Elem()
-	if typ.Kind() != reflect.Struct {
-		return xerrors.Errorf("skiff: type %v is not a struct", typ)
+
+	if out, ok := value.(*interface{}); ok {
+		typ = genericMapType
+
+		genericMap := map[string]interface{}{}
+		*out = genericMap
+		value = &genericMap
 	}
 
-	ops, ok := cache[typ]
-	if !ok {
-		ops, err = newTranscoder(d.schemas[0], typ)
+	switch typ.Kind() {
+	case reflect.Struct:
+		ops, err := d.getTranscoder(typ)
 		if err != nil {
-			return
+			return err
 		}
-		cache[typ] = ops
-	}
 
-	if err := d.decodeStruct(ops, value); err != nil {
-		d.r.backup()
-		return err
+		if err := d.decodeStruct(ops, value); err != nil {
+			d.r.backup()
+			return err
+		}
+
+	case reflect.Map:
+		ops, err := d.getTranscoder(emptyStructType)
+		if err != nil {
+			return err
+		}
+
+		if err := d.decodeMap(ops, value); err != nil {
+			d.r.backup()
+			return err
+		}
+
+	default:
+		return xerrors.Errorf("skiff: type %v is not a struct", typ)
 	}
 
 	d.valueRead = true

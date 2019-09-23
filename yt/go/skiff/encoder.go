@@ -45,32 +45,32 @@ func isZeroValue(v reflect.Value) bool {
 	return false
 }
 
+func emitZero(w *writer, op fieldOp) {
+	if op.optional {
+		w.writeByte(0x0)
+	} else {
+		switch op.wt {
+		case TypeInt64:
+			w.writeInt64(0)
+		case TypeUint64:
+			w.writeUint64(0)
+		case TypeDouble:
+			w.writeDouble(0.0)
+		case TypeBoolean:
+			w.writeByte(0)
+		case TypeString32:
+			w.writeUint32(0)
+		case TypeYSON32:
+			w.writeUint32(1)
+			w.writeByte('#')
+		}
+	}
+}
+
 func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 	for _, op := range ops {
-		emitZero := func() {
-			if op.optional {
-				e.w.writeByte(0x0)
-			} else {
-				switch op.wt {
-				case TypeInt64:
-					e.w.writeInt64(0)
-				case TypeUint64:
-					e.w.writeUint64(0)
-				case TypeDouble:
-					e.w.writeDouble(0.0)
-				case TypeBoolean:
-					e.w.writeByte(0)
-				case TypeString32:
-					e.w.writeUint32(0)
-				case TypeYSON32:
-					e.w.writeUint32(1)
-					e.w.writeByte('#')
-				}
-			}
-		}
-
 		if op.unused {
-			emitZero()
+			emitZero(e.w, op)
 		} else {
 			f, ok := fieldByIndex(value, op.index, false)
 			if ok && !(op.omitempty && isZeroValue(f)) {
@@ -105,7 +105,7 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 					}
 				}
 			} else {
-				emitZero()
+				emitZero(e.w, op)
 			}
 		}
 
@@ -117,34 +117,110 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 	return nil
 }
 
+func (e *Encoder) encodeMap(ops []fieldOp, value reflect.Value) error {
+	for _, op := range ops {
+		key := reflect.ValueOf(op.schemaName)
+		f := value.MapIndex(key)
+
+		if f.Kind() == reflect.Interface {
+			f = reflect.ValueOf(f.Interface())
+		}
+
+		if f.IsValid() {
+			if op.optional {
+				e.w.writeByte(1)
+			}
+
+			if err := checkTypes(f.Type(), op.wt); err != nil {
+				return xerrors.Errorf("skiff: can't encode field %q: %w", key, err)
+			}
+
+			switch op.wt {
+			case TypeInt64:
+				e.w.writeInt64(f.Int())
+			case TypeUint64:
+				e.w.writeUint64(f.Uint())
+			case TypeDouble:
+				e.w.writeDouble(f.Float())
+			case TypeBoolean:
+				if f.Bool() {
+					e.w.writeByte(1)
+				} else {
+					e.w.writeByte(0)
+				}
+			case TypeString32:
+				if f.Kind() == reflect.String {
+					e.w.writeBytes([]byte(f.String()))
+				} else {
+					e.w.writeBytes(f.Bytes())
+				}
+			case TypeYSON32:
+				w := yson.NewWriterFormat(e.w.w, yson.FormatBinary)
+				if e.w.err = yson.NewEncoderWriter(w).Encode(f.Interface()); e.w.err != nil {
+					return e.w.err
+				}
+			}
+		} else {
+			emitZero(e.w, op)
+		}
+
+		if e.w.err != nil {
+			return e.w.err
+		}
+	}
+
+	return nil
+}
+
+func (e *Encoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
+	ops, ok := e.cache[typ]
+	if ok {
+		return
+	}
+
+	ops, err = newTranscoder(e.schema, typ)
+	if err != nil {
+		return
+	}
+
+	e.cache[typ] = ops
+	return
+}
+
 func (e *Encoder) Write(value interface{}) error {
+	e.w.writeUint16(0) // variant tag
+	if e.w.err != nil {
+		return e.w.err
+	}
+
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
 	typ := v.Type()
-
-	if typ.Kind() != reflect.Struct {
-		return xerrors.Errorf("skiff: type %v is not supported", typ)
-	}
-
-	e.w.writeUint16(0)
-	if e.w.err != nil {
-		return e.w.err
-	}
-
-	ops, ok := e.cache[typ]
-	if !ok {
-		var err error
-		ops, err = newTranscoder(e.schema, typ)
+	switch typ.Kind() {
+	case reflect.Struct:
+		ops, err := e.getTranscoder(typ)
 		if err != nil {
 			return err
 		}
-		e.cache[typ] = ops
-	}
+		return e.encodeStruct(ops, v)
 
-	return e.encodeStruct(ops, v)
+	case reflect.Map:
+		if typ.Key().Kind() != reflect.String {
+			return xerrors.Errorf("skiff: type %v is not supported", typ)
+		}
+
+		ops, err := e.getTranscoder(emptyStructType)
+		if err != nil {
+			return err
+		}
+		return e.encodeMap(ops, v)
+
+	default:
+		return xerrors.Errorf("skiff: type %v is not supported", typ)
+	}
 }
 
 func (e *Encoder) Flush() error {

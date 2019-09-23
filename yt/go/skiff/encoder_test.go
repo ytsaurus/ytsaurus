@@ -18,6 +18,10 @@ func TestEncoder(t *testing.T) {
 	require.NoError(t, e.Write(TestRow{First: ptr.Int64(5)}))
 	require.NoError(t, e.Write(TestRow{Second: 6}))
 	require.NoError(t, e.Write(TestRow{Third: "abbacaba"}))
+	require.NoError(t, e.Write(map[string]interface{}{
+		"first": 7,
+		"third": "foobar",
+	}))
 	require.NoError(t, e.Flush())
 
 	expectedOutput := []byte{
@@ -44,6 +48,14 @@ func TestEncoder(t *testing.T) {
 		0x00,                                                           // first field is missing
 		0x00,                                                           // second field is missing
 		0x08, 0x00, 0x00, 0x00, 'a', 'b', 'b', 'a', 'c', 'a', 'b', 'a', // third field is string
+
+		0x00, 0x00, // forth row
+		0x00,                                                 // no key switch
+		0x00,                                                 // no row index
+		0x00,                                                 // no range index
+		0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // first field is present
+		0x00,                                                 // second field is missing
+		0x06, 0x00, 0x00, 0x00, 'f', 'o', 'o', 'b', 'a', 'r', // third field is string
 	}
 
 	require.Equal(t, expectedOutput, buf.Bytes())

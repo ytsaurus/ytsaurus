@@ -8,6 +8,11 @@ import (
 	"a.yandex-team.ru/yt/go/yson"
 )
 
+var (
+	emptyStructType = reflect.TypeOf(struct{}{})
+	genericMapType  = reflect.TypeOf(map[string]interface{}{})
+)
+
 type fieldOp struct {
 	wt WireType
 
