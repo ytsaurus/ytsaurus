@@ -2514,8 +2514,12 @@ class TestSchedulingTags(YTEnvSetup):
 
         running_jobs = list(op.get_running_jobs())
         if running_jobs:
-            abort_job(running_jobs[0])
+            assert(len(running_jobs) == 1)
+            job_id = running_jobs[0]
+            abort_job(job_id)
+            wait(lambda: job_id not in op.get_running_jobs())
 
+        # Just wait some time to be sure that scheduler have not run any other jobs.
         time.sleep(5)
         assert len(op.get_running_jobs()) == 0
         assert op.get_state() == "running"
