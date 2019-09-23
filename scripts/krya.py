@@ -65,7 +65,7 @@ DEFAULT_CONFIG = """\
 """
 
 DID_YOU_KNOWN_THAT = [
-    "you can use `logrep' (<yt-repo>/scripts/logrep) to get list of all Frued masters:\n"
+    "you can use `logrep' (<yt-repo>/scripts/logrep) to get list of all Freud masters:\n"
     " $ logrep /freud/master\n"
     "more info at https://ya.cc/4Waoc\n",
 

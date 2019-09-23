@@ -180,6 +180,7 @@ protected:
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
+    int TabletIndexId_ = -1;
 
     NLogging::TLogger Logger;
 
@@ -198,6 +199,10 @@ protected:
 
             if (Options_->EnableTableIndex) {
                 TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+            }
+
+            if (Options_->EnableTabletIndex) {
+                TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader")
@@ -700,6 +705,10 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
             }
             if (Options_->EnableRowIndex) {
                 *row.End() = MakeUnversionedInt64Value(GetTableRowIndex(), RowIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableTabletIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
 
@@ -1386,6 +1395,10 @@ private:
                 *row.End() = MakeUnversionedInt64Value(
                     GetTableRowIndex() + index,
                     RowIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableTabletIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
 

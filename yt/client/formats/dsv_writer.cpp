@@ -232,6 +232,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
         THROW_ERROR_EXCEPTION("Row indices are not supported in DSV format");
     }
 
+    if (controlAttributesConfig->EnableTabletIndex) {
+        THROW_ERROR_EXCEPTION("Tablet indices are not supported in DSV format");
+    }
+
     return New<TSchemalessWriterForDsv>(
         nameTable,
         enableContextSaving,

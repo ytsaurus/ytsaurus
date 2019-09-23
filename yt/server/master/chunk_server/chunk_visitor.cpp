@@ -57,6 +57,7 @@ TChunkIdsAttributeVisitor::TChunkIdsAttributeVisitor(
 bool TChunkIdsAttributeVisitor::OnChunk(
     TChunk* chunk,
     i64 /*rowIndex*/,
+    std::optional<i32> /*tabletIndex*/,
     const TReadLimit& /*startLimit*/,
     const TReadLimit& /*endLimit*/,
     TTransactionId /*timestampTransactionId*/)

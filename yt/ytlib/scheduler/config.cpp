@@ -1159,6 +1159,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             if (attributes->EnableRangeIndex) {
                 throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
             }
+            if (attributes->EnableTabletIndex) {
+                throwError(NTableClient::EControlAttribute::TabletIndex, jobType);
+            }
         };
         if (ForceReduceCombiners && !HasNontrivialReduceCombiner()) {
             THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without nontrivial \"reduce_combiner\" in operation spec");

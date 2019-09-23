@@ -245,6 +245,7 @@ private:
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
+        std::optional<i32> tabletIndex,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTransactionId timestampTransactionId) override
@@ -268,6 +269,9 @@ private:
         auto* chunkSpec = RpcContext_->Response().add_chunks();
 
         chunkSpec->set_table_row_index(rowIndex);
+        if (tabletIndex.has_value()) {
+            chunkSpec->set_tablet_index(*tabletIndex);
+        }
 
         SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
 

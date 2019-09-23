@@ -295,6 +295,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
         THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
     }
 
+    if (controlAttributesConfig->EnableTabletIndex) {
+        THROW_ERROR_EXCEPTION("Tablet indices are not supported in schemaful DSV format");
+    }
+
     if (!config->Columns) {
         THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
     }

@@ -193,6 +193,10 @@ int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
         ++systemColumnCount;
     }
 
+    if (options->EnableTabletIndex) {
+        ++systemColumnCount;
+    }
+
     return systemColumnCount;
 }
 

@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::ImproveSpeculativeHeuristic) &&
+    return version >= ToUnderlying(ESnapshotVersion::TabletIndexInMROverOrderedDynTables) &&
            version <= GetCurrentSnapshotVersion();
 }
 
