@@ -514,6 +514,7 @@ struct TCreateObjectOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
+    bool IgnoreExisting = false;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
@@ -522,7 +523,6 @@ struct TCreateNodeOptions
     , public TTransactionalOptions
 {
     bool Recursive = false;
-    bool IgnoreExisting = false;
     bool Force = false;
 };
 

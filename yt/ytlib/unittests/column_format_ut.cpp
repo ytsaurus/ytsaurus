@@ -114,7 +114,7 @@ TVersionedRow TVersionedColumnTestBase::CreateRowWithValues(const std::vector<TV
     return builder.FinishRow();
 }
 
-void TVersionedColumnTestBase:: WriteSegment(IValueColumnWriter* columnWriter, const std::vector<TVersionedRow>& rows)
+void TVersionedColumnTestBase::WriteSegment(IValueColumnWriter* columnWriter, const std::vector<TVersionedRow>& rows)
 {
     columnWriter->WriteValues(MakeRange(rows));
     columnWriter->FinishCurrentSegment();

@@ -73,9 +73,11 @@ private:
         DeclareMutating();
 
         auto type = EObjectType(request->type());
+        auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Type: %v",
-            type);
+        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
+            type,
+            ignoreExisting);
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
@@ -85,10 +87,12 @@ private:
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
+            ignoreExisting,
             attributes.get());
 
         const auto& objectId = object->GetId();
 
+        // YYY(kiselyovp) correct logs for ignoreExisting, bro
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
             objectId,
             type);

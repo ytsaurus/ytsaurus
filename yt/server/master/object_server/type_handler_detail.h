@@ -85,6 +85,13 @@ public:
         DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
+    virtual TObject* FindExistingObject(
+        const NYTree::IAttributeDictionary* /*attributes*/) const override
+    {
+        THROW_ERROR_EXCEPTION("FindExistingObject() method is not supported for type %Qv",
+            GetType());
+    }
+
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
     {
         return DoFindAcd(object->As<TImpl>());
@@ -114,7 +121,6 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
     TObjectTypeMetadata Metadata_;
-
 
     virtual TCellTagList DoGetReplicationCellTags(const TImpl* /*object*/)
     {

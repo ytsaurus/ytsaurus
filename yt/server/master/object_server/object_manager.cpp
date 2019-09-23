@@ -194,6 +194,7 @@ public:
     TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
+        bool ignoreExisting,
         IAttributeDictionary* attributes);
 
     TObject* ResolvePathToObject(
@@ -1178,6 +1179,7 @@ TFuture<void> TObjectManager::TImpl::GCCollect()
 TObject* TObjectManager::TImpl::CreateObject(
     TObjectId hintId,
     EObjectType type,
+    bool ignoreExisting,
     IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1192,6 +1194,13 @@ TObject* TObjectManager::TImpl::CreateObject(
     if (None(flags & ETypeFlags::Creatable)) {
         THROW_ERROR_EXCEPTION("Objects of type %Qlv cannot be created explicitly",
             type);
+    }
+
+    if (ignoreExisting) {
+        auto* existingObject = handler->FindExistingObject(attributes);
+        if (existingObject) {
+            return existingObject;
+        }
     }
 
     bool replicate =
@@ -1618,6 +1627,7 @@ void TObjectManager::TImpl::HydraCreateForeignObject(NProto::TReqCreateForeignOb
     CreateObject(
         objectId,
         type,
+        false, /* ignoreExisting */
         attributes.get());
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
@@ -2133,9 +2143,9 @@ TFuture<void> TObjectManager::GCCollect()
     return Impl_->GCCollect();
 }
 
-TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttributeDictionary* attributes)
+TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, bool ignoreExisting, IAttributeDictionary* attributes)
 {
-    return Impl_->CreateObject(hintId, type, attributes);
+    return Impl_->CreateObject(hintId, type, ignoreExisting, attributes);
 }
 
 TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)

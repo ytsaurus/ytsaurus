@@ -390,8 +390,8 @@ private:
             CancelWriter();
             THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk %v",
                 SessionId_)
-                    << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
-                    << ex;
+                << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
+                << ex;
         }
     }
 

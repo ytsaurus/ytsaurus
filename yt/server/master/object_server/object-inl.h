@@ -131,9 +131,24 @@ inline void TObject::SetLifeStage(EObjectLifeStage lifeStage)
     LifeStage_ = lifeStage;
 }
 
+// YYY(kiselyovp) looks like a crutch but seems necessary?
+inline bool TObject::IsBeingCreated() const
+{
+    return LifeStage_ == EObjectLifeStage::CreationStarted ||
+        LifeStage_ == EObjectLifeStage::CreationPreCommitted;
+}
+
 inline bool TObject::IsAlive() const
 {
     return RefCounter_ > 0;
+}
+
+// XXX(kiselyovp) also looks like a crutch but seems necessary
+inline bool TObject::IsBeingRemoved() const
+{
+    return LifeStage_ == EObjectLifeStage::RemovalStarted ||
+        LifeStage_ == EObjectLifeStage::RemovalPreCommitted ||
+        LifeStage_ == EObjectLifeStage::RemovalCommitted;
 }
 
 inline bool TObject::IsDestroyed() const
