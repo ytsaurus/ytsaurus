@@ -82,6 +82,7 @@ message TSerializedTree
 {
     required int32 version = 1;
     required bytes data = 2;
+    optional int32 codec_id = 3; // ECodec
 }
 
 message TRspBeginCopy

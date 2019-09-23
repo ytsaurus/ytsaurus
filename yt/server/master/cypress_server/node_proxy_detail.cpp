@@ -48,6 +48,8 @@
 
 #include <yt/core/yson/async_writer.h>
 
+#include <yt/core/compression//codec.h>
+
 #include <type_traits>
 
 namespace NYT::NCypressServer {
@@ -1493,14 +1495,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     ToProto(response->mutable_opaque_child_ids(), copyContext.OpaqueRootIds());
     ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
 
+    auto uncompressedData = copyContext.Finish();
+    auto codecId = GetDynamicCypressManagerConfig()->TreeSerializationCodec;
+    auto* codec = NCompression::GetCodec(codecId);
+    auto compressedData = codec->Compress(uncompressedData);
+
     auto* serializedTree = response->mutable_serialized_tree();
     serializedTree->set_version(copyContext.GetVersion());
-    serializedTree->set_data(copyContext.Finish());
+    serializedTree->set_data(compressedData.begin(), compressedData.size());
+    serializedTree->set_codec_id(static_cast<int>(codecId));
 
     ToProto(response->mutable_node_id(), GetId());
 
-    context->SetResponseInfo("DataSize: %v, ExternalCellTags: %v",
-        serializedTree->data().size(),
+    context->SetResponseInfo("Codec: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ExternalCellTags: %v",
+        codecId,
+        GetByteSize(uncompressedData),
+        compressedData.Size(),
         response->external_cell_tags());
     context->Reply();
 }
@@ -1513,11 +1523,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
     auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
     bool inplace = request->inplace();
     const auto& serializedTree = request->serialized_tree();
-
-    context->SetIncrementalRequestInfo("TreeSize: %v, Mode: %v, Inplace: %v",
-        serializedTree.data().size(),
-        mode,
-        inplace);
+    const auto& compressedData = serializedTree.data();
+    auto codecId = CheckedEnumCast<NCompression::ECodec>(serializedTree.codec_id());
 
     if (serializedTree.version() != NCellMaster::GetCurrentReign()) {
         THROW_ERROR_EXCEPTION("Invalid tree format version: expected %v, actual %v",
@@ -1525,10 +1532,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
             serializedTree.version());
     }
 
+    context->SetIncrementalRequestInfo("Codec: %v, CompressedDataSize: %v, Mode: %v, Inplace: %v",
+        codecId,
+        compressedData.size(),
+        mode,
+        inplace);
+
+    auto* codec = NCompression::GetCodec(codecId);
+    auto uncompressedData = codec->Decompress(TSharedRef::FromString(compressedData));
+
     TEndCopyContext copyContext(
         Bootstrap_,
         mode,
-        TRef::FromString(serializedTree.data()));
+        uncompressedData);
     copyContext.SetVersion(serializedTree.version());
 
     CopyCore(
