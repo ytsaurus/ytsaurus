@@ -760,7 +760,8 @@ enum EWorkloadState {
     EWorkloadState_DEACTIVATED_BY_LIVENESS = 9 [(NYT.NYson.NProto.enum_value_name) = "deactivated_by_liveness"];
 
     // Workload выполняет init команды
-    EWorkloadState_INIT_PROCESESS = 10 [(NYT.NYson.NProto.enum_value_name) = "init_procesess"];
+    EWorkloadState_INIT_PROCESESS = 10 [(NYT.NYson.NProto.enum_value_name) = "init_procesess"];  // deprecated DEPLOY-1102
+    EWorkloadState_INIT_PROCESSES = 11 [(NYT.NYson.NProto.enum_value_name) = "init_processes"];
 }
 
 // Описание результата выполнения хука
