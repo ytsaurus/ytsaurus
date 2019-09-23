@@ -18,6 +18,7 @@
 #include <util/string/strip.h>
 #include <util/string/join.h>
 #include <util/string/cast.h>
+#include <util/string/split.h>
 
 namespace NYT::NHttp {
 
@@ -42,7 +43,9 @@ static const TString AccessControlExposeHeadersHeaderName("Access-Control-Expose
 static const TString XSourcePortYHeaderName("X-Source-Port-Y");
 static const TString XForwardedForYHeaderName("X-Forwarded-For-Y");
 static const TString ContentTypeHeaderName("Content-Type");
+static const TString ContentRangeHeaderName("Content-Range");
 static const TString PragmaHeaderName("Pragma");
+static const TString RangeHeaderName("Range");
 static const TString ExpiresHeaderName("Expires");
 static const TString CacheControlHeaderName("Cache-Control");
 static const TString XContentTypeOptionsHeaderName("X-Content-Type-Options");
@@ -329,6 +332,31 @@ NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
     trace->AddTag("path", TString(req->GetUrl().Path));
     return trace;
 }
+
+std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers)
+{
+    auto range = headers->Find(RangeHeaderName);
+    if (!range) {
+        return {};
+    }
+
+    const TString bytesPrefix = "bytes=";
+    if (!range->StartsWith(bytesPrefix)) {
+        THROW_ERROR_EXCEPTION("Invalid range header format")
+            << TErrorAttribute("range", *range);
+    }
+
+    auto indices = range->substr(bytesPrefix.size());
+    std::pair<int64_t, int64_t> rangeValue;
+    StringSplitter(indices).Split('-').CollectInto(&rangeValue.first, &rangeValue.second);
+    return rangeValue;
+}
+
+void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range, int64_t total)
+{
+    headers->Set(ContentRangeHeaderName, Format("bytes %v-%v/%v", range.first, range.second, total));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
