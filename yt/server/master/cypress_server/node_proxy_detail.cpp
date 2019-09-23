@@ -1015,7 +1015,7 @@ TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
-    // NB: Cannot use |CachedNode| here.
+    // NB: Cannot use |CachedNode_| here.
     CachedNode_ = nullptr;
     return LockImpl(TrunkNode_, request, recursive);
 }
