@@ -30,14 +30,14 @@ class TBeginCopyContext
 public:
     TBeginCopyContext(
         NTransactionServer::TTransaction* transaction,
-        bool removeSource);
+        ENodeCloneMode Mode);
 
     void RegisterOpaqueRootId(TNodeId rootId);
     void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, OpaqueRootIds);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    DEFINE_BYVAL_RO_PROPERTY(bool, RemoveSource);
+    DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
 
     TString Finish();
     NObjectClient::TCellTagList GetExternalCellTags();

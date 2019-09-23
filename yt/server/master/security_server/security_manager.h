@@ -165,7 +165,6 @@ public:
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
         NCypressServer::TCypressNode* node,
-        TAccount* oldAccount,
         TAccount* newAccount,
         NTransactionServer::TTransaction* transaction);
 

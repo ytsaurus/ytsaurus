@@ -521,6 +521,11 @@ def concatenate(source_paths, destination_path, **kwargs):
     kwargs["destination_path"] = destination_path
     execute_command("concatenate", kwargs)
 
+def externalize(path, cell_tag, **kwargs):
+    kwargs["path"] = path
+    kwargs["cell_tag"] = cell_tag
+    execute_command("externalize", kwargs)
+
 def ls(path, **kwargs):
     kwargs["path"] = path
     return execute_command("list", kwargs, parse_yson=True)

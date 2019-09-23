@@ -560,6 +560,8 @@ struct TCopyNodeOptionsBase
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = false;
+    bool PreserveCreationTime = false;
+    bool PreserveModificationTime = false;
     bool PreserveExpirationTime = false;
     bool PessimisticQuotaCheck = true;
 };
@@ -568,7 +570,6 @@ struct TCopyNodeOptions
     : public TCopyNodeOptionsBase
 {
     bool IgnoreExisting = false;
-    bool PreserveCreationTime = false;
 };
 
 struct TMoveNodeOptions
@@ -600,6 +601,11 @@ struct TNodeExistsOptions
     , public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
+{ };
+
+struct TExternalizeNodeOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
 { };
 
 struct TFileReaderOptions
@@ -1015,7 +1021,7 @@ struct IClientBase
     // Transactions
     virtual TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
-        const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
+        const TTransactionStartOptions& options = {}) = 0;
 
 
     // Tables
@@ -1023,107 +1029,111 @@ struct IClientBase
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
+        const TLookupRowsOptions& options = {}) = 0;
 
     virtual TFuture<IVersionedRowsetPtr> VersionedLookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TVersionedLookupRowsOptions& options = TVersionedLookupRowsOptions()) = 0;
+        const TVersionedLookupRowsOptions& options = {}) = 0;
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         const TString& query,
-        const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
+        const TSelectRowsOptions& options = {}) = 0;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
+        const TTableReaderOptions& options = {}) = 0;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
-        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
+        const TTableWriterOptions& options = {}) = 0;
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
-        const TGetNodeOptions& options = TGetNodeOptions()) = 0;
+        const TGetNodeOptions& options = {}) = 0;
 
     virtual TFuture<void> SetNode(
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
-        const TSetNodeOptions& options = TSetNodeOptions()) = 0;
+        const TSetNodeOptions& options = {}) = 0;
 
     virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
-        const TRemoveNodeOptions& options = TRemoveNodeOptions()) = 0;
+        const TRemoveNodeOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
-        const TListNodeOptions& options = TListNodeOptions()) = 0;
+        const TListNodeOptions& options = {}) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
-        const TCreateNodeOptions& options = TCreateNodeOptions()) = 0;
+        const TCreateNodeOptions& options = {}) = 0;
 
     virtual TFuture<TLockNodeResult> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
-        const TLockNodeOptions& options = TLockNodeOptions()) = 0;
+        const TLockNodeOptions& options = {}) = 0;
 
     virtual TFuture<void> UnlockNode(
         const NYPath::TYPath& path,
-        const TUnlockNodeOptions& options = TUnlockNodeOptions()) = 0;
+        const TUnlockNodeOptions& options = {}) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TCopyNodeOptions& options = TCopyNodeOptions()) = 0;
+        const TCopyNodeOptions& options = {}) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> MoveNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TMoveNodeOptions& options = TMoveNodeOptions()) = 0;
+        const TMoveNodeOptions& options = {}) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> LinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
+        const TLinkNodeOptions& options = {}) = 0;
 
     virtual TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TRichYPath>& srcPaths,
         const NYPath::TRichYPath& dstPath,
-        const TConcatenateNodesOptions& options = TConcatenateNodesOptions()) = 0;
+        const TConcatenateNodesOptions& options = {}) = 0;
 
     virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
-        const TNodeExistsOptions& options = TNodeExistsOptions()) = 0;
+        const TNodeExistsOptions& options = {}) = 0;
+
+    virtual TFuture<void> ExternalizeNode(
+        const NYPath::TYPath& path,
+        NObjectClient::TCellTag cellTag,
+        const TExternalizeNodeOptions& options = {}) = 0;
 
 
     // Objects
-    // TODO(sandello): Non-transactional!
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
-        const TCreateObjectOptions& options = TCreateObjectOptions()) = 0;
+        const TCreateObjectOptions& options = {}) = 0;
 
 
     // Files
     virtual TFuture<IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
-        const TFileReaderOptions& options = TFileReaderOptions()) = 0;
+        const TFileReaderOptions& options = {}) = 0;
 
     virtual IFileWriterPtr CreateFileWriter(
         const NYPath::TRichYPath& path,
-        const TFileWriterOptions& options = TFileWriterOptions()) = 0;
+        const TFileWriterOptions& options = {}) = 0;
 
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
-        const TJournalReaderOptions& options = TJournalReaderOptions()) = 0;
+        const TJournalReaderOptions& options = {}) = 0;
 
     virtual IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
-        const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
+        const TJournalWriterOptions& options = {}) = 0;
 
 };
 
@@ -1155,206 +1165,206 @@ struct IClient
     // Transactions
     virtual ITransactionPtr AttachTransaction(
         NTransactionClient::TTransactionId transactionId,
-        const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
+        const TTransactionAttachOptions& options = {}) = 0;
 
     // Tables
     virtual TFuture<void> MountTable(
         const NYPath::TYPath& path,
-        const TMountTableOptions& options = TMountTableOptions()) = 0;
+        const TMountTableOptions& options = {}) = 0;
 
     virtual TFuture<void> UnmountTable(
         const NYPath::TYPath& path,
-        const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
+        const TUnmountTableOptions& options = {}) = 0;
 
     virtual TFuture<void> RemountTable(
         const NYPath::TYPath& path,
-        const TRemountTableOptions& options = TRemountTableOptions()) = 0;
+        const TRemountTableOptions& options = {}) = 0;
 
     virtual TFuture<void> FreezeTable(
         const NYPath::TYPath& path,
-        const TFreezeTableOptions& options = TFreezeTableOptions()) = 0;
+        const TFreezeTableOptions& options = {}) = 0;
 
     virtual TFuture<void> UnfreezeTable(
         const NYPath::TYPath& path,
-        const TUnfreezeTableOptions& options = TUnfreezeTableOptions()) = 0;
+        const TUnfreezeTableOptions& options = {}) = 0;
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
+        const TReshardTableOptions& options = {}) = 0;
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         int tabletCount,
-        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
+        const TReshardTableOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTabletActionId>> ReshardTableAutomatic(
         const NYPath::TYPath& path,
-        const TReshardTableAutomaticOptions& options = TReshardTableAutomaticOptions()) = 0;
+        const TReshardTableAutomaticOptions& options = {}) = 0;
 
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
-        const TTrimTableOptions& options = TTrimTableOptions()) = 0;
+        const TTrimTableOptions& options = {}) = 0;
 
     virtual TFuture<void> AlterTable(
         const NYPath::TYPath& path,
-        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
+        const TAlterTableOptions& options = {}) = 0;
 
     virtual TFuture<void> AlterTableReplica(
         NTabletClient::TTableReplicaId replicaId,
-        const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
+        const TAlterTableReplicaOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+        const TGetInSyncReplicasOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options = TGetTabletsInfoOptions()) = 0;
+        const TGetTabletsInfoOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,
         const std::vector<NYPath::TYPath>& movableTables,
-        const TBalanceTabletCellsOptions& options) = 0;
+        const TBalanceTabletCellsOptions& options = {}) = 0;
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
-        const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+        const TLocateSkynetShareOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
-        const TGetColumnarStatisticsOptions& options = TGetColumnarStatisticsOptions()) = 0;
+        const TGetColumnarStatisticsOptions& options = {}) = 0;
 
     // Files
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,
-        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+        const TGetFileFromCacheOptions& options = {}) = 0;
 
     virtual TFuture<TPutFileToCacheResult> PutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
-        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
+        const TPutFileToCacheOptions& options = {}) = 0;
 
     // Security
     virtual TFuture<void> AddMember(
         const TString& group,
         const TString& member,
-        const TAddMemberOptions& options = TAddMemberOptions()) = 0;
+        const TAddMemberOptions& options = {}) = 0;
 
     virtual TFuture<void> RemoveMember(
         const TString& group,
         const TString& member,
-        const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
+        const TRemoveMemberOptions& options = {}) = 0;
 
     virtual TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
-        const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
+        const TCheckPermissionOptions& options = {}) = 0;
 
     virtual TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
         const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
-        const TCheckPermissionByAclOptions& options = TCheckPermissionByAclOptions()) = 0;
+        const TCheckPermissionByAclOptions& options = {}) = 0;
 
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
-        const TStartOperationOptions& options = TStartOperationOptions()) = 0;
+        const TStartOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> AbortOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TAbortOperationOptions& options = TAbortOperationOptions()) = 0;
+        const TAbortOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> SuspendOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
+        const TSuspendOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> ResumeOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
+        const TResumeOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
+        const TCompleteOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> UpdateOperationParameters(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NYson::TYsonString& parameters,
-        const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
+        const TUpdateOperationParametersOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
+        const TGetOperationOptions& options = {}) = 0;
 
     virtual TFuture<void> DumpJobContext(
         NJobTrackerClient::TJobId jobId,
         const NYPath::TYPath& path,
-        const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
+        const TDumpJobContextOptions& options = {}) = 0;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         NJobTrackerClient::TJobId jobId,
-        const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
+        const TGetJobInputOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
         NJobTrackerClient::TJobId jobId,
-        const TGetJobInputPathsOptions& options = TGetJobInputPathsOptions()) = 0;
+        const TGetJobInputPathsOptions& options = {}) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
         NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+        const TGetJobStderrOptions& options = {}) = 0;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
         NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
+        const TGetJobFailContextOptions& options = {}) = 0;
 
     virtual TFuture<TListOperationsResult> ListOperations(
-        const TListOperationsOptions& options = TListOperationsOptions()) = 0;
+        const TListOperationsOptions& options = {}) = 0;
 
     virtual TFuture<TListJobsResult> ListJobs(
         NJobTrackerClient::TOperationId operationId,
-        const TListJobsOptions& options = TListJobsOptions()) = 0;
+        const TListJobsOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> GetJob(
         NScheduler::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobOptions& options = TGetJobOptions()) = 0;
+        const TGetJobOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         NJobTrackerClient::TJobId jobId,
-        const TStraceJobOptions& options = TStraceJobOptions()) = 0;
+        const TStraceJobOptions& options = {}) = 0;
 
     virtual TFuture<void> SignalJob(
         NJobTrackerClient::TJobId jobId,
         const TString& signalName,
-        const TSignalJobOptions& options = TSignalJobOptions()) = 0;
+        const TSignalJobOptions& options = {}) = 0;
 
     virtual TFuture<void> AbandonJob(
         NJobTrackerClient::TJobId jobId,
-        const TAbandonJobOptions& options = TAbandonJobOptions()) = 0;
+        const TAbandonJobOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
         NJobTrackerClient::TJobId jobId,
         const NYson::TYsonString& parameters,
-        const TPollJobShellOptions& options = TPollJobShellOptions()) = 0;
+        const TPollJobShellOptions& options = {}) = 0;
 
     virtual TFuture<void> AbortJob(
         NJobTrackerClient::TJobId jobId,
-        const TAbortJobOptions& options = TAbortJobOptions()) = 0;
+        const TAbortJobOptions& options = {}) = 0;
 
     // Metadata
     virtual TFuture<TClusterMeta> GetClusterMeta(
-        const TGetClusterMetaOptions& options = TGetClusterMetaOptions()) = 0;
+        const TGetClusterMetaOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

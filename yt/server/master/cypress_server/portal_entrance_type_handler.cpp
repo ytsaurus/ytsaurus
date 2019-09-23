@@ -37,13 +37,16 @@ public:
         return ENodeType::Entity;
     }
 
+    // XXX(babenko)
+    /*
     virtual ETypeFlags GetFlags() const override
     {
         return
             TBase::GetFlags() |
-            ETypeFlags::ForbidInheritAclChange; // |
-            //ETypeFlags::ForbidLocking; XXX(babenko)
+            ETypeFlags::ForbidInheritAclChange |
+            ETypeFlags::ForbidLocking;
     }
+    */
 
 private:
     virtual ICypressNodeProxyPtr DoGetProxy(

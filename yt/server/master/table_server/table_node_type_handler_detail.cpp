@@ -275,9 +275,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     TBase::DoBeginCopy(node, context);
 
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-    tabletManager->ValidateBeginCopyTable(
-        node,
-        context->GetRemoveSource() ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
+    tabletManager->ValidateBeginCopyTable(node, context->GetMode());
 
     // TODO(babenko): support copying dynamic tables
     if (node->IsDynamic()) {

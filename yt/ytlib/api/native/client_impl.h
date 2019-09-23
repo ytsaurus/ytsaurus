@@ -232,6 +232,11 @@ public:
         const NYPath::TRichYPath& dstPath,
         const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
+    IMPLEMENT_METHOD(void, ExternalizeNode, (
+        const NYPath::TYPath& path,
+        NObjectClient::TCellTag cellTag,
+        const TExternalizeNodeOptions& options),
+        (path, cellTag, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options),
@@ -678,6 +683,10 @@ private:
         const std::vector<NYPath::TRichYPath>& srcPaths,
         const NYPath::TRichYPath& dstPath,
         TConcatenateNodesOptions options);
+    void DoExternalizeNode(
+        const NYPath::TYPath& path,
+        NObjectClient::TCellTag cellTag,
+        TExternalizeNodeOptions options);
     bool DoNodeExists(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options);

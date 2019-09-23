@@ -22,9 +22,9 @@ using namespace NTransactionServer;
 
 TBeginCopyContext::TBeginCopyContext(
     TTransaction* transaction,
-    bool removeSource)
+    ENodeCloneMode mode)
     : Transaction_(transaction)
-    , RemoveSource_(removeSource)
+    , Mode_(mode)
     , TableSchemaRegistry_(New<TTableSchemaRegistry>())
     , Stream_(Data_)
 {
