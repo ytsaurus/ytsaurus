@@ -1487,13 +1487,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     TBeginCopyContext copyContext(
         Transaction_,
         mode);
+    copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
     ToProto(response->mutable_opaque_child_ids(), copyContext.OpaqueRootIds());
     ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
 
     auto* serializedTree = response->mutable_serialized_tree();
-    serializedTree->set_version(TreeFormatVersion);
+    serializedTree->set_version(copyContext.GetVersion());
     serializedTree->set_data(copyContext.Finish());
 
     ToProto(response->mutable_node_id(), GetId());
@@ -1518,9 +1519,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         mode,
         inplace);
 
-    if (serializedTree.version() != TreeFormatVersion) {
+    if (serializedTree.version() != NCellMaster::GetCurrentReign()) {
         THROW_ERROR_EXCEPTION("Invalid tree format version: expected %v, actual %v",
-            TreeFormatVersion,
+            NCellMaster::GetCurrentReign(),
             serializedTree.version());
     }
 
@@ -1528,6 +1529,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         Bootstrap_,
         mode,
         TRef::FromString(serializedTree.data()));
+    copyContext.SetVersion(serializedTree.version());
 
     CopyCore(
         context,
