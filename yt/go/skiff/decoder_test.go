@@ -60,6 +60,15 @@ func TestDecoder(t *testing.T) {
 		0x00,                   // first field is missing
 		0x00,                   // second field is missing
 		0x00, 0x00, 0x00, 0x00, // empty string
+
+		0x00, 0x00, // forth row
+		0x00,                                                 // no key switch
+		0x00,                                                 // no row index
+		0x00,                                                 // no range index
+		0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // first field is present
+		0x00,                                                 // second field is missing
+		0x06, 0x00, 0x00, 0x00, 'f', 'o', 'o', 'b', 'a', 'r', // third field is string
+
 	})
 
 	decoder, err := NewDecoder(input, testFormat)
@@ -94,6 +103,24 @@ func TestDecoder(t *testing.T) {
 	require.False(t, decoder.KeySwitch())
 	require.Equal(t, int64(4), decoder.RowIndex())
 	require.Equal(t, 3, decoder.RangeIndex())
+
+	require.True(t, decoder.Next())
+
+	expected := map[string]interface{}{
+		"first": int64(6),
+		"third": []byte("foobar"),
+	}
+
+	var i interface{}
+	require.NoError(t, decoder.Scan(&i))
+	require.Equal(t, expected, i)
+
+	var m map[string]interface{}
+	require.NoError(t, decoder.Scan(&m))
+	require.Equal(t, expected, m)
+
+	var intMap map[string]int
+	require.Error(t, decoder.Scan(&intMap))
 
 	require.False(t, decoder.Next())
 	require.NoError(t, decoder.Err())
