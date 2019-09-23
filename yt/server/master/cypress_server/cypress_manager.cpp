@@ -3038,7 +3038,7 @@ private:
         }
 
         // Copy expiration time.
-        auto expirationTime = sourceNode->GetTrunkNode()->TryGetExpirationTime();
+        auto expirationTime = sourceNode->TryGetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedTrunkNode, *expirationTime);
         }
