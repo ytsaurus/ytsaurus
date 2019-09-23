@@ -384,6 +384,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     internalOptions->EnableTableIndex = options.EnableTableIndex;
     internalOptions->EnableRangeIndex = options.EnableRangeIndex;
     internalOptions->EnableRowIndex = options.EnableRowIndex;
+    internalOptions->EnableTabletIndex = options.EnableTabletIndex;
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.WorkloadDescriptor = config->WorkloadDescriptor;

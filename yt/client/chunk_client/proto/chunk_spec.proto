@@ -59,6 +59,8 @@ message TChunkSpec
 
     // Timestamp with which the chunk should be read. May be set by some chunk view.
     optional uint64 override_timestamp = 18;
+
+    optional int32 tablet_index = 19;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

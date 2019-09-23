@@ -23,6 +23,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , ErasureCodec_(NErasure::ECodec(chunkSpec.erasure_codec()))
     , TableRowIndex_(chunkSpec.table_row_index())
     , RangeIndex_(chunkSpec.range_index())
+    , TabletIndex_(chunkSpec.tablet_index())
 {
     SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
 
@@ -89,15 +90,16 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offsetof");
-    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 136, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 144, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 152, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 160, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 168, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TabletIndex_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 152, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 160, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 168, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 176, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,6 +238,10 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, ED
         chunkSpec->set_chunk_index(inputChunk->ChunkIndex_);
     }
 
+    if (inputChunk->TabletIndex_ >= 0) {
+        chunkSpec->set_tablet_index(inputChunk->TabletIndex_);
+    }
+
     if (inputChunk->LowerLimit_) {
         ToProto(chunkSpec->mutable_lower_limit(), *inputChunk->LowerLimit_);
     }
@@ -259,7 +265,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
     }
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
-        "RangeIndex: %v, ChunkIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
+        "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
@@ -269,6 +275,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetTableRowIndex(),
         inputChunk->GetRangeIndex(),
         inputChunk->GetChunkIndex(),
+        inputChunk->GetTabletIndex(),
         inputChunk->GetTableChunkFormat(),
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),

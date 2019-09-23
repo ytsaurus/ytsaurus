@@ -66,10 +66,12 @@ protected:
     bool IsTableIndexColumnId(int id) const;
     bool IsRangeIndexColumnId(int id) const;
     bool IsRowIndexColumnId(int id) const;
+    bool IsTabletIndexColumnId(int id) const;
 
     int GetRangeIndexColumnId() const;
     int GetRowIndexColumnId() const;
     int GetTableIndexColumnId() const;
+    int GetTabletIndexColumnId() const;
 
     // This is suitable only for switch-based control attributes,
     // e.g. in such formats as YAMR or YSON.
@@ -77,6 +79,7 @@ protected:
     virtual void WriteTableIndex(i64 tableIndex);
     virtual void WriteRangeIndex(i64 rangeIndex);
     virtual void WriteRowIndex(i64 rowIndex);
+    virtual void WriteTabletIndex(i64 tabletIndex);
 
     bool HasError() const;
     void RegisterError(const TError& error);
@@ -88,10 +91,12 @@ private:
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
+    int TabletIndexId_ = -1;
 
     i64 RangeIndex_ = std::numeric_limits<i64>::min();
     i64 TableIndex_ = std::numeric_limits<i64>::min();
     i64 RowIndex_ = std::numeric_limits<i64>::min();
+    i64 TabletIndex_ = std::numeric_limits<i64>::min();
 
     bool EnableRowControlAttributes_;
 
@@ -131,6 +136,7 @@ private:
     virtual void WriteTableIndex(i64 tableIndex) override;
     virtual void WriteRangeIndex(i64 rangeIndex) override;
     virtual void WriteRowIndex(i64 rowIndex) override;
+    virtual void WriteTabletIndex(i64 tabletIndex) override;
 
 private:
     std::vector<TUnversionedValueYsonWriter> ValueWriters_;

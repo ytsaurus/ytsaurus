@@ -7952,6 +7952,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    options->EnableTabletIndex = ioConfig->ControlAttributes->EnableTabletIndex;
     return options;
 }
 

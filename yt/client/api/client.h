@@ -713,6 +713,7 @@ struct TTableReaderOptions
     bool EnableTableIndex = false;
     bool EnableRowIndex = false;
     bool EnableRangeIndex = false;
+    bool EnableTabletIndex = false;
     NTableClient::TTableReaderConfigPtr Config;
 };
 

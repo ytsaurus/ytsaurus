@@ -942,8 +942,18 @@ void TTableNodeProxy::ValidateFetch(TFetchContext* context)
         if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
             THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
         }
-        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
+        if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {
+            if (!table->IsDynamic() || table->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Tablet index selectors are only supported for ordered dynamic tables");
+            }
+        }
+        if (table->IsDynamic() && !table->IsSorted()) {
+            if ((upperLimit.HasRowIndex() && !upperLimit.HasTabletIndex()) || (lowerLimit.HasRowIndex() && !lowerLimit.HasTabletIndex())) {
+                THROW_ERROR_EXCEPTION("In ordered dynamic tables row index selector can only be specified when tablet index selector is");
+            }
+        }
+        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic() && table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Row index selectors are not supported for sorted dynamic tables");
         }
         if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
             THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");

@@ -45,12 +45,14 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
 
     EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex ||
         ControlAttributesConfig_->EnableRangeIndex ||
-        ControlAttributesConfig_->EnableRowIndex;
+        ControlAttributesConfig_->EnableRowIndex ||
+        ControlAttributesConfig_->EnableTabletIndex;
 
     try {
         RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
         RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
         TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+        TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
     } catch (const std::exception& ex) {
         Error_ = TError("Failed to add system columns to name table for a format writer") << ex;
     }
@@ -161,7 +163,8 @@ bool TSchemalessFormatWriterBase::IsSystemColumnId(int id) const
 {
     return IsTableIndexColumnId(id) ||
         IsRangeIndexColumnId(id) ||
-        IsRowIndexColumnId(id);
+        IsRowIndexColumnId(id) ||
+        IsTabletIndexColumnId(id);
 }
 
 bool TSchemalessFormatWriterBase::IsTableIndexColumnId(int id) const
@@ -179,6 +182,11 @@ bool TSchemalessFormatWriterBase::IsRangeIndexColumnId(int id) const
     return id == RangeIndexId_;
 }
 
+bool TSchemalessFormatWriterBase::IsTabletIndexColumnId(int id) const
+{
+    return id == TabletIndexId_;
+}
+
 int TSchemalessFormatWriterBase::GetRangeIndexColumnId() const
 {
     return RangeIndexId_;
@@ -194,6 +202,11 @@ int TSchemalessFormatWriterBase::GetTableIndexColumnId() const
     return TableIndexId_;
 }
 
+int TSchemalessFormatWriterBase::GetTabletIndexColumnId() const
+{
+    return TabletIndexId_;
+}
+
 void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
 {
     if (!EnableRowControlAttributes_) {
@@ -205,6 +218,7 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
     std::optional<i64> tableIndex;
     std::optional<i64> rangeIndex;
     std::optional<i64> rowIndex;
+    std::optional<i64> tabletIndex;
 
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         if (it->Id == TableIndexId_) {
@@ -213,21 +227,33 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
             rowIndex = it->Data.Int64;
         } else if (it->Id == RangeIndexId_) {
             rangeIndex = it->Data.Int64;
+        } else if (it->Id == TabletIndexId_) {
+            tabletIndex = it->Data.Int64;
         }
     }
 
     bool needRowIndex = false;
     if (tableIndex && *tableIndex != TableIndex_) {
-        if (ControlAttributesConfig_->EnableTableIndex)
+        if (ControlAttributesConfig_->EnableTableIndex) {
             WriteTableIndex(*tableIndex);
+        }
         TableIndex_ = *tableIndex;
         needRowIndex = true;
     }
 
     if (rangeIndex && *rangeIndex != RangeIndex_) {
-        if (ControlAttributesConfig_->EnableRangeIndex)
+        if (ControlAttributesConfig_->EnableRangeIndex) {
             WriteRangeIndex(*rangeIndex);
+        }
         RangeIndex_ = *rangeIndex;
+        needRowIndex = true;
+    }
+
+    if (tabletIndex && *tabletIndex != TabletIndex_) {
+        if (ControlAttributesConfig_->EnableTabletIndex) {
+            WriteTabletIndex(*tabletIndex);
+        }
+        TabletIndex_ = *tabletIndex;
         needRowIndex = true;
     }
 
@@ -247,6 +273,9 @@ void TSchemalessFormatWriterBase::WriteRangeIndex(i64 /* rangeIndex */)
 { }
 
 void TSchemalessFormatWriterBase::WriteRowIndex(i64 /* rowIndex */)
+{ }
+
+void TSchemalessFormatWriterBase::WriteTabletIndex(i64 /* tabletIndex */)
 { }
 
 bool TSchemalessFormatWriterBase::HasError() const
@@ -339,6 +368,11 @@ void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
 void TSchemalessWriterAdapter::WriteRangeIndex(i64 rangeIndex)
 {
     WriteControlAttribute(EControlAttribute::RangeIndex, rangeIndex);
+}
+
+void TSchemalessWriterAdapter::WriteTabletIndex(i64 tabletIndex)
+{
+    WriteControlAttribute(EControlAttribute::TabletIndex, tabletIndex);
 }
 
 void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
