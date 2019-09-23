@@ -27,15 +27,16 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NLogging;
 
-using StrictMockClient = StrictMock<TMockClient>;
-DEFINE_REFCOUNTED_TYPE(StrictMockClient)
+using TStrictMockClient = StrictMock<TMockClient>;
+DEFINE_REFCOUNTED_TYPE(TStrictMockClient)
 
-using StrictMockTransaction = StrictMock<TMockTransaction>;
-DEFINE_REFCOUNTED_TYPE(StrictMockTransaction)
+using TStrictMockTransaction = StrictMock<TMockTransaction>;
+DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetNames(const THashMap<TString, TDiscovery::TAttributeDictionary>& listResult) {
+std::vector<TString> GetNames(const THashMap<TString, TDiscovery::TAttributeDictionary>& listResult)
+{
     auto result = GetKeys(listResult);
     std::sort(result.begin(), result.end());
     return result;
@@ -43,7 +44,7 @@ std::vector<TString> GetNames(const THashMap<TString, TDiscovery::TAttributeDict
 
 TEST(TDiscoveryTest, Simple)
 {
-    auto MockClient = New<StrictMockClient>();
+    auto MockClient = New<TStrictMockClient>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
@@ -93,8 +94,8 @@ TYsonString GetLockYson(bool created, bool locked)
 
 TEST(TDiscoveryTest, Enter)
 {
-    auto MockClient = New<StrictMockClient>();
-    auto MockTransaction = New<StrictMockTransaction>();
+    auto MockClient = New<TStrictMockClient>();
+    auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
@@ -158,8 +159,8 @@ THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
 }
 
 TEST(TDiscoveryTest, Leave) {
-    auto MockClient = New<StrictMockClient>();
-    auto MockTransaction = New<StrictMockTransaction>();
+    auto MockClient = New<TStrictMockClient>();
+    auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
@@ -231,8 +232,8 @@ TEST(TDiscoveryTest, Leave) {
 
 TEST(TDiscoveryTest, Ban)
 {
-    auto MockClient = New<StrictMockClient>();
-    auto MockTransaction = New<StrictMockTransaction>();
+    auto MockClient = New<TStrictMockClient>();
+    auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
@@ -282,8 +283,8 @@ THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TDis
 
 TEST(TDiscoveryTest, Attributes)
 {
-    auto MockClient = New<StrictMockClient>();
-    auto MockTransaction = New<StrictMockTransaction>();
+    auto MockClient = New<TStrictMockClient>();
+    auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {"a1", "a2"};
@@ -330,8 +331,8 @@ TEST(TDiscoveryTest, Attributes)
 
 TEST(TDiscoveryTest, CreationRace)
 {
-    auto MockClient = New<StrictMockClient>();
-    auto MockTransaction = New<StrictMockTransaction>();
+    auto MockClient = New<TStrictMockClient>();
+    auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};

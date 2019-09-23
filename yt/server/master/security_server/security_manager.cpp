@@ -492,13 +492,14 @@ public:
 
     void SetAccount(
         TCypressNode* node,
-        TAccount* oldAccount,
         TAccount* newAccount,
         TTransaction* transaction)
     {
         YT_VERIFY(node);
         YT_VERIFY(newAccount);
         YT_VERIFY(node->IsTrunk() == !transaction);
+
+        auto* oldAccount = node->GetAccount();
         YT_VERIFY(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
@@ -3086,9 +3087,9 @@ void TSecurityManager::RecomputeTransactionAccountResourceUsage(TTransaction* tr
     Impl_->RecomputeTransactionResourceUsage(transaction);
 }
 
-void TSecurityManager::SetAccount(TCypressNode* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
+void TSecurityManager::SetAccount(TCypressNode* node, TAccount* newAccount, TTransaction* transaction)
 {
-    Impl_->SetAccount(node, oldAccount, newAccount, transaction);
+    Impl_->SetAccount(node, newAccount, transaction);
 }
 
 void TSecurityManager::ResetAccount(TCypressNode* node)

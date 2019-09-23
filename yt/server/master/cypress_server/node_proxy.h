@@ -27,8 +27,9 @@ struct ICypressNodeFactory
 {
     virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
 
-    virtual bool ShouldPreserveExpirationTime() const  = 0;
     virtual bool ShouldPreserveCreationTime() const  = 0;
+    virtual bool ShouldPreserveModificationTime() const  = 0;
+    virtual bool ShouldPreserveExpirationTime() const  = 0;
 
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
     virtual NSecurityServer::TAccount* GetClonedNodeAccount(
@@ -52,6 +53,9 @@ struct ICypressNodeFactory
         ENodeCloneMode mode) = 0;
 
     virtual TCypressNode* EndCopyNode(
+        TEndCopyContext* context) = 0;
+    virtual void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
         TEndCopyContext* context) = 0;
 };
 

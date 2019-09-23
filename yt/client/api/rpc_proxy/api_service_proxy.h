@@ -43,6 +43,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MoveNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ConcatenateNodes);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExternalizeNode);
 
     // Tablet server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MountTable);

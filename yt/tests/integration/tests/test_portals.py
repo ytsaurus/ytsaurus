@@ -81,9 +81,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         exit_id = get("//tmp/p&/@exit_node_id")
         with pytest.raises(YtError):
-            set("//tmp/p&/@inherit_acl", True)
-        with pytest.raises(YtError):
-            set("#{}/@inherit_acl".format(exit_id), True, driver=get_driver(1))
+            set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
@@ -569,6 +567,69 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/p/t", mutation_id=mutation_id)
         with pytest.raises(YtError):
             remove("//tmp/p/t", mutation_id=mutation_id)
+
+    @authors("babenko")
+    def test_externalize_node(self):
+        create_account("a")
+        create_account("b")
+        create_user("u")
+
+        create("map_node", "//tmp/m", attributes={"attr": "value", "acl": [make_ace("allow", "u", "write")]})
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 3, "account": "a", "attr": "t"})
+        write_table("//tmp/m/t", TABLE_PAYLOAD)
+
+        FILE_PAYLOAD = "PAYLOAD"
+        create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 3, "account": "b", "attr": "f"})
+        write_file("//tmp/m/f", FILE_PAYLOAD)
+
+        create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
+        ct = get("//tmp/m/d/@creation_time")
+        mt = get("//tmp/m/d/@modification_time")
+
+        create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
+
+        create("table", "//tmp/m/et", attributes={"external_cell_tag": 3, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+
+        create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [make_ace("deny", "u", "read")]})
+        create("map_node", "//tmp/m/acl2", attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]})
+
+        root_acl = get("//tmp/m/@effective_acl")
+        acl1 = get("//tmp/m/acl1/@acl")
+        acl2 = get("//tmp/m/acl2/@acl")
+
+        externalize("//tmp/m", 1)
+
+        assert not get("//tmp/m/@inherit_acl")
+        assert get("//tmp/m/@acl") == root_acl
+
+        assert get("//tmp/m/acl1/@inherit_acl")
+        assert get("//tmp/m/acl1/@acl") == acl1
+
+        assert not get("//tmp/m/acl2/@inherit_acl")
+        assert get("//tmp/m/acl2/@acl") == acl2
+
+        assert get("//tmp/m/@type") == "portal_exit"
+        assert get("//tmp/m/@attr") == "value"
+
+        assert read_table("//tmp/m/t") == TABLE_PAYLOAD
+        assert get("//tmp/m/t/@account") == "a"
+        assert get("//tmp/m/t/@attr") == "t"
+        
+        assert read_file("//tmp/m/f") == FILE_PAYLOAD
+        assert get("//tmp/m/f/@account") == "b"
+        assert get("//tmp/m/f/@attr") == "f"
+
+        assert get("//tmp/m/d") == {"hello": "world"}
+        assert get("//tmp/m/d/@creation_time") == ct
+        # XXX(babenko): modification time is not preserved yet
+        #assert get("//tmp/m/d/@modification_time") == mt
+
+        assert get("//tmp/m/m/@account") == "a"
+        assert get("//tmp/m/m/@compression_codec") == "brotli_8"
+
+        assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
 
 ##################################################################
 

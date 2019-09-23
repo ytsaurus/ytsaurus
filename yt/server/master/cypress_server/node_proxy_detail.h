@@ -228,6 +228,7 @@ private:
     template <class TContextPtr, class TClonedTreeBuilder>
     void CopyCore(
         const TContextPtr& context,
+        bool inplace,
         const TClonedTreeBuilder& clonedTreeBuilder);
 
     void ValidateAccessTransaction();

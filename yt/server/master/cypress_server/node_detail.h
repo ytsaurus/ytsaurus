@@ -67,6 +67,15 @@ protected:
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId);
+    void EndCopyInplaceCore(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
+    void LoadInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory);
 
     void BranchCore(
         TCypressNode* originatingNode,
@@ -156,6 +165,16 @@ public:
         auto* trunkNode = EndCopyCore(context, factory, sourceNodeId);
         DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
         return trunkNode;
+    }
+
+    virtual void EndCopyInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId) override
+    {
+        EndCopyInplaceCore(trunkNode, context, factory, sourceNodeId);
+        DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
     }
 
     virtual std::unique_ptr<TCypressNode> Branch(
@@ -265,7 +284,6 @@ protected:
         // Null is passed as transaction because DoCreate() always creates trunk nodes.
         securityManager->SetAccount(
             nodeHolder.get(),
-            nullptr /* oldAccount */,
             context.Account,
             nullptr /* transaction*/);
 

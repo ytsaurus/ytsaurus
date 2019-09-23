@@ -40,6 +40,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
@@ -375,8 +376,9 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_ignore_existing(options.IgnoreExisting);
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
-    req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_preserve_creation_time(options.PreserveCreationTime);
+    req->set_preserve_modification_time(options.PreserveModificationTime);
+    req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
     ToProto(req->mutable_transactional_options(), options);
@@ -404,6 +406,8 @@ TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
+    req->set_preserve_creation_time(options.PreserveCreationTime);
+    req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
@@ -458,6 +462,23 @@ TFuture<void> TClientBase::ConcatenateNodes(
     // TODO(babenko)
     // ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClientBase::ExternalizeNode(
+    const TYPath& path,
+    TCellTag cellTag,
+    const TExternalizeNodeOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ExternalizeNode();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_path(), path);
+    req->set_cell_tag(cellTag);
+    ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().As<void>();
 }

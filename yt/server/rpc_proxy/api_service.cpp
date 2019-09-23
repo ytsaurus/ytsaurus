@@ -1065,11 +1065,14 @@ private:
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
         }
-        if (request->has_preserve_expiration_time()) {
-            options.PreserveExpirationTime = request->preserve_expiration_time();
-        }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
+        }
+        if (request->has_preserve_expiration_time()) {
+            options.PreserveExpirationTime = request->preserve_expiration_time();
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
@@ -1117,6 +1120,12 @@ private:
         }
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
+        }
+        if (request->has_preserve_creation_time()) {
+            options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
@@ -1220,6 +1229,28 @@ private:
         CompleteCallWith(
             context,
             client->ConcatenateNodes(srcPaths, dstPath, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        auto cellTag = request->cell_tag();
+
+        TExternalizeNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Path: %v, CellTag: %v",
+            path,
+            cellTag);
+
+        CompleteCallWith(
+            context,
+            client->ExternalizeNode(path, cellTag, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////

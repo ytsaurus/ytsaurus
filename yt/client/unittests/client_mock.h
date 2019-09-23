@@ -108,6 +108,11 @@ public:
         const NYPath::TRichYPath& dstPath,
         const TConcatenateNodesOptions& options));
 
+    MOCK_METHOD3(ExternalizeNode, TFuture<void>(
+        const NYPath::TYPath& path,
+        NObjectClient::TCellTag cellTag,
+        const TExternalizeNodeOptions& options));
+
     MOCK_METHOD2(NodeExists, TFuture<bool>(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options));

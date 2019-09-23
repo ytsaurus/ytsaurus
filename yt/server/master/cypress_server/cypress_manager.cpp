@@ -205,14 +205,19 @@ public:
         return Transaction_;
     }
 
-    virtual bool ShouldPreserveExpirationTime() const override
-    {
-        return Options_.PreserveExpirationTime;
-    }
-
     virtual bool ShouldPreserveCreationTime() const override
     {
         return Options_.PreserveCreationTime;
+    }
+
+    virtual bool ShouldPreserveModificationTime() const override
+    {
+        return Options_.PreserveModificationTime;
+    }
+
+    virtual bool ShouldPreserveExpirationTime() const override
+    {
+        return Options_.PreserveExpirationTime;
     }
 
     virtual TAccount* GetNewNodeAccount() const override
@@ -472,6 +477,18 @@ public:
         }
 
         return clonedTrunkNode;
+    }
+
+    virtual void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context) override
+    {
+        // See BeginCopyCore.
+        using NYT::Load;
+        auto sourceNodeId = Load<TNodeId>(*context);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
     }
 
 private:
@@ -921,6 +938,33 @@ public:
 
         const auto& handler = GetHandler(type);
         return handler->EndCopy(context, factory, sourceNodeId);
+    }
+
+    void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(context);
+        YT_VERIFY(factory);
+        YT_VERIFY(trunkNode->IsTrunk());
+
+        // See BeginCopyCore.
+        auto type = Load<EObjectType>(*context);
+        if (type != trunkNode->GetType() &&
+           !(type == EObjectType::MapNode && trunkNode->GetType() == EObjectType::PortalExit))
+        {
+            THROW_ERROR_EXCEPTION("Cannot inplace copy node %v of type %Qlv to node %v of type %Qlv",
+                sourceNodeId,
+                type,
+                trunkNode->GetId(),
+                trunkNode->GetType());
+        }
+
+        const auto& handler = GetHandler(type);
+        return handler->EndCopyInplace(trunkNode, context, factory, sourceNodeId);
     }
 
 
@@ -2983,15 +3027,20 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         clonedTrunkNode->Acd().SetOwner(user);
 
+        // Copy creation time.
+        if (factory->ShouldPreserveCreationTime()) {
+            clonedTrunkNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
+        }
+
+        // Copy modification time.
+        if (factory->ShouldPreserveModificationTime()) {
+            clonedTrunkNode->SetModificationTime(sourceNode->GetTrunkNode()->GetModificationTime());
+        }
+
         // Copy expiration time.
         auto expirationTime = sourceNode->GetTrunkNode()->TryGetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedTrunkNode, *expirationTime);
-        }
-
-        // Copy creation time.
-        if (factory->ShouldPreserveCreationTime()) {
-            clonedTrunkNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
         }
 
         return clonedTrunkNode;
@@ -3397,6 +3446,15 @@ TCypressNode* TCypressManager::EndCopyNode(
     TNodeId sourceNodeId)
 {
     return Impl_->EndCopyNode(context, factory, sourceNodeId);
+}
+
+void TCypressManager::EndCopyNodeInplace(
+    TCypressNode* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory,
+    TNodeId sourceNodeId)
+{
+    return Impl_->EndCopyNodeInplace(trunkNode, context, factory, sourceNodeId);
 }
 
 TMapNode* TCypressManager::GetRootNode() const
