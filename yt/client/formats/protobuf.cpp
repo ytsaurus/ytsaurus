@@ -2,8 +2,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
-
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <yt/client/formats/proto/proto_format.pb.h>
 
 #include <contrib/libs/protobuf/wire_format_lite.h>
 
