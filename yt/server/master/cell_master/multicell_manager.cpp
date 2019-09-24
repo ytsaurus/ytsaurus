@@ -811,11 +811,18 @@ private:
         }
     }
 
+    EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
+    {
+        return (cellTag == Bootstrap_->GetPrimaryCellTag())
+            ? (EMasterCellRoles::CypressNodeHost |
+               EMasterCellRoles::TransactionCoordinator |
+               (Bootstrap_->IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
+            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
+    }
+
     EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
     {
-        auto defaultRoles = (cellTag == Bootstrap_->GetPrimaryCellTag())
-            ? (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::TransactionCoordinator)
-            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
+        auto defaultRoles = GetDefaultMasterCellRoles(cellTag);
         return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 };
