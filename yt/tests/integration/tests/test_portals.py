@@ -623,7 +623,6 @@ class TestPortals(YTEnvSetup):
 
         assert get("//tmp/m/d") == {"hello": "world"}
         assert get("//tmp/m/d/@creation_time") == ct
-        # XXX(babenko): modification time is not preserved yet
         assert get("//tmp/m/d/@modification_time") == mt
 
         assert get("//tmp/m/m/@account") == "a"
