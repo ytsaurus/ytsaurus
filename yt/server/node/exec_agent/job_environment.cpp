@@ -161,7 +161,8 @@ public:
         int /*slotIndex*/,
         TJobId /*jobId*/,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& /*commands*/,
-        const TRootFS& /*rootFS*/) override
+        const TRootFS& /*rootFS*/,
+        const TString& /*user*/) override
     {
         THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
             BasicConfig_->Type);
@@ -498,9 +499,10 @@ public:
         int slotIndex,
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
-        const TRootFS& rootFS) override
+        const TRootFS& rootFS,
+        const TString& user) override
     {
-        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS);
+        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS, user);
 
         return BIND([instance, commands] {
             for (const auto& command : commands) {
@@ -725,12 +727,13 @@ private:
         }
     }
 
-    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS)
+    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)
     {
         auto instance = CreatePortoInstance(
             GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/setup_" + ToString(jobId),
             PortoExecutor_);
         instance->SetRoot(rootFS);
+        instance->SetUser(user);
         return instance;
     }
 

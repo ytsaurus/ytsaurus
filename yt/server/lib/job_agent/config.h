@@ -193,6 +193,7 @@ public:
     TMappedMemoryControllerConfigPtr MappedMemoryController;
 
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
+    TString SetupCommandUser;
 
     TJobControllerConfig()
     {
@@ -253,6 +254,9 @@ public:
 
         RegisterParameter("job_setup_command", JobSetupCommand)
             .Default();
+
+        RegisterParameter("setup_command_user", SetupCommandUser)
+            .Default("root");
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
