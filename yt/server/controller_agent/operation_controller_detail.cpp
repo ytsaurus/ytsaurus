@@ -714,6 +714,7 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
         ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
         ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
+        ->AddChild("retained_finished_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this))))
         ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
@@ -2662,6 +2663,7 @@ void TOperationControllerBase::BuildJobAttributes(
     const TJobInfoPtr& job,
     EJobState state,
     bool outputStatistics,
+    i64 stderrSize,
     TFluentMap fluent) const
 {
     static const auto EmptyMapYson = TYsonString("{}");
@@ -2676,7 +2678,7 @@ void TOperationControllerBase::BuildJobAttributes(
 
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
-        .Item("stderr_size").Value(static_cast<i64>(job->StderrSize))
+        .Item("stderr_size").Value(stderrSize)
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
@@ -2689,9 +2691,18 @@ void TOperationControllerBase::BuildJobAttributes(
 void TOperationControllerBase::BuildFinishedJobAttributes(
     const TFinishedJobInfoPtr& job,
     bool outputStatistics,
+    bool hasStderr,
+    bool hasFailContext,
     TFluentMap fluent) const
 {
-    BuildJobAttributes(job, job->Summary.State, outputStatistics, fluent);
+    auto stderrSize = hasStderr
+        // Report nonzero stderr size as we are sure it is saved.
+        ? std::max(job->StderrSize, i64(1))
+        : 0;
+
+    i64 failContextSize = hasFailContext ? 1 : 0;
+
+    BuildJobAttributes(job, job->Summary.State, outputStatistics, stderrSize, fluent);
 
     const auto& summary = job->Summary;
     fluent
@@ -2705,7 +2716,8 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
         {
             const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
-        });
+        })
+        .Item("fail_context_size").Value(failContextSize);
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
@@ -4499,22 +4511,25 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
     auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
 
+    auto hasStderr = static_cast<bool>(stderrChunkId);
+    auto hasFailContext = static_cast<bool>(failContextChunkId);
+
     auto joblet = GetJoblet(jobId);
     // Job is not actually started.
     if (!joblet->StartTime) {
         return;
     }
 
-    bool shouldCreateJobNode =
-        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
-        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
+    bool shouldRetainJob =
+        (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
+        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount);
 
-    if (stderrChunkId && shouldCreateJobNode) {
+    if (hasStderr && shouldRetainJob) {
         summary->ReleaseFlags.ArchiveStderr = true;
         // Job spec is necessary for ACL checks for stderr.
         summary->ReleaseFlags.ArchiveJobSpec = true;
     }
-    if (failContextChunkId && shouldCreateJobNode) {
+    if (hasFailContext && shouldRetainJob) {
         summary->ReleaseFlags.ArchiveFailContext = true;
         // Job spec is necessary for ACL checks for fail context.
         summary->ReleaseFlags.ArchiveJobSpec = true;
@@ -4523,41 +4538,55 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     summary->ReleaseFlags.ArchiveProfile = true;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
+
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.reset();
 
     if (finishedJob->Summary.ReleaseFlags.IsNonTrivial()) {
-        FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+        FinishedJobs_.emplace(jobId, finishedJob);
     }
 
-    if (!shouldCreateJobNode) {
-        if (stderrChunkId) {
+    if (!shouldRetainJob) {
+        if (hasStderr) {
             Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
         }
         return;
     }
 
-    auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
+    auto attributesFragment = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do([&] (TFluentMap fluent) {
-            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, fluent);
+            BuildFinishedJobAttributes(
+                finishedJob,
+                /* outputStatistics */ true,
+                hasStderr,
+                hasFailContext,
+                fluent);
         })
         .Finish();
+
+    if (Config->EnableRetainedFinishedJobs) {
+        auto attributes = BuildYsonStringFluently()
+            .DoMap([&] (TFluentMap fluent) {
+                fluent.GetConsumer()->OnRaw(attributesFragment);
+            });
+        RetainedFinishedJobs_.emplace_back(finishedJob->JobId, std::move(attributes));
+    }
 
     {
         TCreateJobNodeRequest request;
         request.JobId = jobId;
-        request.Attributes = attributes;
+        request.Attributes = std::move(attributesFragment);
         request.StderrChunkId = stderrChunkId;
         request.FailContextChunkId = failContextChunkId;
 
         Host->CreateJobNode(std::move(request));
     }
 
-    if (stderrChunkId) {
-        ++StderrCount_;
+    if (hasStderr) {
+        ++RetainedJobWithStderrCount_;
     }
-    ++JobNodeCount_;
+    ++RetainedJobCount_;
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -7190,7 +7219,8 @@ TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatist
                 MakeStrong(this),
                 joblet,
                 EJobState::Running,
-                outputStatistics);
+                outputStatistics,
+                joblet->StderrSize);
         } else {
             attributesBuilder = BIND([] (TFluentMap) {});
         }
@@ -7225,7 +7255,12 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
                 if (joblet->StartTime) {
                     fluent.Item(ToString(jobId)).BeginMap()
                         .Do([&] (TFluentMap fluent) {
-                            BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
+                            BuildJobAttributes(
+                                joblet,
+                                EJobState::Running,
+                                /* outputStatistics */ false,
+                                joblet->StderrSize,
+                                fluent);
                         })
                     .EndMap();
                 }
@@ -7235,6 +7270,17 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     }
 
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+}
+
+void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) const
+{
+    for (const auto& job : RetainedFinishedJobs_) {
+        fluent
+            .Item(ToString(job.first))
+            .Do([&] (TFluentAny fluentAny) {
+                fluentAny.GetConsumer()->OnRaw(job.second);
+            });
+    }
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -7715,7 +7761,7 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
     }
 
-    if (StderrCount_ >= Spec_->MaxStderrCount) {
+    if (RetainedJobWithStderrCount_ >= Spec_->MaxStderrCount) {
         jobSpec->set_upload_stderr_if_completed(false);
     }
 
@@ -8019,8 +8065,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RowCountLimit);
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
-    Persist(context, StderrCount_);
-    Persist(context, JobNodeCount_);
+    Persist(context, RetainedJobWithStderrCount_);
+    Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);

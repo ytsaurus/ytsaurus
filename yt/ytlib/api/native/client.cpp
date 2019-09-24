@@ -197,6 +197,16 @@ TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonStr
 
 constexpr i64 ListJobsFromArchiveInProgressJobLimit = 100000;
 
+TYPath GetControllerAgentOrchidRunningJobsPath(TStringBuf controllerAgentAddress, TOperationId operationId)
+{
+    return GetControllerAgentOrchidOperationPath(controllerAgentAddress, operationId) + "/running_jobs";
+}
+
+TYPath GetControllerAgentOrchidRetainedFinishedJobsPath(TStringBuf controllerAgentAddress, TOperationId operationId)
+{
+    return GetControllerAgentOrchidOperationPath(controllerAgentAddress, operationId) + "/retained_finished_jobs";
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3356,71 +3366,173 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
     }));
 }
 
-TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromControllerAgentAsync(
+static void ParseJobsFromControllerAgentResponse(
+    TOperationId operationId,
+    const std::vector<std::pair<TString, INodePtr>>& jobNodes,
+    std::function<bool(const INodePtr&)> filter,
+    const THashSet<TString>& attributes,
+    std::vector<TJob>* jobs)
+{
+    auto needJobId = attributes.contains("job_id");
+    auto needOperationId = attributes.contains("operation_id");
+    auto needType = attributes.contains("type");
+    auto needState = attributes.contains("state");
+    auto needStartTime = attributes.contains("start_time");
+    auto needFinishTime = attributes.contains("finish_time");
+    auto needAddress = attributes.contains("address");
+    auto needHasSpec = attributes.contains("has_spec");
+    auto needProgress = attributes.contains("progress");
+    auto needStderrSize = attributes.contains("stderr_size");
+    auto needBriefStatistics = attributes.contains("brief_statistics");
+
+    for (const auto& [jobIdString, jobNode] : jobNodes) {
+        if (!filter(jobNode)) {
+            continue;
+        }
+
+        const auto& jobMapNode = jobNode->AsMap();
+        auto& job = jobs->emplace_back();
+        if (needJobId) {
+            job.Id = TJobId::FromString(jobIdString);
+        }
+        if (needOperationId) {
+            job.OperationId = operationId;
+        }
+        if (needType) {
+            job.Type = ParseEnum<EJobType>(jobMapNode->GetChild("job_type")->GetValue<TString>());
+        }
+        if (needState) {
+            job.State = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());;
+        }
+        if (needStartTime) {
+            job.StartTime = ConvertTo<TInstant>(jobMapNode->GetChild("start_time")->GetValue<TString>());
+        }
+        if (needFinishTime) {
+            if (auto child = jobMapNode->FindChild("finish_time")) {
+                job.FinishTime = ConvertTo<TInstant>(child->GetValue<TString>());
+            }
+        }
+        if (needAddress) {
+            job.Address = jobMapNode->GetChild("address")->GetValue<TString>();
+        }
+        if (needHasSpec) {
+            job.HasSpec = true;
+        }
+        if (needProgress) {
+            job.Progress = jobMapNode->GetChild("progress")->GetValue<double>();
+        }
+
+        auto stderrSize = jobMapNode->GetChild("stderr_size")->GetValue<i64>();
+        if (stderrSize > 0 && needStderrSize) {
+            job.StderrSize = stderrSize;
+        }
+
+        if (needBriefStatistics) {
+            job.BriefStatistics = ConvertToYsonString(jobMapNode->GetChild("brief_statistics"));
+        }
+    }
+}
+
+static void ParseJobsFromControllerAgentResponse(
+    TOperationId operationId,
+    const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
+    const TString& key,
+    const THashSet<TString>& attributes,
+    const TListJobsOptions& options,
+    std::vector<TJob>* jobs,
+    int* totalCount)
+{
+    auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(key);
+    if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        return;
+    }
+    if (!rspOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Cannot get %Qv from controller agent", key)
+            << rspOrError;
+    }
+    auto rsp = rspOrError.Value();
+    auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
+    *totalCount += items->GetChildren().size();
+
+    auto filter = [&] (const INodePtr& jobNode) {
+        auto stderrSize = jobNode->AsMap()->GetChild("stderr_size")->GetValue<i64>();
+        auto failContextSizeNode = jobNode->AsMap()->FindChild("fail_context_size");
+        auto failContextSize = failContextSizeNode
+            ? failContextSizeNode->GetValue<i64>()
+            : 0;
+        return
+            (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
+            (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0));
+    };
+
+    ParseJobsFromControllerAgentResponse(
+        operationId,
+        items->GetChildren(),
+        filter,
+        attributes,
+        jobs);
+}
+
+TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAgentAsync(
     TOperationId operationId,
     const std::optional<TString>& controllerAgentAddress,
     TInstant deadline,
     const TListJobsOptions& options)
 {
-    TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-    proxy.SetDefaultTimeout(deadline - Now());
-
     if (!controllerAgentAddress) {
-        return MakeFuture(std::pair<std::vector<TJob>, int>{});
+        return MakeFuture(TListJobsFromControllerAgentResult{});
     }
 
-    auto path = GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/running_jobs";
-    auto getReq = TYPathProxy::Get(path);
+    static const THashSet<TString> DefaultAttributes = {
+        "job_id",
+        "type",
+        "state",
+        "start_time",
+        "finish_time",
+        "address",
+        "has_spec",
+        "progress",
+        "stderr_size",
+        "brief_statistics",
+    };
 
-    return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {
-        std::pair<std::vector<TJob>, int> result;
-        auto& jobs = result.first;
+    TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+    proxy.SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy.ExecuteBatch();
 
-        auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
-        result.second = items->GetChildren().size();
+    batchReq->AddRequest(
+        TYPathProxy::Get(GetControllerAgentOrchidRunningJobsPath(*controllerAgentAddress, operationId)),
+        "running_jobs");
 
-        for (const auto& item : items->GetChildren()) {
-            auto values = item.second->AsMap();
+    batchReq->AddRequest(
+        TYPathProxy::Get(GetControllerAgentOrchidRetainedFinishedJobsPath(*controllerAgentAddress, operationId)),
+        "retained_finished_jobs");
 
-            auto id = TGuid::FromString(item.first);
-
-            auto type = ParseEnum<NJobTrackerClient::EJobType>(
-                values->GetChild("job_type")->AsString()->GetValue());
-            auto state = ParseEnum<NJobTrackerClient::EJobState>(
-                values->GetChild("state")->AsString()->GetValue());
-            auto address = values->GetChild("address")->AsString()->GetValue();
-
-            auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
-
-            if (options.WithStderr && *options.WithStderr != (stderrSize > 0)) {
-                continue;
-            }
-
-            if (options.WithFailContext && *options.WithFailContext) {
-                continue;
-            }
-
-            jobs.emplace_back();
-            auto& job = jobs.back();
-
-            job.Id = id;
-            job.Type = type;
-            job.State = state;
-            job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
-            job.Address = address;
-            job.HasSpec = true;
-            job.Progress = values->GetChild("progress")->AsDouble()->GetValue();
-            if (stderrSize > 0) {
-                job.StderrSize = stderrSize;
-            }
-            job.BriefStatistics = ConvertToYsonString(values->GetChild("brief_statistics"));
-        }
-
+    return batchReq->Invoke().Apply(BIND([operationId, options] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+        TListJobsFromControllerAgentResult result;
+        ParseJobsFromControllerAgentResponse(
+            operationId,
+            batchRsp,
+            "running_jobs",
+            DefaultAttributes,
+            options,
+            &result.InProgressJobs,
+            &result.TotalInProgressJobCount);
+        ParseJobsFromControllerAgentResponse(
+            operationId,
+            batchRsp,
+            "retained_finished_jobs",
+            DefaultAttributes,
+            options,
+            &result.FinishedJobs,
+            &result.TotalFinishedJobCount);
         return result;
     }));
 }
 
-std::function<bool(const TJob&, const TJob&)> TClient::GetJobsComparator(EJobSortField sortField, EJobSortDirection sortOrder)
+static std::function<bool(const TJob&, const TJob&)> GetJobsComparator(
+    EJobSortField sortField,
+    EJobSortDirection sortOrder)
 {
     auto makeLessBy = [sortOrder] (auto transform) -> std::function<bool(const TJob&, const TJob&)> {
         switch (sortOrder) {
@@ -3484,26 +3596,24 @@ std::function<bool(const TJob&, const TJob&)> TClient::GetJobsComparator(EJobSor
     }
 }
 
-void TClient::UpdateJobsList(std::vector<TJob> delta, std::vector<TJob>* origin, bool ignoreNewJobs)
+static void UpdateJobList(std::vector<TJob>&& delta, std::vector<TJob>* origin, bool ignoreNewJobs = false)
 {
-    auto mergeJob = [] (TJob* target, TJob&& source) {
-#define MERGE_FIELD(name) target->name = std::move(source.name)
+    auto mergeJob = [] (TJob&& source, TJob* target) {
 #define MERGE_NULLABLE_FIELD(name) \
         if (source.name) { \
             target->name = std::move(source.name); \
         }
-        MERGE_FIELD(Type);
-        MERGE_FIELD(State);
-        MERGE_FIELD(StartTime);
+        MERGE_NULLABLE_FIELD(Type);
+        MERGE_NULLABLE_FIELD(State);
+        MERGE_NULLABLE_FIELD(StartTime);
         MERGE_NULLABLE_FIELD(FinishTime);
-        MERGE_FIELD(Address);
+        MERGE_NULLABLE_FIELD(Address);
         MERGE_NULLABLE_FIELD(Progress);
         MERGE_NULLABLE_FIELD(StderrSize);
         MERGE_NULLABLE_FIELD(Error);
         MERGE_NULLABLE_FIELD(BriefStatistics);
         MERGE_NULLABLE_FIELD(InputPaths);
         MERGE_NULLABLE_FIELD(CoreInfos);
-#undef MERGE_FIELD
 #undef MERGE_NULLABLE_FIELD
     };
 
@@ -3512,22 +3622,49 @@ void TClient::UpdateJobsList(std::vector<TJob> delta, std::vector<TJob>* origin,
         YT_VERIFY(job.Id);
         originMap.emplace(job.Id, &job);
     }
-    // NB(levysotsky): We cannot insert directly into |origin|
-    // as this can invalidate pointers stored in |originMap|.
-    std::vector<TJob> actualDelta;
+
+    std::vector<TJob> newJobs;
     for (auto& job : delta) {
         YT_VERIFY(job.Id);
         auto originMapIt = originMap.find(job.Id);
         if (originMapIt != originMap.end()) {
-            mergeJob(originMapIt->second, std::move(job));
+            mergeJob(std::move(job), originMapIt->second);
         } else if (!ignoreNewJobs) {
-            actualDelta.push_back(std::move(job));
+            newJobs.push_back(std::move(job));
         }
     }
     origin->insert(
         origin->end(),
-        std::make_move_iterator(actualDelta.begin()),
-        std::make_move_iterator(actualDelta.end()));
+        std::make_move_iterator(newJobs.begin()),
+        std::make_move_iterator(newJobs.end()));
+}
+
+template <typename T, typename TComparator>
+static void MergeThreeVectors(
+    std::vector<T>&& first,
+    std::vector<T>&& second,
+    std::vector<T>&& third,
+    std::vector<T>* result,
+    TComparator comparator)
+{
+    YT_VERIFY(result);
+    std::vector<T> firstAndSecond;
+    firstAndSecond.reserve(first.size() + second.size());
+    std::merge(
+        std::make_move_iterator(first.begin()),
+        std::make_move_iterator(first.end()),
+        std::make_move_iterator(second.begin()),
+        std::make_move_iterator(second.end()),
+        std::back_inserter(firstAndSecond),
+        comparator);
+    result->reserve(firstAndSecond.size() + third.size());
+    std::merge(
+        std::make_move_iterator(firstAndSecond.begin()),
+        std::make_move_iterator(firstAndSecond.end()),
+        std::make_move_iterator(third.begin()),
+        std::make_move_iterator(third.end()),
+        std::back_inserter(*result),
+        comparator);
 }
 
 TListJobsResult TClient::DoListJobs(
@@ -3577,7 +3714,7 @@ TListJobsResult TClient::DoListJobs(
         includeArchive);
 
     TFuture<std::pair<std::vector<TJob>, int>> cypressResultFuture;
-    TFuture<std::pair<std::vector<TJob>, int>> controllerAgentResultFuture;
+    TFuture<TListJobsFromControllerAgentResult> controllerAgentResultFuture;
     TFuture<TListJobsFromArchiveResult> archiveResultFuture;
 
     // Issue the requests in parallel.
@@ -3613,14 +3750,13 @@ TListJobsResult TClient::DoListJobs(
 
     TListJobsResult result;
 
-    std::vector<TJob> controllerAgentJobs;
-
+    TListJobsFromControllerAgentResult controllerAgentResult;
     if (includeControllerAgent) {
         auto controllerAgentResultOrError = WaitFor(controllerAgentResultFuture);
         if (controllerAgentResultOrError.IsOK()) {
-            auto& [jobs, jobCount] = controllerAgentResultOrError.Value();
-            result.ControllerAgentJobCount = jobCount;
-            controllerAgentJobs = std::move(jobs);
+            controllerAgentResult = std::move(controllerAgentResultOrError.Value());
+            result.ControllerAgentJobCount =
+                controllerAgentResult.TotalFinishedJobCount + controllerAgentResult.TotalInProgressJobCount;
         } else if (controllerAgentResultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No such operation in the controller agent.
             result.ControllerAgentJobCount = 0;
@@ -3629,7 +3765,7 @@ TListJobsResult TClient::DoListJobs(
         }
     }
 
-    auto countAndFilterJobs = [&options] (std::vector<TJob> jobs, TListJobsStatistics* statistics) {
+    auto countAndFilterJobs = [&options] (std::vector<TJob>&& jobs, TListJobsStatistics* statistics) {
         std::vector<TJob> filteredJobs;
         for (auto& job : jobs) {
             if (options.Address && job.Address != *options.Address) {
@@ -3657,7 +3793,7 @@ TListJobsResult TClient::DoListJobs(
 
     auto mergeWithArchiveJobs = [&] (
         TListJobsResult& result,
-        std::vector<TJob>&& controllerAgentJobs,
+        TListJobsFromControllerAgentResult&& controllerAgentResult,
         const TFuture<TListJobsFromArchiveResult>& archiveResultFuture)
     {
         TListJobsFromArchiveResult archiveResult;
@@ -3677,37 +3813,62 @@ TListJobsResult TClient::DoListJobs(
                 << archiveResultOrError);
         }
 
-        if (!controllerAgentAddress) {
+        if (!controllerAgentAddress && archiveResult.InProgressJobs.empty()) {
             result.Jobs = std::move(archiveResult.FinishedJobs);
-        } else {
-            auto inProgressJobs = std::move(archiveResult.InProgressJobs);
-            UpdateJobsList(std::move(controllerAgentJobs), &inProgressJobs, /* ignoreNewJobs */ !inProgressJobs.empty());
-            auto filteredInProgressJobs = countAndFilterJobs(std::move(inProgressJobs), &result.Statistics);
-            auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
-            std::sort(filteredInProgressJobs.begin(), filteredInProgressJobs.end(), jobComparator);
-            result.Jobs.reserve(filteredInProgressJobs.size() + archiveResult.FinishedJobs.size());
-            std::merge(
-                std::make_move_iterator(filteredInProgressJobs.begin()),
-                std::make_move_iterator(filteredInProgressJobs.end()),
-                std::make_move_iterator(archiveResult.FinishedJobs.begin()),
-                std::make_move_iterator(archiveResult.FinishedJobs.end()),
-                std::back_inserter(result.Jobs),
-                jobComparator);
+            return;
         }
+
+        auto inProgressJobs = std::move(archiveResult.InProgressJobs);
+        if (inProgressJobs.empty()) {
+            inProgressJobs = std::move(controllerAgentResult.InProgressJobs);
+        } else {
+            UpdateJobList(std::move(controllerAgentResult.InProgressJobs), &inProgressJobs, /* ignoreNewJobs */ true);
+        }
+
+        THashSet<TJobId> archiveFinishedJobIds;
+        for (const auto& job : archiveResult.FinishedJobs) {
+            YT_VERIFY(job.Id);
+            archiveFinishedJobIds.insert(job.Id);
+        }
+        auto finishedControllerAgentJobs = std::move(controllerAgentResult.FinishedJobs);
+        finishedControllerAgentJobs.erase(
+            std::remove_if(
+                finishedControllerAgentJobs.begin(),
+                finishedControllerAgentJobs.end(),
+                [&] (const TJob& job) {
+                    return archiveFinishedJobIds.contains(job.Id);
+                }),
+            finishedControllerAgentJobs.end());
+
+        auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
+        auto countFilterSort = [&] (std::vector<TJob>& jobs) {
+            jobs = countAndFilterJobs(std::move(jobs), &result.Statistics);
+            std::sort(jobs.begin(), jobs.end(), jobComparator);
+        };
+
+        countFilterSort(finishedControllerAgentJobs);
+        countFilterSort(inProgressJobs);
+
+        MergeThreeVectors(
+            std::move(finishedControllerAgentJobs),
+            std::move(inProgressJobs),
+            std::move(archiveResult.FinishedJobs),
+            &result.Jobs,
+            jobComparator);
     };
 
     switch (dataSource) {
         case EDataSource::Archive: {
-            mergeWithArchiveJobs(result, std::move(controllerAgentJobs), archiveResultFuture);
+            mergeWithArchiveJobs(result, std::move(controllerAgentResult), archiveResultFuture);
             break;
         }
         case EDataSource::Runtime: {
             auto cypressResultOrError = WaitFor(cypressResultFuture);
-            std::vector<TJob> cypressJobs;
+            std::vector<TJob> jobs;
             if (cypressResultOrError.IsOK()) {
-                auto& [jobs, cypressJobCount] = cypressResultOrError.Value();
+                auto& [cypressJobs, cypressJobCount] = cypressResultOrError.Value();
                 result.CypressJobCount = cypressJobCount;
-                cypressJobs = std::move(jobs);
+                jobs = std::move(cypressJobs);
             } else if (cypressResultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in Cypress.
                 result.CypressJobCount = 0;
@@ -3718,15 +3879,16 @@ TListJobsResult TClient::DoListJobs(
             // No jobs fetched from Cypress, try to get them from archive.
             // (There might be no jobs in Cypress because we don't store them there in recent versions).
             if (result.CypressJobCount == 0 && options.DataSource == EDataSource::Auto) {
-                mergeWithArchiveJobs(result, std::move(controllerAgentJobs), tryListJobsFromArchiveAsync());
+                mergeWithArchiveJobs(result, std::move(controllerAgentResult), tryListJobsFromArchiveAsync());
                 break;
             }
 
-            UpdateJobsList(std::move(controllerAgentJobs), &cypressJobs, /* ignoreNewJobs */ false);
+            UpdateJobList(std::move(controllerAgentResult.InProgressJobs), &jobs);
+            UpdateJobList(std::move(controllerAgentResult.FinishedJobs), &jobs);
 
-            result.Jobs = countAndFilterJobs(std::move(cypressJobs), &result.Statistics);
-            auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
-            std::sort(result.Jobs.begin(), result.Jobs.end(), jobComparator);
+            jobs = countAndFilterJobs(std::move(jobs), &result.Statistics);
+            std::sort(jobs.begin(), jobs.end(), GetJobsComparator(options.SortField, options.SortOrder));
+            result.Jobs = std::move(jobs);
 
             break;
         }
@@ -3740,17 +3902,29 @@ TListJobsResult TClient::DoListJobs(
     return result;
 }
 
+template <typename T>
+static std::optional<T> FindValue(
+    TUnversionedRow row,
+    const NTableClient::TColumnFilter& columnFilter,
+    int columnIndex)
+{
+    auto maybeIndex = columnFilter.FindPosition(columnIndex);
+    if (maybeIndex && row[*maybeIndex].Type != EValueType::Null) {
+        return FromUnversionedValue<T>(row[*maybeIndex]);
+    }
+    return {};
+}
+
 template <typename TValue>
-void TClient::TryAddFluentItem(
+static void TryAddFluentItem(
     TFluentMap fluent,
     TStringBuf key,
     TUnversionedRow row,
     const NTableClient::TColumnFilter& columnFilter,
     int columnIndex)
 {
-    auto valueIndexOrNull = columnFilter.FindPosition(columnIndex);
-    if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
-        fluent.Item(key).Value(FromUnversionedValue<TValue>(row[*valueIndexOrNull]));
+    if (auto value = FindValue<TValue>(row, columnFilter, columnIndex)) {
+        fluent.Item(key).Value(*value);
     }
 }
 
@@ -3775,14 +3949,13 @@ std::vector<TString> TClient::MakeJobArchiveAttributes(const THashSet<TString>& 
     return result;
 }
 
-TYsonString TClient::DoGetJob(
+std::optional<TJob> TClient::DoGetJobFromArchive(
     TOperationId operationId,
     TJobId jobId,
+    TInstant deadline,
+    const THashSet<TString>& attributes,
     const TGetJobOptions& options)
 {
-    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
-    auto deadline = timeout.ToDeadLine();
-
     TJobTableDescriptor table;
     auto rowBuffer = New<TRowBuffer>();
 
@@ -3794,28 +3967,14 @@ TYsonString TClient::DoGetJob(
     key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], table.Index.JobIdLo);
     keys.push_back(key);
 
-    TLookupRowsOptions lookupOptions;
-
-    const THashSet<TString> DefaultAttributes = {
-        "operation_id",
-        "job_id",
-        "type",
-        "state",
-        "start_time",
-        "finish_time",
-        "address",
-        "error",
-        "statistics",
-        "events",
-        "has_spec",
-    };
 
     std::vector<int> columnIndexes;
-    auto fields = MakeJobArchiveAttributes(options.Attributes.value_or(DefaultAttributes));
+    auto fields = MakeJobArchiveAttributes(attributes);
     for (const auto& field : fields) {
         columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
     }
 
+    TLookupRowsOptions lookupOptions;
     lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
     lookupOptions.KeepMissingRows = true;
     lookupOptions.Timeout = deadline - Now();
@@ -3832,57 +3991,159 @@ TYsonString TClient::DoGetJob(
     auto row = rows[0];
 
     if (!row) {
-        THROW_ERROR_EXCEPTION("No such job %v or operation %v", jobId, operationId);
+        return {};
     }
 
     const auto& columnFilter = lookupOptions.ColumnFilter;
 
-    TStringBuf state;
-    {
-        auto indexOrNull = columnFilter.FindPosition(table.Index.State);
-        if (indexOrNull && row[*indexOrNull].Type != EValueType::Null) {
-            state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);
-        }
+    TJob job;
+
+    if (columnFilter.ContainsIndex(table.Index.JobIdHi)) {
+        job.Id = jobId;
     }
-    if (!state.IsInited()) {
-        auto indexOrNull = columnFilter.FindPosition(table.Index.TransientState);
-        if (indexOrNull && row[*indexOrNull].Type != EValueType::Null) {
-            state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);
-        }
+    if (columnFilter.ContainsIndex(table.Index.OperationIdHi)) {
+        job.OperationId = operationId;
+    }
+
+    auto state = FindValue<TStringBuf>(row, columnFilter, table.Index.State);
+    if (!state) {
+        state = FindValue<TStringBuf>(row, columnFilter, table.Index.TransientState);
+    }
+    if (state) {
+        job.State = ParseEnum<EJobState>(*state);
     }
 
     // NB: We need a separate function for |TInstant| because it has type "int64" in table
     // but |FromUnversionedValue<TInstant>| expects it to be "uint64".
-    auto tryAddInstantFluentItem = [&] (TFluentMap fluent, TStringBuf key, int columnIndex) {
-        auto valueIndexOrNull = columnFilter.FindPosition(columnIndex);
-        if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
-            fluent.Item(key).Value(TInstant::MicroSeconds(row[*valueIndexOrNull].Data.Int64));
+    auto findInstant = [&] (int columnIndex) -> std::optional<TInstant> {
+        if (auto micros = FindValue<i64>(row, columnFilter, columnIndex)) {
+            return TInstant::MicroSeconds(*micros);
         }
+        return {};
     };
 
-    using std::placeholders::_1;
+    if (auto startTime = findInstant(table.Index.StartTime)) {
+        job.StartTime = *startTime;
+    }
+    if (auto finishTime = findInstant(table.Index.FinishTime)) {
+        job.FinishTime = *finishTime;
+    }
+    if (auto hasSpec = FindValue<bool>(row, columnFilter, table.Index.HasSpec)) {
+        job.HasSpec = *hasSpec;
+    }
+    if (auto address = FindValue<TStringBuf>(row, columnFilter, table.Index.Address)) {
+        job.Address = *address;
+    }
+    if (auto type = FindValue<TStringBuf>(row, columnFilter, table.Index.Type)) {
+        job.Type = ParseEnum<EJobType>(*type);
+    }
+    if (auto error = FindValue<TYsonString>(row, columnFilter, table.Index.Error)) {
+        job.Error = std::move(*error);
+    }
+    if (auto statistics = FindValue<TYsonString>(row, columnFilter, table.Index.Statistics)) {
+        job.Statistics = std::move(*statistics);
+    }
+    if (auto events = FindValue<TYsonString>(row, columnFilter, table.Index.Events)) {
+        job.Events = std::move(*events);
+    }
+
+    return job;
+}
+
+std::optional<TJob> TClient::DoGetJobFromControllerAgent(
+    TOperationId operationId,
+    TJobId jobId,
+    TInstant deadline,
+    const THashSet<TString>& attributes,
+    const TGetJobOptions& options)
+{
+    auto controllerAgentAddress = GetControllerAgentAddressFromCypress(
+        operationId,
+        GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+    if (!controllerAgentAddress) {
+        return {};
+    }
+
+    TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+    proxy.SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy.ExecuteBatch();
+
+    auto runningJobPath =
+        GetControllerAgentOrchidRunningJobsPath(*controllerAgentAddress, operationId) + "/" + ToString(jobId);
+    batchReq->AddRequest(TYPathProxy::Get(runningJobPath));
+
+    auto finishedJobPath =
+        GetControllerAgentOrchidRetainedFinishedJobsPath(*controllerAgentAddress, operationId) + "/" + ToString(jobId);
+    batchReq->AddRequest(TYPathProxy::Get(finishedJobPath));
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+    if (!batchRspOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Cannot get jobs from controller agent")
+            << batchRspOrError;
+    }
+
+    for (const auto& rspOrError : batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>()) {
+        if (rspOrError.IsOK()) {
+            std::vector<TJob> jobs;
+            ParseJobsFromControllerAgentResponse(
+                operationId,
+                {{ToString(jobId), ConvertToNode(TYsonString(rspOrError.Value()->value()))}},
+                [] (const INodePtr&) {
+                    return true;
+                },
+                attributes,
+                &jobs);
+            YT_VERIFY(jobs.size() == 1);
+            return jobs[0];
+        } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION("Cannot get jobs from controller agent")
+                << rspOrError;
+        }
+    }
+
+    return {};
+}
+
+TYsonString TClient::DoGetJob(
+    TOperationId operationId,
+    TJobId jobId,
+    const TGetJobOptions& options)
+{
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    static const THashSet<TString> DefaultAttributes = {
+        "operation_id",
+        "job_id",
+        "type",
+        "state",
+        "start_time",
+        "finish_time",
+        "address",
+        "error",
+        "statistics",
+        "events",
+        "has_spec",
+    };
+
+    const auto& attributes = options.Attributes.value_or(DefaultAttributes);
+
+    auto job = DoGetJobFromArchive(operationId, jobId, deadline, attributes, options);
+    if (!job) {
+        job = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes, options);
+    }
+
+    if (!job) {
+        THROW_ERROR_EXCEPTION("Job %v or operation %v not found neither in archive nor in controller agent",
+            jobId,
+            operationId);
+    }
+
     return BuildYsonStringFluently()
-        .BeginMap()
-            .DoIf(columnFilter.ContainsIndex(table.Index.OperationIdHi), [&] (TFluentMap fluent) {
-                fluent.Item("operation_id").Value(operationId);
-            })
-            .DoIf(columnFilter.ContainsIndex(table.Index.JobIdHi), [&] (TFluentMap fluent) {
-                fluent.Item("job_id").Value(jobId);
-            })
-            .DoIf(state.IsInited(), [&] (TFluentMap fluent) {
-                fluent.Item("state").Value(state);
-            })
-
-            .Do(std::bind(tryAddInstantFluentItem, _1, "start_time", table.Index.StartTime))
-            .Do(std::bind(tryAddInstantFluentItem, _1, "finish_time", table.Index.FinishTime))
-
-            .Do(std::bind(TryAddFluentItem<bool>,        _1, "has_spec",   row, columnFilter, table.Index.HasSpec))
-            .Do(std::bind(TryAddFluentItem<TString>,     _1, "address",    row, columnFilter, table.Index.Address))
-            .Do(std::bind(TryAddFluentItem<TString>,     _1, "type",       row, columnFilter, table.Index.Type))
-            .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "error",      row, columnFilter, table.Index.Error))
-            .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "statistics", row, columnFilter, table.Index.Statistics))
-            .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "events",     row, columnFilter, table.Index.Events))
-        .EndMap();
+        .Do([&] (TFluentAny fluent) {
+            Serialize(*job, fluent.GetConsumer(), "job_id");
+        });
 }
 
 TClusterMeta TClient::DoGetClusterMeta(

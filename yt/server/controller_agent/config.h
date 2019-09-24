@@ -411,6 +411,40 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TZombieOperationOrchidsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of retained orchids.
+    int Limit;
+
+    //! Period for clearing old orchids.
+    TDuration ClearPeriod;
+
+    //! Is zombie saving and cleaning enabled?
+    bool Enable;
+
+    TZombieOperationOrchidsConfig()
+    {
+        RegisterParameter("limit", Limit)
+            .Default(10000)
+            .GreaterThanOrEqual(0);
+
+        RegisterParameter("clear_period", ClearPeriod)
+            .Default(TDuration::Minutes(1));
+
+        RegisterParameter("enable", Enable)
+            .Default(true);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TZombieOperationOrchidsConfig, 0xbeadbead);
+};
+
+DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchidsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public NChunkClient::TChunkTeleporterConfig
 {
@@ -469,6 +503,9 @@ public:
     //! Enables creation of job nodes (including stderr and fail_context nodes) in cypress.
     bool EnableCypressJobNodes;
 
+    //! Enables retaining of some jobs in controller orchid (under "retained_finished_jobs" key).
+    bool EnableRetainedFinishedJobs;
+
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
@@ -486,7 +523,7 @@ public:
     //! Controller agent-to-scheduler heartbeat failure backoff.
     TDuration SchedulerHeartbeatFailureBackoff;
 
-    // Controller agent-to-scheduler heartbeat period.
+    //! Controller agent-to-scheduler heartbeat period.
     TDuration SchedulerHeartbeatPeriod;
 
     //! Period for requesting exec nodes from scheduler.
@@ -553,6 +590,8 @@ public:
 
     //! Max available exec node resources are updated not more often then this period.
     TDuration MaxAvailableExecNodeResourcesUpdatePeriod;
+
+    TZombieOperationOrchidsConfigPtr ZombieOperationOrchids;
 
     //! Maximum number of job nodes per operation.
     int MaxJobNodesPerOperation;
