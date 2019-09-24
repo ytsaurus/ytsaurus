@@ -1147,6 +1147,10 @@ public:
         };
 
         auto promise = NewPromise<TVolumeStatePtr>();
+        promise.OnCanceled(BIND([=] () mutable {
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Root volume preparation was canceled")
+                << TErrorAttribute("preparation_tag", tag));
+        }));
 
         std::vector<TFuture<TLayerPtr>> layerFutures;
         layerFutures.reserve(layers.size());
