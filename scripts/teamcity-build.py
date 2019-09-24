@@ -963,8 +963,10 @@ def run_unit_tests(options, build_context):
 @build_step
 @only_for_projects("yt")
 def run_ya_tests(options, build_context):
-    if options.disable_tests:
+    # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
+    if options.disable_tests or options.use_asan:
         teamcity_message("Skipping ya make tests since tests are disabled")
+        return
 
     suite_name = "ya_integration"
 
