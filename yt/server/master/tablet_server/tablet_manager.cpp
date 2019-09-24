@@ -1948,6 +1948,15 @@ public:
             YT_VERIFY(mode == ENodeCloneMode::Copy);
 
             for (const auto* replica : replicatedSourceTable->Replicas()) {
+                std::vector<i64> currentReplicationRowIndexes;
+
+                for (int tabletIndex = 0; tabletIndex < static_cast<int>(sourceTablets.size()); ++tabletIndex) {
+                    auto* tablet = replicatedSourceTable->Tablets()[tabletIndex];
+                    auto* replicaInfo = tablet->GetReplicaInfo(replica);
+                    auto replicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
+                    currentReplicationRowIndexes.push_back(replicationRowIndex);
+                }
+
                 CreateTableReplica(
                     replicatedClonedTable,
                     replica->GetClusterName(),
@@ -1956,7 +1965,7 @@ public:
                     replica->GetPreserveTimestamps(),
                     replica->GetAtomicity(),
                     replica->GetStartReplicationTimestamp(),
-                    std::nullopt);
+                    currentReplicationRowIndexes);
             }
         }
 
