@@ -312,8 +312,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
-    // XXX: preserve
-    originatingNode->SetModificationTime(mutationContext->GetTimestamp());
+    originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
     originatingNode->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
 }
