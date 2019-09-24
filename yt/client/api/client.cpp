@@ -1,5 +1,7 @@
 #include "client.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NApi {
 
 using namespace NYTree;
@@ -108,6 +110,32 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
         default:
             YT_ABORT();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .OptionalItem(idKey, job.Id)
+            .OptionalItem("operation_id", job.OperationId)
+            .OptionalItem("type", job.Type)
+            .OptionalItem("state", job.State)
+            .OptionalItem("address", job.Address)
+            .OptionalItem("start_time", job.StartTime)
+            .OptionalItem("finish_time", job.FinishTime)
+            .OptionalItem("has_spec", job.HasSpec)
+            .OptionalItem("progress", job.Progress)
+            .OptionalItem("stderr_size", job.StderrSize)
+            .OptionalItem("fail_context_size", job.FailContextSize)
+            .OptionalItem("error", job.Error)
+            .OptionalItem("brief_statistics", job.BriefStatistics)
+            .OptionalItem("input_paths", job.InputPaths)
+            .OptionalItem("core_infos", job.CoreInfos)
+            .OptionalItem("events", job.Events)
+            .OptionalItem("statistics", job.Statistics)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

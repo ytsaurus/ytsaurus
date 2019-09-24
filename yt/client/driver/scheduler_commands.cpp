@@ -308,22 +308,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
         .BeginMap()
             .Item("jobs").DoListFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                 fluent
-                    .Item().BeginMap()
-                        .OptionalItem("id", job.Id)
-                        .OptionalItem("type", job.Type)
-                        .OptionalItem("state", job.State)
-                        .OptionalItem("address", job.Address)
-                        .OptionalItem("start_time", job.StartTime)
-                        .OptionalItem("has_spec", job.HasSpec)
-                        .OptionalItem("finish_time", job.FinishTime)
-                        .OptionalItem("progress", job.Progress)
-                        .OptionalItem("stderr_size", job.StderrSize)
-                        .OptionalItem("fail_context_size", job.FailContextSize)
-                        .OptionalItem("error", job.Error)
-                        .OptionalItem("brief_statistics", job.BriefStatistics)
-                        .OptionalItem("input_paths", job.InputPaths)
-                        .OptionalItem("core_infos", job.CoreInfos)
-                    .EndMap();
+                    .Item().Do([&] (TFluentAny innerFluent) {
+                        Serialize(job, innerFluent.GetConsumer(), AsStringBuf("id"));
+                    });
             })
             .Item("cypress_job_count").Value(result.CypressJobCount)
             // COMPAT(asaitgalin): Remove it in favor of controller_agent_job_count

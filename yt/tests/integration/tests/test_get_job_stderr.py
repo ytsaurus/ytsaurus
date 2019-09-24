@@ -90,9 +90,7 @@ class TestGetJobStderr(YTEnvSetup):
     def test_get_job_stderr(self):
         self.do_test_get_job_stderr()
 
-    # Remove flaky after YT-11074.
     @authors("ignat")
-    @flaky(max_runs=3)
     def test_get_job_stderr_without_cypress(self):
         instances = ls("//sys/controller_agents/instances")
         old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))

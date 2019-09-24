@@ -258,17 +258,18 @@ class TestListJobs(YTEnvSetup):
 
     @staticmethod
     def _check_during_map(op, job_ids, data_source, enable_cypress_job_nodes):
-        assert not(data_source == "runtime" and not enable_cypress_job_nodes), "Cannot check incomplete responses"
-
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["map"])
         assert res["type_counts"] == {"partition_map": 5}
         assert res["state_counts"] == {"running": 3, "failed": 1, "aborted": 1}
 
-        assert res["controller_agent_job_count"] == 3
-        assert res["scheduler_job_count"] == 3
+        assert res["controller_agent_job_count"] == 5
+        assert res["scheduler_job_count"] == 5
         if data_source == "runtime":
-            assert res["cypress_job_count"] == 2
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 2
+            else:
+                assert res["cypress_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto":
             if enable_cypress_job_nodes:
@@ -290,17 +291,18 @@ class TestListJobs(YTEnvSetup):
 
     @staticmethod
     def _check_during_reduce(op, job_ids, data_source, enable_cypress_job_nodes):
-        assert not(data_source == "runtime" and not enable_cypress_job_nodes), "Cannot check incomplete responses"
-
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {"running": 1, "completed": 3, "failed": 1, "aborted": 1}
 
-        assert res["controller_agent_job_count"] == 1
-        assert res["scheduler_job_count"] == 1
+        assert res["controller_agent_job_count"] == 6
+        assert res["scheduler_job_count"] == 6
         if data_source == "runtime":
-            assert res["cypress_job_count"] == 5
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 5
+            else:
+                assert res["cypress_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto":
             if enable_cypress_job_nodes:
@@ -322,18 +324,22 @@ class TestListJobs(YTEnvSetup):
 
     @staticmethod
     def _check_after_finish(op, job_ids, data_source, enable_cypress_job_nodes, operation_cleaned):
-        if data_source == "runtime":
-            assert enable_cypress_job_nodes and not operation_cleaned, "Cannot check incomplete responses"
+        assert data_source != "runtime" or not operation_cleaned, "Cannot check incomplete responses"
 
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
 
-        assert res["controller_agent_job_count"] == 0
-        assert res["scheduler_job_count"] == 0
+        if operation_cleaned:
+            assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 0
+        else:
+            assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 6
         if data_source == "runtime":
-            assert res["cypress_job_count"] == 6
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 6
+            else:
+                assert res["cypress_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto" and not operation_cleaned:
             if enable_cypress_job_nodes:
@@ -388,6 +394,7 @@ class TestListJobs(YTEnvSetup):
                     "output_format": "json",
                 },
                 "map_job_count" : 3,
+                "reduce_job_count": 1,
             },
         )
 
@@ -420,10 +427,6 @@ class TestListJobs(YTEnvSetup):
     @pytest.mark.parametrize("data_source", ["runtime", "archive", "auto"])
     @pytest.mark.parametrize("enable_cypress_job_nodes", [True, False])
     def test_list_jobs(self, data_source, enable_cypress_job_nodes):
-        # This test does not check incomplete responses.
-        if data_source == "runtime" and not enable_cypress_job_nodes:
-            return
-
         original_enable_cypress_job_nodes = None
         instances = ls("//sys/controller_agents/instances")
         orchid_path = \

@@ -968,6 +968,7 @@ struct TListOperationsResult
 struct TJob
 {
     NJobTrackerClient::TJobId Id;
+    NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
     std::optional<TInstant> StartTime;
@@ -979,9 +980,13 @@ struct TJob
     std::optional<bool> HasSpec;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
+    NYson::TYsonString Statistics;
     NYson::TYsonString InputPaths;
     NYson::TYsonString CoreInfos;
+    NYson::TYsonString Events;
 };
+
+void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);
 
 struct TListJobsStatistics
 {
