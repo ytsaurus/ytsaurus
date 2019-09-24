@@ -344,6 +344,11 @@ public:
         SetProperty("io_ops_limit", ToString(operations));
     }
 
+    virtual void SetUser(const TString& user) override
+    {
+        User_ = user;
+    }
+
     virtual TString GetName() const override
     {
         return Name_;
@@ -370,9 +375,13 @@ public:
 
         YT_LOG_DEBUG("Executing porto container (Command: %v)", command);
 
-        // NB(psushin): Make sure subcontainer starts with the same user.
-        // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
-        SetProperty("user", ToString(::getuid()));
+        if (!User_) {
+            // NB(psushin): Make sure subcontainer starts with the same user.
+            // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
+            SetProperty("user", ToString(::getuid()));
+        } else {
+            SetProperty("user", User_);
+        }
 
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
@@ -420,6 +429,7 @@ private:
     bool HasRoot_ = false;
     bool Isolate_ = false;
     bool RequireMemoryController_ = false;
+    TString User_;
 
     TPortoInstance(
         const TString& name,

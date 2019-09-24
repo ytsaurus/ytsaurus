@@ -1524,7 +1524,7 @@ private:
         }
 
         YT_LOG_INFO("Running setup commands");
-        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS());
+        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser);
     }
 
     // Analyse results.
