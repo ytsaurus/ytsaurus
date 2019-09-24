@@ -66,6 +66,8 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -1222,11 +1224,13 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    auto connection = OutputClient->GetNativeConnection();
-    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
-    IntermediateOutputCellTag = secondaryCellTags.empty()
-        ? connection->GetPrimaryMasterCellTag()
-        : secondaryCellTags[rand() % secondaryCellTags.size()];
+    const auto& connection = OutputClient->GetNativeConnection();
+    const auto& cellDirectory = connection->GetMasterCellDirectory();
+    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+    if (!cellId) {
+        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
+    }
+    IntermediateOutputCellTag = CellTagFromId(cellId);
 }
 
 void TOperationControllerBase::InitChunkListPools()

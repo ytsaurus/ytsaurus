@@ -38,7 +38,7 @@ public:
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);
 
-    NObjectClient::TCellId PickRandomTransactionCoordinatorMasterCell() const;
+    NObjectClient::TCellId PickRandomMasterCellWithRole(EMasterCellRoles role) const;
 
 private:
     class TImpl;
