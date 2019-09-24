@@ -1223,9 +1223,9 @@ private:
                 tag,
                 volumeMeta.Id);
 
-            volumeStatePromise.Set(volumeState);
+            volumeStatePromise.TrySet(volumeState);
         } catch (const std::exception& ex) {
-            volumeStatePromise.Set(TError(ex));
+            volumeStatePromise.TrySet(TError(ex));
         }
     }
 };
