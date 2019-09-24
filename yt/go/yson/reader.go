@@ -475,7 +475,25 @@ func (r *Reader) scanUntil(stop func(op opcode, eof bool) bool) (opcode, error) 
 			}
 		}
 
-		op := r.s.step(&r.s, r.buf[r.pos])
+		var op opcode
+		if !r.s.redo && r.s.binaryLength != 0 { // Bypass stateBinaryCountdown, skip bytes directly.
+			skipBytes := r.s.binaryLength
+			if int64(r.end-r.pos) < skipBytes {
+				skipBytes = int64(r.end - r.pos)
+			}
+
+			r.s.binaryLength -= skipBytes
+			r.pos += int(skipBytes) - 1
+
+			if r.s.binaryLength == 0 {
+				r.s.step = stateEndValue
+			}
+
+			op = scanContinue
+		} else {
+			op = r.s.step(&r.s, r.buf[r.pos])
+		}
+
 		if op == scanError {
 			return scanError, r.s.err
 		} else if stop(op, false) {
