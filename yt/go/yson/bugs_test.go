@@ -176,3 +176,20 @@ func TestRecursiveTypes(t *testing.T) {
 
 	require.Equal(t, in, out)
 }
+
+func TestInvalidSkip(t *testing.T) {
+	var row struct {
+		Name  string
+		Value [][]interface{}
+	}
+	row.Name = "foo"
+	row.Value = [][]interface{}{
+		{1, 2, 0.1},
+		{3, 4, 0.5},
+	}
+
+	ys, err := yson.MarshalFormat(row, yson.FormatBinary)
+	require.NoError(t, err)
+
+	require.NoError(t, yson.Unmarshal(ys, &row))
+}
