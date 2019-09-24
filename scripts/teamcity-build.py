@@ -986,6 +986,7 @@ def run_ya_tests(options, build_context):
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
     if options.use_asan:
+        return # disable ya tests in ASAN build, while ya tests are flaky
         args += ["--sanitize=address"]
 
     try:
