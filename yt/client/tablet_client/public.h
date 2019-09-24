@@ -45,6 +45,7 @@ DEFINE_ENUM(EErrorCode,
     ((TableReplicaAlreadyExists)(1705))
     ((InvalidTabletState)       (1706))
     ((TabletSnapshotExpired)    (1707))
+    ((TableMountInfoNotReady)   (1708))
 );
 
 DEFINE_ENUM(EInMemoryMode,

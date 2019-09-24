@@ -37,7 +37,7 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
 { }
 
 template <class TKey, class TValue>
-TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
+typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCache<TKey, TValue>::GetExtended(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -50,7 +50,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
             if (!entry->IsExpired(now)) {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                return entry->Promise;
+                return {entry->Promise, false};
             }
         }
     }
@@ -69,7 +69,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
             } else {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                return entry->Promise;
+                return {entry->Promise, false};
             }
         }
 
@@ -82,8 +82,14 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         YT_VERIFY(Map_.insert(std::make_pair(key, std::move(entry))).second);
         guard.Release();
         InvokeGet(weakEntry, key, false);
-        return promise;
+        return {promise, true};
     }
+}
+
+template <class TKey, class TValue>
+TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
+{
+    return GetExtended(key).Future;
 }
 
 template <class TKey, class TValue>

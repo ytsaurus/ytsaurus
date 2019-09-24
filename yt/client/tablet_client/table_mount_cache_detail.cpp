@@ -117,7 +117,17 @@ TTableMountCacheBase::TTableMountCacheBase(
 
 TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYPath& path)
 {
-    return TAsyncExpiringCache::Get(path);
+    auto [future, requestInitialized] = TAsyncExpiringCache::GetExtended(path);
+
+    if (Config_->RejectIfEntryIsRequestedButNotReady && !requestInitialized && !future.IsSet()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable,
+            "Mount info is unavailable, please try again")
+            << TError(NTabletClient::EErrorCode::TableMountInfoNotReady,
+                "Table mount info is not ready, but has already been requested")
+                << TErrorAttribute("path", path);
+    }
+
+    return future;
 }
 
 TTabletInfoPtr TTableMountCacheBase::FindTablet(TTabletId tabletId)
