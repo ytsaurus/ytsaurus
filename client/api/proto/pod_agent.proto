@@ -525,7 +525,8 @@ message TBox {
     // Ограничения на meta контейнер Box
     TComputeResources compute_resources = 12;
 
-    // Переменные окружения - прокидываются во все init контейнеры бокса
+    // Переменные окружения - прокидываются во все init контейнеры бокса и во все вложенные workload
+    // При этом, если переменная окружения указана и в box env, и в workload env, то будет выбрано значение из workload env
     repeated TEnvVar env = 13;
 
     // Virtual disk, где будет расположен box
