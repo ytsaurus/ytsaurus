@@ -89,15 +89,20 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    TCellId PickRandomTransactionCoordinatorMasterCell()
+    TCellId PickRandomMasterCellWithRole(EMasterCellRoles role)
     {
-        auto candidateCells = GetCellsForRole(EMasterCellRoles::TransactionCoordinator);
+        auto candidateCellTags = GetMasterCellTagsWithRole(role);
+        if (candidateCellTags.empty()) {
+            return {};
+        }
+
         size_t randomIndex = 0;
         {
             TReaderGuard guard(SpinLock_);
             randomIndex = RandomGenerator_.Generate<size_t>();
         }
-        auto cellTag = candidateCells[randomIndex % candidateCells.size()];
+
+        auto cellTag = candidateCellTags[randomIndex % candidateCellTags.size()];
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
@@ -191,8 +196,8 @@ public:
 
         {
             TWriterGuard guard(SpinLock_);
-            CellRoles_ = std::move(cellRoles);
-            RoleCells_ = std::move(roleCells);
+            CellRoleMap_ = std::move(cellRoles);
+            RoleCellsMap_ = std::move(roleCells);
         }
     }
 
@@ -200,25 +205,26 @@ private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
     const TCellTag PrimaryMasterCellTag_;
+
     /*const*/ TCellTagList SecondaryMasterCellTags_;
 
-    /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannels_;
+    /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
     TReaderWriterSpinLock SpinLock_;
-    THashMap<TCellTag, EMasterCellRoles> CellRoles_;
+    THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
-    THashMultiMap<EMasterCellRoles, TCellTag> RoleCells_;
+    THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
     TRandomGenerator RandomGenerator_;
 
     const NLogging::TLogger Logger;
 
-    TCellTagList GetCellsForRole(EMasterCellRoles cellRole) const
+    TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
     {
         TCellTagList result;
 
         {
             TReaderGuard guard(SpinLock_);
-            auto range = RoleCells_.equal_range(cellRole);
+            auto range = RoleCellsMap_.equal_range(role);
             for (auto it = range.first; it != range.second; ++it) {
                 result.emplace_back(it->second);
             }
@@ -229,8 +235,8 @@ private:
 
     IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
     {
-        auto it = CellChannels_.find(cellTag);
-        if (it == CellChannels_.end()) {
+        auto it = CellChannelMap_.find(cellTag);
+        if (it == CellChannelMap_.end()) {
             ThrowUnknownMasterCellTag(cellTag);
         }
         return it->second[kind];
@@ -241,7 +247,10 @@ private:
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
 
-    void InitMasterChannels(const TMasterConnectionConfigPtr& config, const TConnectionOptions& options, const IChannelFactoryPtr& channelFactory)
+    void InitMasterChannels(
+        const TMasterConnectionConfigPtr& config,
+        const TConnectionOptions& options,
+        const IChannelFactoryPtr& channelFactory)
     {
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options, channelFactory);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options, channelFactory);
@@ -265,7 +274,7 @@ private:
         auto cellTag = CellTagFromId(config->CellId);
         auto peerChannel = CreatePeerChannel(config, peerKind, options, channelFactory);
 
-        CellChannels_[cellTag][channelKind] = peerChannel;
+        CellChannelMap_[cellTag][channelKind] = peerChannel;
     }
 
     IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind, const TConnectionOptions& options, const IChannelFactoryPtr& channelFactory)
@@ -335,9 +344,9 @@ IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCe
     return Impl_->GetMasterChannelOrThrow(kind, cellId);
 }
 
-TCellId TCellDirectory::PickRandomTransactionCoordinatorMasterCell() const
+TCellId TCellDirectory::PickRandomMasterCellWithRole(EMasterCellRoles role) const
 {
-    return Impl_->PickRandomTransactionCoordinatorMasterCell();
+    return Impl_->PickRandomMasterCellWithRole(role);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
