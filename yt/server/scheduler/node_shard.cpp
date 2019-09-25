@@ -1190,7 +1190,11 @@ void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStder
     // NB: While we kept job id in operation controller, its execution node
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
-    if (auto execNode = FindNodeByJob(jobId)) {
+    auto execNode = FindNodeByJob(jobId);
+    if (execNode &&
+        execNode->GetMasterState() == NNodeTrackerClient::ENodeState::Online &&
+        execNode->GetSchedulerState() == ENodeState::Online)
+    {
         YT_LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
             jobId,
             nodeId,
