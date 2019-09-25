@@ -15,7 +15,7 @@ def start(args, yt_config=None):
         yt_config = YtConfig()
 
     if args:
-        yt_config.local_cypress_dir = yatest.common.work_path(args[0])
+        yt_config.local_cypress_dir = yatest.common.test_source_path(args[0])
 
     yt_stuff = YtStuff(yt_config)
     yt_stuff.start_local_yt()
