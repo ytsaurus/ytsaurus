@@ -127,29 +127,13 @@ void TNonversionedMapObjectProxyBase<TObject>::GetSelf(
     NYTree::TNodeBase::GetSelf(request, response, context);
 }
 
-// Almost same as TNodeBase::RemoveSelf but it uses the Manage permission.
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::RemoveSelf(
     TReqRemove* request,
-    TRspRemove* /* response */,
+    TRspRemove* response,
     const TCtxRemovePtr& context)
 {
-    context->SetRequestInfo();
-
-    ValidatePermission(
-        NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
-        NSecurityServer::EPermission::Remove);
-    ValidatePermission(
-        NYTree::EPermissionCheckScope::Parent,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
-
-    if (!request->recursive() && GetChildCount() > 0) {
-        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
-    }
-
-    DoRemoveSelf();
-
-    context->Reply();
+    TNodeBase::RemoveSelf(request, response, context);
 }
 
 template <class TObject>
@@ -359,38 +343,6 @@ void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
     const TCtxSetPtr& context)
 {
     TSupportsSet::SetRecursive(path, request, response, context);
-}
-
-// Almost same as TCompositeNodeMixin::RemoveRecursive but it uses the Manage permission.
-template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::RemoveRecursive(
-    const NYPath::TYPath& path,
-    TSupportsRemove::TReqRemove* request,
-    TSupportsRemove::TRspRemove* /*response*/,
-    const TSupportsRemove::TCtxRemovePtr& context)
-{
-    context->SetRequestInfo();
-
-    NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() == NYPath::ETokenType::Asterisk) {
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
-
-        ValidatePermission(
-            NYTree::EPermissionCheckScope::This,
-            NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
-        ValidatePermission(
-            NYTree::EPermissionCheckScope::Descendants,
-            NSecurityServer::EPermission::Remove);
-        Clear();
-
-        context->Reply();
-    } else if (request->force()) {
-        // There is no child node under the given path, so there is nothing to remove.
-        context->Reply();
-    } else {
-        ThrowNoSuchChildKey(this, tokenizer.GetLiteralValue());
-    }
 }
 
 template <class TObject>
@@ -732,7 +684,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
 
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
+        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
 
     if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
         ValidatePermission(
@@ -850,7 +802,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
+        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
 
     ValidatePermission(
         sourceImpl,
@@ -869,7 +821,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         ValidatePermission(
             sourceImpl,
             NYTree::EPermissionCheckScope::Parent,
-            NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
+            NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
     }
 
     auto factory = DoCreateFactory();

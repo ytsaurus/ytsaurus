@@ -1347,9 +1347,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     if (replace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
     } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write | EPermission::ModifyChildren);
     }
 
     auto* node = GetThisImpl();
@@ -1447,7 +1447,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         }
         ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
             EPermission::Remove);
-        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
+        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
     }
 
     CopyCore(
@@ -1489,7 +1489,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
             ThrowCannotRemoveNode(this);
         }
         ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(node, EPermissionCheckScope::Parent, EPermission::Write);
+        ValidatePermission(node, EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
     }
 
     TBeginCopyContext copyContext(
@@ -1609,9 +1609,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     if (replace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
     } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write | EPermission::ModifyChildren);
     }
 
     auto* account = replace

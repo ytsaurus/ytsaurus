@@ -115,7 +115,7 @@ void TNodeBase::RemoveSelf(
         EPermission::Remove);
     ValidatePermission(
         EPermissionCheckScope::Parent,
-        EPermission::Write);
+        EPermission::Write | EPermission::ModifyChildren);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
     if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
@@ -215,7 +215,7 @@ void TCompositeNodeMixin::RemoveRecursive(
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write | EPermission::ModifyChildren);
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
         Clear();
 
