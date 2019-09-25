@@ -162,8 +162,7 @@ public:
         NTransactionServer::TTransaction* transaction);
 
     void SetModified(
-        TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction,
+        TCypressNode* node,
         EModificationType modificationType);
 
     void SetAccessed(TCypressNode* trunkNode);
