@@ -430,3 +430,15 @@ class TestSpecBuilders(object):
         }
 
         assert update(result_spec, correct_spec) == result_spec
+
+    def test_local_file_attributes(self):
+        vanilla_spec = VanillaSpecBuilder()\
+            .begin_task("sample")\
+                .command("cat")\
+                .job_count(1)\
+                .file_paths(yt.LocalFile(get_test_file_path("capitalize_b.py"), attributes={"bypass_artifacts_cache": True}))\
+            .end_task()\
+            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2})
+
+        result_spec = vanilla_spec.build()
+        assert result_spec["tasks"]["sample"]["file_paths"][0].attributes == {"bypass_artifacts_cache": True, "file_name": "capitalize_b.py", "executable": True}
