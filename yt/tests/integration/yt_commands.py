@@ -1136,18 +1136,22 @@ def clear_metadata_caches(driver=None):
     _get_driver(driver=driver).clear_metadata_caches()
 
 def create_account(name, **kwargs):
-    atomic = kwargs.pop('atomic_creation', True)
+    sync = kwargs.pop('sync_creation', True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
-    if atomic:
+    if sync:
         wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))
-    remove("//sys/accounts/" + name, **kwargs)
+    sync = kwargs.pop('sync_deletion', True)
+    account_path = "//sys/accounts/" + name
+    remove(account_path, **kwargs)
+    if sync:
+        wait(lambda: not exists(account_path))
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
@@ -1483,7 +1487,7 @@ def generate_uuid(generator=None):
     def get_int():
         return hex(random.randint(0, 2**32 - 1))[2:].rstrip("L")
     return "-".join([get_int() for _ in xrange(4)])
-    
+
 ##################################################################
 
 def get_statistics(statistics, complex_key):
