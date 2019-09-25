@@ -2516,7 +2516,6 @@ private:
         action->SetCorrelationId(correlationId);
         action->SetExpirationTime(expirationTime);
         auto* bundle = action->Tablets()[0]->GetTable()->GetTabletCellBundle();
-        // XXX(babenko): validate life stage
         action->SetTabletCellBundle(bundle);
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
