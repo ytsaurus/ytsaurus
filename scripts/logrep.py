@@ -464,6 +464,8 @@ class GetJobLogsTask(RemoteTask):
                 m = re.search(r"WorkingDirectory: ([^,)]*)[,)]", line)
                 working_directory = m.group(1)
                 break
+        else:
+            raise LogrepError("Cannot find job working directory")
 
         logging.info("Found working directory: {}".format(working_directory))
 
