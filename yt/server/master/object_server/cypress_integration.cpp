@@ -74,7 +74,7 @@ private:
 
             auto cellTag = CellTagFromId(ObjectId_);
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto asyncResponseMessage = objectManager->ForwardObjectRequest(updatedMessage, cellTag, EPeerKind::Follower, std::nullopt);
+            auto asyncResponseMessage = objectManager->ForwardObjectRequest(updatedMessage, cellTag, EPeerKind::Follower);
             context->ReplyFrom(std::move(asyncResponseMessage));
         }
 

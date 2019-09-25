@@ -205,8 +205,7 @@ public:
     TFuture<TSharedRefArray> ForwardObjectRequest(
         TSharedRefArray requestMessage,
         TCellTag cellTag,
-        EPeerKind peerKind,
-        std::optional<TDuration> timeout);
+        EPeerKind peerKind);
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
@@ -1398,8 +1397,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
 TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     TSharedRefArray requestMessage,
     TCellTag cellTag,
-    EPeerKind peerKind,
-    std::optional<TDuration> timeout)
+    EPeerKind peerKind)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1412,6 +1410,10 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     if (auto mutationId = NRpc::GetMutationId(header)) {
         SetMutationId(&header, GenerateNextForwardedMutationId(mutationId), header.retry());
     }
+
+    auto timeout = ComputeForwardingTimeout(
+        FromProto<TDuration>(header.timeout()),
+        Bootstrap_->GetConfig()->ObjectService);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
@@ -2151,10 +2153,9 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     TSharedRefArray requestMessage,
     TCellTag cellTag,
-    EPeerKind peerKind,
-    std::optional<TDuration> timeout)
+    EPeerKind peerKind)
 {
-    return Impl_->ForwardObjectRequest(std::move(requestMessage), cellTag, peerKind, timeout);
+    return Impl_->ForwardObjectRequest(std::move(requestMessage), cellTag, peerKind);
 }
 
 void TObjectManager::ReplicateObjectCreationToSecondaryMaster(TObject* object, TCellTag cellTag)

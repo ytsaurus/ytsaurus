@@ -1282,8 +1282,7 @@ private:
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetCellTag(),
-            EPeerKind::Leader,
-            RpcContext_->GetTimeout());
+            EPeerKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
