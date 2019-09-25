@@ -1229,7 +1229,7 @@ void TOperationControllerBase::PickIntermediateDataCell()
 
     YT_LOG_DEBUG("Started synchronizing master cell directory");
     const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
-    WaitFor(cellDirectorySynchronizer->NextSync())
+    WaitFor(cellDirectorySynchronizer->RecentSync())
         .ThrowOnError();
     YT_LOG_DEBUG("Master cell directory synchronized successfully");
 
