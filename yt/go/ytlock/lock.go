@@ -44,6 +44,8 @@ type Options struct {
 	CreateIfMissing bool
 	LockMode        yt.LockMode
 	LockChild       string
+
+	TxAttributes map[string]interface{}
 }
 
 // NewLock creates Lock object using default Options.
@@ -143,7 +145,7 @@ func (l *Lock) AcquireTx(ctx context.Context) (lockTx yt.Tx, err error) {
 	}
 
 	var tx yt.Tx
-	tx, err = l.Yc.BeginTx(ctx, nil)
+	tx, err = l.Yc.BeginTx(ctx, &yt.StartTxOptions{Attributes: l.Options.TxAttributes})
 	if err != nil {
 		l.abortAcquire()
 		return
