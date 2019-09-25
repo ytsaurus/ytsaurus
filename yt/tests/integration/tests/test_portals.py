@@ -27,8 +27,11 @@ class TestPortals(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
+    NUM_SCHEDULERS = 1
 
-
+    
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
         with pytest.raises(YtError):
@@ -629,6 +632,36 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/m/@compression_codec") == "brotli_8"
 
         assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+
+    @authors("babenko")
+    def test_bulk_insert_yt_11194(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        
+        sync_create_cells(1)
+        create("table", "//tmp/p/target", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ],
+            "external": False
+        })
+        sync_mount_table("//tmp/p/target")
+
+        create("table", "//tmp/p/source", attributes={
+            "external": True,
+            "external_cell_tag": 2
+        })
+
+        PAYLOAD = [{"key": 1, "value": "blablabla"}]
+        write_table("//tmp/p/source", PAYLOAD)
+
+        map(
+            in_="//tmp/p/source",
+            out="<append=%true>//tmp/p/target",
+            command="cat")
+
+        assert select_rows("* from [//tmp/p/target]") == PAYLOAD
 
 ##################################################################
 
