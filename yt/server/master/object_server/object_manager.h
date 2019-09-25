@@ -169,8 +169,11 @@ public:
     TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
-        bool ignoreExisting,
         NYTree::IAttributeDictionary* attributes);
+
+    TObject* FindExistingObject(
+        EObjectType type,
+        const NYTree::IAttributeDictionary* attributes);
 
     //! Handles paths to versioned and most unversioned objects.
     //! Pretty slow.

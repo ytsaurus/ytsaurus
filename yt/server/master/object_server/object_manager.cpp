@@ -194,8 +194,11 @@ public:
     TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
-        bool ignoreExisting,
         IAttributeDictionary* attributes);
+
+    TObject* FindExistingObject(
+        EObjectType type,
+        const IAttributeDictionary* attributes);
 
     TObject* ResolvePathToObject(
         const TYPath& path,
@@ -1179,7 +1182,6 @@ TFuture<void> TObjectManager::TImpl::GCCollect()
 TObject* TObjectManager::TImpl::CreateObject(
     TObjectId hintId,
     EObjectType type,
-    bool ignoreExisting,
     IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1194,13 +1196,6 @@ TObject* TObjectManager::TImpl::CreateObject(
     if (None(flags & ETypeFlags::Creatable)) {
         THROW_ERROR_EXCEPTION("Objects of type %Qlv cannot be created explicitly",
             type);
-    }
-
-    if (ignoreExisting) {
-        auto* existingObject = handler->FindExistingObject(attributes);
-        if (existingObject) {
-            return existingObject;
-        }
     }
 
     bool replicate =
@@ -1281,6 +1276,21 @@ TObject* TObjectManager::TImpl::CreateObject(
     ConfirmObjectLifeStageToPrimaryMaster(object);
 
     return object;
+}
+
+TObject* TObjectManager::TImpl::FindExistingObject(
+    EObjectType type,
+    const IAttributeDictionary* attributes)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    const auto& handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %v",
+            type);
+    }
+
+    return handler->FindExistingObject(attributes);
 }
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
@@ -1627,7 +1637,6 @@ void TObjectManager::TImpl::HydraCreateForeignObject(NProto::TReqCreateForeignOb
     CreateObject(
         objectId,
         type,
-        false, /* ignoreExisting */
         attributes.get());
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
@@ -2143,9 +2152,14 @@ TFuture<void> TObjectManager::GCCollect()
     return Impl_->GCCollect();
 }
 
-TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, bool ignoreExisting, IAttributeDictionary* attributes)
+TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttributeDictionary* attributes)
 {
-    return Impl_->CreateObject(hintId, type, ignoreExisting, attributes);
+    return Impl_->CreateObject(hintId, type, attributes);
+}
+
+TObject* TObjectManager::FindExistingObject(EObjectType type, const NYTree::IAttributeDictionary* attributes)
+{
+    return Impl_->FindExistingObject(type, attributes);
 }
 
 TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)

@@ -8,6 +8,8 @@
 
 #include "private.h"
 
+#include "map_object_type_handler.h"
+
 #include <yt/client/object_client/helpers.h>
 #include <yt/client/object_client/public.h>
 
@@ -706,33 +708,69 @@ void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
     tokenizer.Expect(NYPath::ETokenType::Literal);
     auto key = tokenizer.GetLiteralValue();
     tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+    tokenizer.Expect(NYPath::ETokenType::EndOfStream); // YYY(kiselyovp) throw a more reasonable exception here!
 
     factory->AttachChild(this, key, child);
 }
 
 template <class TObject>
-DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
+TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::Create(
+    EObjectType type,
+    const TString& path,
+    NYTree::IAttributeDictionary* attributes)
 {
     TObjectProxyBase::DeclareMutating();
 
-    auto type = EObjectType(request->type());
     if (type != TBase::GetThisImpl()->GetType()) {
         THROW_ERROR_EXCEPTION("Cannot create an object of the type %Qv, expected type %Qv",
             type,
             TBase::GetThisImpl()->GetType());
     }
+    if (path.empty()) {
+        ThrowAlreadyExists(this);
+    }
+
+    ValidatePermission(
+        NYTree::EPermissionCheckScope::This,
+        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
+
+    if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
+        ValidatePermission(
+            TBase::GetThisImpl(),
+            NYTree::EPermissionCheckScope::This,
+            NSecurityServer::EPermission::Administer);
+    }
+
+    auto factory = DoCreateFactory();
+    auto* object = factory->CreateObject(attributes);
+    SetImmediateChild(factory.get(), path, GetProxy(object));
+    factory->Commit();
+
+    return GetProxy(object);
+}
+
+template <class TObject>
+DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
+{
+    auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
     const auto& path = NYTree::GetRequestTargetYPath(context->RequestHeader());
-    auto* impl = TBase::GetThisImpl();
+
+    std::unique_ptr<NYTree::IAttributeDictionary> explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = NYTree::FromProto(request->node_attributes());
+    }
 
     if (recursive) {
         THROW_ERROR_EXCEPTION("\"recursive\" option is not supported for nonversioned map objects");
     }
     if (force) {
         THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
+    }
+    if (ignoreExisting) {
+        THROW_ERROR_EXCEPTION("\"ignore_existing\" option is not supported for nonversioned map objects");
     }
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
@@ -741,53 +779,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
         recursive,
         force);
 
+    auto proxy = Create(type, path, explicitAttributes.get());
+    const auto& objectId = proxy->GetId();
+
     response->set_cell_tag(TBase::Bootstrap_->GetCellTag());
-
-    bool replace = path.empty();
-    if (replace) {
-        if (!ignoreExisting) {
-            ThrowAlreadyExists(this);
-        }
-
-        ToProto(response->mutable_node_id(), impl->GetId());
-        context->SetResponseInfo("ExistingObjectId: %v",
-            impl->GetId());
-        context->Reply();
-        return;
-    }
-
-    ValidatePermission(
-        NYTree::EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::Manage);
-
-    auto* object = TBase::GetThisImpl();
-
-    std::unique_ptr<NYTree::IAttributeDictionary> explicitAttributes;
-    if (request->has_node_attributes()) {
-        explicitAttributes = NYTree::FromProto(request->node_attributes());
-
-        if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
-            object)
-        {
-            ValidatePermission(
-                object,
-                NYTree::EPermissionCheckScope::This,
-                NSecurityServer::EPermission::Administer);
-        }
-    }
-
-    auto factory = DoCreateFactory();
-    auto newProxy = factory->CreateNode(explicitAttributes.get());
-
-    SetImmediateChild(factory.get(), path, newProxy);
-
-    factory->Commit();
-
-    const auto& newObjectId = newProxy->GetThisImpl()->GetId();
-    ToProto(response->mutable_node_id(), newObjectId);
-
+    ToProto(response->mutable_node_id(), objectId);
     context->SetResponseInfo("ObjectId: %v",
-        newObjectId);
+        objectId);
 
     context->Reply();
 }
@@ -881,7 +879,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         factory->DetachChild(sourceParent, sourceProxy);
         clonedProxy = sourceProxy;
     } else {
-        clonedProxy = factory->CloneNode(sourceProxy, NCypressServer::ENodeCloneMode::Copy);
+        auto* clonedObject = factory->CloneObject(sourceImpl, NCypressServer::ENodeCloneMode::Copy);
+        clonedProxy = GetProxy(clonedObject);
     }
 
     SetImmediateChild(factory.get(), targetPath, clonedProxy);
@@ -898,19 +897,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TObject>
-typename TNonversionedMapObjectFactoryBase<TObject>::TProxyPtr
-TNonversionedMapObjectFactoryBase<TObject>::CreateNode(NYTree::IAttributeDictionary *attributes)
+TObject* TNonversionedMapObjectFactoryBase<TObject>::CreateObject(NYTree::IAttributeDictionary* attributes)
 {
-    auto result = DoCreateNode(attributes);
-    CreatedNodes_.push_back(result);
-    return result;
+    auto* object = DoCreateObject(attributes);
+    CreatedObjects_.push_back(object);
+    return object;
 }
 
 template <class TObject>
-typename TNonversionedMapObjectFactoryBase<TObject>::TProxyPtr
-TNonversionedMapObjectFactoryBase<TObject>::CloneNode(
-    const TNonversionedMapObjectFactoryBase::TProxyPtr& node,
-    NCypressServer::ENodeCloneMode mode)
+TObject* TNonversionedMapObjectFactoryBase<TObject>::CloneObject(
+    TObject* /* object */,
+    NCypressServer::ENodeCloneMode /* mode */)
 {
     THROW_ERROR_EXCEPTION("Nonversioned map objects don't support cloning");
 }
@@ -922,7 +919,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::Commit()
         CommitEvent(event);
     }
     EventLog_.clear();
-    CleanupCreatedNodes(false);
+    CleanupCreatedObjects(false);
 }
 
 template <class TObject>
@@ -932,7 +929,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::Rollback()
         RollbackEvent(*it);
     }
     EventLog_.clear();
-    CleanupCreatedNodes(true);
+    CleanupCreatedObjects(true);
 }
 
 template <class TObject>
@@ -995,17 +992,16 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 }
 
 template <class TObject>
-void TNonversionedMapObjectFactoryBase<TObject>::CleanupCreatedNodes(bool removeObjects)
+void TNonversionedMapObjectFactoryBase<TObject>::CleanupCreatedObjects(bool removeObjects)
 {
     if (removeObjects) {
-        for (const auto& node : CreatedNodes_) {
-            auto* object = node->GetObject();
+        for (auto* object: CreatedObjects_) {
             YT_VERIFY(object->GetObjectRefCounter() == 1);
             Bootstrap_->GetObjectManager()->UnrefObject(object);
         }
     }
 
-    CreatedNodes_.clear();
+    CreatedObjects_.clear();
 }
 
 template <class TObject>
