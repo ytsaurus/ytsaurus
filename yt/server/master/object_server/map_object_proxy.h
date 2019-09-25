@@ -2,11 +2,12 @@
 
 #include "public.h"
 #include "map_object.h"
-#include "map_object_type_handler.h"
 #include "object_detail.h"
 
 #include <yt/core/ytree/node_detail.h>
 #include <yt/core/ytree/ypath_detail.h>
+
+#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <yt/server/master/cypress_server/public.h>
 
@@ -16,6 +17,9 @@ namespace NYT::NObjectServer {
 
 template <class TObject>
 class TNonversionedMapObjectFactoryBase;
+
+template <class TObject>
+class TNonversionedMapObjectTypeHandlerBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +85,11 @@ public:
         TReqSet* request,
         TRspSet* response,
         const TCtxSetPtr& context) override;
+
+    TSelfPtr Create(
+        EObjectType type,
+        const TString& path,
+        NYTree::IAttributeDictionary* attributes);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
@@ -176,9 +185,9 @@ public:
     explicit TNonversionedMapObjectFactoryBase(NCellMaster::TBootstrap* bootstrap);
     virtual ~TNonversionedMapObjectFactoryBase();
 
-    virtual TProxyPtr CreateNode(NYTree::IAttributeDictionary* attributes);
-    virtual TProxyPtr CloneNode(
-        const TProxyPtr& node,
+    virtual TObject* CreateObject(NYTree::IAttributeDictionary* attributes);
+    virtual TObject* CloneObject(
+        TObject* object,
         NCypressServer::ENodeCloneMode mode);
 
     virtual void Commit();
@@ -198,13 +207,13 @@ protected:
     };
 
     NCellMaster::TBootstrap* Bootstrap_;
-    std::vector<TProxyPtr> CreatedNodes_;
+    std::vector<TObject*> CreatedObjects_;
     std::vector<TFactoryEvent> EventLog_;
 
-    virtual void CleanupCreatedNodes(bool removeObjects);
+    virtual void CleanupCreatedObjects(bool removeObjects);
 
     //! NB: in case of failure, the implementation must not leave any unattended objects
-    virtual TProxyPtr DoCreateNode(NYTree::IAttributeDictionary* attributes) = 0;
+    virtual TObject* DoCreateObject(NYTree::IAttributeDictionary* attributes) = 0;
 
     void LogEvent(const TFactoryEvent& event);
     virtual void CommitEvent(const TFactoryEvent& event);

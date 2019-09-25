@@ -41,9 +41,7 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
     virtual void DoZombifyObject(TObject* object) override;
 
-    // YYY(kiselyovp) better name
-    // XXX(kiselyovp) courtesy of renadeen, i preferred this method overriding IObjectTypeHandler::CreateObject()
-    NObjectServer::TObject* DoCreateObject(
+    NObjectServer::TObject* CreateObjectImpl(
         const TString& name,
         TObject* parent,
         NYTree::IAttributeDictionary* attributes);

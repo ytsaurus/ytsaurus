@@ -84,15 +84,24 @@ private:
             : std::unique_ptr<IAttributeDictionary>();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (ignoreExisting) {
+            if (auto* existingObject = objectManager->FindExistingObject(type, attributes.get())) {
+                const auto& existingObjectId = existingObject->GetId();
+                ToProto(response->mutable_object_id(), existingObjectId);
+
+                context->SetResponseInfo("ExistingObjectId: %v", existingObjectId);
+                context->Reply();
+                return;
+            }
+        }
+
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
-            ignoreExisting,
             attributes.get());
 
         const auto& objectId = object->GetId();
 
-        // YYY(kiselyovp) correct logs for ignoreExisting, bro
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
             objectId,
             type);

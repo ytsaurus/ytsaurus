@@ -6,6 +6,8 @@
 #include "map_object_type_handler.h"
 #endif
 
+#include "map_object_proxy.h"
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,20 +86,26 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::DoZombifyObject(TObject* ob
 }
 
 template <class TObject>
-NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoCreateObject(
+NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::CreateObjectImpl(
     const TString& name,
     TObject* parent,
     NYTree::IAttributeDictionary* attributes)
 {
-    auto ancestorProxy = TBase::GetProxy(parent, nullptr);
+    TObject* intendedParent;
+    TString path;
 
-    auto req = NCypressClient::TCypressYPathProxy::Create("/" + name);
-    req->set_type(static_cast<int>(this->GetType()));
-    ToProto(req->mutable_node_attributes(), *attributes);
-    auto rsp = NYTree::SyncExecuteVerb(ancestorProxy, req);
-    auto objectId = FromProto<TObjectId>(rsp->node_id());
+    if (auto* child = parent->FindChild(name)) {
+        intendedParent = child;
+    } else {
+        intendedParent = parent;
+        path = "/" + name;
+    }
 
-    return TBase::FindObject(objectId);
+    auto ancestorProxy = TNonversionedMapObjectProxyBase<TObject>::GetProxy(
+        TBase::Bootstrap_,
+        intendedParent);
+    auto objectProxy = ancestorProxy->Create(this->GetType(), path, attributes);
+    return objectProxy->GetObject()->template As<TObject>();
 }
 
 template <class TObject>
