@@ -1537,14 +1537,12 @@ public:
     }
 
     void SetModified(
-        TCypressNode* trunkNode,
-        TTransaction* transaction,
+        TCypressNode* node,
         EModificationType modificationType)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(trunkNode->IsTrunk());
 
-        AccessTracker_->SetModified(trunkNode, transaction, modificationType);
+        AccessTracker_->SetModified(node, modificationType);
     }
 
     void SetAccessed(TCypressNode* trunkNode)
@@ -3559,11 +3557,10 @@ void TCypressManager::UnlockNode(
 }
 
 void TCypressManager::SetModified(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
+    TCypressNode* node,
     EModificationType modificationType)
 {
-    Impl_->SetModified(trunkNode, transaction, modificationType);
+    Impl_->SetModified(node, modificationType);
 }
 
 void TCypressManager::SetAccessed(TCypressNode* trunkNode)

@@ -5621,7 +5621,7 @@ private:
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetModified(table, nullptr, EModificationType::Content);
+        cypressManager->SetModified(table, EModificationType::Content);
 
         // Collect all changes first.
         const auto& chunkManager = Bootstrap_->GetChunkManager();

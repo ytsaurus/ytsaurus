@@ -734,10 +734,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& co
 
 void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& context)
 {
-    if (!AccessTrackingSuppressed_) {
-        SetAccessed();
-    }
-
+    SetAccessed();
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -1015,9 +1012,9 @@ TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
-    // NB: Cannot use |CachedNode_| here.
-    CachedNode_ = nullptr;
-    return LockImpl(TrunkNode_, request, recursive);
+    CachedNode_ = LockImpl(TrunkNode_, request, recursive);
+    YT_ASSERT(CachedNode_->GetTransaction() == Transaction_);
+    return CachedNode_;
 }
 
 void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes)
@@ -1150,10 +1147,20 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
 
 void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificationType)
 {
-    if (TrunkNode_->IsAlive() && !ModificationTrackingSuppressed_) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetModified(TrunkNode_, Transaction_, modificationType);
+    if (ModificationTrackingSuppressed_) {
+        return;
     }
+
+    if (!TrunkNode_->IsAlive()) {
+        return;
+    }
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    if (!CachedNode_) {
+        CachedNode_ = cypressManager->GetNode(GetVersionedId());
+    }
+
+    cypressManager->SetModified(CachedNode_, modificationType);
 }
 
 void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
@@ -1163,10 +1170,16 @@ void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()
 {
-    if (TrunkNode_->IsAlive()) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetAccessed(TrunkNode_);
+    if (AccessTrackingSuppressed_) {
+        return;
     }
+
+    if (!TrunkNode_->IsAlive()) {
+        return;
+    }
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->SetAccessed(TrunkNode_);
 }
 
 void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
