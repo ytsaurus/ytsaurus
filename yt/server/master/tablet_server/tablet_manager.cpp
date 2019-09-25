@@ -1696,9 +1696,9 @@ public:
             // NB: security manager has already been informed when node's account was reset.
         }
 
-        if (table->GetTabletCellBundle()) {
+        if (auto* bundle = table->GetTabletCellBundle()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(table->GetTabletCellBundle());
+            objectManager->UnrefObject(bundle);
             table->SetTabletCellBundle(nullptr);
         }
 
@@ -1715,8 +1715,8 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        for (auto& pair : table->DynamicTableLocks()) {
-            auto* transaction = transactionManager->FindTransaction(pair.first);
+        for (auto [transactionId, lock] : table->DynamicTableLocks()) {
+            auto* transaction = transactionManager->FindTransaction(transactionId);
             if (!IsObjectAlive(transaction)) {
                 continue;
             }
