@@ -178,7 +178,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         tabletManager->SetTabletCellBundle(node, tabletCellBundle);
     } catch (const std::exception&) {
-        //  XXX(babenko): how about DestroyCore?
         DoDestroy(node);
         throw;
     }
