@@ -238,7 +238,7 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode in ("native", "native_multicell"):
+    if mode in ("native"):
         config["backend"] = "native"
     elif mode == "rpc":
         config["backend"] = "rpc"
@@ -400,6 +400,7 @@ def test_method_teardown():
             pass
 
     yt.remove(TEST_DIR, recursive=True, force=True)
+    yt.remove("//tmp/*", recursive=True)
 
     _remove_operations()
     _remove_objects()

@@ -599,6 +599,11 @@ def add_concatenate_parser(add_parser):
     parser.add_argument("--src", action="append", required=True, dest="source_paths", help="Source paths")
     parser.add_argument("--dst", required=True, dest="destination_path", help="Destination paths")
 
+def add_externalize_parser(add_parser):
+    parser = add_parser("externalize", yt.externalize)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--cell-tag", type=int, required=True)
+
 def tablet_args(parser):
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--first-tablet-index", type=int)
@@ -1381,6 +1386,7 @@ def main():
     add_move_parser(add_parser)
     add_link_parser(add_parser)
     add_remove_parser(add_parser)
+    add_externalize_parser(add_parser)
     add_concatenate_parser(add_parser)
 
     add_mount_table_parser(add_parser)
