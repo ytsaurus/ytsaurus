@@ -4797,5 +4797,5 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
         pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
         wait(lambda: exists(pools_path + "/pool"))
-        assert get(pools_path + "/pool/parent") == "parent"
-        assert get(pools_path + "/pool/max_operation_count") == 10
+        wait(lambda: get(pools_path + "/pool/parent") == "parent")
+        wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)
