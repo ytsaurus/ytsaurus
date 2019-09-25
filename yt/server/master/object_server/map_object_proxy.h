@@ -108,12 +108,6 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
-    virtual void RemoveRecursive(
-        const NYPath::TYPath &path,
-        TReqRemove* request,
-        TRspRemove* response,
-        const TCtxRemovePtr& context) override;
-
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
