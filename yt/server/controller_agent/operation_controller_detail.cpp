@@ -1684,8 +1684,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : tables) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
+            auto req = TTableYPathProxy::LockDynamicTable(table->GetObjectIdPath());
             req->set_timestamp(currentTimestamp);
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
