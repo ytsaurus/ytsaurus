@@ -1205,8 +1205,6 @@ public:
         } else if (treeCount == 0) {
             NodeIdsWithoutTree_.insert(nodeId);
         }
-
-        YT_LOG_DEBUG("DoValidateNode (NodeId: %v, Address: %v, TreeCount: %v)", nodeId, address, treeCount);
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
