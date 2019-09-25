@@ -472,8 +472,7 @@ public:
     {
         ResetTransactionAccountResourceUsage(transaction);
 
-        auto addNodeResourceUsage = [&] (const TCypressNode* node, bool staged) {
-            // XXX(babenko): staged is not used
+        auto addNodeResourceUsage = [&] (const TCypressNode* node) {
             if (node->IsExternal()) {
                 return;
             }
@@ -483,10 +482,10 @@ public:
         };
 
         for (auto* node : transaction->BranchedNodes()) {
-            addNodeResourceUsage(node, false);
+            addNodeResourceUsage(node);
         }
         for (auto* node : transaction->StagedNodes()) {
-            addNodeResourceUsage(node, true);
+            addNodeResourceUsage(node);
         }
     }
 
