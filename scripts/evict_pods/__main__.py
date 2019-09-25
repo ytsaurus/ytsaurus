@@ -1,11 +1,15 @@
 from yp.client import YpClient, find_token
-from yp.common import wait, WaitFailed
+from yp.common import YpNoSuchObjectError
 
 import yt.yson as yson
 
 import argparse
 import logging
 import sys
+import time
+
+
+BUSY_WAIT_DELAY = 5
 
 
 def parse_arguments():
@@ -29,9 +33,10 @@ def is_empty(value):
 
 
 def evict_pod(yp_client, pod_id, message):
-    enable_scheduling, old_node_id = yp_client.get_object("pod", pod_id, selectors=[
+    enable_scheduling, old_node_id, pod_set_id = yp_client.get_object("pod", pod_id, selectors=[
         "/spec/enable_scheduling",
         "/status/scheduling/node_id",
+        "/meta/pod_set_id",
     ])
     if not enable_scheduling:
         logging.error("Pod '{}' has /spec/enable_scheduling = %false")
@@ -40,41 +45,56 @@ def evict_pod(yp_client, pod_id, message):
         logging.error("Pod '{}' is not assigned to any node".format(pod_id))
         sys.exit(1)
 
+    old_pod_set_size = len(yp_client.select_objects("pod", selectors=["/meta/id"],
+                                                    filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id)))
+
     logging.info("Evicting pod '{}' from node '{}'".format(pod_id, old_node_id))
     yp_client.request_pod_eviction(pod_id, message)
 
-    logging.info("Waiting for eviction to be acknowledged")
-    try:
-        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
-                        != "requested")
-    except WaitFailed:
-        logging.error("Pod eviction is not acknowledged (pod_id: '{}')".format(pod_id))
-        sys.exit(1)
-
-    logging.info("Waiting for pod eviction")
-    try:
-        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
-                        != "acknowledged")
-    except WaitFailed:
-        logging.error("Pod is not evicted (pod_id: '{}')".format(pod_id))
-        sys.exit(1)
-
-    logging.info("Waiting for pod to be rescheduled")
-    try:
-        wait(lambda: not is_empty(yp_client.get_object("pod",
-                                                       pod_id,
-                                                       selectors=["/status/scheduling/node_id"])[0]))
-    except WaitFailed:
-        error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])
-        logging.error("Pod is not rescheduled (pod_id: '{}', error: {})".format(pod_id, error))
-        sys.exit(1)
-
-    new_node_id = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0]
-    if new_node_id == old_node_id:
-        logging.warning("Pod is scheduled to the same node (pod_id: '{}', node_id: '{}')"
-                        .format(pod_id, new_node_id))
-    else:
-        logging.info("Pod '{}' is successfully rescheduled to node '{}'".format(pod_id, new_node_id))
+    while True:
+        time.sleep(BUSY_WAIT_DELAY)
+        try:
+            eviction_state, scheduling_status = yp_client.get_object("pod", pod_id, selectors=[
+                "/status/eviction/state",
+                "/status/scheduling",
+            ])
+        except YpNoSuchObjectError:
+            all_pods = yp_client.select_objects("pod", selectors=["/meta/id", "/status/scheduling"],
+                                                filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id))
+            if old_pod_set_size < len(all_pods):
+                logging.info("Pod is gone, waiting for pod set to be populated "
+                             "(pod_id: '{}', pod_set_id: '{}')".format(pod_id, pod_set_id))
+                continue
+            unscheduled_pod_ids = []
+            for sibling_pod_id, scheduling_status in all_pods:
+                if is_empty(scheduling_status["node_id"]):
+                    unscheduled_pod_ids.append(sibling_pod_id)
+            if unscheduled_pod_ids:
+                logging.info("Waiting for pod(s) to be scheduled: '{}'"
+                             "(original pod_id: '{}', pod_set_id: '{}'"
+                             .format("', '".join(unscheduled_pod_ids), pod_id, pod_set_id))
+                continue
+            else:
+                logging.info("Pod set '{}' has all pods scheduled (original pod_id: '{}')"
+                             .format(pod_set_id, pod_id))
+                break
+        else:
+            if eviction_state != "none":
+                logging.info("Waiting for pod eviction (state: '{}', pod_id: '{}')"
+                             .format(eviction_state, pod_id))
+                continue
+            node_id = scheduling_status.get("node_id")
+            if is_empty(node_id):
+                logging.info("Waiting for pod to be scheduled (message: '{}', error: {})"
+                             .format(scheduling_status.get("message"), scheduling_status.get("error")))
+                continue
+            if node_id == old_node_id:
+                logging.warning("Pod is scheduled to the same node (pod_id: '{}', node_id: '{}')"
+                                .format(pod_id, node_id))
+            else:
+                logging.info("Pod '{}' is successfully rescheduled to node '{}'"
+                             .format(pod_id, node_id))
+            break
 
 
 def main(args):
