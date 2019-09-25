@@ -234,10 +234,12 @@ class FileManager(object):
                                                 progress_monitor=upload_monitor,
                                                 client=self.client,
                                                 **file_params)
-                    file_paths.append(yson.to_yson_type(path, attributes={
-                        "executable": is_executable(local_file.path, client=self.client),
-                        "file_name": local_file.file_name,
-                    }))
+                    file_paths.append(yson.to_yson_type(path, attributes=update(
+                        {
+                            "executable": is_executable(local_file.path, client=self.client),
+                        },
+                        local_file.attributes
+                    )))
                     self.uploaded_files.append(path)
         return file_paths
 
