@@ -66,7 +66,7 @@ void FillYTError(const THeadersPtr& headers, const TError& error)
 
     headers->Add(XYTErrorHeaderName, errorJson);
     headers->Add(XYTResponseCodeHeaderName, ToString(static_cast<int>(error.GetCode())));
-    headers->Add(XYTResponseMessageHeaderName, error.GetMessage());
+    headers->Add(XYTResponseMessageHeaderName, EscapeHeaderValue(error.GetMessage()));
 }
 
 void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
