@@ -192,9 +192,8 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
         }
 
         synchronized (lock) {
-            long oldReadPosition = readPosition;
             readPosition = header.getReadPosition();
-            if (writePosition - oldReadPosition >= windowSize && writePosition - readPosition < windowSize) {
+            if (writePosition - readPosition < windowSize) {
                 reinitReadyEvent();
             }
         }
@@ -248,11 +247,9 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
         }
 
         synchronized (lock) {
-            long oldWritePosition = writePosition;
-
             writePosition += supplier.put(data);
 
-            if (oldWritePosition - readPosition >= windowSize && writePosition - readPosition < windowSize) {
+            if (writePosition - readPosition < windowSize) {
                 reinitReadyEvent();
             }
         }
