@@ -542,6 +542,7 @@ private:
         TCacheLocationPtr location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
+        bool requiresValidation,
         const NChunkClient::TRefCountedChunkMetaPtr meta = nullptr)
     {
         auto chunk = New<TCachedBlobChunk>(
@@ -550,7 +551,8 @@ private:
             descriptor,
             meta,
             key,
-            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor));
+            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor),
+            requiresValidation);
 
         OnChunkCreated(location, descriptor);
         return chunk;
@@ -576,7 +578,7 @@ private:
             return;
         }
 
-        auto chunk = CreateChunk(location, key, descriptor);
+        auto chunk = CreateChunk(location, key, descriptor, /* requiresValidation */ true);
         cookie.EndInsert(chunk);
         YT_LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
             chunkId,
@@ -798,7 +800,7 @@ private:
 
             TChunkDescriptor descriptor(chunkId);
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-            auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
+            auto chunk = CreateChunk(location, key, descriptor, /* requiresValidation */ false, chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -1055,7 +1057,7 @@ private:
 
         TChunkDescriptor descriptor(chunkId);
         descriptor.DiskSpace = chunkSize + metaBlob.Size();
-        return CreateChunk(location, key, descriptor);
+        return CreateChunk(location, key, descriptor, /* requiresValidation */ false);
     }
 
     std::optional<TArtifactKey> TryParseArtifactMeta(

@@ -607,7 +607,8 @@ TCachedBlobChunk::TCachedBlobChunk(
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
-    TClosure destroyed)
+    TClosure destroyed,
+    bool requiresValidation)
     : TBlobChunkBase(
         bootstrap,
         std::move(location),
@@ -615,7 +616,13 @@ TCachedBlobChunk::TCachedBlobChunk(
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
     , Destroyed_(destroyed)
-{ }
+{
+    if (!requiresValidation) {
+        // If chunk was just downloaded, it doesn't require validation.
+        YT_VERIFY(ValidationLaunched_.test_and_set());
+        ValidationResult_.Set();
+    }
+}
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
@@ -671,7 +678,7 @@ void TCachedBlobChunk::DoValidate()
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
 
     try {
-        TFile dataFile(dataFileName, OpenExisting);
+        TFile dataFile(dataFileName, OpenExisting|RdOnly|CloseOnExec);
         if (dataFile.GetLength() != miscExt.compressed_data_size()) {
             THROW_ERROR_EXCEPTION("Chunk length mismatch")
                 << TErrorAttribute("chunk_id", chunkId)

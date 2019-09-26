@@ -169,7 +169,8 @@ public:
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,
         const TArtifactKey& key,
-        TClosure destroyed);
+        TClosure destroyed,
+        bool requiresValidation);
 
     ~TCachedBlobChunk();
 
