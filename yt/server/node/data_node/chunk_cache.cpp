@@ -509,7 +509,9 @@ private:
         } else {
             YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading");
             TryRemove(chunk);
-            return DownloadArtifact(key, options);
+            return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
+                return DownloadArtifact(key, options);
+            }));
         }
     }
 
@@ -523,19 +525,23 @@ private:
         }));
     }
 
-    void OnChunkDestroyed(
+    TFuture<void> OnChunkDestroyed(
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        location->GetWritePoolInvoker()->Invoke(BIND(
-            &TCacheLocation::RemoveChunkFilesPermanently,
-            location,
-            descriptor.Id));
+        auto removeFuture = BIND(
+                &TCacheLocation::RemoveChunkFilesPermanently,
+                location,
+                descriptor.Id)
+            .AsyncVia(location->GetWritePoolInvoker())
+            .Run();
 
         Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
             location->UpdateChunkCount(-1);
             location->UpdateUsedSpace(-descriptor.DiskSpace);
         }));
+
+        return removeFuture;
     }
 
     TCachedBlobChunkPtr CreateChunk(
