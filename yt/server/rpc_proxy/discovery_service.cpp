@@ -285,7 +285,10 @@ private:
             auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{BannedAttributeName});
+                std::vector<TString>{
+                    RoleAttributeName,
+                    BannedAttributeName,
+                });
 
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
