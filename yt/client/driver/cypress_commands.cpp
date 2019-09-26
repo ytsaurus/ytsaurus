@@ -293,6 +293,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
+        .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
@@ -326,6 +328,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
