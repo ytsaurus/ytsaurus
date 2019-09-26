@@ -14,28 +14,28 @@ namespace NYT::NYTree {
  */
 DEFINE_BIT_ENUM(EPermission,
     //! Applies to: all objects
-    ((Read)         (0x0001))
+    ((Read)           (0x0001))
 
     //! Applies to: all objects
-    ((Write)        (0x0002))
+    ((Write)          (0x0002))
 
     //! Applies to: accounts
-    ((Use)          (0x0004))
+    ((Use)            (0x0004))
 
     //! Applies to: all objects
-    ((Administer)   (0x0008))
+    ((Administer)     (0x0008))
 
     //! Applies to: schemas
-    ((Create)       (0x0100))
+    ((Create)         (0x0100))
 
     //! Applies to: all objects
-    ((Remove)       (0x0200))
+    ((Remove)         (0x0200))
 
     //! Applies to: tables
-    ((Mount)        (0x0400))
+    ((Mount)          (0x0400))
 
     //! Applies to: operations
-    ((Manage)       (0x0800))
+    ((Manage)         (0x0800))
 
     //! Applies to: map objects
     ((ModifyChildren) (0x1000))
