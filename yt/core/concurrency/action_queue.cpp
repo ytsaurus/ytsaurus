@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/ring_queue.h>
 
+#include <util/thread/lfqueue.h>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;

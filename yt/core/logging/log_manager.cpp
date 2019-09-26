@@ -8,6 +8,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/invoker_queue.h>
 
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/lock_free.h>

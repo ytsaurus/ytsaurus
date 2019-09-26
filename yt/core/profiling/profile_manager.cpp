@@ -6,6 +6,7 @@
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
+#include <yt/core/concurrency/invoker_queue.h>
 
 #include <yt/core/logging/log.h>
 
