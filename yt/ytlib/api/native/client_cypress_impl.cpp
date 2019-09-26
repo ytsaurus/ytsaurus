@@ -68,6 +68,7 @@ void SetCloneNodeBaseRequestParameters(
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_owner(options.PreserveOwner);
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
@@ -391,6 +392,7 @@ private:
         options.PreserveCreationTime = true;
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
+        options.PreserveOwner = true;
         options.Force = true;
         return options;
     }

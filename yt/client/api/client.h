@@ -563,6 +563,7 @@ struct TCopyNodeOptionsBase
     bool PreserveAccount = false;
     bool PreserveCreationTime = false;
     bool PreserveModificationTime = false;
+    bool PreserveOwner = false;
     bool PreserveExpirationTime = false;
     bool PessimisticQuotaCheck = true;
 };

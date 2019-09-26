@@ -1116,6 +1116,9 @@ private:
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
+        if (request->has_preserve_owner()) {
+            options.PreserveOwner = request->preserve_owner();
+        }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }
@@ -1172,6 +1175,9 @@ private:
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
+        }
+        if (request->has_preserve_owner()) {
+            options.PreserveOwner = request->preserve_owner();
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
