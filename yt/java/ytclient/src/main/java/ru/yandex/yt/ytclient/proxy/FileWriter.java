@@ -12,4 +12,6 @@ public interface FileWriter {
 
     //! Closes the writer. Must be the last call to the writer.
     CompletableFuture<Void> close();
+
+    void cancel();
 }
