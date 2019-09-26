@@ -30,4 +30,6 @@ public interface TableWriter<T> {
 
     //! Returns the schema to be used for constructing rows.
     TableSchema getTableSchema();
+
+    void cancel();
 }
