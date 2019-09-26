@@ -345,7 +345,9 @@ private:
     {
         Coordinator_->ValidateOperable();
 
-        TString roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+        auto roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+
+        context->SetRequestInfo("Role: %v", roleFilter);
 
         {
             auto guard = Guard(ProxySpinLock_);
@@ -356,6 +358,7 @@ private:
             }
         }
 
+        context->SetResponseInfo("ProxyCount: %v", response->addresses_size());
         context->Reply();
     }
 };
