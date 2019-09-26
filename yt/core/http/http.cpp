@@ -176,7 +176,7 @@ TString EscapeHeaderValue(TStringBuf value)
     result.reserve(value.length());
     for (auto ch : value) {
         if (ch == '\n') {
-            result.append("\n");
+            result.append("\\n");
         } else {
             result.append(ch);
         }
