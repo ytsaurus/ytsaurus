@@ -607,7 +607,7 @@ TCachedBlobChunk::TCachedBlobChunk(
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
-    TClosure destroyed,
+    TCallback<TFuture<void>()> destroyed,
     bool requiresValidation)
     : TBlobChunkBase(
         bootstrap,
@@ -615,7 +615,7 @@ TCachedBlobChunk::TCachedBlobChunk(
         descriptor,
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
-    , Destroyed_(destroyed)
+    , Destroyed_(std::move(destroyed))
 {
     if (!requiresValidation) {
         // If chunk was just downloaded, it doesn't require validation.
@@ -626,7 +626,12 @@ TCachedBlobChunk::TCachedBlobChunk(
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
-    Destroyed_.Run();
+    DestroyPromise_.TrySetFrom(Destroyed_.Run());
+}
+
+TFuture<void> TCachedBlobChunk::GetAsyncDestroyResult()
+{
+    return DestroyPromise_.ToFuture();
 }
 
 TFuture<void> TCachedBlobChunk::Validate()
