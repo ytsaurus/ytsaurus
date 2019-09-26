@@ -619,7 +619,7 @@ TCachedBlobChunk::TCachedBlobChunk(
 {
     if (!requiresValidation) {
         // If chunk was just downloaded, it doesn't require validation.
-        YT_VERIFY(ValidationLaunched_.test_and_set());
+        YT_VERIFY(!ValidationLaunched_.test_and_set());
         ValidationResult_.Set();
     }
 }
