@@ -1613,6 +1613,7 @@ private:
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
             resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobPreparationTimeout) ||
             resultError.FindMatching(NExecAgent::EErrorCode::GpuLayerNotFetched))
         {
             return EAbortReason::Other;
