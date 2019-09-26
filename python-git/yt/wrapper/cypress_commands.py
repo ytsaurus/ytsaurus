@@ -98,7 +98,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
 def copy(source_path, destination_path,
          recursive=None, ignore_existing=None, preserve_account=None,
          preserve_expiration_time=None, preserve_creation_time=None,
-         force=None, pessimistic_quota_check=None, client=None):
+         preserve_owner=None, force=None, pessimistic_quota_check=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -110,6 +110,7 @@ def copy(source_path, destination_path,
     :param bool preserve_account: preserve account.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_creation_time: preserve creation time.
+    :param bool preserve_owner: preserve owner.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
@@ -125,11 +126,12 @@ def copy(source_path, destination_path,
     set_param(params, "preserve_account", preserve_account)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "preserve_creation_time", preserve_creation_time)
+    set_param(params, "preserve_owner", preserve_owner)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
-         recursive=None, preserve_account=None, preserve_expiration_time=False, force=None,
+         recursive=None, preserve_account=None, preserve_expiration_time=False, preserve_owner=False, force=None,
          pessimistic_quota_check=None, client=None):
     """Moves (renames) Cypress node.
 
@@ -140,6 +142,7 @@ def move(source_path, destination_path,
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
     :param bool preserve_expiration_time: preserve expiration time.
+    :param bool preserve_owner: preserve owner.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
@@ -154,6 +157,7 @@ def move(source_path, destination_path,
     set_param(params, "preserve_account", preserve_account)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
+    set_param(params, "preserve_owner", preserve_owner)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 class _ConcatenateRetrier(Retrier):
