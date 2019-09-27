@@ -30,9 +30,9 @@ def main():
         packages=["yt_driver_rpc_bindings"],
         package_data={"yt_driver_rpc_bindings": [
             "driver_rpc_lib.so",
-            "driver_rpc_lib.dbg.so",
+            "driver_rpc_lib_d.so",
             "driver_rpc_lib.abi3.so",
-            "driver_rpc_lib.dbg.abi3.so"
+            "driver_rpc_lib.abi3_d.so"
         ]},
         author="Ignat Kolesnichenko",
         author_email="ignat@yandex-team.ru",
