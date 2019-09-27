@@ -12,6 +12,7 @@
 #include <yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/server/master/object_server/path_resolver.h>
+#include <yt/server/master/object_server/request_profiling_manager.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
@@ -34,7 +35,6 @@
 #include <yt/core/ytree/ypath_detail.h>
 
 #include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/heap.h>
@@ -44,10 +44,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <atomic>
-#include <queue>
 
 namespace NYT::NObjectServer {
 
@@ -69,68 +66,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRequestProfilngCounters
-    : public TIntrinsicRefCounted
-{
-    explicit TRequestProfilngCounters(const NProfiling::TTagIdList& tagIds)
-        : TotalReadRequestCounter("/total_read_request_count", tagIds)
-        , TotalWriteRequestCounter("/total_write_request_count", tagIds)
-        , LocalReadRequestCounter("/local_read_request_count", tagIds)
-        , LocalWriteRequestCounter("/local_write_request_count", tagIds)
-        , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
-        , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
-        , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
-        , LocalMutationScheduleTimeCounter("/local_mutation_schedule_time", tagIds)
-    { }
-
-    TMonotonicCounter TotalReadRequestCounter;
-    TMonotonicCounter TotalWriteRequestCounter;
-    TMonotonicCounter LocalReadRequestCounter;
-    TMonotonicCounter LocalWriteRequestCounter;
-    TMonotonicCounter LeaderFallbackRequestCounter;
-    TMonotonicCounter IntraCellForwardingRequestCounter;
-    TMonotonicCounter CrossCellForwardingRequestCounter;
-    TMonotonicCounter LocalMutationScheduleTimeCounter;
-};
-
-using TRequestProfilngCountersPtr = TIntrusivePtr<TRequestProfilngCounters>;
-
-class TRequestProfilingManager
-{
-public:
-    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method)
-    {
-        auto key = std::make_tuple(user, method);
-
-        {
-            NConcurrency::TReaderGuard guard(Lock_);
-            if (auto it = KeyToCounters_.find(key)) {
-                return it->second;
-            }
-        }
-
-        TTagIdList tagIds{
-            TProfileManager::Get()->RegisterTag("user", user),
-            TProfileManager::Get()->RegisterTag("method", method)
-        };
-        auto counters = New<TRequestProfilngCounters>(tagIds);
-
-        {
-            NConcurrency::TWriterGuard guard(Lock_);
-            auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
-            return it->second;
-        }
-    }
-
-private:
-    // (user, method)
-    using TKey = std::tuple<TString, TString>;
-    NConcurrency::TReaderWriterSpinLock Lock_;
-    THashMap<TKey, TRequestProfilngCountersPtr> KeyToCounters_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,7 +195,6 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
-    TRequestProfilingManager ProfilingStatisticsManager_;
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -539,7 +473,8 @@ private:
                     "Error parsing subrequest header");
             }
 
-            subrequest.ProfilingCounters = Owner_->ProfilingStatisticsManager_.GetCounters(
+            const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
+            subrequest.ProfilingCounters = requestProfilingManager->GetCounters(
                 UserName_,
                 requestHeader.method());
 
