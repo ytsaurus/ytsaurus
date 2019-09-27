@@ -201,6 +201,33 @@ public:
         }
     }
 
+    void UpdateDefault()
+    {
+        {
+            TWriterGuard guard(SpinLock_);
+
+            CellRoleMap_.clear();
+            RoleCellsMap_.clear();
+            auto addRole = [&] (auto cellTag, auto role) {
+                 CellRoleMap_[cellTag] |= role;
+                 RoleCellsMap_.emplace(role, cellTag);
+            };
+
+            addRole(PrimaryMasterCellTag_, EMasterCellRoles::TransactionCoordinator);
+            addRole(PrimaryMasterCellTag_, EMasterCellRoles::CypressNodeHost);
+
+            for (auto cellTag : SecondaryMasterCellTags_) {
+                addRole(cellTag, EMasterCellRoles::ChunkHost);
+            }
+
+            if (SecondaryMasterCellTags_.empty()) {
+                addRole(PrimaryMasterCellTag_, EMasterCellRoles::ChunkHost);
+            }
+        }
+
+        YT_LOG_DEBUG("Default master cell roles set");
+    }
+
 private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
@@ -317,6 +344,11 @@ TCellDirectory::TCellDirectory(
 void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
 {
     return Impl_->Update(protoDirectory);
+}
+
+void TCellDirectory::UpdateDefault()
+{
+    return Impl_->UpdateDefault();
 }
 
 TCellId TCellDirectory::GetPrimaryMasterCellId() const
