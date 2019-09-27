@@ -414,6 +414,12 @@ private:
     TString Description_;
 };
 
+const TString& GetPersistentExecPathMd5()
+{
+    static TString md5 = MD5::File(GetPersistentExecPath());
+    return md5;
+}
+
 class TJobPreparer
     : private TNonCopyable
 {
@@ -438,9 +444,12 @@ public:
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
-            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), Nothing()};
 
-            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
+            const bool isLocalMode = UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
+            const TMaybe<TString> md5 = !isLocalMode ? MakeMaybe(GetPersistentExecPathMd5()) : Nothing();
+            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), md5};
+
+            if (isLocalMode) {
                 binaryPathInsideJob = GetExecPath();
             }
         } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
