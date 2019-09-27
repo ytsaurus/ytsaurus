@@ -204,7 +204,7 @@ class FileManager(object):
                 file_params = deepcopy(file)
             filename = file_params["filename"]
             local_file = LocalFile(filename)
-            self.local_size += get_disk_size(local_file.path, False)
+            self.local_size += get_disk_size(local_file.path, round=False)
             self.disk_size += get_disk_size(local_file.path)
             self.files.append(file_params)
 

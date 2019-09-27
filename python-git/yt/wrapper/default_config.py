@@ -275,6 +275,8 @@ default_config = {
         "modules_archive_compression_codec": "gzip",
         # Size of tar archives to split modules into
         "modules_chunk_size": 100 * common.MB,
+        # Bypass artifacts cache for modules files.
+        "modules_bypass_artifacts_cache": None,
     },
 
     # Enables special behavior if client works with local mode cluster.
