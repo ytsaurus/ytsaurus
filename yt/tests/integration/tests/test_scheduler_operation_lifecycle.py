@@ -599,7 +599,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat", "eshcherbin")
     def test_pool_profiling(self):
@@ -992,7 +992,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
