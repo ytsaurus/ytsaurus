@@ -7,6 +7,7 @@
 #include "schema.h"
 #include "type_handler.h"
 #include "path_resolver.h"
+#include "request_profiling_manager.h"
 #include "helpers.h"
 
 #include <yt/server/master/cypress_server/public.h>
@@ -423,7 +424,10 @@ public:
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
-        // XXX(babenko): profiling
+        const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
+        auto counters = requestProfilingManager->GetCounters(context->GetUser(), context->GetMethod());
+        ObjectServerProfiler.Increment(counters->AutomatonForwardingRequestCounter);
+
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
             "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),

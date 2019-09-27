@@ -18,6 +18,7 @@ TRequestProfilngCounters::TRequestProfilngCounters(const TTagIdList& tagIds)
     , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
     , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
     , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
+    , AutomatonForwardingRequestCounter("/automaton_forwarding_request_count", tagIds)
     , LocalMutationScheduleTimeCounter("/local_mutation_schedule_time", tagIds)
 { }
 

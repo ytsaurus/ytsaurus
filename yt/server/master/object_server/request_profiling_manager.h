@@ -18,6 +18,7 @@ struct TRequestProfilngCounters
     NProfiling::TMonotonicCounter LeaderFallbackRequestCounter;
     NProfiling::TMonotonicCounter IntraCellForwardingRequestCounter;
     NProfiling::TMonotonicCounter CrossCellForwardingRequestCounter;
+    NProfiling::TMonotonicCounter AutomatonForwardingRequestCounter;
     NProfiling::TMonotonicCounter LocalMutationScheduleTimeCounter;
 };
 
