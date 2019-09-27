@@ -2,7 +2,6 @@
 
 #include "private.h"
 #include "event_count.h"
-#include "execution_context.h"
 #include "scheduler.h"
 #include "thread_affinity.h"
 
@@ -15,6 +14,7 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <util/system/thread.h>
+#include <util/system/context.h>
 
 namespace NYT::NConcurrency {
 
@@ -89,7 +89,7 @@ protected:
     TThreadId ThreadId_ = InvalidThreadId;
     TThread Thread_;
 
-    TExecutionContext SchedulerContext_;
+    TExceptionSafeContext SchedulerContext_;
 
     std::list<TFiberPtr> RunQueue_;
     NProfiling::TMonotonicCounter CreatedFibersCounter_;

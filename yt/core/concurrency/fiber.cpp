@@ -63,7 +63,9 @@ TFiberRegistry* GetFiberRegistry()
 TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stackKind))
-    , Context_(Stack_.get(), this)
+    , Context_({
+        this,
+        TArrayRef(static_cast<char*>(Stack_->GetStack()), Stack_->GetSize())})
 {
     RegenerateId();
 #ifdef DEBUG
@@ -152,7 +154,7 @@ void TFiber::SetSuspended()
     AwaitedFuture_.Reset();
 }
 
-TExecutionContext* TFiber::GetContext()
+TExceptionSafeContext* TFiber::GetContext()
 {
     return &Context_;
 }

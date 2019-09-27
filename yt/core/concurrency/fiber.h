@@ -1,6 +1,5 @@
 #pragma once
 
-#include "execution_context.h"
 #include "execution_stack.h"
 
 #include <yt/core/actions/future.h>
@@ -13,6 +12,8 @@
 #include <yt/core/profiling/public.h>
 
 #include <yt/core/tracing/public.h>
+
+#include <util/system/context.h>
 
 #include <atomic>
 #include <forward_list>
@@ -98,7 +99,7 @@ public:
     /*!
      *  Thread affinity: OwnerThread
      */
-    TExecutionContext* GetContext();
+    TExceptionSafeContext* GetContext();
 
     //! Returns a cached callback that schedules fiber cancelation.
     /*!
@@ -194,7 +195,7 @@ private:
 
     TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
-    TExecutionContext Context_;
+    TExceptionSafeContext Context_;
 
     std::atomic<bool> Canceled_ = {false};
     TClosure Canceler_;
