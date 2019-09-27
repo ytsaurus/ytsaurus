@@ -26,6 +26,7 @@ public:
         const NLogging::TLogger& logger);
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);
+    void UpdateDefault();
 
     NObjectClient::TCellId GetPrimaryMasterCellId() const;
     NObjectClient::TCellTag GetPrimaryMasterCellTag() const;
