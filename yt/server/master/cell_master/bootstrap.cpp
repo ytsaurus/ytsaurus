@@ -43,6 +43,7 @@
 #include <yt/server/master/object_server/cypress_integration.h>
 #include <yt/server/master/object_server/object_manager.h>
 #include <yt/server/master/object_server/object_service.h>
+#include <yt/server/master/object_server/request_profiling_manager.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
 
 #include <yt/server/master/orchid/cypress_integration.h>
@@ -312,6 +313,11 @@ const TObjectManagerPtr& TBootstrap::GetObjectManager() const
     return ObjectManager_;
 }
 
+const TRequestProfilingManagerPtr& TBootstrap::GetRequestProfilingManager() const
+{
+    return RequestProfilingManager_;
+}
+
 const TChunkManagerPtr& TBootstrap::GetChunkManager() const
 {
     return ChunkManager_;
@@ -564,6 +570,8 @@ void TBootstrap::DoInitialize()
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
     ObjectManager_ = New<TObjectManager>(this);
+
+    RequestProfilingManager_ = New<TRequestProfilingManager>();
 
     SecurityManager_ = New<TSecurityManager>(this);
 
