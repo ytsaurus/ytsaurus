@@ -1,5 +1,4 @@
 #include "execution_stack.h"
-#include "execution_context.h"
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/ref_tracked.h>

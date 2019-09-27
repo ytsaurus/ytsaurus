@@ -6,7 +6,9 @@ namespace NYT::NConcurrency::NDetail {
 
 TCoroutineBase::TCoroutineBase(const EExecutionStackKind stackKind)
     : CoroutineStack_(CreateExecutionStack(stackKind))
-    , CoroutineContext_(CoroutineStack_.get(), this)
+    , CoroutineContext_({
+        this,
+        TArrayRef(static_cast<char*>(CoroutineStack_->GetStack()), CoroutineStack_->GetSize())})
 { }
 
 void TCoroutineBase::DoRun()
