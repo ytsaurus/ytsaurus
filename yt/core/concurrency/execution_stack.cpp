@@ -1,6 +1,6 @@
 #include "execution_stack.h"
 
-#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/ref.h>
 #include <yt/core/misc/ref_tracked.h>
 
 #if defined(_unix_)
