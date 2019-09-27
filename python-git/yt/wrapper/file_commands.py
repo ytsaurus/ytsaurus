@@ -72,7 +72,7 @@ class LocalFile(object):
             attributes = update(path_attributes, attributes)
 
         if file_name is not None:
-            attributes["file_name"] = get_value(file_name)
+            attributes["file_name"] = file_name
         if "file_name" not in attributes:
             attributes["file_name"] = os.path.basename(path)
 
