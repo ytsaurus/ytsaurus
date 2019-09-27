@@ -540,7 +540,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_scheduling_skipped(skipScheduleJobs);
 
-    if (node->GetResourceLimits().GetUserSlots() == 0) {
+    if (Config_->EnableJobAbortOnZeroUserSlots && node->GetResourceLimits().GetUserSlots() == 0) {
         // Abort all jobs on node immediately, if it has no user slots.
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
