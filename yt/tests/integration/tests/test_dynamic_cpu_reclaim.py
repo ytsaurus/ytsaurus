@@ -53,7 +53,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_sleeping(self):
@@ -130,7 +130,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
@@ -207,7 +207,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
@@ -246,7 +246,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     @pytest.mark.xfail(run = False, reason = "Currently broken")

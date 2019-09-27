@@ -773,7 +773,7 @@ class TestSchedulerCommon(YTEnvSetup):
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

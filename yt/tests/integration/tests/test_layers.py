@@ -23,7 +23,7 @@ class TestLayers(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
@@ -187,7 +187,7 @@ class TestJobSetup(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -255,7 +255,7 @@ class TestGpuLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         tx = start_transaction()
@@ -342,7 +342,7 @@ class TestCudaLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -409,7 +409,7 @@ class TestSetupUser(YTEnvSetup):
         },
     }
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

@@ -20,7 +20,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {

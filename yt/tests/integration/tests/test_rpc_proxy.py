@@ -214,7 +214,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 class TestDumpJobContextRpcProxy(TestRpcProxyBase):
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
