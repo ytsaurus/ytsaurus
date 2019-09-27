@@ -429,7 +429,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
-        auto result = EnqueueJobEvent(std::move(event), false);
+        auto result = EnqueueJobEvent(std::move(event), /* postponeIfNoAgent */ false);
         YT_LOG_DEBUG_IF(shouldLogJob,
             "Job run notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "dropped",
