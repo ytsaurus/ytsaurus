@@ -961,15 +961,15 @@ struct TListOperationsResult
 struct TJob
 {
     NJobTrackerClient::TJobId Id;
-    NJobTrackerClient::EJobType Type;
-    NJobTrackerClient::EJobState State;
-    TInstant StartTime;
+    std::optional<NJobTrackerClient::EJobType> Type;
+    std::optional<NJobTrackerClient::EJobState> State;
+    std::optional<TInstant> StartTime;
     std::optional<TInstant> FinishTime;
-    TString Address;
+    std::optional<TString> Address;
     std::optional<double> Progress;
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
-    bool HasSpec = false;
+    std::optional<bool> HasSpec;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;
