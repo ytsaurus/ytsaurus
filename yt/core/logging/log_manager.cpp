@@ -660,7 +660,7 @@ private:
 #endif
         }
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
             return Owner_->BeginExecute();
         }
@@ -671,7 +671,7 @@ private:
         }
     };
 
-    EBeginExecuteResult BeginExecute()
+    TClosure BeginExecute()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 

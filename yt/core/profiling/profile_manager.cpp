@@ -423,7 +423,7 @@ private:
     private:
         TImpl* const Owner;
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
             return Owner->BeginExecute();
         }
@@ -467,7 +467,7 @@ private:
 
     THashMap<TString, TString> GlobalTags_;
 
-    EBeginExecuteResult BeginExecute()
+    TClosure BeginExecute()
     {
         return EventQueue_->BeginExecute(&CurrentAction_);
     }

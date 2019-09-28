@@ -18,12 +18,6 @@ DECLARE_REFCOUNTED_CLASS(TInvokerQueue)
 DECLARE_REFCOUNTED_CLASS(TFairShareInvokerQueue)
 DECLARE_REFCOUNTED_STRUCT(IFairShareCallbackQueue);
 
-DEFINE_ENUM(EBeginExecuteResult,
-    (Success)
-    (QueueEmpty)
-    (Terminated)
-);
-
 struct TEnqueuedAction
 {
     bool Finished = true;

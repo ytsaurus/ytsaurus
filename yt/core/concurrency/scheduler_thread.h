@@ -48,7 +48,7 @@ protected:
         bool enableLogging,
         bool enableProfiling);
 
-    virtual EBeginExecuteResult BeginExecute() = 0;
+    virtual TClosure BeginExecute() = 0;
     virtual void EndExecute() = 0;
 
     virtual void OnStart();
