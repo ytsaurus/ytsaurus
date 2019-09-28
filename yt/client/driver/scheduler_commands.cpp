@@ -349,36 +349,20 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .Item("jobs").DoListFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                 fluent
                     .Item().BeginMap()
-                        .Item("id").Value(job.Id)
-                        .Item("type").Value(job.Type)
-                        .Item("state").Value(job.State)
-                        .Item("address").Value(job.Address)
-                        .Item("start_time").Value(job.StartTime)
-                        .Item("has_spec").Value(job.HasSpec)
-                        .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("finish_time").Value(*job.FinishTime);
-                        })
-                        .DoIf(job.Progress.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("progress").Value(*job.Progress);
-                        })
-                        .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("stderr_size").Value(*job.StderrSize);
-                        })
-                        .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("fail_context_size").Value(*job.FailContextSize);
-                        })
-                        .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("error").Value(job.Error);
-                        })
-                        .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("brief_statistics").Value(job.BriefStatistics);
-                        })
-                        .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("input_paths").Value(job.InputPaths);
-                        })
-                        .DoIf(job.CoreInfos.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("core_infos").Value(job.CoreInfos);
-                        })
+                        .OptionalItem("id", job.Id)
+                        .OptionalItem("type", job.Type)
+                        .OptionalItem("state", job.State)
+                        .OptionalItem("address", job.Address)
+                        .OptionalItem("start_time", job.StartTime)
+                        .OptionalItem("has_spec", job.HasSpec)
+                        .OptionalItem("finish_time", job.FinishTime)
+                        .OptionalItem("progress", job.Progress)
+                        .OptionalItem("stderr_size", job.StderrSize)
+                        .OptionalItem("fail_context_size", job.FailContextSize)
+                        .OptionalItem("error", job.Error)
+                        .OptionalItem("brief_statistics", job.BriefStatistics)
+                        .OptionalItem("input_paths", job.InputPaths)
+                        .OptionalItem("core_infos", job.CoreInfos)
                     .EndMap();
             })
             .Item("cypress_job_count").Value(result.CypressJobCount)

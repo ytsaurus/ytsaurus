@@ -1837,12 +1837,12 @@ message TListOperationsResult
 
 message TJob
 {
-    required NYT.NProto.TGuid id = 1;
-    required EJobType type = 2;
-    required EJobState state = 3;
-    required uint64 start_time = 4; // TInstant
+    optional NYT.NProto.TGuid id = 1;
+    optional EJobType type = 2;
+    optional EJobState state = 3;
+    optional uint64 start_time = 4; // TInstant
     optional uint64 finish_time = 5; // TInstant
-    required string address = 6;
+    optional string address = 6;
     optional double progress = 7;
     optional uint64 stderr_size = 8;
     optional uint64 fail_context_size = 9;
