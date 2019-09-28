@@ -1603,10 +1603,10 @@ void TNodeShard::ProcessHeartbeatJobs(
 {
     auto now = GetCpuInstant();
 
-    bool forceJobsLogging = false;
+    bool shouldLogOngoingJobs = false;
     auto lastJobsLogTime = node->GetLastJobsLogTime();
     if (!lastJobsLogTime || now > *lastJobsLogTime + DurationToCpuDuration(Config_->JobsLoggingPeriod)) {
-        forceJobsLogging = true;
+        shouldLogOngoingJobs = true;
         node->SetLastJobsLogTime(now);
     }
 
@@ -1675,6 +1675,8 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
+    // Used for debug logging.
+    THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1686,8 +1688,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         auto job = ProcessJobHeartbeat(
             node,
             response,
-            &jobStatus,
-            forceJobsLogging);
+            &jobStatus);
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
@@ -1695,13 +1696,21 @@ void TNodeShard::ProcessHeartbeatJobs(
             switch (job->GetState()) {
                 case EJobState::Running:
                     runningJobs->push_back(job);
+                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
                     break;
                 case EJobState::Waiting:
                     *hasWaitingJobs = true;
+                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
                     break;
                 default:
                     break;
             }
+        }
+    }
+
+    if (shouldLogOngoingJobs) {
+        for (const auto& [jobState, jobIds] : jobStateToOngoingJobIds) {
+            YT_LOG_DEBUG_IF(!jobIds.empty(), "Jobs are %lv (JobIds: %v)", jobState, jobIds);
         }
     }
 
@@ -1762,8 +1771,7 @@ NLogging::TLogger TNodeShard::CreateJobLogger(
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
-    TJobStatus* jobStatus,
-    bool forceJobsLogging)
+    TJobStatus* jobStatus)
 {
     auto jobId = FromProto<TJobId>(jobStatus->job_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
@@ -1858,7 +1866,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         ResetJobWaitingForConfirmation(job);
     }
 
-    bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
+    bool stateChanged = (state != job->GetState());
 
     switch (state) {
         case EJobState::Completed: {
@@ -1907,8 +1915,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 SetJobState(job, state);
                 switch (state) {
                     case EJobState::Running:
-                        YT_LOG_DEBUG_IF(shouldLogJob, "Job is running");
-                        OnJobRunning(job, jobStatus, shouldLogJob);
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
+                        OnJobRunning(job, jobStatus, stateChanged);
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
                                 CpuInstantToInstant(job->GetInterruptDeadline()));
@@ -1922,7 +1930,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                         break;
 
                     case EJobState::Waiting:
-                        YT_LOG_DEBUG_IF(shouldLogJob, "Job is waiting", state);
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now waiting", state);
                         break;
 
                     default:
