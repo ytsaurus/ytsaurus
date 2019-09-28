@@ -100,7 +100,7 @@ struct TOutputTable
 
     NYson::TYsonString WriterConfig;
 
-    NTransactionClient::TTimestamp Timestamp;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 
     //! Corresponding sink.
     NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
@@ -110,7 +110,7 @@ struct TOutputTable
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
 
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
-    int ChunkCount;
+    int ChunkCount = -1;
 
     TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 
