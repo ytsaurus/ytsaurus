@@ -1387,7 +1387,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_input_with_custom_transaction(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1402,7 +1402,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_nested_input_transactions(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
