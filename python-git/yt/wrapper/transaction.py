@@ -307,3 +307,12 @@ class PingTransaction(Thread):
     def __del__(self):
         self.stop()
 
+def get_current_transaction_id(client=None):
+    """
+    Returns current transaction id of client.
+    """
+    transaction_stack = get_option("_transaction_stack", client)
+    if not transaction_stack:
+        return null_transaction_id
+    else:
+        return transaction_stack.get()[0]

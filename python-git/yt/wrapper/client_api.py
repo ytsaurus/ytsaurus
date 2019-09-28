@@ -8,12 +8,11 @@ from .operation_commands import (get_operation_state, abort_operation, complete_
                                  get_operation, list_operations, iterate_operations)
 from .clickhouse import get_clickhouse_clique_spec_builder, start_clickhouse_clique
 from .file_commands import read_file, write_file, smart_upload_file
-from .transaction import PingTransaction
+from .transaction import Transaction, PingTransaction, get_current_transaction_id
 from .batch_helpers import create_batch_client, batch_apply
 from .random_sample import sample_rows_from_table
 from .shuffle import shuffle_table
 from .table import TempTable
-from .transaction import Transaction
 from .transform import transform
 from .job_commands import run_job_shell, get_job_stderr, get_job_input, get_job_input_paths, dump_job_context, list_jobs, get_job
 from .etc_commands import execute_batch
