@@ -317,8 +317,7 @@ private:
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus,
-        bool forceJobsLogging);
+        TJobStatus* jobStatus);
 
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);
