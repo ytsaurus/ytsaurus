@@ -4600,8 +4600,10 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
 {
     IsLivePreviewSuppressed = false;
 
+    const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
-        if (table->Dynamic) {
+        if (table->Dynamic ||
+            table->ExternalCellTag == connection->GetPrimaryMasterCellTag() && !connection->GetSecondaryMasterCellTags().empty()) {
             IsLivePreviewSuppressed = true;
             return;
         }
