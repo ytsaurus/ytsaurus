@@ -256,13 +256,11 @@ private:
             Poller_->StartLatch_.CountDown();
         }
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
-            CallbackEventCount_->CancelWait();
-
             if (ExecutingCallbacks_) {
                 auto result = Poller_->Invoker_->ExecuteCallbacks();
-                if (result != EBeginExecuteResult::QueueEmpty) {
+                if (result) {
                     return result;
                 }
 
@@ -270,10 +268,10 @@ private:
                 Poller_->Invoker_->ArmPoller();
             }
 
-            HandleEvents();
-            HandleUnregister();
-
-            return EBeginExecuteResult::Success;
+            return BIND([&] {
+                HandleEvents();
+                HandleUnregister();
+            });
         }
 
         virtual void EndExecute() override
@@ -394,25 +392,21 @@ private:
             YT_ABORT();
         }
 
-        EBeginExecuteResult ExecuteCallbacks()
+        TClosure ExecuteCallbacks()
         {
-            TCurrentInvokerGuard guard(this);
-
             TClosure callback;
-            if (Callbacks_.Dequeue(&callback)) {
-                if (Owner_->ShutdownStarted_.load()) {
-                    return EBeginExecuteResult::Terminated;
-                }
-
-                try {
-                    callback.Run();
-                    return EBeginExecuteResult::Success;
-                } catch (const TFiberCanceledException&) {
-                    return EBeginExecuteResult::Terminated;
-                }
+            if (!Callbacks_.Dequeue(&callback)) {
+                return TClosure();
             }
 
-            return EBeginExecuteResult::QueueEmpty;
+            if (Owner_->ShutdownStarted_.load()) {
+                return BIND([] { });
+            }
+
+            return BIND([&, callback = std::move(callback)] {
+                TCurrentInvokerGuard guard(this);
+                callback.Run();
+            });
         }
 
         void DrainQueue()
