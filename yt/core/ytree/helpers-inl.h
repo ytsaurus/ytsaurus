@@ -14,7 +14,7 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T IAttributeDictionary::Get(const TString& key) const
+T IAttributeDictionary::Get(TStringBuf key) const
 {
     auto yson = GetYson(key);
     try {
@@ -35,7 +35,7 @@ T IAttributeDictionary::GetAndRemove(const TString& key)
 }
 
 template <class T>
-T IAttributeDictionary::Get(const TString& key, const T& defaultValue) const
+T IAttributeDictionary::Get(TStringBuf key, const T& defaultValue) const
 {
     return Find<T>(key).value_or(defaultValue);
 }
@@ -53,7 +53,7 @@ T IAttributeDictionary::GetAndRemove(const TString& key, const T& defaultValue)
 }
 
 template <class T>
-typename TOptionalTraits<T>::TOptional IAttributeDictionary::Find(const TString& key) const
+typename TOptionalTraits<T>::TOptional IAttributeDictionary::Find(TStringBuf key) const
 {
     auto yson = FindYson(key);
     if (!yson) {

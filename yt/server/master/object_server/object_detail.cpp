@@ -897,7 +897,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
     return pairs;
 }
 
-TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
+TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();

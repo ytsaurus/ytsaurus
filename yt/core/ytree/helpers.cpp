@@ -72,7 +72,7 @@ public:
         return pairs;
     }
 
-    virtual TYsonString FindYson(const TString& key) const override
+    virtual TYsonString FindYson(TStringBuf key) const override
     {
         auto it = Map_.find(key);
         return it == Map_.end() ? TYsonString() : it->second;
@@ -115,7 +115,7 @@ public:
         return {};
     }
 
-    virtual TYsonString FindYson(const TString& /*key*/) const override
+    virtual TYsonString FindYson(TStringBuf /*key*/) const override
     {
         return {};
     }
@@ -219,7 +219,7 @@ void ValidateYTreeKey(TStringBuf key)
 #endif
 }
 
-void ValidateYPathResolutionDepth(const TString& path, int depth)
+void ValidateYPathResolutionDepth(const TYPath& path, int depth)
 {
     if (depth > MaxYPathResolveIterations) {
         THROW_ERROR_EXCEPTION(

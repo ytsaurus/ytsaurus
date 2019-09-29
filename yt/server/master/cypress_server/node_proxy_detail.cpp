@@ -119,7 +119,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateCypressNodeProxyBas
     return std::vector<TKeyValuePair>(pairs.begin(), pairs.end());
 }
 
-TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const TString& name) const
+TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf name) const
 {
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -2123,7 +2123,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TInheritedAttributeDictionary::
     return ListAttributesPairs(*this);
 }
 
-TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
+TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \

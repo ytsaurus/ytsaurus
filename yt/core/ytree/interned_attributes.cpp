@@ -15,7 +15,7 @@ public:
         YT_VERIFY(AttributeIndexToName_.emplace(internedKey, uninternedKey).second);
     }
 
-    TInternedAttributeKey GetInterned(const TString& uninternedKey)
+    TInternedAttributeKey GetInterned(TStringBuf uninternedKey)
     {
         auto it = AttributeNameToIndex_.find(uninternedKey);
         return it == AttributeNameToIndex_.end() ? InvalidInternedAttribute : it->second;
@@ -40,7 +40,7 @@ void InternAttribute(const TString& uninternedKey, TInternedAttributeKey interne
     Singleton<TInternedAttributeRegistry>()->Intern(uninternedKey, internedKey);
 }
 
-TInternedAttributeKey GetInternedAttributeKey(const TString& uninternedKey)
+TInternedAttributeKey GetInternedAttributeKey(TStringBuf uninternedKey)
 {
     return Singleton<TInternedAttributeRegistry>()->GetInterned(uninternedKey);
 }
