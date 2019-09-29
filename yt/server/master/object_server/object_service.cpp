@@ -25,6 +25,10 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -888,13 +892,18 @@ private:
             auto key = std::make_tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
+                const auto& connection = Bootstrap_->GetClusterConnection();
+                auto cellId = connection->GetMasterCellId(cellTag);
+
+                const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+                auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
+
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 batchReq->SetUser(RpcContext_->GetUser());
+
                 it = batchMap.emplace(key, TBatchValue{
                     .BatchReq = std::move(batchReq)
                 }).first;
