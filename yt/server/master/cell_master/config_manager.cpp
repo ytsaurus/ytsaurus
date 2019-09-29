@@ -36,8 +36,8 @@ public:
 
     void Initialize()
     {
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
@@ -83,11 +83,10 @@ private:
 
     void ReplicateConfigToSecondaryMasters()
     {
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             auto req = TYPathProxy::Set("//sys/@config");
             req->set_value(ConvertToYsonString(GetConfig()).GetData());
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(req);
         }
     }

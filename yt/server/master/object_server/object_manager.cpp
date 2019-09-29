@@ -623,13 +623,14 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     RegisterMethod(BIND(&TImpl::HydraAdvanceObjectLifeStage, Unretained(this)));
     RegisterMethod(BIND(&TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
 
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
+    auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, primaryCellTag);
 }
 
 void TObjectManager::TImpl::Initialize()
 {
-    if (Bootstrap_->IsPrimaryMaster()) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster()) {
         multicellManager->SubscribeReplicateValuesToSecondaryMaster(
             BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
     }
@@ -707,7 +708,8 @@ void TObjectManager::TImpl::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto schemaType = SchemaTypeFromType(type);
         TypeToEntry_[schemaType].Handler = CreateSchemaTypeHandler(Bootstrap_, type);
 
-        auto schemaObjectId = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        auto schemaObjectId = MakeSchemaObjectId(type, primaryCellTag);
 
         YT_LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -762,7 +764,9 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     auto* mutationContext = GetCurrentMutationContext();
     auto version = mutationContext->GetVersion();
     auto hash = mutationContext->RandomGenerator().Generate<ui32>();
-    auto cellTag = Bootstrap_->GetCellTag();
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto cellTag = multicellManager->GetCellTag();
 
     // NB: The higest 16 bits of hash are used for externalizing cell tag in
     // externalized transaction ids.
@@ -936,12 +940,13 @@ void TObjectManager::TImpl::InitSchemas()
         entry.SchemaProxy.Reset();
     }
 
+    auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     for (auto type : RegisteredTypes_) {
         if (!HasSchema(type)) {
             continue;
         }
 
-        auto id = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
+        auto id = MakeSchemaObjectId(type, primaryCellTag);
         if (!SchemaMap_.Contains(id)) {
             auto schemaObject = std::make_unique<TSchemaObject>(id);
             schemaObject->RefObject();
@@ -1041,7 +1046,8 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
         THROW_ERROR_EXCEPTION("Object is foreign");
     }
 
-    if (Bootstrap_->IsPrimaryMaster() &&
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster() &&
         Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
     {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
@@ -1053,8 +1059,6 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
 
         NProto::TReqRemoveForeignObject request;
         ToProto(request.mutable_object_id(), object->GetId());
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
 
         CheckRemovingObjectRefCounter(object);
@@ -1202,8 +1206,9 @@ TObject* TObjectManager::TImpl::CreateObject(
             type);
     }
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     bool replicate =
-        Bootstrap_->IsPrimaryMaster() &&
+        multicellManager->IsPrimaryMaster() &&
         Any(flags & ETypeFlags::ReplicateCreate);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1238,7 +1243,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     auto* object = handler->CreateObject(hintId, attributes);
 
-    if (Bootstrap_->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
+    if (multicellManager->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
         object->ResetLifeStageVoteCount();
         YT_VERIFY(object->IncrementLifeStageVoteCount() == 1);
@@ -1250,7 +1255,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     YT_VERIFY(object->GetObjectRefCounter() == 1);
 
-    if (object->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+    if (object->GetNativeCellTag() != multicellManager->GetCellTag()) {
         object->SetForeign();
     }
 
@@ -1284,7 +1289,8 @@ TObject* TObjectManager::TImpl::CreateObject(
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
 {
-    if (!Bootstrap_->IsSecondaryMaster()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (!multicellManager->IsSecondaryMaster()) {
         return;
     }
 
@@ -1300,15 +1306,14 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
 
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
-    request.set_cell_tag(Bootstrap_->GetCellTag());
-
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    request.set_cell_tag(multicellManager->GetCellTag());
     multicellManager->PostToMaster(request, PrimaryMasterCellTag);
 }
 
 void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)
 {
-    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsPrimaryMaster());
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Advancing object life stage at secondary masters (ObjectId: %v, LifeStage: %v)",
         object->GetId(),
@@ -1317,8 +1322,6 @@ void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjec
     NProto::TReqAdvanceObjectLifeStage advanceRequest;
     ToProto(advanceRequest.mutable_object_id(), object->GetId());
     advanceRequest.set_new_life_stage(static_cast<int>(object->GetLifeStage()));
-
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
@@ -1577,6 +1580,7 @@ void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* requ
         return crossCellRequestMap[CellTagFromId(id)];
     };
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     for (const auto& protoId : request->object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
@@ -1584,12 +1588,13 @@ void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* requ
         const auto& handler = GetHandler(type);
         auto* object = handler->FindObject(id);
 
-        if (!object || object->GetObjectRefCounter() > 0)
+        if (!object || object->GetObjectRefCounter() > 0) {
             continue;
+        }
 
         if (object->IsForeign() && object->GetImportRefCounter() > 0) {
             auto& crossCellRequest = getCrossCellRequest(id);
-            crossCellRequest.set_cell_tag(Bootstrap_->GetCellTag());
+            crossCellRequest.set_cell_tag(multicellManager->GetCellTag());
             auto* entry = crossCellRequest.add_entries();
             ToProto(entry->mutable_object_id(), id);
             entry->set_import_ref_counter(object->GetImportRefCounter());
@@ -1607,10 +1612,7 @@ void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* requ
             id);
     }
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    for (const auto& pair : crossCellRequestMap) {
-        auto cellTag = pair.first;
-        const auto& perCellRequest = pair.second;
+    for (const auto& [cellTag, perCellRequest] : crossCellRequestMap) {
         multicellManager->PostToMaster(perCellRequest, cellTag);
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
             cellTag,
@@ -1694,7 +1696,8 @@ void TObjectManager::TImpl::HydraUnrefExportedObjects(NProto::TReqUnrefExportedO
 
 void TObjectManager::TImpl::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
 {
-    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsPrimaryMaster());
 
     auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
@@ -1716,7 +1719,8 @@ void TObjectManager::TImpl::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjec
 
 void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
 {
-    YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsSecondaryMaster());
 
     auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
@@ -1753,7 +1757,8 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
 
 void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept
 {
-    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsPrimaryMaster());
 
     auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
     for (auto objectId : objectIds) {
@@ -1818,7 +1823,8 @@ void TObjectManager::TImpl::CheckRemovingObjectRefCounter(TObject* object)
         oldLifeStage,
         newLifeStage);
 
-    if (Bootstrap_->IsPrimaryMaster()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster()) {
         object->IncrementLifeStageVoteCount();
         CheckObjectLifeStageVoteCount(object);
     } else {
@@ -1830,8 +1836,9 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
 {
     while (true) {
         auto voteCount = object->GetLifeStageVoteCount();
-        YT_VERIFY(voteCount <= Bootstrap_->GetSecondaryCellTags().size() + 1);
-        if (voteCount < Bootstrap_->GetSecondaryCellTags().size() + 1) {
+        const auto& secondaryCellTags = Bootstrap_->GetMulticellManager()->GetSecondaryCellTags();
+        YT_VERIFY(voteCount <= secondaryCellTags.size() + 1);
+        if (voteCount < secondaryCellTags.size() + 1) {
             break;
         }
 

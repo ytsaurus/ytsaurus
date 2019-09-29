@@ -196,13 +196,6 @@ TCellId TBootstrap::GetCellId() const
     return CellId_;
 }
 
-TCellId TBootstrap::GetCellId(TCellTag cellTag) const
-{
-    return cellTag == PrimaryMasterCellTag
-        ? PrimaryCellId_
-        : ReplaceCellTagInId(PrimaryCellId_, cellTag);
-}
-
 TCellTag TBootstrap::GetCellTag() const
 {
     return CellTag_;

@@ -402,7 +402,8 @@ void TObjectProxyBase::RemoveAttribute(
 void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& context)
 {
     // XXX(babenko): make more objects foreign and replace with IsForeign
-    if (Object_->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (Object_->GetNativeCellTag() != multicellManager->GetCellTag()) {
         return;
     }
 
@@ -794,12 +795,12 @@ bool TObjectProxyBase::IsFollower() const
 
 bool TObjectProxyBase::IsPrimaryMaster() const
 {
-    return Bootstrap_->IsPrimaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsPrimaryMaster();
 }
 
 bool TObjectProxyBase::IsSecondaryMaster() const
 {
-    return Bootstrap_->IsSecondaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsSecondaryMaster();
 }
 
 void TObjectProxyBase::RequireLeader() const

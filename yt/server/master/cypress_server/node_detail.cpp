@@ -160,7 +160,9 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
 {
     // See BeginCopyCore.
     auto externalCellTag = Load<TCellTag>(*context);
-    if (externalCellTag == Bootstrap_->GetCellTag()) {
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (externalCellTag == multicellManager->GetCellTag()) {
         THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
             sourceNodeId,
             externalCellTag);

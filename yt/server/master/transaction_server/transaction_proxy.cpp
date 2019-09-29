@@ -326,9 +326,10 @@ private:
     TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
     {
         std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
-        asyncResults.push_back(GetLocalResourcesMap(Bootstrap_->GetCellTag()));
-        if (Bootstrap_->IsPrimaryMaster()) {
-            for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        asyncResults.push_back(GetLocalResourcesMap(multicellManager->GetCellTag()));
+        if (IsPrimaryMaster()) {
+            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
                 asyncResults.push_back(GetRemoteResourcesMap(cellTag));
             }
         }
@@ -461,7 +462,7 @@ private:
         accumulator(session, localFetcher());
 
         std::vector<TFuture<void>> asyncResults;
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (IsPrimaryMaster()) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 asyncResults.push_back(FetchCombinedAttributeFromRemote(session, attributeKey, cellTag, accumulator));
@@ -491,7 +492,7 @@ private:
             BIND([=, this_ = MakeStrong(this)] () {
                 return BuildYsonStringFluently()
                     .BeginMap()
-                        .Item(ToString(Bootstrap_->GetCellTag())).Value(localFetcher())
+                        .Item(ToString(Bootstrap_->GetMulticellManager()->GetCellTag())).Value(localFetcher())
                     .EndMap();
             }),
             BIND([] (const TSessionPtr& session, const TYsonString& yson) {

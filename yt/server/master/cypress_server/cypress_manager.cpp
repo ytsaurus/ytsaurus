@@ -293,7 +293,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
             Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
-            (Bootstrap_->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
+            (multicellManager->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
             !multicellManager->GetRegisteredMasterCellTags().empty();
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
@@ -320,12 +320,12 @@ public:
             }
         }
 
-        if (externalCellTag == Bootstrap_->GetCellTag()) {
+        if (externalCellTag == multicellManager->GetCellTag()) {
             external = false;
             externalCellTag = NotReplicatedCellTag;
         }
 
-        if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (externalCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
@@ -669,7 +669,7 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
-        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
+        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetMulticellManager()->GetCellTag());
         RootShardId_ = MakeCypressShardId(RootNodeId_);
         ResolveCache_ = New<TResolveCache>(RootNodeId_);
 
@@ -3104,7 +3104,9 @@ private:
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -3147,7 +3149,9 @@ private:
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
@@ -3231,7 +3235,9 @@ private:
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -3284,7 +3290,9 @@ private:
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());

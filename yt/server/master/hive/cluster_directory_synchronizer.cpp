@@ -45,7 +45,7 @@ public:
             syncPeriod))
         , ObjectManager_(Bootstrap_->GetObjectManager())
         , MulticellManager_(Bootstrap_->GetMulticellManager())
-        , CellTag_(Bootstrap_->GetPrimaryCellTag())
+        , CellTag_(MulticellManager_->GetPrimaryCellTag())
         , ClusterDirectory_(clusterDirectory)
     { }
 
@@ -114,7 +114,8 @@ private:
             auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
             req->set_populate_cluster_directory(true);
 
-            if (Bootstrap_->IsSecondaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsSecondaryMaster()) {
                 auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
                 NObjectClient::TObjectServiceProxy proxy(channel);
                 auto batchReq = proxy.ExecuteBatch();

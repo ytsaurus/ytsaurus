@@ -115,9 +115,7 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         if (Config_->EnableTabletCellDecommission) {
-            for (const auto& pair : tabletManager->TabletCells()) {
-                const auto* cell = pair.second;
-
+            for (auto [id , cell] : tabletManager->TabletCells()) {
                 if (IsObjectAlive(cell) &&
                     cell->DecommissionStarted() &&
                     !retiringCells.contains(cell))
@@ -128,10 +126,9 @@ private:
             }
         }
 
-        if (Bootstrap_->IsPrimaryMaster() && Config_->EnableTabletCellRemoval) {
-            for (const auto& pair : tabletManager->TabletCells()) {
-                const auto* cell = pair.second;
-
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster() && Config_->EnableTabletCellRemoval) {
+            for (auto [id, cell] : tabletManager->TabletCells()) {
                 if (IsObjectAlive(cell) &&
                     cell->DecommissionStarted() &&
                     !retiringCells.contains(cell))
@@ -198,7 +195,8 @@ private:
     void RequestTabletCellDecommissonOnNode(const TTabletCell* cell)
     {
         const auto& statistics = cell->ClusterStatistics();
-        if (!Bootstrap_->IsPrimaryMaster() ||
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster() ||
             cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster ||
             !statistics.Decommissioned ||
             statistics.TabletCount != 0)
@@ -217,7 +215,8 @@ private:
     void RemoveCellIfDecommissioned(const TTabletCell* cell)
     {
         const auto& statistics = cell->ClusterStatistics();
-        if (!Bootstrap_->IsPrimaryMaster() ||
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster() ||
             !cell->DecommissionCompleted() ||
             !statistics.Decommissioned ||
             statistics.TabletCount != 0)

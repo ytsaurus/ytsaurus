@@ -93,7 +93,8 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
     IYPathServicePtr proxy;
 
     // Cf. TObjectResolver::ResolveRoot.
-    if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster() && CellTagFromId(objectId) != multicellManager->GetCellTag()) {
         proxy = objectManager->CreateRemoteProxy(objectId);
     } else {
         auto* object = objectManager->FindObject(objectId);
@@ -313,8 +314,8 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
         FetchSizeFromLocal()
     };
 
-    if (Bootstrap_->IsPrimaryMaster()) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster()) {
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             auto asyncResult = FetchSizeFromRemote(cellTag);
             if (asyncResult) {
@@ -328,7 +329,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 {
-    return MakeFuture(std::make_pair(Bootstrap_->GetCellTag(), GetSize()));
+    return MakeFuture(std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), GetSize()));
 }
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
@@ -378,8 +379,8 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
         FetchItemsFromLocal(session)
     };
 
-    if (Bootstrap_->IsPrimaryMaster()) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (multicellManager->IsPrimaryMaster()) {
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             asyncResults.push_back(FetchItemsFromRemote(session, cellTag));
         }
