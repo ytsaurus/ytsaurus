@@ -5,7 +5,7 @@
 
 import "google/protobuf/descriptor.proto";
 
-package NYT;
+package NYT.NFormats.NProto;
 
 // Declare the actual enum inside a message to restrict visibility of names.
 message ESerializationMode {
