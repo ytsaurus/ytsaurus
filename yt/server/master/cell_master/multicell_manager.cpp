@@ -281,7 +281,6 @@ public:
             return nullptr;
         }
 
-        // XXX(babenko): is this needed during forwarding?
         channel = CreateRetryingChannel(Config_->MasterConnection, channel);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 

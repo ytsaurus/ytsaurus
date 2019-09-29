@@ -46,9 +46,11 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
+
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/core/erasure/public.h>
 
@@ -412,8 +414,11 @@ public:
 
         auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto channel = multicellManager->GetMasterChannelOrThrow(forwardedCellTag, peerKind);
+        const auto& connection = Bootstrap_->GetClusterConnection();
+        auto forwardedCellId = connection->GetMasterCellId(forwardedCellTag);
+
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(forwardedCellId, peerKind);
 
         TObjectServiceProxy proxy(std::move(channel));
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
@@ -1419,8 +1424,11 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
         FromProto<TDuration>(header.timeout()),
         Bootstrap_->GetConfig()->ObjectService);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    auto cellId = connection->GetMasterCellId(cellTag);
+
+    const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
 
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
