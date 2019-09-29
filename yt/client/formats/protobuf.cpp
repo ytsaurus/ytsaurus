@@ -15,6 +15,7 @@ using ::google::protobuf::DescriptorPool;
 
 using namespace NYT::NTableClient;
 using namespace NYT::NYTree;
+using namespace NYT::NFormats::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
