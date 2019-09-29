@@ -55,6 +55,55 @@ func TestInfer(t *testing.T) {
 	})
 }
 
+type InnerA struct {
+	A int
+	B *int
+}
+
+type InnerD struct {
+	D string
+}
+
+type InnerB struct {
+	C string
+	InnerD
+}
+
+type testEmbedding struct {
+	InnerA
+	*InnerB
+}
+
+func TestInferEmbedding(t *testing.T) {
+	s, err := Infer(&testEmbedding{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "A", Type: TypeInt64, Required: true},
+			{Name: "B", Type: TypeInt64, Required: false},
+			{Name: "C", Type: TypeString, Required: false},
+			{Name: "D", Type: TypeString, Required: false},
+		},
+	})
+}
+
+type testPrivateFields struct {
+	I int64
+	i int64
+}
+
+func TestPrivateFields(t *testing.T) {
+	s, err := Infer(&testPrivateFields{i: 1})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "I", Type: TypeInt64, Required: true},
+		},
+	})
+}
+
 func TestInferType(t *testing.T) {
 	var a int
 	_, err := Infer(a)

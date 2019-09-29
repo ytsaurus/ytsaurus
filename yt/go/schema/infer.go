@@ -111,21 +111,50 @@ func Infer(value interface{}) (s Schema, err error) {
 	}
 
 	s = Schema{}
-	typ := v.Type()
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
 
-		var column *Column
-		column, err = parseTag(field.Name, field.Type, field.Tag)
-		if err != nil {
-			return s, err
+	var inferFields func(typ reflect.Type, forceOptional bool) error
+	inferFields = func(typ reflect.Type, forceOptional bool) (err error) {
+		if typ.Kind() == reflect.Ptr {
+			forceOptional = true
+			typ = typ.Elem()
 		}
 
-		if column != nil {
-			s.Columns = append(s.Columns, *column)
+		if v.Kind() != reflect.Struct {
+			err = xerrors.Errorf("can't infer schema from type %v", v.Type())
 		}
+
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+
+			if field.Anonymous {
+				if err = inferFields(field.Type, forceOptional); err != nil {
+					return
+				}
+
+				continue
+			} else if field.PkgPath != "" {
+				continue
+			}
+
+			var column *Column
+			column, err = parseTag(field.Name, field.Type, field.Tag)
+			if err != nil {
+				return err
+			}
+
+			if column != nil {
+				if forceOptional {
+					column.Required = false
+				}
+
+				s.Columns = append(s.Columns, *column)
+			}
+		}
+
+		return
 	}
 
+	err = inferFields(v.Type(), false)
 	return
 }
 
