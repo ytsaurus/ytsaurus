@@ -1296,9 +1296,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockRequest,
         waitable);
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto externalCellTag = TrunkNode_->IsExternal()
         ? TrunkNode_->GetExternalCellTag()
-        : Bootstrap_->GetCellTag();
+        : multicellManager->GetCellTag();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     auto externalTransactionId = TrunkNode_->IsExternal()
@@ -1381,7 +1382,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
         ToProto(response->mutable_node_id(), impl->GetId());
         response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
-            ? Bootstrap_->GetCellTag()
+            ? Bootstrap_->GetMulticellManager()->GetCellTag()
             : impl->GetExternalCellTag());
         context->SetResponseInfo("ExistingNodeId: %v",
             impl->GetId());
@@ -1452,7 +1453,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* newNode = newProxy->GetTrunkNode();
     const auto& newNodeId = newNode->GetId();
     auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
-        ? Bootstrap_->GetCellTag()
+        ? Bootstrap_->GetMulticellManager()->GetCellTag()
         : newNode->GetExternalCellTag();
 
     ToProto(response->mutable_node_id(), newNode->GetId());

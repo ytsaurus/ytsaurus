@@ -24,11 +24,11 @@ namespace NYT::NObjectServer {
 template <class TObject>
 TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShepherd(const NYPath::TYPath& path)
 {
-    YT_ASSERT(Bootstrap_->IsSecondaryMaster());
-
-    auto cellTag = Bootstrap_->GetPrimaryCellTag();
     const auto multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
+    YT_ASSERT(multicellManager->IsSecondaryMaster());
+
+    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+    auto channel = multicellManager->FindMasterChannel(primaryCellTag, NHydra::EPeerKind::Follower);
 
     NObjectClient::TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
@@ -60,7 +60,7 @@ template <class TObject>
 template <class T>
 TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NYTree::TInternedAttributeKey key)
 {
-    YT_ASSERT(Bootstrap_->IsPrimaryMaster());
+    YT_ASSERT(IsPrimaryMaster());
 
     const auto* object = GetThisImpl();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();

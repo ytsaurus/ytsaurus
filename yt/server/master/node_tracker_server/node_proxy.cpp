@@ -106,7 +106,7 @@ private:
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicaCount)
-            .SetPresent(isGood && Bootstrap_->IsPrimaryMaster()));
+            .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -158,7 +158,8 @@ private:
                 return true;
 
             case EInternedAttributeKey::State: {
-                auto state = Bootstrap_->IsPrimaryMaster()
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto state = multicellManager->IsPrimaryMaster()
                     ? node->GetAggregatedState()
                     : node->GetLocalState();
                 BuildYsonFluently(consumer)
@@ -392,7 +393,9 @@ private:
                 if (!isGood) {
                     break;
                 }
-                if (!Bootstrap_->IsPrimaryMaster()) {
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (!multicellManager->IsPrimaryMaster()) {
                     break;
                 }
 

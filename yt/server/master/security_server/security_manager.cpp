@@ -282,7 +282,7 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap_->GetPrimaryCellTag();
+        auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
@@ -322,8 +322,8 @@ public:
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -1875,11 +1875,12 @@ private:
         // Node counts, tablet counts and tablet static memory usage are probably
         // correct, but we'll recompute them anyway.
         if (RecomputeAccountResourceUsage_) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
+            for (auto [id, account] : AccountMap_) {
                 account->LocalStatistics().ResourceUsage = TClusterResources();
                 account->LocalStatistics().CommittedResourceUsage = TClusterResources();
-                if (Bootstrap_->IsPrimaryMaster()) {
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster()) {
                     account->ClusterStatistics().ResourceUsage = TClusterResources();
                     account->ClusterStatistics().CommittedResourceUsage = TClusterResources();
                 }
@@ -1993,7 +1994,9 @@ private:
             if (RecomputeAccountResourceUsage_) {
                 account->LocalStatistics().ResourceUsage = expectedUsage;
                 account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
-                if (Bootstrap_->IsPrimaryMaster()) {
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster()) {
                     account->RecomputeClusterStatistics();
                 }
             }
@@ -2347,8 +2350,9 @@ private:
 
     void InitializeAccountStatistics(TAccount* account)
     {
-        auto cellTag = Bootstrap_->GetCellTag();
-        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStatistics = account->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
@@ -2372,22 +2376,20 @@ private:
         YT_LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
-        for (const auto& pair : AccountMap_) {
-            auto* account = pair.second;
-            if (!IsObjectAlive(account))
+        request.set_cell_tag(multicellManager->GetCellTag());
+        for (auto [id, account] : AccountMap_) {
+            if (!IsObjectAlive(account)) {
                 continue;
+            }
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_account_id(), account->GetId());
-            if (Bootstrap_->IsPrimaryMaster()) {
-                ToProto(entry->mutable_statistics(), account->ClusterStatistics());
-            } else {
-                ToProto(entry->mutable_statistics(), account->LocalStatistics());
-            }
+            ToProto(
+                entry->mutable_statistics(),
+                multicellManager->IsPrimaryMaster() ? account->ClusterStatistics() : account->LocalStatistics());
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
@@ -2397,9 +2399,10 @@ private:
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
+
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -2416,7 +2419,7 @@ private:
                 continue;
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            if (Bootstrap_->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 *account->GetCellStatistics(cellTag) = newStatistics;
                 account->RecomputeClusterStatistics();
             } else {
@@ -2435,8 +2438,9 @@ private:
 
     void InitializeUserStatistics(TUser* user)
     {
-        auto cellTag = Bootstrap_->GetCellTag();
-        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStatistics = user->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
@@ -2460,22 +2464,20 @@ private:
         YT_LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
-        for (const auto& pair : UserMap_) {
-            auto* user = pair.second;
-            if (!IsObjectAlive(user))
+        request.set_cell_tag(multicellManager->GetCellTag());
+        for (auto [id, user] : UserMap_) {
+            if (!IsObjectAlive(user)) {
                 continue;
+            }
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_user_id(), user->GetId());
-            if (Bootstrap_->IsPrimaryMaster()) {
-                ToProto(entry->mutable_statistics(), user->ClusterStatistics());
-            } else {
-                ToProto(entry->mutable_statistics(), user->LocalStatistics());
-            }
+            ToProto(
+                entry->mutable_statistics(),
+                multicellManager->IsPrimaryMaster() ? user->ClusterStatistics() : user->LocalStatistics());
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
@@ -2510,9 +2512,10 @@ private:
     void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
+
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -2529,7 +2532,7 @@ private:
                 continue;
 
             auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
-            if (Bootstrap_->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 user->CellStatistics(cellTag) = newStatistics;
                 user->RecomputeClusterStatistics();
             } else {

@@ -254,7 +254,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         auto* profileManager = TProfileManager::Get();
-        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
+        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetMulticellManager()->GetCellTag()));
     }
 
     void Initialize()
@@ -271,8 +271,8 @@ public:
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
         objectManager->RegisterHandler(New<TDataCenterTypeHandler>(this));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
@@ -490,7 +490,8 @@ public:
                 YT_LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
-                if (Bootstrap_->IsPrimaryMaster()) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster()) {
                     auto state = node->GetLocalState();
                     if (state == ENodeState::Online || state == ENodeState::Registered) {
                         UnregisterNode(node, true);
@@ -895,7 +896,7 @@ private:
     {
         return NNodeTrackerClient::ObjectIdFromNodeId(
             nodeId,
-            Bootstrap_->GetPrimaryCellTag());
+            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
     }
 
 
@@ -929,7 +930,8 @@ private:
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
 
-        if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
             YT_VERIFY(PendingRegisterNodeAddreses_.erase(address) == 1);
             auto groups = GetGroupsForNode(address);
             for (auto* group : groups) {
@@ -940,9 +942,11 @@ private:
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (leaseTransactionId) {
-            YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+            YT_VERIFY(multicellManager->IsPrimaryMaster());
+
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
+
             if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
                 leaseTransaction->ThrowInvalidState();
             }
@@ -954,7 +958,7 @@ private:
         if (!isNodeNew) {
             node->ValidateNotBanned();
 
-            if (Bootstrap_->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();
                 if (localState == ENodeState::Registered || localState == ENodeState::Online) {
                     YT_LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
@@ -994,7 +998,7 @@ private:
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
             PostRegisterNodeMutation(node);
         }
 
@@ -1138,7 +1142,8 @@ private:
 
             UpdateLastSeenTime(node);
 
-            if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
                 if (auto* rack = node->GetRack()) {
                     response->set_rack(rack->GetName());
                     if (auto* dc = rack->GetDataCenter()) {
@@ -1162,11 +1167,10 @@ private:
 
     void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -1178,8 +1182,9 @@ private:
 
         for (const auto& entry : request->entries()) {
             auto* node = FindNode(entry.node_id());
-            if (!IsObjectAlive(node))
+            if (!IsObjectAlive(node)) {
                 continue;
+            }
 
             auto newDescriptor = FromProto<TCellNodeDescriptor>(entry.node_descriptor());
             UpdateNodeCounters(node, -1);
@@ -1327,7 +1332,8 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         // NB: Node states gossip is one way: secondary-to-primary.
-        if (Bootstrap_->IsSecondaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsSecondaryMaster()) {
             IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true));
@@ -1372,7 +1378,8 @@ private:
 
     void InitializeNodeStates(TNode* node)
     {
-        node->InitializeStates(Bootstrap_->GetCellTag(), Bootstrap_->GetSecondaryCellTags());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags());
     }
 
     void InitializeNodeIOWeights(TNode* node)
@@ -1523,7 +1530,9 @@ private:
                 if (IsLeader()) {
                     CommitDisposeNodeWithSemaphore(node);
                 }
-                if (Bootstrap_->IsPrimaryMaster()) {
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster()) {
                     PostUnregisterNodeMutation(node);
                 }
             }
@@ -1568,7 +1577,7 @@ private:
         }
 
         TReqSetCellNodeDescriptors request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
+        request.set_cell_tag(multicellManager->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (!IsObjectAlive(node)) {
@@ -1761,7 +1770,12 @@ private:
 
     void OnProfiling()
     {
-        if (!Bootstrap_->IsPrimaryMaster() || !IsLeader()) {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
             return;
         }
 

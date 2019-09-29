@@ -215,7 +215,8 @@ private:
 
         const auto& path = request->path();
 
-        auto exitNodeId = MakePortalExitNodeId(entranceNodeId, Bootstrap_->GetCellTag());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto exitNodeId = MakePortalExitNodeId(entranceNodeId, multicellManager->GetCellTag());
         auto shardId = MakeCypressShardId(exitNodeId);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();

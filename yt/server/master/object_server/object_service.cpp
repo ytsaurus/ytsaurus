@@ -610,12 +610,13 @@ private:
             return false;
         }
 
-        if (cellTag == Bootstrap_->GetCellTag()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (cellTag == multicellManager->GetCellTag()) {
             // No need to sync with self.
             return false;
         }
 
-        if (Bootstrap_->IsSecondaryMaster() && cellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (multicellManager->IsSecondaryMaster() && cellTag == multicellManager->GetPrimaryCellTag()) {
             // IHydraManager::SyncWithUpstream will take care of this.
             return false;
         }
@@ -642,6 +643,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         if (syncWithUpstream) {
             addAsyncResult(hydraManager->SyncWithUpstream());
@@ -652,7 +654,7 @@ private:
             if (!RegisterCellToSyncWith(cellTag)) {
                 continue;
             }
-            auto cellId = Bootstrap_->GetCellId(cellTag);
+            auto cellId = multicellManager->GetCellId(cellTag);
             addAsyncResult(hiveManager->SyncWith(cellId, true));
             syncCellTags.push_back(cellTag);
         }
@@ -723,7 +725,7 @@ private:
 
     void MarkSubrequestRemoteIntraCell(TSubrequest* subrequest)
     {
-        subrequest->ForwardedCellTag = Bootstrap_->GetCellTag();
+        subrequest->ForwardedCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         subrequest->RemoteRequestMessage = subrequest->RequestMessage;
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
         Profiler.Increment(subrequest->ProfilingCounters->IntraCellForwardingRequestCounter);
@@ -1083,12 +1085,13 @@ private:
 
         if (!RequestQueueSizeIncreased_) {
             if (!securityManager->TryIncreaseRequestQueueSize(User_)) {
+                auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag()))
-                    << TErrorAttribute("cell_tag", Bootstrap_->GetCellTag());
+                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(cellTag))
+                    << TErrorAttribute("cell_tag", cellTag);
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
             }
@@ -1225,7 +1228,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
-            Bootstrap_->GetCellTag(),
+            Bootstrap_->GetMulticellManager()->GetCellTag(),
             EPeerKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));

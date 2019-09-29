@@ -172,8 +172,8 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
         }
@@ -236,7 +236,8 @@ public:
             prerequisiteTransaction->DependentTransactions().insert(transaction);
         }
 
-        bool foreign = (CellTagFromId(transactionId) != Bootstrap_->GetCellTag());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        bool foreign = (CellTagFromId(transactionId) != multicellManager->GetCellTag());
         if (foreign) {
             transaction->SetForeign();
         }
@@ -345,7 +346,7 @@ public:
 
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_commit_timestamp(commitTimestamp);
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
@@ -432,7 +433,7 @@ public:
 
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_force(true);
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
@@ -496,8 +497,8 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* currentTransaction : transactionsToExternalize) {
             auto transactionId = currentTransaction->GetId();
-            auto externalizedTransactionId = MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag());
-            auto externalizedParentTransactionId = MakeExternalizedTransactionId(GetObjectId(currentTransaction->GetParent()), Bootstrap_->GetCellTag());
+            auto externalizedTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
+            auto externalizedParentTransactionId = MakeExternalizedTransactionId(GetObjectId(currentTransaction->GetParent()), multicellManager->GetCellTag());
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v)",
                 transactionId,
                 dstCellTag,
@@ -515,7 +516,7 @@ public:
             multicellManager->PostToMaster(startRequest, dstCellTag);
         }
 
-        return MakeExternalizedTransactionId(transaction->GetId(), Bootstrap_->GetCellTag());
+        return MakeExternalizedTransactionId(transaction->GetId(), multicellManager->GetCellTag());
     }
 
     TTransactionId GetNearestExternalizedTransactionAncestor(
@@ -533,7 +534,8 @@ public:
         while (currentTransaction) {
             const auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
             if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
-                return MakeExternalizedTransactionId(currentTransaction->GetId(), Bootstrap_->GetCellTag());
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                return MakeExternalizedTransactionId(currentTransaction->GetId(), multicellManager->GetCellTag());
             }
             currentTransaction = currentTransaction->GetParent();
         }
@@ -704,7 +706,7 @@ public:
 
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_prepare_timestamp(prepareTimestamp);
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
@@ -875,8 +877,8 @@ private:
         TCellTagList replicateToCellTags;
         if (!request->dont_replicate())  {
             replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-            if (replicateToCellTags.empty() && Bootstrap_->IsPrimaryMaster()) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (replicateToCellTags.empty() && multicellManager->IsPrimaryMaster()) {
                 replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
             }
         }

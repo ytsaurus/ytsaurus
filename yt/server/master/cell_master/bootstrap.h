@@ -59,7 +59,6 @@ public:
     bool IsMulticell() const;
 
     NObjectClient::TCellId GetCellId() const;
-    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NObjectClient::TCellTag GetCellTag() const;
 
     NObjectClient::TCellId GetPrimaryCellId() const;
